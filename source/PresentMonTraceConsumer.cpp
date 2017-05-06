@@ -111,6 +111,14 @@ void PMTraceConsumer::OnDXGKrnlEvent(PEVENT_RECORD pEventRecord)
         // to trace the flip to screen.
         auto eventIter = FindOrCreatePresent(hdr);
 
+        // Check if we might have retrieved a 'stuck' present from a previous frame.
+        // The only events that we can expect before a Flip/FlipMPO are a runtime present start, or a previous FlipMPO.
+        if (eventIter->second->QueueSubmitSequence != 0 || eventIter->second->SeenDxgkPresent) {
+            // It's already progressed further but didn't complete, ignore it and create a new one.
+            mPresentByThreadId.erase(eventIter);
+            eventIter = FindOrCreatePresent(hdr);
+        }
+
         if (eventIter->second->PresentMode != PresentMode::Unknown) {
             // For MPO, N events may be issued, but we only care about the first
             return;
@@ -370,6 +378,15 @@ void PMTraceConsumer::OnDXGKrnlEvent(PEVENT_RECORD pEventRecord)
         // It gives us up to two different types of keys to correlate further.
         auto eventIter = FindOrCreatePresent(hdr);
 
+        // Check if we might have retrieved a 'stuck' present from a previous frame.
+        // This event always results in a classification, though for blts it's a clarifying classification.
+        if (eventIter->second->PresentMode != PresentMode::Unknown &&
+            eventIter->second->PresentMode != PresentMode::Hardware_Legacy_Copy_To_Front_Buffer) {
+            // It's already progressed further but didn't complete, ignore it and create a new one.
+            mPresentByThreadId.erase(eventIter);
+            eventIter = FindOrCreatePresent(hdr);
+        }
+
         if (eventIter->second->PresentMode == PresentMode::Hardware_Legacy_Copy_To_Front_Buffer) {
             auto TokenData = GetEventData<uint64_t>(pEventRecord, L"TokenData");
             mPresentsByLegacyBlitToken[TokenData] = eventIter->second;
@@ -423,6 +440,13 @@ void PMTraceConsumer::OnDXGKrnlEvent(PEVENT_RECORD pEventRecord)
     {
         auto eventIter = FindOrCreatePresent(hdr);
 
+        // Check if we might have retrieved a 'stuck' present from a previous frame.
+        // If the present mode isn't unknown at this point, we've already seen this present progress further
+        if (eventIter->second->PresentMode != PresentMode::Unknown) {
+            mPresentByThreadId.erase(eventIter);
+            eventIter = FindOrCreatePresent(hdr);
+        }
+
         eventIter->second->PresentMode = PresentMode::Hardware_Legacy_Copy_To_Front_Buffer;
         eventIter->second->SupportsTearing = true;
         break;
@@ -446,6 +470,14 @@ void PMTraceConsumer::OnWin32kEvent(PEVENT_RECORD pEventRecord)
     case Win32K_TokenCompositionSurfaceObject:
     {
         auto eventIter = FindOrCreatePresent(hdr);
+
+        // Check if we might have retrieved a 'stuck' present from a previous frame.
+        // If the present mode isn't unknown at this point, we've already seen this present progress further
+        if (eventIter->second->PresentMode != PresentMode::Unknown) {
+            mPresentByThreadId.erase(eventIter);
+            eventIter = FindOrCreatePresent(hdr);
+        }
+
         eventIter->second->PresentMode = PresentMode::Composed_Flip;
 
         Win32KPresentHistoryTokenKey key(GetEventData<uint64_t>(pEventRecord, L"pCompositionSurfaceObject"),
@@ -698,12 +730,7 @@ decltype(PMTraceConsumer::mPresentByThreadId.begin()) PMTraceConsumer::FindOrCre
     // Easy: we're on a thread that had some step in the present process
     auto eventIter = mPresentByThreadId.find(hdr.ThreadId);
     if (eventIter != mPresentByThreadId.end()) {
-        if (eventIter->second->Completed) {
-            mPresentByThreadId.erase(eventIter);
-        }
-        else {
-            return eventIter;
-        }
+        return eventIter;
     }
 
     // No such luck, check for batched presents
