@@ -50,6 +50,7 @@ struct TraceSession {
     TraceSession()
         : sessionHandle_(0)
         , traceHandle_(INVALID_PROCESSTRACE_HANDLE)
+        , startTime_(0)
         , pmData_(nullptr)
         , pmTraceConsumer_(nullptr)
     {

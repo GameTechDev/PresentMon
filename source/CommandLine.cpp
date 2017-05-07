@@ -220,11 +220,10 @@ void PrintHelp()
     fprintf(stderr,
         "PresentMon (development branch)\n"
         "\n"
-        "Capture target options (use one of the following):\n"
+        "Capture target options:\n"
         "    -captureall                Record all processes (default).\n"
         "    -process_name [exe name]   Record specific process specified by name.\n"
         "    -process_id [integer]      Record specific process specified by ID.\n"
-        "    -etl_file [path]           Consume events from an ETL file instead of a running process.\n"
         "\n"
         "Output options:\n"
         "    -no_csv                    Do not create any output file.\n"
@@ -232,6 +231,7 @@ void PrintHelp()
         "                               PresentMon-PROCESSNAME-TIME.csv.\n"
         "\n"
         "Control and filtering options:\n"
+        "    -etl_file [path]           Consume events from an ETL file instead of a running process.\n"
         "    -scroll_toggle             Only record events while scroll lock is enabled.\n"
         "    -scroll_indicator          Set scroll lock while recording events.\n"
         "    -hotkey [key]              Use specified key to start and stop recording, writing to a\n"
@@ -303,9 +303,8 @@ bool ParseCommandLine(int argc, char** argv, CommandLineArgs* args)
 
     // Validate command line arguments
     if (((args->mTargetProcessName == nullptr) ? 0 : 1) +
-        ((args->mTargetPid         <= 0      ) ? 0 : 1) +
-        ((args->mEtlFileName       == nullptr) ? 0 : 1) > 1) {
-        fprintf(stderr, "error: only specify one of -captureall, -process_name, -process_id, or -etl_file.\n");
+        ((args->mTargetPid         <= 0      ) ? 0 : 1) > 1) {
+        fprintf(stderr, "error: only specify one of -captureall, -process_name, or -process_id.\n");
         PrintHelp();
         return false;
     }

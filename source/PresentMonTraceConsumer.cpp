@@ -315,12 +315,6 @@ void PMTraceConsumer::OnDXGKrnlEvent(PEVENT_RECORD pEventRecord)
             CompletePresent(eventIter->second);
         }
 
-        if (eventIter->second->PresentMode == PresentMode::Composed_Copy_GPU_GDI) {
-            // Manipulate the map here
-            // When DWM is ready to present, we'll query for the most recent blt targeting this window and take it out of the map
-            mPresentByWindow[hWnd] = eventIter->second;
-        }
-
         // For all other events, just remember the hWnd, we might need it later
         eventIter->second->Hwnd = hWnd;
         eventIter->second->SeenDxgkPresent = true;
@@ -414,6 +408,12 @@ void PMTraceConsumer::OnDXGKrnlEvent(PEVENT_RECORD pEventRecord)
 
         if (eventIter->second->PresentMode == PresentMode::Composed_Composition_Atlas) {
             mPresentsWaitingForDWM.emplace_back(eventIter->second);
+        }
+
+        if (eventIter->second->PresentMode == PresentMode::Composed_Copy_GPU_GDI) {
+            // Manipulate the map here
+            // When DWM is ready to present, we'll query for the most recent blt targeting this window and take it out of the map
+            mPresentByWindow[eventIter->second->Hwnd] = eventIter->second;
         }
 
         mDxgKrnlPresentHistoryTokens.erase(eventIter);

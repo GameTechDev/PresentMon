@@ -523,7 +523,11 @@ void EtwConsumingThread(const CommandLineArgs& args)
                 }
 
                 if (doneProcessingEvents) {
-                    assert(EtwThreadsShouldQuit());
+                    assert(EtwThreadsShouldQuit() || args.mEtlFileName);
+                    if (!EtwThreadsShouldQuit()) {
+                        PostStopRecording();
+                        PostQuitProcess();
+                    }
                     break;
                 }
 
