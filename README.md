@@ -53,6 +53,7 @@ Control and filtering options:
     -terminate_on_proc_exit    Terminate PresentMon when all instances of the specified process exit.
     -terminate_after_timed     Terminate PresentMon after the timed trace, specified using -timed, completes.
     -simple                    Disable advanced tracking (try this if you encounter crashes).
+    -verbose                   Adds additional data to output not relevant to normal usage.
     -dont_restart_as_admin     Don't try to elevate privilege.
     -no_top                    Don't display active swap chains in the console window.
 ```
@@ -76,4 +77,12 @@ Control and filtering options:
 | MsInPresentAPI         | Time spent inside the Present() API call |
 | MsUntilRenderComplete  | Time between present start and GPU work completion |
 | MsUntilDisplayed       | Time between present start and frame display |
+
+### Verbose Columns
+
+Columns output with the -verbose command line option.
+
+| CSV Column Header | CSV Data Description |
+|---|---|
+| WasBatched | The frame was submitted by the driver on a different thread than the app |
 

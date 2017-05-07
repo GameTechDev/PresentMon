@@ -23,6 +23,12 @@ SOFTWARE.
 #pragma once
 #include <windows.h>
 
+enum class Verbosity {
+    Simple,
+    Normal,
+    Verbose
+};
+
 // Target:           mTargetProcessName mTargetPid mEtlFileName
 //  All processes    nullptr            0          nullptr
 //  Process by name  process name       0          nullptr
@@ -42,7 +48,7 @@ struct CommandLineArgs {
     bool mScrollLockToggle = false;
     bool mScrollLockIndicator = false;
     bool mExcludeDropped = false;
-    bool mSimple = false;
+    Verbosity mVerbosity = Verbosity::Normal;
     bool mSimpleConsole = false;
     bool mTerminateOnProcExit = false;
     bool mTerminateAfterTimer = false;

@@ -206,20 +206,27 @@ void AddPresent(PresentMonData& pm, PresentEvent& p, uint64_t now, uint64_t perf
             }
 
             double timeInSeconds = (double)(int64_t)(p.QpcTime - pm.mStartupQpcTime) / perfFreq;
-            if (!pm.mArgs->mSimple)
+            fprintf(pm.mOutputFile, "%s,%d,0x%016llX,%s,%d,%d",
+                    proc.mModuleName.c_str(), p.ProcessId, p.SwapChainAddress, RuntimeToString(p.Runtime), curr.SyncInterval, curr.PresentFlags);
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
             {
-                fprintf(pm.mOutputFile, "%s,%d,0x%016llX,%s,%d,%d,%d,%s,%s,%.6lf,%.3lf,%.3lf,%.3lf,%.3lf,%.3lf\n",
-                    proc.mModuleName.c_str(), p.ProcessId, p.SwapChainAddress, RuntimeToString(p.Runtime),
-                    curr.SyncInterval, curr.SupportsTearing, curr.PresentFlags, PresentModeToString(curr.PresentMode), FinalStateToDroppedString(curr.FinalState),
-                    timeInSeconds, deltaMilliseconds, timeSincePreviousDisplayed, timeTakenMilliseconds, deltaReady, deltaDisplayed);
+                fprintf(pm.mOutputFile, ",%d,%s", curr.SupportsTearing, PresentModeToString(curr.PresentMode));
             }
-            else
+            if (pm.mArgs->mVerbosity >= Verbosity::Verbose)
             {
-                fprintf(pm.mOutputFile, "%s,%d,0x%016llX,%s,%d,%d,%s,%.6lf,%.3lf,%.3lf\n",
-                    proc.mModuleName.c_str(), p.ProcessId, p.SwapChainAddress, RuntimeToString(p.Runtime),
-                    curr.SyncInterval, curr.PresentFlags, FinalStateToDroppedString(curr.FinalState),
-                    timeInSeconds, deltaMilliseconds, timeTakenMilliseconds);
+                fprintf(pm.mOutputFile, ",%d", curr.WasBatched);
             }
+            fprintf(pm.mOutputFile, ",%s,%.6lf,%.3lf", FinalStateToDroppedString(curr.FinalState), timeInSeconds, deltaMilliseconds);
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
+            {
+                fprintf(pm.mOutputFile, ",%.3lf", timeSincePreviousDisplayed);
+            }
+            fprintf(pm.mOutputFile, ",%.3lf", timeTakenMilliseconds);
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
+            {
+                fprintf(pm.mOutputFile, ",%.3lf,%.3lf", deltaReady, deltaDisplayed);
+            }
+            fprintf(pm.mOutputFile, "\n");
         }
     }
 
@@ -278,16 +285,26 @@ void PresentMon_Init(const CommandLineArgs& args, PresentMonData& pm)
         // Open output file and print CSV header
         fopen_s(&pm.mOutputFile, pm.mOutputFilePath, "w");
         if (pm.mOutputFile) {
-            if (!pm.mArgs->mSimple)
+            fprintf(pm.mOutputFile, "Application,ProcessID,SwapChainAddress,Runtime,SyncInterval,PresentFlags");
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
             {
-                fprintf(pm.mOutputFile, "Application,ProcessID,SwapChainAddress,Runtime,SyncInterval,AllowsTearing,PresentFlags,PresentMode,Dropped,TimeInSeconds,"
-                                        "MsBetweenPresents,MsBetweenDisplayChange,MsInPresentAPI,MsUntilRenderComplete,MsUntilDisplayed\n");
+                fprintf(pm.mOutputFile, ",AllowsTearing,PresentMode");
             }
-            else
+            if (pm.mArgs->mVerbosity >= Verbosity::Verbose)
             {
-                fprintf(pm.mOutputFile, "Application,ProcessID,SwapChainAddress,Runtime,SyncInterval,PresentFlags,Dropped,TimeInSeconds,"
-                                        "MsBetweenPresents,MsInPresentAPI\n");
+                fprintf(pm.mOutputFile, ",WasBatched");
             }
+            fprintf(pm.mOutputFile, ",Dropped,TimeInSeconds,MsBetweenPresents");
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
+            {
+                fprintf(pm.mOutputFile, ",MsBetweenDisplayChange");
+            }
+            fprintf(pm.mOutputFile, ",MsInPresentAPI");
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
+            {
+                fprintf(pm.mOutputFile, ",MsUntilRenderComplete,MsUntilDisplayed");
+            }
+            fprintf(pm.mOutputFile, "\n");
         }
     }
 }
@@ -343,7 +360,7 @@ void PresentMon_Update(PresentMonData& pm, std::vector<std::shared_ptr<PresentEv
                 fps);
             display += str;
 
-            if (!pm.mArgs->mSimple) {
+            if (pm.mArgs->mVerbosity > Verbosity::Simple) {
                 _snprintf_s(str, _TRUNCATE, "%.1lf displayed fps, ", chain.second.ComputeDisplayedFps(perfFreq));
                 display += str;
             }
@@ -351,7 +368,7 @@ void PresentMon_Update(PresentMonData& pm, std::vector<std::shared_ptr<PresentEv
             _snprintf_s(str, _TRUNCATE, "%.2lf ms CPU", chain.second.ComputeCpuFrameTime(perfFreq) * 1000.0);
             display += str;
 
-            if (!pm.mArgs->mSimple) {
+            if (pm.mArgs->mVerbosity > Verbosity::Simple) {
                 _snprintf_s(str, _TRUNCATE, ", %.2lf ms latency) (%s",
                     1000.0 * chain.second.ComputeLatency(perfFreq),
                     PresentModeToString(chain.second.mLastPresentMode));
@@ -359,6 +376,12 @@ void PresentMon_Update(PresentMonData& pm, std::vector<std::shared_ptr<PresentEv
 
                 if (chain.second.mLastPresentMode == PresentMode::Hardware_Composed_Independent_Flip) {
                     _snprintf_s(str, _TRUNCATE, ": Plane %d", chain.second.mLastPlane);
+                    display += str;
+                }
+
+                if (pm.mArgs->mVerbosity >= Verbosity::Verbose &&
+                    chain.second.mHasBeenBatched) {
+                    _snprintf_s(str, _TRUNCATE, ", batched");
                     display += str;
                 }
             }
@@ -420,12 +443,12 @@ void EtwConsumingThread(const CommandLineArgs& args)
     }
 
     PresentMonData data;
-    PMTraceConsumer pmConsumer(args.mSimple);
+    PMTraceConsumer pmConsumer(args.mVerbosity == Verbosity::Simple);
 
     TraceSession session;
     session.pmData_ = &data;
     session.pmTraceConsumer_ = &pmConsumer;
-    if (!session.Initialize(args.mSimple, args.mEtlFileName)) {
+    if (!session.Initialize(args.mVerbosity == Verbosity::Simple, args.mEtlFileName)) {
         return;
     }
 
