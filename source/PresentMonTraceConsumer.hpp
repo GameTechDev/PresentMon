@@ -88,6 +88,7 @@ struct PresentEvent {
     bool SupportsTearing;
     bool MMIO;
     bool SeenDxgkPresent;
+    bool WasBatched;
 
     Runtime Runtime;
 

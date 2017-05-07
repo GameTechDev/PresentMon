@@ -244,6 +244,7 @@ void PrintHelp()
         "    -terminate_on_proc_exit    Terminate PresentMon when all instances of the specified process exit.\n"
         "    -terminate_after_timed     Terminate PresentMon after the timed trace, specified using -timed, completes.\n"
         "    -simple                    Disable advanced tracking (try this if you encounter crashes).\n"
+        "    -verbose                   Adds additional data to output not relevant to normal usage.\n"
         "    -dont_restart_as_admin     Don't try to elevate privilege.\n"
         "    -no_top                    Don't display active swap chains in the console window.\n"
         );
@@ -253,6 +254,8 @@ void PrintHelp()
 
 bool ParseCommandLine(int argc, char** argv, CommandLineArgs* args)
 {
+    bool simple = false;
+    bool verbose = false;
     for (int i = 1; i < argc; ++i) {
 #define ARG1(Arg, Assign) \
         if (strcmp(argv[i], Arg) == 0) { \
@@ -288,7 +291,8 @@ bool ParseCommandLine(int argc, char** argv, CommandLineArgs* args)
         else ARG1("-exclude_dropped",        args->mExcludeDropped      = true)
         else ARG1("-terminate_on_proc_exit", args->mTerminateOnProcExit = true)
         else ARG1("-terminate_after_timed",  args->mTerminateAfterTimer = true)
-        else ARG1("-simple",                 args->mSimple              = true)
+        else ARG1("-simple",                 simple                     = true)
+        else ARG1("-verbose",                verbose                    = true)
         else ARG1("-dont_restart_as_admin",  args->mTryToElevate        = false)
         else ARG1("-no_top",                 args->mSimpleConsole       = true)
 
@@ -328,6 +332,18 @@ bool ParseCommandLine(int argc, char** argv, CommandLineArgs* args)
             PrintHelp();
             return false;
         }
+    }
+
+    if (simple && verbose) {
+        fprintf(stderr, "error: -simple and -verbose arguments are not compatible.\n");
+        PrintHelp();
+        return false;
+    }
+    else if (simple) {
+        args->mVerbosity = Verbosity::Simple;
+    }
+    else if (verbose) {
+        args->mVerbosity = Verbosity::Verbose;
     }
 
     return true;

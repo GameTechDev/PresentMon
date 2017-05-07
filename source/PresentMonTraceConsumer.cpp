@@ -33,6 +33,7 @@ PresentEvent::PresentEvent(EVENT_HEADER const& hdr, ::Runtime runtime)
     , SupportsTearing(false)
     , MMIO(false)
     , SeenDxgkPresent(false)
+    , WasBatched(false)
     , Runtime(runtime)
     , TimeTaken(0)
     , ReadyTime(0)
@@ -337,6 +338,7 @@ void PMTraceConsumer::OnDXGKrnlEvent(PEVENT_RECORD pEventRecord)
             if (eventIter->second->TimeTaken == 0) {
                 eventIter->second->TimeTaken = EventTime - eventIter->second->QpcTime;
             }
+            eventIter->second->WasBatched = true;
             mPresentByThreadId.erase(eventIter);
         }
         break;
