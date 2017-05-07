@@ -29,11 +29,10 @@ SOFTWARE.
 ## Command line options
 
 ```html
-Capture target options (use one of the following):
+Capture target options:
     -captureall                Record all processes (default).
     -process_name [exe name]   Record specific process specified by name.
     -process_id [integer]      Record specific process specified by ID.
-    -etl_file [path]           Consume events from an ETL file instead of a running process.
 
 Output options:
     -no_csv                    Do not create any output file.
@@ -41,6 +40,7 @@ Output options:
                                PresentMon-PROCESSNAME-TIME.csv.
 
 Control and filtering options:
+    -etl_file [path]           Consume events from an ETL file instead of a running process.
     -scroll_toggle             Only record events while scroll lock is enabled.
     -scroll_indicator          Set scroll lock while recording events.
     -hotkey [key]              Use specified key to start and stop recording, writing to a
