@@ -28,9 +28,10 @@ SOFTWARE.
 #include <stdio.h>
 #include <string>
 #include <vector>
+#include <PresentData\SwapChainData.hpp>
 
 #include "CommandLine.hpp"
-#include "SwapChainData.hpp"
+
 
 struct ProcessInfo {
     uint64_t mLastRefreshTicks = 0; // GetTickCount64

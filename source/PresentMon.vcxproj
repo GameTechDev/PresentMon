@@ -184,7 +184,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>$(IntDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);PresentData</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -209,18 +209,17 @@
     <ClCompile Include="CommandLine.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PresentMon.cpp" />
-    <ClCompile Include="SwapChainData.cpp" />
-    <ClCompile Include="PresentMonTraceConsumer.cpp" />
-    <ClCompile Include="TraceConsumer.cpp" />
     <ClCompile Include="TraceSession.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CommandLine.hpp" />
     <ClInclude Include="PresentMon.hpp" />
-    <ClInclude Include="SwapChainData.hpp" />
-    <ClInclude Include="PresentMonTraceConsumer.hpp" />
-    <ClInclude Include="TraceConsumer.hpp" />
     <ClInclude Include="TraceSession.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="PresentData\PresentData.vcxproj">
+      <Project>{892028e5-32f6-45fc-8ab2-90fcbcac4bf6}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -5,16 +5,10 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PresentMon.cpp" />
     <ClCompile Include="TraceSession.cpp" />
-    <ClCompile Include="PresentMonTraceConsumer.cpp" />
-    <ClCompile Include="TraceConsumer.cpp" />
-    <ClCompile Include="SwapChainData.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CommandLine.hpp" />
     <ClInclude Include="PresentMon.hpp" />
     <ClInclude Include="TraceSession.hpp" />
-    <ClInclude Include="PresentMonTraceConsumer.hpp" />
-    <ClInclude Include="TraceConsumer.hpp" />
-    <ClInclude Include="SwapChainData.hpp" />
   </ItemGroup>
 </Project>
