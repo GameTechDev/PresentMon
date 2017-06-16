@@ -21,7 +21,6 @@ SOFTWARE.
 */
 
 #include "SwapChainData.hpp"
-#include <numeric>
 
 enum {
     MAX_HISTORY_TIME = 2000,
@@ -61,6 +60,7 @@ void SwapChainData::UpdateSwapChainInfo(PresentEvent&p, uint64_t now, uint64_t p
     mLastFlags = p.PresentFlags;
     mLastPresentMode = p.PresentMode;
     mLastPlane = p.PlaneIndex;
+    mHasBeenBatched = p.WasBatched;
 }
 
 double SwapChainData::ComputeFps(const std::deque<PresentEvent>& presentHistory, uint64_t qpcFreq)

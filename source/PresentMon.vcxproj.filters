@@ -1,21 +1,20 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClCompile Include="CommandLine.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PresentMon.cpp" />
     <ClCompile Include="TraceSession.cpp" />
     <ClCompile Include="PresentMonTraceConsumer.cpp" />
     <ClCompile Include="TraceConsumer.cpp" />
-    <ClCompile Include="ProcessTraceConsumer.cpp" />
     <ClCompile Include="SwapChainData.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CommandLine.hpp" />
     <ClInclude Include="PresentMon.hpp" />
     <ClInclude Include="TraceSession.hpp" />
-    <ClInclude Include="CommonIncludes.hpp" />
     <ClInclude Include="PresentMonTraceConsumer.hpp" />
     <ClInclude Include="TraceConsumer.hpp" />
-    <ClInclude Include="ProcessTraceConsumer.hpp" />
     <ClInclude Include="SwapChainData.hpp" />
   </ItemGroup>
 </Project>

@@ -20,15 +20,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include "TraceSession.hpp"
-#include "PresentMon.hpp"
-
-#include <psapi.h>
+#include <algorithm>
 #include <shlwapi.h>
 
-#pragma comment(lib, "psapi.lib")
-#pragma comment(lib, "shlwapi.lib")
-#pragma comment(lib, "tdh.lib")
+#include "TraceSession.hpp"
+#include "PresentMon.hpp"
 
 template <typename Map, typename F>
 static void map_erase_if(Map& m, F pred)
@@ -46,7 +42,7 @@ static void SetConsoleText(const char *text)
     enum { MAX_BUFFER = 16384 };
     char buffer[16384];
     int bufferSize = 0;
-    auto write = [&](int ch) {
+    auto write = [&](char ch) {
         if (bufferSize < MAX_BUFFER) {
             buffer[bufferSize++] = ch;
         }
@@ -65,7 +61,7 @@ static void SetConsoleText(const char *text)
     int x = 0;
     while (*text) {
         int repeat = 1;
-        int ch = *text;
+        char ch = *text;
         if (ch == '\t') {
             ch = ' ';
             repeat = 4;
@@ -104,28 +100,35 @@ static void UpdateProcessInfo_Realtime(ProcessInfo& info, uint64_t now, uint32_t
 {
     if (now - info.mLastRefreshTicks > 1000) {
         info.mLastRefreshTicks = now;
-        char path[MAX_PATH] = "<error>";
         HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, thisPid);
         if (h) {
-            GetModuleFileNameExA(h, NULL, path, sizeof(path) - 1);
-            std::string name = PathFindFileNameA(path);
-            if (name != info.mModuleName) {
-                info.mChainMap.clear();
-                info.mModuleName = name;
-            }
-            DWORD dwExitCode = 0;
             info.mProcessExists = true;
-            if (GetExitCodeProcess(h, &dwExitCode) && dwExitCode != STILL_ACTIVE) {
+
+            char path[MAX_PATH] = "<error>";
+            char* name = path;
+            DWORD numChars = sizeof(path);
+            if (QueryFullProcessImageNameA(h, 0, path, &numChars) == TRUE) {
+                name = PathFindFileNameA(path);
+            }
+            if (info.mModuleName.compare(name) != 0) {
+                info.mModuleName.assign(name);
+                info.mChainMap.clear();
+            }
+
+            DWORD dwExitCode = 0;
+            if (GetExitCodeProcess(h, &dwExitCode) == TRUE && dwExitCode != STILL_ACTIVE) {
                 info.mProcessExists = false;
             }
+
             CloseHandle(h);
         } else {
             info.mChainMap.clear();
             info.mProcessExists = false;
         }
     }
+
     // remove chains without recent updates
-        map_erase_if(info.mChainMap, [now](const std::pair<const uint64_t, SwapChainData>& entry) {
+    map_erase_if(info.mChainMap, [now](const std::pair<const uint64_t, SwapChainData>& entry) {
         return entry.second.IsStale(now);
     });
 }
@@ -206,27 +209,34 @@ void AddPresent(PresentMonData& pm, PresentEvent& p, uint64_t now, uint64_t perf
             }
 
             double timeInSeconds = (double)(int64_t)(p.QpcTime - pm.mStartupQpcTime) / perfFreq;
-            if (!pm.mArgs->mSimple)
+            fprintf(pm.mOutputFile, "%s,%d,0x%016llX,%s,%d,%d",
+                    proc.mModuleName.c_str(), p.ProcessId, p.SwapChainAddress, RuntimeToString(p.Runtime), curr.SyncInterval, curr.PresentFlags);
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
             {
-                fprintf(pm.mOutputFile, "%s,%d,0x%016llX,%s,%d,%d,%d,%s,%s,%.6lf,%.3lf,%.3lf,%.3lf,%.3lf,%.3lf\n",
-                    proc.mModuleName.c_str(), p.ProcessId, p.SwapChainAddress, RuntimeToString(p.Runtime),
-                    curr.SyncInterval, curr.SupportsTearing, curr.PresentFlags, PresentModeToString(curr.PresentMode), FinalStateToDroppedString(curr.FinalState),
-                    timeInSeconds, deltaMilliseconds, timeSincePreviousDisplayed, timeTakenMilliseconds, deltaReady, deltaDisplayed);
+                fprintf(pm.mOutputFile, ",%d,%s", curr.SupportsTearing, PresentModeToString(curr.PresentMode));
             }
-            else
+            if (pm.mArgs->mVerbosity >= Verbosity::Verbose)
             {
-                fprintf(pm.mOutputFile, "%s,%d,0x%016llX,%s,%d,%d,%s,%.6lf,%.3lf,%.3lf\n",
-                    proc.mModuleName.c_str(), p.ProcessId, p.SwapChainAddress, RuntimeToString(p.Runtime),
-                    curr.SyncInterval, curr.PresentFlags, FinalStateToDroppedString(curr.FinalState),
-                    timeInSeconds, deltaMilliseconds, timeTakenMilliseconds);
+                fprintf(pm.mOutputFile, ",%d", curr.WasBatched);
             }
+            fprintf(pm.mOutputFile, ",%s,%.6lf,%.3lf", FinalStateToDroppedString(curr.FinalState), timeInSeconds, deltaMilliseconds);
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
+            {
+                fprintf(pm.mOutputFile, ",%.3lf", timeSincePreviousDisplayed);
+            }
+            fprintf(pm.mOutputFile, ",%.3lf", timeTakenMilliseconds);
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
+            {
+                fprintf(pm.mOutputFile, ",%.3lf,%.3lf", deltaReady, deltaDisplayed);
+            }
+            fprintf(pm.mOutputFile, "\n");
         }
     }
 
     chain.UpdateSwapChainInfo(p, now, perfFreq);
 }
 
-void PresentMon_Init(const PresentMonArgs& args, PresentMonData& pm)
+void PresentMon_Init(const CommandLineArgs& args, PresentMonData& pm)
 {
     pm.mArgs = &args;
 
@@ -256,7 +266,7 @@ void PresentMon_Init(const PresentMonArgs& args, PresentMonData& pm)
                 char name[_MAX_FNAME] = {};
                 char ext[_MAX_EXT] = {};
                 _splitpath_s(args.mOutputFileName, drive, dir, name, ext);
-                _snprintf_s(pm.mOutputFilePath, _TRUNCATE, "%s%s%s-%d%s", drive, dir, name, args.mRestartCount, ext);
+                _snprintf_s(pm.mOutputFilePath, _TRUNCATE, "%s%s%s-%d%s", drive, dir, name, args.mRecordingCount, ext);
             }
         } else {
             struct tm tm;
@@ -278,31 +288,27 @@ void PresentMon_Init(const PresentMonArgs& args, PresentMonData& pm)
         // Open output file and print CSV header
         fopen_s(&pm.mOutputFile, pm.mOutputFilePath, "w");
         if (pm.mOutputFile) {
-            if (!pm.mArgs->mSimple)
+            fprintf(pm.mOutputFile, "Application,ProcessID,SwapChainAddress,Runtime,SyncInterval,PresentFlags");
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
             {
-                fprintf(pm.mOutputFile, "Application,ProcessID,SwapChainAddress,Runtime,SyncInterval,AllowsTearing,PresentFlags,PresentMode,Dropped,TimeInSeconds,"
-                                        "MsBetweenPresents,MsBetweenDisplayChange,MsInPresentAPI,MsUntilRenderComplete,MsUntilDisplayed\n");
+                fprintf(pm.mOutputFile, ",AllowsTearing,PresentMode");
             }
-            else
+            if (pm.mArgs->mVerbosity >= Verbosity::Verbose)
             {
-                fprintf(pm.mOutputFile, "Application,ProcessID,SwapChainAddress,Runtime,SyncInterval,PresentFlags,Dropped,TimeInSeconds,"
-                                        "MsBetweenPresents,MsInPresentAPI\n");
+                fprintf(pm.mOutputFile, ",WasBatched");
             }
+            fprintf(pm.mOutputFile, ",Dropped,TimeInSeconds,MsBetweenPresents");
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
+            {
+                fprintf(pm.mOutputFile, ",MsBetweenDisplayChange");
+            }
+            fprintf(pm.mOutputFile, ",MsInPresentAPI");
+            if (pm.mArgs->mVerbosity > Verbosity::Simple)
+            {
+                fprintf(pm.mOutputFile, ",MsUntilRenderComplete,MsUntilDisplayed");
+            }
+            fprintf(pm.mOutputFile, "\n");
         }
-    }
-}
-
-void PresentMon_UpdateNewProcesses(PresentMonData& pm, std::map<uint32_t, ProcessInfo>& newProcesses)
-{
-    for (auto processPair : newProcesses) {
-        pm.mProcessMap[processPair.first] = processPair.second;
-    }
-}
-
-void PresentMon_UpdateDeadProcesses(PresentMonData& pm, std::vector<uint32_t>& deadProcesses)
-{
-    for (auto pid : deadProcesses) {
-        pm.mProcessMap.erase(pid);
     }
 }
 
@@ -327,7 +333,8 @@ void PresentMon_Update(PresentMonData& pm, std::vector<std::shared_ptr<PresentEv
         if (proc.second.mTerminationProcess && !proc.second.mProcessExists) {
             --pm.mTerminationProcessCount;
             if (pm.mTerminationProcessCount == 0) {
-                QuitPresentMon();
+                PostStopRecording();
+                PostQuitProcess();
             }
             proc.second.mTerminationProcess = false;
         }
@@ -356,7 +363,7 @@ void PresentMon_Update(PresentMonData& pm, std::vector<std::shared_ptr<PresentEv
                 fps);
             display += str;
 
-            if (!pm.mArgs->mSimple) {
+            if (pm.mArgs->mVerbosity > Verbosity::Simple) {
                 _snprintf_s(str, _TRUNCATE, "%.1lf displayed fps, ", chain.second.ComputeDisplayedFps(perfFreq));
                 display += str;
             }
@@ -364,7 +371,7 @@ void PresentMon_Update(PresentMonData& pm, std::vector<std::shared_ptr<PresentEv
             _snprintf_s(str, _TRUNCATE, "%.2lf ms CPU", chain.second.ComputeCpuFrameTime(perfFreq) * 1000.0);
             display += str;
 
-            if (!pm.mArgs->mSimple) {
+            if (pm.mArgs->mVerbosity > Verbosity::Simple) {
                 _snprintf_s(str, _TRUNCATE, ", %.2lf ms latency) (%s",
                     1000.0 * chain.second.ComputeLatency(perfFreq),
                     PresentModeToString(chain.second.mLastPresentMode));
@@ -372,6 +379,12 @@ void PresentMon_Update(PresentMonData& pm, std::vector<std::shared_ptr<PresentEv
 
                 if (chain.second.mLastPresentMode == PresentMode::Hardware_Composed_Independent_Flip) {
                     _snprintf_s(str, _TRUNCATE, ": Plane %d", chain.second.mLastPlane);
+                    display += str;
+                }
+
+                if (pm.mArgs->mVerbosity >= Verbosity::Verbose &&
+                    chain.second.mHasBeenBatched) {
+                    _snprintf_s(str, _TRUNCATE, ", batched");
                     display += str;
                 }
             }
@@ -411,88 +424,70 @@ void PresentMon_Shutdown(PresentMonData& pm, bool log_corrupted)
     }
 }
 
-static bool g_FileComplete = false;
+static bool g_EtwProcessingThreadProcessing = false;
 static void EtwProcessingThread(TraceSession *session)
 {
+    assert(g_EtwProcessingThreadProcessing == true);
+
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
-    session->Process();
+    auto status = ProcessTrace(&session->traceHandle_, 1, NULL, NULL);
+    (void) status; // check: _status == ERROR_SUCCESS;
 
-    // Guarantees that the PM thread does one more loop to pick up any last events before calling QuitPresentMon()
-    g_FileComplete = true;
+    // Notify EtwConsumingThread that processing is complete
+    g_EtwProcessingThreadProcessing = false;
 }
 
-void PresentMonEtw(const PresentMonArgs& args)
+void EtwConsumingThread(const CommandLineArgs& args)
 {
     Sleep(args.mDelay * 1000);
-    if (g_StopRecording) {
+    if (EtwThreadsShouldQuit()) {
         return;
     }
 
-    g_FileComplete = false;
+    PresentMonData data;
+    PMTraceConsumer pmConsumer(args.mVerbosity == Verbosity::Simple);
 
-    // Convert ETL Filename to wchar_t if it exists, and construct a
-    // TraceSession.
-    wchar_t* wEtlFileName = nullptr;
-    if (args.mEtlFileName != nullptr) {
-        auto size = strlen(args.mEtlFileName) + 1;
-        wEtlFileName = new wchar_t [size];
-        mbstowcs_s(&size, wEtlFileName, size, args.mEtlFileName, size - 1);
+    TraceSession session;
+
+    session.AddProvider(DXGI_PROVIDER_GUID, TRACE_LEVEL_INFORMATION, 0, 0, (EventHandlerFn) &HandleDXGIEvent, &pmConsumer);
+    session.AddProvider(D3D9_PROVIDER_GUID, TRACE_LEVEL_INFORMATION, 0, 0, (EventHandlerFn) &HandleD3D9Event, &pmConsumer);
+    if (args.mVerbosity != Verbosity::Simple) {
+        session.AddProvider(DXGKRNL_PROVIDER_GUID, TRACE_LEVEL_INFORMATION, 1,      0, (EventHandlerFn) &HandleDXGKEvent,   &pmConsumer);
+        session.AddProvider(WIN32K_PROVIDER_GUID,  TRACE_LEVEL_INFORMATION, 0x1000, 0, (EventHandlerFn) &HandleWin32kEvent, &pmConsumer);
+        session.AddProvider(DWM_PROVIDER_GUID,     TRACE_LEVEL_VERBOSE,     0,      0, (EventHandlerFn) &HandleDWMEvent,    &pmConsumer);
     }
 
-    TraceSession session(L"PresentMon", wEtlFileName);
-
-    delete[] wEtlFileName;
-    wEtlFileName = nullptr;
-
-
-    PMTraceConsumer pmConsumer(args.mSimple);
-    ProcessTraceConsumer procConsumer = {};
-
-    MultiTraceConsumer mtConsumer = {};
-    mtConsumer.AddTraceConsumer(&procConsumer);
-    mtConsumer.AddTraceConsumer(&pmConsumer);
-
-    if (!args.mEtlFileName && !session.Start()) {
-        if (session.Status() == ERROR_ALREADY_EXISTS) {
-            if (!session.Stop() || !session.Start()) {
-                printf("ETW session error. Quitting.\n");
-                exit(0);
-            }
-        }
+    if (!(args.mEtlFileName == nullptr
+        ? session.InitializeRealtime("PresentMon", &EtwThreadsShouldQuit)
+        : session.InitializeEtlFile(args.mEtlFileName, &EtwThreadsShouldQuit))) {
+        return;
     }
 
-    session.EnableProvider(DXGI_PROVIDER_GUID, TRACE_LEVEL_INFORMATION);
-    session.EnableProvider(D3D9_PROVIDER_GUID, TRACE_LEVEL_INFORMATION);
-    if (!args.mSimple)
-    {
-        session.EnableProvider(DXGKRNL_PROVIDER_GUID, TRACE_LEVEL_INFORMATION, 1);
-        session.EnableProvider(WIN32K_PROVIDER_GUID, TRACE_LEVEL_INFORMATION, 0x1000);
-        session.EnableProvider(DWM_PROVIDER_GUID, TRACE_LEVEL_VERBOSE);
+    if (args.mSimpleConsole) {
+        printf("Started recording.\n");
     }
-
-    session.OpenTrace(&mtConsumer);
-    uint32_t eventsLost, buffersLost;
+    if (args.mScrollLockIndicator) {
+        EnableScrollLock(true);
+    }
 
     {
         // Launch the ETW producer thread
-        std::thread etwThread(EtwProcessingThread, &session);
+        g_EtwProcessingThreadProcessing = true;
+        std::thread etwProcessingThread(EtwProcessingThread, &session);
 
         // Consume / Update based on the ETW output
         {
-            PresentMonData data;
 
             PresentMon_Init(args, data);
-            uint64_t start_time = GetTickCount64();
+            auto timerRunning = args.mTimer > 0;
+            auto timerEnd = GetTickCount64() + args.mTimer * 1000;
 
             std::vector<std::shared_ptr<PresentEvent>> presents;
-            std::map<uint32_t, ProcessInfo> newProcesses;
-            std::vector<uint32_t> deadProcesses;
+            std::vector<NTProcessEvent> ntProcessEvents;
 
             bool log_corrupted = false;
-
-            while (!g_StopRecording)
-            {
+            for (;;) {
 #if _DEBUG
                 if (args.mSimpleConsole) {
                     printf(".");
@@ -500,18 +495,28 @@ void PresentMonEtw(const PresentMonArgs& args)
 #endif
 
                 presents.clear();
-                newProcesses.clear();
-                deadProcesses.clear();
+                ntProcessEvents.clear();
 
                 // If we are reading events from ETL file set start time to match time stamp of first event
                 if (data.mArgs->mEtlFileName && data.mStartupQpcTime == 0)
                 {
-                    data.mStartupQpcTime = mtConsumer.mTraceStartTime;
+                    data.mStartupQpcTime = session.startTime_;
                 }
 
                 if (args.mEtlFileName) {
-                    procConsumer.GetProcessEvents(newProcesses, deadProcesses);
-                    PresentMon_UpdateNewProcesses(data, newProcesses);
+                    {
+                        auto lock = scoped_lock(pmConsumer.mNTProcessEventMutex);
+                        ntProcessEvents.swap(pmConsumer.mNTProcessEvents);
+                    }
+
+                    for (auto ntProcessEvent : ntProcessEvents) {
+                        if (!ntProcessEvent.ImageFileName.empty()) {
+                            ProcessInfo processInfo;
+                            processInfo.mModuleName = ntProcessEvent.ImageFileName;
+
+                            data.mProcessMap[ntProcessEvent.ProcessId] = processInfo;
+                        }
+                    }
                 }
 
                 pmConsumer.DequeuePresents(presents);
@@ -519,22 +524,46 @@ void PresentMonEtw(const PresentMonArgs& args)
                     presents.clear();
                 }
 
-                PresentMon_Update(data, presents, session.PerfFreq());
-                if (session.AnythingLost(eventsLost, buffersLost)) {
+                auto doneProcessingEvents = g_EtwProcessingThreadProcessing ? false : true;
+                PresentMon_Update(data, presents, session.frequency_);
+
+                if (args.mEtlFileName) {
+                    for (auto ntProcessEvent : ntProcessEvents) {
+                        if (ntProcessEvent.ImageFileName.empty()) {
+                            data.mProcessMap.erase(ntProcessEvent.ProcessId);
+                        }
+                    }
+                }
+
+                uint32_t eventsLost = 0;
+                uint32_t buffersLost = 0;
+                if (session.CheckLostReports(&eventsLost, &buffersLost)) {
                     printf("Lost %u events, %u buffers.", eventsLost, buffersLost);
                     // FIXME: How do we set a threshold here?
                     if (eventsLost > 100) {
                         log_corrupted = true;
-                        g_FileComplete = true;
+                        PostStopRecording();
+                        PostQuitProcess();
                     }
                 }
 
-                if (args.mEtlFileName) {
-                    PresentMon_UpdateDeadProcesses(data, deadProcesses);
+                if (timerRunning) {
+                    if (GetTickCount64() >= timerEnd) {
+                        PostStopRecording();
+                        if (args.mTerminateAfterTimer) {
+                            PostQuitProcess();
+                        }
+                        timerRunning = false;
+                    }
                 }
 
-                if (g_FileComplete || (args.mTimer > 0 && GetTickCount64() - start_time > args.mTimer * 1000)) {
-                    QuitPresentMon();
+                if (doneProcessingEvents) {
+                    assert(EtwThreadsShouldQuit() || args.mEtlFileName);
+                    if (!EtwThreadsShouldQuit()) {
+                        PostStopRecording();
+                        PostQuitProcess();
+                    }
+                    break;
                 }
 
                 Sleep(100);
@@ -543,18 +572,18 @@ void PresentMonEtw(const PresentMonArgs& args)
             PresentMon_Shutdown(data, log_corrupted);
         }
 
-        etwThread.join();
+        assert(etwProcessingThread.joinable());
+        assert(!g_EtwProcessingThreadProcessing);
+        etwProcessingThread.join();
     }
 
-    session.CloseTrace();
-    session.DisableProvider(DXGI_PROVIDER_GUID);
-    session.DisableProvider(D3D9_PROVIDER_GUID);
-    if (!args.mSimple)
-    {
-        session.DisableProvider(DXGKRNL_PROVIDER_GUID);
-        session.DisableProvider(WIN32K_PROVIDER_GUID);
-        session.DisableProvider(DWM_PROVIDER_GUID);
+    session.Finalize();
+
+    if (args.mScrollLockIndicator) {
+        EnableScrollLock(false);
     }
-    session.Stop();
+    if (args.mSimpleConsole) {
+        printf("Stopping recording.\n");
+    }
 }
 

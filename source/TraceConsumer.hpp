@@ -23,16 +23,36 @@ SOFTWARE.
 #pragma once
 
 #include <windows.h>
-#include <evntrace.h> // must be after windows.h
-#include <evntprov.h> // must be after windows.h
-#include <evntcons.h> // must be after windows.h
-
-#include <vector>
+#include <stdio.h>
 #include <string>
-#include <map>
-#include <deque>
-#include <cassert>
-#include <set>
-#include <algorithm>
-#include <mutex>
 #include <tdh.h>
+
+void PrintEventInformation(FILE* fp, EVENT_RECORD* pEventRecord);
+
+template <typename T>
+bool GetEventData(EVENT_RECORD* pEventRecord, wchar_t const* name, T* out)
+{
+    PROPERTY_DATA_DESCRIPTOR descriptor;
+    descriptor.PropertyName = (ULONGLONG) name;
+    descriptor.ArrayIndex = ULONG_MAX;
+
+    auto status = TdhGetProperty(pEventRecord, 0, nullptr, 1, &descriptor, sizeof(T), (BYTE*) out);
+    if (status != ERROR_SUCCESS) {
+        fprintf(stderr, "error: could not get event %ls property (error=%u).\n", name, status);
+        PrintEventInformation(stderr, pEventRecord);
+        return false;
+    }
+
+    return true;
+}
+
+template <typename T>
+T GetEventData(EVENT_RECORD* pEventRecord, wchar_t const* name)
+{
+    T value = {};
+    auto ok = GetEventData(pEventRecord, name, &value);
+    (void) ok;
+    return value;
+}
+
+template <> bool GetEventData<std::string>(EVENT_RECORD* pEventRecord, wchar_t const* name, std::string* out);

@@ -29,11 +29,10 @@ SOFTWARE.
 ## Command line options
 
 ```html
-Capture target options (use one of the following):
+Capture target options:
     -captureall                Record all processes (default).
     -process_name [exe name]   Record specific process specified by name.
     -process_id [integer]      Record specific process specified by ID.
-    -etl_file [path]           Consume events from an ETL file instead of a running process.
 
 Output options:
     -no_csv                    Do not create any output file.
@@ -41,15 +40,20 @@ Output options:
                                PresentMon-PROCESSNAME-TIME.csv.
 
 Control and filtering options:
+    -etl_file [path]           Consume events from an ETL file instead of a running process.
     -scroll_toggle             Only record events while scroll lock is enabled.
-    -hotkey                    Use F11 to start and stop recording, writing to a unique file each time.
+    -scroll_indicator          Set scroll lock while recording events.
+    -hotkey [key]              Use specified key to start and stop recording, writing to a
+                               unique file each time (default is F11).
     -delay [seconds]           Wait for specified time before starting to record. When using
                                -hotkey, delay occurs each time recording is started.
     -timed [seconds]           Stop recording after the specified amount of time.  PresentMon will exit
                                timer expires.
     -exclude_dropped           Exclude dropped presents from the csv output.
     -terminate_on_proc_exit    Terminate PresentMon when all instances of the specified process exit.
+    -terminate_after_timed     Terminate PresentMon after the timed trace, specified using -timed, completes.
     -simple                    Disable advanced tracking (try this if you encounter crashes).
+    -verbose                   Adds additional data to output not relevant to normal usage.
     -dont_restart_as_admin     Don't try to elevate privilege.
     -no_top                    Don't display active swap chains in the console window.
 ```
@@ -73,4 +77,12 @@ Control and filtering options:
 | MsInPresentAPI         | Time spent inside the Present() API call |
 | MsUntilRenderComplete  | Time between present start and GPU work completion |
 | MsUntilDisplayed       | Time between present start and frame display |
+
+### Verbose Columns
+
+Columns output with the -verbose command line option.
+
+| CSV Column Header | CSV Data Description |
+|---|---|
+| WasBatched | The frame was submitted by the driver on a different thread than the app |
 

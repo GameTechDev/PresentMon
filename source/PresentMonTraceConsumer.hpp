@@ -22,9 +22,15 @@ SOFTWARE.
 
 #pragma once
 
-#include "CommonIncludes.hpp"
-#include "TraceConsumer.hpp"
-#include <dxgi.h>
+#include <assert.h>
+#include <deque>
+#include <map>
+#include <mutex>
+#include <numeric>
+#include <set>
+#include <vector>
+#include <windows.h>
+#include <evntcons.h> // must include after windows.h
 
 struct __declspec(uuid("{CA11C036-0102-4A2D-A6AD-F03CFED5D3C9}")) DXGI_PROVIDER_GUID_HOLDER;
 struct __declspec(uuid("{802ec45a-1e99-4b83-9920-87c98277ba9d}")) DXGKRNL_PROVIDER_GUID_HOLDER;
@@ -38,9 +44,6 @@ static const auto WIN32K_PROVIDER_GUID = __uuidof(WIN32K_PROVIDER_GUID_HOLDER);
 static const auto DWM_PROVIDER_GUID = __uuidof(DWM_PROVIDER_GUID_HOLDER);
 static const auto D3D9_PROVIDER_GUID = __uuidof(D3D9_PROVIDER_GUID_HOLDER);
 static const auto NT_PROCESS_EVENT_GUID = __uuidof(NT_PROCESS_EVENT_GUID_HOLDER);
-
-extern bool g_StopRecording;
-void QuitPresentMon();
 
 template <typename mutex_t> std::unique_lock<mutex_t> scoped_lock(mutex_t &m)
 {
@@ -71,50 +74,58 @@ enum class Runtime
     DXGI, D3D9, Other
 };
 
-const char* PresentModeToString(PresentMode mode);
-const char* RuntimeToString(Runtime rt);
-const char* FinalStateToDroppedString(PresentResult res);
+struct NTProcessEvent {
+    uint32_t ProcessId;
+    std::string ImageFileName;  // If ImageFileName.empty(), then event is that process ending
+};
 
 struct PresentEvent {
     // Available from DXGI Present
-    uint64_t QpcTime = 0;
-    uint64_t SwapChainAddress = 0;
-    int32_t SyncInterval = -1;
-    uint32_t PresentFlags = 0;
-    uint32_t ProcessId = 0;
+    uint64_t QpcTime;
+    uint64_t SwapChainAddress;
+    int32_t SyncInterval;
+    uint32_t PresentFlags;
+    uint32_t ProcessId;
 
-    PresentMode PresentMode = PresentMode::Unknown;
-    bool SupportsTearing = false;
-    bool MMIO = false;
-    bool SeenDxgkPresent = false;
+    PresentMode PresentMode;
+    bool SupportsTearing;
+    bool MMIO;
+    bool SeenDxgkPresent;
+    bool WasBatched;
 
-    Runtime Runtime = Runtime::Other;
+    Runtime Runtime;
 
     // Time spent in DXGI Present call
-    uint64_t TimeTaken = 0;
+    uint64_t TimeTaken;
 
     // Timestamp of "ready" state (GPU work completed)
-    uint64_t ReadyTime = 0;
+    uint64_t ReadyTime;
 
     // Timestamp of "complete" state (data on screen or discarded)
-    uint64_t ScreenTime = 0;
-    PresentResult FinalState = PresentResult::Unknown;
-    uint32_t PlaneIndex = 0;
+    uint64_t ScreenTime;
+    PresentResult FinalState;
+    uint32_t PlaneIndex;
 
     // Additional transient state
-    uint32_t QueueSubmitSequence = 0;
-    uint32_t RuntimeThread = 0;
-    uint64_t Hwnd = 0;
+    uint32_t QueueSubmitSequence;
+    uint32_t RuntimeThread;
+    uint64_t Hwnd;
     std::deque<std::shared_ptr<PresentEvent>> DependentPresents;
-    bool Completed = false;
-#if _DEBUG
-    ~PresentEvent() { assert(Completed || g_StopRecording); }
+    bool Completed;
+
+    PresentEvent(EVENT_HEADER const& hdr, ::Runtime runtime);
+
+#ifndef NDEBUG
+    ~PresentEvent();
 #endif
 };
 
-struct PMTraceConsumer : ITraceConsumer
+struct PMTraceConsumer
 {
     PMTraceConsumer(bool simple) : mSimpleMode(simple) { }
+#ifndef NDEBUG
+    ~PMTraceConsumer();
+#endif
     bool mSimpleMode;
 
     std::mutex mMutex;
@@ -199,6 +210,10 @@ struct PMTraceConsumer : ITraceConsumer
     // Yet another unique way of tracking present history tokens, this time from DxgKrnl -> DWM, only for legacy blit
     std::map<uint64_t, std::shared_ptr<PresentEvent>> mPresentsByLegacyBlitToken;
 
+    // Process events
+    std::mutex mNTProcessEventMutex;
+    std::vector<NTProcessEvent> mNTProcessEvents;
+
     bool DequeuePresents(std::vector<std::shared_ptr<PresentEvent>>& outPresents)
     {
         if (mCompletedPresents.size())
@@ -210,18 +225,16 @@ struct PMTraceConsumer : ITraceConsumer
         return false;
     }
 
-    virtual void OnEventRecord(_In_ PEVENT_RECORD pEventRecord);
-    virtual bool ContinueProcessing() { return !g_StopRecording; }
-
-private:
     void CompletePresent(std::shared_ptr<PresentEvent> p);
-    decltype(mPresentByThreadId.begin()) FindOrCreatePresent(_In_ PEVENT_RECORD pEventRecord);
-    void RuntimePresentStart(_In_ PEVENT_RECORD pEventRecord, PresentEvent &event);
-    void RuntimePresentStop(_In_ PEVENT_RECORD pEventRecord, bool AllowPresentBatching = true);
-
-    void OnDXGIEvent(_In_ PEVENT_RECORD pEventRecord);
-    void OnDXGKrnlEvent(_In_ PEVENT_RECORD pEventRecord);
-    void OnWin32kEvent(_In_ PEVENT_RECORD pEventRecord);
-    void OnDWMEvent(_In_ PEVENT_RECORD pEventRecord);
-    void OnD3D9Event(_In_ PEVENT_RECORD pEventRecord);
+    decltype(mPresentByThreadId.begin()) FindOrCreatePresent(EVENT_HEADER const& hdr);
+    void RuntimePresentStart(PresentEvent &event);
+    void RuntimePresentStop(EVENT_HEADER const& hdr, bool AllowPresentBatching);
 };
+
+void HandleNTProcessEvent(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
+void HandleDXGIEvent(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
+void HandleD3D9Event(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
+void HandleDXGKEvent(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
+void HandleWin32kEvent(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
+void HandleDWMEvent(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
+

@@ -22,18 +22,21 @@ SOFTWARE.
 
 #pragma once
 
-#include "CommonIncludes.hpp"
+#include <deque>
+#include <stdint.h>
+
 #include "PresentMonTraceConsumer.hpp"
 
 struct SwapChainData {
     Runtime mRuntime = Runtime::Other;
     uint64_t mLastUpdateTicks = 0;
-    uint32_t mLastSyncInterval = -1;
-    uint32_t mLastFlags = -1;
+    uint32_t mLastSyncInterval = UINT32_MAX;
+    uint32_t mLastFlags = UINT32_MAX;
     std::deque<PresentEvent> mPresentHistory;
     std::deque<PresentEvent> mDisplayedPresentHistory;
     PresentMode mLastPresentMode = PresentMode::Unknown;
     uint32_t mLastPlane = 0;
+    bool mHasBeenBatched = false;
     
     void PruneDeque(std::deque<PresentEvent> &presentHistory, uint64_t perfFreq, uint32_t msTimeDiff, uint32_t maxHistLen);
     void AddPresentToSwapChain(PresentEvent& p);
