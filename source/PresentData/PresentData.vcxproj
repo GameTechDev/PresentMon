@@ -125,7 +125,6 @@
   <ItemGroup>
     <ClInclude Include="PresentMonTraceConsumer.hpp" />
     <ClInclude Include="SwapChainData.hpp" />
-    <ClInclude Include="targetver.h" />
     <ClInclude Include="TraceConsumer.hpp" />
   </ItemGroup>
   <ItemGroup>
