@@ -37,6 +37,7 @@ struct SwapChainData {
     PresentMode mLastPresentMode = PresentMode::Unknown;
     uint32_t mLastPlane = 0;
     bool mHasBeenBatched = false;
+    bool mDwmNotified = false;
     
     void PruneDeque(std::deque<PresentEvent> &presentHistory, uint64_t perfFreq, uint32_t msTimeDiff, uint32_t maxHistLen);
     void AddPresentToSwapChain(PresentEvent& p);

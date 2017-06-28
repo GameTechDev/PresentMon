@@ -189,7 +189,7 @@ void AddPresent(PresentMonData& pm, PresentEvent& p, uint64_t now, uint64_t perf
 
     auto& chain = proc.mChainMap[p.SwapChainAddress];
     chain.AddPresentToSwapChain(p);
-    
+
     if (pm.mOutputFile && (p.FinalState == PresentResult::Presented || !pm.mArgs->mExcludeDropped)) {
         auto len = chain.mPresentHistory.size();
         auto displayedLen = chain.mDisplayedPresentHistory.size();
@@ -217,7 +217,7 @@ void AddPresent(PresentMonData& pm, PresentEvent& p, uint64_t now, uint64_t perf
             }
             if (pm.mArgs->mVerbosity >= Verbosity::Verbose)
             {
-                fprintf(pm.mOutputFile, ",%d", curr.WasBatched);
+                fprintf(pm.mOutputFile, ",%d,%d", curr.WasBatched, curr.DwmNotified);
             }
             fprintf(pm.mOutputFile, ",%s,%.6lf,%.3lf", FinalStateToDroppedString(curr.FinalState), timeInSeconds, deltaMilliseconds);
             if (pm.mArgs->mVerbosity > Verbosity::Simple)
@@ -295,7 +295,7 @@ void PresentMon_Init(const CommandLineArgs& args, PresentMonData& pm)
             }
             if (pm.mArgs->mVerbosity >= Verbosity::Verbose)
             {
-                fprintf(pm.mOutputFile, ",WasBatched");
+                fprintf(pm.mOutputFile, ",WasBatched,DwmNotified");
             }
             fprintf(pm.mOutputFile, ",Dropped,TimeInSeconds,MsBetweenPresents");
             if (pm.mArgs->mVerbosity > Verbosity::Simple)
@@ -382,6 +382,14 @@ void PresentMon_Update(PresentMonData& pm, std::vector<std::shared_ptr<PresentEv
                     display += str;
                 }
 
+                if ((chain.second.mLastPresentMode == PresentMode::Hardware_Composed_Independent_Flip ||
+                     chain.second.mLastPresentMode == PresentMode::Hardware_Independent_Flip) &&
+                    pm.mArgs->mVerbosity >= Verbosity::Verbose &&
+                    chain.second.mDwmNotified) {
+                    _snprintf_s(str, _TRUNCATE, ", DWM notified");
+                    display += str;
+                }
+
                 if (pm.mArgs->mVerbosity >= Verbosity::Verbose &&
                     chain.second.mHasBeenBatched) {
                     _snprintf_s(str, _TRUNCATE, ", batched");
@@ -456,6 +464,9 @@ void EtwConsumingThread(const CommandLineArgs& args)
         session.AddProvider(DXGKRNL_PROVIDER_GUID, TRACE_LEVEL_INFORMATION, 1,      0, (EventHandlerFn) &HandleDXGKEvent,   &pmConsumer);
         session.AddProvider(WIN32K_PROVIDER_GUID,  TRACE_LEVEL_INFORMATION, 0x1000, 0, (EventHandlerFn) &HandleWin32kEvent, &pmConsumer);
         session.AddProvider(DWM_PROVIDER_GUID,     TRACE_LEVEL_VERBOSE,     0,      0, (EventHandlerFn) &HandleDWMEvent,    &pmConsumer);
+    }
+    if (args.mEtlFileName != nullptr) {
+        session.AddProvider(NT_PROCESS_EVENT_GUID, TRACE_LEVEL_NONE, 0, 0, (EventHandlerFn) &HandleNTProcessEvent, &pmConsumer);
     }
 
     if (!(args.mEtlFileName == nullptr

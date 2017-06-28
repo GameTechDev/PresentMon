@@ -60,6 +60,8 @@ Control and filtering options:
 
 ## Comma-separated value (CSV) file output
 
+### Simple Columns (-simple command line argument)
+
 | CSV Column Header | CSV Data Description |
 |---|---|
 | Application            | Process name (if known) |
@@ -67,22 +69,30 @@ Control and filtering options:
 | SwapChainAddress       | Swap chain address |
 | Runtime                | Swap chain runtime (e.g., D3D9 or DXGI) |
 | SyncInterval           | Sync interval used |
-| AllowsTearing          | Whether tearing possible (1) or not (0) |
 | PresentFlags           | Present flags used |
-| PresentMode            | Present mode |
 | Dropped                | Whether the present was dropped (1) or displayed (0) |
 | TimeInSeconds          | Time since PresentMon recording started |
 | MsBetweenPresents      | Time between this Present() API call and the previous one |
-| MsBetweenDisplayChange | Time between when this frame was displayed, and previous was displayed |
 | MsInPresentAPI         | Time spent inside the Present() API call |
-| MsUntilRenderComplete  | Time between present start and GPU work completion |
-| MsUntilDisplayed       | Time between present start and frame display |
 
-### Verbose Columns
+### Default Columns
 
-Columns output with the -verbose command line option.
+All of the above columns, plus:
 
 | CSV Column Header | CSV Data Description |
 |---|---|
-| WasBatched | The frame was submitted by the driver on a different thread than the app |
+| AllowsTearing          | Whether tearing possible (1) or not (0) |
+| PresentMode            | Present mode |
+| MsBetweenDisplayChange | Time between when this frame was displayed, and previous was displayed |
+| MsUntilRenderComplete  | Time between present start and GPU work completion |
+| MsUntilDisplayed       | Time between present start and frame display |
+
+### Verbose Columns (-verbose command line argument)
+
+All of the above columns above, plus:
+
+| CSV Column Header | CSV Data Description |
+|---|---|
+| WasBatched  | The frame was submitted by the driver on a different thread than the app |
+| DwmNotified | The desktop compositor was notified about the frame. |
 

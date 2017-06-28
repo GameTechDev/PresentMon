@@ -61,6 +61,7 @@ void SwapChainData::UpdateSwapChainInfo(PresentEvent&p, uint64_t now, uint64_t p
     mLastPresentMode = p.PresentMode;
     mLastPlane = p.PlaneIndex;
     mHasBeenBatched = p.WasBatched;
+    mDwmNotified = p.DwmNotified;
 }
 
 double SwapChainData::ComputeFps(const std::deque<PresentEvent>& presentHistory, uint64_t qpcFreq)
