@@ -276,7 +276,7 @@ void TraceSession::Finalize()
         status = ControlTraceW(sessionHandle_, nullptr, &properties_, EVENT_TRACE_CONTROL_STOP);
 
         while (!eventProvider_.empty()) {
-            RemoveProvider(eventHandler_.begin()->first);
+            RemoveProvider(eventProvider_.begin()->first);
         }
         while (!eventHandler_.empty()) {
             RemoveHandler(eventHandler_.begin()->first);
