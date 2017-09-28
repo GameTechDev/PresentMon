@@ -348,7 +348,7 @@ void PresentMon_Update(PresentMonData& pm, std::vector<std::shared_ptr<PresentEv
         }
 
         char str[256] = {};
-        _snprintf_s(str, _TRUNCATE, "%s[%d]:\n", proc.second.mModuleName.c_str(),proc.first);
+        _snprintf_s(str, _TRUNCATE, "\n%s[%d]:\n", proc.second.mModuleName.c_str(),proc.first);
         display += str;
         for (auto& chain : proc.second.mChainMap)
         {

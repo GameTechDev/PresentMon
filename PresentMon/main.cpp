@@ -169,6 +169,73 @@ bool HaveAdministratorPrivileges()
     return privilege == PRIVILEGE_ELEVATED;
 }
 
+bool SetPrivilege(HANDLE hToken, LPCSTR lpszPrivilege, bool bEnablePrivilege)
+{
+    bool bPrivilegeSet = false;
+    typedef BOOL(WINAPI *LookupPrivilegeValueAProc)(LPCSTR lpSystemName, LPCSTR lpName, PLUID lpLuid);
+    typedef BOOL(WINAPI *AdjustTokenPrivilegesProc)(HANDLE TokenHandle, BOOL DisableAllPrivileges, PTOKEN_PRIVILEGES NewState, DWORD BufferLength, PTOKEN_PRIVILEGES PreviousState, PDWORD ReturnLength);
+    HMODULE advapi = LoadLibraryA("advapi32");
+    if (advapi) {
+        LookupPrivilegeValueAProc LookupPrivilegeValueA = (LookupPrivilegeValueAProc)GetProcAddress(advapi, "LookupPrivilegeValueA");
+        AdjustTokenPrivilegesProc AdjustTokenPrivileges = (AdjustTokenPrivilegesProc)GetProcAddress(advapi, "AdjustTokenPrivileges");
+        if (LookupPrivilegeValueA && AdjustTokenPrivileges) {
+            LUID luid;
+            if (LookupPrivilegeValueA(NULL, lpszPrivilege, &luid)) {
+                TOKEN_PRIVILEGES tp;
+                tp.PrivilegeCount = 1;
+                tp.Privileges[0].Luid = luid;
+                tp.Privileges[0].Attributes = bEnablePrivilege ? SE_PRIVILEGE_ENABLED : 0;
+
+                if (AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), (PTOKEN_PRIVILEGES)NULL, (PDWORD)NULL)) {
+                    if (GetLastError() != ERROR_NOT_ALL_ASSIGNED) {
+                        bPrivilegeSet = true;
+                    }
+                    else {
+                        fprintf(stderr, "error: token does not have the specified privilege.\n");
+                    }
+                }
+                else {
+                    fprintf(stderr, "error: failed to adjust token privileges (%u).\n", GetLastError());
+                }
+            }
+            else {
+                fprintf(stderr, "error: failed to lookup privilege value (%u).\n", GetLastError());
+            }
+        }
+        FreeLibrary(advapi);
+    }
+
+    return bPrivilegeSet;
+}
+
+bool AdjustPrivileges()
+{
+    // On some versions of Windows, DWM processes run under a separate account.
+    // We need permissions to get data about a process owned by another account.
+    bool bPrivilegesSet = false;
+    typedef BOOL(WINAPI *OpenProcessTokenProc)(HANDLE ProcessHandle, DWORD DesiredAccess, PHANDLE TokenHandle);
+    HMODULE advapi = LoadLibraryA("advapi32");
+    if (advapi) {
+        OpenProcessTokenProc OpenProcessToken = (OpenProcessTokenProc)GetProcAddress(advapi, "OpenProcessToken");
+        if (OpenProcessToken) {
+            HANDLE hToken = NULL;
+            if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &hToken)) {
+                if (SetPrivilege(hToken, "SeDebugPrivilege", true)) {
+                    bPrivilegesSet = true;
+                }
+                else {
+                    fprintf(stderr, "error: failed to enable SeDebugPrivilege.\n");
+                }
+
+                CloseHandle(hToken);
+            }
+        }
+        FreeLibrary(advapi);
+    }
+
+    return bPrivilegesSet;
+}
+
 }
 
 bool EtwThreadsShouldQuit()
@@ -210,6 +277,11 @@ int main(int argc, char** argv)
             fprintf(stderr, "error: process requires administrator privilege.\n");
         }
         return 2;
+    }
+
+    // Adjust process privileges for real-time
+    if (!args.mEtlFileName && !AdjustPrivileges()) {
+        fprintf(stderr, "warning: some processes may not show up because we don't have sufficient privileges.\n");
     }
 
     int ret = 0;
