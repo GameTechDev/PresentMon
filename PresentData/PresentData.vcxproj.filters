@@ -8,15 +8,17 @@
     <ClInclude Include="DxgkrnlEventStructs.hpp" />
     <ClInclude Include="EventMetadataEventStructs.hpp" />
     <ClInclude Include="MixedRealityTraceConsumer.hpp" />
-    <ClInclude Include="NTProcessEventEventStructs.hpp" />
+    <ClInclude Include="NTProcessEventStructs.hpp" />
     <ClInclude Include="PresentMonTraceConsumer.hpp" />
     <ClInclude Include="TraceConsumer.hpp" />
     <ClInclude Include="Win32kEventStructs.hpp" />
+    <ClInclude Include="TraceSession.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Debug.cpp" />
     <ClCompile Include="MixedRealityTraceConsumer.cpp" />
     <ClCompile Include="PresentMonTraceConsumer.cpp" />
     <ClCompile Include="TraceConsumer.cpp" />
+    <ClCompile Include="TraceSession.cpp" />
   </ItemGroup>
 </Project>

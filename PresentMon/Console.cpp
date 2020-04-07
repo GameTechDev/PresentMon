@@ -180,14 +180,14 @@ void UpdateConsole(uint32_t processId, ProcessInfo const& processInfo)
 
         size_t displayCount = 0;
         uint64_t latencySum = 0;
-        uint64_t display0QpcTime = 0;
+        uint64_t display0ScreenTime = 0;
         PresentEvent* displayN = nullptr;
         if (args.mVerbosity > Verbosity::Simple) {
             for (uint32_t i = 0; i < chain.mPresentHistoryCount; ++i) {
                 auto const& p = chain.mPresentHistory[(chain.mNextPresentIndex - chain.mPresentHistoryCount + i) % SwapChainData::PRESENT_HISTORY_MAX_COUNT];
                 if (p->FinalState == PresentResult::Presented) {
                     if (displayCount == 0) {
-                        display0QpcTime = p->QpcTime;
+                        display0ScreenTime = p->ScreenTime;
                     }
                     displayN = p.get();
                     latencySum += p->ScreenTime - p->QpcTime;
@@ -197,12 +197,11 @@ void UpdateConsole(uint32_t processId, ProcessInfo const& processInfo)
         }
 
         if (displayCount >= 2) {
-            auto displayAvg = QpcDeltaToSeconds(displayN->QpcTime - display0QpcTime) / (displayCount - 1);
-            auto latencyAvg = QpcDeltaToSeconds(latencySum) / (displayCount - 1);
+            ConsolePrint(", %.1lf fps displayed", (double) (displayCount - 1) / QpcDeltaToSeconds(displayN->ScreenTime - display0ScreenTime));
+        }
 
-            ConsolePrint(", %.1lf fps displayed, %.2lf ms latency",
-                1.0 / displayAvg,
-                1000.0 * latencyAvg);
+        if (displayCount >= 1) {
+            ConsolePrint(", %.2lf ms latency", 1000.0 * QpcDeltaToSeconds(latencySum) / displayCount);
         }
 
         ConsolePrint(")");

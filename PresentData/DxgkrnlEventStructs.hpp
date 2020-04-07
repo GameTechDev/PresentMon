@@ -384,11 +384,6 @@ enum class FlipEntryStatus {
     // There are others, but they're more complicated to deal with.
 };
 
-enum class QueueSubmitType {
-    MMIOFlip = 3,
-    Software = 7,
-};
-
 enum class MMIOFlip {
     Immediate = 0x2,
     OnNextVSync = 0x4
@@ -410,4 +405,17 @@ typedef enum _D3DKMT_PRESENT_MODEL
     D3DKMT_PM_SURFACECOMPLETE        = 8,
     D3DKMT_PM_FLIPMANAGER            = 9,
 } D3DKMT_PRESENT_MODEL;
+
+// dxetwevt.h
+enum DXGKETW_QUEUE_PACKET_TYPE {
+    DXGKETW_RENDER_COMMAND_BUFFER     = 0,
+    DXGKETW_DEFERRED_COMMAND_BUFFER   = 1,
+    DXGKETW_SYSTEM_COMMAND_BUFFER     = 2,
+    DXGKETW_MMIOFLIP_COMMAND_BUFFER   = 3,
+    DXGKETW_WAIT_COMMAND_BUFFER       = 4,
+    DXGKETW_SIGNAL_COMMAND_BUFFER     = 5,
+    DXGKETW_DEVICE_COMMAND_BUFFER     = 6,
+    DXGKETW_SOFTWARE_COMMAND_BUFFER   = 7,
+    DXGKETW_PAGING_COMMAND_BUFFER     = 8,
+};
 

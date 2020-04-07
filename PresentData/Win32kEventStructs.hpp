@@ -138,6 +138,7 @@ struct TokenStateChanged_Info_Struct {
 
 // Manually added:
 enum class TokenState {
+    Completed = 2,
     InFrame = 3,
     Confirmed = 4,
     Retired = 5,

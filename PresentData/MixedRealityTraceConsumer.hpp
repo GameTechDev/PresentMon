@@ -275,7 +275,8 @@ struct MRTraceConsumer
     
     void HolographicFrameStart(std::shared_ptr<HolographicFrame> p);
     void HolographicFrameStop(std::shared_ptr<HolographicFrame> p);
+
+    void HandleDHDEvent(EVENT_RECORD* pEventRecord);
+    void HandleSpectrumContinuousEvent(EVENT_RECORD* pEventRecord);
 };
 
-void HandleDHDEvent(EVENT_RECORD* pEventRecord, MRTraceConsumer* mrConsumer);
-void HandleSpectrumContinuousEvent(EVENT_RECORD* pEventRecord, MRTraceConsumer* mrConsumer);

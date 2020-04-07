@@ -48,7 +48,9 @@ enum class PresentMode
     Unknown,
     Hardware_Legacy_Flip,
     Hardware_Legacy_Copy_To_Front_Buffer,
+    /* Not detected:
     Hardware_Direct_Flip,
+    */
     Hardware_Independent_Flip,
     Composed_Flip,
     Composed_Copy_GPU_GDI,
@@ -97,6 +99,9 @@ struct PresentEvent {
     Runtime Runtime;
     PresentMode PresentMode;
     PresentResult FinalState;
+    uint32_t DestWidth;
+    uint32_t DestHeight;
+    uint64_t CompositionSurfaceLuid;
     bool SupportsTearing;
     bool MMIO;
     bool SeenDxgkPresent;
@@ -114,10 +119,6 @@ struct PresentEvent {
 
     PresentEvent(EVENT_HEADER const& hdr, ::Runtime runtime);
     ~PresentEvent();
-
-    void SetPresentMode(::PresentMode mode);
-    void SetDwmNotified(bool notified);
-    void SetTokenPtr(uint64_t tokenPtr);
 
 private:
     PresentEvent(PresentEvent const& copy); // dne
@@ -287,32 +288,31 @@ struct PMTraceConsumer
     void HandleDxgkQueueSubmit(EVENT_HEADER const& hdr, uint32_t packetType, uint32_t submitSequence, uint64_t context, bool present, bool supportsDxgkPresentEvent);
     void HandleDxgkQueueComplete(EVENT_HEADER const& hdr, uint32_t submitSequence);
     void HandleDxgkMMIOFlip(EVENT_HEADER const& hdr, uint32_t flipSubmitSequence, uint32_t flags);
+    void HandleDxgkMMIOFlipMPO(EVENT_HEADER const& hdr, uint32_t flipSubmitSequence, uint32_t flipEntryStatusAfterFlip, bool flipEntryStatusAfterFlipValid);
     void HandleDxgkSyncDPC(EVENT_HEADER const& hdr, uint32_t flipSubmitSequence);
     void HandleDxgkSubmitPresentHistoryEventArgs(EVENT_HEADER const& hdr, uint64_t token, uint64_t tokenData, PresentMode knownPresentMode);
     void HandleDxgkPropagatePresentHistoryEventArgs(EVENT_HEADER const& hdr, uint64_t token);
 
     void CompletePresent(std::shared_ptr<PresentEvent> p, uint32_t recurseDepth=0);
+    std::shared_ptr<PresentEvent> FindBySubmitSequence(uint32_t submitSequence);
     decltype(mPresentByThreadId.begin()) FindOrCreatePresent(EVENT_HEADER const& hdr);
     decltype(mPresentByThreadId.begin()) CreatePresent(std::shared_ptr<PresentEvent> present, decltype(mPresentsByProcess.begin()->second)& processMap);
     void CreatePresent(std::shared_ptr<PresentEvent> present);
     void RuntimePresentStop(EVENT_HEADER const& hdr, bool AllowPresentBatching);
+
+    void HandleNTProcessEvent(EVENT_RECORD* pEventRecord);
+    void HandleDXGIEvent(EVENT_RECORD* pEventRecord);
+    void HandleD3D9Event(EVENT_RECORD* pEventRecord);
+    void HandleDXGKEvent(EVENT_RECORD* pEventRecord);
+    void HandleWin32kEvent(EVENT_RECORD* pEventRecord);
+    void HandleDWMEvent(EVENT_RECORD* pEventRecord);
+    void HandleMetadataEvent(EVENT_RECORD* pEventRecord);
+
+    void HandleWin7DxgkBlt(EVENT_RECORD* pEventRecord);
+    void HandleWin7DxgkFlip(EVENT_RECORD* pEventRecord);
+    void HandleWin7DxgkPresentHistory(EVENT_RECORD* pEventRecord);
+    void HandleWin7DxgkQueuePacket(EVENT_RECORD* pEventRecord);
+    void HandleWin7DxgkVSyncDPC(EVENT_RECORD* pEventRecord);
+    void HandleWin7DxgkMMIOFlip(EVENT_RECORD* pEventRecord);
 };
 
-void HandleNTProcessEvent(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-void HandleDXGIEvent(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-void HandleD3D9Event(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-void HandleDXGKEvent(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-void HandleWin32kEvent(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-void HandleDWMEvent(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-void HandleMetadataEvent(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-
-// These are only for Win7 support
-namespace Win7
-{
-    void HandleDxgkBlt(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-    void HandleDxgkFlip(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-    void HandleDxgkPresentHistory(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-    void HandleDxgkQueuePacket(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-    void HandleDxgkVSyncDPC(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-    void HandleDxgkMMIOFlip(EVENT_RECORD* pEventRecord, PMTraceConsumer* pmConsumer);
-}

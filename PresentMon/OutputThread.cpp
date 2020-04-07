@@ -561,8 +561,8 @@ void Output()
     }
 
     // Output warning if events were lost.
-    uint32_t eventsLost = 0;
-    uint32_t buffersLost = 0;
+    ULONG eventsLost = 0;
+    ULONG buffersLost = 0;
     CheckLostReports(&eventsLost, &buffersLost);
     if (buffersLost > 0) {
         fprintf(stderr, "warning: %u ETW buffers were lost.\n", buffersLost);

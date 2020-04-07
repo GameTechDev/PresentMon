@@ -34,19 +34,43 @@ SOFTWARE.
 
 namespace {
 
+PresentEvent const* gModifiedPresent = nullptr;
+struct {
+    uint64_t TimeTaken;
+    uint64_t ReadyTime;
+    uint64_t ScreenTime;
+    
+    uint64_t SwapChainAddress;
+    int32_t SyncInterval;
+    uint32_t PresentFlags;
+    
+    uint64_t Hwnd;
+    uint64_t TokenPtr;
+    uint32_t QueueSubmitSequence;
+    PresentMode PresentMode;
+    PresentResult FinalState;
+    bool SupportsTearing;
+    bool MMIO;
+    bool SeenDxgkPresent;
+    bool SeenWin32KEvents;
+    bool WasBatched;
+    bool DwmNotified;
+    bool Completed;
+} gOriginalPresentValues;
+
 bool gDebugDone = false;
 bool gDebugTrace = false;
-uint64_t* gFirstTimestamp= 0;
-uint64_t gTimestampFrequency = 0;
+LARGE_INTEGER* gFirstTimestamp = nullptr;
+LARGE_INTEGER gTimestampFrequency = {};
 
 uint64_t ConvertTimestampDeltaToNs(uint64_t timestampDelta)
 {
-    return 1000000000ull * timestampDelta / gTimestampFrequency;
+    return 1000000000ull * timestampDelta / gTimestampFrequency.QuadPart;
 }
 
-uint64_t ConvertTimestampToNs(uint64_t timestamp)
+uint64_t ConvertTimestampToNs(LARGE_INTEGER timestamp)
 {
-    return ConvertTimestampDeltaToNs(timestamp - *gFirstTimestamp);
+    return ConvertTimestampDeltaToNs(timestamp.QuadPart - gFirstTimestamp->QuadPart);
 }
 
 char* AddCommas(uint64_t t)
@@ -69,13 +93,36 @@ char* AddCommas(uint64_t t)
     return buf;
 }
 
-void PrintPresentMode(PresentMode mode)
+void PrintEventHeader(EVENT_HEADER const& hdr)
 {
-    switch (mode) {
+    printf("%16s %5u %5u ", AddCommas(ConvertTimestampToNs(hdr.TimeStamp)), hdr.ProcessId, hdr.ThreadId);
+}
+
+void PrintUpdateHeader(uint64_t id, int indent=0)
+{
+    printf("%*sp%llu", 17 + 6 + 6 + indent*4, "", id);
+}
+
+void PrintU32(uint32_t value) { printf("%u", value); }
+void PrintU64(uint64_t value) { printf("%llu", value); }
+void PrintU64Ptr(uint64_t value) { printf("%llx", value); }
+void PrintTimeDelta(uint64_t value) { printf("%s", AddCommas(ConvertTimestampDeltaToNs(value))); }
+void PrintBool(bool value) { printf("%s", value ? "true" : "false"); }
+void PrintRuntime(Runtime value)
+{
+    switch (value) {
+    case Runtime::DXGI:  printf("DXGI");  break;
+    case Runtime::D3D9:  printf("D3D9");  break;
+    case Runtime::Other: printf("Other"); break;
+    default:             printf("ERROR"); break;
+    }
+}
+void PrintPresentMode(PresentMode value)
+{
+    switch (value) {
     case PresentMode::Unknown:                              printf("Unknown"); break;
     case PresentMode::Hardware_Legacy_Flip:                 printf("Hardware_Legacy_Flip"); break;
     case PresentMode::Hardware_Legacy_Copy_To_Front_Buffer: printf("Hardware_Legacy_Copy_To_Front_Buffer"); break;
-    case PresentMode::Hardware_Direct_Flip:                 printf("Hardware_Direct_Flip"); break;
     case PresentMode::Hardware_Independent_Flip:            printf("Hardware_Independent_Flip"); break;
     case PresentMode::Composed_Flip:                        printf("Composed_Flip"); break;
     case PresentMode::Composed_Copy_GPU_GDI:                printf("Composed_Copy_GPU_GDI"); break;
@@ -85,23 +132,61 @@ void PrintPresentMode(PresentMode mode)
     default:                                                printf("ERROR"); break;
     }
 }
-
-void PrintEventHeader(EVENT_HEADER const& hdr)
+void PrintPresentResult(PresentResult value)
 {
-    printf("%16s %5u %5u ", AddCommas(ConvertTimestampToNs(hdr.TimeStamp.QuadPart)), hdr.ProcessId, hdr.ThreadId);
+    switch (value) {
+    case PresentResult::Unknown:   printf("Unknown");   break;
+    case PresentResult::Presented: printf("Presented"); break;
+    case PresentResult::Discarded: printf("Discarded"); break;
+    case PresentResult::Error:     printf("Error");     break;
+    default:                       printf("ERROR");     break;
+    }
 }
 
-void PrintUpdateHeader(uint64_t id, int indent=0)
+void FlushModifiedPresent()
 {
-    printf("%*sp%llu", 17 + 6 + 6 + indent*4, "", id);
+    if (gModifiedPresent == nullptr) return;
+
+    uint32_t changedCount = 0;
+#define FLUSH_MEMBER(_Fn, _Name) \
+    if (gModifiedPresent->_Name != gOriginalPresentValues._Name) { \
+        if (changedCount++ == 0) PrintUpdateHeader(gModifiedPresent->Id); \
+        printf(" " #_Name "="); \
+        _Fn(gOriginalPresentValues._Name); \
+        printf("->"); \
+        _Fn(gModifiedPresent->_Name); \
+    }
+    FLUSH_MEMBER(PrintTimeDelta,     TimeTaken)
+    FLUSH_MEMBER(PrintTimeDelta,     ReadyTime)
+    FLUSH_MEMBER(PrintTimeDelta,     ScreenTime)
+    FLUSH_MEMBER(PrintU64Ptr,        SwapChainAddress)
+    FLUSH_MEMBER(PrintU32,           SyncInterval)
+    FLUSH_MEMBER(PrintU32,           PresentFlags)
+    FLUSH_MEMBER(PrintU64Ptr,        Hwnd)
+    FLUSH_MEMBER(PrintU64Ptr,        TokenPtr)
+    FLUSH_MEMBER(PrintU32,           QueueSubmitSequence)
+    FLUSH_MEMBER(PrintPresentMode,   PresentMode)
+    FLUSH_MEMBER(PrintPresentResult, FinalState)
+    FLUSH_MEMBER(PrintBool,          SupportsTearing)
+    FLUSH_MEMBER(PrintBool,          MMIO)
+    FLUSH_MEMBER(PrintBool,          SeenDxgkPresent)
+    FLUSH_MEMBER(PrintBool,          SeenWin32KEvents)
+    FLUSH_MEMBER(PrintBool,          WasBatched)
+    FLUSH_MEMBER(PrintBool,          DwmNotified)
+    FLUSH_MEMBER(PrintBool,          Completed)
+#undef FLUSH_MEMBER
+    if (changedCount > 0) {
+        printf("\n");
+    }
+
+    gModifiedPresent = nullptr;
 }
 
 }
 
-void DebugInitialize(uint64_t* firstTimestamp, uint64_t timestampFrequency)
+void DebugInitialize(LARGE_INTEGER* firstTimestamp, LARGE_INTEGER timestampFrequency)
 {
     gDebugDone = false;
-    gDebugTrace = DEBUG_START_TIME_NS == 0;
     gFirstTimestamp = firstTimestamp;
     gTimestampFrequency = timestampFrequency;
 
@@ -113,23 +198,22 @@ bool DebugDone()
     return gDebugDone;
 }
 
-void DebugEvent(EVENT_RECORD* eventRecord)
+void DebugEvent(EVENT_RECORD* eventRecord, EventMetadata* metadata)
 {
     auto const& hdr = eventRecord->EventHeader;
     auto id = hdr.EventDescriptor.Id;
 
-#if DEBUG_START_TIME_NS
-    if (DEBUG_START_TIME_NS <= t) {
+    FlushModifiedPresent();
+
+    auto t = ConvertTimestampToNs(hdr.TimeStamp);
+    if (t >= DEBUG_START_TIME_NS) {
         gDebugTrace = true;
     }
-#endif
 
-#if DEBUG_STOP_TIME_NS
-    if (DEBUG_STOP_TIME_NS <= t) {
+    if (t >= DEBUG_STOP_TIME_NS) {
         gDebugTrace = false;
         gDebugDone = true;
     }
-#endif
 
     if (!gDebugTrace) {
         return;
@@ -164,45 +248,42 @@ void DebugEvent(EVENT_RECORD* eventRecord)
         switch (id) {
         case Microsoft_Windows_DxgKrnl::Flip_Info::Id:                      PrintEventHeader(hdr); printf("DxgKrnl_Flip\n"); break;
         case Microsoft_Windows_DxgKrnl::FlipMultiPlaneOverlay_Info::Id:     PrintEventHeader(hdr); printf("DxgKrnl_FlipMPO\n"); break;
-        case Microsoft_Windows_DxgKrnl::QueuePacket_Start::Id:              PrintEventHeader(hdr); printf("DxgKrnl_QueueSubmit\n"); break;
-        case Microsoft_Windows_DxgKrnl::QueuePacket_Stop::Id:               PrintEventHeader(hdr); printf("DxgKrnl_QueueComplete\n"); break;
+        case Microsoft_Windows_DxgKrnl::QueuePacket_Start::Id:              PrintEventHeader(hdr); printf("DxgKrnl_QueuePacket_Start"); break;
+        case Microsoft_Windows_DxgKrnl::QueuePacket_Stop::Id:               PrintEventHeader(hdr); printf("DxgKrnl_QueuePacket_Stop"); break;
         case Microsoft_Windows_DxgKrnl::MMIOFlip_Info::Id:                  PrintEventHeader(hdr); printf("DxgKrnl_MMIOFlip\n"); break;
         case Microsoft_Windows_DxgKrnl::MMIOFlipMultiPlaneOverlay_Info::Id: PrintEventHeader(hdr); printf("DxgKrnl_MMIOFlipMPO\n"); break;
         case Microsoft_Windows_DxgKrnl::HSyncDPCMultiPlane_Info::Id:        PrintEventHeader(hdr); printf("DxgKrnl_HSyncDPC\n"); break;
         case Microsoft_Windows_DxgKrnl::VSyncDPC_Info::Id:                  PrintEventHeader(hdr); printf("DxgKrnl_VSyncDPC\n"); break;
         case Microsoft_Windows_DxgKrnl::Present_Info::Id:                   PrintEventHeader(hdr); printf("DxgKrnl_Present\n"); break;
         case Microsoft_Windows_DxgKrnl::Blit_Info::Id:                      PrintEventHeader(hdr); printf("DxgKrnl_Blit\n"); break;
+        case Microsoft_Windows_DxgKrnl::PresentHistory_Start::Id:           PrintEventHeader(hdr); printf("DxgKrnl_PresentHistory_Start"); break;
+        case Microsoft_Windows_DxgKrnl::PresentHistory_Info::Id:            PrintEventHeader(hdr); printf("DxgKrnl_PresentHistory_Info"); break;
+        case Microsoft_Windows_DxgKrnl::PresentHistoryDetailed_Start::Id:   PrintEventHeader(hdr); printf("DxgKrnl_PresentHistoryDetailed_Start"); break;
+        }
 
+        switch (id) {
+        case Microsoft_Windows_DxgKrnl::QueuePacket_Start::Id:
+        case Microsoft_Windows_DxgKrnl::QueuePacket_Stop::Id:
+            printf(" SubmitSequence=%u\n", metadata->GetEventData<uint32_t>(eventRecord, L"SubmitSequence"));
+            break;
         // The first part of the event data is the same for all these (detailed
         // has other members after).
         case Microsoft_Windows_DxgKrnl::PresentHistory_Start::Id:
         case Microsoft_Windows_DxgKrnl::PresentHistory_Info::Id:
         case Microsoft_Windows_DxgKrnl::PresentHistoryDetailed_Start::Id:
-            PrintEventHeader(hdr);
-            switch (id) {
-            case Microsoft_Windows_DxgKrnl::PresentHistory_Start::Id:         printf("DxgKrnl_PresentHistoryStart"); break;
-            case Microsoft_Windows_DxgKrnl::PresentHistory_Info::Id:          printf("DxgKrnl_PresentHistoryInfo"); break;
-            case Microsoft_Windows_DxgKrnl::PresentHistoryDetailed_Start::Id: printf("DxgKrnl_PresentHistoryDetailed"); break;
+            printf(" Token=%llx, Model=", metadata->GetEventData<uint64_t>(eventRecord, L"Token"));
+            switch (metadata->GetEventData<uint32_t>(eventRecord, L"Model")) {
+            case D3DKMT_PM_UNINITIALIZED:          printf("UNINITIALIZED");          break;
+            case D3DKMT_PM_REDIRECTED_GDI:         printf("REDIRECTED_GDI");         break;
+            case D3DKMT_PM_REDIRECTED_FLIP:        printf("REDIRECTED_FLIP");        break;
+            case D3DKMT_PM_REDIRECTED_BLT:         printf("REDIRECTED_BLT");         break;
+            case D3DKMT_PM_REDIRECTED_VISTABLT:    printf("REDIRECTED_VISTABLT");    break;
+            case D3DKMT_PM_SCREENCAPTUREFENCE:     printf("SCREENCAPTUREFENCE");     break;
+            case D3DKMT_PM_REDIRECTED_GDI_SYSMEM:  printf("REDIRECTED_GDI_SYSMEM");  break;
+            case D3DKMT_PM_REDIRECTED_COMPOSITION: printf("REDIRECTED_COMPOSITION"); break;
+            default:                               assert(false);                    break;
             }
-
-            // TODO: use 32-bit pointer if 32-bit
-            {
-                auto e = (Microsoft_Windows_DxgKrnl::PresentHistory_Info_Struct<uint64_t>*) eventRecord->UserData;
-                printf(" token=%llx, model=", e->Token);
-                switch (e->Model) {
-                case D3DKMT_PM_UNINITIALIZED:          printf("uninitialized"); break;
-                case D3DKMT_PM_REDIRECTED_GDI:         printf("redirected_gdi"); break;
-                case D3DKMT_PM_REDIRECTED_FLIP:        printf("redirected_flip"); break;
-                case D3DKMT_PM_REDIRECTED_BLT:         printf("redirected_blt"); break;
-                case D3DKMT_PM_REDIRECTED_VISTABLT:    printf("redirected_vistablt"); break;
-                case D3DKMT_PM_SCREENCAPTUREFENCE:     printf("screencapturefence"); break;
-                case D3DKMT_PM_REDIRECTED_GDI_SYSMEM:  printf("redirected_gdi_sysmem"); break;
-                case D3DKMT_PM_REDIRECTED_COMPOSITION: printf("redirected_composition"); break;
-                default:                               printf("unknown"); break;
-                }
-                printf("\n");
-            }
-            break;
+            printf("\n");
         }
         return;
     }
@@ -212,7 +293,7 @@ void DebugEvent(EVENT_RECORD* eventRecord)
         switch (id) {
         case Microsoft_Windows_Dwm_Core::MILEVENT_MEDIA_UCE_PROCESSPRESENTHISTORY_GetPresentHistory_Info::Id:
                                                                           PrintEventHeader(hdr); printf("DWM_GetPresentHistory\n"); break;
-        case Microsoft_Windows_Dwm_Core::SCHEDULE_PRESENT_Start::Id:      PrintEventHeader(hdr); printf("DWM_Schedule_Present_Start\n"); break;
+        case Microsoft_Windows_Dwm_Core::SCHEDULE_PRESENT_Start::Id:      PrintEventHeader(hdr); printf("DWM_SCHEDULE_PRESENT_Start\n"); break;
         case Microsoft_Windows_Dwm_Core::FlipChain_Pending::Id:           PrintEventHeader(hdr); printf("DWM_FlipChain_Pending\n"); break;
         case Microsoft_Windows_Dwm_Core::FlipChain_Complete::Id:          PrintEventHeader(hdr); printf("DWM_FlipChain_Complete\n"); break;
         case Microsoft_Windows_Dwm_Core::FlipChain_Dirty::Id:             PrintEventHeader(hdr); printf("DWM_FlipChain_Dirty\n"); break;
@@ -231,17 +312,13 @@ void DebugEvent(EVENT_RECORD* eventRecord)
             PrintEventHeader(hdr);
             printf("Win32K_TokenStateChanged ");
 
-            {
-                auto newState = (eventRecord->EventHeader.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER)
-                    ? ((Microsoft_Windows_Win32k::TokenStateChanged_Info_Struct<uint32_t>*) eventRecord->UserData)->NewState
-                    : ((Microsoft_Windows_Win32k::TokenStateChanged_Info_Struct<uint64_t>*) eventRecord->UserData)->NewState;
-                switch (newState) {
-                case Microsoft_Windows_Win32k::TokenState::InFrame:   printf("inframe\n"); break;
-                case Microsoft_Windows_Win32k::TokenState::Confirmed: printf("confirmed\n"); break;
-                case Microsoft_Windows_Win32k::TokenState::Retired:   printf("retired\n"); break;
-                case Microsoft_Windows_Win32k::TokenState::Discarded: printf("discarded\n"); break;
-                default:                                              printf("unknown\n"); break;
-                }
+            switch (metadata->GetEventData<uint32_t>(eventRecord, L"NewState")) {
+            case Microsoft_Windows_Win32k::TokenState::Completed: printf("Completed\n"); break;
+            case Microsoft_Windows_Win32k::TokenState::InFrame:   printf("InFrame\n");   break;
+            case Microsoft_Windows_Win32k::TokenState::Confirmed: printf("Confirmed\n"); break;
+            case Microsoft_Windows_Win32k::TokenState::Retired:   printf("Retired\n");   break;
+            case Microsoft_Windows_Win32k::TokenState::Discarded: printf("Discarded\n"); break;
+            default:                                              printf("Unknown (%u)\n", metadata->GetEventData<uint32_t>(eventRecord, L"NewState")); break;
             }
             break;
         }
@@ -251,50 +328,59 @@ void DebugEvent(EVENT_RECORD* eventRecord)
     assert(false);
 }
 
+void DebugModifyPresent(PresentEvent const& p)
+{
+    if (!gDebugTrace) return;
+    if (gModifiedPresent != &p) {
+        FlushModifiedPresent();
+
+        gModifiedPresent = &p;
+
+        gOriginalPresentValues.TimeTaken           = p.TimeTaken;
+        gOriginalPresentValues.ReadyTime           = p.ReadyTime;
+        gOriginalPresentValues.ScreenTime          = p.ScreenTime;
+        gOriginalPresentValues.SwapChainAddress    = p.SwapChainAddress;
+        gOriginalPresentValues.SyncInterval        = p.SyncInterval;
+        gOriginalPresentValues.PresentFlags        = p.PresentFlags;
+        gOriginalPresentValues.Hwnd                = p.Hwnd;
+        gOriginalPresentValues.TokenPtr            = p.TokenPtr;
+        gOriginalPresentValues.QueueSubmitSequence = p.QueueSubmitSequence;
+        gOriginalPresentValues.PresentMode         = p.PresentMode;
+        gOriginalPresentValues.FinalState          = p.FinalState;
+        gOriginalPresentValues.SupportsTearing     = p.SupportsTearing;
+        gOriginalPresentValues.MMIO                = p.MMIO;
+        gOriginalPresentValues.SeenDxgkPresent     = p.SeenDxgkPresent;
+        gOriginalPresentValues.SeenWin32KEvents    = p.SeenWin32KEvents;
+        gOriginalPresentValues.WasBatched          = p.WasBatched;
+        gOriginalPresentValues.DwmNotified         = p.DwmNotified;
+        gOriginalPresentValues.Completed           = p.Completed;
+    }
+}
+
 void DebugCreatePresent(PresentEvent const& p)
 {
-    if (gDebugTrace) {
-        PrintUpdateHeader(p.Id);
-        printf(" Create PresentMode=");
-        PrintPresentMode(p.PresentMode);
-        printf(" SwapChainAddress=%llx\n", p.SwapChainAddress);
-    }
+    if (!gDebugTrace) return;
+    FlushModifiedPresent();
+    PrintUpdateHeader(p.Id);
+    printf(" CreatePresent");
+    printf(" SwapChainAddress=%llx", p.SwapChainAddress);
+    printf(" PresentFlags=%x", p.PresentFlags);
+    printf(" SyncInterval=%u", p.SyncInterval);
+    printf(" Runtime=");
+    PrintRuntime(p.Runtime);
+    printf("\n");
 }
 
 void DebugCompletePresent(PresentEvent const& p, int indent)
 {
-    if (gDebugTrace) {
-        PrintUpdateHeader(p.Id, indent);
-        printf(" CompletePresent TimeTaken=%s ",            AddCommas(ConvertTimestampDeltaToNs(p.TimeTaken)));
-        printf("ReadyTime=%s ",   p.ReadyTime  == 0 ? "0" : AddCommas(ConvertTimestampDeltaToNs(p.ReadyTime  - p.QpcTime)));
-        printf("ScreenTime=%s\n", p.ScreenTime == 0 ? "0" : AddCommas(ConvertTimestampDeltaToNs(p.ScreenTime - p.QpcTime)));
-    }
-}
-
-void DebugPrintPresentMode(PresentEvent const& p)
-{
-    if (gDebugTrace) {
-        PrintUpdateHeader(p.Id);
-        printf(" PresentMode=");
-        PrintPresentMode(p.PresentMode);
-        printf("\n");
-    }
-}
-
-void DebugPrintDwmNotified(PresentEvent const& p)
-{
-    if (gDebugTrace) {
-        PrintUpdateHeader(p.Id);
-        printf(" DwmNotified=%u\n", p.DwmNotified);
-    }
-}
-
-void DebugPrintTokenPtr(PresentEvent const& p)
-{
-    if (gDebugTrace) {
-        PrintUpdateHeader(p.Id);
-        printf(" token=%llx\n", p.TokenPtr);
-    }
+    if (!gDebugTrace) return;
+    FlushModifiedPresent();
+    PrintUpdateHeader(p.Id, indent);
+    printf(" Completed=");
+    PrintBool(p.Completed);
+    printf("->");
+    PrintBool(true);
+    printf("\n");
 }
 
 #endif // if DEBUG_VERBOSE

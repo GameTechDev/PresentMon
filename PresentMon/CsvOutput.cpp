@@ -35,7 +35,6 @@ const char* PresentModeToString(PresentMode mode)
     switch (mode) {
     case PresentMode::Hardware_Legacy_Flip: return "Hardware: Legacy Flip";
     case PresentMode::Hardware_Legacy_Copy_To_Front_Buffer: return "Hardware: Legacy Copy to front buffer";
-    case PresentMode::Hardware_Direct_Flip: return "Hardware: Direct Flip";
     case PresentMode::Hardware_Independent_Flip: return "Hardware: Independent Flip";
     case PresentMode::Composed_Flip: return "Composed: Flip";
     case PresentMode::Composed_Copy_GPU_GDI: return "Composed: Copy with GPU GDI";

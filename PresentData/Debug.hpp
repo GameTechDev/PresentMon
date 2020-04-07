@@ -25,34 +25,30 @@ SOFTWARE.
 #define DEBUG_VERBOSE 0
 #if DEBUG_VERBOSE
 
-#define DEBUG_START_TIME_NS     0ull    /* 0 means first event */
-#define DEBUG_STOP_TIME_NS      0ull    /* 0 means end of trace */
+// Time relative to first event
+#define DEBUG_START_TIME_NS     0ull
+#define DEBUG_STOP_TIME_NS      UINT64_MAX
 
-#define NOMINMAX
 #include <stdint.h>
-#include <windows.h>
-#include <evntcons.h> // must include after windows.h
 
 struct PresentEvent; // Can't include PresentMonTraceConsumer.hpp because it includes Debug.hpp (before defining PresentEvent)
+struct EventMetadata;
+struct _EVENT_RECORD;
 
-void DebugInitialize(uint64_t* firstTimestamp, uint64_t timestampFrequency);
+void DebugInitialize(LARGE_INTEGER* firstTimestamp, LARGE_INTEGER timestampFrequency);
 bool DebugDone();
-void DebugEvent(EVENT_RECORD* eventRecord);
+void DebugEvent(_EVENT_RECORD* eventRecord, EventMetadata* metadata);
 void DebugCreatePresent(PresentEvent const& p);
+void DebugModifyPresent(PresentEvent const& p);
 void DebugCompletePresent(PresentEvent const& p, int indent);
-void DebugPrintPresentMode(PresentEvent const& p);
-void DebugPrintDwmNotified(PresentEvent const& p);
-void DebugPrintTokenPtr(PresentEvent const& p);
 
 #else
 
 #define DebugInitialize(firstTimestamp, timestampFrequency) (void) firstTimestamp, timestampFrequency
 #define DebugDone()                                         false
-#define DebugEvent(eventRecord)                             (void) eventRecord
+#define DebugEvent(eventRecord, metadata)                   (void) eventRecord, metadata
 #define DebugCreatePresent(p)                               (void) p
+#define DebugModifyPresent(p)                               (void) p
 #define DebugCompletePresent(p, indent)                     (void) p, indent
-#define DebugPrintPresentMode(p)                            (void) p
-#define DebugPrintDwmNotified(p)                            (void) p
-#define DebugPrintTokenPtr(p)                               (void) p
 
 #endif

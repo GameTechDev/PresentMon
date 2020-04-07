@@ -154,7 +154,7 @@ void ElevatePrivilege(int argc, char** argv);
 // TraceSession.cpp:
 bool StartTraceSession();
 void StopTraceSession();
-void CheckLostReports(uint32_t* eventsLost, uint32_t* buffersLost);
+void CheckLostReports(ULONG* eventsLost, ULONG* buffersLost);
 void DequeueAnalyzedInfo(
     std::vector<NTProcessEvent>* ntProcessEvents,
     std::vector<std::shared_ptr<PresentEvent>>* presents,

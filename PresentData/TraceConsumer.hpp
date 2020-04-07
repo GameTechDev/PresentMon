@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2019 Intel Corporation
+Copyright 2017-2020 Intel Corporation
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -19,17 +19,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-
 #pragma once
-
-#define NOMINMAX
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string>
 #include <unordered_map>
 #include <vector>
 #include <windows.h>
-#include <evntcons.h> // must include after windows.h
+#include <tdh.h> // Must include after windows.h
 
 struct EventMetadataKey {
     GUID guid_;
@@ -39,14 +37,24 @@ struct EventMetadataKey {
 struct EventMetadataKeyHash { size_t operator()(EventMetadataKey const& k) const; }; 
 struct EventMetadataKeyEqual { bool operator()(EventMetadataKey const& lhs, EventMetadataKey const& rhs) const; };
 
+enum PropertyStatus {
+    PROP_STATUS_NOT_FOUND       = 0,
+    PROP_STATUS_FOUND           = 1 << 0,
+    PROP_STATUS_CHAR_STRING     = 1 << 1,
+    PROP_STATUS_WCHAR_STRING    = 1 << 2,
+    PROP_STATUS_NULL_TERMINATED = 1 << 3,
+};
+
 struct EventDataDesc {
     wchar_t const* name_;   // Property name
     uint32_t arrayIndex_;   // Array index (optional)
     void* data_;            // OUT pointer to property data
     uint32_t size_;         // OUT size of property data
+    uint32_t status_;       // OUT PropertyStatus result of search
 
     template<typename T> T GetData() const
     {
+        assert(status_ & PROP_STATUS_FOUND);
         if (data_ == nullptr) {
             static bool first = true;
             if (first) {
@@ -85,21 +93,27 @@ struct EventDataDesc {
 
         return *(T*) data_;
     }
+
+    template<typename T> T* GetString() const
+    {
+        assert(status_ & PROP_STATUS_FOUND);
+        assert(status_ & (sizeof(T) == 1 ? PROP_STATUS_CHAR_STRING : PROP_STATUS_WCHAR_STRING));
+        assert(status_ & PROP_STATUS_NULL_TERMINATED);
+        assert(size_ >= sizeof(T) && (size_ % sizeof(T)) == 0);
+        return (T*) data_;
+    }
 };
 
 struct EventMetadata {
     std::unordered_map<EventMetadataKey, std::vector<uint8_t>, EventMetadataKeyHash, EventMetadataKeyEqual> metadata_;
 
     void AddMetadata(EVENT_RECORD* eventRecord);
-    void GetEventData(EVENT_RECORD* eventRecord, EventDataDesc* desc, uint32_t descCount);
+    void GetEventData(EVENT_RECORD* eventRecord, EventDataDesc* desc, uint32_t descCount, uint32_t optionalCount=0);
 
     template<typename T> T GetEventData(EVENT_RECORD* eventRecord, wchar_t const* name, uint32_t arrayIndex = 0)
     {
-        EventDataDesc desc = {};
-        desc.name_ = name;
-        desc.arrayIndex_ = arrayIndex;
+        EventDataDesc desc = { name, arrayIndex, };
         GetEventData(eventRecord, &desc, 1);
-
         return desc.GetData<T>();
     }
 };
