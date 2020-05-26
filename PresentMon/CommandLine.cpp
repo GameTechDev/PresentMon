@@ -248,6 +248,7 @@ static void PrintHelp()
                                     " listed as '<error>'.",
         "-terminate_on_proc_exit",  "Terminate PresentMon when all the target processes have exited.",
         "-terminate_after_timed",   "When using -timed, terminate PresentMon after the timed capture completes.",
+        "-shutdown",                "Terminate already running PresentMon process",
 
         "Beta options", nullptr,
         "-include_mixed_reality",   "Capture Windows Mixed Reality data to a CSV file with \"_WMR\" suffix.",
@@ -325,6 +326,7 @@ bool ParseCommandLine(int argc, char** argv)
     args->mIncludeWindowsMixedReality = false;
     args->mMultiCsv = false;
     args->mStopExistingSession = false;
+    args->mShutdown = false;
 
     bool simple = false;
     bool verbose = false;
@@ -384,6 +386,7 @@ bool ParseCommandLine(int argc, char** argv)
 
         // Beta options:
         else ARG1("-include_mixed_reality",  args->mIncludeWindowsMixedReality = true)
+        else ARG1("-shutdown",               args->mShutdown                   = true)
 
         // Provided argument wasn't recognized
         else fprintf(stderr, "error: unrecognized argument '%s'.\n", argv[i]);
