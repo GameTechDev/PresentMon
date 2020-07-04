@@ -23,12 +23,6 @@ SOFTWARE.
 #include "PresentMon.hpp"
 #include "../PresentData/TraceSession.hpp"
 
-namespace {
-    const std::wstring PresentMon              = L"PresentMon";
-    const std::wstring PresentMonWnd           = L"PresentMonWnd";
-    const std::wstring PresentMonQuitEvent     = L"PresentMonQuitEvent";
-}
-
 enum {
     HOTKEY_ID = 0x80,
 
@@ -201,27 +195,6 @@ void ExitMainThread()
     PostMessage(gWnd, WM_QUIT, 0, 0);
 }
 
-int Shutdown()
-{
-    auto hWnd = FindWindowW(PresentMon.c_str(), PresentMonWnd.c_str());
-    if (!hWnd)
-        return EXIT_SUCCESS;
-
-    auto hQuitEvent = CreateEventW(NULL, TRUE, FALSE, PresentMonQuitEvent.c_str());
-    if (hQuitEvent)
-    {
-        auto err = GetLastError();
-        if (ERROR_ALREADY_EXISTS == err)
-        {
-            PostMessage(hWnd, WM_QUIT, 0, 0);
-            WaitForSingleObject(hQuitEvent, INFINITE);
-            return EXIT_SUCCESS;
-        }
-    }
-
-    return EXIT_FAILURE;
-}
-
 int main(int argc, char** argv)
 {
     // Parse command line arguments.
@@ -250,24 +223,16 @@ int main(int argc, char** argv)
     // won't run in this process).
     ElevatePrivilege(argc, argv);
 
-    if (args.mShutdown)
-    {
-        return Shutdown();
-    } // args.mShutdown
-
-    // https://devblogs.microsoft.com/oldnewthing/20140828-00/?p=123
-    auto hQuitEvent = CreateEventW(NULL, TRUE, FALSE, PresentMonQuitEvent.c_str());
-
     // Create a message queue to handle the input messages.
     WNDCLASSEXW wndClass = { sizeof(wndClass) };
     wndClass.lpfnWndProc = HandleWindowMessage;
-    wndClass.lpszClassName = PresentMon.c_str();
+    wndClass.lpszClassName = L"PresentMon";
     if (!RegisterClassExW(&wndClass)) {
         fprintf(stderr, "error: failed to register hotkey class.\n");
         return 3;
     }
 
-    gWnd = CreateWindowExW(0, wndClass.lpszClassName, PresentMonWnd.c_str(), 0, 0, 0, 0, 0, HWND_MESSAGE, 0, 0, nullptr);
+    gWnd = CreateWindowExW(0, wndClass.lpszClassName, L"PresentMonWnd", 0, 0, 0, 0, 0, HWND_MESSAGE, 0, 0, nullptr);
     if (!gWnd) {
         fprintf(stderr, "error: failed to create hotkey window.\n");
         UnregisterClass(wndClass.lpszClassName, NULL);
@@ -337,12 +302,5 @@ int main(int argc, char** argv)
     */
     DestroyWindow(gWnd);
     UnregisterClass(wndClass.lpszClassName, NULL);
-
-    if (hQuitEvent)
-    {
-        SetEvent(hQuitEvent);
-        CloseHandle(hQuitEvent);
-    }
-
     return 0;
 }

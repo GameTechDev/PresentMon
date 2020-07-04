@@ -90,7 +90,6 @@ struct CommandLineArgs {
     bool mIncludeWindowsMixedReality;
     bool mMultiCsv;
     bool mStopExistingSession;
-    bool mShutdown;
 };
 
 // CSV output only requires last presented/displayed event to compute frame
