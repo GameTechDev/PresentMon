@@ -297,18 +297,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="ETW\Microsoft_Windows_D3D9.h" />
+    <ClInclude Include="ETW\Microsoft_Windows_Dwm_Core.h" />
+    <ClInclude Include="ETW\Microsoft_Windows_DXGI.h" />
+    <ClInclude Include="ETW\Microsoft_Windows_DxgKrnl.h" />
+    <ClInclude Include="ETW\Microsoft_Windows_EventMetadata.h" />
+    <ClInclude Include="ETW\Microsoft_Windows_Win32k.h" />
+    <ClInclude Include="ETW\NT_Process.h" />
     <ClInclude Include="Debug.hpp" />
-    <ClInclude Include="D3d9EventStructs.hpp" />
-    <ClInclude Include="DwmEventStructs.hpp" />
-    <ClInclude Include="DxgiEventStructs.hpp" />
-    <ClInclude Include="DxgkrnlEventStructs.hpp" />
-    <ClInclude Include="EventMetadataEventStructs.hpp" />
     <ClInclude Include="MixedRealityTraceConsumer.hpp" />
-    <ClInclude Include="NTProcessEventStructs.hpp" />
     <ClInclude Include="PresentMonTraceConsumer.hpp" />
     <ClInclude Include="TraceConsumer.hpp" />
     <ClInclude Include="TraceSession.hpp" />
-    <ClInclude Include="Win32kEventStructs.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Debug.cpp" />

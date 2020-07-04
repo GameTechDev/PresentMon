@@ -19,257 +19,67 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-
-#include "PresentMonCsv.h"
-
 #include <generated/version.h>
-#include <gtest/gtest.h>
-#include <strsafe.h>
-#include <windows.h>
+#include "PresentMonTests.h"
 
-#define RETURN_ON_FATAL_FAILURE(_P) do { _P; if (::testing::Test::HasFatalFailure()) return; } while (0)
-
-std::string presentMonPath_;
-std::string testDir_;
-std::string outDir_;
-
-class GoldStandardTests : public ::testing::Test {
-public:
-    struct Paths {
-        std::string etl_;
-        std::string goldCsv_;
-        std::string testCsv_;
-    } path_;
-
-    explicit GoldStandardTests(Paths const& paths)
-        : path_(paths)
-    {
-    }
-
-    bool CreateOutputDirectories() const
-    {
-        auto path = (char*) &path_.testCsv_[0];
-        for (auto i = outDir_.size() - 1, n = path_.testCsv_.size(); i < n; ++i) {
-            if (path[i] == '\\') {
-                path[i] = '\0';
-
-                auto attr = GetFileAttributesA(path);
-                if (attr == INVALID_FILE_ATTRIBUTES) {
-                    if (!CreateDirectoryA(path, NULL)) {
-                        return false;
-                    }
-                } else if ((attr & FILE_ATTRIBUTE_DIRECTORY) == 0) {
-                    return false;
-                }
-
-                path[i] = '\\';
-            }
-        }
-
-        return true;
-    }
-
-    void TestBody() override
-    {
-        // Open the gold CSV
-        PresentMonCsv goldCsv;
-        RETURN_ON_FATAL_FAILURE(goldCsv.Open(path_.goldCsv_.c_str()));
-
-        // Make sure output directory exists.
-        ASSERT_TRUE(CreateOutputDirectories());
-
-        // Generate command line, querying gold CSV to try and match expected
-        // data.
-        std::string cmdline;
-        cmdline += '\"';
-        cmdline += presentMonPath_;
-        cmdline += "\" -stop_existing_session -no_top -etl_file \"";
-        cmdline += path_.etl_;
-        cmdline += "\" -output_file \"";
-        cmdline += path_.testCsv_;
-        cmdline += "\"";
-
-        if (goldCsv.GetColumnIndex("AllowsTearing") == SIZE_MAX) {
-            cmdline += " -simple";
-        } else if (goldCsv.GetColumnIndex("WasBatched") != SIZE_MAX) {
-            cmdline += " -verbose";
-        }
-
-        SCOPED_TRACE(cmdline);
-
-        // Start PresentMon wait for it to complete.
-        STARTUPINFOA si = {};
-        si.cb = sizeof(si);
-        si.dwFlags = STARTF_USESTDHANDLES;
-
-        PROCESS_INFORMATION pi = {};
-        if (!CreateProcessA(nullptr, (LPSTR) cmdline.c_str(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi)) {
-            FAIL() << "Failed to start the PresentMon process.";
-        }
-
-        WaitForSingleObject(pi.hProcess, INFINITE);
-
-        DWORD exitCode = 0;
-        EXPECT_TRUE(GetExitCodeProcess(pi.hProcess, &exitCode));
-        EXPECT_EQ(exitCode, 0u);
-
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-
-        // Open test CSV file and check it has the same columns as gold
-        PresentMonCsv testCsv;
-        RETURN_ON_FATAL_FAILURE(testCsv.Open(path_.testCsv_.c_str()));
-        RETURN_ON_FATAL_FAILURE(testCsv.CompareColumns(goldCsv));
-
-        // Compare gold/test CSV data rows
-        UINT errorLineCount = 0;
-        for (;;) {
-            auto goldDone = !goldCsv.ReadRow();
-            auto testDone = !testCsv.ReadRow();
-            EXPECT_EQ(goldDone, testDone);
-            if (goldDone || testDone) {
-                break;
-            }
-
-            errorLineCount += goldCsv.CompareRow(testCsv, errorLineCount == 0, "GOLD", "TEST") ? 0 : 1;
-        }
-
-        goldCsv.Close();
-        testCsv.Close();
-
-        EXPECT_EQ(errorLineCount, 0u);
-    }
-};
-
-bool CheckGoldEtlCsvPair(
-    char* relName,
-    size_t relNameLen,
-    GoldStandardTests::Paths* paths)
+bool EnsureDirectoryCreated(std::wstring path)
 {
-    (void) relNameLen;
+    auto dir = path.c_str();
+    for (auto i = path.find(L'\\');; i = path.find(L'\\', i + 1)) {
+        if (i != std::wstring::npos) {
+            path[i] = L'\0';
+        }
 
-    // Confirm fileName is an ETL
-    auto len = strlen(relName);
-    if (len < 4 || _strnicmp(relName + len - 4, ".etl", 4) != 0) {
-        return false;
+        auto attr = GetFileAttributes(dir);
+        if (attr == INVALID_FILE_ATTRIBUTES) {
+            if (!CreateDirectory(dir, NULL)) {
+                fprintf(stderr, "error: failed to create directory: %ls\n", dir);
+                return false;
+            }
+        } else if ((attr & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+            fprintf(stderr, "error: existing path is not a directory: %ls\n", dir);
+            return false;
+        }
+
+        if (i == std::wstring::npos) {
+            break;
+        }
+
+        path[i] = L'\\';
     }
 
-    paths->etl_ = testDir_;
-    paths->etl_ += relName;
-
-    // Check if there is a CSV with the same path/name but different extension
-    relName[len - 3] = 'c';
-    relName[len - 2] = 's';
-    relName[len - 1] = 'v';
-
-    paths->goldCsv_ = testDir_;
-    paths->goldCsv_ += relName;
-
-    auto attr = GetFileAttributesA(paths->goldCsv_.c_str());
-    if (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_DIRECTORY) != 0) {
-        return false;
-    }
-
-    // Create test CSV path
-    paths->testCsv_ = outDir_;
-    paths->testCsv_ += relName;
-
-    // Prune off extension to use as test name
-    relName[len - 4] = '\0';
     return true;
 }
 
-void AddGoldEtlCsvTests(
-    char const* dir)
+namespace {
+
+void DeleteDirectory(std::wstring const& dir)
 {
-    GoldStandardTests::Paths paths;
-    auto fnidx = strlen(dir);
-    auto relidx = testDir_.size();
-
-    // Start listing files at dir/*
-    char path[MAX_PATH];
-    if (fnidx + 1 >= _countof(path)) {
-        return;
-    }
-    memcpy(path, dir, fnidx);
-    path[fnidx + 0] = '*';
-    path[fnidx + 1] = '\0';
-
-    auto relName = path + relidx;
-    auto relNameLen = _countof(path) - relidx;
-
-    WIN32_FIND_DATAA ff = {};
-    auto h = FindFirstFileA(path, &ff);
-    if (h == INVALID_HANDLE_VALUE) {
-        return;
-    }
-    do
-    {
-        auto len = strlen(ff.cFileName);
-        if (ff.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            if (len == 1 && ff.cFileName[0] == '.') continue;
-            if (len == 2 && ff.cFileName[0] == '.' && ff.cFileName[1] == '.') continue;
-            if (fnidx + len + 2 > _countof(path)) continue;
-
-            memcpy(path + fnidx, ff.cFileName, len);
-            memcpy(path + fnidx + len, "\\", 2);
-            AddGoldEtlCsvTests(path);
-        } else {
-            if (fnidx + len + 1 > _countof(path)) continue;
-            memcpy(path + fnidx, ff.cFileName, len + 1);
-
-            if (CheckGoldEtlCsvPair(relName, relNameLen, &paths)) {
-                ::testing::RegisterTest(
-                    "CsvCompareTests", relName, nullptr, nullptr, __FILE__, __LINE__,
-                    [=]() -> ::testing::Test* { return new GoldStandardTests(paths); });
-            }
-        }
-    } while (FindNextFileA(h, &ff) != 0);
-
-    FindClose(h);
-}
-
-void DeleteDirectory(
-    char const* dir)
-{
-    char path[MAX_PATH];
-    auto fnidx = strlen(dir);
-    if (fnidx + 1 >= _countof(path)) {
-        return;
-    }
-    memcpy(path, dir, fnidx);
-    path[fnidx + 0] = '*';
-    path[fnidx + 1] = '\0';
-
-    WIN32_FIND_DATAA ff = {};
-    auto h = FindFirstFileA(path, &ff);
+    WIN32_FIND_DATA ff = {};
+    auto h = FindFirstFile((dir + L'*').c_str(), &ff);
     if (h == INVALID_HANDLE_VALUE) {
         return;
     }
     do
     {
         if (ff.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            if (strcmp(ff.cFileName, ".") != 0 &&
-                strcmp(ff.cFileName, "..") != 0) {
-                strcpy_s(path + fnidx, _countof(path) - fnidx, ff.cFileName);
-                DeleteDirectory(path);
-            }
+            if (wcscmp(ff.cFileName, L".") == 0) continue;
+            if (wcscmp(ff.cFileName, L"..") == 0) continue;
+            DeleteDirectory(dir + ff.cFileName + L'\\');
         } else {
-            strcpy_s(path + fnidx, _countof(path) - fnidx, ff.cFileName);
-            DeleteFileA(path);
+            DeleteFile((dir + ff.cFileName).c_str());
         }
-    } while (FindNextFileA(h, &ff) != 0);
+    } while (FindNextFile(h, &ff) != 0);
 
-    path[fnidx - 1] = '\0';
-    RemoveDirectoryA(path);
+    RemoveDirectory(dir.substr(0, dir.size() - 1).c_str());
 
     FindClose(h);
 }
 
 bool CheckPath(
     char const* commandLineArg,
-    std::string* str,
-    char const* path,
+    std::wstring* str,
+    wchar_t const* path,
     bool directory,
     bool* exists)
 {
@@ -279,25 +89,25 @@ bool CheckPath(
     }
 
     // Get full path
-    char fullPath[MAX_PATH];
-    auto r = GetFullPathNameA(path, _countof(fullPath), fullPath, nullptr);
+    wchar_t fullPath[MAX_PATH];
+    auto r = GetFullPathName(path, _countof(fullPath), fullPath, nullptr);
     if (r == 0 || r > _countof(fullPath)) {
-        fprintf(stderr, "error: could not get full path for: %s\n", path);
+        fprintf(stderr, "error: could not get full path for: %ls\n", path);
         fprintf(stderr, "       Specify a new path using the %s command line argument.\n", commandLineArg);
         return false;
     }
 
     // Make sure file exists and is the right type (file vs directory).
-    auto attr = GetFileAttributesA(fullPath);
+    auto attr = GetFileAttributes(fullPath);
     if (attr == INVALID_FILE_ATTRIBUTES) {
         if (exists == nullptr) { // must exist
-            fprintf(stderr, "error: path does not exist: %s\n", fullPath);
+            fprintf(stderr, "error: path does not exist: %ls\n", fullPath);
             fprintf(stderr, "       Specify a new path using the %s command line argument.\n", commandLineArg);
             return false;
         }
         *exists = false;
     } else if ((attr & FILE_ATTRIBUTE_DIRECTORY) != (directory ? FILE_ATTRIBUTE_DIRECTORY : 0u)) {
-        fprintf(stderr, "error: path is not a %s: %s\n", directory ? "directory" : "file", fullPath);
+        fprintf(stderr, "error: path is not a %s: %ls\n", directory ? "directory" : "file", fullPath);
         fprintf(stderr, "       Specify a new path using the %s command line argument.\n", commandLineArg);
         return false;
     }
@@ -305,119 +115,163 @@ bool CheckPath(
     // Update the string with the full path and end directories with separator.
     *str = fullPath;
     if (directory) {
-        *str += '\\';
+        *str += L'\\';
     }
 
     return true;
 }
 
-void SetDefaults()
-{
-    // PresentMon path
-    presentMonPath_ = "PresentMon-";
-    if (strncmp(PRESENT_MON_VERSION, "dev", 3) == 0) {
-        presentMonPath_ += "dev";
-    } else {
-        presentMonPath_ += PRESENT_MON_VERSION;
-    }
-    presentMonPath_ += "-x64.exe";
-
-    // Test dir
-    testDir_ = "../../Tests/Gold";
-
-    // Output dir
-    char path[MAX_PATH];
-    GetTempPathA(_countof(path), path);
-    strcat_s(path, "PresentMonTestOutput");
-    outDir_ = path;
 }
 
-int main(
-    int argc,
-    char** argv)
+std::wstring PresentMon::exePath_;
+std::wstring outDir_;
+
+std::string Convert(std::wstring const& src)
 {
-    // Put out usage before googletest
-    SetDefaults();
+    std::string dst(WideCharToMultiByte(CP_UTF8, 0, src.c_str(), (int) src.size(), nullptr, 0, nullptr, nullptr), 0);
+    WideCharToMultiByte(CP_UTF8, 0, src.c_str(), (int) src.size(), &dst[0], (int) dst.size(), nullptr, nullptr);
+    return dst;
+}
+
+std::wstring Convert(std::string const& src)
+{
+    std::wstring dst(MultiByteToWideChar(CP_UTF8, 0, src.c_str(), (int) src.size(), nullptr, 0), 0);
+    MultiByteToWideChar(CP_UTF8, 0, src.c_str(), (int) src.size(), &dst[0], (int) dst.size());
+    return dst;
+}
+
+int wmain(
+    int argc,
+    wchar_t** argv)
+{
+    // Set defaults
+    PresentMon::exePath_ = L"PresentMon-";
+    if (strncmp(PRESENT_MON_VERSION, "dev", 3) == 0) {
+        PresentMon::exePath_ += L"dev";
+    } else {
+        PresentMon::exePath_ += Convert(PRESENT_MON_VERSION);
+    }
+    PresentMon::exePath_ += L"-x64.exe";
+
+    std::wstring goldDir(L"../../Tests/Gold");
+
+    {
+        wchar_t path[MAX_PATH];
+        GetTempPath(_countof(path), path);
+        outDir_ = path;
+        outDir_ += L"PresentMonTestOutput";
+    }
+
+    // If there is a help argument print help information before GoogleTest
+    // does.
     auto help = false;
     for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "--help") == 0 ||
-            strcmp(argv[i], "-h") == 0 ||
-            strcmp(argv[i], "-?") == 0 ||
-            strcmp(argv[i], "/?") == 0) {
+        if (_wcsicmp(argv[i], L"--help") == 0 ||
+            _wcsicmp(argv[i], L"-h") == 0 ||
+            _wcsicmp(argv[i], L"-?") == 0 ||
+            _wcsicmp(argv[i], L"/?") == 0) {
             printf(
                 "PresentMonTests.exe [options]\n"
                 "options:\n"
-                "    --presentmon=path    Path to the PresentMon exe path to test (default=%s).\n"
-                "    --testdir=path       Path to directory of test ETLs and gold CSVs (default=%s).\n"
+                "    --presentmon=path    Path to the PresentMon exe path to test (default=%ls).\n"
+                "    --golddir=path       Path to directory of test ETLs and gold CSVs (default=%ls).\n"
                 "    --outdir=path        Path to directory for test outputs (default=%%temp%%/PresentMonTestOutput).\n"
-                "    --delete             Delete output directory after tests, unless the directory already existed.\n"
+                "    --nodelete           Keep the output directory after tests.\n"
+                "    --allcsvdiffs        Report all CSV differences, not just the first.\n"
                 "\n",
-                presentMonPath_.c_str(),
-                testDir_.c_str());
+                PresentMon::exePath_.c_str(),
+                goldDir.c_str());
             help = true;
             break;
         }
     }
 
-    // InitGoogleTest will remove the arguments it recognizes
+    // Note: InitGoogleTest() will remove the arguments it recognizes.
     testing::InitGoogleTest(&argc, argv);
     if (help) {
         return 0;
     }
 
     // Parse remaining command line arguments for custom commands.
-    char* presentMonPath = nullptr;
-    char* testDir = nullptr;
-    char* outDir = nullptr;
-    bool deleteOutDir = false;
+    wchar_t* presentMonPathArg = nullptr;
+    wchar_t* goldDirArg = nullptr;
+    wchar_t* outDirArg = nullptr;
+    bool deleteOutDir = true;
+    bool reportAllCsvDiffs = false;
     for (int i = 1; i < argc; ++i) {
-        if (_strnicmp(argv[i], "--presentmon=", 13) == 0) {
-            presentMonPath = argv[i] + 13;
+        if (_wcsnicmp(argv[i], L"--presentmon=", 13) == 0) {
+            presentMonPathArg = argv[i] + 13;
             continue;
         }
 
-        if (_strnicmp(argv[i], "--testdir=", 10) == 0) {
-            testDir = argv[i] + 10;
+        if (_wcsnicmp(argv[i], L"--golddir=", 10) == 0) {
+            goldDirArg = argv[i] + 10;
             continue;
         }
 
-        if (_strnicmp(argv[i], "--outdir=", 9) == 0) {
-            outDir = argv[i] + 9;
+        if (_wcsnicmp(argv[i], L"--outdir=", 9) == 0) {
+            outDirArg = argv[i] + 9;
             continue;
         }
 
-        if (_stricmp(argv[i], "--delete") == 0) {
-            deleteOutDir = true;
+        if (_wcsicmp(argv[i], L"--nodelete") == 0) {
+            deleteOutDir = false;
             continue;
         }
 
-        fprintf(stderr, "error: unrecognized command line argument: %s.\n", argv[i]);
+        if (_wcsicmp(argv[i], L"--allcsvdiffs") == 0) {
+            reportAllCsvDiffs = true;
+            continue;
+        }
+
+        fprintf(stderr, "error: unrecognized command line argument: %ls.\n", argv[i]);
         fprintf(stderr, "       Use --help command line argument for usage.\n");
         return 1;
     }
 
     // Check command line arguments...
-    bool outDirExisted = true;
-    if (!CheckPath("--presentmon", &presentMonPath_, presentMonPath, false, nullptr) ||
-        !CheckPath("--testdir", &testDir_, testDir, true, nullptr) ||
-        !CheckPath("--outdir", &outDir_, outDir, true, &outDirExisted)) {
+    bool goldDirExists = true;
+    bool outDirExists = true;
+    if (!CheckPath("--presentmon", &PresentMon::exePath_, presentMonPathArg, false, nullptr) ||
+        !CheckPath("--golddir", &goldDir, goldDirArg, true, &goldDirExists) ||
+        !CheckPath("--outdir", &outDir_, outDirArg, true, &outDirExists)) {
         return 1;
     }
 
-    // Search test dir for gold ETL/CSV test pairs.
-    AddGoldEtlCsvTests(testDir_.c_str());
+    if (goldDirExists) {
+        AddGoldEtlCsvTests(goldDir, goldDir.size(), reportAllCsvDiffs);
+    } else {
+        fprintf(stderr, "warning: gold directory does not exist: %ls\n", goldDir.c_str());
+        fprintf(stderr, "         Continuing, but no GoldEtlCsvTests.* will run.  Specify a new path\n");
+        fprintf(stderr, "         using the --golddir command line argument.\n");
+    }
+
+    if (outDirExists) {
+        if (deleteOutDir) {
+            fprintf(stderr, "warning: output directory already exists: %ls\n", outDir_.c_str());
+            fprintf(stderr, "         Continuing, but directory won't be deleted afterwards.  Use the\n");
+            fprintf(stderr, "         --nodelete argument, or delete directory before running, to remove this\n");
+            fprintf(stderr, "         warning.\n");
+            deleteOutDir = false;
+        }
+    } else {
+        EnsureDirectoryCreated(outDir_);
+    }
 
     // Run all the tests
     int result = RUN_ALL_TESTS();
 
-    // If we created the output directory, and the user requested it, delete
-    // the output directory.
+    // If there were any failures, disable deleting of the output directory.
+    if (deleteOutDir && ::testing::UnitTest::GetInstance()->failed_test_count() > 0) {
+        fprintf(stderr, "warning: not deleting output directory since there were errors\n");
+        fprintf(stderr, "         %ls\n", outDir_.c_str());
+        deleteOutDir = false;
+    }
+
+    // If we created the output directory and the user told us to, delete the
+    // output directory.
     if (deleteOutDir) {
-        if (outDirExisted) {
-            fprintf(stderr, "warning: output directory existed before running tests, and won't be deleted.\n");
-        } else {
-            DeleteDirectory(outDir_.c_str());
-        }
+        DeleteDirectory(outDir_);
     }
 
     return result;

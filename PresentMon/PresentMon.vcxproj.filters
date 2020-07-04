@@ -22,5 +22,21 @@
     <Filter Include="generated">
       <UniqueIdentifier>{f09f81fa-1336-4ff5-8273-d1c8f9c8871e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="docs">
+      <UniqueIdentifier>{8cd50319-dd68-4a65-94f0-7a4c40e4f4e5}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\CONTRIBUTING.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\README.md">
+      <Filter>docs</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\LICENSE.txt">
+      <Filter>docs</Filter>
+    </Text>
   </ItemGroup>
 </Project>

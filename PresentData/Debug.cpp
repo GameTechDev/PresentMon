@@ -22,11 +22,11 @@ SOFTWARE.
 
 #include "PresentMonTraceConsumer.hpp"
 
-#include "D3d9EventStructs.hpp"
-#include "DwmEventStructs.hpp"
-#include "DxgiEventStructs.hpp"
-#include "DxgkrnlEventStructs.hpp"
-#include "Win32kEventStructs.hpp"
+#include "ETW/Microsoft_Windows_D3D9.h"
+#include "ETW/Microsoft_Windows_Dwm_Core.h"
+#include "ETW/Microsoft_Windows_DXGI.h"
+#include "ETW/Microsoft_Windows_DxgKrnl.h"
+#include "ETW/Microsoft_Windows_Win32k.h"
 
 #include <assert.h>
 

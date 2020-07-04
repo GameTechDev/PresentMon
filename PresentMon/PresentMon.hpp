@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2019 Intel Corporation
+Copyright 2017-2020 Intel Corporation
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -78,9 +78,12 @@ struct CommandLineArgs {
     bool mOutputCsvToFile;
     bool mOutputCsvToStdout;
     bool mOutputQpcTime;
+    bool mOutputQpcTimeInSeconds;
     bool mScrollLockIndicator;
     bool mExcludeDropped;
+    bool mTerminateExisting;
     bool mTerminateOnProcExit;
+    bool mStartTimer;
     bool mTerminateAfterTimer;
     bool mHotkeySupport;
     bool mTryToElevate;
@@ -157,8 +160,8 @@ bool StartTraceSession();
 void StopTraceSession();
 void CheckLostReports(ULONG* eventsLost, ULONG* buffersLost);
 void DequeueAnalyzedInfo(
-    std::vector<NTProcessEvent>* ntProcessEvents,
-    std::vector<std::shared_ptr<PresentEvent>>* presents,
+    std::vector<ProcessEvent>* processEvents,
+    std::vector<std::shared_ptr<PresentEvent>>* presentEvents,
     std::vector<std::shared_ptr<LateStageReprojectionEvent>>* lsrs);
 double QpcDeltaToSeconds(uint64_t qpcDelta);
 uint64_t SecondsDeltaToQpc(double secondsDelta);

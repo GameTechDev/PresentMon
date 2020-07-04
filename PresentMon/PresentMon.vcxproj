@@ -309,6 +309,13 @@
     <ClInclude Include="LateStageReprojectionData.hpp" />
     <ClInclude Include="PresentMon.hpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\CONTRIBUTING.md" />
+    <None Include="..\README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\LICENSE.txt" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

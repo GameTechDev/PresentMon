@@ -257,14 +257,10 @@ struct MRTraceConsumer
     std::map<uint32_t, std::shared_ptr<HolographicFrame>> mHolographicFramesByPresentId;
 
     std::shared_ptr<LateStageReprojectionEvent> mActiveLSR;
-    bool DequeueLSRs(std::vector<std::shared_ptr<LateStageReprojectionEvent>>& outLSRs)
+    void DequeueLSRs(std::vector<std::shared_ptr<LateStageReprojectionEvent>>& outLSRs)
     {
-        if (mCompletedLSRs.size()) {
-            auto lock = scoped_lock(mMutex);
-            outLSRs.swap(mCompletedLSRs);
-            return !outLSRs.empty();
-        }
-        return false;
+        std::lock_guard<std::mutex> lock(mMutex);
+        outLSRs.swap(mCompletedLSRs);
     }
 
     void CompleteLSR(std::shared_ptr<LateStageReprojectionEvent> p);

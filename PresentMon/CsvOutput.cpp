@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2019 Intel Corporation
+Copyright 2017-2020 Intel Corporation
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -152,7 +152,11 @@ void UpdateCsv(ProcessInfo* processInfo, SwapChainData const& chain, PresentEven
         fprintf(fp, ",%.3lf,%.3lf", msUntilRenderComplete, msUntilDisplayed);
     }
     if (args.mOutputQpcTime) {
-        fprintf(fp, ",%llu", p.QpcTime);
+        if (args.mOutputQpcTimeInSeconds) {
+            fprintf(fp, ",%.9lf", QpcDeltaToSeconds(p.QpcTime));
+        } else {
+            fprintf(fp, ",%llu", p.QpcTime);
+        }
     }
     fprintf(fp, "\n");
 }

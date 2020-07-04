@@ -24,7 +24,7 @@ perspective.  Also, clearly describe each commit and limit the length of the
 commit message's first line to less than ~80 characters.
 
 PresentMon is licensed under the terms in
-[LICENSE](https://github.com/GameTechDev/PresentMon/blob/master/license.txt).
+[LICENSE](https://github.com/GameTechDev/PresentMon/blob/main/LICENSE.txt).
 By contributing to the project, you agree to the license and copyright terms
 therein and release your contribution under these terms.
 

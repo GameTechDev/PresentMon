@@ -1,34 +1,43 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 set etw_list=%~1
 if not exist "%etw_list%" (
-    echo usage: run_etw_list.cmd path_to_etw_list_exe
-    exit /b 1
+    where msbuild > NUL
+    if %errorlevel% equ 0 (
+        msbuild /nologo /verbosity:quiet /maxCpuCount /p:Platform=x64,Configuration=release "%~dp0etw_list"
+        set etw_list=%~dp0..\build\Release\etw_list-dev-x64.exe
+    ) else (
+        echo error: path to etw_list not provided and msbuild is not available
+    )
+    if not exist "!etw_list!" (
+        echo usage: run_etw_list.cmd [path_to_etw_list_exe]
+        exit /b 1
+    )
 )
+
+for %%a in ("%~dp0..") do set out_dir=%%~fa\PresentData\ETW
+if not exist "%out_dir%\." mkdir "%out_dir%"
 
 set year=
 for /f "tokens=1 delims=/-." %%a in ('date /t') do set year=%%a
 
-set version=
-for /f "tokens=*" %%a in ('%etw_list% --version') do set version=%%a
-
 set events=
 set events=%events% --event=Present::Start
 set events=%events% --event=Present::Stop
-call :etw_list "*d3d9" "%~dp0PresentData\D3d9EventStructs.hpp"
+call :etw_list "Microsoft-Windows-D3D9" "%out_dir%\Microsoft_Windows_D3D9.h"
 
 set events=
 set events=%events% --event=MILEVENT_MEDIA_UCE_PROCESSPRESENTHISTORY_GetPresentHistory::Info
 set events=%events% --event=SCHEDULE_PRESENT::Start
 set events=%events% --event=SCHEDULE_SURFACEUPDATE::Info
-call :etw_list "*dwm-core" "%~dp0PresentData\DwmEventStructs.hpp"
+call :etw_list "Microsoft-Windows-Dwm-Core" "%out_dir%\Microsoft_Windows_Dwm_Core.h"
 
 set events=
 set events=%events% --event=Present::Start
 set events=%events% --event=Present::Stop
 set events=%events% --event=PresentMultiplaneOverlay::Start
 set events=%events% --event=PresentMultiplaneOverlay::Stop
-call :etw_list "*dxgi" "%~dp0PresentData\DxgiEventStructs.hpp"
+call :etw_list "Microsoft-Windows-DXGI" "%out_dir%\Microsoft_Windows_DXGI.h"
 
 set events=
 set events=%events% --event=Blit::Info
@@ -44,19 +53,22 @@ set events=%events% --event=PresentHistoryDetailed::Start
 set events=%events% --event=QueuePacket::Start
 set events=%events% --event=QueuePacket::Stop
 set events=%events% --event=VSyncDPC::Info
-call :etw_list "*dxgkrnl" "%~dp0PresentData\DxgKrnlEventStructs.hpp"
+call :etw_list "Microsoft-Windows-DxgKrnl" "%out_dir%\Microsoft_Windows_DxgKrnl.h"
 
 set events=
 set events=%events% --event=TokenCompositionSurfaceObject::Info
 set events=%events% --event=TokenStateChanged::Info
-call :etw_list "*win32k" "%~dp0PresentData\Win32kEventStructs.hpp"
+call :etw_list "Microsoft-Windows-Win32k" "%out_dir%\Microsoft_Windows_Win32k.h"
 
+echo.
+echo note: error expected on this one, file should still be created:
 set events=
-call :etw_list "{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}" "%~dp0PresentData\NTProcessEventStructs.hpp"
+call :etw_list "{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}" "%out_dir%\NT_Process.h"
 
 exit /b 0
 
 :etw_list
+    echo %~2
     echo /*> %2
     echo Copyright %year% Intel Corporation>> %2
     echo.>>%2

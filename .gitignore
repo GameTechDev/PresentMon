@@ -4,9 +4,6 @@
 # Build results
 /build/
 
-# PresentMonTests default ETL/CSV pairs
-/Tests/Gold/
-
 # User-specific files
 *.suo
 *.user
@@ -32,6 +29,3 @@ ipch/
 *.vspx
 *.sap
 
-# Disallow CSV files except in the Tests gold reference directory
-*.csv
-!Tests/Gold/*.csv

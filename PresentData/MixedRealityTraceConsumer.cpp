@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Intel Corporation
+Copyright 2017-2020 Intel Corporation
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -29,7 +29,7 @@ SOFTWARE.
 
 #include "MixedRealityTraceConsumer.hpp"
 #include "TraceConsumer.hpp"
-#include "DxgkrnlEventStructs.hpp"
+#include "ETW/Microsoft_Windows_DxgKrnl.h"
 
 #ifndef NDEBUG
 static bool gMixedRealityTraceConsumer_Exiting = false;
@@ -147,7 +147,7 @@ void MRTraceConsumer::CompleteLSR(std::shared_ptr<LateStageReprojectionEvent> p)
 
     p->Completed = true;
     {
-        auto lock = scoped_lock(mMutex);
+        std::lock_guard<std::mutex> lock(mMutex);
         mCompletedLSRs.push_back(p);
     }
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2019 Intel Corporation
+Copyright 2017-2020 Intel Corporation
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -228,25 +228,22 @@ static void HandleTerminatedProcess(uint32_t processId)
     gProcesses.erase(iter);
 }
 
-static void UpdateNTProcesses(std::vector<NTProcessEvent> const& ntProcessEvents, std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses)
+static void UpdateProcesses(std::vector<ProcessEvent> const& processEvents, std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses)
 {
-    for (auto const& ntProcessEvent : ntProcessEvents) {
-        // An empty ImageFileName indicates that the event is a process
-        // termination; record the termination in terminatedProcess to be
-        // handled once the present event stream catches up to the termination
-        // time.
-        if (ntProcessEvent.ImageFileName.empty()) {
-            terminatedProcesses->emplace_back(ntProcessEvent.ProcessId, ntProcessEvent.QpcTime);
-            continue;
-        }
-
-        // This event is a new process starting, the pid should not already be
-        // in gProcesses.
-        auto result = gProcesses.emplace(ntProcessEvent.ProcessId, ProcessInfo());
-        auto processInfo = &result.first->second;
-        auto newProcess = result.second;
-        if (newProcess) {
-            InitProcessInfo(processInfo, ntProcessEvent.ProcessId, NULL, ntProcessEvent.ImageFileName);
+    for (auto const& processEvent : processEvents) {
+        if (processEvent.IsStartEvent) {
+            // This event is a new process starting, the pid should not already be
+            // in gProcesses.
+            auto result = gProcesses.emplace(processEvent.ProcessId, ProcessInfo());
+            auto processInfo = &result.first->second;
+            auto newProcess = result.second;
+            if (newProcess) {
+                InitProcessInfo(processInfo, processEvent.ProcessId, NULL, processEvent.ImageFileName);
+            }
+        } else {
+            // Note any process termination in terminatedProcess, to be handled
+            // once the present event stream catches up to the termination time.
+            terminatedProcesses->emplace_back(processEvent.ProcessId, processEvent.QpcTime);
         }
     }
 }
@@ -341,16 +338,16 @@ static void AddPresents(LateStageReprojectionData* lsrData,
 
 // Limit the present history stored in SwapChainData to 2 seconds.
 static void PruneHistory(
-    std::vector<NTProcessEvent> const& ntProcessEvents,
+    std::vector<ProcessEvent> const& processEvents,
     std::vector<std::shared_ptr<PresentEvent>> const& presentEvents,
     std::vector<std::shared_ptr<LateStageReprojectionEvent>> const& lsrEvents)
 {
-    assert(ntProcessEvents.size() + presentEvents.size() + lsrEvents.size() > 0);
+    assert(processEvents.size() + presentEvents.size() + lsrEvents.size() > 0);
 
     auto latestQpc = max(max(
-        ntProcessEvents.empty() ? 0ull : ntProcessEvents.back().QpcTime,
-        presentEvents.empty()   ? 0ull : presentEvents.back()->QpcTime),
-        lsrEvents.empty()       ? 0ull : lsrEvents.back()->QpcTime);
+        processEvents.empty() ? 0ull : processEvents.back().QpcTime,
+        presentEvents.empty() ? 0ull : presentEvents.back()->QpcTime),
+        lsrEvents.empty()     ? 0ull : lsrEvents.back()->QpcTime);
 
     auto minQpc = latestQpc - SecondsDeltaToQpc(2.0);
 
@@ -378,7 +375,7 @@ static void PruneHistory(
 
 static void ProcessEvents(
     LateStageReprojectionData* lsrData,
-    std::vector<NTProcessEvent>* ntProcessEvents,
+    std::vector<ProcessEvent>* processEvents,
     std::vector<std::shared_ptr<PresentEvent>>* presentEvents,
     std::vector<std::shared_ptr<LateStageReprojectionEvent>>* lsrEvents,
     std::vector<uint64_t>* recordingToggleHistory,
@@ -388,18 +385,18 @@ static void ProcessEvents(
 
     // Copy any analyzed information from ConsumerThread and early-out if there
     // isn't any.
-    DequeueAnalyzedInfo(ntProcessEvents, presentEvents, lsrEvents);
-    if (ntProcessEvents->empty() && presentEvents->empty() && lsrEvents->empty()) {
+    DequeueAnalyzedInfo(processEvents, presentEvents, lsrEvents);
+    if (processEvents->empty() && presentEvents->empty() && lsrEvents->empty()) {
         return;
     }
 
     // Copy the record range history form the MainThread.
     auto recording = CopyRecordingToggleHistory(recordingToggleHistory);
 
-    // Process NTProcess events; created processes are added to gProcesses and
+    // Handle Process events; created processes are added to gProcesses and
     // terminated processes are added to terminatedProcesses.
     //
-    // Handling of terminated processes need to be deferred until we observe
+    // Handling of terminated processes need to be deferred until we observe a
     // present event that started after the termination time.  This is because
     // while a present must start before termination, it can complete after
     // termination.
@@ -407,7 +404,7 @@ static void ProcessEvents(
     // We don't have to worry about the recording toggles here because
     // NTProcess events are only captured when parsing ETL files and we don't
     // use recording toggle history for ETL files.
-    UpdateNTProcesses(*ntProcessEvents, terminatedProcesses);
+    UpdateProcesses(*processEvents, terminatedProcesses);
 
     // Next, iterate through the recording toggles (if any)...
     size_t presentEventIndex = 0;
@@ -472,11 +469,11 @@ done:
     // leave the older presents in the history buffer since they aren't used
     // for anything.
     if (args.mConsoleOutputType == ConsoleOutput::Full) {
-        PruneHistory(*ntProcessEvents, *presentEvents, *lsrEvents);
+        PruneHistory(*processEvents, *presentEvents, *lsrEvents);
     }
 
     // Clear events processed.
-    ntProcessEvents->clear();
+    processEvents->clear();
     presentEvents->clear();
     lsrEvents->clear();
     recordingToggleHistory->clear();
@@ -501,12 +498,12 @@ void Output()
 
     // Structures to track processes and statistics from recorded events.
     LateStageReprojectionData lsrData;
-    std::vector<NTProcessEvent> ntProcessEvents;
+    std::vector<ProcessEvent> processEvents;
     std::vector<std::shared_ptr<PresentEvent>> presentEvents;
     std::vector<std::shared_ptr<LateStageReprojectionEvent>> lsrEvents;
     std::vector<uint64_t> recordingToggleHistory;
     std::vector<std::pair<uint32_t, uint64_t>> terminatedProcesses;
-    ntProcessEvents.reserve(128);
+    processEvents.reserve(128);
     presentEvents.reserve(4096);
     lsrEvents.reserve(4096);
     recordingToggleHistory.reserve(16);
@@ -520,7 +517,7 @@ void Output()
 
         // Copy and process all the collected events, and update the various
         // tracking and statistics data structures.
-        ProcessEvents(&lsrData, &ntProcessEvents, &presentEvents, &lsrEvents, &recordingToggleHistory, &terminatedProcesses);
+        ProcessEvents(&lsrData, &processEvents, &presentEvents, &lsrEvents, &recordingToggleHistory, &terminatedProcesses);
 
         // Display information to console if requested.  If debug build and
         // simple console, print a heartbeat if recording.
@@ -572,10 +569,10 @@ void Output()
     ULONG buffersLost = 0;
     CheckLostReports(&eventsLost, &buffersLost);
     if (buffersLost > 0) {
-        fprintf(stderr, "warning: %u ETW buffers were lost.\n", buffersLost);
+        fprintf(stderr, "warning: %lu ETW buffers were lost.\n", buffersLost);
     }
     if (eventsLost > 0) {
-        fprintf(stderr, "warning: %u ETW events were lost.\n", eventsLost);
+        fprintf(stderr, "warning: %lu ETW events were lost.\n", eventsLost);
     }
 
     // Close all CSV and process handles

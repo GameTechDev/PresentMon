@@ -286,13 +286,16 @@
     <Manifest />
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CommandLineTests.cpp" />
+    <ClCompile Include="GoldEtlCsvTests.cpp" />
     <ClCompile Include="PresentMonTests.cpp" />
+    <ClCompile Include="PresentMon.cpp" />
     <ClCompile Include="googletest\googletest\src\gtest-all.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\build\obj\generated\version.h" />
     <ClInclude Include="googletest\googletest\include\gtest\gtest.h" />
-    <ClInclude Include="PresentMonCsv.h" />
+    <ClInclude Include="PresentMonTests.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="googletest\LICENSE" />

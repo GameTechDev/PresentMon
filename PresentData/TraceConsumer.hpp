@@ -43,6 +43,7 @@ enum PropertyStatus {
     PROP_STATUS_CHAR_STRING     = 1 << 1,
     PROP_STATUS_WCHAR_STRING    = 1 << 2,
     PROP_STATUS_NULL_TERMINATED = 1 << 3,
+    PROP_STATUS_POINTER_SIZE    = 1 << 4,
 };
 
 struct EventDataDesc {
@@ -55,54 +56,21 @@ struct EventDataDesc {
     template<typename T> T GetData() const
     {
         assert(status_ & PROP_STATUS_FOUND);
-        if (data_ == nullptr) {
-            static bool first = true;
-            if (first) {
-                fprintf(stderr, "error: could not find event's %ls property.\n", name_);
-                first = false;
-            }
-            assert(false);
-            return T {};
-        }
-        if (size_ > sizeof(T)) {
-            static bool first = true;
-            if (first) {
-                fprintf(stderr, "error: event's %ls property had unexpected size (%u > %zu).\n", name_, size_, sizeof(T));
-                first = false;
-            }
-            assert(false);
-            return *(T*) data_;
-        }
-        if (size_ < sizeof(T)) {
+        assert(data_ != nullptr);
 
-            // This is allowed and expected.  e.g., sometimes we want a
-            // uint32_t promoted into uint64_t (for example to simplify pointer
-            // handling).  It may also be a mistake though so we keep a warning
-            // in DEBUG_VERBOSE.
-#if DEBUG_VERBOSE
-            static bool first = true;
-            if (first) {
-                fprintf(stderr, "warning: event's %ls property had unexpected size (%u < %zu).\n", name_, size_, sizeof(T));
-                first = false;
-            }
-#endif
-            T t {};
-            memcpy(&t, data_, size_);
-            return t;
-        }
+        // Expect the correct size, except allow 32-bit pointer/size_t to promote to u64
+        assert(
+            size_ == sizeof(T) ||
+            ((status_ & PROP_STATUS_POINTER_SIZE) != 0 && size_ == 4 && sizeof(T) == 8));
 
-        return *(T*) data_;
-    }
-
-    template<typename T> T* GetString() const
-    {
-        assert(status_ & PROP_STATUS_FOUND);
-        assert(status_ & (sizeof(T) == 1 ? PROP_STATUS_CHAR_STRING : PROP_STATUS_WCHAR_STRING));
-        assert(status_ & PROP_STATUS_NULL_TERMINATED);
-        assert(size_ >= sizeof(T) && (size_ % sizeof(T)) == 0);
-        return (T*) data_;
+        T t {};
+        memcpy(&t, data_, size_);
+        return t;
     }
 };
+
+template<> std::string EventDataDesc::GetData<std::string>() const;
+template<> std::wstring EventDataDesc::GetData<std::wstring>() const;
 
 struct EventMetadata {
     std::unordered_map<EventMetadataKey, std::vector<uint8_t>, EventMetadataKeyHash, EventMetadataKeyEqual> metadata_;
@@ -117,6 +85,3 @@ struct EventMetadata {
         return desc.GetData<T>();
     }
 };
-
-template<> std::string EventMetadata::GetEventData<std::string>(EVENT_RECORD* eventRecord, wchar_t const* name, uint32_t arrayIndex);
-template<> std::wstring EventMetadata::GetEventData<std::wstring>(EVENT_RECORD* eventRecord, wchar_t const* name, uint32_t arrayIndex);

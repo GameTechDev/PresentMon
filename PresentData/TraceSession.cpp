@@ -33,13 +33,13 @@ SOFTWARE.
 #include "PresentMonTraceConsumer.hpp"
 #include "MixedRealityTraceConsumer.hpp"
 
-#include "D3d9EventStructs.hpp"
-#include "DwmEventStructs.hpp"
-#include "DxgiEventStructs.hpp"
-#include "DxgkrnlEventStructs.hpp"
-#include "EventMetadataEventStructs.hpp"
-#include "NTProcessEventStructs.hpp"
-#include "Win32kEventStructs.hpp"
+#include "ETW/Microsoft_Windows_D3D9.h"
+#include "ETW/Microsoft_Windows_Dwm_Core.h"
+#include "ETW/Microsoft_Windows_DXGI.h"
+#include "ETW/Microsoft_Windows_DxgKrnl.h"
+#include "ETW/Microsoft_Windows_EventMetadata.h"
+#include "ETW/Microsoft_Windows_Win32k.h"
+#include "ETW/NT_Process.h"
 
 namespace {
 
@@ -93,7 +93,7 @@ ULONG EnableProviders(
     bool simple,
     bool includeWinMR)
 {
-    // DXGI
+    // Microsoft_Windows_DXGI
     auto keywordMask =
         (uint64_t) Microsoft_Windows_DXGI::Keyword::Microsoft_Windows_DXGI_Analytic |
         (uint64_t) Microsoft_Windows_DXGI::Keyword::Events;
@@ -105,7 +105,7 @@ ULONG EnableProviders(
     });
     if (status != ERROR_SUCCESS) return status;
 
-    // D3D9
+    // Microsoft_Windows_D3D9
     keywordMask =
         (uint64_t) Microsoft_Windows_D3D9::Keyword::Microsoft_Windows_Direct3D9_Analytic |
         (uint64_t) Microsoft_Windows_D3D9::Keyword::Events;
@@ -116,7 +116,7 @@ ULONG EnableProviders(
     if (status != ERROR_SUCCESS) return status;
 
     if (!simple) {
-        // DxgKrnl
+        // Microsoft_Windows_DxgKrnl
         keywordMask =
             (uint64_t) Microsoft_Windows_DxgKrnl::Keyword::Microsoft_Windows_DxgKrnl_Performance |
             (uint64_t) Microsoft_Windows_DxgKrnl::Keyword::Base;
@@ -141,7 +141,7 @@ ULONG EnableProviders(
                                 TRACE_LEVEL_INFORMATION, keywordMask, keywordMask, 0, nullptr);
         if (status != ERROR_SUCCESS) return status;
 
-        // Win32k
+        // Microsoft_Windows_Win32k
         keywordMask =
             (uint64_t) Microsoft_Windows_Win32k::Keyword::Updates |
             (uint64_t) Microsoft_Windows_Win32k::Keyword::Visualization |
@@ -154,7 +154,7 @@ ULONG EnableProviders(
         });
         if (status != ERROR_SUCCESS) return status;
 
-        // Dwm_Core
+        // Microsoft_Windows_Dwm_Core
         status = EnableFilteredProvider(sessionHandle, sessionGuid, Microsoft_Windows_Dwm_Core::GUID, TRACE_LEVEL_VERBOSE, 0, 0, {
             Microsoft_Windows_Dwm_Core::MILEVENT_MEDIA_UCE_PROCESSPRESENTHISTORY_GetPresentHistory_Info::Id,
             Microsoft_Windows_Dwm_Core::SCHEDULE_PRESENT_Start::Id,
@@ -217,14 +217,14 @@ void CALLBACK EventRecordCallback(EVENT_RECORD* pEventRecord)
         session->mStartQpc = hdr.TimeStamp;
     }
 
-    // TODO: specialize realtime callback to exclude NTProcessEvent?
+    // TODO: specialize realtime callback to exclude NT_Process?
 
          if (!SIMPLE && hdr.ProviderId == Microsoft_Windows_DxgKrnl::GUID)                      session->mPMConsumer->HandleDXGKEvent              (pEventRecord);
     else if (!SIMPLE && hdr.ProviderId == Microsoft_Windows_Win32k::GUID)                       session->mPMConsumer->HandleWin32kEvent            (pEventRecord);
     else if (!SIMPLE && hdr.ProviderId == Microsoft_Windows_Dwm_Core::GUID)                     session->mPMConsumer->HandleDWMEvent               (pEventRecord);
     else if (           hdr.ProviderId == Microsoft_Windows_DXGI::GUID)                         session->mPMConsumer->HandleDXGIEvent              (pEventRecord);
     else if (           hdr.ProviderId == Microsoft_Windows_D3D9::GUID)                         session->mPMConsumer->HandleD3D9Event              (pEventRecord);
-    else if (           hdr.ProviderId == NTProcessProvider::GUID)                              session->mPMConsumer->HandleNTProcessEvent         (pEventRecord);
+    else if (           hdr.ProviderId == NT_Process::GUID)                                     session->mPMConsumer->HandleNTProcessEvent         (pEventRecord);
     else if (!SIMPLE && hdr.ProviderId == Microsoft_Windows_Dwm_Core::Win7::GUID)               session->mPMConsumer->HandleDWMEvent               (pEventRecord);
     else if (!SIMPLE && hdr.ProviderId == Microsoft_Windows_DxgKrnl::Win7::BLT_GUID)            session->mPMConsumer->HandleWin7DxgkBlt            (pEventRecord);
     else if (!SIMPLE && hdr.ProviderId == Microsoft_Windows_DxgKrnl::Win7::FLIP_GUID)           session->mPMConsumer->HandleWin7DxgkFlip           (pEventRecord);
@@ -314,9 +314,9 @@ ULONG TraceSession::Start(
     auto includeWinMR       = mrConsumer != nullptr;
 
     UINT callbackFlags =
-        saveFirstTimestamp ? 4 : 0 |
-        simple             ? 2 : 0 |
-        includeWinMR       ? 1 : 0;
+        (saveFirstTimestamp ? 4 : 0) |
+        (simple             ? 2 : 0) |
+        (includeWinMR       ? 1 : 0);
     switch (callbackFlags) {
     case 0: traceProps.EventRecordCallback = &EventRecordCallback<false, false, false>; break;
     case 1: traceProps.EventRecordCallback = &EventRecordCallback<false, false, true>; break;

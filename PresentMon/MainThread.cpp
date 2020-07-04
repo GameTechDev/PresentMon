@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2019 Intel Corporation
+Copyright 2017-2020 Intel Corporation
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -21,6 +21,7 @@ SOFTWARE.
 */
 
 #include "PresentMon.hpp"
+#include "../PresentData/TraceSession.hpp"
 
 namespace {
     const std::wstring PresentMon              = L"PresentMon";
@@ -103,7 +104,7 @@ static void StartRecording()
     SetOutputRecordingState(true);
 
     // Start -timed timer
-    if (args.mTimer > 0) {
+    if (args.mStartTimer) {
         SetTimer(gWnd, TIMED_TIMER_ID, args.mTimer * 1000, (TIMERPROC) nullptr);
     }
 }
@@ -116,7 +117,9 @@ static void StopRecording()
     gIsRecording = false;
 
     // Stop time -timed timer if there is one
-    KillTimer(gWnd, TIMED_TIMER_ID);
+    if (args.mStartTimer) {
+        KillTimer(gWnd, TIMED_TIMER_ID);
+    }
 
     // Tell OutputThread to stop recording
     SetOutputRecordingState(false);
@@ -227,6 +230,17 @@ int main(int argc, char** argv)
     }
 
     auto const& args = GetCommandLineArgs();
+
+    // Special case handling for -terminate_existing
+    if (args.mTerminateExisting) {
+        auto status = TraceSession::StopNamedSession(args.mSessionName);
+        switch (status) {
+        case ERROR_SUCCESS: return 0;
+        case ERROR_WMI_INSTANCE_NOT_FOUND: fprintf(stderr, "error: no existing sessions found: %s\n", args.mSessionName); break;
+        default: fprintf(stderr, "error: failed to terminate existing session (%s): %u\n", args.mSessionName, status); break;
+        }
+        return 7;
+    }
 
     // Attempt to elevate process privilege if necessary.
     //

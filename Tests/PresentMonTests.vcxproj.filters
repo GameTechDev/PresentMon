@@ -1,19 +1,22 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClCompile Include="PresentMon.cpp" />
     <ClCompile Include="PresentMonTests.cpp" />
     <ClCompile Include="googletest\googletest\src\gtest-all.cc">
       <Filter>googletest</Filter>
     </ClCompile>
+    <ClCompile Include="GoldEtlCsvTests.cpp" />
+    <ClCompile Include="CommandLineTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="googletest\googletest\include\gtest\gtest.h">
       <Filter>googletest</Filter>
     </ClInclude>
-    <ClInclude Include="PresentMonCsv.h" />
     <ClInclude Include="..\build\obj\generated\version.h">
       <Filter>generated</Filter>
     </ClInclude>
+    <ClInclude Include="PresentMonTests.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="googletest">
