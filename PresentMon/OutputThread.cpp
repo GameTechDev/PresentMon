@@ -585,7 +585,7 @@ void Output()
 void StartOutputThread()
 {
     InitializeCriticalSection(&gRecordingToggleCS);
-
+    gQuit = false;
     gThread = std::thread(Output);
 }
 
