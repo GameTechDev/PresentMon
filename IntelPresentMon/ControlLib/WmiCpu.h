@@ -30,7 +30,7 @@ class WmiCpu : public CpuTelemetry {
   std::unique_ptr<std::remove_pointer_t<PDH_HQUERY>, PDHQueryDeleter> query_;
   HCOUNTER processor_frequency_counter_;
   HCOUNTER processor_performance_counter_;
-  HCOUNTER processor_time_counter_;
+  HCOUNTER processor_idle_time_counter_;
   LARGE_INTEGER next_sample_qpc_ = {};
   LARGE_INTEGER frequency_ = {};
   std::string cpu_name_;
