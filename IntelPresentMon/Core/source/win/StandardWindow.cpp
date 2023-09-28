@@ -34,6 +34,8 @@ namespace p2c::win
         {
             p2clog.hr().commit();
         }
+        // bring to front
+        SetForegroundWindow(GetHandle());
     }
 
     StandardWindow::~StandardWindow()

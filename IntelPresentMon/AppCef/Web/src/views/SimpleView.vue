@@ -329,12 +329,6 @@ export default Vue.extend({
     },
   },
   watch: {
-    async selectedPreset(newPreset: Preset) {
-      // custom preset selected, don't clear wizard
-      if (newPreset === Preset.Custom) {
-        return;
-      }
-    },
     async pid(newPid: number|null) {
       cancelTopPolling();
       if (newPid !== null) {

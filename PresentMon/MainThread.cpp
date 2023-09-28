@@ -46,7 +46,7 @@ static bool EnableScrollLock(bool enable)
 
         auto sendCount = SendInput(2, input, sizeof(INPUT));
         if (sendCount != 2) {
-            PrintWarning("warning: could not toggle scroll lock.\n");
+            PrintWarning("warning: could not toggle scroll lock.");
         }
     }
 
@@ -196,8 +196,8 @@ int main(int argc, char** argv)
         auto status = TraceSession::StopNamedSession(args.mSessionName);
         switch (status) {
         case ERROR_SUCCESS: return 0;
-        case ERROR_WMI_INSTANCE_NOT_FOUND: PrintError("error: no existing sessions found: %s\n", args.mSessionName); break;
-        default: PrintError("error: failed to terminate existing session (%s): %lu\n", args.mSessionName, status); break;
+        case ERROR_WMI_INSTANCE_NOT_FOUND: PrintError("error: no existing sessions found: %s", args.mSessionName); break;
+        default: PrintError("error: failed to terminate existing session (%s): %lu", args.mSessionName, status); break;
         }
         return 7;
     }
@@ -223,7 +223,7 @@ int main(int argc, char** argv)
             "warning: PresentMon requires elevated privilege in order to query processes that are\n"
             "         short-running or started on another account.  Without it, those processes will\n"
             "         be listed as '<error>' and they can't be targeted by -process_name nor trigger\n"
-            "         -terminate_on_proc_exit.\n");
+            "         -terminate_on_proc_exit.");
     }
 
     // Create a message queue to handle the input messages.
@@ -231,20 +231,20 @@ int main(int argc, char** argv)
     wndClass.lpfnWndProc = HandleWindowMessage;
     wndClass.lpszClassName = L"PresentMon";
     if (!RegisterClassExW(&wndClass)) {
-        PrintError("error: failed to register hotkey class.\n");
+        PrintError("error: failed to register hotkey class.");
         return 3;
     }
 
     gWnd = CreateWindowExW(0, wndClass.lpszClassName, L"PresentMonWnd", 0, 0, 0, 0, 0, HWND_MESSAGE, 0, 0, nullptr);
     if (!gWnd) {
-        PrintError("error: failed to create hotkey window.\n");
+        PrintError("error: failed to create hotkey window.");
         UnregisterClass(wndClass.lpszClassName, NULL);
         return 4;
     }
 
     // Register the hotkey.
     if (args.mHotkeySupport && !RegisterHotKey(gWnd, HOTKEY_ID, args.mHotkeyModifiers, args.mHotkeyVirtualKeyCode)) {
-        PrintError("error: failed to register hotkey.\n");
+        PrintError("error: failed to register hotkey.");
         DestroyWindow(gWnd);
         UnregisterClass(wndClass.lpszClassName, NULL);
         return 5;

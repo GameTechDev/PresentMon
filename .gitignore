@@ -32,3 +32,5 @@ ipch/
 *.vspx
 *.sap
 
+
+IntelPresentMon/AppCef/CefNano.args.json

@@ -231,18 +231,6 @@ namespace {
 
 int PrintColor(WORD color, char const* format, va_list val)
 {
-    #ifndef NDEBUG
-    {
-        char buffer[256];
-        if (_vsnprintf_s(buffer, _TRUNCATE, format, val) == -1) {
-            buffer[252] = '.';
-            buffer[253] = '.';
-            buffer[254] = '.';
-        }
-        OutputDebugStringA(buffer);
-    }
-    #endif
-
     CONSOLE_SCREEN_BUFFER_INFO info = {};
     auto setColor = IsConsoleInitialized() && GetConsoleScreenBufferInfo(gConsoleHandle, &info) != 0;
     if (setColor) {
@@ -270,10 +258,30 @@ int PrintWarning(char const* format, ...)
     va_start(val, format);
     int c = PrintColor(FOREGROUND_RED | FOREGROUND_GREEN, format, val);
     va_end(val);
+    c += fprintf(stderr, "\n");
     return c;
 }
 
 int PrintError(char const* format, ...)
+{
+    va_list val;
+    va_start(val, format);
+    int c = PrintColor(FOREGROUND_RED, format, val);
+    va_end(val);
+    c += fprintf(stderr, "\n");
+    return c;
+}
+
+int PrintWarningNoNewLine(char const* format, ...)
+{
+    va_list val;
+    va_start(val, format);
+    int c = PrintColor(FOREGROUND_RED | FOREGROUND_GREEN, format, val);
+    va_end(val);
+    return c;
+}
+
+int PrintErrorNoNewLine(char const* format, ...)
 {
     va_list val;
     va_start(val, format);

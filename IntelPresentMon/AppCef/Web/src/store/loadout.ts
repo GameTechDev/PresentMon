@@ -13,6 +13,7 @@ import { Preferences } from './preferences'
 import { signature } from '@/core/loadout'
 import { Api } from '@/core/api'
 import { Preset } from '@/core/preferences'
+import { migrateLoadout } from '@/core/loadout-migration'
 
 @Module({name: 'loadout', dynamic: true, store, namespaced: true})
 export class LoadoutModule extends VuexModule {
@@ -208,10 +209,13 @@ export class LoadoutModule extends VuexModule {
 
     @Action
     async parseAndReplace(payload: {payload: string}) {
-        const config = JSON.parse(payload.payload) as LoadoutFile;
-        if (config.signature.code !== signature.code) throw new Error(`Bad file format; expect:${signature.code} actual:${config.signature.code}`);
-        if (config.signature.version !== signature.version) throw new Error(`Bad config file version; expect:${signature.version} actual:${config.signature.version}`);
-        this.context.commit('replaceWidgets_', config.widgets);
+        const loadout = JSON.parse(payload.payload) as LoadoutFile;
+        if (loadout.signature.code !== signature.code) throw new Error(`Bad loadout file format; expect:${signature.code} actual:${loadout.signature.code}`);
+        if (loadout.signature.version !== signature.version) {
+            migrateLoadout(loadout);
+            console.info(`loadout migrated to ${signature.version}`);
+        }
+        this.context.commit('replaceWidgets_', loadout.widgets);
     }
 }
 

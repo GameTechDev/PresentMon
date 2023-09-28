@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <conio.h>
 #include <tchar.h>
+#include <algorithm>
 
 #define GOOGLE_GLOG_DLL_DECL
 #define GLOG_NO_ABBREVIATED_SEVERITIES

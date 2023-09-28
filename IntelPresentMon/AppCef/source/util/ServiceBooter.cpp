@@ -16,11 +16,11 @@ void p2c::client::util::BootServices()
 	
 	if (cli.filesWorking)
 	{
-		Services::Singleton<infra::util::FolderResolver>([] { return std::make_shared<infra::util::FolderResolver>(L""); });
+		Services::Singleton<infra::util::FolderResolver>([] { return std::make_shared<infra::util::FolderResolver>(); });
 	}
 	else
 	{
-		Services::Singleton<infra::util::FolderResolver>([] { return std::make_shared<infra::util::FolderResolver>(L"Intel\\PresentMon"); });
+		Services::Singleton<infra::util::FolderResolver>([] { return std::make_shared<infra::util::FolderResolver>(L"Intel\\PresentMon", L"PresentMon"); });
 	}
 	Services::Singleton<CefProcessCompass>([] { return std::make_shared<CefProcessCompass>(); });
 	Services::Singleton<infra::log::Blacklist>([] { return std::make_shared<infra::log::Blacklist>(); });
@@ -45,6 +45,7 @@ void p2c::client::util::BootServices()
 		if (cli.logBlack)
 		{
 			auto black = Services::Resolve<infra::log::Blacklist>();
+			// TODO: make this relative to appdata resolved
 			black->Ingest(L"logging-blacklist.txt");
 			if (!black->IsEmpty()) {
 				infra::log::GetDefaultChannel()->AddPolicy(black->GetPolicy());

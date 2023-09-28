@@ -23,10 +23,10 @@ namespace p2c::client::util::async
             // try to resolve app folder, fallback to cwd
             std::wstring path;
             if (auto fr = infra::svc::Services::ResolveOrNull<infra::util::FolderResolver>()) {
-                path = fr->Resolve(infra::util::FolderResolver::Folder::Captures, std::move(path));
+                path = fr->Resolve(infra::util::FolderResolver::Folder::Documents, L"Captures");
             }
 
-            if ((INT_PTR)ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWDEFAULT) < 32) {
+            if ((INT_PTR)ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWDEFAULT) <= 32) {
                 p2clog.note(L"Failed to explore Captures folder").commit();
                 return Result{ false, CefValueNull() };
             }

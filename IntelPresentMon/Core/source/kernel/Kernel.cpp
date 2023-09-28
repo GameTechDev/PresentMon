@@ -161,11 +161,13 @@ namespace p2c::kern
                 }
                 catch (const TargetLostException&)
                 {
-                    if (pOverlayContainer)
-                    {
+                    if (pOverlayContainer) {
                         pHandler->OnTargetLost(pOverlayContainer->GetProcess().pid);
                         pOverlayContainer.reset();
                         pPushedSpec.reset();
+                    }
+                    else {
+                        pHandler->OnStalePidSelected();
                     }
                 }
                 catch (...)
@@ -223,13 +225,8 @@ namespace p2c::kern
                 else if (pushedCaptureActive)
                 {
                     std::wstring path;
-                    if (!pOverlayContainer->GetSpec().capturePath.empty())
-                    {
-                        path = pOverlayContainer->GetSpec().capturePath + L"\\";
-                    }
-                    else if (auto pFolder = infra::svc::Services::ResolveOrNull<infra::util::FolderResolver>())
-                    {
-                        path = pFolder->Resolve(infra::util::FolderResolver::Folder::Captures) + L"\\";
+                    if (auto pFolder = infra::svc::Services::ResolveOrNull<infra::util::FolderResolver>()) {
+                        path = pFolder->Resolve(infra::util::FolderResolver::Folder::Documents) + L"\\Captures\\";
                     }
                     pOverlayContainer->SetCaptureState(*pushedCaptureActive, std::move(path), pOverlayContainer->GetSpec().captureName);
                     pushedCaptureActive.reset();

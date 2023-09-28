@@ -9,6 +9,7 @@ namespace p2c::client::util
 	{
 		Install,
 		Data,
+		Documents,
 		Count_,
 	};
 }

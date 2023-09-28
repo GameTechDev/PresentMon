@@ -46,17 +46,22 @@ void GpuTrace::PrintRunningContexts() const
             printf("                             hContext=0x%llx [", hContext);
 
             for (uint32_t i = 0; i < node.mQueueCount; ++i) {
-                auto queueIdx = (node.mQueueIndex + i) % Node::MAX_QUEUE_SIZE;
+                auto queueIdx = (node.mQueueIndex + i) % (uint32_t) node.mQueue.size();
+                auto const& entry = node.mQueue[queueIdx];
 
                 if (i > 0) {
                     printf("\n                                                          ");
                 }
 
-                printf(" SequenceId=%u", node.mSequenceId[queueIdx]);
-                if (node.mPacketTrace[queueIdx] == nullptr) {
-                    printf(" WAIT");
+                printf(" SequenceId=%u", entry.mSequenceId);
+                if (entry.mPacketTrace == nullptr) {
+                    if (entry.mCompleted) {
+                        printf(" DONE");
+                    } else {
+                        printf(" WAIT");
+                    }
                 } else {
-                    printf(" ProcessId=%u", LookupPacketTraceProcessId(node.mPacketTrace[queueIdx]));
+                    printf(" ProcessId=%u", LookupPacketTraceProcessId(entry.mPacketTrace));
                 }
             }
 
@@ -258,11 +263,26 @@ void GpuTrace::EnqueueWork(Context* context, uint32_t sequenceId, uint64_t times
         return;
     }
 
-    if (node->mQueueCount == Node::MAX_QUEUE_SIZE) {
-        // mPacketTrace/mSequenceId arrays are too small (or, DmaPacket_Info
-        // events didn't fire for some reason).  This seems to always hit when
-        // an application closes...
-        return;
+    uint32_t queueSize = (uint32_t) node->mQueue.size();
+    if (node->mQueueCount == queueSize) {
+        // If the queue is too small, enlarge it by 16 entries at a time.  I only expect this to
+        // happen for the first packet observed on this node, which will result in sizing the queue
+        // from 0 to 16.
+        //
+        // However, there are other cases where the queue entries seem to grow unexpectedly.  e.g.,
+        // this seems to always happen when an application closes.  So, we place a reasonable
+        // maximum limit on this to prevent unexpectedly growing the queues arbitrarily.
+        if (node->mQueueCount >= 16*10) {
+            return;
+        }
+
+        auto queueIndex = queueSize == 0
+            ? 0
+            : (node->mQueueIndex + node->mQueueCount) % queueSize;
+
+        Node::EnqueuedPacket empty{};
+        node->mQueue.insert(node->mQueue.begin() + queueIndex, 16, empty);
+        queueSize += 16;
     }
 
     // Enqueue the packet.
@@ -275,9 +295,11 @@ void GpuTrace::EnqueueWork(Context* context, uint32_t sequenceId, uint64_t times
         packetTrace = nullptr;
     }
 
-    auto queueIndex = (node->mQueueIndex + node->mQueueCount) % Node::MAX_QUEUE_SIZE;
-    node->mPacketTrace[queueIndex] = packetTrace;
-    node->mSequenceId[queueIndex] = sequenceId;
+    auto queueIndex = (node->mQueueIndex + node->mQueueCount) % queueSize;
+    auto entry = &node->mQueue[queueIndex];
+    entry->mPacketTrace = packetTrace;
+    entry->mSequenceId = sequenceId;
+    entry->mCompleted = false;
     node->mQueueCount += 1;
 
     // If the queue was empty, the packet starts running right away, otherwise
@@ -294,7 +316,6 @@ void GpuTrace::EnqueueWork(Context* context, uint32_t sequenceId, uint64_t times
 
 bool GpuTrace::CompleteWork(Context* context, uint32_t sequenceId, uint64_t timestamp)
 {
-    auto packetTrace = context->mPacketTrace;
     auto node = context->mNode;
 
     // It's possible to miss DmaPacket events during realtime analysis, so try
@@ -312,13 +333,17 @@ bool GpuTrace::CompleteWork(Context* context, uint32_t sequenceId, uint64_t time
     // actual:   [-----]  [-----]  [-----]     [-----]-----]-------]
     //           ^     ^  x     ^  ^     ^        x  ^   ^
     //           s1    i1 s2    i2 s3    i3       s2 i1  s3
-    auto runningSequenceId = node->mSequenceId[node->mQueueIndex];
-    if (packetTrace == nullptr || node->mQueueCount == 0 || sequenceId < runningSequenceId) {
+    if (context->mPacketTrace == nullptr || node->mQueueCount == 0) {
+        return false;
+    }
+
+    auto runningSequenceId = node->mQueue[node->mQueueIndex].mSequenceId;
+    if (sequenceId < runningSequenceId) {
         return false;
     }
 
     // If we get a DmaPacket_Start event with no corresponding DmaPacket_Info,
-    // then sequenceId will be larger than expected.  If this happens, we seach
+    // then sequenceId will be larger than expected.  If this happens, we search
     // through the queue for a match and if no match was found then we ignore
     // this event (we missed both the DmaPacket_Start and DmaPacket_Info for
     // the packet).  In this case, both the missing packet's execution time as
@@ -344,11 +369,22 @@ bool GpuTrace::CompleteWork(Context* context, uint32_t sequenceId, uint64_t time
                 return false;
             }
 
-            uint32_t queueIndex = (node->mQueueIndex + missingCount) % Node::MAX_QUEUE_SIZE;
-            if (node->mSequenceId[queueIndex] == sequenceId) {
-                // Move current packet into this slot
-                node->mPacketTrace[queueIndex] = node->mPacketTrace[node->mQueueIndex];
-                node->mSequenceId[queueIndex] = node->mSequenceId[node->mQueueIndex];
+            uint32_t queueIndex = (node->mQueueIndex + missingCount) % (uint32_t) node->mQueue.size();
+            auto entry = &node->mQueue[queueIndex];
+            if (entry->mSequenceId == sequenceId) {
+
+                // On some 3000-series NVIDIA cards using hardware scheduling, we sometimes get
+                // QueuePacket_Stop events for monitored fence packets out of order (too early).
+                // This is NOT due to missed events, and any previous render packets should still be
+                // considered running/enqueued.  So, we flag these packets as completed so that it
+                // is immediately completed once it reaches the front of the queue.
+                if (entry->mPacketTrace == nullptr) {
+                    entry->mCompleted = true;
+                    return true;
+                }
+
+                // Otherwise, move current packet into this slot
+                *entry = node->mQueue[node->mQueueIndex];
                 node->mQueueIndex = queueIndex;
                 node->mQueueCount -= missingCount;
                 break;
@@ -356,27 +392,32 @@ bool GpuTrace::CompleteWork(Context* context, uint32_t sequenceId, uint64_t time
         }
     }
 
-    // Pop the completed packet from the queue.
-    //
     // If this was the process' last executing packet, accumulate the execution
     // duration into the process' count.
-    node->mQueueCount -= 1;
-
-    packetTrace = node->mPacketTrace[node->mQueueIndex];
-    if (packetTrace != nullptr) {
-        packetTrace->mRunningPacketCount -= 1;
-        if (packetTrace->mRunningPacketCount == 0) {
-            CompletePacket(packetTrace, timestamp);
+    auto entry = &node->mQueue[node->mQueueIndex];
+    if (entry->mPacketTrace != nullptr) {
+        entry->mPacketTrace->mRunningPacketCount -= 1;
+        if (entry->mPacketTrace->mRunningPacketCount == 0) {
+            CompletePacket(entry->mPacketTrace, timestamp);
         }
     }
 
-    // If there was another queued packet, start it
-    if (node->mQueueCount > 0) {
-        node->mQueueIndex = (node->mQueueIndex + 1) % Node::MAX_QUEUE_SIZE;
+    // Pop the completed packet from the queue, and start the next one.
+    for (;;) {
+        node->mQueueIndex = (node->mQueueIndex + 1) % (uint32_t) node->mQueue.size();
+        node->mQueueCount -= 1;
+        if (node->mQueueCount == 0) {
+            break;
+        }
 
-        packetTrace = node->mPacketTrace[node->mQueueIndex];
-        if (packetTrace != nullptr) {
-            StartPacket(packetTrace, timestamp);
+        entry = &node->mQueue[node->mQueueIndex];
+        if (entry->mPacketTrace != nullptr) {
+            StartPacket(entry->mPacketTrace, timestamp);
+            break;
+        }
+
+        if (!entry->mCompleted) {
+            break;
         }
     }
 

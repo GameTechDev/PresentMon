@@ -1,4 +1,4 @@
-// Copyright (C) 2017,2019-2022 Intel Corporation
+// Copyright (C) 2017,2019-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -42,8 +42,8 @@ enum class ConsoleOutput {
 };
 
 struct CommandLineArgs {
-    std::vector<const char*> mTargetProcessNames;
-    std::vector<const char*> mExcludeProcessNames;
+    std::vector<std::string> mTargetProcessNames;
+    std::vector<std::string> mExcludeProcessNames;
     const char *mOutputCsvFileName;
     const char *mEtlFileName;
     const char *mSessionName;
@@ -112,6 +112,8 @@ bool InitializeConsole();
 bool IsConsoleInitialized();
 int PrintWarning(char const* format, ...);
 int PrintError(char const* format, ...);
+int PrintWarningNoNewLine(char const* format, ...);
+int PrintErrorNoNewLine(char const* format, ...);
 void ConsolePrint(char const* format, ...);
 void ConsolePrintLn(char const* format, ...);
 void CommitConsole();
@@ -137,7 +139,7 @@ void ExitMainThread();
 void StartOutputThread();
 void StopOutputThread();
 void SetOutputRecordingState(bool record);
-std::pair<size_t, size_t> GetProcessNameComparisonRange(char const* name, size_t length);
+void CanonicalizeProcessName(std::string* path);
 
 // Privilege.cpp:
 bool InPerfLogUsersGroup();

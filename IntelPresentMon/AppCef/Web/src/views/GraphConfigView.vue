@@ -249,6 +249,22 @@
         ></v-slider>
       </v-col>
     </v-row>
+    
+    <v-row class="mt-8">       
+      <v-col cols="3">
+        Font Size
+        <p class="text--secondary text-sm-caption mb-0">Size of text in this readout widget</p>
+      </v-col>
+      <v-col cols="9">
+        <v-slider
+          v-model="textSize"
+          :min="5"
+          :max="80"
+          :step="0.5"
+          thumb-label="always"
+        ></v-slider>
+      </v-col>
+    </v-row>
 
     <v-row class="mt-8">       
       <v-col cols="3">
@@ -257,11 +273,14 @@
       </v-col>
       <v-col cols="9">
         <v-row dense>
-          <v-col cols="6">
+          <v-col cols="4">
             <color-picker v-model="gridColor" class="color-picker" label="Grid"></color-picker>
           </v-col>
-          <v-col cols="6">
+          <v-col cols="4">
             <color-picker v-model="backgroundColor" class="color-picker" label="Background"></color-picker>
+          </v-col>
+          <v-col cols="4">
+            <color-picker v-model="textColor" class="color-picker" label="Text"></color-picker>
           </v-col>
         </v-row>
       </v-col>
@@ -406,6 +425,18 @@ export default Vue.extend({
       get(): RgbaColor { return this.graph.borderColor; },
       set(borderColor: RgbaColor) {
         Loadout.setGraphAttribute({ index: this.index, attr: 'borderColor', val: borderColor });
+      },
+    },
+    textColor: {
+      get(): RgbaColor { return this.graph.textColor; },
+      set(textColor: RgbaColor) {
+        Loadout.setGraphAttribute({ index: this.index, attr: 'textColor', val: textColor });
+      },
+    },
+    textSize: {
+      get(): number { return this.graph.textSize; },
+      set(textSize: number) {
+        Loadout.setGraphAttribute({ index: this.index, attr: 'textSize', val: textSize });
       },
     },
   },

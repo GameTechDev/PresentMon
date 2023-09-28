@@ -3,6 +3,9 @@
 #pragma once
 #include "../AsyncEndpoint.h"
 #include "../AsyncEndpointManager.h"
+#include "Core/source/infra/svc/Services.h"
+#include "Core/source/infra/util/FolderResolver.h"
+#include <commdlg.h>
 #include <fstream>
 
 namespace p2c::client::util::async
@@ -15,54 +18,52 @@ namespace p2c::client::util::async
         // {payload: string} => {written: bool}
 		void ExecuteOnBrowser(uint64_t uid, CefRefPtr<CefValue> pArgObj, CefRefPtr<CefBrowser> pBrowser) const override
 		{
-            class BrowseStoreSpecDialogCallback : public CefRunFileDialogCallback
-            {
-            public:
-                explicit BrowseStoreSpecDialogCallback(CefRefPtr<CefBrowser> pBrowser, uint64_t uid, std::wstring payload)
-                    :
-                    pBrowser{ std::move(pBrowser) },
-                    uid{ uid },
-                    payload{ std::move(payload) }
-                {}
-                void OnFileDialogDismissed(const std::vector<CefString>& filePaths) override
-                {
-                    bool written = false;
-                    bool failed = false;
+            using infra::util::FolderResolver;
+            using infra::svc::Services;
+            std::wstring startPath;
+            if (auto fr = Services::ResolveOrNull<FolderResolver>()) {
+                startPath = fr->Resolve(FolderResolver::Folder::Documents, L"Loadouts\\");
+            }
 
-                    if (filePaths.size() > 0)
-                    {
-                        std::wofstream file{ filePaths[0].ToString() };
-                        file << payload;
-                        failed = !file.good();
-                        written = true;
-                    }
-
-                    // 0:int uid, 1:bool success, 2:dict args
-                    auto msg = CefProcessMessage::Create(AsyncEndpointManager::GetResolveMessageName());
-                    msg->GetArgumentList()->SetInt(0, (int)uid);
-                    if (!failed)
-                    {
-                        msg->GetArgumentList()->SetBool(1, true); // success
-                        msg->GetArgumentList()->SetValue(2, MakeCefObject(CefProp{ "written", written }));
-                    }
-                    else
-                    {
-                        msg->GetArgumentList()->SetBool(1, false); // failure
-                        msg->GetArgumentList()->SetDictionary(2, std::move(CefDictionaryValue::Create()));
-                    }
-                    pBrowser->GetMainFrame()->SendProcessMessage(PID_RENDERER, std::move(msg));
-                }
-            private:
-                CefRefPtr<CefBrowser> pBrowser;
-                uint64_t uid;
-                std::wstring payload;
-                IMPLEMENT_REFCOUNTING(BrowseStoreSpecDialogCallback);
+            wchar_t pathBuffer[MAX_PATH] = { 0 };
+            OPENFILENAMEW ofn{
+                .lStructSize = sizeof(ofn),
+                .hwndOwner = pBrowser->GetHost()->GetWindowHandle(),
+                .lpstrFilter = L"All (*.*)\0*.*\0JSON (*.json)\0*.json\0",
+                .nFilterIndex = 2,
+                .lpstrFile = pathBuffer,
+                .nMaxFile = sizeof(pathBuffer),
+                .lpstrInitialDir = startPath.c_str(),
+                .lpstrTitle = L"Save Loadout As",
+                .Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_OVERWRITEPROMPT,
             };
 
-            pBrowser->GetHost()->RunFileDialog(
-                CefBrowserHost::FileDialogMode::FILE_DIALOG_SAVE, "Save Configuration", {}, { ".json" },
-                new BrowseStoreSpecDialogCallback{ pBrowser, uid, pArgObj->GetDictionary()->GetString("payload").ToWString() }
-            );
+            const bool confirmed = GetSaveFileNameW(&ofn);
+            bool written = false;
+            bool failed = false;
+
+            // try to write the file to disk
+            if (confirmed && wcsnlen_s(pathBuffer, sizeof(pathBuffer)) > 0) {
+                std::wofstream file{ pathBuffer };
+                file << pArgObj->GetDictionary()->GetString("payload").ToWString();
+                failed = !file.good();
+                written = true;
+            }
+
+            // 0:int uid, 1:bool success, 2:dict args
+            auto msg = CefProcessMessage::Create(AsyncEndpointManager::GetResolveMessageName());
+            msg->GetArgumentList()->SetInt(0, (int)uid);
+            if (!failed)
+            {
+                msg->GetArgumentList()->SetBool(1, true); // success
+                msg->GetArgumentList()->SetValue(2, MakeCefObject(CefProp{ "written", written }));
+            }
+            else
+            {
+                msg->GetArgumentList()->SetBool(1, false); // failure
+                msg->GetArgumentList()->SetDictionary(2, std::move(CefDictionaryValue::Create()));
+            }
+            pBrowser->GetMainFrame()->SendProcessMessage(PID_RENDERER, std::move(msg));
 		}
 	};
 }

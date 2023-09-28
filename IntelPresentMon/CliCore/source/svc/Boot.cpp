@@ -21,9 +21,9 @@ namespace p2c::cli::svc
 		constexpr bool is_debug = true;
 #endif
 
-		// appfolder resolves to cwd
+		// appfolder and docfolder resolve to cwd
 		Services::Bind<infra::util::FolderResolver>(
-			[] { return std::make_shared<infra::util::FolderResolver>(L"", false); }
+			[] { return std::make_shared<infra::util::FolderResolver>(L"", L"", false); }
 		);
 
 		if (!is_debug) {

@@ -155,7 +155,7 @@ namespace p2c::kern
                         auto pMetric = dynamic_cast<pmon::NumericMetric*>(pm->GetMetricByIndex(metric.index));
                         // TODO: silent fail this by inserting "empty" data pack and logging 
                         assert(pMetric);
-                        const auto [i, inserted] = graphPacks.emplace(metric.index,
+                        auto [i, inserted] = graphPacks.emplace(metric.index,
                             GraphDataPack{ pMetric, pSpec->graphDataWindowSize }
                         );
                         // if pack already existed, resize it
@@ -184,8 +184,26 @@ namespace p2c::kern
         UpdateTargetFullscreenStatus();
         std::unique_ptr<win::KernelWindow> pWindow;
         if (pSpec->independentKernelWindow) {
+            // try and get the position of the control (CEF) window for calculating independent metrics window pos
+            // TODO: connect this more assuredly to the cef control window
+            // tried CefBrowserHost::GetWindowHandle, but it causes crashes for some unknown reason
+            // should make this at least less brittle with respect to window classname / title
+            Vec2I iPos{ CW_USEDEFAULT, CW_USEDEFAULT };
+            if (auto hWndControl = FindWindowA("BrowserWindowClass", "Intel PresentMon")) {
+                RECT controlRect{};
+                if (GetWindowRect(hWndControl, &controlRect)) {
+                    iPos = { controlRect.left + 25, controlRect.top + 25 };
+                }
+                else {
+                    p2clog.warn(L"failed to get rect of control window").hr().commit();
+                }
+            }
+            else {
+                p2clog.warn(L"failed to find control window").commit();
+            }
+            // make the metrics window
             pWindow = std::make_unique<win::StandardWindow>(
-                CW_USEDEFAULT, CW_USEDEFAULT,
+                iPos.x, iPos.y,
                 windowDimensions,
                 L"PresentMon Data Display"
             );
@@ -458,6 +476,11 @@ namespace p2c::kern
             p2clog.hr().commit();
         }
         return ret != WAIT_OBJECT_0;
+    }
+
+    bool Overlay::IsStandardWindow() const
+    {
+        return pWindow->Standard();
     }
 
     const win::Process& Overlay::GetProcess() const

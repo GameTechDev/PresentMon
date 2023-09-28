@@ -57,4 +57,9 @@ namespace p2c::client::util
 	{
 		ImplementSignal_(Keys::overlayDied());
 	}
+	// stalePid()
+	void SignalManager::SignalStalePid()
+	{
+		ImplementSignal_(Keys::stalePid());
+	}
 }

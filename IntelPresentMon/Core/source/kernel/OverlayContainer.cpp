@@ -56,7 +56,8 @@ namespace p2c::kern
         }
         else
         {
-            p2clog.warn(L"spec-specified pid not in process map").ex(TargetLostException{}).commit();
+            p2clog.warn(L"spec-specified pid not in process map").commit();
+            throw TargetLostException{};
         }
     }
     void OverlayContainer::RebuildDocument(std::shared_ptr<OverlaySpec> pSpec_)
@@ -144,12 +145,18 @@ namespace p2c::kern
                 // case when we are in child and window upgrade occurs
                 else if (pid != rootPid && pid == curPid) {
                     p2cvlog(procwatch).note(std::format(L"register-win-spawn-upg-child | hwn: {:8x} => {:8x}", (uintptr_t)prevHwnd, (uintptr_t)hWnd)).commit();
-                    pOverlay = pOverlay->SacrificeClone(hWnd);
+                    // standard overlay doesn't really care what window is being targetted
+                    if (!pOverlay->IsStandardWindow()) {
+                        pOverlay = pOverlay->SacrificeClone(hWnd);
+                    }
                 }
                 // case of window upgrade in root
                 else if (pid == rootPid && curPid == rootPid) {
 					p2cvlog(procwatch).note(std::format(L"register-win-spawn-upg-root | hwn: {:8x} => {:8x}", (uintptr_t)prevHwnd, (uintptr_t)hWnd)).commit();
-					pOverlay = pOverlay->SacrificeClone(hWnd);
+                    // standard overlay doesn't really care what window is being targetted
+                    if (!pOverlay->IsStandardWindow()) {
+                        pOverlay = pOverlay->SacrificeClone(hWnd);
+                    }
 				}
             }
         }

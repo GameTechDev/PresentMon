@@ -28,16 +28,19 @@
         ></v-slider>
       </v-col>
     </v-row>
-
-    <v-row class="mt-3">       
+  
+    <v-row class="mt-8">       
       <v-col cols="3">
-        Font Color
-        <p class="text--secondary text-sm-caption mb-0">Color of text in this readout widget</p>
+        Colors
+        <p class="text--secondary text-sm-caption mb-0">Colors of various elements of the widget</p>
       </v-col>
       <v-col cols="9">
         <v-row dense>
           <v-col cols="6">
-            <color-picker v-model="fontColor" class="color-picker" label="Color"></color-picker>
+            <color-picker v-model="fontColor" class="color-picker" label="Text"></color-picker>
+          </v-col>
+          <v-col cols="6">
+            <color-picker v-model="backgroundColor" class="color-picker" label="Background"></color-picker>
           </v-col>
         </v-row>
       </v-col>
@@ -105,6 +108,12 @@ export default Vue.extend({
       get(): RgbaColor { return this.readout.fontColor; },
       set(fontColor: RgbaColor) {
         Loadout.setReadoutAttribute({ index: this.index, attr: 'fontColor', val: fontColor });
+      },
+    },
+    backgroundColor: {
+      get(): RgbaColor { return this.readout.backgroundColor; },
+      set(backgroundColor: RgbaColor) {
+        Loadout.setReadoutAttribute({ index: this.index, attr: 'backgroundColor', val: backgroundColor });
       },
     },
   },

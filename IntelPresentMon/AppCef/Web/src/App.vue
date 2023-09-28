@@ -54,6 +54,12 @@
           </v-list-item-content>
         </v-list-item>
 
+        <v-list-item v-if="isDevelopment" color="primary">
+          <v-list-item-content>
+            <v-btn @click="doPresetUpdate">Update Presets</v-btn>
+          </v-list-item-content>
+        </v-list-item>
+
       </v-list>
     </v-navigation-drawer>
 
@@ -105,7 +111,7 @@ import { Metrics } from '@/store/metrics'
 import { Preferences as PrefStore } from '@/store/preferences'
 import { Preferences } from '@/core/preferences'
 import { Hotkey } from '@/store/hotkey'
-import { Api } from '@/core/api'
+import { Api, FileLocation } from '@/core/api'
 import { Notifications } from '@/store/notifications'
 import { Action } from '@/core/hotkey'
 import { Processes } from '@/store/processes'
@@ -127,6 +133,7 @@ export default Vue.extend({
   async created() {
     Api.registerPresentmonInitFailedHandler(this.handlePresentmonInitFailed);
     Api.registerOverlayDiedHandler(this.handleOverlayDied);
+    Api.registerStalePidHandler(this.handleStalePid);
     await Api.launchKernel();
     await Metrics.load();
     await Hotkey.refreshOptions();
@@ -157,6 +164,13 @@ export default Vue.extend({
         PrefStore.setAttribute({attr:'selectedPreset', val:Preset.Slot1});
       }
     },
+    async doPresetUpdate() {
+      for (let i = 0; i < 3; i++) {        
+        const presetFileName = `preset-${i}.json`;
+        await Loadout.parseAndReplace(await Api.loadPreset(presetFileName));
+        await Api.storeFile(Loadout.fileContents, FileLocation.Documents, `loadouts\\${presetFileName}`);
+      }
+    },
     async dismissNotification() {
       await Notifications.dismiss();
     },
@@ -177,6 +191,11 @@ export default Vue.extend({
     },
     handleTargetLost(pid: number) {
       PrefStore.setPid(null);
+    },
+    handleStalePid() {
+      PrefStore.setPid(null);
+      Notifications.notify({text: 'Selected process has already exited.'});
+      console.warn('selected pid was stale');
     },
     async handleHotkeyFired(action: Action) {
       if (action === Action.ToggleCapture) {
@@ -204,6 +223,9 @@ export default Vue.extend({
   },
 
   computed: {
+    isDevelopment(): boolean {
+      return process?.env?.NODE_ENV === 'development';
+    },
     widgets(): Widget[] {
       return Loadout.widgets;
     },
@@ -313,16 +335,22 @@ export default Vue.extend({
       if (presetNew === Preset.Custom) {
         try {
           await Loadout.parseAndReplace(await Api.loadConfig('custom-auto.json'));
-        } catch (e) {}
-        return;
+        }
+        catch (e) {
+          await Notifications.notify({text:`Failed to load autosave loadout file.`});
+          console.error([`Failed to load autosave loadout file.`, e]);
+        }
       }
-      try {
-        await Loadout.parseAndReplace(await Api.loadPreset(`preset-${presetNew}.json`));  
-      }
-      catch (e) {
-        await Notifications.notify({text:`Failed to load preset file #${presetNew}.`});
-        console.error([`Failed to load preset file #${presetNew}.`, e]);
-      }
+      else {
+        const presetFileName = `preset-${presetNew}.json`;
+        try {
+          await Loadout.parseAndReplace(await Api.loadPreset(presetFileName));
+        }
+        catch (e) {
+          await Notifications.notify({text:`Failed to load preset file [${presetFileName}].`});
+          console.error([`Failed to load preset file [${presetFileName}].`, e]);
+        }
+      }      
     },
   }
 });

@@ -241,7 +241,7 @@ export default Vue.extend({
     backgroundColor: {
       get(): RgbaColor { return Preferences.preferences.overlayBackgroundColor; },
       set(backgroundColor: RgbaColor) {
-        Preferences.setAttribute({attr: 'overlayBackgroundColor', val: backgroundColor});
+        Preferences.writeAttribute({attr: 'overlayBackgroundColor', val: backgroundColor});
       }
     }
   },

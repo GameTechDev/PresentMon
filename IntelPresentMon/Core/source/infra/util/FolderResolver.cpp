@@ -9,18 +9,19 @@
 
 namespace p2c::infra::util
 {
-	FolderResolver::FolderResolver(std::wstring appFolderName, bool createSubdirectories)
+	FolderResolver::FolderResolver(std::wstring appPathSubdir, std::wstring docPathSubdir, bool createSubdirectories)
 	{
-		if (!appFolderName.empty())
+		if (!appPathSubdir.empty())
 		{
 			wchar_t* pPath = nullptr;
 			if (auto hr = SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &pPath); FAILED(hr))
 			{
 				CoTaskMemFree(pPath);
 				pPath = nullptr;
+				// TODO: logging: we can't use logging service here during resolve creation
 				p2clog.note(L"Failed getting local app data path").commit();
 			}
-			const auto dir = std::format(L"{}\\{}", pPath, appFolderName);
+			const auto dir = std::format(L"{}\\{}", pPath, appPathSubdir);
 			try {
 				std::filesystem::create_directories(dir);
 				appPath = dir;
@@ -28,6 +29,7 @@ namespace p2c::infra::util
 			catch (const std::exception& e) {
 				CoTaskMemFree(pPath);
 				pPath = nullptr;
+				// TODO: logging: we can't use logging service here during resolve creation
 				p2clog.note(L"Failed creating directory: " + dir).nested(e).commit();
 			}
 			if (pPath)
@@ -40,20 +42,54 @@ namespace p2c::infra::util
 			appPath = std::filesystem::current_path().wstring();
 		}
 
+		if (!docPathSubdir.empty())
+		{
+			wchar_t* pPath = nullptr;
+			if (auto hr = SHGetKnownFolderPath(FOLDERID_Documents, 0, nullptr, &pPath); FAILED(hr))
+			{
+				CoTaskMemFree(pPath);
+				pPath = nullptr;
+				// TODO: logging: we can't use logging service here during resolve creation
+				p2clog.note(L"Failed getting user documents path").commit();
+			}
+			const auto dir = std::format(L"{}\\{}", pPath, docPathSubdir);
+			try {
+				std::filesystem::create_directories(dir);
+				docPath = dir;
+			}
+			catch (const std::exception& e) {
+				CoTaskMemFree(pPath);
+				pPath = nullptr;
+				// TODO: logging: we can't use logging service here during resolve creation
+				p2clog.note(L"Failed creating directory: " + dir).nested(e).commit();
+			}
+			if (pPath)
+			{
+				CoTaskMemFree(pPath);
+			}
+		}
+		else
+		{
+			appPath = std::filesystem::current_path().wstring();
+		}
+
+		// TODO: this really doesn't belong here, but here it stays until time for something saner
 		if (createSubdirectories) {
 			// captures folder 
 			try {
-				std::filesystem::create_directory(std::format(L"{}\\Captures", appPath));
+				std::filesystem::create_directory(std::format(L"{}\\{}", docPath, capturesSubdirectory));
 			}
 			catch (const std::exception& e) {
-				p2clog.note(L"Failed creating directory: " + std::format(L"{}\\Captures", appPath)).nested(e).commit();
+				// TODO: logging: we can't use logging service here during resolve creation
+				p2clog.note(L"Failed creating directory: " + std::format(L"{}\\{}", docPath, capturesSubdirectory)).nested(e).commit();
 			}
-			// configs folder
+			// custom loadouts folder
 			try {
-				std::filesystem::create_directory(std::format(L"{}\\Configs", appPath));
+				std::filesystem::create_directory(std::format(L"{}\\{}", docPath, loadoutsSubdirectory));
 			}
 			catch (const std::exception& e) {
-				p2clog.note(L"Failed creating directory: " + std::format(L"{}\\Configs", appPath)).nested(e).commit();
+				// TODO: logging: we can't use logging service here during resolve creation
+				p2clog.note(L"Failed creating directory: " + std::format(L"{}\\{}", docPath, loadoutsSubdirectory)).nested(e).commit();
 			}
 		}
 	}
@@ -76,6 +112,22 @@ namespace p2c::infra::util
 			{
 				return std::format(L"{}\\{}", appPath, path);
 			}
+		case Folder::Documents:
+		{
+			if (docPath.empty())
+			{
+				p2clog.note(L"Failed to resolve documents path: not initialized").commit();
+				return {};
+			}
+			if (path.empty())
+			{
+				return docPath;
+			}
+			else
+			{
+				return std::format(L"{}\\{}", docPath, path);
+			}
+		}
 		case Folder::Temp:
 		{
 			wchar_t tempPath[MAX_PATH + 1];
@@ -84,19 +136,6 @@ namespace p2c::infra::util
 				p2clog.note(L"failed resolving temp dir").hr().commit();
 			}
 			return std::format(L"{}{}", tempPath, path);
-		}
-		case Folder::Captures:
-		{
-			if (appPath.empty())
-			{
-				p2clog.note(L"Failed to resolve Captures path: appPath not initialized").commit();
-				return {};
-			}
-			if (!path.empty())
-			{
-				p2clog.warn(L"Resoved Captures folder with path string").commit();
-			}
-			return std::format(L"{}\\Captures", appPath);
 		}
 		case Folder::Install:
 		{

@@ -48,6 +48,7 @@ namespace p2c::kern
         void RunTick();
         void SetCaptureState(bool active, std::wstring path, std::wstring name);
         bool IsTargetLive() const;
+        bool IsStandardWindow() const;
         const win::Process& GetProcess() const;
         void UpdateTargetFullscreenStatus();
         bool NeedsFullscreenReboot() const;

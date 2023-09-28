@@ -27,6 +27,10 @@ namespace p2c::client::cef
         {
             CefPostTask(TID_RENDERER, base::BindOnce(&DBAKernelHandler::PresentmonInitFailedTask_, base::Unretained(this)));
         }
+        void OnStalePidSelected() override
+        {
+            CefPostTask(TID_RENDERER, base::BindOnce(&DBAKernelHandler::StalePidTask_, base::Unretained(this)));
+        }
     private:
         // functions needed for CefPostTask (which cannot handle lambdas)
         void TargetLostTask_(uint32_t pid_)
@@ -40,6 +44,10 @@ namespace p2c::client::cef
         void PresentmonInitFailedTask_()
         {
             pSignals->SignalPresentmonInitFailed();
+        }
+        void StalePidTask_()
+        {
+            pSignals->SignalStalePid();
         }
         // data
         util::SignalManager* pSignals;

@@ -58,8 +58,14 @@
      lpCurrentValue)                                                           \
   X_(New_QueryPMLogData_Get, int, iAdapterIndex, ADLPMLogDataOutput*,          \
      lpDataOutput)                                                             \
+  X_(OverdriveN_CapabilitiesX2_Get, int, iAdapterIndex, ADLODNCapabilitiesX2*, \
+     lpOdCapabilitiesX2)                                                       \
   X_(OverdriveN_PerformanceStatus_Get, int, iAdapterIndex,                     \
-     ADLODNPerformanceStatus*, lpODPerformanceStatus)
+     ADLODNPerformanceStatus*, lpODPerformanceStatus)                          \
+  X_(OverdriveN_Temperature_Get, int, iAdapterIndex, int, iTempType, int*,     \
+     lpTemperature)                                                            \
+  X_(OverdriveN_FanControl_Get, int, iAdapterIndex, ADLODNFanControl*,         \
+     lpOdFanControl)
 
 namespace pwr::amd {
 

@@ -1,9 +1,10 @@
-// Copyright (C) 2017,2019-2022 Intel Corporation
+// Copyright (C) 2017,2019-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include <generated/version.h>
 
 #include "PresentMon.hpp"
+#include "../PresentData/Debug.hpp"
 #include <algorithm>
 
 namespace {
@@ -150,17 +151,17 @@ bool ParseKeyName(KeyNameCode const* valid, size_t validCount, char* name, char 
         }
     }
 
-    int col = PrintError("error: %s '%s'.\nValid options (case insensitive):", errorMessage, name);
+    int col = PrintErrorNoNewLine("error: %s '%s'.\nValid options (case insensitive):", errorMessage, name);
 
     size_t consoleWidth = GetConsoleWidth();
     for (size_t i = 0; i < validCount; ++i) {
         auto len = strlen(valid[i].mName);
         if (col + len + 1 > consoleWidth) {
-            col = PrintError("\n   ") - 1;
+            col = PrintErrorNoNewLine("\n   ") - 1;
         }
-        col += PrintError(" %s", valid[i].mName);
+        col += PrintErrorNoNewLine(" %s", valid[i].mName);
     }
-    PrintError("\n");
+    fprintf(stderr, "\n");
 
     return false;
 }
@@ -192,11 +193,11 @@ bool AssignHotkey(char* key, CommandLineArgs* args)
 void SetCaptureAll(CommandLineArgs* args)
 {
     if (!args->mTargetProcessNames.empty()) {
-        PrintWarning("warning: -captureall elides all previous -process_name arguments.\n");
+        PrintWarning("warning: -captureall elides all previous -process_name arguments.");
         args->mTargetProcessNames.clear();
     }
     if (args->mTargetPid != 0) {
-        PrintWarning("warning: -captureall elides all previous -process_id arguments.\n");
+        PrintWarning("warning: -captureall elides all previous -process_id arguments.");
         args->mTargetPid = 0;
     }
 }
@@ -233,7 +234,7 @@ bool ParseValue(char** argv, int argc, int* i)
         *i += 1;
         return true;
     }
-    PrintError("error: %s expecting argument.\n", argv[*i]);
+    PrintError("error: %s expecting argument.", argv[*i]);
     return false;
 }
 
@@ -244,7 +245,7 @@ bool ParseValue(char** argv, int argc, int* i, char const** value)
     return true;
 }
 
-bool ParseValue(char** argv, int argc, int* i, std::vector<char const*>* value)
+bool ParseValue(char** argv, int argc, int* i, std::vector<std::string>* value)
 {
     char const* v = nullptr;
     if (!ParseValue(argv, argc, i, &v)) return false;
@@ -356,7 +357,7 @@ bool ParseCommandLine(int argc, char** argv)
     bool DEPRECATED_verbose = false;
     bool DEPRECATED_wmr = false;
 
-    #ifndef NDEBUG
+    #if PRESENTMON_ENABLE_DEBUG_TRACE
     bool verboseTrace = false;
     #endif
 
@@ -406,13 +407,13 @@ bool ParseCommandLine(int argc, char** argv)
         else if (ParseArg(argv[i], "include_mixed_reality"))  { DEPRECATED_wmr              = true; continue; }
 
         // Hidden options:
-        #ifndef NDEBUG
+        #if PRESENTMON_ENABLE_DEBUG_TRACE
         else if (ParseArg(argv[i], "debug_verbose_trace")) { verboseTrace = true; continue; }
         #endif
 
         // Provided argument wasn't recognized
         else if (!(ParseArg(argv[i], "?") || ParseArg(argv[i], "h") || ParseArg(argv[i], "help"))) {
-            PrintError("error: unrecognized argument '%s'.\n", argv[i]);
+            PrintError("error: unrecognized argument '%s'.", argv[i]);
         }
 
         PrintHelp();
@@ -421,32 +422,32 @@ bool ParseCommandLine(int argc, char** argv)
 
     // Handle deprecated command line arguments
     if (DEPRECATED_simple) {
-        PrintWarning("warning: -simple command line argument has been deprecated; using -no_track_display instead.\n");
+        PrintWarning("warning: -simple command line argument has been deprecated; using -no_track_display instead.");
         args->mTrackDisplay = false;
     }
     if (DEPRECATED_verbose) {
-        PrintWarning("warning: -verbose command line argument has been deprecated; using -track_debug instead.\n");
+        PrintWarning("warning: -verbose command line argument has been deprecated; using -track_debug instead.");
         args->mTrackDebug = true;
     }
     if (DEPRECATED_wmr) {
-        PrintWarning("warning: -include_mixed_reality command line argument has been deprecated; using -track_mixed_reality instead.\n");
+        PrintWarning("warning: -include_mixed_reality command line argument has been deprecated; using -track_mixed_reality instead.");
         args->mTrackWMR = true;
     }
     if (DEPRECATED_dontRestart) {
-        PrintWarning("warning: -dont_restart_as_admin command line argument has been deprecated; it is now the default behaviour.\n");
+        PrintWarning("warning: -dont_restart_as_admin command line argument has been deprecated; it is now the default behaviour.");
     }
 
     // Ignore -no_track_display if required for other requested tracking
     if (args->mTrackDebug && !args->mTrackDisplay) {
-        PrintWarning("warning: -track_debug requires display tracking; ignoring -no_track_display.\n");
+        PrintWarning("warning: -track_debug requires display tracking; ignoring -no_track_display.");
         args->mTrackDisplay = true;
     }
     if (args->mTrackGPU && !args->mTrackDisplay) {
-        PrintWarning("warning: -track_gpu requires display tracking; ignoring -no_track_display.\n");
+        PrintWarning("warning: -track_gpu requires display tracking; ignoring -no_track_display.");
         args->mTrackDisplay = true;
     }
     if (args->mTrackGPUVideo && !args->mTrackDisplay) {
-        PrintWarning("warning: -track_gpu_video requires display tracking; ignoring -no_track_display.\n");
+        PrintWarning("warning: -track_gpu_video requires display tracking; ignoring -no_track_display.");
         args->mTrackDisplay = true;
     }
 
@@ -458,7 +459,7 @@ bool ParseCommandLine(int argc, char** argv)
 
     // -date_time is mutually exclusive to -qpc_time and -qpc_time_s
     if (args->mOutputDateTime && (args->mOutputQpcTime || args->mOutputQpcTimeInSeconds)) {
-        PrintError("error: -date_time and -qpc_time or -qpc_time_s cannot be used at the same time.\n");
+        PrintError("error: -date_time and -qpc_time or -qpc_time_s cannot be used at the same time.");
         PrintHelp();
         return false;
     }
@@ -468,13 +469,13 @@ bool ParseCommandLine(int argc, char** argv)
         if ((args->mHotkeyModifiers & MOD_CONTROL) != 0 && (
             args->mHotkeyVirtualKeyCode == 0x44 /*C*/ ||
             args->mHotkeyVirtualKeyCode == VK_SCROLL)) {
-            PrintError("error: CTRL+C or CTRL+SCROLL cannot be used as a -hotkey, they are reserved for terminating the trace.\n");
+            PrintError("error: CTRL+C or CTRL+SCROLL cannot be used as a -hotkey, they are reserved for terminating the trace.");
             PrintHelp();
             return false;
         }
 
         if (args->mHotkeyModifiers == MOD_NOREPEAT && args->mHotkeyVirtualKeyCode == VK_F12) {
-            PrintError("error: 'F12' cannot be used as a -hotkey, it is reserved for the debugger.\n");
+            PrintError("error: 'F12' cannot be used as a -hotkey, it is reserved for the debugger.");
             PrintHelp();
             return false;
         }
@@ -484,24 +485,24 @@ bool ParseCommandLine(int argc, char** argv)
     // -output_file, or -output_stdout if they are also used.
     if (!args->mOutputCsvToFile) {
         if (args->mOutputQpcTime) {
-            PrintWarning("warning: -qpc_time and -qpc_time_s are only relevant for CSV output; ignoring due to -no_csv.\n");
+            PrintWarning("warning: -qpc_time and -qpc_time_s are only relevant for CSV output; ignoring due to -no_csv.");
             args->mOutputQpcTime = false;
             args->mOutputQpcTimeInSeconds = false;
         }
         if (args->mOutputDateTime) {
-            PrintWarning("warning: -date_time is only relevant for CSV output; ignoring due to -no_csv.\n");
+            PrintWarning("warning: -date_time is only relevant for CSV output; ignoring due to -no_csv.");
             args->mOutputDateTime = false;
         }
         if (args->mMultiCsv) {
-            PrintWarning("warning: -multi_csv and -no_csv arguments are not compatible; ignoring -multi_csv.\n");
+            PrintWarning("warning: -multi_csv and -no_csv arguments are not compatible; ignoring -multi_csv.");
             args->mMultiCsv = false;
         }
         if (args->mOutputCsvFileName != nullptr) {
-            PrintWarning("warning: -output_file and -no_csv arguments are not compatible; ignoring -output_file.\n");
+            PrintWarning("warning: -output_file and -no_csv arguments are not compatible; ignoring -output_file.");
             args->mOutputCsvFileName = nullptr;
         }
         if (args->mOutputCsvToStdout) {
-            PrintWarning("warning: -output_stdout and -no_csv arguments are not compatible; ignoring -output_stdout.\n");
+            PrintWarning("warning: -output_stdout and -no_csv arguments are not compatible; ignoring -output_stdout.");
             args->mOutputCsvToStdout = false;
         }
     }
@@ -516,24 +517,24 @@ bool ParseCommandLine(int argc, char** argv)
         args->mConsoleOutputType = ConsoleOutput::None;
 
         if (args->mOutputCsvFileName != nullptr) {
-            PrintError("error: only one of -output_file or -output_stdout arguments can be used.\n");
+            PrintError("error: only one of -output_file or -output_stdout arguments can be used.");
             PrintHelp();
             return false;
         }
 
         if (args->mMultiCsv) {
-            PrintWarning("warning: -multi_csv and -output_stdout are not compatible; ignoring -multi_csv.\n");
+            PrintWarning("warning: -multi_csv and -output_stdout are not compatible; ignoring -multi_csv.");
             args->mMultiCsv = false;
         }
 
         if (args->mTrackWMR) {
-            PrintWarning("warning: -track_mixed_reality and -output_stdout are not compatible; ignoring -track_mixed_reality.\n");
+            PrintWarning("warning: -track_mixed_reality and -output_stdout are not compatible; ignoring -track_mixed_reality.");
             args->mTrackWMR = false;
         }
     }
 
     // Enable verbose trace if requested, and disable Full or Simple console output
-    #ifndef NDEBUG
+    #if PRESENTMON_ENABLE_DEBUG_TRACE
     if (verboseTrace) {
         EnableVerboseTrace(true);
         args->mConsoleOutputType = ConsoleOutput::None;
@@ -543,7 +544,7 @@ bool ParseCommandLine(int argc, char** argv)
     // Try to initialize the console, and warn if we're not going to be able to
     // do the advanced display as requested.
     if (args->mConsoleOutputType == ConsoleOutput::Full && !IsConsoleInitialized()) {
-        PrintWarning("warning: could not initialize console display; continuing with -no_top.\n");
+        PrintWarning("warning: could not initialize console display; continuing with -no_top.");
         args->mConsoleOutputType = ConsoleOutput::Simple;
     }
 
@@ -551,22 +552,22 @@ bool ParseCommandLine(int argc, char** argv)
     // be stopping an existing session and then exiting.
     if (args->mTerminateExisting && argc != 2) {
         PrintWarning("warning: -terminate_existing exits without capturing anything; ignoring all capture,\n"
-                     "         output, and recording arguments.\n");
+                     "         output, and recording arguments.");
     }
 
-    // Prune any directory and ".exe" off of the provided process names.  This
-    // is primarily because the ProcessStart event typically has a full path
-    // including "\\Device\\..." and ProcessStop event sometimes is missing
-    // part of the extension.
+    // Convert the provided process names into a canonical form used for comparison.
+    // The comparison is not case-sensitive, and does not include any directory nor
+    // extension.
+    //
+    // This is because the different paths for obtaining process information return
+    // different image name strings.  e.g., the ProcessStart event typically has a
+    // full path including "\\Device\\..." and ProcessStop event sometimes is
+    // missing part of the extension.
     for (auto& name : args->mTargetProcessNames) {
-        auto pr = GetProcessNameComparisonRange(name, strlen(name));
-        name += pr.first;
-        ((char*) name)[pr.second] = '\0';
+        CanonicalizeProcessName(&name);
     }
     for (auto& name : args->mExcludeProcessNames) {
-        auto pr = GetProcessNameComparisonRange(name, strlen(name));
-        name += pr.first;
-        ((char*) name)[pr.second] = '\0';
+        CanonicalizeProcessName(&name);
     }
 
     return true;

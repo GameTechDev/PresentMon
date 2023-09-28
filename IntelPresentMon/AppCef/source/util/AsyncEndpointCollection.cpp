@@ -5,7 +5,6 @@
 #include <Core/source/infra/util/Util.h>
 
 #include "async/BrowseReadSpec.h"
-#include "async/BrowseFolder.h"
 #include "async/BrowseStoreSpec.h"
 #include "async/BindHotkey.h"
 #include "async/ClearHotkey.h"
@@ -38,7 +37,6 @@ namespace p2c::client::util
 	{
 		using namespace async;
 		AddEndpoint<BrowseReadSpec>();
-		AddEndpoint<BrowseFolder>();
 		AddEndpoint<BrowseStoreSpec>();
 		AddEndpoint<BindHotkey>();
 		AddEndpoint<ClearHotkey>();

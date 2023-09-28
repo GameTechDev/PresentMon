@@ -13,5 +13,6 @@ namespace p2c::kern
 		virtual void OnTargetLost(uint32_t pid) = 0;
 		virtual void OnOverlayDied() = 0;
 		virtual void OnPresentmonInitFailed() = 0;
+		virtual void OnStalePidSelected() = 0;
 	};
 }

@@ -101,29 +101,22 @@ namespace p2c::client::util
             sheets.back()->InsertRaw<at::borderTop>(graphBorder);
             sheets.back()->InsertRaw<at::borderRight>(graphBorder);
             sheets.back()->InsertRaw<at::borderBottom>(graphBorder);
-            sheets.back()->InsertRaw<at::textColor>(at::make::Color(ColorFromV8(traversedPref["graphFont"]["color"])));
             sheets.back()->InsertRaw<at::textFont>(traversedPref["graphFont"]["name"].AsWString());
             sheets.back()->InsertRaw<at::graphLineColor>(at::make::Color(Color::FromBytes(100, 255, 255, 220)));
             sheets.back()->InsertRaw<at::graphFillColor>(at::make::Color(Color::FromBytes(57, 210, 210, 25)));
             // TODO: clarify, consider which plot attributes apply to which sub-elements
             sheets.back()->InsertRaw<at::graphTimeWindow>((double)traversedPref["timeRange"]);
 
-            sheets.push_back(Stylesheet::Make({ {"$graph"}, {"$label"} }));
-            sheets.back()->InsertRaw<at::textSize>((double)traversedPref["graphFont"]["titleSize"]);
-
             sheets.push_back(Stylesheet::Make({ {"$graph"}, {"$label-units"} }));
-            sheets.back()->InsertRaw<at::textSize>((double)traversedPref["graphFont"]["titleSize"]);
             sheets.back()->InsertRaw<at::marginLeft>(3.);
             sheets.back()->InsertRaw<at::marginRight>(3.);
 
             sheets.push_back(Stylesheet::Make({ {"$label-wrap-left"}, {"$label-value"} }));
             sheets.back()->InsertRaw<at::marginLeft>(5.);
-            sheets.back()->InsertRaw<at::textSize>((double)traversedPref["graphFont"]["titleSize"]);
             sheets.back()->InsertRaw<at::textJustification>(at::make::Enum(prim::Justification::Right));
 
             sheets.push_back(Stylesheet::Make({ {"$label-wrap-right"}, {"$label-value"} }));
             sheets.back()->InsertRaw<at::marginLeft>(5.);
-            sheets.back()->InsertRaw<at::textSize>((double)traversedPref["graphFont"]["titleSize"]);
             sheets.back()->InsertRaw<at::textJustification>(at::make::Enum(prim::Justification::Right));
 
             sheets.push_back(Stylesheet::Make({ {"$label-wrap-left"}, {"$label-swatch"} }));
@@ -216,7 +209,7 @@ namespace p2c::client::util
                 sheets.back()->InsertRaw<at::paddingBottom>(padding);
                 sheets.back()->InsertRaw<at::flexDirection>(at::make::Enum(gfx::lay::FlexDirection::Column));
                 sheets.back()->InsertRaw<at::flexAlignment>(at::make::Enum(gfx::lay::FlexAlignment::Stretch));
-                sheets.back()->InsertRaw<at::backgroundColor>(backgroundColor);
+                sheets.back()->InsertRaw<at::backgroundColor>(at::make::Color(gfx::Color::FromBytes(0, 0, 0, 0)));
                 sheets.back()->InsertRaw<at::textColor>(textColor);
                 sheets.back()->InsertRaw<at::textSize>(textSize);
             }
@@ -303,6 +296,8 @@ namespace p2c::client::util
                         sheets.back()->InsertRaw<at::graphMinCount>((double)Traverse(vGraph)["graphType"]["countRange"][(size_t)0]);
                         sheets.back()->InsertRaw<at::graphMaxCount>((double)Traverse(vGraph)["graphType"]["countRange"][1]);
                         sheets.back()->InsertRaw<at::backgroundColor>(backgroundColor);
+                        sheets.push_back(Stylesheet::Make({ {}, {"$graph"} }));
+                        sheets.back()->InsertRaw<at::textColor>(at::make::Color(ColorFromV8(Traverse(vGraph)["textColor"])));
                         // since border is 0px, these settings do nothing
                         // sheets.back()->InsertRaw<at::borderColorLeft>(borderColor);
                         // sheets.back()->InsertRaw<at::borderColorTop>(borderColor);
@@ -317,6 +312,18 @@ namespace p2c::client::util
                         if (Traverse(vGraph)["graphType"]["autoCount"]) {
                             sheets.back()->InsertRaw<at::graphAutoscaleCount>(true);
                         }
+
+                        sheets.push_back(Stylesheet::Make({ { "$graph", tag }, {"$label"} }));
+                        sheets.back()->InsertRaw<at::textSize>((double)Traverse(vGraph)["textSize"]);
+
+                        sheets.push_back(Stylesheet::Make({ { "$graph", tag }, {"$label-units"} }));
+                        sheets.back()->InsertRaw<at::textSize>((double)Traverse(vGraph)["textSize"]);
+
+                        sheets.push_back(Stylesheet::Make({ { "$graph", tag }, {"$label-value"} }));
+                        sheets.back()->InsertRaw<at::textSize>((double)Traverse(vGraph)["textSize"]);
+
+                        sheets.push_back(Stylesheet::Make({ { "$graph", tag }, {"$label-value"} }));
+                        sheets.back()->InsertRaw<at::textSize>((double)Traverse(vGraph)["textSize"]);
 
                         sheets.push_back(Stylesheet::Make({ { "$graph", tag }, {"$body"} }));
                         sheets.back()->InsertRaw<at::height>((double)Traverse(vGraph)["height"]);
@@ -397,10 +404,18 @@ namespace p2c::client::util
 
                     const double fontSize = Traverse(vReadout)["fontSize"];
 
+
+                    sheets.push_back(Stylesheet::Make({ {}, { "$readout", tag } }));
+                    sheets.back()->InsertRaw<at::backgroundColor>(at::make::Color(ColorFromV8(Traverse(vReadout)["backgroundColor"])));
+
                     if (!Traverse(vReadout)["showLabel"]) {
                         sheets.push_back(Stylesheet::Make({ { "$readout", tag }, { "$label" } }));
                         sheets.back()->InsertRaw<at::display>(at::make::Enum(Display::None));
                     }
+
+                    sheets.push_back(Stylesheet::Make({ { "$readout", tag }, { "$text-large" } }));
+                    sheets.back()->InsertRaw<at::textColor>(at::make::Color(ColorFromV8(Traverse(vReadout)["fontColor"])));
+                    sheets.back()->InsertRaw<at::textSize>(fontSize);
 
                     sheets.push_back(Stylesheet::Make({ { "$readout", tag }, { "$text-large" } }));
                     sheets.back()->InsertRaw<at::textColor>(at::make::Color(ColorFromV8(Traverse(vReadout)["fontColor"])));

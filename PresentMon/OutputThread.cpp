@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2022 Intel Corporation
+// Copyright (C) 2019-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include "PresentMon.hpp"
@@ -91,40 +91,35 @@ static void UpdateRecordingToggles(size_t nextIndex)
 static std::unordered_map<uint32_t, ProcessInfo> gProcesses;
 static uint32_t gTargetProcessCount = 0;
 
-std::pair<size_t, size_t> GetProcessNameComparisonRange(char const* name, size_t length)
+// Removes any directory and extension, and converts the remaining name to
+// lower case.
+void CanonicalizeProcessName(std::string* name)
 {
-    std::pair<size_t, size_t> pr(0, length);
-
-    if (pr.second >= 4 && _stricmp(name + pr.second - 4, ".exe") == 0) {
-        pr.second -= 4;
-    }
-    for (size_t i = pr.second; i--; ) {
-        if (name[i] == '/' || name[i] == '\\') {
-            pr.first = i + 1;
-            break;
-        }
+    size_t i = name->find_last_of("./\\");
+    if (i != std::string::npos && (*name)[i] == '.') {
+        name->resize(i);
+        i = name->find_last_of("/\\");
     }
 
-    pr.second = pr.second - pr.first;
-    return pr;
+    *name = name->substr(i + 1);
+
+    std::transform(name->begin(), name->end(), name->begin(),
+                   [](unsigned char c) { return (unsigned char) ::tolower((int) c); });
 }
 
 static bool IsTargetProcess(uint32_t processId, std::string const& processName)
 {
     auto const& args = GetCommandLineArgs();
 
-    char const* compareName = nullptr;
-    size_t compareLength = 0;
+    std::string compareName;
     if (args.mExcludeProcessNames.size() + args.mTargetProcessNames.size() > 0) {
-        compareName = processName.c_str();
-        auto pr = GetProcessNameComparisonRange(compareName, processName.size());
-        compareName += pr.first;
-        compareLength = pr.second;
+        compareName = processName;
+        CanonicalizeProcessName(&compareName);
     }
 
     // -exclude
     for (auto excludeProcessName : args.mExcludeProcessNames) {
-        if (_strnicmp(excludeProcessName, compareName, compareLength) == 0) {
+        if (excludeProcessName == compareName) {
             return false;
         }
     }
@@ -141,7 +136,7 @@ static bool IsTargetProcess(uint32_t processId, std::string const& processName)
 
     // -process_name
     for (auto targetProcessName : args.mTargetProcessNames) {
-        if (_strnicmp(targetProcessName, compareName, compareLength) == 0) {
+        if (targetProcessName == compareName) {
             return true;
         }
     }
@@ -576,10 +571,10 @@ void Output()
     ULONG buffersLost = 0;
     CheckLostReports(&eventsLost, &buffersLost);
     if (buffersLost > 0) {
-        PrintWarning("warning: %lu ETW buffers were lost.\n", buffersLost);
+        PrintWarning("warning: %lu ETW buffers were lost.", buffersLost);
     }
     if (eventsLost > 0) {
-        PrintWarning("warning: %lu ETW events were lost.\n", eventsLost);
+        PrintWarning("warning: %lu ETW events were lost.", eventsLost);
     }
 
     // Close all CSV and process handles

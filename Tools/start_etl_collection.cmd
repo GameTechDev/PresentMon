@@ -1,4 +1,4 @@
-:: Copyright (C) 2022 Intel Corporation
+:: Copyright (C) 2022-2023 Intel Corporation
 :: SPDX-License-Identifier: MIT
 @echo off
 setlocal
@@ -24,12 +24,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: ProviderGUID[:Flags[:Level]]
 set     d3d9=783ACA0A-790E-4d7f-8451-AA850511C6B9:0xf:6
 set     dxgi=ca11c036-0102-4a2d-a6ad-f03cfed5d3c9:0xf:6
 set  dxgkrnl=802ec45a-1e99-4b83-9920-87c98277ba9d
 set      dwm=9e9bba3c-2e38-40cb-99f4-9e8281425164:0xffff:6
 set dwm_win7=8c9dd1ad-e6e5-4b07-b455-684a9d879900:0xffff:6
-set   win32k=8c416c79-d49b-4f01-a467-e56d3aa8234c:0xffff
+set   win32k=8c416c79-d49b-4f01-a467-e56d3aa8234c:0x8400000440c01000:4
 
 set providers=LOADER
 set providers=%providers%+PROC_THREAD

@@ -46,10 +46,7 @@ export interface Preferences {
     readonly overlayBackgroundColor: RgbaColor;
     readonly graphFont: {
         readonly name: 'Verdana';
-        readonly color: RgbaColor;
-        readonly titleSize: 11.0;
         readonly axisSize: 10.0;
-        readonly valueSize: 10.0;
     };    
     adapterId:number|null;
 };
@@ -92,15 +89,7 @@ export function makeDefaultPreferences(): Preferences {
         }, 
         graphFont: { 
             name: 'Verdana', 
-            color: { 
-                r: 242, 
-                g: 242, 
-                b: 242, 
-                a: 1.0, 
-            }, 
-            titleSize: 11.0, 
             axisSize: 10.0, 
-            valueSize: 10.0, 
         }, 
         overlayWidth: 400,         
         upscale: false,

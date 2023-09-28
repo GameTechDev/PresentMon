@@ -33,6 +33,9 @@ namespace p2c::client::util::async
                 else if (loc == FileLocation::Data) {
                     base = fr->Resolve(FolderResolver::Folder::App, L"");
                 }
+                else if (loc == FileLocation::Documents) {
+                    base = fr->Resolve(FolderResolver::Folder::Documents, L"");
+                }
                 else {
                     throw std::runtime_error{ std::format("Bad file location: {}", uint32_t(loc)) };
                 }

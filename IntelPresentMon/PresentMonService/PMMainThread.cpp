@@ -273,6 +273,8 @@ DWORD WINAPI PresentMonMainThread(LPVOID lpParam)
     try {
       // Try to use WMI for metrics sampling
       cpu = std::make_shared<pwr::cpu::wmi::WmiCpu>();
+    } catch (const std::runtime_error& e) {
+      LOG(INFO) << "WMI Failure Status: " << e.what() << std::endl;
     } catch (...) {}
 
     if (cpu) {

@@ -44,13 +44,13 @@ bool StartTraceSession()
         if (args.mStopExistingSession) {
             PrintWarning(
                 "warning: a trace session named \"%s\" is already running and it will be stopped.\n"
-                "         Use -session_name with a different name to start a new session.\n",
+                "         Use -session_name with a different name to start a new session.",
                 args.mSessionName);
         } else {
             PrintError(
                 "error: a trace session named \"%s\" is already running. Use -stop_existing_session\n"
                 "       to stop the existing session, or use -session_name with a different name to\n"
-                "       start a new session.\n",
+                "       start a new session.",
                 args.mSessionName);
             delete gPMConsumer;
             delete gMRConsumer;
@@ -67,21 +67,20 @@ bool StartTraceSession()
 
     // Report error if we failed to start a new session
     if (status != ERROR_SUCCESS) {
-        PrintError("error: failed to start trace session");
+        PrintErrorNoNewLine("error: failed to start trace session: ");
         switch (status) {
-        case ERROR_FILE_NOT_FOUND:    PrintError(" (file not found)"); break;
-        case ERROR_PATH_NOT_FOUND:    PrintError(" (path not found)"); break;
-        case ERROR_BAD_PATHNAME:      PrintError(" (invalid --session_name)"); break;
-        case ERROR_ACCESS_DENIED:     PrintError(" (access denied)"); break;
-        case ERROR_FILE_CORRUPT:      PrintError(" (invalid --etl_file)"); break;
-        default:                      PrintError(" (error=%lu)", status); break;
+        case ERROR_FILE_NOT_FOUND:    PrintError(" file not found"); break;
+        case ERROR_PATH_NOT_FOUND:    PrintError(" path not found"); break;
+        case ERROR_BAD_PATHNAME:      PrintError(" invalid --session_name"); break;
+        case ERROR_ACCESS_DENIED:     PrintError(" access denied"); break;
+        case ERROR_FILE_CORRUPT:      PrintError(" invalid --etl_file"); break;
+        default:                      PrintError(" error code %lu", status); break;
         }
-        PrintError(".\n");
 
         if (status == ERROR_ACCESS_DENIED && !InPerfLogUsersGroup()) {
             PrintError(
                 "       PresentMon requires either administrative privileges or to be run by a user in the\n"
-                "       \"Performance Log Users\" user group.  View the readme for more details.\n");
+                "       \"Performance Log Users\" user group.  View the readme for more details.");
         }
 
         delete gPMConsumer;

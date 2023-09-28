@@ -114,5 +114,6 @@
       <Filter>Amd</Filter>
     </ClCompile>
     <ClCompile Include="PowerTelemetryProviderFactory.cpp" />
+    <ClCompile Include="CpuTelemetry.cpp" />
   </ItemGroup>
 </Project>

@@ -235,6 +235,7 @@
     <ClCompile Include="PowerTelemetryProviderFactory.cpp" />
     <ClCompile Include="SignatureComparison.cpp" />
     <ClCompile Include="AmdPowerTelemetryProvider.cpp" />
+    <ClCompile Include="CpuTelemetry.cpp" />
     <ClCompile Include="WmiCpu.cpp" />
   </ItemGroup>
   <ItemGroup>

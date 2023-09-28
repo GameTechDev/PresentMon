@@ -153,6 +153,8 @@ if %do_realtime_tests% EQU 1 (
 
     call :realtime_multicsv_test
 
+    call :realtime_exclude_test
+
     echo.
 )
 
@@ -379,5 +381,44 @@ exit /b 0
 
     del /Q "%temp%\pm_multicsv_test-*.csv"
 
+    exit /b 0
+
+:: -----------------------------------------------------------------------------
+:realtime_exclude_test
+    call :start_target_app /width=320 /height=240
+    if %errorlevel% NEQ 0 (
+        echo [31merror: realtime PresentBench tests cannot run with a process named PresentBench.exe already running[0m
+        set /a errorcount=%errorcount%+1
+        exit /b 0
+    )
+
+    set saw_excluded=0
+    set saw_nonexcluded=0
+    for /f "tokens=1 delims=," %%a in ('"%pmdir%\build\%test_config%\PresentMon-%version%-x64.exe" -exclude presentbench -output_stdout -timed 2 -terminate_after_timed 2^>NUL') do (
+        if "%%a" EQU "PresentBench.exe" (
+            set saw_excluded=1
+        )
+    )
+    for /f "tokens=1 delims=," %%a in ('"%pmdir%\build\%test_config%\PresentMon-%version%-x64.exe" -exclude presentbench2 -output_stdout -timed 2 -terminate_after_timed 2^>NUL') do (
+        if "%%a" EQU "PresentBench.exe" (
+            set saw_nonexcluded=1
+        )
+    )
+
+    call :stop_target_app
+
+    if %saw_nonexcluded% EQU 0 (
+        echo [31merror: -exclude PresentBench2 did not record any presents[0m
+        set /a errorcount=%errorcount%+1
+        exit /b 0
+    )
+    if %saw_excluded% EQU 1 (
+        echo [31merror: -exclude PresentBench recorded presents[0m
+        set /a errorcount=%errorcount%+1
+        exit /b 0
+    )
+
+    echo.   [90m-exclude presentbench[0m
+    echo.   [90m-exclude presentbench2[0m
     exit /b 0
 

@@ -68,7 +68,7 @@ uint32_t GetDeferredCompletionWaitCount(PresentEvent const& p)
 #define TRACK_PRESENT_PATH_SAVE_GENERATED_ID(present) (void) present
 #endif
 
-#ifndef NDEBUG
+#if PRESENTMON_ENABLE_DEBUG_TRACE
 static uint64_t gNextPresentId = 1;
 #endif
 
@@ -123,7 +123,7 @@ PresentEvent::PresentEvent()
     #ifdef TRACK_PRESENT_PATHS
     , AnalysisPath(0ull)
     #endif
-    #ifndef NDEBUG
+    #if PRESENTMON_ENABLE_DEBUG_TRACE
     , Id(gNextPresentId++)
     #endif
 {

@@ -1,5 +1,7 @@
 // Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
+#include <format>
+#include <map>
 #include "AmdPowerTelemetryProvider.h"
 #include "AmdPowerTelemetryAdapter.h"
 #include "Logging.h"
@@ -23,6 +25,9 @@ AmdPowerTelemetryProvider::AmdPowerTelemetryProvider() {
                                             full_adapter_info_size))) {
       throw std::runtime_error{"Failed to adapter infos for amd gpus"};
   }
+
+  // Map of bus number to adapter string to track unique adapters
+  std::map<int, std::string> adapters;
 
   for (auto& ai : adl_adapter_infos_) {
     // Following the AMD example code for using Overdrive8 here. Instead of making
@@ -48,21 +53,28 @@ AmdPowerTelemetryProvider::AmdPowerTelemetryProvider() {
       }
 
       // If it's not a version of overdrive we support, bail out.
-      if ((overdrive_version != 5) && (overdrive_version != 6) &&
-          (overdrive_version != 8)) {
-        throw std::runtime_error{"Overdrive version is not supported"};
+      if ((overdrive_version < 5) || (overdrive_version > 8)) {
+        throw std::runtime_error{
+            std::format(
+                "Overdrive version is not supported. Version reported: {}",
+                overdrive_version)
+                .c_str()};
       }
 
-      try {
-        std::string adl_adapter_name = ai.strAdapterName;
-        adapter_ptrs_.push_back(std::make_shared<AmdPowerTelemetryAdapter>(
-            &adl_, adl_adapter_name, ai.iAdapterIndex, overdrive_version));
-        // If we are able to create a telemetry adapter we are done.
-        break;
-      } catch (const std::exception& e) {
-        TELE_ERR(e.what());
-      } catch (...) {
-        TELE_ERR("unknown error");
+      auto result =
+          adapters.insert(std::pair{ai.iBusNumber, ai.strAdapterName});
+      if (result.second) {
+        try {
+          std::string adl_adapter_name = ai.strAdapterName;
+          adapter_ptrs_.push_back(std::make_shared<AmdPowerTelemetryAdapter>(
+              &adl_, adl_adapter_name, ai.iAdapterIndex, overdrive_version));
+          // If we are able to create a telemetry adapter we are done.
+          break;
+        } catch (const std::exception& e) {
+          TELE_ERR(e.what());
+        } catch (...) {
+          TELE_ERR("unknown error");
+        }
       }
     }
   }

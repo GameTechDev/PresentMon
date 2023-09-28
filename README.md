@@ -6,11 +6,11 @@
 
 # PresentMon
 
-PresentMon is a tool to capture and analyze [ETW](https://msdn.microsoft.com/en-us/library/windows/desktop/bb968803%28v=vs.85%29.aspx?f=255&MSPPError=-2147217396) events related to swap chain presentation on Windows.  It can be used to trace key performance metrics for graphics applications (e.g., CPU and Display frame durations and latencies) and works across different graphics APIs, different hardware configurations, and for both desktop and UWP applications.
+PresentMon is a set of tools to capture and analyze the high-level performance characteristics of graphics applications on Windows.  PresentMon traces key performance metrics such as the CPU, GPU, and Display frame durations and latencies; and works across different graphics API such as DirectX, OpenGL, and Vulkan, different hardware configurations, and for both desktop and UWP applications.
 
 This repository contains several components:
 
-- The PresentData/ directory contains the **PresentMon SDK**: a library containing the lightweight collection and analysis functionality.  See [PresentData/PresentMonTraceConsumer.hpp](PresentData/PresentMonTraceConsumer.hpp) for more information.
+- The PresentData/ directory contains the **PresentMon Collection and Analysis library**: a library that performs the lowest-level collection and analysis of [ETW](https://msdn.microsoft.com/en-us/library/windows/desktop/bb968803%28v=vs.85%29.aspx?f=255&MSPPError=-2147217396) events.  See [PresentData/PresentMonTraceConsumer.hpp](PresentData/PresentMonTraceConsumer.hpp) for more information.
 
 - The PresentMon/ directory contains the **PresentMon Console Application**: a standalone console application that can be used to collect CSV data from target applications.  See [README-ConsoleAppliation.md](README-ConsoleApplication.md) for more information.
 
@@ -24,7 +24,7 @@ There are also several other programs that build on this functionality and/or he
 - [Microsoft PIX on Windows System Monitor](https://devblogs.microsoft.com/pix/system-monitor/)
 - [NVIDIA FrameView](https://www.nvidia.com/en-us/geforce/technologies/frameview/)
 
-Binaries for the main releases of PresentMon are provided on [intel.com](game.intel.com/story/intel-presentmon/) or [github.com](https://github.com/GameTechDev/PresentMon/releases/latest) ([list of all releases](https://github.com/GameTechDev/PresentMon/releases)).
+Binaries for the main releases of PresentMon are provided on [intel.com](https://game.intel.com/story/intel-presentmon/) or [github.com](https://github.com/GameTechDev/PresentMon/releases/latest) ([list of all releases](https://github.com/GameTechDev/PresentMon/releases)).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for information on how to request features, report issues, or contribute code changes.
 
@@ -40,7 +40,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-## Known issues
+## Troubleshooting
 
 See [GitHub Issues](https://github.com/GameTechDev/PresentMon/issues) for a current list of reported issues.
 

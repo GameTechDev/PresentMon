@@ -13,13 +13,17 @@ namespace p2c::infra::util
 		{
 			App,
 			Temp,
-			Captures,
 			Install,
+			Documents,
 		};
 		// functions
-		FolderResolver(std::wstring appFolderName = {}, bool createSubdirectories = true);
+		// defaulted subdir means using the cwd to store files of that category
+		FolderResolver(std::wstring appPathSubdir = {}, std::wstring docPathSubdir = {}, bool createSubdirectories = true);
 		std::wstring Resolve(Folder f, std::wstring path = {}) const;
 	private:
+		static constexpr const wchar_t* loadoutsSubdirectory = L"Loadouts";
+		static constexpr const wchar_t* capturesSubdirectory = L"Captures";
 		std::wstring appPath;
+		std::wstring docPath;
 	};
 }

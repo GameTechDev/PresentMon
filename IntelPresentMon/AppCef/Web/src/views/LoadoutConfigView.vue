@@ -78,6 +78,7 @@ export default Vue.extend({
         // zero length result means user canceled out of dialog
         if (browseResult.payload.length > 0) {
           await Loadout.parseAndReplace(browseResult);
+          await Loadout.serializeCustom();
         }
       } catch (e) {
         await Notifications.notify({text:'Failed to load config file.'});

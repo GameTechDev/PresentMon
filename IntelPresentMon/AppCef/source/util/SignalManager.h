@@ -11,7 +11,8 @@
 	X_(targetLost) \
 	X_(hotkeyFired) \
 	X_(presentmonInitFailed) \
-	X_(overlayDied)
+	X_(overlayDied) \
+	X_(stalePid)
 
 
 namespace p2c::client::util
@@ -44,6 +45,7 @@ namespace p2c::client::util
 		void SignalHotkeyFired(uint32_t action); // hotkeyFired(action:number)
 		void SignalPresentmonInitFailed(); // presentmonInitFailed()
 		void SignalOverlayDied(); // overlayDied()
+		void SignalStalePid(); // stalePid()
 	private:
 		// functions
 		template<typename... Ts>

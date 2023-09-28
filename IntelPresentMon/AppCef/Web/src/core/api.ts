@@ -13,6 +13,7 @@ import { Graph } from './graph'
 export enum FileLocation {
     Install,
     Data,
+    Documents,
 }
 
 type AsyncCallback = (arg: any) => void;
@@ -73,9 +74,6 @@ export class Api {
         }
         return adapters;
     }
-    static async browseFolder(): Promise<{path: string}> {
-        return await this.invokeEndpointFuture('browseFolder', {});
-    }
     static async bindHotkey(binding: Binding): Promise<void> {
         await this.invokeEndpointFuture('bindHotkey', binding);
     }
@@ -117,16 +115,16 @@ export class Api {
         return await this.loadFile(FileLocation.Install, `Presets\\${path}`);
     }
     static async loadConfig(path: string): Promise<{payload: string}> {
-        return await this.loadFile(FileLocation.Data, `Configs\\${path}`);
+        return await this.loadFile(FileLocation.Documents, `Loadouts\\${path}`);
     }
     static async storeConfig(payload: string, path: string): Promise<void> {
-        await this.storeFile(payload, FileLocation.Data, `Configs\\${path}`);
+        await this.storeFile(payload, FileLocation.Documents, `Loadouts\\${path}`);
     }
     static async loadPreferences(): Promise<{payload: string}> {
-        return await this.loadFile(FileLocation.Data, 'preferences.json');
+        return await this.loadFile(FileLocation.Documents, 'preferences.json');
     }
     static async storePreferences(payload: string): Promise<void> {
-        await this.storeFile(payload, FileLocation.Data, 'preferences.json');
+        await this.storeFile(payload, FileLocation.Documents, 'preferences.json');
     }
 
     /////// signal handlers ///////
@@ -141,5 +139,8 @@ export class Api {
     }
     static registerTargetLostHandler(callback: (pid: number) => void) {
         this.core.registerSignalHandler('targetLost', callback);
+    }
+    static registerStalePidHandler(callback: () => void) {
+        this.core.registerSignalHandler('stalePid', callback);
     }
 }

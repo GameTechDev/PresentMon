@@ -3,6 +3,10 @@
 #include <ranges>
 #include <functional>
 
+#define GOOGLE_GLOG_DLL_DECL
+#define GLOG_NO_ABBREVIATED_SEVERITIES
+#include <glog/logging.h>
+
 bool PowerTelemetryContainer::QueryPowerTelemetrySupport() { 
   try {
     telemetry_providers_.clear();
@@ -15,9 +19,11 @@ bool PowerTelemetryContainer::QueryPowerTelemetrySupport() {
                 PM_GPU_VENDOR(iVendor))) {
           telemetry_providers_.push_back(std::move(pProvider));
         }
+      } catch (const std::runtime_error& e) {
+        LOG(INFO) << "Power Telemetry Failure: " << e.what() << std::endl;
       } catch (...) {
-      }  // silent fail (maybe log?) any provider construction
-         // exceptions and just keep the good ones
+        LOG(INFO) << "Unknown Telemetry Failure.";
+      }
     }
     // collect all adapters together from providers
     for (const auto& pProvider : telemetry_providers_) {

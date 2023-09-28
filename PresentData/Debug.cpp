@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2022 Intel Corporation
+// Copyright (C) 2019-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include "Debug.hpp"
@@ -11,16 +11,12 @@
 #include "ETW/Microsoft_Windows_DxgKrnl.h"
 #include "ETW/Microsoft_Windows_Kernel_Process.h"
 #include "ETW/Microsoft_Windows_Win32k.h"
+#include "ETW/NT_Process.h"
 
 #include <assert.h>
 #include <dxgi.h>
 
 namespace {
-
-bool gVerboseTraceEnabled = false;
-
-PresentEvent const* gModifiedPresent = nullptr;
-PresentEvent gOriginalPresentValues;
 
 LARGE_INTEGER* gFirstTimestamp = nullptr;
 LARGE_INTEGER gTimestampFrequency = {};
@@ -54,6 +50,38 @@ char* AddCommas(uint64_t t)
     buf[r] = '\0';
     return buf;
 }
+
+}
+
+void InitializeTimestampInfo(LARGE_INTEGER* firstTimestamp, LARGE_INTEGER const& timestampFrequency)
+{
+    gFirstTimestamp = firstTimestamp;
+    gTimestampFrequency = timestampFrequency;
+}
+
+int PrintTime(uint64_t value)
+{
+    return value == 0
+        ? printf("0")
+        : value < (uint64_t) gFirstTimestamp->QuadPart
+        ? printf("-%s", AddCommas(ConvertTimestampDeltaToNs((uint64_t) gFirstTimestamp->QuadPart - value)))
+        : printf("%s", AddCommas(ConvertTimestampToNs(value)));
+}
+
+int PrintTimeDelta(uint64_t value)
+{
+    return printf("%s", value == 0 ? "0" : AddCommas(ConvertTimestampDeltaToNs(value)));
+}
+
+
+#if PRESENTMON_ENABLE_DEBUG_TRACE
+
+namespace {
+
+bool gVerboseTraceEnabled = false;
+
+PresentEvent const* gModifiedPresent = nullptr;
+PresentEvent gOriginalPresentValues;
 
 void PrintU32(uint32_t value) { printf("%u", value); }
 void PrintU64(uint64_t value) { printf("%llu", value); }
@@ -188,16 +216,10 @@ void FlushModifiedPresent()
 
     uint32_t changedCount = 0;
 
-#ifdef NDEBUG
-#define PRINT_PRESENT_ID(_P)
-#else
-#define PRINT_PRESENT_ID(_P) printf("p%llu", gModifiedPresent->Id)
-#endif
 #define FLUSH_MEMBER(_Fn, _Name) \
     if (gModifiedPresent->_Name != gOriginalPresentValues._Name) { \
         if (changedCount++ == 0) { \
-            printf("%*s", 17 + 6 + 6, ""); \
-            PRINT_PRESENT_ID(gModifiedPresent); \
+            printf("%*sp%llu", 17 + 6 + 6, "", gModifiedPresent->Id); \
         } \
         printf(" " #_Name "="); \
         _Fn(gOriginalPresentValues._Name); \
@@ -244,9 +266,6 @@ uint64_t LookupPresentId(
     uint64_t PresentCount,
     uint64_t BindId)
 {
-#ifdef NDEBUG
-    (void) pmConsumer, CompositionSurfaceLuid, PresentCount, BindId;
-#else
     // pmConsumer can complete presents before they've seen all of
     // their TokenStateChanged_Info events, so we keep a copy of the
     // token->present id map here simply so we can print what present
@@ -267,28 +286,12 @@ uint64_t LookupPresentId(
     if (jj != tokenToIdMap.end()) {
         return jj->second;
     }
-#endif
 
     return 0;
 }
 
 }
 
-int PrintTime(uint64_t value)
-{
-    return value == 0
-        ? printf("0")
-        : value < (uint64_t) gFirstTimestamp->QuadPart
-            ? printf("-%s", AddCommas(ConvertTimestampDeltaToNs((uint64_t) gFirstTimestamp->QuadPart - value)))
-            : printf("%s", AddCommas(ConvertTimestampToNs(value)));
-}
-
-int PrintTimeDelta(uint64_t value)
-{
-    return printf("%s", value == 0 ? "0" : AddCommas(ConvertTimestampDeltaToNs(value)));
-}
-
-#ifndef NDEBUG
 void EnableVerboseTrace(bool enable)
 {
     gVerboseTraceEnabled = enable;
@@ -298,7 +301,6 @@ bool IsVerboseTraceEnabled()
 {
     return gVerboseTraceEnabled;
 }
-#endif
 
 void DebugAssertImpl(wchar_t const* msg, wchar_t const* file, int line)
 {
@@ -311,17 +313,15 @@ void DebugAssertImpl(wchar_t const* msg, wchar_t const* file, int line)
     }
 }
 
-void InitializeVerboseTrace(LARGE_INTEGER* firstTimestamp, LARGE_INTEGER const& timestampFrequency)
-{
-    gFirstTimestamp = firstTimestamp;
-    gTimestampFrequency = timestampFrequency;
-
-    printf("       Time (ns)   PID   TID EVENT\n");
-}
-
-void VerboseTraceEvent(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecord, EventMetadata* metadata)
+void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecord, EventMetadata* metadata)
 {
     auto const& hdr = eventRecord->EventHeader;
+
+    static bool isFirstEventTraced = true;
+    if (isFirstEventTraced) {
+        isFirstEventTraced = false;
+        printf("       Time (ns)   PID   TID EVENT\n");
+    }
 
     FlushModifiedPresent();
 
@@ -465,8 +465,8 @@ void VerboseTraceEvent(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecord, E
     if (hdr.ProviderId == Microsoft_Windows_Kernel_Process::GUID) {
         using namespace Microsoft_Windows_Kernel_Process;
         switch (hdr.EventDescriptor.Id) {
-        case ProcessStart_Start::Id: PrintEventHeader(eventRecord, metadata, "ProcessStart", { L"ImageName", PrintWString }); break;
-        case ProcessStop_Stop::Id:   PrintEventHeader(eventRecord, metadata, "ProcessStop",  { L"ImageName", PrintString }); break;
+        case ProcessStart_Start::Id: PrintEventHeader(eventRecord, metadata, "ProcessStart", { L"ProcessID", PrintU32, L"ImageName", PrintWString }); break;
+        case ProcessStop_Stop::Id:   PrintEventHeader(eventRecord, metadata, "ProcessStop",  { L"ProcessID", PrintU32, L"ImageName", PrintString }); break;
         }
         return;
     }
@@ -514,6 +514,28 @@ void VerboseTraceEvent(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecord, E
         }
         return;
     }
+
+    if (hdr.ProviderId == NT_Process::GUID) {
+        if (hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_START ||
+            hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_DC_START) {
+            PrintEventHeader(eventRecord, metadata, "ProcessStart", { L"ProcessId",     PrintU32,
+                                                                      L"ImageFileName", PrintString, });
+        } else if (hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_END||
+                   hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_DC_END) {
+            PrintEventHeader(eventRecord, metadata, "ProcessStop",  { L"ProcessId",     PrintU32 });
+        }
+        return;
+    }
+
+    if (hdr.ProviderId == Microsoft_Windows_Kernel_Process::GUID) {
+        using namespace Microsoft_Windows_Kernel_Process;
+        switch (hdr.EventDescriptor.Id) {
+        case ProcessStart_Start::Id: PrintEventHeader(eventRecord, metadata, "ProcessStart", { L"ProcessID", PrintU32,
+                                                                                               L"ImageName", PrintString, }); break;
+        case ProcessStop_Stop::Id:   PrintEventHeader(eventRecord, metadata, "ProcessStop",  { L"ProcessID", PrintU32 }); break;
+        }
+        return;
+    }
 }
 
 void VerboseTraceBeforeModifyingPresentImpl(PresentEvent const* p)
@@ -526,3 +548,5 @@ void VerboseTraceBeforeModifyingPresentImpl(PresentEvent const* p)
         }
     }
 }
+
+#endif
