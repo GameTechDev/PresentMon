@@ -43,12 +43,12 @@ bool StartTraceSession()
     if (status == ERROR_ALREADY_EXISTS) {
         if (args.mStopExistingSession) {
             PrintWarning(
-                "warning: a trace session named \"%s\" is already running and it will be stopped.\n"
+                "warning: a trace session named \"%ws\" is already running and it will be stopped.\n"
                 "         Use -session_name with a different name to start a new session.",
                 args.mSessionName);
         } else {
             PrintError(
-                "error: a trace session named \"%s\" is already running. Use -stop_existing_session\n"
+                "error: a trace session named \"%ws\" is already running. Use -stop_existing_session\n"
                 "       to stop the existing session, or use -session_name with a different name to\n"
                 "       start a new session.",
                 args.mSessionName);

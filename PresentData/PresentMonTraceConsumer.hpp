@@ -124,7 +124,7 @@ struct InputEvent {
 
 // A ProcessEvent occurs whenever a Process starts or stops.
 struct ProcessEvent {
-    std::string ImageFileName;  // The name of the process exe file.  This is only available on process start events.
+    std::wstring ImageFileName; // The name of the process exe file.  This is only available on process start events.
     uint64_t QpcTime;           // The time of the start/stop event.
     uint32_t ProcessId;         // The id of the process.
     bool IsStartEvent;          // Whether this is a start event (true) or a stop event (false).

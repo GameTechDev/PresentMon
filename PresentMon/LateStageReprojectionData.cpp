@@ -182,23 +182,23 @@ LateStageReprojectionRuntimeStats LateStageReprojectionData::ComputeRuntimeStats
     return stats;
 }
 
-FILE* CreateLsrCsvFile(char const* path)
+FILE* CreateLsrCsvFile(WCHAR const* path)
 {
     auto const& args = GetCommandLineArgs();
 
     // Add _WMR to the file name
-    char drive[_MAX_DRIVE];
-    char dir[_MAX_DIR];
-    char name[_MAX_FNAME];
-    char ext[_MAX_EXT];
-    _splitpath_s(path, drive, dir, name, ext);
+    WCHAR drive[_MAX_DRIVE];
+    WCHAR dir[_MAX_DIR];
+    WCHAR name[_MAX_FNAME];
+    WCHAR ext[_MAX_EXT];
+    _wsplitpath_s(path, drive, dir, name, ext);
 
-    char outputPath[MAX_PATH] = {};
-    _snprintf_s(outputPath, _TRUNCATE, "%s%s%s_WMR%s", drive, dir, name, ext);
+    WCHAR outputPath[MAX_PATH] = {};
+    _snwprintf_s(outputPath, _TRUNCATE, L"%s%s%s_WMR%s", drive, dir, name, ext);
 
     // Open output file
     FILE* fp = nullptr;
-    if (fopen_s(&fp, outputPath, "w")) {
+    if (_wfopen_s(&fp, outputPath, L"w")) {
         return nullptr;
     }
 
@@ -252,7 +252,7 @@ void UpdateLsrCsv(LateStageReprojectionData& lsr, ProcessInfo* proc, LateStageRe
     const double deltaMilliseconds = 1000.0 * QpcDeltaToSeconds(curr.QpcTime - prev.QpcTime);
     const double timeInSeconds = QpcToSeconds(p.QpcTime);
 
-    fprintf(fp, "%s,%d,%d", proc->mModuleName.c_str(), curr.GetAppProcessId(), curr.ProcessId);
+    fprintf(fp, "%ws,%d,%d", proc->mModuleName.c_str(), curr.GetAppProcessId(), curr.ProcessId);
     if (args.mTrackDebug) {
         fprintf(fp, ",%d", curr.GetAppFrameId());
     }
@@ -321,8 +321,8 @@ void UpdateConsole(std::unordered_map<uint32_t, ProcessInfo> const& activeProces
 
             if (args.mTrackDisplay) {
                 auto processIter = activeProcesses.find(runtimeStats.mAppProcessId);
-                ConsolePrintLn("    App - %s[%d]:",
-                    processIter == activeProcesses.end() ? "<error>" : processIter->second.mModuleName.c_str(),
+                ConsolePrintLn("    App - %ws[%d]:",
+                    processIter == activeProcesses.end() ? L"<error>" : processIter->second.mModuleName.c_str(),
                     runtimeStats.mAppProcessId);
                 ConsolePrint("        %.2lf ms/frame (%.1lf fps, %.2lf ms CPU", 1000.0 / fps, fps, runtimeStats.mAppSourceCpuRenderTimeInMs);
             } else {
@@ -346,8 +346,8 @@ void UpdateConsole(std::unordered_map<uint32_t, ProcessInfo> const& activeProces
             const double fps = lsr.ComputeFps();
             auto processIter = activeProcesses.find(runtimeStats.mLsrProcessId);
 
-            ConsolePrintLn("    Compositor - %s[%d]:",
-                processIter == activeProcesses.end() ? "<error>" : processIter->second.mModuleName.c_str(),
+            ConsolePrintLn("    Compositor - %ws[%d]:",
+                processIter == activeProcesses.end() ? L"<error>" : processIter->second.mModuleName.c_str(),
                 runtimeStats.mLsrProcessId);
             ConsolePrintLn("        %.2lf ms/frame (%.1lf fps, %.1lf displayed fps, %.2lf ms CPU)",
                 1000.0 / fps,

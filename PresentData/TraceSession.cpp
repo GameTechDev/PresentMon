@@ -469,7 +469,7 @@ PEVENT_RECORD_CALLBACK GetEventRecordCallback(bool t1, bool t2, bool t3, bool t4
               : GetEventRecordCallback<Ts..., false>(t2, t3, t4);
 }
 
-ULONG CALLBACK BufferCallback(EVENT_TRACE_LOGFILEA* pLogFile)
+ULONG CALLBACK BufferCallback(EVENT_TRACE_LOGFILE* pLogFile)
 {
     auto session = (TraceSession*) pLogFile->Context;
     return session->mContinueProcessingBuffers; // TRUE = continue processing events, FALSE = return out of ProcessTrace()
@@ -480,8 +480,8 @@ ULONG CALLBACK BufferCallback(EVENT_TRACE_LOGFILEA* pLogFile)
 ULONG TraceSession::Start(
     PMTraceConsumer* pmConsumer,
     MRTraceConsumer* mrConsumer,
-    char const* etlPath,
-    char const* sessionName)
+    WCHAR const* etlPath,
+    WCHAR const* sessionName)
 {
     assert(mSessionHandle == 0);
     assert(mTraceHandle == INVALID_PROCESSTRACE_HANDLE);
@@ -492,8 +492,8 @@ ULONG TraceSession::Start(
 
     // -------------------------------------------------------------------------
     // Configure trace properties
-    EVENT_TRACE_LOGFILEA traceProps = {};
-    traceProps.LogFileName = (char*) etlPath;
+    EVENT_TRACE_LOGFILE traceProps = {};
+    traceProps.LogFileName = (WCHAR*) etlPath;
     traceProps.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD | PROCESS_TRACE_MODE_RAW_TIMESTAMP;
     traceProps.Context = this;
     /* Output members (passed also to BufferCallback):
@@ -523,7 +523,7 @@ ULONG TraceSession::Start(
     // -------------------------------------------------------------------------
     // For realtime collection, start the session with the required providers
     if (traceProps.LogFileName == nullptr) {
-        traceProps.LoggerName = (char*) sessionName;
+        traceProps.LoggerName = (WCHAR*) sessionName;
         traceProps.ProcessTraceMode |= PROCESS_TRACE_MODE_REAL_TIME;
 
         TraceProperties sessionProps = {};
@@ -556,7 +556,7 @@ ULONG TraceSession::Start(
         sessionProps.LoggerThreadId           // tracing session identifier
         */
 
-        auto status = StartTraceA(&mSessionHandle, sessionName, &sessionProps);
+        auto status = StartTrace(&mSessionHandle, sessionName, &sessionProps);
         if (status != ERROR_SUCCESS) {
             mSessionHandle = 0;
             return status;
@@ -571,7 +571,7 @@ ULONG TraceSession::Start(
 
     // -------------------------------------------------------------------------
     // Open the trace
-    mTraceHandle = OpenTraceA(&traceProps);
+    mTraceHandle = OpenTrace(&traceProps);
     if (mTraceHandle == INVALID_PROCESSTRACE_HANDLE) {
         auto lastError = GetLastError();
         Stop();
@@ -646,12 +646,12 @@ void TraceSession::Stop()
     }
 }
 
-ULONG TraceSession::StopNamedSession(char const* sessionName)
+ULONG TraceSession::StopNamedSession(WCHAR const* sessionName)
 {
     TraceProperties sessionProps = {};
     sessionProps.Wnode.BufferSize = (ULONG) sizeof(TraceProperties);
     sessionProps.LoggerNameOffset = offsetof(TraceProperties, mSessionName);
-    return ControlTraceA((TRACEHANDLE) 0, sessionName, &sessionProps, EVENT_TRACE_CONTROL_STOP);
+    return ControlTraceW((TRACEHANDLE) 0, sessionName, &sessionProps, EVENT_TRACE_CONTROL_STOP);
 }
 
 
