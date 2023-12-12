@@ -172,7 +172,7 @@ void ExitMainThread()
     PostMessage(gWnd, WM_QUIT, 0, 0);
 }
 
-int main(int argc, char** argv)
+int wmain(int argc, WCHAR** argv)
 {
     // Load system DLLs
     LoadLibraryExA("advapi32.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -196,8 +196,8 @@ int main(int argc, char** argv)
         auto status = TraceSession::StopNamedSession(args.mSessionName);
         switch (status) {
         case ERROR_SUCCESS: return 0;
-        case ERROR_WMI_INSTANCE_NOT_FOUND: PrintError("error: no existing sessions found: %s", args.mSessionName); break;
-        default: PrintError("error: failed to terminate existing session (%s): %lu", args.mSessionName, status); break;
+        case ERROR_WMI_INSTANCE_NOT_FOUND: PrintError("error: no existing sessions found: %ws", args.mSessionName); break;
+        default: PrintError("error: failed to terminate existing session (%ws): %lu", args.mSessionName, status); break;
         }
         return 7;
     }

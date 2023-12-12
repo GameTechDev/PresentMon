@@ -69,43 +69,43 @@ bool EnableDebugPrivilege()
 
 int RestartAsAdministrator(
     int argc,
-    char** argv)
+    WCHAR** argv)
 {
     // Get the exe path
-    char exe_path[MAX_PATH] = {};
-    GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
+    WCHAR exe_path[MAX_PATH] = {};
+    GetModuleFileName(NULL, exe_path, _countof(exe_path));
 
     // Combine arguments into single string and remove -restart_as_admin to
     // prevent an endless loop if the escalation fails.
-    std::string args;
+    std::wstring args;
     for (int i = 1; i < argc; ++i) {
-        if (_stricmp(argv[i], "-restart_as_admin") == 0) continue;
+        if (_wcsicmp(argv[i], L"-restart_as_admin") == 0) continue;
 
-        auto addQuotes = argv[i][0] != '\"' && strchr(argv[i], ' ') != nullptr;
+        auto addQuotes = argv[i][0] != L'\"' && wcschr(argv[i], L' ') != nullptr;
         if (addQuotes) {
-            args += '\"';
+            args += L'\"';
         }
 
         args += argv[i];
 
         if (addQuotes) {
-            args += '\"';
+            args += L'\"';
         }
 
-        args += ' ';
+        args += L' ';
     }
 
     // Re-run the process with the runas verb
     DWORD code = 2;
 
-    SHELLEXECUTEINFOA info = {};
+    SHELLEXECUTEINFO info = {};
     info.cbSize       = sizeof(info);
     info.fMask        = SEE_MASK_NOCLOSEPROCESS; // return info.hProcess for explicit wait
-    info.lpVerb       = "runas";
+    info.lpVerb       = L"runas";
     info.lpFile       = exe_path;
     info.lpParameters = args.c_str();
     info.nShow        = SW_SHOWDEFAULT;
-    auto ok = ShellExecuteExA(&info);
+    auto ok = ShellExecuteEx(&info);
     if (ok) {
         WaitForSingleObject(info.hProcess, INFINITE);
         GetExitCodeProcess(info.hProcess, &code);

@@ -88,25 +88,25 @@ static uint32_t gTargetProcessCount = 0;
 
 // Removes any directory and extension, and converts the remaining name to
 // lower case.
-void CanonicalizeProcessName(std::string* name)
+void CanonicalizeProcessName(std::wstring* name)
 {
-    size_t i = name->find_last_of("./\\");
-    if (i != std::string::npos && (*name)[i] == '.') {
+    size_t i = name->find_last_of(L"./\\");
+    if (i != std::wstring::npos && (*name)[i] == L'.') {
         name->resize(i);
-        i = name->find_last_of("/\\");
+        i = name->find_last_of(L"/\\");
     }
 
     *name = name->substr(i + 1);
 
     std::transform(name->begin(), name->end(), name->begin(),
-                   [](unsigned char c) { return (unsigned char) ::tolower((int) c); });
+                   [](WCHAR c) { return (WCHAR) ::towlower(c); });
 }
 
-static bool IsTargetProcess(uint32_t processId, std::string const& processName)
+static bool IsTargetProcess(uint32_t processId, std::wstring const& processName)
 {
     auto const& args = GetCommandLineArgs();
 
-    std::string compareName;
+    std::wstring compareName;
     if (args.mExcludeProcessNames.size() + args.mTargetProcessNames.size() > 0) {
         compareName = processName;
         CanonicalizeProcessName(&compareName);
@@ -139,7 +139,7 @@ static bool IsTargetProcess(uint32_t processId, std::string const& processName)
     return false;
 }
 
-static ProcessInfo CreateProcessInfo(uint32_t processId, HANDLE handle, std::string const& processName)
+static ProcessInfo CreateProcessInfo(uint32_t processId, HANDLE handle, std::wstring const& processName)
 {
     auto isTarget = IsTargetProcess(processId, processName);
     if (isTarget) {
@@ -168,13 +168,13 @@ static ProcessInfo* GetProcessInfo(uint32_t processId)
         // another account, unless we're running with SeDebugPrivilege.
         auto const& args = GetCommandLineArgs();
         HANDLE handle = NULL;
-        char const* processName = "<error>";
+        WCHAR const* processName = L"<error>";
         if (args.mEtlFileName == nullptr) {
-            char path[MAX_PATH];
-            DWORD numChars = sizeof(path);
+            WCHAR path[MAX_PATH];
+            DWORD numChars = _countof(path);
             handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
-            if (QueryFullProcessImageNameA(handle, 0, path, &numChars)) {
-                processName = PathFindFileNameA(path);
+            if (QueryFullProcessImageName(handle, 0, path, &numChars)) {
+                processName = PathFindFileName(path);
             }
         }
 

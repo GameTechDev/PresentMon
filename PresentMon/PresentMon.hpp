@@ -42,11 +42,11 @@ enum class ConsoleOutput {
 };
 
 struct CommandLineArgs {
-    std::vector<std::string> mTargetProcessNames;
-    std::vector<std::string> mExcludeProcessNames;
-    const char *mOutputCsvFileName;
-    const char *mEtlFileName;
-    const char *mSessionName;
+    std::vector<std::wstring> mTargetProcessNames;
+    std::vector<std::wstring> mExcludeProcessNames;
+    const WCHAR *mOutputCsvFileName;
+    const WCHAR *mEtlFileName;
+    const WCHAR *mSessionName;
     UINT mTargetPid;
     UINT mDelay;
     UINT mTimer;
@@ -94,7 +94,7 @@ struct OutputCsv {
 };
 
 struct ProcessInfo {
-    std::string mModuleName;
+    std::wstring mModuleName;
     std::unordered_map<uint64_t, SwapChainData> mSwapChain;
     HANDLE mHandle;
     OutputCsv mOutputCsv;
@@ -104,7 +104,7 @@ struct ProcessInfo {
 #include "LateStageReprojectionData.hpp"
 
 // CommandLine.cpp:
-bool ParseCommandLine(int argc, char** argv);
+bool ParseCommandLine(int argc, WCHAR** argv);
 CommandLineArgs const& GetCommandLineArgs();
 
 // Console.cpp:
@@ -139,12 +139,12 @@ void ExitMainThread();
 void StartOutputThread();
 void StopOutputThread();
 void SetOutputRecordingState(bool record);
-void CanonicalizeProcessName(std::string* path);
+void CanonicalizeProcessName(std::wstring* path);
 
 // Privilege.cpp:
 bool InPerfLogUsersGroup();
 bool EnableDebugPrivilege();
-int RestartAsAdministrator(int argc, char** argv);
+int RestartAsAdministrator(int argc, WCHAR** argv);
 
 // TraceSession.cpp:
 bool StartTraceSession();

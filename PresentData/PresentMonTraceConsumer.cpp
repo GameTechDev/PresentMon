@@ -2190,10 +2190,7 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             // e.g.: \Device\HarddiskVolume...\...\Proces.exe.  We prune off everything other than
             // the filename here to be consistent.
             size_t start = ImageName.find_last_of('\\') + 1;
-            size_t size = ImageName.size() - start;
-            event.ImageFileName.resize(size + 1);
-            wcstombs_s(&size, &event.ImageFileName[0], size + 1, ImageName.c_str() + start, size);
-            event.ImageFileName.resize(size - 1);
+            event.ImageFileName = ImageName.c_str() + start;
             break;
         }
         case Microsoft_Windows_Kernel_Process::ProcessStop_Stop::Id: {
@@ -2218,7 +2215,7 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             };
             mMetadata.GetEventData(pEventRecord, desc, _countof(desc));
             event.ProcessId     = desc[0].GetData<uint32_t>();
-            event.ImageFileName = desc[1].GetData<std::string>();
+            event.ImageFileName = desc[1].GetData<std::wstring>();
             event.IsStartEvent  = true;
         } else if (hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_END||
                    hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_DC_END) {

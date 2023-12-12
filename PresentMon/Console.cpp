@@ -191,7 +191,7 @@ void UpdateConsole(uint32_t processId, ProcessInfo const& processInfo)
 
         if (empty) {
             empty = false;
-            ConsolePrintLn("%s[%d]:", processInfo.mModuleName.c_str(), processId);
+            ConsolePrintLn("%ws[%d]:", processInfo.mModuleName.c_str(), processId);
         }
 
         ConsolePrint("    %016llX (%s): SyncInterval=%d Flags=%d CPU%s%s=%.2lf",

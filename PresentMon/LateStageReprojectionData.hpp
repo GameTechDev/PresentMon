@@ -85,6 +85,6 @@ private:
     double ComputeHistoryTime(const std::deque<LateStageReprojectionEvent>& lsrHistory) const;
 };
 
-FILE* CreateLsrCsvFile(char const* path);
+FILE* CreateLsrCsvFile(WCHAR const* path);
 void UpdateLsrCsv(LateStageReprojectionData& lsr, ProcessInfo* proc, LateStageReprojectionEvent& p);
 void UpdateConsole(std::unordered_map<uint32_t, ProcessInfo> const& activeProcesses, LateStageReprojectionData& lsr);
