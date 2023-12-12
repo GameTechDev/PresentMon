@@ -99,7 +99,7 @@ void CanonicalizeProcessName(std::wstring* name)
     *name = name->substr(i + 1);
 
     std::transform(name->begin(), name->end(), name->begin(),
-                   [](WCHAR c) { return (WCHAR) ::towlower(c); });
+                   [](wchar_t c) { return (wchar_t) ::towlower(c); });
 }
 
 static bool IsTargetProcess(uint32_t processId, std::wstring const& processName)
@@ -168,9 +168,9 @@ static ProcessInfo* GetProcessInfo(uint32_t processId)
         // another account, unless we're running with SeDebugPrivilege.
         auto const& args = GetCommandLineArgs();
         HANDLE handle = NULL;
-        WCHAR const* processName = L"<error>";
+        wchar_t const* processName = L"<error>";
         if (args.mEtlFileName == nullptr) {
-            WCHAR path[MAX_PATH];
+            wchar_t path[MAX_PATH];
             DWORD numChars = _countof(path);
             handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
             if (QueryFullProcessImageName(handle, 0, path, &numChars)) {

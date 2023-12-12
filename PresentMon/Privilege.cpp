@@ -69,10 +69,10 @@ bool EnableDebugPrivilege()
 
 int RestartAsAdministrator(
     int argc,
-    WCHAR** argv)
+    wchar_t** argv)
 {
     // Get the exe path
-    WCHAR exe_path[MAX_PATH] = {};
+    wchar_t exe_path[MAX_PATH] = {};
     GetModuleFileName(NULL, exe_path, _countof(exe_path));
 
     // Combine arguments into single string and remove -restart_as_admin to

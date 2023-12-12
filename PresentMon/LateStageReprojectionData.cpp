@@ -182,18 +182,18 @@ LateStageReprojectionRuntimeStats LateStageReprojectionData::ComputeRuntimeStats
     return stats;
 }
 
-FILE* CreateLsrCsvFile(WCHAR const* path)
+FILE* CreateLsrCsvFile(wchar_t const* path)
 {
     auto const& args = GetCommandLineArgs();
 
     // Add _WMR to the file name
-    WCHAR drive[_MAX_DRIVE];
-    WCHAR dir[_MAX_DIR];
-    WCHAR name[_MAX_FNAME];
-    WCHAR ext[_MAX_EXT];
+    wchar_t drive[_MAX_DRIVE];
+    wchar_t dir[_MAX_DIR];
+    wchar_t name[_MAX_FNAME];
+    wchar_t ext[_MAX_EXT];
     _wsplitpath_s(path, drive, dir, name, ext);
 
-    WCHAR outputPath[MAX_PATH] = {};
+    wchar_t outputPath[MAX_PATH] = {};
     _snwprintf_s(outputPath, _TRUNCATE, L"%s%s%s_WMR%s", drive, dir, name, ext);
 
     // Open output file

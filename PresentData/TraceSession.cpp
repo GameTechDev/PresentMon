@@ -480,8 +480,8 @@ ULONG CALLBACK BufferCallback(EVENT_TRACE_LOGFILE* pLogFile)
 ULONG TraceSession::Start(
     PMTraceConsumer* pmConsumer,
     MRTraceConsumer* mrConsumer,
-    WCHAR const* etlPath,
-    WCHAR const* sessionName)
+    wchar_t const* etlPath,
+    wchar_t const* sessionName)
 {
     assert(mSessionHandle == 0);
     assert(mTraceHandle == INVALID_PROCESSTRACE_HANDLE);
@@ -493,7 +493,7 @@ ULONG TraceSession::Start(
     // -------------------------------------------------------------------------
     // Configure trace properties
     EVENT_TRACE_LOGFILE traceProps = {};
-    traceProps.LogFileName = (WCHAR*) etlPath;
+    traceProps.LogFileName = (wchar_t*) etlPath;
     traceProps.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD | PROCESS_TRACE_MODE_RAW_TIMESTAMP;
     traceProps.Context = this;
     /* Output members (passed also to BufferCallback):
@@ -523,7 +523,7 @@ ULONG TraceSession::Start(
     // -------------------------------------------------------------------------
     // For realtime collection, start the session with the required providers
     if (traceProps.LogFileName == nullptr) {
-        traceProps.LoggerName = (WCHAR*) sessionName;
+        traceProps.LoggerName = (wchar_t*) sessionName;
         traceProps.ProcessTraceMode |= PROCESS_TRACE_MODE_REAL_TIME;
 
         TraceProperties sessionProps = {};
@@ -646,7 +646,7 @@ void TraceSession::Stop()
     }
 }
 
-ULONG TraceSession::StopNamedSession(WCHAR const* sessionName)
+ULONG TraceSession::StopNamedSession(wchar_t const* sessionName)
 {
     TraceProperties sessionProps = {};
     sessionProps.Wnode.BufferSize = (ULONG) sizeof(TraceProperties);

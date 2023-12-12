@@ -2215,7 +2215,8 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             };
             mMetadata.GetEventData(pEventRecord, desc, _countof(desc));
             event.ProcessId     = desc[0].GetData<uint32_t>();
-            event.ImageFileName = desc[1].GetData<std::wstring>();
+            std::string str     = desc[1].GetData<std::string>();
+            event.ImageFileName = std::wstring(str.begin(), str.end());
             event.IsStartEvent  = true;
         } else if (hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_END||
                    hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_DC_END) {

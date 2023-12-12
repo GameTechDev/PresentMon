@@ -44,9 +44,9 @@ enum class ConsoleOutput {
 struct CommandLineArgs {
     std::vector<std::wstring> mTargetProcessNames;
     std::vector<std::wstring> mExcludeProcessNames;
-    const WCHAR *mOutputCsvFileName;
-    const WCHAR *mEtlFileName;
-    const WCHAR *mSessionName;
+    const wchar_t *mOutputCsvFileName;
+    const wchar_t *mEtlFileName;
+    const wchar_t *mSessionName;
     UINT mTargetPid;
     UINT mDelay;
     UINT mTimer;
@@ -104,7 +104,7 @@ struct ProcessInfo {
 #include "LateStageReprojectionData.hpp"
 
 // CommandLine.cpp:
-bool ParseCommandLine(int argc, WCHAR** argv);
+bool ParseCommandLine(int argc, wchar_t** argv);
 CommandLineArgs const& GetCommandLineArgs();
 
 // Console.cpp:
@@ -144,7 +144,7 @@ void CanonicalizeProcessName(std::wstring* path);
 // Privilege.cpp:
 bool InPerfLogUsersGroup();
 bool EnableDebugPrivilege();
-int RestartAsAdministrator(int argc, WCHAR** argv);
+int RestartAsAdministrator(int argc, wchar_t** argv);
 
 // TraceSession.cpp:
 bool StartTraceSession();

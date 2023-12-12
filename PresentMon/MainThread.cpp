@@ -172,7 +172,7 @@ void ExitMainThread()
     PostMessage(gWnd, WM_QUIT, 0, 0);
 }
 
-int wmain(int argc, WCHAR** argv)
+int wmain(int argc, wchar_t** argv)
 {
     // Load system DLLs
     LoadLibraryExA("advapi32.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);

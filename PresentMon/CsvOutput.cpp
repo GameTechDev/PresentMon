@@ -224,11 +224,11 @@ with `-INDEX` appended to the file name.
 If `-include_mixed_reality` is used, a second CSV file will be generated with
 `_WMR` appended to the filename containing the WMR data.
 */
-static void GenerateFilename(WCHAR* path, WCHAR const* processName, uint32_t processId)
+static void GenerateFilename(wchar_t* path, wchar_t const* processName, uint32_t processId)
 {
     auto const& args = GetCommandLineArgs();
 
-    WCHAR ext[_MAX_EXT];
+    wchar_t ext[_MAX_EXT];
     int pathLength = MAX_PATH;
 
     #define ADD_TO_PATH(...) do { \
@@ -240,9 +240,9 @@ static void GenerateFilename(WCHAR* path, WCHAR const* processName, uint32_t pro
 
     // Generate base filename.
     if (args.mOutputCsvFileName) {
-        WCHAR drive[_MAX_DRIVE];
-        WCHAR dir[_MAX_DIR];
-        WCHAR name[_MAX_FNAME];
+        wchar_t drive[_MAX_DRIVE];
+        wchar_t dir[_MAX_DIR];
+        wchar_t name[_MAX_FNAME];
         _wsplitpath_s(args.mOutputCsvFileName, drive, dir, name, ext);
         ADD_TO_PATH(L"%s%s%s", drive, dir, name);
     } else {
@@ -272,7 +272,7 @@ static void GenerateFilename(WCHAR* path, WCHAR const* processName, uint32_t pro
     #undef ADD_TO_PATH
 }
 
-static OutputCsv CreateOutputCsv(WCHAR const* processName, uint32_t processId)
+static OutputCsv CreateOutputCsv(wchar_t const* processName, uint32_t processId)
 {
     auto const& args = GetCommandLineArgs();
 
@@ -282,7 +282,7 @@ static OutputCsv CreateOutputCsv(WCHAR const* processName, uint32_t processId)
         outputCsv.mFile = stdout;
         outputCsv.mWmrFile = nullptr;       // WMR disallowed if -output_stdout
     } else {
-        WCHAR path[MAX_PATH];
+        wchar_t path[MAX_PATH];
         GenerateFilename(path, processName, processId);
 
         _wfopen_s(&outputCsv.mFile, path, L"w");

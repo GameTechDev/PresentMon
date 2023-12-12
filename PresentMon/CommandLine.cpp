@@ -18,7 +18,7 @@ enum {
 
 struct KeyNameCode
 {
-    WCHAR const* mName;
+    wchar_t const* mName;
     UINT mCode;
 };
 
@@ -142,7 +142,7 @@ size_t GetConsoleWidth()
         : std::max<size_t>(DEFAULT_CONSOLE_WIDTH, info.srWindow.Right - info.srWindow.Left + 1);
 }
 
-bool ParseKeyName(KeyNameCode const* valid, size_t validCount, WCHAR* name, char const* errorMessage, UINT* outKeyCode)
+bool ParseKeyName(KeyNameCode const* valid, size_t validCount, wchar_t* name, char const* errorMessage, UINT* outKeyCode)
 {
     for (size_t i = 0; i < validCount; ++i) {
         if (_wcsicmp(name, valid[i].mName) == 0) {
@@ -166,7 +166,7 @@ bool ParseKeyName(KeyNameCode const* valid, size_t validCount, WCHAR* name, char
     return false;
 }
 
-bool AssignHotkey(WCHAR* key, CommandLineArgs* args)
+bool AssignHotkey(wchar_t* key, CommandLineArgs* args)
 {
 #pragma warning(suppress: 4996)
     auto token = wcstok(key, L"+");
@@ -203,7 +203,7 @@ void SetCaptureAll(CommandLineArgs* args)
 }
 
 // Allow /ARG, -ARG, or --ARG
-bool ParseArgPrefix(WCHAR** arg)
+bool ParseArgPrefix(wchar_t** arg)
 {
     if (**arg == '/') {
         *arg += 1;
@@ -221,14 +221,14 @@ bool ParseArgPrefix(WCHAR** arg)
     return false;
 }
 
-bool ParseArg(WCHAR* arg, WCHAR const* option)
+bool ParseArg(wchar_t* arg, wchar_t const* option)
 {
     return
         ParseArgPrefix(&arg) &&
         _wcsicmp(arg, option) == 0;
 }
 
-bool ParseValue(WCHAR** argv, int argc, int* i)
+bool ParseValue(wchar_t** argv, int argc, int* i)
 {
     if (*i + 1 < argc) {
         *i += 1;
@@ -238,24 +238,24 @@ bool ParseValue(WCHAR** argv, int argc, int* i)
     return false;
 }
 
-bool ParseValue(WCHAR** argv, int argc, int* i, WCHAR const** value)
+bool ParseValue(wchar_t** argv, int argc, int* i, wchar_t const** value)
 {
     if (!ParseValue(argv, argc, i)) return false;
     *value = argv[*i];
     return true;
 }
 
-bool ParseValue(WCHAR** argv, int argc, int* i, std::vector<std::wstring>* value)
+bool ParseValue(wchar_t** argv, int argc, int* i, std::vector<std::wstring>* value)
 {
-    WCHAR const* v = nullptr;
+    wchar_t const* v = nullptr;
     if (!ParseValue(argv, argc, i, &v)) return false;
     value->emplace_back(v);
     return true;
 }
 
-bool ParseValue(WCHAR** argv, int argc, int* i, UINT* value)
+bool ParseValue(wchar_t** argv, int argc, int* i, UINT* value)
 {
-    WCHAR const* v = nullptr;
+    wchar_t const* v = nullptr;
     if (!ParseValue(argv, argc, i, &v)) return false;
     *value = wcstoul(v, nullptr, 10);
     return true;
@@ -315,7 +315,7 @@ CommandLineArgs const& GetCommandLineArgs()
     return gCommandLineArgs;
 }
 
-bool ParseCommandLine(int argc, WCHAR** argv)
+bool ParseCommandLine(int argc, wchar_t** argv)
 {
     auto args = &gCommandLineArgs;
 
