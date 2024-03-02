@@ -63,7 +63,7 @@ namespace p2c::client::util
 		}
 		else if constexpr (std::is_integral_v<T>)
 		{
-			return CefV8Value::CreateInt(int32(val));
+			return CefV8Value::CreateInt(int32_t(val));
 		}
 		else if constexpr (std::is_floating_point_v<T>)
 		{
@@ -71,7 +71,7 @@ namespace p2c::client::util
 		}
 		else if constexpr (std::is_enum_v<T>)
 		{
-			return CefV8Value::CreateInt(int32(val));
+			return CefV8Value::CreateInt(int32_t(val));
 		}
 		else if constexpr (std::is_same_v<std::string, T> || std::is_same_v<std::wstring, T>)
 		{
