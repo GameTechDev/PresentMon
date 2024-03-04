@@ -35,7 +35,7 @@ Note: if you only want to build the PresentData/ library, or the PresentMon Cons
     2. Build 64-bit Debug and Release configurations (replace "CefDir" with the directory you downloaded into):
 
         ```bat
-        > cmake -G "Visual Studio 17" -A x64 -DUSE_SANDBOX=OFF -S CefDir -B CefDir\build
+        > cmake -G "Visual Studio 17 2022" -A x64 -DUSE_SANDBOX=OFF -S CefDir -B CefDir\build
         > cmake --build CefDir\build --config Debug
         > cmake --build CefDir\build --config Release
         ```
@@ -59,7 +59,7 @@ Note: if you only want to build the PresentData/ library, or the PresentMon Cons
 
     Note: instead of using the production build as described above, you can use a development process with a local server with hotloading support.  To do this, use `npm run serve` instead, and use the `--p2c-url=http://localhost:8080/` command line argument when running the *PresentMon Capture Application*.  This causes the app to load web content from localhost rather than the files in Web/.
 
-4. Create and install a trusted test certificate.  This is only required for the Release build.  Open a command shell as administrator and run the following:
+4. Create and install a trusted test certificate.  This is only required for the Release build.  Open the `Developer Command Prompt for VS 2022` or `Developer PowerShell for VS 2022` as administrator and run the following:
 
     ```bat
     > makecert -r -pe -n "CN=Test Certificate - For Internal Use Only" -ss PrivateCertStore testcert.cer
@@ -109,4 +109,14 @@ You must run the PresentMon Capture Application from its directory, with the *Pr
 > PresentMon.exe
 ```
 
-Further, for the Release build, the application must be run from a secure location (e.g. "Program Files" or "System32") so it will need to be copied there first. The Release build also cannot be started from Visual Studio, irregardless of whether the debugger is attached, and even if VS is running with admin privilege.
+## Capture Application Release Build Notice
+
+Further, for the Release build, the application must be run from a secure location (e.g. `"Program Files"` or `"System32"`) so it will need to be copied there first. The Release build also cannot be started from Visual Studio, irregardless of whether the debugger is attached, and even if VS is running with admin privilege.
+
+# Running PresentMon on other systems
+
+You will encounter an error message such as: `"A referral was returned from the server"`. This usually means a certificate mismatch or not exist. The same certificate that was used to sign the application must be installed on the other machine. Open command prompt as administrator and run the following:
+
+```bat
+> certutil -addstore root testcert.cer
+```
