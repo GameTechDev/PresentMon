@@ -119,6 +119,8 @@ LRESULT CALLBACK MessageWindowWndProc(HWND window_handle, UINT message, WPARAM w
     return DefWindowProc(window_handle, message, w_param, l_param);
 }
 
+#define PROGRAM_NAME "Intel PresentMon"
+
 HWND CreateBrowserWindow(HINSTANCE instance_handle, int show_minimize_or_maximize)
 {
     WNDCLASSEX wcex = { 0 };
@@ -136,7 +138,7 @@ HWND CreateBrowserWindow(HINSTANCE instance_handle, int show_minimize_or_maximiz
     RegisterClassEx(&wcex);
 
     HWND hwnd = CreateWindow(
-        BrowserWindowClassName, "Intel PresentMon",
+        BrowserWindowClassName, PROGRAM_NAME,
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, 200, 20,
         1360, 1020, nullptr, nullptr, instance_handle, nullptr
     );
@@ -174,6 +176,20 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 {
     using namespace client;
     try {
+#ifdef NDEBUG
+        std::wstring _path = std::filesystem::current_path();
+        if (_path.find(L"\\Program Files\\", 0) == -1LL) // -1 means no offset was found
+        {
+            wchar_t msg[512]{};
+            (void)_snwprintf_s(msg, _countof(msg),
+                               L"Unable to start " PROGRAM_NAME " due to path not being in privileged location.\n"
+                               "Path: \"%s\"\n"
+                               "You must copy installation files to privileged location such as \"C:\\Program Files\".", _path.c_str());
+            MessageBoxW(nullptr, msg, L"" PROGRAM_NAME " Startup Error", MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
+            return -1;
+        }
+#endif
+#undef PROGRAM_NAME
         opt::init();
         util::BootServices();
 
