@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2023 Intel Corporation
+// Copyright (C) 2019-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include "Debug.hpp"
@@ -62,15 +62,15 @@ void InitializeTimestampInfo(LARGE_INTEGER* firstTimestamp, LARGE_INTEGER const&
 int PrintTime(uint64_t value)
 {
     return value == 0
-        ? printf("0")
+        ? wprintf(L"0")
         : value < (uint64_t) gFirstTimestamp->QuadPart
-        ? printf("-%s", AddCommas(ConvertTimestampDeltaToNs((uint64_t) gFirstTimestamp->QuadPart - value)))
-        : printf("%s", AddCommas(ConvertTimestampToNs(value)));
+        ? wprintf(L"-%hs", AddCommas(ConvertTimestampDeltaToNs((uint64_t) gFirstTimestamp->QuadPart - value)))
+        : wprintf(L"%hs", AddCommas(ConvertTimestampToNs(value)));
 }
 
 int PrintTimeDelta(uint64_t value)
 {
-    return printf("%s", value == 0 ? "0" : AddCommas(ConvertTimestampDeltaToNs(value)));
+    return wprintf(L"%hs", value == 0 ? "0" : AddCommas(ConvertTimestampDeltaToNs(value)));
 }
 
 
@@ -83,102 +83,102 @@ bool gVerboseTraceEnabled = false;
 PresentEvent const* gModifiedPresent = nullptr;
 PresentEvent gOriginalPresentValues;
 
-void PrintU32(uint32_t value) { printf("%u", value); }
-void PrintU64(uint64_t value) { printf("%llu", value); }
-void PrintU64x(uint64_t value) { printf("0x%llx", value); }
-void PrintBool(bool value) { printf("%s", value ? "true" : "false"); }
-void PrintString(std::string const& value) { printf("%s", value.c_str()); }
-void PrintWString(std::wstring const& value) { printf("%ls", value.c_str()); }
+void PrintU32(uint32_t value) { wprintf(L"%u", value); }
+void PrintU64(uint64_t value) { wprintf(L"%llu", value); }
+void PrintU64x(uint64_t value) { wprintf(L"0x%llx", value); }
+void PrintBool(bool value) { wprintf(L"%hs", value ? "true" : "false"); }
+void PrintString(std::string const& value) { wprintf(L"%hs", value.c_str()); }
+void PrintWString(std::wstring const& value) { wprintf(L"%s", value.c_str()); }
 void PrintRuntime(Runtime value)
 {
     switch (value) {
-    case Runtime::DXGI:  printf("DXGI");  break;
-    case Runtime::D3D9:  printf("D3D9");  break;
-    case Runtime::Other: printf("Other"); break;
-    default:             printf("Unknown (%u)", value); assert(false); break;
+    case Runtime::DXGI:  wprintf(L"DXGI");  break;
+    case Runtime::D3D9:  wprintf(L"D3D9");  break;
+    case Runtime::Other: wprintf(L"Other"); break;
+    default:             wprintf(L"Unknown (%u)", value); assert(false); break;
     }
 }
 void PrintPresentMode(PresentMode value)
 {
     switch (value) {
-    case PresentMode::Unknown:                              printf("Unknown"); break;
-    case PresentMode::Hardware_Legacy_Flip:                 printf("Hardware_Legacy_Flip"); break;
-    case PresentMode::Hardware_Legacy_Copy_To_Front_Buffer: printf("Hardware_Legacy_Copy_To_Front_Buffer"); break;
-    case PresentMode::Hardware_Independent_Flip:            printf("Hardware_Independent_Flip"); break;
-    case PresentMode::Composed_Flip:                        printf("Composed_Flip"); break;
-    case PresentMode::Composed_Copy_GPU_GDI:                printf("Composed_Copy_GPU_GDI"); break;
-    case PresentMode::Composed_Copy_CPU_GDI:                printf("Composed_Copy_CPU_GDI"); break;
-    case PresentMode::Hardware_Composed_Independent_Flip:   printf("Hardware_Composed_Independent_Flip"); break;
-    default:                                                printf("Unknown (%u)", value); assert(false); break;
+    case PresentMode::Unknown:                              wprintf(L"Unknown"); break;
+    case PresentMode::Hardware_Legacy_Flip:                 wprintf(L"Hardware_Legacy_Flip"); break;
+    case PresentMode::Hardware_Legacy_Copy_To_Front_Buffer: wprintf(L"Hardware_Legacy_Copy_To_Front_Buffer"); break;
+    case PresentMode::Hardware_Independent_Flip:            wprintf(L"Hardware_Independent_Flip"); break;
+    case PresentMode::Composed_Flip:                        wprintf(L"Composed_Flip"); break;
+    case PresentMode::Composed_Copy_GPU_GDI:                wprintf(L"Composed_Copy_GPU_GDI"); break;
+    case PresentMode::Composed_Copy_CPU_GDI:                wprintf(L"Composed_Copy_CPU_GDI"); break;
+    case PresentMode::Hardware_Composed_Independent_Flip:   wprintf(L"Hardware_Composed_Independent_Flip"); break;
+    default:                                                wprintf(L"Unknown (%u)", value); assert(false); break;
     }
 }
 void PrintPresentResult(PresentResult value)
 {
     switch (value) {
-    case PresentResult::Unknown:   printf("Unknown");   break;
-    case PresentResult::Presented: printf("Presented"); break;
-    case PresentResult::Discarded: printf("Discarded"); break;
-    default:                       printf("Unknown (%u)", value); assert(false); break;
+    case PresentResult::Unknown:   wprintf(L"Unknown");   break;
+    case PresentResult::Presented: wprintf(L"Presented"); break;
+    case PresentResult::Discarded: wprintf(L"Discarded"); break;
+    default:                       wprintf(L"Unknown (%u)", value); assert(false); break;
     }
 }
 void PrintPresentHistoryModel(uint32_t model)
 {
     using namespace Microsoft_Windows_DxgKrnl;
     switch (model) {
-    case PresentModel::D3DKMT_PM_UNINITIALIZED:          printf("UNINITIALIZED");          break;
-    case PresentModel::D3DKMT_PM_REDIRECTED_GDI:         printf("REDIRECTED_GDI");         break;
-    case PresentModel::D3DKMT_PM_REDIRECTED_FLIP:        printf("REDIRECTED_FLIP");        break;
-    case PresentModel::D3DKMT_PM_REDIRECTED_BLT:         printf("REDIRECTED_BLT");         break;
-    case PresentModel::D3DKMT_PM_REDIRECTED_VISTABLT:    printf("REDIRECTED_VISTABLT");    break;
-    case PresentModel::D3DKMT_PM_SCREENCAPTUREFENCE:     printf("SCREENCAPTUREFENCE");     break;
-    case PresentModel::D3DKMT_PM_REDIRECTED_GDI_SYSMEM:  printf("REDIRECTED_GDI_SYSMEM");  break;
-    case PresentModel::D3DKMT_PM_REDIRECTED_COMPOSITION: printf("REDIRECTED_COMPOSITION"); break;
-    case PresentModel::D3DKMT_PM_SURFACECOMPLETE:        printf("SURFACECOMPLETE");        break;
-    case PresentModel::D3DKMT_PM_FLIPMANAGER:            printf("FLIPMANAGER");            break;
-    default:                                             printf("Unknown (%u)", model); assert(false); break;
+    case PresentModel::D3DKMT_PM_UNINITIALIZED:          wprintf(L"UNINITIALIZED");          break;
+    case PresentModel::D3DKMT_PM_REDIRECTED_GDI:         wprintf(L"REDIRECTED_GDI");         break;
+    case PresentModel::D3DKMT_PM_REDIRECTED_FLIP:        wprintf(L"REDIRECTED_FLIP");        break;
+    case PresentModel::D3DKMT_PM_REDIRECTED_BLT:         wprintf(L"REDIRECTED_BLT");         break;
+    case PresentModel::D3DKMT_PM_REDIRECTED_VISTABLT:    wprintf(L"REDIRECTED_VISTABLT");    break;
+    case PresentModel::D3DKMT_PM_SCREENCAPTUREFENCE:     wprintf(L"SCREENCAPTUREFENCE");     break;
+    case PresentModel::D3DKMT_PM_REDIRECTED_GDI_SYSMEM:  wprintf(L"REDIRECTED_GDI_SYSMEM");  break;
+    case PresentModel::D3DKMT_PM_REDIRECTED_COMPOSITION: wprintf(L"REDIRECTED_COMPOSITION"); break;
+    case PresentModel::D3DKMT_PM_SURFACECOMPLETE:        wprintf(L"SURFACECOMPLETE");        break;
+    case PresentModel::D3DKMT_PM_FLIPMANAGER:            wprintf(L"FLIPMANAGER");            break;
+    default:                                             wprintf(L"Unknown (%u)", model); assert(false); break;
     }
 }
 void PrintQueuePacketType(uint32_t type)
 {
     using namespace Microsoft_Windows_DxgKrnl;
     switch (type) {
-    case QueuePacketType::DXGKETW_RENDER_COMMAND_BUFFER:   printf("RENDER"); break;
-    case QueuePacketType::DXGKETW_DEFERRED_COMMAND_BUFFER: printf("DEFERRED"); break;
-    case QueuePacketType::DXGKETW_SYSTEM_COMMAND_BUFFER:   printf("SYSTEM"); break;
-    case QueuePacketType::DXGKETW_MMIOFLIP_COMMAND_BUFFER: printf("MMIOFLIP"); break;
-    case QueuePacketType::DXGKETW_WAIT_COMMAND_BUFFER:     printf("WAIT"); break;
-    case QueuePacketType::DXGKETW_SIGNAL_COMMAND_BUFFER:   printf("SIGNAL"); break;
-    case QueuePacketType::DXGKETW_DEVICE_COMMAND_BUFFER:   printf("DEVICE"); break;
-    case QueuePacketType::DXGKETW_SOFTWARE_COMMAND_BUFFER: printf("SOFTWARE"); break;
-    case QueuePacketType::DXGKETW_PAGING_COMMAND_BUFFER:   printf("PAGING"); break;
-    default:                                               printf("Unknown (%u)", type); assert(false); break;
+    case QueuePacketType::DXGKETW_RENDER_COMMAND_BUFFER:   wprintf(L"RENDER"); break;
+    case QueuePacketType::DXGKETW_DEFERRED_COMMAND_BUFFER: wprintf(L"DEFERRED"); break;
+    case QueuePacketType::DXGKETW_SYSTEM_COMMAND_BUFFER:   wprintf(L"SYSTEM"); break;
+    case QueuePacketType::DXGKETW_MMIOFLIP_COMMAND_BUFFER: wprintf(L"MMIOFLIP"); break;
+    case QueuePacketType::DXGKETW_WAIT_COMMAND_BUFFER:     wprintf(L"WAIT"); break;
+    case QueuePacketType::DXGKETW_SIGNAL_COMMAND_BUFFER:   wprintf(L"SIGNAL"); break;
+    case QueuePacketType::DXGKETW_DEVICE_COMMAND_BUFFER:   wprintf(L"DEVICE"); break;
+    case QueuePacketType::DXGKETW_SOFTWARE_COMMAND_BUFFER: wprintf(L"SOFTWARE"); break;
+    case QueuePacketType::DXGKETW_PAGING_COMMAND_BUFFER:   wprintf(L"PAGING"); break;
+    default:                                               wprintf(L"Unknown (%u)", type); assert(false); break;
     }
 }
 void PrintDmaPacketType(uint32_t type)
 {
     using namespace Microsoft_Windows_DxgKrnl;
     switch (type) {
-    case DmaPacketType::DXGKETW_CLIENT_RENDER_BUFFER:    printf("CLIENT_RENDER"); break;
-    case DmaPacketType::DXGKETW_CLIENT_PAGING_BUFFER:    printf("CLIENT_PAGING"); break;
-    case DmaPacketType::DXGKETW_SYSTEM_PAGING_BUFFER:    printf("SYSTEM_PAGING"); break;
-    case DmaPacketType::DXGKETW_SYSTEM_PREEMTION_BUFFER: printf("SYSTEM_PREEMTION"); break;
-    default:                                             printf("Unknown (%u)", type); assert(false); break;
+    case DmaPacketType::DXGKETW_CLIENT_RENDER_BUFFER:    wprintf(L"CLIENT_RENDER"); break;
+    case DmaPacketType::DXGKETW_CLIENT_PAGING_BUFFER:    wprintf(L"CLIENT_PAGING"); break;
+    case DmaPacketType::DXGKETW_SYSTEM_PAGING_BUFFER:    wprintf(L"SYSTEM_PAGING"); break;
+    case DmaPacketType::DXGKETW_SYSTEM_PREEMTION_BUFFER: wprintf(L"SYSTEM_PREEMTION"); break;
+    default:                                             wprintf(L"Unknown (%u)", type); assert(false); break;
     }
 }
 void PrintPresentFlags(uint32_t flags)
 {
-    if (flags & DXGI_PRESENT_TEST) printf("TEST");
+    if (flags & DXGI_PRESENT_TEST) wprintf(L"TEST");
 }
 
 void PrintEventHeader(EVENT_HEADER const& hdr)
 {
-    printf("%16s %5u %5u ", AddCommas(ConvertTimestampToNs(hdr.TimeStamp.QuadPart)), hdr.ProcessId, hdr.ThreadId);
+    wprintf(L"%16hs %5u %5u ", AddCommas(ConvertTimestampToNs(hdr.TimeStamp.QuadPart)), hdr.ProcessId, hdr.ThreadId);
 }
 
 void PrintEventHeader(EVENT_HEADER const& hdr, char const* name)
 {
     PrintEventHeader(hdr);
-    printf("%s\n", name);
+    wprintf(L"%hs\n", name);
 }
 
 void PrintEventHeader(EVENT_RECORD* eventRecord, EventMetadata* metadata, char const* name, std::initializer_list<void*> props)
@@ -186,12 +186,12 @@ void PrintEventHeader(EVENT_RECORD* eventRecord, EventMetadata* metadata, char c
     assert((props.size() % 2) == 0);
 
     PrintEventHeader(eventRecord->EventHeader);
-    printf("%s", name);
+    wprintf(L"%hs", name);
     for (auto ii = props.begin(), ie = props.end(); ii != ie; ++ii) {
         auto propName = (wchar_t const*) *ii; ++ii;
         auto propFunc = *ii;
 
-        printf(" %ls=", propName);
+        wprintf(L" %s=", propName);
 
              if (propFunc == PrintBool)                 PrintBool(metadata->GetEventData<uint32_t>(eventRecord, propName) != 0);
         else if (propFunc == PrintU32)                  PrintU32(metadata->GetEventData<uint32_t>(eventRecord, propName));
@@ -207,7 +207,7 @@ void PrintEventHeader(EVENT_RECORD* eventRecord, EventMetadata* metadata, char c
         else if (propFunc == PrintPresentHistoryModel)  PrintPresentHistoryModel(metadata->GetEventData<uint32_t>(eventRecord, propName));
         else assert(false);
     }
-    printf("\n");
+    wprintf(L"\n");
 }
 
 void FlushModifiedPresent()
@@ -219,11 +219,11 @@ void FlushModifiedPresent()
 #define FLUSH_MEMBER(_Fn, _Name) \
     if (gModifiedPresent->_Name != gOriginalPresentValues._Name) { \
         if (changedCount++ == 0) { \
-            printf("%*sp%llu", 17 + 6 + 6, "", gModifiedPresent->Id); \
+            wprintf(L"%*hsp%llu", 17 + 6 + 6, "", gModifiedPresent->Id); \
         } \
-        printf(" " #_Name "="); \
+        wprintf(L" " L#_Name L"="); \
         _Fn(gOriginalPresentValues._Name); \
-        printf("->"); \
+        wprintf(L"->"); \
         _Fn(gModifiedPresent->_Name); \
     }
     FLUSH_MEMBER(PrintTime,          PresentStopTime)
@@ -254,7 +254,7 @@ void FlushModifiedPresent()
 #undef FLUSH_MEMBER
 
     if (changedCount > 0) {
-        printf("\n");
+        wprintf(L"\n");
     }
 
     gModifiedPresent = nullptr;
@@ -305,7 +305,7 @@ bool IsVerboseTraceEnabled()
 void DebugAssertImpl(wchar_t const* msg, wchar_t const* file, int line)
 {
     if (IsVerboseTraceEnabled()) {
-        printf("ASSERTION FAILED: %ls(%d): %ls\n", file, line, msg);
+        wprintf(L"ASSERTION FAILED: %s(%d): %s\n", file, line, msg);
     } else {
         #ifndef NDEBUG
         _wassert(msg, file, line);
@@ -320,7 +320,7 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
     static bool isFirstEventTraced = true;
     if (isFirstEventTraced) {
         isFirstEventTraced = false;
-        printf("       Time (ns)   PID   TID EVENT\n");
+        wprintf(L"       Time (ns)   PID   TID EVENT\n");
     }
 
     FlushModifiedPresent();
@@ -400,7 +400,7 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
         case VSyncDPC_Info::Id: {
             auto FlipFenceId = metadata->GetEventData<uint64_t>(eventRecord, L"FlipFenceId");
             PrintEventHeader(hdr);
-            printf("VSyncDPC_Info SubmitSequence=%llu FlipId=0x%llx\n",
+            wprintf(L"VSyncDPC_Info SubmitSequence=%llu FlipId=0x%llx\n",
                 FlipFenceId >> 32,
                 FlipFenceId & 0xffffffffll);
             break;
@@ -417,30 +417,30 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
             auto FlipSubmitSequence = desc[1].GetArray<uint64_t>(FlipEntryCount);
 
             PrintEventHeader(hdr);
-            printf("%s", hdr.EventDescriptor.Id == HSyncDPCMultiPlane_Info::Id ? "HSyncDPCMultiPlane_Info" : "VSyncDPCMultiPlane_Info");
+            wprintf(L"%hs", hdr.EventDescriptor.Id == HSyncDPCMultiPlane_Info::Id ? "HSyncDPCMultiPlane_Info" : "VSyncDPCMultiPlane_Info");
             for (uint32_t i = 0; i < FlipEntryCount; ++i) {
-                if (i > 0) printf("\n                                                    ");
-                printf(" SubmitSequence[%u]=%llu FlipId[%u]=0x%llx",
+                if (i > 0) wprintf(L"\n                                                    ");
+                wprintf(L" SubmitSequence[%u]=%llu FlipId[%u]=0x%llx",
                     i, FlipSubmitSequence[i] >> 32,
                     i, FlipSubmitSequence[i] & 0xffffffffll);
             }
-            printf("\n");
+            wprintf(L"\n");
             break;
         }
         case MMIOFlipMultiPlaneOverlay_Info::Id: {
             auto FlipSubmitSequence = metadata->GetEventData<uint64_t>(eventRecord, L"FlipSubmitSequence");
             PrintEventHeader(hdr);
-            printf("DXGKrnl_MMIOFlipMultiPlaneOverlay_Info SubmitSequence=%llu FlipId=0x%llx",
+            wprintf(L"DXGKrnl_MMIOFlipMultiPlaneOverlay_Info SubmitSequence=%llu FlipId=0x%llx",
                 FlipSubmitSequence >> 32,
                 FlipSubmitSequence & 0xffffffffll);
             if (hdr.EventDescriptor.Version >= 2) {
                 switch (metadata->GetEventData<uint32_t>(eventRecord, L"FlipEntryStatusAfterFlip")) {
-                case FlipEntryStatus::FlipWaitVSync:    printf(" FlipWaitVSync"); break;
-                case FlipEntryStatus::FlipWaitComplete: printf(" FlipWaitComplete"); break;
-                case FlipEntryStatus::FlipWaitHSync:    printf(" FlipWaitHSync"); break;
+                case FlipEntryStatus::FlipWaitVSync:    wprintf(L" FlipWaitVSync"); break;
+                case FlipEntryStatus::FlipWaitComplete: wprintf(L" FlipWaitComplete"); break;
+                case FlipEntryStatus::FlipWaitHSync:    wprintf(L" FlipWaitHSync"); break;
                 }
             }
-            printf("\n");
+            wprintf(L"\n");
             break;
         }
         }
@@ -491,25 +491,25 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
             auto NewState               = desc[3].GetData<uint32_t>();
 
             PrintEventHeader(hdr);
-            printf("Win32K_TokenStateChanged");
+            wprintf(L"Win32K_TokenStateChanged");
 
             auto presentId = LookupPresentId(pmConsumer, CompositionSurfaceLuid, PresentCount, BindId);
             if (presentId == 0) {
-                printf(" (unknown present)");
+                wprintf(L" (unknown present)");
             } else {
-                printf(" p%llu", presentId);
+                wprintf(L" p%llu", presentId);
             }
 
             switch (NewState) {
-            case TokenState::Completed: printf(" NewState=Completed"); break;
-            case TokenState::InFrame:   printf(" NewState=InFrame");   break;
-            case TokenState::Confirmed: printf(" NewState=Confirmed"); break;
-            case TokenState::Retired:   printf(" NewState=Retired");   break;
-            case TokenState::Discarded: printf(" NewState=Discarded"); break;
-            default:                    printf(" NewState=Unknown (%u)", NewState); assert(false); break;
+            case TokenState::Completed: wprintf(L" NewState=Completed"); break;
+            case TokenState::InFrame:   wprintf(L" NewState=InFrame");   break;
+            case TokenState::Confirmed: wprintf(L" NewState=Confirmed"); break;
+            case TokenState::Retired:   wprintf(L" NewState=Retired");   break;
+            case TokenState::Discarded: wprintf(L" NewState=Discarded"); break;
+            default:                    wprintf(L" NewState=Unknown (%u)", NewState); assert(false); break;
             }
 
-            printf("\n");
+            wprintf(L"\n");
         }   break;
         }
         return;

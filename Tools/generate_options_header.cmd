@@ -43,9 +43,9 @@ exit /b 0
     if %c1:-=% neq "" (
         if %c2% equ "" (
             echo.>> %3
-            echo %c1%, nullptr,>> %3
+            echo L%c1%, nullptr,>> %3
         ) else (
-            echo %c1%, R"(%c2:~1,-1%)",>> %3
+            echo L%c1%, LR"(%c2:~1,-1%)",>> %3
         )
     )
 

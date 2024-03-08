@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <Windows.h>
@@ -22,7 +22,7 @@ struct SwapChainData {
 };
 
 struct ProcessInfo {
-  std::string mModuleName;
+  std::wstring mModuleName;
   std::unordered_map<uint64_t, SwapChainData> mSwapChain;
   HANDLE mHandle;
   bool mTargetProcess;
@@ -43,7 +43,7 @@ class PresentMonSession {
   bool IsTraceSessionActive() { return (pm_consumer_ != nullptr); }
 
   PM_STATUS ProcessEtlFile(uint32_t client_process_id,
-                           const std::string& etl_file_name,
+                           const std::wstring& etl_file_name,
                            std::string& nsm_file_name);
 
   PM_STATUS StartStreaming(uint32_t client_process_id,
@@ -95,7 +95,7 @@ class PresentMonSession {
       uint64_t stopQpc, bool* hitStopQpc);
   ProcessInfo* GetProcessInfo(uint32_t processId);
   void InitProcessInfo(ProcessInfo* processInfo, uint32_t processId,
-                       HANDLE handle, std::string const& processName);
+                       HANDLE handle, std::wstring const& processName);
   void UpdateProcesses(
       std::vector<ProcessEvent> const& processEvents,
       std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses);
@@ -108,7 +108,7 @@ class PresentMonSession {
   void CheckForTerminatedRealtimeProcesses(
       std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses);
 
-  std::string pm_session_name_;
+  std::wstring pm_session_name_;
 
   std::unique_ptr<PMTraceConsumer> pm_consumer_;
   TraceSession trace_session_;
@@ -131,7 +131,7 @@ class PresentMonSession {
   std::atomic<bool> quit_output_thread_;
   std::atomic<bool> process_trace_finished_;
 
-  std::string etl_file_name_;
+  std::wstring etl_file_name_;
   
   // Event for when streaming has started
   std::unique_ptr<std::remove_pointer_t<HANDLE>, HandleDeleter>
@@ -162,7 +162,7 @@ class PresentMon {
   void StopStreaming(uint32_t client_process_id, uint32_t target_process_id);
 
   PM_STATUS ProcessEtlFile(uint32_t client_process_id,
-                           const std::string& etl_file_name,
+                           const std::wstring& etl_file_name,
                            std::string& nsm_file_name);
 
   std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> EnumerateAdapters();

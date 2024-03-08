@@ -101,7 +101,7 @@ set prebuild_errorcount=%errorcount%
 echo.
 echo [96mBuilding...[90m
 if %do_build% EQU 0 (
-    echo [31mwarning: skipping build[0m
+    echo [33mwarning: skipping build[0m
 ) else (
     for %%a in (%build_platforms%) do for %%b in (%build_configs%) do call :build %%a %%b "PresentMon\PresentMon.vcxproj"
     for %%a in (%build_platforms%) do for %%b in (%build_configs%) do call :build %%a %%b "Tests\PresentMonTests.vcxproj"
@@ -241,7 +241,7 @@ exit /b 0
 :check_pm_version
     if not exist "%pmdir%\%~1" exit /b 0
     set appver=
-    for /f "tokens=1,2" %%a in ('"%pmdir%\%~1" --version 2^>^&1') do if "%%a"=="PresentMon" set appver=%%b
+    for /f "tokens=1,2" %%a in ('"%pmdir%\%~1" --help 2^>^&1') do if "%%a"=="PresentMon" set appver=%%b
     if "%appver%"=="development" set appver=dev
     echo [90m%~1 -^> "%appver%"[0m
     if "%version%"=="dev" exit /b 0
@@ -326,7 +326,7 @@ exit /b 0
         exit /b 0
     )
     if %saw_row% EQU 0 (
-        echo [31merror: realtime PresentBench test did not record any presents[0m
+        echo [31merror: realtime PresentBench %test_api% test did not record any presents[0m
         set /a errorcount=%errorcount%+1
         exit /b 0
     )
@@ -408,17 +408,17 @@ exit /b 0
     call :stop_target_app
 
     if %saw_nonexcluded% EQU 0 (
-        echo [31merror: -exclude PresentBench2 did not record any presents[0m
+        echo [31merror: Exclude PresentBench2 did not record any presents[0m
         set /a errorcount=%errorcount%+1
         exit /b 0
     )
     if %saw_excluded% EQU 1 (
-        echo [31merror: -exclude PresentBench recorded presents[0m
+        echo [31merror: Exclude PresentBench recorded presents[0m
         set /a errorcount=%errorcount%+1
         exit /b 0
     )
 
-    echo.   [90m-exclude presentbench[0m
-    echo.   [90m-exclude presentbench2[0m
+    echo.   [90mExclude PresentBench test[0m
+    echo.   [90mExclude PresentBench2 test[0m
     exit /b 0
 

@@ -34,23 +34,28 @@ bool StartTraceSession()
         gMRConsumer = new MRTraceConsumer(args.mTrackDisplay);
     }
 
+    if (args.mOutputDateTime) {
+       gSession.mTimestampType = TraceSession::TIMESTAMP_TYPE_SYSTEM_TIME;
+    } else {
+       gSession.mTimestampType = TraceSession::TIMESTAMP_TYPE_QPC;
+    }
+
     // Start the session;
     // If a session with this same name is already running, we either exit or
     // stop it and start a new session.  This is useful if a previous process
     // failed to properly shut down the session for some reason.
     auto status = gSession.Start(gPMConsumer, gMRConsumer, args.mEtlFileName, args.mSessionName);
-
     if (status == ERROR_ALREADY_EXISTS) {
         if (args.mStopExistingSession) {
             PrintWarning(
-                "warning: a trace session named \"%ws\" is already running and it will be stopped.\n"
-                "         Use -session_name with a different name to start a new session.",
+                L"warning: a trace session named \"%s\" is already running and it will be stopped.\n"
+                L"         Use -session_name with a different name to start a new session.\n",
                 args.mSessionName);
         } else {
             PrintError(
-                "error: a trace session named \"%ws\" is already running. Use -stop_existing_session\n"
-                "       to stop the existing session, or use -session_name with a different name to\n"
-                "       start a new session.",
+                L"error: a trace session named \"%s\" is already running. Use -stop_existing_session\n"
+                L"       to stop the existing session, or use -session_name with a different name to\n"
+                L"       start a new session.\n",
                 args.mSessionName);
             delete gPMConsumer;
             delete gMRConsumer;
@@ -67,20 +72,20 @@ bool StartTraceSession()
 
     // Report error if we failed to start a new session
     if (status != ERROR_SUCCESS) {
-        PrintErrorNoNewLine("error: failed to start trace session: ");
+        PrintError(L"error: failed to start trace session: ");
         switch (status) {
-        case ERROR_FILE_NOT_FOUND:    PrintError(" file not found"); break;
-        case ERROR_PATH_NOT_FOUND:    PrintError(" path not found"); break;
-        case ERROR_BAD_PATHNAME:      PrintError(" invalid --session_name"); break;
-        case ERROR_ACCESS_DENIED:     PrintError(" access denied"); break;
-        case ERROR_FILE_CORRUPT:      PrintError(" invalid --etl_file"); break;
-        default:                      PrintError(" error code %lu", status); break;
+        case ERROR_FILE_NOT_FOUND: PrintError(L"file not found.\n"); break;
+        case ERROR_PATH_NOT_FOUND: PrintError(L"path not found.\n"); break;
+        case ERROR_BAD_PATHNAME:   PrintError(L"invalid --session_name.\n"); break;
+        case ERROR_ACCESS_DENIED:  PrintError(L"access denied.\n"); break;
+        case ERROR_FILE_CORRUPT:   PrintError(L"invalid --etl_file.\n"); break;
+        default:                   PrintError(L"error code %lu.\n", status); break;
         }
 
         if (status == ERROR_ACCESS_DENIED && !InPerfLogUsersGroup()) {
             PrintError(
-                "       PresentMon requires either administrative privileges or to be run by a user in the\n"
-                "       \"Performance Log Users\" user group.  View the readme for more details.");
+                L"       PresentMon requires either administrative privileges or to be run by a user in the\n"
+                L"       \"Performance Log Users\" user group.  View the readme for more details.\n");
         }
 
         delete gPMConsumer;
@@ -135,39 +140,42 @@ void DequeueAnalyzedInfo(
     }
 }
 
-double QpcDeltaToSeconds(uint64_t qpcDelta)
+double TimestampDeltaToSeconds(uint64_t timestampDelta)
 {
-    return (double) qpcDelta / gSession.mQpcFrequency.QuadPart;
+    return (double) timestampDelta / gSession.mTimestampFrequency.QuadPart;
 }
 
-double PositiveQpcDeltaToSeconds(uint64_t qpcFrom, uint64_t qpcTo)
+double PositiveTimestampDeltaToSeconds(uint64_t timestampFrom, uint64_t timestampTo)
 {
-    return qpcFrom == 0 || qpcTo <= qpcFrom ? 0.0 : QpcDeltaToSeconds(qpcTo - qpcFrom);
+    return timestampFrom == 0 || timestampTo <= timestampFrom ? 0.0 : TimestampDeltaToSeconds(timestampTo - timestampFrom);
 }
 
-double QpcDeltaToSeconds(uint64_t qpcFrom, uint64_t qpcTo)
+double TimestampDeltaToSeconds(uint64_t timestampFrom, uint64_t timestampTo)
 {
-    return qpcFrom == 0 || qpcTo == 0 || qpcFrom == qpcTo ? 0.0 :
-        qpcTo > qpcFrom ? QpcDeltaToSeconds(qpcTo - qpcFrom) :
-                         -QpcDeltaToSeconds(qpcFrom - qpcTo);
+    return timestampFrom == 0 || timestampTo == 0 || timestampFrom == timestampTo ? 0.0 :
+        timestampTo > timestampFrom ? TimestampDeltaToSeconds(timestampTo - timestampFrom) :
+                         -TimestampDeltaToSeconds(timestampFrom - timestampTo);
 }
 
-uint64_t SecondsDeltaToQpc(double secondsDelta)
+uint64_t SecondsDeltaToTimestamp(double secondsDelta)
 {
-    return (uint64_t) (secondsDelta * gSession.mQpcFrequency.QuadPart);
+    return (uint64_t) (secondsDelta * gSession.mTimestampFrequency.QuadPart);
 }
 
-double QpcToSeconds(uint64_t qpc)
+double TimestampToSeconds(uint64_t timestamp)
 {
-    return QpcDeltaToSeconds(qpc - gSession.mStartQpc.QuadPart);
+    return TimestampDeltaToSeconds(timestamp - gSession.mStartTimestamp.QuadPart);
 }
 
-void QpcToLocalSystemTime(uint64_t qpc, SYSTEMTIME* st, uint64_t* ns)
+void TimestampToLocalSystemTime(uint64_t timestamp, SYSTEMTIME* st, uint64_t* ns)
 {
-    auto tns = (qpc - gSession.mStartQpc.QuadPart) * 1000000000ull / gSession.mQpcFrequency.QuadPart;
-    auto t100ns = tns / 100;
-    auto ft = (*(uint64_t*) &gSession.mStartTime) + t100ns;
+    if (gSession.mTimestampType != TraceSession::TIMESTAMP_TYPE_SYSTEM_TIME) {
+        auto delta100ns = (timestamp - gSession.mStartTimestamp.QuadPart) * 10000000ull / gSession.mTimestampFrequency.QuadPart;
+        timestamp = gSession.mStartFileTime + delta100ns;
+    }
 
-    FileTimeToSystemTime((FILETIME const*) &ft, st);
-    *ns = (ft - (ft / 10000000ull) * 10000000ull) * 100ull + (tns - t100ns * 100ull);
+    FILETIME lft{};
+    FileTimeToLocalFileTime((FILETIME*) &timestamp, &lft);
+    FileTimeToSystemTime(&lft, st);
+    *ns = (timestamp % 10000000) * 100;
 }

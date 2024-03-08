@@ -46,7 +46,7 @@ static bool EnableScrollLock(bool enable)
 
         auto sendCount = SendInput(2, input, sizeof(INPUT));
         if (sendCount != 2) {
-            PrintWarning("warning: could not toggle scroll lock.");
+            PrintWarning(L"warning: could not toggle scroll lock.\n");
         }
     }
 
@@ -67,7 +67,7 @@ static void StartRecording()
 
     // Notify user we're recording
     if (args.mConsoleOutputType == ConsoleOutput::Simple) {
-        printf("Started recording.\n");
+        wprintf(L"Started recording.\n");
     }
     if (args.mScrollLockIndicator) {
         EnableScrollLock(true);
@@ -102,7 +102,7 @@ static void StopRecording()
         EnableScrollLock(false);
     }
     if (args.mConsoleOutputType == ConsoleOutput::Simple) {
-        printf("Stopped recording.\n");
+        wprintf(L"Stopped recording.\n");
     }
 }
 
@@ -195,9 +195,9 @@ int wmain(int argc, wchar_t** argv)
     if (args.mTerminateExisting) {
         auto status = TraceSession::StopNamedSession(args.mSessionName);
         switch (status) {
-        case ERROR_SUCCESS: return 0;
-        case ERROR_WMI_INSTANCE_NOT_FOUND: PrintError("error: no existing sessions found: %ws", args.mSessionName); break;
-        default: PrintError("error: failed to terminate existing session (%ws): %lu", args.mSessionName, status); break;
+        case ERROR_SUCCESS:                return 0;
+        case ERROR_WMI_INSTANCE_NOT_FOUND: PrintError(L"error: no existing sessions found: %s\n", args.mSessionName); break;
+        default:                           PrintError(L"error: failed to terminate existing session (%s): %lu\n", args.mSessionName, status); break;
         }
         return 7;
     }
@@ -220,10 +220,10 @@ int wmain(int argc, wchar_t** argv)
         }
 
         PrintWarning(
-            "warning: PresentMon requires elevated privilege in order to query processes that are\n"
-            "         short-running or started on another account.  Without it, those processes will\n"
-            "         be listed as '<error>' and they can't be targeted by -process_name nor trigger\n"
-            "         -terminate_on_proc_exit.");
+            L"warning: PresentMon requires elevated privilege in order to query processes that are\n"
+            L"         short-running or started on another account.  Without it, those processes will\n"
+            L"         be listed as '<error>' and they can't be targeted by -process_name nor trigger\n"
+            L"         -terminate_on_proc_exit.\n");
     }
 
     // Create a message queue to handle the input messages.
@@ -231,20 +231,20 @@ int wmain(int argc, wchar_t** argv)
     wndClass.lpfnWndProc = HandleWindowMessage;
     wndClass.lpszClassName = L"PresentMon";
     if (!RegisterClassExW(&wndClass)) {
-        PrintError("error: failed to register hotkey class.");
+        PrintError(L"error: failed to register hotkey class.\n");
         return 3;
     }
 
     gWnd = CreateWindowExW(0, wndClass.lpszClassName, L"PresentMonWnd", 0, 0, 0, 0, 0, HWND_MESSAGE, 0, 0, nullptr);
     if (!gWnd) {
-        PrintError("error: failed to create hotkey window.");
+        PrintError(L"error: failed to create hotkey window.\n");
         UnregisterClass(wndClass.lpszClassName, NULL);
         return 4;
     }
 
     // Register the hotkey.
     if (args.mHotkeySupport && !RegisterHotKey(gWnd, HOTKEY_ID, args.mHotkeyModifiers, args.mHotkeyVirtualKeyCode)) {
-        PrintError("error: failed to register hotkey.");
+        PrintError(L"error: failed to register hotkey.\n");
         DestroyWindow(gWnd);
         UnregisterClass(wndClass.lpszClassName, NULL);
         return 5;
@@ -305,5 +305,6 @@ int wmain(int argc, wchar_t** argv)
     */
     DestroyWindow(gWnd);
     UnregisterClass(wndClass.lpszClassName, NULL);
+    FinalizeConsole();
     return 0;
 }

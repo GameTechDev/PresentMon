@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 // Streamer.cpp : Defines the functions for the static library.
 
@@ -120,7 +120,7 @@ void Streamer::ProcessPresentEvent(
     PresentEvent* present_event,
     PresentMonPowerTelemetryInfo* power_telemetry_info,
     CpuTelemetryInfo* cpu_telemetry_info, uint64_t last_present_qpc,
-    uint64_t last_displayed_qpc, std::string app_name,
+    uint64_t last_displayed_qpc, std::wstring app_name,
     std::bitset<static_cast<size_t>(GpuTelemetryCapBits::gpu_telemetry_count)>
         gpu_telemetry_cap_bits,
     std::bitset<static_cast<size_t>(CpuTelemetryCapBits::cpu_telemetry_count)>
@@ -181,8 +181,7 @@ void Streamer::ProcessPresentEvent(
     // updated in the copy above.
     data.present_event.last_present_qpc = last_present_qpc;
     data.present_event.last_displayed_qpc = last_displayed_qpc;
-    app_name.copy(data.present_event.application,
-                  sizeof(data.present_event.application));
+    app_name.assign(data.present_event.application, data.present_event.application + sizeof(data.present_event.application));
     // Now copy the power telemetry data
     memcpy_s(&data.power_telemetry, sizeof(PresentMonPowerTelemetryInfo),
              power_telemetry_info, sizeof(PresentMonPowerTelemetryInfo));

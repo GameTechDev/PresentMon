@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "PresentMon.h"
 
@@ -6,8 +6,8 @@
 #include <shlwapi.h>
 #include <span>
 
-static const std::string kEtlSessionName = "ETLProcessing";
-static const std::string kRealTimeSessionName = "PMService";
+static const std::wstring kEtlSessionName = L"ETLProcessing";
+static const std::wstring kRealTimeSessionName = L"PMService";
 
 PresentMonSession::PresentMonSession()
     : target_process_count_(0),
@@ -47,7 +47,7 @@ PM_STATUS PresentMonSession::StartTraceSession() {
   pm_consumer_->mTrackGPUVideo = true;
   pm_consumer_->mTrackInput = true;
 
-  const char* etl_file_name = nullptr;
+  const wchar_t* etl_file_name = nullptr;
   if (etl_file_name_.size() > 0) {
     etl_file_name = etl_file_name_.c_str();
     pm_session_name_ = kEtlSessionName;
@@ -110,7 +110,7 @@ void PresentMonSession::StopTraceSession() {
 }
 
 PM_STATUS PresentMonSession::ProcessEtlFile(uint32_t client_process_id,
-                                            const std::string& etl_file_name,
+                                            const std::wstring& etl_file_name,
                                             std::string& nsm_file_name) {
   if (pm_consumer_ != nullptr) {
     // There is a current consumer running. For now,
@@ -205,13 +205,15 @@ ProcessInfo* PresentMonSession::GetProcessInfo(uint32_t processId) {
     // name and also periodically check if it has terminated.  This will
     // fail (with GetLastError() == ERROR_ACCESS_DENIED) if the process was
     // run on another account, unless we're running with SeDebugPrivilege.
-    HANDLE handle = NULL;
-    char const* processName = "<error>";
-    char path[MAX_PATH];
+    wchar_t const* processName = L"<error>";
+    wchar_t path[MAX_PATH];
     DWORD numChars = sizeof(path);
-    handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
-    if (QueryFullProcessImageNameA(handle, 0, path, &numChars)) {
-      processName = PathFindFileNameA(path);
+    HANDLE handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
+    if (handle != NULL) {
+      if (QueryFullProcessImageNameW(handle, 0, path, &numChars)) {
+        processName = PathFindFileNameW(path);
+      }
+      CloseHandle(handle);
     }
 
     InitProcessInfo(processInfo, processId, handle, processName);
@@ -222,7 +224,7 @@ ProcessInfo* PresentMonSession::GetProcessInfo(uint32_t processId) {
 
 void PresentMonSession::InitProcessInfo(ProcessInfo* processInfo, uint32_t processId,
                                  HANDLE handle,
-                                 std::string const& processName) {
+                                 std::wstring const& processName) {
   processInfo->mHandle = handle;
   processInfo->mModuleName = processName;
   processInfo->mTargetProcess = true;
@@ -260,10 +262,10 @@ void PresentMonSession::AddPresents(
     uint64_t stopQpc, bool* hitStopQpc) {
   auto i = *presentEventIndex;
 
-  if (trace_session_.mStartQpc.QuadPart != 0) {
-    // If mStartQpc contains a value an etl file is being processed.
+  if (trace_session_.mStartTimestamp.QuadPart != 0) {
+    // If mStartTimestamp contains a value an etl file is being processed.
     // Set this value in the streamer to have the correct start time.
-    streamer_.SetStartQpc(trace_session_.mStartQpc.QuadPart);
+    streamer_.SetStartQpc(trace_session_.mStartTimestamp.QuadPart);
   }
 
   for (auto n = presentEvents.size(); i < n; ++i) {
@@ -661,7 +663,7 @@ void PresentMon::StopStreaming(uint32_t client_process_id,
 }
 
 PM_STATUS PresentMon::ProcessEtlFile(uint32_t client_process_id,
-                                     const std::string& etl_file_name,
+                                     const std::wstring& etl_file_name,
                                      std::string& nsm_file_name) {
   return etl_session_.ProcessEtlFile(client_process_id, etl_file_name,
                                      nsm_file_name);

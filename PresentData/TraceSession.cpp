@@ -352,8 +352,8 @@ void CALLBACK EventRecordCallback(EVENT_RECORD* pEventRecord)
     #pragma warning(disable: 4984) // c++17 extension
 
     if constexpr (SAVE_FIRST_TIMESTAMP) {
-        if (session->mStartQpc.QuadPart == 0) {
-            session->mStartQpc = hdr.TimeStamp;
+        if (session->mStartTimestamp.QuadPart == 0) {
+            session->mStartTimestamp = hdr.TimeStamp;
         }
     }
 
@@ -485,14 +485,14 @@ ULONG TraceSession::Start(
 {
     assert(mSessionHandle == 0);
     assert(mTraceHandle == INVALID_PROCESSTRACE_HANDLE);
-    mStartQpc.QuadPart = 0;
+    mStartTimestamp.QuadPart = 0;
     mPMConsumer = pmConsumer;
     mMRConsumer = mrConsumer;
     mContinueProcessingBuffers = TRUE;
 
     // -------------------------------------------------------------------------
     // Configure trace properties
-    EVENT_TRACE_LOGFILE traceProps = {};
+    EVENT_TRACE_LOGFILEW traceProps = {};
     traceProps.LogFileName = (wchar_t*) etlPath;
     traceProps.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD | PROCESS_TRACE_MODE_RAW_TIMESTAMP;
     traceProps.Context = this;
@@ -528,7 +528,7 @@ ULONG TraceSession::Start(
 
         TraceProperties sessionProps = {};
         sessionProps.Wnode.BufferSize = (ULONG) sizeof(TraceProperties);
-        sessionProps.Wnode.ClientContext = 1;                     // Clock resolution to use when logging the timestamp for each event; 1 == query performance counter
+        sessionProps.Wnode.ClientContext = mTimestampType;        // Clock resolution to use when logging the timestamp for each event
         sessionProps.LogFileMode = EVENT_TRACE_REAL_TIME_MODE;    // We have a realtime consumer, not writing to a log file
         sessionProps.LogFileNameOffset = 0;                       // 0 means no output log file
         sessionProps.LoggerNameOffset = offsetof(TraceProperties, mSessionName);  // Location of session name; will be written by StartTrace()
@@ -556,7 +556,7 @@ ULONG TraceSession::Start(
         sessionProps.LoggerThreadId           // tracing session identifier
         */
 
-        auto status = StartTrace(&mSessionHandle, sessionName, &sessionProps);
+        auto status = StartTraceW(&mSessionHandle, sessionName, &sessionProps);
         if (status != ERROR_SUCCESS) {
             mSessionHandle = 0;
             return status;
@@ -571,7 +571,7 @@ ULONG TraceSession::Start(
 
     // -------------------------------------------------------------------------
     // Open the trace
-    mTraceHandle = OpenTrace(&traceProps);
+    mTraceHandle = OpenTraceW(&traceProps);
     if (mTraceHandle == INVALID_PROCESSTRACE_HANDLE) {
         auto lastError = GetLastError();
         Stop();
@@ -583,15 +583,17 @@ ULONG TraceSession::Start(
     // time of the first event, which matches GPUVIEW usage, and realtime
     // captures are based off the timestamp here.
 
-    switch (traceProps.LogfileHeader.ReservedFlags) {
-    case 2: // System time
-        mQpcFrequency.QuadPart = 10000000ull;
+    mTimestampType = (TimestampType) traceProps.LogfileHeader.ReservedFlags;
+    switch (mTimestampType) {
+    case TIMESTAMP_TYPE_SYSTEM_TIME:
+        mTimestampFrequency.QuadPart = 10000000ull;
         break;
-    case 3: // CPU cycle counter
-        mQpcFrequency.QuadPart = 1000000ull * traceProps.LogfileHeader.CpuSpeedInMHz;
+    case TIMESTAMP_TYPE_CPU_CYCLE_COUNTER:
+        mTimestampFrequency.QuadPart = 1000000ull * traceProps.LogfileHeader.CpuSpeedInMHz;
         break;
-    default: // 1 == QPC
-        mQpcFrequency = traceProps.LogfileHeader.PerfFreq;
+    case TIMESTAMP_TYPE_QPC:
+    default:
+        mTimestampFrequency = traceProps.LogfileHeader.PerfFreq;
         break;
     }
 
@@ -602,17 +604,20 @@ ULONG TraceSession::Start(
         QueryPerformanceCounter(&qpc1);
         GetSystemTimeAsFileTime(&ft);
         QueryPerformanceCounter(&qpc2);
-        FileTimeToLocalFileTime(&ft, &mStartTime);
-        mStartQpc.QuadPart = qpc1.QuadPart + (qpc2.QuadPart - qpc1.QuadPart) / 2;
+        FileTimeToLocalFileTime(&ft, (FILETIME*) &mStartFileTime);
+        mStartTimestamp.QuadPart = (qpc1.QuadPart + qpc2.QuadPart) / 2;
     } else {
-        SYSTEMTIME ust = {};
-        SYSTEMTIME lst = {};
+        // Convert start FILETIME to local start FILETIME
+        SYSTEMTIME ust{};
+        SYSTEMTIME lst{};
         FileTimeToSystemTime((FILETIME const*) &traceProps.LogfileHeader.StartTime, &ust);
         SystemTimeToTzSpecificLocalTime(&traceProps.LogfileHeader.TimeZone, &ust, &lst);
-        SystemTimeToFileTime(&lst, &mStartTime);
+        SystemTimeToFileTime(&lst, (FILETIME*) &mStartFileTime);
+        // The above conversion stops at milliseconds, so copy the rest over too
+        mStartFileTime += traceProps.LogfileHeader.StartTime.QuadPart % 10000;
     }
 
-    InitializeTimestampInfo(&mStartQpc, mQpcFrequency);
+    InitializeTimestampInfo(&mStartTimestamp, mTimestampFrequency);
 
     return ERROR_SUCCESS;
 }

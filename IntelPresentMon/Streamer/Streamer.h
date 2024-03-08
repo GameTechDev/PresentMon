@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 
@@ -43,7 +43,7 @@ class Streamer {
       PresentEvent* present_event,
       PresentMonPowerTelemetryInfo* power_telemetry_info,
       CpuTelemetryInfo* cpu_telemetry_info, uint64_t last_present_qpc,
-      uint64_t last_displayed_qpc, std::string app_name,
+      uint64_t last_displayed_qpc, std::wstring app_name,
       std::bitset<static_cast<size_t>(GpuTelemetryCapBits::gpu_telemetry_count)>
           gpu_telemetry_cap_bits,
       std::bitset<static_cast<size_t>(CpuTelemetryCapBits::cpu_telemetry_count)>

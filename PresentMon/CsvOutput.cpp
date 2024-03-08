@@ -46,45 +46,45 @@ static void WriteCsvHeader(FILE* fp)
 {
     auto const& args = GetCommandLineArgs();
 
-    fprintf(fp,
-        "Application"
-        ",ProcessID"
-        ",SwapChainAddress"
-        ",Runtime"
-        ",SyncInterval"
-        ",PresentFlags"
-        ",Dropped"
-        ",TimeInSeconds"
-        ",msInPresentAPI"
-        ",msBetweenPresents");
+    fwprintf(fp,
+        L"Application"
+        L",ProcessID"
+        L",SwapChainAddress"
+        L",Runtime"
+        L",SyncInterval"
+        L",PresentFlags"
+        L",Dropped"
+        L",TimeInSeconds"
+        L",msInPresentAPI"
+        L",msBetweenPresents");
     if (args.mTrackDisplay) {
-        fprintf(fp,
-            ",AllowsTearing"
-            ",PresentMode"
-            ",msUntilRenderComplete"
-            ",msUntilDisplayed"
-            ",msBetweenDisplayChange");
+        fwprintf(fp,
+            L",AllowsTearing"
+            L",PresentMode"
+            L",msUntilRenderComplete"
+            L",msUntilDisplayed"
+            L",msBetweenDisplayChange");
     }
     if (args.mTrackDebug) {
-        fprintf(fp,
-            ",WasBatched"
-            ",DwmNotified");
+        fwprintf(fp,
+            L",WasBatched"
+            L",DwmNotified");
     }
     if (args.mTrackGPU) {
-        fprintf(fp,
-            ",msUntilRenderStart"
-            ",msGPUActive");
+        fwprintf(fp,
+            L",msUntilRenderStart"
+            L",msGPUActive");
     }
     if (args.mTrackGPUVideo) {
-        fprintf(fp, ",msGPUVideoActive");
+        fwprintf(fp, L",msGPUVideoActive");
     }
     if (args.mTrackInput) {
-        fprintf(fp, ",msSinceInput");
+        fwprintf(fp, L",msSinceInput");
     }
     if (args.mOutputQpcTime) {
-        fprintf(fp, ",QPCTime");
+        fwprintf(fp, L",QPCTime");
     }
-    fprintf(fp, "\n");
+    fwprintf(fp, L"\n");
 }
 
 void UpdateCsv(ProcessInfo* processInfo, SwapChainData const& chain, PresentEvent const& p)
@@ -112,39 +112,39 @@ void UpdateCsv(ProcessInfo* processInfo, SwapChainData const& chain, PresentEven
     auto lastPresented = chain.mPresentHistory[(chain.mNextPresentIndex - 1) % SwapChainData::PRESENT_HISTORY_MAX_COUNT].get();
 
     // Compute frame statistics.
-    double msBetweenPresents      = 1000.0 * PositiveQpcDeltaToSeconds(lastPresented->PresentStartTime, p.PresentStartTime);
-    double msInPresentApi         = 1000.0 * PositiveQpcDeltaToSeconds(p.PresentStartTime, p.PresentStopTime);
+    double msBetweenPresents      = 1000.0 * PositiveTimestampDeltaToSeconds(lastPresented->PresentStartTime, p.PresentStartTime);
+    double msInPresentApi         = 1000.0 * PositiveTimestampDeltaToSeconds(p.PresentStartTime, p.PresentStopTime);
     double msUntilRenderComplete  = 0.0;
     double msUntilDisplayed       = 0.0;
     double msBetweenDisplayChange = 0.0;
 
     if (args.mTrackDisplay) {
-        msUntilRenderComplete = 1000.0 * QpcDeltaToSeconds(p.PresentStartTime, p.ReadyTime);
+        msUntilRenderComplete = 1000.0 * TimestampDeltaToSeconds(p.PresentStartTime, p.ReadyTime);
 
         if (presented) {
-            msUntilDisplayed = 1000.0 * PositiveQpcDeltaToSeconds(p.PresentStartTime, p.ScreenTime);
+            msUntilDisplayed = 1000.0 * PositiveTimestampDeltaToSeconds(p.PresentStartTime, p.ScreenTime);
 
             if (chain.mLastDisplayedPresentIndex != UINT32_MAX) {
                 auto lastDisplayed = chain.mPresentHistory[chain.mLastDisplayedPresentIndex % SwapChainData::PRESENT_HISTORY_MAX_COUNT].get();
-                msBetweenDisplayChange = 1000.0 * PositiveQpcDeltaToSeconds(lastDisplayed->ScreenTime, p.ScreenTime);
+                msBetweenDisplayChange = 1000.0 * PositiveTimestampDeltaToSeconds(lastDisplayed->ScreenTime, p.ScreenTime);
             }
         }
     }
 
     double msUntilRenderStart = 0.0;
     if (args.mTrackGPU) {
-        msUntilRenderStart = 1000.0 * QpcDeltaToSeconds(p.PresentStartTime, p.GPUStartTime);
+        msUntilRenderStart = 1000.0 * TimestampDeltaToSeconds(p.PresentStartTime, p.GPUStartTime);
     }
 
     double msSinceInput = 0.0;
     if (args.mTrackInput) {
         if (p.InputTime != 0) {
-            msSinceInput = 1000.0 * QpcDeltaToSeconds(p.PresentStartTime - p.InputTime);
+            msSinceInput = 1000.0 * TimestampDeltaToSeconds(p.PresentStartTime - p.InputTime);
         }
     }
 
     // Output in CSV format
-    fprintf(fp, "%ws,%d,0x%016llX,%s,%d,%d,%s,",
+    fwprintf(fp, L"%s,%d,0x%016llX,%hs,%d,%d,%hs,",
         processInfo->mModuleName.c_str(),
         p.ProcessId,
         p.SwapChainAddress,
@@ -155,8 +155,8 @@ void UpdateCsv(ProcessInfo* processInfo, SwapChainData const& chain, PresentEven
     if (args.mOutputDateTime) {
         SYSTEMTIME st = {};
         uint64_t ns = 0;
-        QpcToLocalSystemTime(p.PresentStartTime, &st, &ns);
-        fprintf(fp, "%u-%u-%u %u:%02u:%02u.%09llu",
+        TimestampToLocalSystemTime(p.PresentStartTime, &st, &ns);
+        fwprintf(fp, L"%u-%u-%u %u:%02u:%02u.%09llu",
             st.wYear,
             st.wMonth,
             st.wDay,
@@ -165,13 +165,13 @@ void UpdateCsv(ProcessInfo* processInfo, SwapChainData const& chain, PresentEven
             st.wSecond,
             ns);
     } else {
-        fprintf(fp, "%.*lf", DBL_DIG - 1, QpcToSeconds(p.PresentStartTime));
+        fwprintf(fp, L"%.*lf", DBL_DIG - 1, TimestampToSeconds(p.PresentStartTime));
     }
-    fprintf(fp, ",%.*lf,%.*lf",
+    fwprintf(fp, L",%.*lf,%.*lf",
         DBL_DIG - 1, msInPresentApi,
         DBL_DIG - 1, msBetweenPresents);
     if (args.mTrackDisplay) {
-        fprintf(fp, ",%d,%s,%.*lf,%.*lf,%.*lf",
+        fwprintf(fp, L",%d,%hs,%.*lf,%.*lf,%.*lf",
             p.SupportsTearing,
             PresentModeToString(p.PresentMode),
             DBL_DIG - 1, msUntilRenderComplete,
@@ -179,30 +179,30 @@ void UpdateCsv(ProcessInfo* processInfo, SwapChainData const& chain, PresentEven
             DBL_DIG - 1, msBetweenDisplayChange);
     }
     if (args.mTrackDebug) {
-        fprintf(fp, ",%d,%d",
+        fwprintf(fp, L",%d,%d",
             p.DriverThreadId != 0,
             p.DwmNotified);
     }
     if (args.mTrackGPU) {
-        fprintf(fp, ",%.*lf,%.*lf",
+        fwprintf(fp, L",%.*lf,%.*lf",
             DBL_DIG - 1, msUntilRenderStart,
-            DBL_DIG - 1, 1000.0 * QpcDeltaToSeconds(p.GPUDuration));
+            DBL_DIG - 1, 1000.0 * TimestampDeltaToSeconds(p.GPUDuration));
     }
     if (args.mTrackGPUVideo) {
-        fprintf(fp, ",%.*lf",
-            DBL_DIG - 1, 1000.0 * QpcDeltaToSeconds(p.GPUVideoDuration));
+        fwprintf(fp, L",%.*lf",
+            DBL_DIG - 1, 1000.0 * TimestampDeltaToSeconds(p.GPUVideoDuration));
     }
     if (args.mTrackInput) {
-        fprintf(fp, ",%.*lf", DBL_DIG - 1, msSinceInput);
+        fwprintf(fp, L",%.*lf", DBL_DIG - 1, msSinceInput);
     }
     if (args.mOutputQpcTime) {
         if (args.mOutputQpcTimeInSeconds) {
-            fprintf(fp, ",%.*lf", DBL_DIG - 1, QpcDeltaToSeconds(p.PresentStartTime));
+            fwprintf(fp, L",%.*lf", DBL_DIG - 1, TimestampDeltaToSeconds(p.PresentStartTime));
         } else {
-            fprintf(fp, ",%llu", p.PresentStartTime);
+            fwprintf(fp, L",%llu", p.PresentStartTime);
         }
     }
-    fprintf(fp, "\n");
+    fwprintf(fp, L"\n");
 
     if (args.mOutputCsvToStdout) {
         fflush(fp);
@@ -285,7 +285,7 @@ static OutputCsv CreateOutputCsv(wchar_t const* processName, uint32_t processId)
         wchar_t path[MAX_PATH];
         GenerateFilename(path, processName, processId);
 
-        _wfopen_s(&outputCsv.mFile, path, L"w");
+        _wfopen_s(&outputCsv.mFile, path, L"w,ccs=UTF-8");
 
         if (args.mTrackWMR) {
             outputCsv.mWmrFile = CreateLsrCsvFile(path);

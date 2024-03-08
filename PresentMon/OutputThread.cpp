@@ -345,12 +345,12 @@ static void PruneHistory(
 {
     assert(processEvents.size() + presentEvents.size() + lsrEvents.size() > 0);
 
-    auto latestQpc = std::max(std::max(
+    auto latestTimestamp = std::max(std::max(
         processEvents.empty() ? 0ull : processEvents.back().QpcTime,
         presentEvents.empty() ? 0ull : presentEvents.back()->PresentStartTime),
         lsrEvents.empty()     ? 0ull : lsrEvents.back()->QpcTime);
 
-    auto minQpc = latestQpc - SecondsDeltaToQpc(2.0);
+    auto minTimestamp = latestTimestamp - SecondsDeltaToTimestamp(2.0);
 
     for (auto& pair : gProcesses) {
         auto processInfo = &pair.second;
@@ -361,7 +361,7 @@ static void PruneHistory(
             for (; count > 0; --count) {
                 auto index = swapChain->mNextPresentIndex - count;
                 auto const& presentEvent = swapChain->mPresentHistory[index % SwapChainData::PRESENT_HISTORY_MAX_COUNT];
-                if (presentEvent->PresentStartTime >= minQpc) {
+                if (presentEvent->PresentStartTime >= minTimestamp) {
                     break;
                 }
                 if (index == swapChain->mLastDisplayedPresentIndex) {
@@ -531,20 +531,23 @@ void Output()
         case ConsoleOutput::Simple:
             #if _DEBUG
             if (realtimeRecording) {
-                printf(".");
+                wprintf(L".");
             }
             #endif
             break;
         case ConsoleOutput::Full:
-            for (auto const& pair : gProcesses) {
-                UpdateConsole(pair.first, pair.second);
-            }
-            UpdateConsole(gProcesses, lsrData);
+            if (BeginConsoleUpdate()) {
+                for (auto const& pair : gProcesses) {
+                    UpdateConsole(pair.first, pair.second);
+                }
+                UpdateConsole(gProcesses, lsrData);
 
-            if (realtimeRecording) {
-                ConsolePrintLn("** RECORDING **");
+                if (realtimeRecording) {
+                    ConsolePrintLn(L"** RECORDING **");
+                }
+
+                EndConsoleUpdate();
             }
-            CommitConsole();
             break;
         }
 
@@ -566,10 +569,10 @@ void Output()
     ULONG buffersLost = 0;
     CheckLostReports(&eventsLost, &buffersLost);
     if (buffersLost > 0) {
-        PrintWarning("warning: %lu ETW buffers were lost.", buffersLost);
+        PrintWarning(L"warning: %lu ETW buffers were lost.\n", buffersLost);
     }
     if (eventsLost > 0) {
-        PrintWarning("warning: %lu ETW events were lost.", eventsLost);
+        PrintWarning(L"warning: %lu ETW events were lost.\n", eventsLost);
     }
 
     // Close all CSV and process handles

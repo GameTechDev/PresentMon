@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "NamedPipeCmdProcess.h"
 #include "..\PresentMonUtils\NamedPipeHelper.h"
@@ -20,8 +20,8 @@ bool EncodeStartStream(PresentMon* pm, MemBuffer* rqstBuf, MemBuffer* rspBuf) {
     rspStatus = pm->StartStreaming(genRqstInfo->clientProcessId,
                                    genRqstInfo->targetProcessId, nsmFileName);
   } else {
-    std::string etlFileName = genRqstInfo->etlFileName;
-    rspStatus = pm->ProcessEtlFile(genRqstInfo->clientProcessId, etlFileName, nsmFileName);
+    std::wstring wetlFileName(genRqstInfo->etlFileName, genRqstInfo->etlFileName + strlen(genRqstInfo->etlFileName));
+    rspStatus = pm->ProcessEtlFile(genRqstInfo->clientProcessId, wetlFileName, nsmFileName);
   }
 
   IPMSMResponseHeader response{};
