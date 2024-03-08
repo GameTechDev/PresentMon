@@ -75,6 +75,16 @@ GpuTrace::GpuTrace(PMTraceConsumer* pmConsumer)
 {
 }
 
+GpuTrace::~GpuTrace()
+{
+  for (auto& pair : mContexts) {
+    auto context = pair.second;
+    if(context.mIsHwQueue) {
+      delete context.mNode;
+    }
+  }
+}
+
 void GpuTrace::RegisterDevice(uint64_t hDevice, uint64_t pDxgAdapter)
 {
     // Sometimes there are duplicate start events
