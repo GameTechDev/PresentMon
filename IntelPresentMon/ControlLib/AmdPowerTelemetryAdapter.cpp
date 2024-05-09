@@ -453,6 +453,9 @@ bool AmdPowerTelemetryAdapter::Overdrive8Sample(
     if (data_output.sensors[PMLOG_ASIC_POWER].supported) {
       info.gpu_power_w = (double)data_output.sensors[PMLOG_ASIC_POWER].value;
       SetTelemetryCapBit(GpuTelemetryCapBits::gpu_power);
+    } else if (data_output.sensors[PMLOG_BOARD_POWER].supported) {
+      info.gpu_power_w = (double)data_output.sensors[PMLOG_BOARD_POWER].value;
+      SetTelemetryCapBit(GpuTelemetryCapBits::gpu_power);
     }
     return true;
   } else {
