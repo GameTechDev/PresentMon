@@ -307,6 +307,10 @@ void WriteCsvHeader<FrameMetrics>(FILE* fp)
         fwprintf(fp, L",FrameId");
     }
     fwprintf(fp, L"\n");
+
+    if (args.mCSVOutput == CSVOutput::Stdout) {
+        fflush(fp);
+    }
 }
 
 template<>
@@ -395,6 +399,10 @@ void WriteCsvRow<FrameMetrics>(
         fwprintf(fp, L",%u", p.FrameId);
     }
     fwprintf(fp, L"\n");
+
+    if (args.mCSVOutput == CSVOutput::Stdout) {
+        fflush(fp);
+    }
 }
 
 template<typename FrameMetricsT>
