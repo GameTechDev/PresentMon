@@ -246,7 +246,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 "--intro-nsm"s, *opt.shmName,
                 "--etw-session-name"s, *opt.etwSessionName,
                 "--log-level"s, std::to_string((int)log::GlobalPolicy::Get().GetLogLevel()),
-                "--log-pipe-name"s, *logSvcPipe);
+                "--log-pipe-name"s, *logSvcPipe,
+                "--enable-stdio-log");
 
             if (!pmon::util::win::WaitForNamedPipe(*opt.controlPipe, 1500)) {
                 pmlog_error("timeout waiting for child service control pipe to go online");
