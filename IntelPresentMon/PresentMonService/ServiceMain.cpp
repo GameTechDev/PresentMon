@@ -19,10 +19,10 @@ int CommonEntry(DWORD argc, LPTSTR* argv, bool asApp)
 	if (auto e = clio::Options::Init(argc, argv); e && asApp) {
 		return *e;
 	}
-	// configure logging based on CLI arguments
-	logsetup::ConfigureLogging(asApp);
 	// configure windows registry access
 	Reg::SetPrivileged(!asApp);
+	// configure logging based on CLI arguments and registry settings
+	logsetup::ConfigureLogging(asApp);
 
 	if (asApp) {
 		auto& svc = ConsoleDebugMockService::Get();

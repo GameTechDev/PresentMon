@@ -104,6 +104,10 @@ namespace pmon::util::reg
 			}
 			bool Exists() const
 			{
+				if (!parent_.key_.IsValid()) {
+					pmlog_warn(ReportException("Attempting to check validity of value whose key is not open"));
+					return false;
+				}
 				for (auto& v : parent_.key_.EnumValues()) {
 					if (v.first == valueName_) {
 						return true;
