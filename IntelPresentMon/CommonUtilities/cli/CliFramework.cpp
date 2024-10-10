@@ -88,11 +88,15 @@ namespace pmon::util::cli
 	}
 	Flag::operator bool() const
 	{
-		return (bool)*pOption_;
+		return data_;
 	}
 	bool Flag::operator!() const
 	{
 		return !bool(*this);
+	}
+	bool Flag::IsPresent() const
+	{
+		return (bool)*pOption_;
 	}
 	std::function<std::string(std::string)> OptionsElement_::GetCaptureCallback_()
 	{

@@ -71,10 +71,10 @@ namespace logsetup
 			if (opt.logLevel) {
 				GlobalPolicy::Get().SetLogLevel(*opt.logLevel);
 			}
-			if (opt.disableStdioLog) {
+			if (!opt.enableStdioLog) {
 				pChannel->AttachComponent({}, "drv:std");
 			}
-			if (opt.disableDebuggerLog) {
+			if (!opt.enableDebuggerLog) {
 				pChannel->AttachComponent({}, "drv:dbg");
 			}
 			if (opt.logDir) {
