@@ -29,7 +29,7 @@ namespace pmon::ipc
 	{
 	public:
 		virtual ~MiddlewareComms() = default;
-		virtual const PM_INTROSPECTION_ROOT* GetIntrospectionRoot() = 0;
+		virtual const PM_INTROSPECTION_ROOT* GetIntrospectionRoot(uint32_t timeoutMs = 2000) = 0;
 	};
 
 	std::unique_ptr<ServiceComms> MakeServiceComms(std::optional<std::string> sharedMemoryName = {});

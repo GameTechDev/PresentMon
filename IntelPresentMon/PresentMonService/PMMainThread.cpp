@@ -94,14 +94,16 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
         if ((waitResult - WAIT_OBJECT_0) == 1) {
             return;
         }
+        pmon::util::QpcTimer timer;
         ptc->Repopulate();
         for (auto& adapter : ptc->GetPowerTelemetryAdapters()) {
-            // sample 2x here as workaround/kludge because Intel provider mispreports 1st sample
+            // sample 2x here as workaround/kludge because Intel provider misreports 1st sample
             adapter->Sample();
             adapter->Sample();
             pComms->RegisterGpuDevice(adapter->GetVendor(), adapter->GetName(), adapter->GetPowerTelemetryCapBits());
         }
         pComms->FinalizeGpuDevices();
+        pmlog_info(std::format("Finished populating GPU telemetry introspection, {} seconds elapsed", timer.Mark()));
     }
 
 	// only start periodic polling when streaming starts

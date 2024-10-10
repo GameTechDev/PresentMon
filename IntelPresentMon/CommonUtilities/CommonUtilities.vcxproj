@@ -79,6 +79,7 @@
     <ClInclude Include="pipe\SecurityMode.h" />
     <ClInclude Include="PrecisionWaiter.h" />
     <ClInclude Include="Qpc.h" />
+    <ClInclude Include="reg\Registry.h" />
     <ClInclude Include="rng\PairToRange.h" />
     <ClInclude Include="str\String.h" />
     <ClInclude Include="third\reflect.hpp" />

@@ -13,6 +13,12 @@ namespace pmon::util::log
 	public:
 		ChannelFlusher(std::weak_ptr<IEntrySink> pChan);
 		~ChannelFlusher();
+
+		ChannelFlusher(const ChannelFlusher&) = delete;
+		ChannelFlusher & operator=(const ChannelFlusher&) = delete;
+		ChannelFlusher(ChannelFlusher&&) = delete;
+		ChannelFlusher & operator=(ChannelFlusher&&) = delete;
+
 	private:
 		std::weak_ptr<IEntrySink> pChan_;
 		mt::Thread worker_;

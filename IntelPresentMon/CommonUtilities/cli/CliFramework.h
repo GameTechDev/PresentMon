@@ -213,6 +213,7 @@ namespace pmon::util::cli
 		{
 			return pOption_->get_name();
 		}
+		bool IsPresent() const;
 	private:
 		bool data_ = false;
 		CLI::Option* pOption_ = nullptr;

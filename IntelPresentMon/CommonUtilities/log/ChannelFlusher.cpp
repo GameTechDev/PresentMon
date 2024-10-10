@@ -25,6 +25,6 @@ namespace pmon::util::log
 	}
 	ChannelFlusher::~ChannelFlusher()
 	{
-		exitEvent_.Set();
+		pmquell(exitEvent_.Set());
 	}
 }

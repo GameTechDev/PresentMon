@@ -65,6 +65,13 @@ void Service::SignalClientSessionOpened()
 	SetEvent(clientSessionEvent_);
 }
 
+Service::~Service()
+{
+	if (clientSessionEvent_) {
+		CloseHandle(clientSessionEvent_);
+	}
+}
+
 ConcreteService::ConcreteService(const TCHAR* serviceName) : mServiceName(serviceName)
 {
 	mEventLogHandle = RegisterEventSource(NULL, mServiceName.c_str());

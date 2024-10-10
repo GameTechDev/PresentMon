@@ -111,6 +111,13 @@ PMTraceConsumer::PMTraceConsumer()
     hEventsReadyEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
 }
 
+PMTraceConsumer::~PMTraceConsumer()
+{
+    if (hEventsReadyEvent && hEventsReadyEvent != INVALID_HANDLE_VALUE) {
+        CloseHandle(hEventsReadyEvent);
+    }
+}
+
 void PMTraceConsumer::HandleD3D9Event(EVENT_RECORD* pEventRecord)
 {
     auto const& hdr = pEventRecord->EventHeader;

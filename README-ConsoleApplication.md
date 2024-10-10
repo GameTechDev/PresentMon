@@ -4,6 +4,9 @@ The PresentMon/ directory contains source for a standalone console application t
 *PresentMon SDK* to capture and analyze graphics applications, outputting data to the console and/or
 CSV file(s).
 
+A binary of the console application is provided in the release, e.g.:
+[PresentMon-2.2.0-x64.exe](https://github.com/GameTechDev/PresentMon/releases/download/v2.2.0/PresentMon-2.2.0-x64.exe).
+
 ## Command line options
 
 | Capture Target Options         |     |
@@ -95,7 +98,8 @@ Default metrics include:
 | *DisplayLatency*       | How long it took from the start of this frame until the frame was displayed on the screen. |
 | *DisplayedTime*        | How long the frame was displayed on the screen, or 'NA' if the frame was not displayed. |
 | *AnimationError*       | The difference between the previous frame's CPU delta and display delta. |
-| *ClickToPhotonLatency* | How long it took from the earliest keyboard or mouse interaction that contributed to this frame until this frame was displayed.  When supported HW measuring devices are not available, this is the software-visible subset of the full click-to-photon latency and doesn't include:<br>&bull; time spent processing input in the keyboard/controller hardware or drivers (typically a fixed additional overhead),<br>&bull; time spent processing the output in the display hardware or drivers (typically a fixed additional overhead), and<br>&bull; a combination of display blanking interval and scan time (which varies, depending on timing and tearing). |
+| *ClickToPhotonLatency* | How long it took from the earliest mouse click that contributed to this frame until this frame was displayed.  When supported HW measuring devices are not available, this is the software-visible subset of the full click-to-photon latency and doesn't include:<br>&bull; time spent processing input in the keyboard/controller hardware or drivers (typically a fixed additional overhead),<br>&bull; time spent processing the output in the display hardware or drivers (typically a fixed additional overhead), and<br>&bull; a combination of display blanking interval and scan time (which varies, depending on timing and tearing). |
+| *AllInputToPhotonLatency* | How long it took from the earliest keyboard or mouse interaction that contributed to this frame until this frame was displayed. |
 
 Some metrics are enabled or disabled depending on the command line options:
 

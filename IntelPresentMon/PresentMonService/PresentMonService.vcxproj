@@ -237,6 +237,7 @@
     <ClInclude Include="PMMainThread.h" />
     <ClInclude Include="PresentMonSession.h" />
     <ClInclude Include="RealtimePresentMonSession.h" />
+    <ClInclude Include="Registry.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Service.h" />
     <ClInclude Include="ServiceExecutionContext.h" />

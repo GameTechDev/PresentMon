@@ -134,10 +134,10 @@ namespace pmon::ipc
 				:
 				shm_{ bip::open_only, sharedMemoryName.value_or(defaultSegmentName_).c_str() }
 			{}
-			const PM_INTROSPECTION_ROOT* GetIntrospectionRoot() override
+			const PM_INTROSPECTION_ROOT* GetIntrospectionRoot(uint32_t timeoutMs) override
 			{
 				// make sure holdoff semaphore has been released
-				WaitOnIntrospectionHoldoff_();
+				WaitOnIntrospectionHoldoff_(timeoutMs);
 				// acquire shared lock on introspection data
 				auto sharedLock = LockIntrospectionMutexForShare_();
 				// find the introspection structure in shared memory
@@ -157,7 +157,7 @@ namespace pmon::ipc
 			}
 		private:
 			// functions
-			void WaitOnIntrospectionHoldoff_()
+			void WaitOnIntrospectionHoldoff_(uint32_t timeoutMs)
 			{
 				using namespace std::chrono_literals;
 				using clock = std::chrono::high_resolution_clock;
@@ -167,7 +167,7 @@ namespace pmon::ipc
 				}
 				auto& sem = *result.first;
 				// wait for holdoff to be released (timeout after XXXms)
-				if (!sem.timed_wait(clock::now() + 750ms)) {
+				if (!sem.timed_wait(clock::now() + 1ms * timeoutMs)) {
 					throw std::runtime_error{ "timeout accessing introspection" };
 				}
 				// return the slot we just took because holdoff should not limit entry once released

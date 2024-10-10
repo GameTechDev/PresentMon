@@ -434,6 +434,12 @@ struct PMTraceConsumer
     // Functions for decoding ETW and analysing process and present events.
 
     PMTraceConsumer();
+    ~PMTraceConsumer();
+
+    PMTraceConsumer(const PMTraceConsumer&) = delete;
+    PMTraceConsumer& operator=(const PMTraceConsumer&) = delete;
+    PMTraceConsumer(PMTraceConsumer&&) = delete;
+    PMTraceConsumer& operator=(PMTraceConsumer&&) = delete;
 
     void HandleDxgkBlt(EVENT_HEADER const& hdr, uint64_t hwnd, bool redirectedPresent);
     void HandleDxgkFlip(EVENT_HEADER const& hdr, int32_t flipInterval, bool isMMIOFlip, bool isMPOFlip);

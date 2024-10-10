@@ -23,7 +23,7 @@ public:
 	virtual HANDLE GetResetPowerTelemetryHandle() = 0;
 	HANDLE GetClientSessionHandle();
 	void SignalClientSessionOpened();
-	virtual ~Service() = default;
+	virtual ~Service();
 private:
 	std::optional<int> errCode_;
 	HANDLE clientSessionEvent_;

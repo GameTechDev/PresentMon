@@ -78,7 +78,8 @@ namespace pmon::mid
             }
         }
         catch (...) {
-            throw util::Except<ipc::PmStatusError>((PM_STATUS)25);
+            pmlog_error(ReportException("Problem acquiring introspection data"));
+            throw;
         }
 
         // Update the static GPU metric data from the service
