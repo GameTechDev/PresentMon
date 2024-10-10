@@ -7,11 +7,12 @@
 #include "Service.h"
 #include "CliOptions.h"
 #include "LogSetup.h"
+#include "Registry.h"
 
 TCHAR serviceName[MaxBufferLength] = TEXT("Intel PresentMon Service");
 
 // common entry point whether invoked as service or as app
-int CommonEntry(DWORD argc, LPTSTR* argv, bool asApp = false)
+int CommonEntry(DWORD argc, LPTSTR* argv, bool asApp)
 {
 	logsetup::LogChannelManager logMan_;
 	// parse command line, return with error code from CLI11 if running as app
@@ -20,6 +21,9 @@ int CommonEntry(DWORD argc, LPTSTR* argv, bool asApp = false)
 	}
 	// configure logging based on CLI arguments
 	logsetup::ConfigureLogging(asApp);
+	// configure windows registry access
+	Reg::SetPrivileged(!asApp);
+
 	if (asApp) {
 		auto& svc = ConsoleDebugMockService::Get();
 		svc.Run();
@@ -38,7 +42,7 @@ int CommonEntry(DWORD argc, LPTSTR* argv, bool asApp = false)
 // callback registered with and called by the Service Control Manager
 VOID WINAPI ServiceMainCallback(DWORD argc, LPTSTR* argv)
 {
-	CommonEntry(argc, argv);
+	CommonEntry(argc, argv, false);
 }
 
 int __cdecl _tmain(int argc, TCHAR* argv[])

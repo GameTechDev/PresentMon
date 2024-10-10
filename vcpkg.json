@@ -9,7 +9,8 @@
     "boost-process",
     "cereal",
     "concurrentqueue",
-    "boost-asio"
+    "boost-asio",
+    "winreg"
   ],
   "builtin-baseline": "6062c8fe02d38b10d5291411bc235ae4d02cfe6c"
 }
