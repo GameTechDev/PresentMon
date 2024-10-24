@@ -51,7 +51,7 @@
     "stylus": "^0.54.5",
     "ts-jest": "^29.1.2",
     "typescript": "^3.3.0",
-    "vue": "^2.6.6",
+    "vue": "^3.0.0",
     "vue-template-compiler": "^2.6.6",
     "yorkie": "^2.0.0"
   },
