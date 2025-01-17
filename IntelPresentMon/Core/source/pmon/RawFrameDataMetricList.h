@@ -16,7 +16,7 @@ namespace p2c::pmon
         std::optional<uint32_t> index;
     };
 
-    inline std::vector<RawFrameQueryElementDefinition> GetRawFrameDataMetricList(uint32_t activeDeviceId)
+    inline std::vector<RawFrameQueryElementDefinition> GetRawFrameDataMetricList(uint32_t activeDeviceId, bool enableTimestamp)
     {
         namespace rn = std::ranges;
         using Element = RawFrameQueryElementDefinition;
@@ -83,6 +83,10 @@ namespace p2c::pmon
             Element{.metricId = PM_METRIC_CPU_TEMPERATURE },
             Element{.metricId = PM_METRIC_CPU_FREQUENCY },
         };
+
+        if (enableTimestamp) {
+            queryElements.insert(queryElements.begin(), Element{ .metricId = PM_METRIC_CPU_START_QPC, .deviceId = 0 });
+        }
 
         return queryElements;
     }

@@ -121,6 +121,7 @@ import { Widget } from './core/widget'
 import { Loadout } from './store/loadout'
 import { launchAutotargetting } from './core/autotarget'
 import { LoadBlocklists } from './core/block-list'
+import { IsDevelopment } from './core/env-vars'
 
 export default Vue.extend({
   name: 'AppRoot',
@@ -257,7 +258,7 @@ export default Vue.extend({
 
   computed: {
     isDevelopment(): boolean {
-      return process?.env?.NODE_ENV === 'development';
+      return IsDevelopment();
     },
     widgets(): Widget[] {
       return Loadout.widgets;

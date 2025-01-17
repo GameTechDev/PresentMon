@@ -16,6 +16,7 @@ namespace p2c::cli
 	private: Group gs_{ this, "Standard", "Useful to end users in production"}; public:
 		Flag allowTearing{ this, "--p2c-allow-tearing", "Allow tearing presents for overlay (optional, might affect VRR)" };
 		Flag disableAlpha{ this, "--p2c-disable-alpha", "Disable alpha blend composition of overlay" };
+		Flag enableTimestampColumn{ this, "--p2c-enable-timestamp-column", "Enable timestamp column in capture CSV" };
 
 	private: Group gd_{ this, "Debugging", "Aids in debugging this tool" }; public:
 		Option<std::string> url{ this, "--p2c-url", "", "URL to load instead of app files" };
@@ -29,6 +30,7 @@ namespace p2c::cli
 		Flag filesWorking{ this, "--p2c-files-working", "Use the working directory for file storage" };
 		Flag traceExceptions{ this, "--p2c-trace-exceptions", "Add stack trace to all thrown exceptions (including SEH exceptions)" };
 		Flag enableDiagnostic{ this, "--p2c-enable-diagnostic", "Enable debug diagnostic layer forwarding (duplicates exiisting log entries)" };
+		Flag enableUiDevOptions{ this, "--p2c-enable-ui-dev-options", "Enable advanced UI elements useful during development" };
 
 
 	private: Group gl_{ this, "Logging", "Customize logging for this tool"}; public:

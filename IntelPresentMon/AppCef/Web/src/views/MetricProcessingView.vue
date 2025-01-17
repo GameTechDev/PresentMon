@@ -10,6 +10,36 @@
 
   <v-card class="page-card">
 
+    <v-row class="mt-5" v-if="isDevelopment">
+      <v-col cols="3">
+        ETW Manual Flush
+        <p class="text--secondary text-sm-caption mb-0">Control whether manual ETW flushing is performed or the default 1000ms timer is used (may require service restart).</p>
+      </v-col>
+      <v-col cols="9">
+        <v-row>
+            <v-col cols="6">
+                <v-switch v-model="manualEtwFlush" label="Enable"></v-switch>
+            </v-col>
+        </v-row>
+      </v-col>
+    </v-row>
+
+    <v-row class="mt-5" v-if="isDevelopment">
+      <v-col cols="3">
+        ETW Manual Flush Period
+        <p class="text--secondary text-sm-caption mb-0">Rate of manual flushing of the ETW event buffers. Offset should roughly match this.</p>
+      </v-col>
+      <v-col cols="9">
+        <v-slider
+          v-model="etwFlushPeriod"
+          :max="1000"
+          :min="1"
+          :disabled="!manualEtwFlush"
+          thumb-label="always"
+        ></v-slider>
+      </v-col>
+    </v-row>
+
     <v-row class="mt-5">
       <v-col cols="3">
         Polling Rate
@@ -22,6 +52,21 @@
           :max="240"
           :min="1"
           :messages="metricPollMessages"
+          thumb-label="always"
+        ></v-slider>
+      </v-col>
+    </v-row>
+
+    <v-row class="mt-5" v-if="isDevelopment">
+      <v-col cols="3">
+        Metric Window offset
+        <p class="text--secondary text-sm-caption mb-0">Time in ms to offset the sliding window by to ensure it doesn't slide into the time region of frames not yet received.</p>
+      </v-col>
+      <v-col cols="9">
+        <v-slider
+          v-model="offset"
+          :max="1500"
+          :min="0"
           thumb-label="always"
         ></v-slider>
       </v-col>
@@ -90,6 +135,7 @@ import { Preferences } from '@/store/preferences'
 import { Adapter } from '@/core/adapter'
 import { Adapters } from '@/store/adapters'
 import { Api } from '@/core/api'
+import { IsDevelopment } from '@/core/env-vars'
 
 
 export default Vue.extend({
@@ -100,6 +146,9 @@ export default Vue.extend({
   methods: {
   },  
   computed: {
+    isDevelopment(): boolean {
+      return IsDevelopment();
+    },
     // v-model enablers
     metricPollRate: {
       get(): number { return Preferences.preferences.metricPollRate; },

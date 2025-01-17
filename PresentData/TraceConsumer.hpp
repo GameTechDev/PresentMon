@@ -63,6 +63,8 @@ struct EventDataDesc {
 
 template<> std::string EventDataDesc::GetData<std::string>() const;
 template<> std::wstring EventDataDesc::GetData<std::wstring>() const;
+// specialization for bool because it is actually stored as uint32_t
+template<> bool EventDataDesc::GetData<bool>() const;
 
 struct EventMetadata {
     std::unordered_map<EventMetadataKey, std::vector<uint8_t>, EventMetadataKeyHash, EventMetadataKeyEqual> metadata_;

@@ -4,9 +4,8 @@
 
 namespace pmon::util
 {
-    template <typename T> struct MemberPointerInfo;
-
     // deconstruct member pointer into the object type the pointer works with and the member type
+    template <typename T> struct MemberPointerInfo;
     template <typename S, typename M>
     struct MemberPointerInfo<M S::*> {
         using StructType = S;
@@ -38,4 +37,19 @@ namespace pmon::util
     template <template <typename...> typename Template, typename T>
     concept IsContainer = IsContainerLike<T> && std::is_same_v<T, Template<typename T::value_type>>;
 
+    // trait to deduce/extract the signature details of a function by pointer
+    namespace impl {
+        template <typename T>
+        struct FunctionPtrTraitsImpl_;
+        template <typename R, typename... Args>
+        struct FunctionPtrTraitsImpl_<R(*)(Args...)> {
+            using ReturnType = R;
+            using ParameterTypes = std::tuple<Args...>;
+            template<size_t N>
+            using ParameterType = std::tuple_element_t<N, ParameterTypes>;
+            static constexpr size_t ParameterCount = sizeof...(Args);
+        };
+    }
+    template <typename T>
+    struct FunctionPtrTraits : impl::FunctionPtrTraitsImpl_<std::remove_cvref_t<T>> {};
 }

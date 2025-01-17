@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="source\ExperimentalInterprocess.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="source\Interprocess.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -35,9 +32,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="source\ExperimentalInterprocess.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="source\Interprocess.h">
       <Filter>Header Files</Filter>
     </ClInclude>

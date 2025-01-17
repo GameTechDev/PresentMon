@@ -25,7 +25,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="scripts\pre-build.bat">
+    <None Include="scripts\pre-build.ps1">
       <Filter>Source Files</Filter>
     </None>
     <None Include="generated\.gitignore" />

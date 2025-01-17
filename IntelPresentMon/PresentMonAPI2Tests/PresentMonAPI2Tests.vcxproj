@@ -101,7 +101,6 @@
     <ClCompile Include="EndToEndTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />
     <ClCompile Include="InterprocessTests.cpp" />
-    <ClCompile Include="InterprocessExperimentTests.cpp" />
     <ClCompile Include="Logging.cpp" />
     <ClCompile Include="MiddlewareTests.cpp" />
     <ClCompile Include="RealtimeMetricTests.cpp" />

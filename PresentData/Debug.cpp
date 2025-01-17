@@ -16,6 +16,8 @@
 #include "ETW/Microsoft_Windows_Win32k.h"
 #include "ETW/NT_Process.h"
 
+#include "../IntelPresentMon/CommonUtilities/Meta.h"
+
 #include <assert.h>
 #include <dxgi.h>
 
@@ -127,7 +129,7 @@ void PrintPresentResult(PresentResult value)
 void PrintPresentHistoryModel(uint32_t model)
 {
     using namespace Microsoft_Windows_DxgKrnl;
-    switch (model) {
+    switch (PresentModel(model)) {
     case PresentModel::D3DKMT_PM_UNINITIALIZED:          wprintf(L"UNINITIALIZED");          break;
     case PresentModel::D3DKMT_PM_REDIRECTED_GDI:         wprintf(L"REDIRECTED_GDI");         break;
     case PresentModel::D3DKMT_PM_REDIRECTED_FLIP:        wprintf(L"REDIRECTED_FLIP");        break;
@@ -144,7 +146,7 @@ void PrintPresentHistoryModel(uint32_t model)
 void PrintQueuePacketType(uint32_t type)
 {
     using namespace Microsoft_Windows_DxgKrnl;
-    switch (type) {
+    switch (QueuePacketType(type)) {
     case QueuePacketType::DXGKETW_RENDER_COMMAND_BUFFER:   wprintf(L"RENDER"); break;
     case QueuePacketType::DXGKETW_DEFERRED_COMMAND_BUFFER: wprintf(L"DEFERRED"); break;
     case QueuePacketType::DXGKETW_SYSTEM_COMMAND_BUFFER:   wprintf(L"SYSTEM"); break;
@@ -160,7 +162,7 @@ void PrintQueuePacketType(uint32_t type)
 void PrintDmaPacketType(uint32_t type)
 {
     using namespace Microsoft_Windows_DxgKrnl;
-    switch (type) {
+    switch (DmaPacketType(type)) {
     case DmaPacketType::DXGKETW_CLIENT_RENDER_BUFFER:    wprintf(L"CLIENT_RENDER"); break;
     case DmaPacketType::DXGKETW_CLIENT_PAGING_BUFFER:    wprintf(L"CLIENT_PAGING"); break;
     case DmaPacketType::DXGKETW_SYSTEM_PAGING_BUFFER:    wprintf(L"SYSTEM_PAGING"); break;
@@ -200,7 +202,7 @@ void PrintFrameType(FrameType type)
 void PrintInputType(uint32_t type)
 {
     using namespace Intel_PresentMon;
-    switch (type) {
+    switch (InputType(type)) {
     case InputType::Unspecified:   wprintf(L"Unspecified"); break;
     case InputType::MouseClick:    wprintf(L"MouseClick"); break;
     case InputType::KeyboardClick: wprintf(L"KeyboardClick"); break;
@@ -219,33 +221,26 @@ void PrintEventHeader(EVENT_HEADER const& hdr, char const* name)
     wprintf(L"%hs\n", name);
 }
 
-void PrintEventHeader(EVENT_RECORD* eventRecord, EventMetadata* metadata, char const* name, std::initializer_list<void*> props)
+template<typename F, typename...T>
+void PrintEventHeaderHelper_(EVENT_RECORD* eventRecord, EventMetadata* metadata, const wchar_t* propName, F&& propFunc, T&&...rest)
 {
-    assert((props.size() % 2) == 0);
+    wprintf(L" %s=", propName);
 
+    using ParamType = pmon::util::FunctionPtrTraits<F>::template ParameterType<0>;
+    propFunc(metadata->GetEventData<std::remove_cvref_t<ParamType>>(eventRecord, propName));
+
+    if constexpr (sizeof...(T)) {
+        PrintEventHeaderHelper_(eventRecord, metadata, rest...);
+    }
+}
+
+template<typename...T>
+void PrintEventHeader(EVENT_RECORD* eventRecord, EventMetadata* metadata, char const* name, std::tuple<T...> props)
+{
+    static_assert(sizeof...(T) % 2 == 0);
     PrintEventHeader(eventRecord->EventHeader);
     wprintf(L"%hs", name);
-    for (auto ii = props.begin(), ie = props.end(); ii != ie; ++ii) {
-        auto propName = (wchar_t const*) *ii; ++ii;
-        auto propFunc = *ii;
-
-        wprintf(L" %s=", propName);
-
-             if (propFunc == PrintBool)                PrintBool(metadata->GetEventData<uint32_t>(eventRecord, propName) != 0);
-        else if (propFunc == PrintU32)                 PrintU32(metadata->GetEventData<uint32_t>(eventRecord, propName));
-        else if (propFunc == PrintU64)                 PrintU64(metadata->GetEventData<uint64_t>(eventRecord, propName));
-        else if (propFunc == PrintU64x)                PrintU64x(metadata->GetEventData<uint64_t>(eventRecord, propName));
-        else if (propFunc == PrintString)              PrintString(metadata->GetEventData<std::string>(eventRecord, propName));
-        else if (propFunc == PrintWString)             PrintWString(metadata->GetEventData<std::wstring>(eventRecord, propName));
-        else if (propFunc == PrintTime)                PrintTime(metadata->GetEventData<uint64_t>(eventRecord, propName));
-        else if (propFunc == PrintTimeDelta)           PrintTimeDelta(metadata->GetEventData<uint64_t>(eventRecord, propName));
-        else if (propFunc == PrintQueuePacketType)     PrintQueuePacketType(metadata->GetEventData<uint32_t>(eventRecord, propName));
-        else if (propFunc == PrintDmaPacketType)       PrintDmaPacketType(metadata->GetEventData<uint32_t>(eventRecord, propName));
-        else if (propFunc == PrintPresentFlags)        PrintPresentFlags(metadata->GetEventData<uint32_t>(eventRecord, propName));
-        else if (propFunc == PrintPresentHistoryModel) PrintPresentHistoryModel(metadata->GetEventData<uint32_t>(eventRecord, propName));
-        else if (propFunc == PrintInputType)           PrintInputType(metadata->GetEventData<uint8_t>(eventRecord, propName));
-        else assert(false);
-    }
+    std::apply([&](auto&&...propsPack){PrintEventHeaderHelper_(eventRecord, metadata, propsPack...);}, props);
     wprintf(L"\n");
 }
 
@@ -415,8 +410,8 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
     if (hdr.ProviderId == Microsoft_Windows_DXGI::GUID) {
         using namespace Microsoft_Windows_DXGI;
         switch (hdr.EventDescriptor.Id) {
-        case Present_Start::Id:                  PrintEventHeader(eventRecord, metadata, "DXGIPresent_Start",    { L"Flags", PrintPresentFlags, }); break;
-        case PresentMultiplaneOverlay_Start::Id: PrintEventHeader(eventRecord, metadata, "DXGIPresentMPO_Start", { L"Flags", PrintPresentFlags, }); break;
+        case Present_Start::Id:                  PrintEventHeader(eventRecord, metadata, "DXGIPresent_Start",    std::tuple{ L"Flags", PrintPresentFlags, }); break;
+        case PresentMultiplaneOverlay_Start::Id: PrintEventHeader(eventRecord, metadata, "DXGIPresentMPO_Start", std::tuple{ L"Flags", PrintPresentFlags, }); break;
         case Present_Stop::Id:                   PrintEventHeader(hdr, "DXGIPresent_Stop"); break;
         case PresentMultiplaneOverlay_Stop::Id:  PrintEventHeader(hdr, "DXGIPresentMPO_Stop"); break;
         }
@@ -434,31 +429,31 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
         using namespace Microsoft_Windows_DxgKrnl;
         if (pmConsumer->mTrackDisplay) {
             switch (hdr.EventDescriptor.Id) {
-            case Blit_Info::Id:                    PrintEventHeader(eventRecord, metadata, "Blit_Info",                    { L"hwnd",               PrintU64x,
+            case Blit_Info::Id:                    PrintEventHeader(eventRecord, metadata, "Blit_Info",                     std::tuple{ L"hwnd",               PrintU64x,
                                                                                                                              L"bRedirectedPresent", PrintU32 }); break;
             case BlitCancel_Info::Id:              PrintEventHeader(hdr, "BlitCancel_Info"); break;
-            case FlipMultiPlaneOverlay_Info::Id:   PrintEventHeader(eventRecord, metadata, "FlipMultiPlaneOverlay_Info",   { L"VidPnSourceId",      PrintU32,
+            case FlipMultiPlaneOverlay_Info::Id:   PrintEventHeader(eventRecord, metadata, "FlipMultiPlaneOverlay_Info",    std::tuple{ L"VidPnSourceId",      PrintU32,
                                                                                                                              L"LayerIndex",         PrintU32 }); break;
             case Present_Info::Id:                 PrintEventHeader(hdr, "DxgKrnl_Present_Info"); break;
 
-            case MMIOFlip_Info::Id:                PrintEventHeader(eventRecord, metadata, "MMIOFlip_Info",                { L"FlipSubmitSequence", PrintU64, }); break;
-            case Flip_Info::Id:                    PrintEventHeader(eventRecord, metadata, "Flip_Info",                    { L"FlipInterval",       PrintU32,
+            case MMIOFlip_Info::Id:                PrintEventHeader(eventRecord, metadata, "MMIOFlip_Info",                 std::tuple{ L"FlipSubmitSequence", PrintU64, }); break;
+            case Flip_Info::Id:                    PrintEventHeader(eventRecord, metadata, "Flip_Info",                     std::tuple{ L"FlipInterval",       PrintU32,
                                                                                                                              L"MMIOFlip",           PrintBool, }); break;
-            case IndependentFlip_Info::Id:         PrintEventHeader(eventRecord, metadata, "IndependentFlip_Info",         { L"SubmitSequence",     PrintU32,
+            case IndependentFlip_Info::Id:         PrintEventHeader(eventRecord, metadata, "IndependentFlip_Info",          std::tuple{ L"SubmitSequence",     PrintU32,
                                                                                                                              L"FlipInterval",       PrintU32, }); break;
-            case PresentHistory_Start::Id:         PrintEventHeader(eventRecord, metadata, "PresentHistory_Start",         { L"Token",              PrintU64x,
+            case PresentHistory_Start::Id:         PrintEventHeader(eventRecord, metadata, "PresentHistory_Start",          std::tuple{ L"Token",              PrintU64x,
                                                                                                                              L"Model",              PrintPresentHistoryModel, }); break;
-            case PresentHistory_Info::Id:          PrintEventHeader(eventRecord, metadata, "PresentHistory_Info",          { L"Token",              PrintU64x,
+            case PresentHistory_Info::Id:          PrintEventHeader(eventRecord, metadata, "PresentHistory_Info",           std::tuple{ L"Token",              PrintU64x,
                                                                                                                              L"Model",              PrintPresentHistoryModel, }); break;
-            case PresentHistoryDetailed_Start::Id: PrintEventHeader(eventRecord, metadata, "PresentHistoryDetailed_Start", { L"Token",              PrintU64x,
+            case PresentHistoryDetailed_Start::Id: PrintEventHeader(eventRecord, metadata, "PresentHistoryDetailed_Start",  std::tuple{ L"Token",              PrintU64x,
                                                                                                                              L"Model",              PrintPresentHistoryModel, }); break;
-            case QueuePacket_Start::Id:            PrintEventHeader(eventRecord, metadata, "QueuePacket_Start",            { L"hContext",           PrintU64x,
+            case QueuePacket_Start::Id:            PrintEventHeader(eventRecord, metadata, "QueuePacket_Start",             std::tuple{ L"hContext",           PrintU64x,
                                                                                                                              L"SubmitSequence",     PrintU32,
                                                                                                                              L"PacketType",         PrintQueuePacketType,
                                                                                                                              L"bPresent",           PrintU32, }); break;
-            case QueuePacket_Start_2::Id:          PrintEventHeader(eventRecord, metadata, "QueuePacket_Start WAIT",       { L"hContext",           PrintU64x,
+            case QueuePacket_Start_2::Id:          PrintEventHeader(eventRecord, metadata, "QueuePacket_Start WAIT",        std::tuple{ L"hContext",           PrintU64x,
                                                                                                                              L"SubmitSequence",     PrintU32, }); break;
-            case QueuePacket_Stop::Id:             PrintEventHeader(eventRecord, metadata, "QueuePacket_Stop",             { L"hContext",           PrintU64x,
+            case QueuePacket_Stop::Id:             PrintEventHeader(eventRecord, metadata, "QueuePacket_Stop",              std::tuple{ L"hContext",           PrintU64x,
                                                                                                                              L"SubmitSequence",     PrintU32, }); break;
             case VSyncDPC_Info::Id: {
                 auto FlipFenceId = metadata->GetEventData<uint64_t>(eventRecord, L"FlipFenceId");
@@ -497,7 +492,7 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
                     FlipSubmitSequence >> 32,
                     FlipSubmitSequence & 0xffffffffll);
                 if (hdr.EventDescriptor.Version >= 2) {
-                    switch (metadata->GetEventData<uint32_t>(eventRecord, L"FlipEntryStatusAfterFlip")) {
+                    switch ((FlipEntryStatus)metadata->GetEventData<uint32_t>(eventRecord, L"FlipEntryStatusAfterFlip")) {
                     case FlipEntryStatus::FlipWaitVSync:    wprintf(L" FlipWaitVSync"); break;
                     case FlipEntryStatus::FlipWaitComplete: wprintf(L" FlipWaitComplete"); break;
                     case FlipEntryStatus::FlipWaitHSync:    wprintf(L" FlipWaitHSync"); break;
@@ -511,22 +506,22 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
         if (pmConsumer->mTrackGPU) {
             switch (hdr.EventDescriptor.Id) {
             case Context_DCStart::Id:
-            case Context_Start::Id:   PrintEventHeader(eventRecord, metadata, "Context_Start",   { L"hContext",              PrintU64x,
+            case Context_Start::Id:   PrintEventHeader(eventRecord, metadata, "Context_Start", std::tuple{ L"hContext",              PrintU64x,
                                                                                                    L"hDevice",               PrintU64x,
                                                                                                    L"NodeOrdinal",           PrintU32, }); break;
-            case Context_Stop::Id:    PrintEventHeader(eventRecord, metadata, "Context_Stop",    { L"hContext",              PrintU64x, }); break;
+            case Context_Stop::Id:    PrintEventHeader(eventRecord, metadata, "Context_Stop", std::tuple{ L"hContext",              PrintU64x, }); break;
             case Device_DCStart::Id:
-            case Device_Start::Id:    PrintEventHeader(eventRecord, metadata, "Device_Start",    { L"hDevice",               PrintU64x,
+            case Device_Start::Id:    PrintEventHeader(eventRecord, metadata, "Device_Start", std::tuple{ L"hDevice",               PrintU64x,
                                                                                                    L"pDxgAdapter",           PrintU64x, }); break;
-            case Device_Stop::Id:     PrintEventHeader(eventRecord, metadata, "Device_Stop",     { L"hDevice",               PrintU64x, }); break;
+            case Device_Stop::Id:     PrintEventHeader(eventRecord, metadata, "Device_Stop", std::tuple{ L"hDevice",               PrintU64x, }); break;
             case HwQueue_DCStart::Id:
-            case HwQueue_Start::Id:   PrintEventHeader(eventRecord, metadata, "HwQueue_Start",   { L"hContext",              PrintU64x,
+            case HwQueue_Start::Id:   PrintEventHeader(eventRecord, metadata, "HwQueue_Start", std::tuple{ L"hContext",              PrintU64x,
                                                                                                    L"hHwQueue",              PrintU64x,
                                                                                                    L"ParentDxgHwQueue",      PrintU64x, }); break;
-            case DmaPacket_Info::Id:  PrintEventHeader(eventRecord, metadata, "DmaPacket_Info",  { L"hContext",              PrintU64x,
+            case DmaPacket_Info::Id:  PrintEventHeader(eventRecord, metadata, "DmaPacket_Info", std::tuple{ L"hContext",              PrintU64x,
                                                                                                    L"ulQueueSubmitSequence", PrintU32,
                                                                                                    L"PacketType",            PrintDmaPacketType, }); break;
-            case DmaPacket_Start::Id: PrintEventHeader(eventRecord, metadata, "DmaPacket_Start", { L"hContext",              PrintU64x,
+            case DmaPacket_Start::Id: PrintEventHeader(eventRecord, metadata, "DmaPacket_Start", std::tuple{ L"hContext",              PrintU64x,
                                                                                                    L"ulQueueSubmitSequence", PrintU32, }); break;
             }
         }
@@ -594,8 +589,8 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
     if (hdr.ProviderId == Microsoft_Windows_Kernel_Process::GUID) {
         using namespace Microsoft_Windows_Kernel_Process;
         switch (hdr.EventDescriptor.Id) {
-        case ProcessStart_Start::Id: PrintEventHeader(eventRecord, metadata, "ProcessStart", { L"ProcessID", PrintU32, L"ImageName", PrintWString }); break;
-        case ProcessStop_Stop::Id:   PrintEventHeader(eventRecord, metadata, "ProcessStop",  { L"ProcessID", PrintU32, L"ImageName", PrintString }); break;
+        case ProcessStart_Start::Id: PrintEventHeader(eventRecord, metadata, "ProcessStart", std::tuple{ L"ProcessID", PrintU32, L"ImageName", PrintWString }); break;
+        case ProcessStop_Stop::Id:   PrintEventHeader(eventRecord, metadata, "ProcessStop", std::tuple{ L"ProcessID", PrintU32, L"ImageName", PrintString }); break;
         }
         return;
     }
@@ -628,7 +623,7 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
                     wprintf(L" p%u", frameId);
                 }
 
-                switch (NewState) {
+                switch (TokenState(NewState)) {
                 case TokenState::Completed: wprintf(L" NewState=Completed"); break;
                 case TokenState::InFrame:   wprintf(L" NewState=InFrame");   break;
                 case TokenState::Confirmed: wprintf(L" NewState=Confirmed"); break;
@@ -643,9 +638,9 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
         }
         if (pmConsumer->mTrackInput) {
             switch (hdr.EventDescriptor.Id) {
-            case InputDeviceRead_Stop::Id:      PrintEventHeader(eventRecord, metadata, "Win32k_InputDeviceRead_Stop", { L"DeviceType", PrintU32,  }); break;
-            case RetrieveInputMessage_Info::Id: PrintEventHeader(eventRecord, metadata, "Win32k_RetrieveInputMessage", { L"flags", PrintU32, L"hwnd", PrintU64x}); break;
-            case OnInputXformUpdate_Info::Id:   PrintEventHeader(eventRecord, metadata, "Win32k_OnInputXformUpdate",   { L"Hwnd", PrintU64x, L"XformQPCTime", PrintU64}); break;
+            case InputDeviceRead_Stop::Id:      PrintEventHeader(eventRecord, metadata, "Win32k_InputDeviceRead_Stop", std::tuple{ L"DeviceType", PrintU32,  }); break;
+            case RetrieveInputMessage_Info::Id: PrintEventHeader(eventRecord, metadata, "Win32k_RetrieveInputMessage", std::tuple{ L"flags", PrintU32, L"hwnd", PrintU64x}); break;
+            case OnInputXformUpdate_Info::Id:   PrintEventHeader(eventRecord, metadata, "Win32k_OnInputXformUpdate", std::tuple{ L"Hwnd", PrintU64x, L"XformQPCTime", PrintU64}); break;
             }
         }
         return;
@@ -679,10 +674,10 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
         if (pmConsumer->mTrackPMMeasurements) {
             switch (hdr.EventDescriptor.Id) {
             case MeasuredInput_Info::Id:
-                PrintEventHeader(eventRecord, metadata, "PM_Measurement_Input", { L"InputType", PrintInputType, L"Time", PrintU64x });
+                PrintEventHeader(eventRecord, metadata, "PM_Measurement_Input", std::tuple{ L"InputType", PrintInputType, L"Time", PrintU64x });
                 break;
             case MeasuredScreenChange_Info::Id:
-                PrintEventHeader(eventRecord, metadata, "PM_Measurement_ScreenChange", { L"Time", PrintU64x });
+                PrintEventHeader(eventRecord, metadata, "PM_Measurement_ScreenChange", std::tuple{ L"Time", PrintU64x });
                 break;
             }
             return;
@@ -692,47 +687,47 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
             switch (hdr.EventDescriptor.Id) {
             case Intel_PresentMon::AppSleepStart_Info::Id: {
                 DebugAssert(eventRecord->UserDataLength == sizeof(Intel_PresentMon::AppSleepStart_Info_Props));
-                PrintEventHeader(eventRecord, metadata, "PM_AppSleepStart", { L"FrameId", PrintU32 });
+                PrintEventHeader(eventRecord, metadata, "PM_AppSleepStart", std::tuple{ L"FrameId", PrintU32 });
             }
             return;
             case Intel_PresentMon::AppSleepEnd_Info::Id: {
                 DebugAssert(eventRecord->UserDataLength == sizeof(Intel_PresentMon::AppSleepEnd_Info_Props));
-                PrintEventHeader(eventRecord, metadata, "PM_AppSleepEnd", { L"FrameId", PrintU32 });
+                PrintEventHeader(eventRecord, metadata, "PM_AppSleepEnd", std::tuple{ L"FrameId", PrintU32 });
             }
             return;
             case Intel_PresentMon::AppSimulationStart_Info::Id: {
                 DebugAssert(eventRecord->UserDataLength == sizeof(Intel_PresentMon::AppSimulationStart_Info_Props));
-                PrintEventHeader(eventRecord, metadata, "PM_AppSimulationStart", { L"FrameId", PrintU32 });
+                PrintEventHeader(eventRecord, metadata, "PM_AppSimulationStart", std::tuple{ L"FrameId", PrintU32 });
             }
             return;
             case Intel_PresentMon::AppSimulationEnd_Info::Id: {
                 DebugAssert(eventRecord->UserDataLength == sizeof(Intel_PresentMon::AppSimulationEnd_Info_Props));
-                PrintEventHeader(eventRecord, metadata, "PM_AppSimulationEnd", { L"FrameId", PrintU32 });
+                PrintEventHeader(eventRecord, metadata, "PM_AppSimulationEnd", std::tuple{ L"FrameId", PrintU32 });
             }
             return;
             case Intel_PresentMon::AppRenderSubmitStart_Info::Id: {
                 DebugAssert(eventRecord->UserDataLength == sizeof(Intel_PresentMon::AppRenderSubmitStart_Info_Props));
-                PrintEventHeader(eventRecord, metadata, "PM_AppRenderSubmitStart", { L"FrameId", PrintU32 });
+                PrintEventHeader(eventRecord, metadata, "PM_AppRenderSubmitStart", std::tuple{ L"FrameId", PrintU32 });
             }
             return;
             case Intel_PresentMon::AppRenderSubmitEnd_Info::Id: {
                 DebugAssert(eventRecord->UserDataLength == sizeof(Intel_PresentMon::AppRenderSubmitEnd_Info_Props));
-                PrintEventHeader(eventRecord, metadata, "PM_AppRenderSubmitEnd", { L"FrameId", PrintU32 });
+                PrintEventHeader(eventRecord, metadata, "PM_AppRenderSubmitEnd", std::tuple{ L"FrameId", PrintU32 });
             }
             return;
             case Intel_PresentMon::AppPresentStart_Info::Id: {
                 DebugAssert(eventRecord->UserDataLength == sizeof(Intel_PresentMon::AppPresentStart_Info_Props));
-                PrintEventHeader(eventRecord, metadata, "PM_AppPresentStart", { L"FrameId", PrintU32 });
+                PrintEventHeader(eventRecord, metadata, "PM_AppPresentStart", std::tuple{ L"FrameId", PrintU32 });
             }
             return;
             case Intel_PresentMon::AppPresentEnd_Info::Id: {
                 DebugAssert(eventRecord->UserDataLength == sizeof(Intel_PresentMon::AppPresentEnd_Info_Props));
-                PrintEventHeader(eventRecord, metadata, "PM_AppPresentEnd", { L"FrameId", PrintU32 });
+                PrintEventHeader(eventRecord, metadata, "PM_AppPresentEnd", std::tuple{ L"FrameId", PrintU32 });
             }
             return;
             case Intel_PresentMon::AppInputSample_Info::Id: {
                 DebugAssert(eventRecord->UserDataLength == sizeof(Intel_PresentMon::AppInputSample_Info_Props));
-                PrintEventHeader(eventRecord, metadata, "PM_AppInputSample", { L"FrameId", PrintU32,
+                PrintEventHeader(eventRecord, metadata, "PM_AppInputSample", std::tuple{ L"FrameId", PrintU32,
                                                                                L"InputType", PrintInputType});
             }
             return;
@@ -743,11 +738,11 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
     if (hdr.ProviderId == NT_Process::GUID) {
         if (hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_START ||
             hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_DC_START) {
-            PrintEventHeader(eventRecord, metadata, "ProcessStart", { L"ProcessId",     PrintU32,
+            PrintEventHeader(eventRecord, metadata, "ProcessStart", std::tuple{ L"ProcessId",     PrintU32,
                                                                       L"ImageFileName", PrintString, });
         } else if (hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_END||
                    hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_DC_END) {
-            PrintEventHeader(eventRecord, metadata, "ProcessStop",  { L"ProcessId",     PrintU32 });
+            PrintEventHeader(eventRecord, metadata, "ProcessStop", std::tuple{ L"ProcessId",     PrintU32 });
         }
         return;
     }
@@ -755,9 +750,9 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
     if (hdr.ProviderId == Microsoft_Windows_Kernel_Process::GUID) {
         using namespace Microsoft_Windows_Kernel_Process;
         switch (hdr.EventDescriptor.Id) {
-        case ProcessStart_Start::Id: PrintEventHeader(eventRecord, metadata, "ProcessStart", { L"ProcessID", PrintU32,
+        case ProcessStart_Start::Id: PrintEventHeader(eventRecord, metadata, "ProcessStart", std::tuple{ L"ProcessID", PrintU32,
                                                                                                L"ImageName", PrintString, }); break;
-        case ProcessStop_Stop::Id:   PrintEventHeader(eventRecord, metadata, "ProcessStop",  { L"ProcessID", PrintU32 }); break;
+        case ProcessStop_Stop::Id:   PrintEventHeader(eventRecord, metadata, "ProcessStop", std::tuple{ L"ProcessID", PrintU32 }); break;
         }
         return;
     }

@@ -62,6 +62,30 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\PresentMon.props" />
   </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="..\IntelPresentMon\Common.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="..\IntelPresentMon\Common.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
+    <Import Project="..\IntelPresentMon\Common.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="..\IntelPresentMon\Common.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
+    <Import Project="..\IntelPresentMon\Common.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <Import Project="..\IntelPresentMon\Common.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <Import Project="..\IntelPresentMon\Common.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="..\IntelPresentMon\Common.props" />
+  </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <LinkIncremental>true</LinkIncremental>
@@ -85,7 +109,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <AdditionalLibraryDirectories>..\build\obj\PresentData-$(Platform)-$(Configuration)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>advapi32.lib;shell32.lib;tdh.lib;PresentData.lib;user32.lib</AdditionalDependencies>
+      <AdditionalDependencies>advapi32.lib;shell32.lib;tdh.lib;user32.lib</AdditionalDependencies>
       <DelayLoadDLLs>advapi32.dll;shell32.dll;tdh.dll;user32.dll</DelayLoadDLLs>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
@@ -153,6 +177,9 @@
     <None Include="..\README-ConsoleApplication.md" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\IntelPresentMon\CommonUtilities\CommonUtilities.vcxproj">
+      <Project>{08a704d8-ca1c-45e9-8ede-542a1a43b53e}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\PresentData\PresentData.vcxproj">
       <Project>{892028e5-32f6-45fc-8ab2-90fcbcac4bf6}</Project>
     </ProjectReference>

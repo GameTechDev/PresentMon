@@ -29,12 +29,20 @@
       "Command": "--p2c-log-level debug"
     },
     {
+      "Id": "8244ec79-0c35-4e62-b3b0-36b5efffa371",
+      "Command": "--p2c-log-level verbose"
+    },
+    {
       "Id": "8634f48b-7ed1-45af-8b73-5973c7b4b3c7",
       "Command": "--p2c-log-svc-pipe-enable"
     },
     {
-      "Id": "8244ec79-0c35-4e62-b3b0-36b5efffa371",
-      "Command": "--p2c-log-level verbose"
+      "Id": "bc2faf34-6d97-458c-8ff1-67f3102617da",
+      "Command": "--p2c-enable-ui-dev-options"
+    },
+    {
+      "Id": "3cfde9b7-02ee-4be8-b351-ea76191989a7",
+      "Command": "--p2c-enable-timestamp-column"
     },
     {
       "Id": "613c6ffc-013b-41c6-84db-eb54d1a0c3df",

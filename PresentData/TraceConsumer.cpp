@@ -283,3 +283,8 @@ std::wstring EventDataDesc::GetData<std::wstring>() const
 {
     return GetEventString<std::wstring>(*this);
 }
+
+template<> bool EventDataDesc::GetData<bool>() const
+{
+    return (bool)GetData<uint32_t>();
+}

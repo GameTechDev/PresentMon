@@ -18,7 +18,8 @@ namespace p2c::client::util::async
         {
             const auto& opt = cli::Options::Get();
             auto vars = MakeCefObject(
-                CefProp{ "useDebugBlocklist", (bool)opt.filesWorking }
+                CefProp{ "useDebugBlocklist", (bool)opt.filesWorking },
+                CefProp{ "enableDevMode", (bool)opt.enableUiDevOptions }
             );
             return Result{ true, std::move(vars) };
         }

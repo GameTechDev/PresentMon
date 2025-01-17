@@ -1,12 +1,13 @@
 // Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "RawFrameDataWriter.h"
-#include <CommonUtilities//str/String.h>
+#include <CommonUtilities/str/String.h>
 #include <PresentMonAPIWrapper/FrameQuery.h>
 #include <PresentMonAPIWrapperCommon/EnumMap.h>
 #include <format>
 #include <array>
 #include "RawFrameDataMetricList.h"
+#include "../cli/CliOptions.h"
 
 namespace p2c::pmon
 {
@@ -305,7 +306,7 @@ namespace p2c::pmon
         pAnimationErrorTracker{ frameStatsPath ? std::make_unique<StatisticsTracker>() : nullptr },
         file{ path }
     {
-        auto queryElements = GetRawFrameDataMetricList(activeDeviceId);
+        auto queryElements = GetRawFrameDataMetricList(activeDeviceId, cli::Options::Get().enableTimestampColumn);
         pQueryElementContainer = std::make_unique<QueryElementContainer_>(queryElements, session, introRoot);
         blobs = pQueryElementContainer->MakeBlobs(numberOfBlobs);
                 
