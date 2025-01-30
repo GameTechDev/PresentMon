@@ -109,7 +109,7 @@ bool KeywordIsEnabled(
     return Keyword == 0ull || ((Keyword & MatchAnyKeyword) && ((Keyword & MatchAllKeyword) == MatchAllKeyword));
 }
 
-void EnableCallback(
+void __stdcall EnableCallback(
     LPCGUID, // SourceId
     ULONG ControlCode,
     UCHAR Level,
