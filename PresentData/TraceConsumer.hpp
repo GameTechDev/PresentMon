@@ -71,6 +71,7 @@ struct EventMetadata {
 
     void AddMetadata(EVENT_RECORD* eventRecord);
     void GetEventData(EVENT_RECORD* eventRecord, EventDataDesc* desc, uint32_t descCount, uint32_t optionalCount=0);
+    void GetEventData(EVENT_RECORD* eventRecord, EventDataDesc* desc, uint32_t* descCount);
 
     template<typename T> T GetEventData(EVENT_RECORD* eventRecord, wchar_t const* name)
     {
@@ -78,4 +79,7 @@ struct EventMetadata {
         GetEventData(eventRecord, &desc, 1);
         return desc.GetData<T>();
     }
+
+private:
+    uint32_t GetEventDataWithCount(EVENT_RECORD* eventRecord, EventDataDesc* desc, uint32_t descCount);
 };

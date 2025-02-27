@@ -188,6 +188,24 @@ void EventMetadata::AddMetadata(EVENT_RECORD* eventRecord)
 // property in the metadata to obtain it's data pointer and size.
 void EventMetadata::GetEventData(EVENT_RECORD* eventRecord, EventDataDesc* desc, uint32_t descCount, uint32_t optionalCount /*=0*/)
 {
+    [[maybe_unused]] auto foundCount = GetEventDataWithCount(eventRecord, desc, descCount);
+    assert(foundCount >= descCount - optionalCount);
+    (void)optionalCount;
+}
+
+// Some events have been evolving over time but not incrementing the version number. As an example DXGI::SwapChain::Start.
+// Use this version of GetEventData when a data param might be available based on the version of the event
+// being processed. Be sure to check the returned event cound to ensure the expected number of descriptions have
+// been found. 
+void EventMetadata::GetEventData(EVENT_RECORD* eventRecord, EventDataDesc* desc, uint32_t* descCount)
+{
+    auto foundCount = GetEventDataWithCount(eventRecord, desc, *descCount);
+    *descCount = foundCount;
+    return;
+}
+
+uint32_t EventMetadata::GetEventDataWithCount(EVENT_RECORD* eventRecord, EventDataDesc* desc, uint32_t descCount)
+{
     // Look up stored metadata.  If not found, look up metadata using TDH and
     // cache it for future events.
     EventMetadataKey key;
@@ -207,7 +225,7 @@ void EventMetadata::GetEventData(EVENT_RECORD* eventRecord, EventDataDesc* desc,
             ii = metadata_.emplace(key, std::vector<uint8_t>(sizeof(TRACE_EVENT_INFO), 0)).first;
             assert(false);
         }
-    }
+}
 
     auto tei = (TRACE_EVENT_INFO*) ii->second.data();
 
@@ -235,7 +253,7 @@ void EventMetadata::GetEventData(EVENT_RECORD* eventRecord, EventDataDesc* desc,
 
                     foundCount += 1;
                     if (foundCount == descCount) {
-                        return;
+                        return foundCount;
                     }
                 }
             }
@@ -244,8 +262,7 @@ void EventMetadata::GetEventData(EVENT_RECORD* eventRecord, EventDataDesc* desc,
         offset += info.size_ * info.count_;
     }
 
-    assert(foundCount >= descCount - optionalCount);
-    (void) optionalCount;
+    return foundCount;
 }
 
 namespace {

@@ -151,6 +151,7 @@ PresentEvent::PresentEvent()
     , IsCompleted(false)
     , IsLost(false)
     , PresentFailed(false)
+    , IsHybridPresent(false)
     , PresentInDwmWaitingStruct(false)
 
     , WaitingForPresentStop(false)
@@ -290,6 +291,27 @@ void PMTraceConsumer::HandleDXGIEvent(EVENT_RECORD* pEventRecord)
     case Microsoft_Windows_DXGI::PresentMultiplaneOverlay_Stop::Id:
         if (IsProcessTrackedForFiltering(hdr.ProcessId)) {
             RuntimePresentStop(Runtime::DXGI, hdr, mMetadata.GetEventData<uint32_t>(pEventRecord, L"Result"));
+        }
+        break;
+    case Microsoft_Windows_DXGI::SwapChain_Start::Id:
+    case Microsoft_Windows_DXGI::ResizeBuffers_Start::Id:
+        if (mTrackHybridPresent) {
+            if (IsProcessTrackedForFiltering(hdr.ProcessId)) {
+                EventDataDesc desc[] = {
+                    { L"pIDXGISwapChain" },
+                    { L"HybridPresentMode" },
+                };
+                // Check to see if the event has both the pIDXGISwapChain and HybridPresentMode
+                // fields. If not do not process.
+                uint32_t descCount = _countof(desc);
+                mMetadata.GetEventData(pEventRecord, desc, &descCount);
+                if (descCount == _countof(desc)) {
+                    auto pSwapChain = desc[0].GetData<uint64_t>();
+                    auto hybridPresentMode = desc[1].GetData<uint32_t>();
+                    auto key = std::make_pair(hdr.ProcessId, pSwapChain);
+                    mHybridPresentModeBySwapChainPid[key] = hybridPresentMode;
+                }
+            }
         }
         break;
     default:
@@ -2392,6 +2414,18 @@ void PMTraceConsumer::RuntimePresentStop(Runtime runtime, EVENT_HEADER const& hd
                         mPresentByAppFrameId.emplace(std::make_pair(appFrameId, present->ProcessId), present);
                     }
                 }
+            }
+        }
+    }
+
+    if (mTrackHybridPresent) {
+        // Determine if this is a hybrid present
+        auto key = std::make_pair(present->ProcessId, present->SwapChainAddress);
+        auto swapIter = mHybridPresentModeBySwapChainPid.find(key);
+        if (swapIter != mHybridPresentModeBySwapChainPid.end()) {
+            Microsoft_Windows_DXGI::HybridPresentMode hybridPresentMode = (Microsoft_Windows_DXGI::HybridPresentMode)swapIter->second;
+            if (hybridPresentMode != Microsoft_Windows_DXGI::HybridPresentMode::NOT_HYBRID) {
+                present->IsHybridPresent = true;
             }
         }
     }

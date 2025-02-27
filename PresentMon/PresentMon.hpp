@@ -75,6 +75,7 @@ struct CommandLineArgs {
     bool mTrackFrameType;
     bool mTrackPMMeasurements;
     bool mTrackAppTiming;
+    bool mTrackHybridPresent;
     bool mScrollLockIndicator;
     bool mExcludeDropped;
     bool mTerminateExistingSession;

@@ -281,6 +281,9 @@ void WriteCsvHeader<FrameMetrics>(FILE* fp)
     if (args.mTrackFrameType) {
         fwprintf(fp, L",FrameType");
     }
+    if (args.mTrackHybridPresent) {
+        fwprintf(fp, L",HybridPresent");
+    }
     switch (args.mTimeUnit) {
     case TimeUnit::MilliSeconds:    fwprintf(fp, L",CPUStartTime"); break;
     case TimeUnit::QPC:             fwprintf(fp, L",CPUStartQPC"); break;
@@ -351,6 +354,10 @@ void WriteCsvRow<FrameMetrics>(
     if (args.mTrackFrameType) {
         fwprintf(fp, L",%hs", FrameTypeToString(metrics.mFrameType));
     }
+    if (args.mTrackHybridPresent) {
+        fwprintf(fp, L",%d", p.IsHybridPresent);
+    }
+
     switch (args.mTimeUnit) {
     case TimeUnit::MilliSeconds:
         fwprintf(fp, L",%.4lf", pmSession.TimestampToMilliSeconds(metrics.mCPUStart));

@@ -415,6 +415,10 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, EVENT_RECORD* eventRecor
         case Present_Stop::Id:                   PrintEventHeader(hdr, "DXGIPresent_Stop"); break;
         case PresentMultiplaneOverlay_Stop::Id:  PrintEventHeader(hdr, "DXGIPresentMPO_Stop"); break;
         }
+        if (pmConsumer->mTrackHybridPresent) {
+            if (hdr.EventDescriptor.Id == ResizeBuffers_Start::Id)              { PrintEventHeader(hdr, "DXGIResizeBuffers_Start"); }
+            if (hdr.EventDescriptor.Id == SwapChain_Start::Id)                  { PrintEventHeader(hdr, "DXGISwapChain_Start"); }
+        }
         return;
     }
 

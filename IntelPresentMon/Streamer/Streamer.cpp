@@ -153,12 +153,7 @@ void Streamer::ProcessPresentEvent(
         gpu_telemetry_cap_bits,
     std::bitset<static_cast<size_t>(CpuTelemetryCapBits::cpu_telemetry_count)>
         cpu_telemetry_cap_bits) {
-    uint32_t process_id;
-    if (stream_mode_ == StreamMode::kOfflineEtl) {
-      process_id = static_cast<uint32_t>(StreamPidOverride::kEtlPid);
-    } else {
-      process_id = present_event->ProcessId;
-    }
+    uint32_t process_id = present_event->ProcessId;
 
     // Lock the nsm mutex as stop streaming calls can occur at any time
     // and destroy the named shared memory during writing of frame data.

@@ -729,6 +729,10 @@ ULONG EnableProvidersListing(
     provider.AddEvent<Microsoft_Windows_DXGI::Present_Stop>();
     provider.AddEvent<Microsoft_Windows_DXGI::PresentMultiplaneOverlay_Start>();
     provider.AddEvent<Microsoft_Windows_DXGI::PresentMultiplaneOverlay_Stop>();
+    if (pmConsumer->mTrackHybridPresent) {
+        provider.AddEvent<Microsoft_Windows_DXGI::SwapChain_Start>();
+        provider.AddEvent<Microsoft_Windows_DXGI::ResizeBuffers_Start>();
+    }
     status = provider.Enable(sessionHandle, Microsoft_Windows_DXGI::GUID);
     if (status != ERROR_SUCCESS) return status;
 

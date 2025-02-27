@@ -24,6 +24,7 @@
 #include "Debug.hpp"
 #include "GpuTrace.hpp"
 #include "TraceConsumer.hpp"
+#include "../IntelPresentMon/CommonUtilities/Hash.h"
 
 // PresentMode represents the different paths a present can take on windows.
 //
@@ -249,6 +250,7 @@ struct PresentEvent {
     bool IsLost;                // This PresentEvent was found in an unexpected state and analysis could not continue (potentially
                                 // due to missing a critical ETW event'.
     bool PresentFailed;         // The Present() call failed.
+    bool IsHybridPresent;       // This present is a hybrid present and is performing a cross adapter copy.
 
     bool PresentInDwmWaitingStruct; // Whether this PresentEvent is currently stored in
                                     // PMTraceConsumer::mPresentsWaitingForDWM
@@ -293,6 +295,7 @@ struct PMTraceConsumer
     bool mTrackFrameType = false;      // ... the frame type communicated through the Intel-PresentMon provider.
     bool mTrackPMMeasurements = false; // ... external measurements provided through the Intel-PresentMon provider
     bool mTrackAppTiming = false;      // ... app timing data communicated through the Intel-PresentMon provider.
+    bool mTrackHybridPresent = false;  // ... hybrid presents.
 
     // When PresentEvents are missing data that may still arrive later, they get put into a deferred
     // state until the data arrives.  This time limit specifies how long a PresentEvent can be
@@ -423,12 +426,15 @@ struct PMTraceConsumer
         std::size_t operator()(Win32KPresentHistoryToken const& v) const noexcept;
     };
     
-    // Custom hash function for std::pair<uint32_t, uint32_t>
+    template <typename T, typename U>
     struct PairHash {
-        std::size_t operator()(const std::pair<uint32_t, uint32_t>& p) const noexcept {
-            return std::hash<uint32_t>{}(p.first) ^ (std::hash<uint32_t>{}(p.second) << 1);
+        size_t operator()(const std::pair<T, U>& p) const noexcept
+        {
+            using namespace pmon::util::hash;
+            return DualHash(p.first, p.second);
         }
     };
+
     std::unordered_map<uint32_t, std::shared_ptr<PresentEvent>> mPresentByThreadId;                     // ThreadId -> PresentEvent
     std::unordered_map<uint32_t, OrderedPresents>               mOrderedPresentsByProcessId;            // ProcessId -> ordered PresentStartTime -> PresentEvent
     std::unordered_map<uint32_t, std::unordered_map<uint64_t, std::shared_ptr<PresentEvent>>>
@@ -442,10 +448,15 @@ struct PMTraceConsumer
     std::unordered_map<uint64_t, std::shared_ptr<PresentEvent>> mLastPresentByWindow;                   // HWND -> PresentEvent
     std::unordered_map<uint64_t, MouseClickData>                mReceivedMouseClickByHwnd;              // HWND -> MouseClickData
     std::unordered_map<std::pair<uint32_t, uint32_t>, 
-                       std::shared_ptr<PresentEvent>, PairHash> mPresentByAppFrameId;                   // Intel provider app frame id -> PresentEvent
+                       std::shared_ptr<PresentEvent>,
+                       PairHash<uint32_t, uint32_t>>            mPresentByAppFrameId;                   // Intel provider app frame id -> PresentEvent
     std::unordered_map<uint32_t, uint32_t>                      mNextAppFrameIdByProcessid;             // ProcessId -> Next Intel provider app frame id
     std::unordered_map<std::pair<uint32_t, uint32_t>,
-                       AppTimingData, PairHash>                 mPendingAppTimingDataByAppFrameId;      // Intel provider app frame id -> AppTimingData
+                       AppTimingData,
+                       PairHash<uint32_t, uint32_t>>            mPendingAppTimingDataByAppFrameId;      // Intel provider app frame id -> AppTimingData
+    std::unordered_map<std::pair<uint32_t, uint64_t>,
+                       uint32_t,
+                       PairHash<uint32_t, uint64_t>>             mHybridPresentModeBySwapChainPid;       // SwapChain and process id -> HybridPresentMode
 
     // mGpuTrace tracks work executed on the GPU.
     GpuTrace mGpuTrace;
