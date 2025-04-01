@@ -38,6 +38,7 @@
     <ClInclude Include="Logging.h" />
     <ClInclude Include="MemoryPool.h" />
     <ClInclude Include="NonCopyable.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="WrapUtils.h" />
   </ItemGroup>
   <ItemGroup>
@@ -65,6 +66,11 @@
     <ProjectReference Include="..\CommonUtilities\CommonUtilities.vcxproj">
       <Project>{08a704d8-ca1c-45e9-8ede-542a1a43b53e}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="FlashInjectorLibrary.rc">
+      <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">ISX86;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

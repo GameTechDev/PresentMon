@@ -4,7 +4,7 @@
         Id="*"
         Name="Intel(R) PresentMon"
         Language="1033"
-        Version="2.3.0.0"
+        Version="2.3.1.0"
         Manufacturer="Intel(R) Corporation"
         UpgradeCode="CD0D489E-0FE7-452D-90D9-F94F3F5FF410">
 
@@ -16,7 +16,7 @@
 
         <MediaTemplate EmbedCab="yes" />
 
-        <?define console_app_ver = 2.3.0 ?>
+        <?define console_app_ver = 2.3.1 ?>
         <?define console_app_path = $(pm.GetConsoleAppPath($(var.SolutionDir), $(var.console_app_ver))) ?>
         <?define console_app_filename = $(pm.GetConsoleAppFileName($(var.console_app_ver))) ?>
         <?define has_console_app = $(pm.CheckFileExists($(var.console_app_path))) ?>

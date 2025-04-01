@@ -2,7 +2,7 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Label="UserMacros">
     <!-- PresentMonVersion should be "dev" on main branch, and the version number (e.g., 2.1.0) on release branches. -->
-    <PresentMonVersion>2.3.0</PresentMonVersion>
+    <PresentMonVersion>2.3.1</PresentMonVersion>
     <PresentMonPlatform>$(Platform)</PresentMonPlatform>
   </PropertyGroup>
   <PropertyGroup Label="UserMacros" Condition="'$(Platform)'=='Win32'">

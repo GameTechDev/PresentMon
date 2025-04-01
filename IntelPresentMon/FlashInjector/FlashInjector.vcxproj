@@ -170,6 +170,7 @@
     <ClInclude Include="CliOptions.h" />
     <ClInclude Include="LibraryInject.h" />
     <ClInclude Include="Logging.h" />
+    <ClInclude Include="resource1.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CommonUtilities\CommonUtilities.vcxproj">
@@ -178,6 +179,11 @@
     <ProjectReference Include="..\FlashInjectorLibrary\FlashInjectorLibrary.vcxproj">
       <Project>{2e571d96-1196-45d4-ae13-f05ceb1f23c8}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="FlashInjector.rc">
+      <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">ISX86;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
