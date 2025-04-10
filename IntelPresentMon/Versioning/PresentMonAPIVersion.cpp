@@ -1,14 +1,15 @@
 #include "PresentMonAPIVersion.h"
 #include "BuildId.h"
 #include <cstring>
+#include "../PresentMonAPI2/PresentMonAPI.h"
 
 namespace pmon::bid
 {
 	PM_VERSION GetApiVersion() noexcept
 	{
 		PM_VERSION ver{
-			.major = 3,
-			.minor = 0,
+			.major = PM_API_VERSION_MAJOR,
+			.minor = PM_API_VERSION_MINOR,
 			.patch = 0,
 			.tag = "",
 		};

@@ -9,9 +9,13 @@
 
 #include <cstdint>
 
+#define PM_API_VERSION_MAJOR 3
+#define PM_API_VERSION_MINOR 0
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 	enum PM_STATUS
 	{
