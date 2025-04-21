@@ -1,4 +1,5 @@
 // Copyright (C) 2017-2024 Intel Corporation
+// Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -117,6 +118,9 @@ struct FrameMetrics {
     double mInstrumentedGpuLatency;
     double mReadyTimeToDisplayLatency;
     double mInstrumentedInputTime;
+
+    // Internal NVIDIA Metrics
+    double mFlipDelay;
 };
 
 struct FrameMetrics1 {
@@ -130,6 +134,9 @@ struct FrameMetrics1 {
     double msVideoDuration;
     double msSinceInput;
     uint64_t qpcScreenTime;
+
+    // Internal NVIDIA Metrics
+    double msFlipDelay;
 };
 
 // We store SwapChainData per process and per swapchain, where we maintain:
@@ -162,6 +169,9 @@ struct SwapChainData {
     float mAvgGPUDuration = 0.f;
     float mAvgDisplayLatency = 0.f;
     float mAvgDisplayedTime = 0.f;
+
+    // Internal NVIDIA Metrics
+    uint64_t mLastDisplayedFlipDelay = 0;
 };
 
 struct ProcessInfo {

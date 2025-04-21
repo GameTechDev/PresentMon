@@ -1,9 +1,11 @@
 // Copyright (C) 2017-2024 Intel Corporation
+// Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
 #include "Debug.hpp"
 #include "PresentMonTraceConsumer.hpp"
 #include "PresentMonTraceSession.hpp"
+#include "NvidiaTraceConsumer.hpp"
 
 #include "ETW/Microsoft_Windows_D3D9.h"
 #include "ETW/Microsoft_Windows_Dwm_Core.h"
@@ -16,6 +18,7 @@
 #include "ETW/Microsoft_Windows_Win32k.h"
 #include "ETW/NT_Process.h"
 #include "ETW/Intel_PresentMon.h"
+#include "ETW/NV_DD.h"
 
 namespace {
 
@@ -280,6 +283,7 @@ void DisableProviders(TRACEHANDLE sessionHandle)
     status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_DxgKrnl::Win7::GUID,  EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
     status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Kernel_Process::GUID, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
     status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Win32k::GUID,         EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
+    status = EnableTraceEx2(sessionHandle, &NvidiaDisplayDriver_Events::GUID,       EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
 }
 
 template<
@@ -361,6 +365,10 @@ void CALLBACK EventRecordCallback(EVENT_RECORD* pEventRecord)
         }
         if (hdr.ProviderId == Microsoft_Windows_DxgKrnl::Win7::MMIOFLIP_GUID) {
             session->mPMConsumer->HandleWin7DxgkMMIOFlip(pEventRecord);
+            return;
+        }
+        if (hdr.ProviderId == NvidiaDisplayDriver_Events::GUID) {
+            session->mPMConsumer->HandleNvidiaDisplayDriverEvent(pEventRecord);
             return;
         }
     }
@@ -776,6 +784,13 @@ ULONG EnableProvidersListing(
         status = provider.Enable(sessionHandle, Intel_PresentMon::GUID);
         if (status != ERROR_SUCCESS) return status;
     }
+
+    // Nvidia_DisplayDriver
+    //
+    provider.ClearFilter();
+    provider.AddEvent<NvidiaDisplayDriver_Events::FlipRequest>();
+    status = provider.Enable(sessionHandle, NvidiaDisplayDriver_Events::GUID);
+    if (status != ERROR_SUCCESS) return status;
 
     return ERROR_SUCCESS;
 }

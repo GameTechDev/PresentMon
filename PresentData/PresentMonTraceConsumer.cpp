@@ -1,4 +1,5 @@
 // Copyright (C) 2017-2024 Intel Corporation
+// Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
 #include "PresentMonTraceConsumer.hpp"
@@ -930,6 +931,9 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
             auto present = FindPresentBySubmitSequence(submitSequence);
             if (present != nullptr) {
 
+                // Apply Nvidia FlipDelay, if any, to the presentEvent
+                mNvTraceConsumer.ApplyFlipDelay(present.get(), hdr.ThreadId);
+
                 // Complete the GPU tracking for this frame.
                 //
                 // For some present modes (e.g., Hardware_Legacy_Flip) this may be
@@ -952,7 +956,7 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
                         // this the present screen time.
                         if (FlipEntryStatusAfterFlip != (uint32_t) Microsoft_Windows_DxgKrnl::FlipEntryStatus::FlipWaitHSync) {
 
-                            SetScreenTime(present, hdr.TimeStamp.QuadPart);
+                            SetScreenTime(present, hdr.TimeStamp.QuadPart + present->FlipDelay);
 
                             if (present->PresentMode == PresentMode::Hardware_Legacy_Flip) {
                                 CompletePresent(present);
@@ -1351,6 +1355,12 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
     }
 
     assert(!mFilteredEvents); // Assert that filtering is working if expected
+}
+
+
+void PMTraceConsumer::HandleNvidiaDisplayDriverEvent(EVENT_RECORD* pEventRecord)
+{
+    mNvTraceConsumer.HandleNvidiaDisplayDriverEvent(pEventRecord, this);
 }
 
 void PMTraceConsumer::HandleWin7DxgkBlt(EVENT_RECORD* pEventRecord)

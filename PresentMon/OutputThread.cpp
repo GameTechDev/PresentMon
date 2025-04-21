@@ -1,4 +1,5 @@
 // Copyright (C) 2017-2024 Intel Corporation
+// Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
 #include "PresentMon.hpp"
@@ -250,9 +251,31 @@ static void UpdateChain(
                                                 chain->mLastPresent->TimeInPresent;
         }
         chain->mLastDisplayedScreenTime = p->Displayed.empty() ? 0 : p->Displayed.back().second;
+        // Update last flipDelay. For NV GPU, size of p->Displayed can only be empty or 1
+        chain->mLastDisplayedFlipDelay = p->Displayed.empty() ? 0 : p->FlipDelay;
     }
 
     chain->mLastPresent = p;
+}
+
+static void AdjustScreenTimeForCollapsedPresentNV1(
+    SwapChainData* chain,
+    std::shared_ptr<PresentEvent> const& p,
+    uint64_t& screenTime)
+{
+    if (chain->mLastDisplayedFlipDelay > 0 && (chain->mLastDisplayedScreenTime > screenTime)) {
+        // If chain->mLastDisplayedScreenTime that is adjusted by flipDelay is larger than screenTime,
+        // it implies the last displayed present is a collapsed present, or a runt frame.
+        // So we adjust the screenTime and flipDelay of screenTime,
+        // effectively making screenTime equals to chain->mLastDisplayedScreenTime.
+
+        // Cast away constness of p to adjust the screenTime and flipDelay.
+        PresentEvent* pp = const_cast<PresentEvent*>(p.get());
+        if (!pp->Displayed.empty()) {
+            pp->FlipDelay += chain->mLastDisplayedScreenTime - screenTime;
+            pp->Displayed[0].second = chain->mLastDisplayedScreenTime;
+        }
+    }
 }
 
 static void ReportMetrics1(
@@ -267,6 +290,9 @@ static void ReportMetrics1(
 
     uint64_t screenTime = p->Displayed.empty() ? 0 : p->Displayed[0].second;
 
+    // Special handling for NV flipDelay
+    AdjustScreenTimeForCollapsedPresentNV1(chain, p, screenTime);
+
     FrameMetrics1 metrics;
     metrics.msBetweenPresents      = chain->mLastPresent == nullptr ? 0 : pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastPresent->PresentStartTime, p->PresentStartTime);
     metrics.msInPresentApi         = pmSession.TimestampDeltaToMilliSeconds(p->TimeInPresent);
@@ -278,6 +304,7 @@ static void ReportMetrics1(
     metrics.msVideoDuration        = pmSession.TimestampDeltaToMilliSeconds(p->GPUVideoDuration);
     metrics.msSinceInput           = p->InputTime == 0 ? 0 : pmSession.TimestampDeltaToMilliSeconds(p->PresentStartTime - p->InputTime);
     metrics.qpcScreenTime          = screenTime;
+    metrics.msFlipDelay            = p->FlipDelay ? pmSession.TimestampDeltaToMilliSeconds(p->FlipDelay) : 0;
 
     if (isRecording) {
         UpdateCsv(pmSession, processInfo, *p, metrics);
@@ -308,6 +335,28 @@ static void CalculateAnimationTime(
         animationTime = pmSession.TimestampDeltaToMilliSeconds(firstSimStartTime, currentSimTime);
     } else {
         animationTime = 0.;
+    }
+}
+
+
+static void AdjustScreenTimeForCollapsedPresentNV(
+    std::shared_ptr<PresentEvent> const& p,
+    PresentEvent const* nextDisplayedPresent,
+    uint64_t& screenTime,
+    uint64_t& nextScreenTime)
+{
+    // nextDisplayedPresent should always be non-null for NV GPU.
+    if (p->FlipDelay && screenTime > nextScreenTime && nextDisplayedPresent) {
+        // If screenTime that is adjusted by flipDelay is larger than nextScreenTime,
+        // it implies this present is a collapsed present, or a runt frame.
+        // So we adjust the screenTime and flipDelay of nextDisplayedPresent,
+        // effectively making nextScreenTime equals to screenTime.
+
+        // Cast away constness of nextDisplayedPresent to adjust the screenTime and flipDelay.
+        PresentEvent* nextDispPresent = const_cast<PresentEvent*>(nextDisplayedPresent);
+        nextDispPresent->FlipDelay += (screenTime - nextScreenTime);
+        nextScreenTime = screenTime;
+        nextDispPresent->Displayed[0].second = nextScreenTime;
     }
 }
 
@@ -405,6 +454,10 @@ static void ReportMetricsHelper(
         }
 
         if (displayed) {
+            // Special handling for NV flipDelay
+            AdjustScreenTimeForCollapsedPresentNV(p, nextDisplayedPresent, screenTime, nextScreenTime);
+
+            metrics.mFlipDelay      = p->FlipDelay ? pmSession.TimestampDeltaToMilliSeconds(p->FlipDelay) : 0;
             metrics.mDisplayLatency = pmSession.TimestampDeltaToUnsignedMilliSeconds(metrics.mCPUStart, screenTime);
             metrics.mDisplayedTime  = pmSession.TimestampDeltaToUnsignedMilliSeconds(screenTime, nextScreenTime);
             metrics.mScreenTime     = screenTime;
