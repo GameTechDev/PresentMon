@@ -1,4 +1,5 @@
 // Copyright (C) 2017-2024 Intel Corporation
+// Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 #pragma once
 
@@ -24,6 +25,7 @@
 #include "Debug.hpp"
 #include "GpuTrace.hpp"
 #include "TraceConsumer.hpp"
+#include "NvidiaTraceConsumer.hpp"
 #include "../IntelPresentMon/CommonUtilities/Hash.h"
 
 // PresentMode represents the different paths a present can take on windows.
@@ -271,6 +273,9 @@ struct PresentEvent {
     // until a PresentFrameType_Info event with a different FrameId).
     bool WaitingForFrameId;
 
+    // Data from NV DisplayDriver event
+    uint64_t FlipDelay = 0;
+    uint32_t FlipToken = 0;
 
     PresentEvent();
     PresentEvent(uint32_t fid);
@@ -487,6 +492,8 @@ struct PMTraceConsumer
 
     std::unordered_map<uint32_t, InputData> mRetrievedInput; // ProcessID -> InputData<InputTime, InputType, isMouseClick>
 
+    // Trace consumer that handles events coming from Nvidia DisplayDriver
+    NVTraceConsumer mNvTraceConsumer;
 
     // -------------------------------------------------------------------------------------------
     // Functions for decoding ETW and analysing process and present events.
@@ -516,6 +523,7 @@ struct PMTraceConsumer
     void HandleDWMEvent(EVENT_RECORD* pEventRecord);
     void HandleMetadataEvent(EVENT_RECORD* pEventRecord);
     void HandleIntelPresentMonEvent(EVENT_RECORD* pEventRecord);
+    void HandleNvidiaDisplayDriverEvent(EVENT_RECORD* pEventRecord);
 
     void HandleWin7DxgkBlt(EVENT_RECORD* pEventRecord);
     void HandleWin7DxgkFlip(EVENT_RECORD* pEventRecord);

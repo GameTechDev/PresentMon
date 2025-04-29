@@ -353,7 +353,9 @@
     <ClInclude Include="ETW\Microsoft_Windows_Win32k.h" />
     <ClInclude Include="ETW\NT_Process.h" />
     <ClInclude Include="Debug.hpp" />
+    <ClInclude Include="ETW\NV_DD.h" />
     <ClInclude Include="GpuTrace.hpp" />
+    <ClInclude Include="NvidiaTraceConsumer.hpp" />
     <ClInclude Include="PresentMonTraceConsumer.hpp" />
     <ClInclude Include="TraceConsumer.hpp" />
     <ClInclude Include="PresentMonTraceSession.hpp" />
@@ -361,6 +363,7 @@
   <ItemGroup>
     <ClCompile Include="Debug.cpp" />
     <ClCompile Include="GpuTrace.cpp" />
+    <ClCompile Include="NvidiaTraceConsumer.cpp" />
     <ClCompile Include="PresentMonTraceConsumer.cpp" />
     <ClCompile Include="TraceConsumer.cpp" />
     <ClCompile Include="PresentMonTraceSession.cpp" />
