@@ -1,4 +1,5 @@
 // Copyright (C) 2017-2024 Intel Corporation
+// Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
 #include "PresentMonTraceConsumer.hpp"
@@ -1568,7 +1569,16 @@ void PMTraceConsumer::HandleWin32kEvent(EVENT_RECORD* pEventRecord)
                         // collisions during lookup for events that don't reference
                         // a context.
                         VerboseTraceBeforeModifyingPresent(prevPresent.get());
-                        prevPresent->FinalState = PresentResult::Discarded;
+						
+                        // In certain cases like when there are short bursts of presents, 
+                        // we get multiple back to back flips and token tracking thread 
+                        // ends up marking the first frame in the burst as dropped. 
+                        // To fix this issue, we mark the frame as discarded only if 
+                        // the frame already doesn’t have valid ScreenTime. 
+                        if (!HasScreenTime(prevPresent)) {
+                            prevPresent->FinalState = PresentResult::Discarded;
+                        }
+
                         RemovePresentFromSubmitSequenceIdTracking(prevPresent);
                     }
                 }
