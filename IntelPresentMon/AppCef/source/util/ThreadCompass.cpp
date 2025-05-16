@@ -1,6 +1,7 @@
 // Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "ThreadCompass.h"
+#include "../CommonUtilities/win/WinAPI.h"
 #include <include/wrapper/cef_helpers.h>
 
 namespace p2c::client::util

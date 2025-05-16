@@ -1,4 +1,4 @@
-cd Web
+cd ipm-ui-vue
 
 echo "Install NPM Packages..."
 call npm ci

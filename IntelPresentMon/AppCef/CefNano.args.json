@@ -54,7 +54,7 @@
     },
     {
       "Id": "613c6ffc-013b-41c6-84db-eb54d1a0c3df",
-      "Command": "--p2c-url \"http://localhost:8080\""
+      "Command": "--p2c-url \"http://localhost:5173\""
     },
     {
       "Id": "ba03a214-d200-4c5b-802b-52b2e44baadf",

@@ -13,6 +13,7 @@
 #include <dwmapi.h>
 #include <boost/process.hpp>
 #include <Shobjidl.h>
+#include <include/cef_version.h>
 
 
 #pragma comment(lib, "Dwmapi.lib")
@@ -177,7 +178,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     constexpr bool is_debug = true;
 #endif
     // parse the command line arguments and make them globally available
-    if (auto err = Options::Init(__argc, __argv, true)) {
+    if (auto err = Options::Init(__argc, __argv, false)) {
         return *err;
     }
     const auto& opt = Options::Get();
@@ -219,13 +220,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
         // code from here on is only executed by the root process (browser window process)
 
-        pmlog_info(std::format("== client section starting build#{} clean:{} ==", BuildIdShortHash(), !BuildIdDirtyFlag()));
+        pmlog_info(std::format("== client section starting build#{} clean:{} CEF:{} ==",
+            BuildIdShortHash(), !BuildIdDirtyFlag(), CEF_VERSION));
 
         {
             auto& folderResolver = infra::util::FolderResolver::Get();
             CefSettings settings;
             settings.multi_threaded_message_loop = true;
-            settings.remote_debugging_port = is_debug ? 9009 : 0;
+            settings.remote_debugging_port = is_debug || opt.enableChromiumDebug ? 9009 : 0;
             settings.background_color = { 0x000000 };
             CefString(&settings.cache_path).FromWString(folderResolver.Resolve(infra::util::FolderResolver::Folder::App, L"cef-cache"));
             if (opt.logFolder) {
@@ -258,14 +260,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
         return (int)msg.wParam;
     }
-    catch (const std::exception& e) {
-        auto title = std::format("Fatal Error [{}]", typeid(e).name());
-        MessageBoxA(nullptr, e.what(), title.c_str(), MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
-        return -1;
-    }
     catch (...) {
-        MessageBoxA(nullptr, "Unidentified exception was thrown", "Fatal Error",
-            MB_ICONERROR|MB_APPLMODAL|MB_SETFOREGROUND);
+        pmlog_error(ReportException("Fatal Error"));
         return -1;
     }
 }

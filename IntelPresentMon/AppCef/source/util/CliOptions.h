@@ -19,6 +19,8 @@ namespace p2c::client::util::cli
 		Flag filesWorking{ this, "--p2c-files-working", "Use the working directory for file storage" };
 		Flag traceExceptions{ this, "--p2c-trace-exceptions", "Add stack trace to all thrown exceptions (including SEH exceptions)" };
 		Flag enableUiDevOptions{ this, "--p2c-enable-ui-dev-options", "Enable advanced UI elements useful during development" };
+		Option<std::string> webRoot{ this, "--p2c-web-root", "", "Filesystem path to directory holding SPA assets" };
+		Flag enableChromiumDebug{ this, "--p2c-enable-chromium-debug", "Enable Chromium devtools connections on port 9009" };
 
 
 	private: Group gl_{ this, "Logging", "Customize logging for this tool" }; public:

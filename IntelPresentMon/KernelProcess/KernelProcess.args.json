@@ -89,10 +89,6 @@
       "Command": "--help"
     },
     {
-      "Id": "014ad39a-6be3-40a1-908e-62e47282af3e",
-      "Command": "--remote-allow-origins=http://127.0.0.1:9009"
-    },
-    {
       "Id": "0a44a142-1ca4-4e76-9632-bad6e9e845ff",
       "Command": "--ui-flag enable-ui-dev-options"
     },
@@ -102,7 +98,15 @@
     },
     {
       "Id": "3a21ce62-1247-45a5-81ef-6698569c73e4",
-      "Command": "--ui-option url  \"http://localhost:8080\""
+      "Command": "--ui-option url  \"http://localhost:5173\""
+    },
+    {
+      "Id": "eeaa57c0-80dc-4b72-a051-77843e4706f6",
+      "Command": "--ui-option web-root \"C:\\Files\\Repos\\PresentMon\\IntelPresentMon\\AppCef\\ipm-ui-vue\\dist\""
+    },
+    {
+      "Id": "5217575f-37d8-4f60-a2d2-a85992ce4341",
+      "Command": "--ui-flag enable-chromium-debug"
     }
   ]
 }

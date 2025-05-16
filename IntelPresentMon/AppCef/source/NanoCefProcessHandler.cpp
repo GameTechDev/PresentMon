@@ -57,8 +57,10 @@ namespace p2c::client::cef
 
         const auto hardFail = is_debug && !opt.noNetFail;
 
-        CefRegisterSchemeHandlerFactory("https", "", new SchemeHandlerFactory{ mode, hardFail, host, port });
-        CefRegisterSchemeHandlerFactory("http", "", new SchemeHandlerFactory{ mode, hardFail, std::move(host), std::move(port) });
+        const auto webRootOverride = *opt.webRoot;
+
+        CefRegisterSchemeHandlerFactory("https", "", new SchemeHandlerFactory{ mode, hardFail, host, port, webRootOverride });
+        CefRegisterSchemeHandlerFactory("http", "", new SchemeHandlerFactory{ mode, hardFail, host, port, webRootOverride });
     }
 
     CefRefPtr<CefBrowserProcessHandler> NanoCefProcessHandler::GetBrowserProcessHandler()

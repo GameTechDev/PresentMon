@@ -21,7 +21,7 @@ namespace p2c::client::cef
             Web,
         };
         // functions
-        SchemeHandlerFactory(SchemeMode mode, bool hardFail, std::string localHost = "", std::string localPort = "");
+        SchemeHandlerFactory(SchemeMode mode, bool hardFail, std::string localHost = "", std::string localPort = "", std::string webRoot = "");
 
         // Returns a new scheme handler instance to handle the request.
         CefRefPtr<CefResourceHandler> Create(CefRefPtr<CefBrowser> browser,

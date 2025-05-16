@@ -20,6 +20,7 @@
         <?define console_app_path = $(pm.GetConsoleAppPath($(var.SolutionDir), $(var.console_app_ver))) ?>
         <?define console_app_filename = $(pm.GetConsoleAppFileName($(var.console_app_ver))) ?>
         <?define has_console_app = $(pm.CheckFileExists($(var.console_app_path))) ?>
+		<?define WebRoot = "$(var.PresentMon.TargetDir)ipm-ui-vue" ?>
 
         <Feature
             Id="complete_install"
@@ -44,7 +45,6 @@
                 <ComponentGroupRef Id="pm_app_web_js" />
                 <ComponentGroupRef Id="shortcuts" />
                 <ComponentGroupRef Id="desktop_shortcut" />
-                <!--- <ComponentGroupRef Id="cli_files" /> -->
             </Feature>
             <Feature
                 Id="presentmon_provider_install"
@@ -156,16 +156,13 @@
                                 Name="Presets"/>
                             <Directory
                                 Id="pm_app_web_folder"
-                                Name="Web">
+                                Name="ipm-ui-vue">
                                 <Directory
                                     Id="pm_app_web_css_folder"
                                     Name="css"/>
                                 <Directory
                                     Id="pm_app_web_fonts_folder"
                                     Name="fonts"/>
-                                <Directory
-                                    Id="pm_app_web_img_folder"
-                                    Name="img"/>
                                 <Directory
                                     Id="pm_app_web_js_folder"
                                     Name="js"/>
@@ -442,7 +439,7 @@
                 <File
                     Id="pm_app_target_block_list_txt"
                     Name="TargetBlockList.txt"
-                    Source="$(var.PresentMon.ProjectDir)Web\Blocklists\TargetBlockList.txt"
+                    Source="$(var.PresentMon.TargetDir)Blocklists\TargetBlockList.txt"
                     KeyPath="yes">
                 </File>
             </Component>
@@ -578,22 +575,12 @@
             Id="pm_app_web"
             Directory="pm_app_web_folder">
             <Component
-                Id="pm_app_web_favicon_ico"
-                Guid="06643F2A-7F6F-4FFA-930C-51DA06989552">
-                <File
-                    Id="pm_app_web_favicon_ico"
-                    Name="favicon.ico"
-                    Source="$(var.PresentMon.TargetDir)web\favicon.ico"
-                    KeyPath="yes">
-                </File>
-            </Component>
-            <Component
                 Id="pm_app_web_index_html"
                 Guid="E23A99DE-069B-4B6C-A42C-CBA631EB10FB">
                 <File
                     Id="pm_app_web_index_html"
                     Name="index.html"
-                    Source="$(var.PresentMon.TargetDir)web\index.html"
+                    Source="$(var.WebRoot)\index.html"
                     KeyPath="yes">
                 </File>
             </Component>
@@ -606,18 +593,8 @@
                 Guid="50946F92-182F-4029-BFFE-60735858373F">
                 <File
                     Id="pm_app_web_css_app_2a6b37b7_css"
-                    Name="app.css"
-                    Source="$(var.PresentMon.TargetDir)web\css\app.css"
-                    KeyPath="yes">
-                </File>
-            </Component>
-            <Component
-                Id="pm_app_web_css_chunk_vendors_87b80b1e_css"
-                Guid="EE23801F-4E7C-405F-B1AE-D86D1ADECEBE">
-                <File
-                    Id="pm_app_web_css_chunk_vendors_87b80b1e_css"
-                    Name="chunk-vendors.css"
-                    Source="$(var.PresentMon.TargetDir)web\css\chunk-vendors.css"
+                    Name="index.css"
+                    Source="$(var.WebRoot)\css\index.css"
                     KeyPath="yes">
                 </File>
             </Component>
@@ -626,52 +603,12 @@
             Id="pm_app_web_fonts"
             Directory="pm_app_web_fonts_folder">
             <Component
-                Id="pm_app_web_fonts_materialdesignicons_webfont_eot"
-                Guid="50946F92-182F-4029-BFFE-60675358373F">
-                <File
-                    Id="pm_app_web_fonts_materialdesignicons_webfont_eot"
-                    Name="materialdesignicons-webfont.eot"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\materialdesignicons-webfont.eot"
-                    KeyPath="yes">
-                </File>
-            </Component>
-            <Component
-                Id="pm_app_web_fonts_materialdesignicons_webfont_ttf"
-                Guid="53946F92-183F-4029-BFFE-60675358373F">
-                <File
-                    Id="pm_app_web_fonts_materialdesignicons_webfont_ttf"
-                    Name="materialdesignicons-webfont.ttf"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\materialdesignicons-webfont.ttf"
-                    KeyPath="yes">
-                </File>
-            </Component>
-            <Component
-                Id="pm_app_web_fonts_materialdesignicons_webfont_woff"
-                Guid="54946F92-184F-4029-BFFE-60675358373F">
-                <File
-                    Id="pm_app_web_fonts_materialdesignicons_webfont_woff"
-                    Name="materialdesignicons-webfont.woff"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\materialdesignicons-webfont.woff"
-                    KeyPath="yes">
-                </File>
-            </Component>
-            <Component
                 Id="pm_app_web_fonts_materialdesignicons_webfont_woff2"
                 Guid="55946F92-185F-4029-BFFE-60675358373F">
                 <File
                     Id="pm_app_web_fonts_materialdesignicons_webfont_woff2"
                     Name="materialdesignicons-webfont.woff2"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\materialdesignicons-webfont.woff2"
-                    KeyPath="yes">
-                </File>
-            </Component>
-            <Component
-                Id="pm_app_web_fonts_roboto_cyrillic_400_normal_woff"
-                Guid="56946F92-186F-4029-BFFE-60675358373F">
-                <File
-                    Id="pm_app_web_fonts_roboto_cyrillic_400_normal_woff"
-                    Name="roboto-cyrillic-400-normal.woff"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\roboto-cyrillic-400-normal.woff"
+                    Source="$(var.WebRoot)\fonts\materialdesignicons-webfont.woff2"
                     KeyPath="yes">
                 </File>
             </Component>
@@ -681,17 +618,7 @@
                 <File
                     Id="pm_app_web_fonts_roboto_cyrillic_400_normal_woff2"
                     Name="roboto-cyrillic-400-normal.woff2"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\roboto-cyrillic-400-normal.woff2"
-                    KeyPath="yes">
-                </File>
-            </Component>
-            <Component
-                Id="pm_app_web_fonts_roboto_cyrillic_ext_400_normal_woff"
-                Guid="58946F92-188F-4029-BFFE-60675358373F">
-                <File
-                    Id="pm_app_web_fonts_roboto_cyrillic_ext_400_normal_woff"
-                    Name="roboto-cyrillic-ext-400-normal.woff"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\roboto-cyrillic-ext-400-normal.woff"
+                    Source="$(var.WebRoot)\fonts\roboto-cyrillic-400-normal.woff2"
                     KeyPath="yes">
                 </File>
             </Component>
@@ -701,17 +628,7 @@
                 <File
                     Id="pm_app_web_fonts_roboto_cyrillic_ext_400_normal_woff2"
                     Name="roboto-cyrillic-ext-400-normal.woff2"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\roboto-cyrillic-ext-400-normal.woff2"
-                    KeyPath="yes">
-                </File>
-            </Component>
-            <Component
-                Id="pm_app_web_fonts_roboto_latin_400_normal_woff"
-                Guid="60946F92-190F-4029-BFFE-60675358373F">
-                <File
-                    Id="pm_app_web_fonts_roboto_latin_400_normal_woff"
-                    Name="roboto-latin-400-normal.woff"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\roboto-latin-400-normal.woff"
+                    Source="$(var.WebRoot)\fonts\roboto-cyrillic-ext-400-normal.woff2"
                     KeyPath="yes">
                 </File>
             </Component>
@@ -721,17 +638,7 @@
                 <File
                     Id="pm_app_web_fonts_roboto_latin_400_normal_woff2"
                     Name="roboto-latin-400-normal.woff2"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\roboto-latin-400-normal.woff2"
-                    KeyPath="yes">
-                </File>
-            </Component>
-            <Component
-                Id="pm_app_web_fonts_roboto_latin_ext_400_normal_woff"
-                Guid="62946F92-192F-4029-BFFE-60675358373F">
-                <File
-                    Id="pm_app_web_fonts_roboto_latin_ext_400_normal_woff"
-                    Name="roboto-latin-ext-400-normal.woff"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\roboto-latin-ext-400-normal.woff"
+                    Source="$(var.WebRoot)\fonts\roboto-latin-400-normal.woff2"
                     KeyPath="yes">
                 </File>
             </Component>
@@ -741,7 +648,7 @@
                 <File
                     Id="pm_app_web_fonts_roboto_latin_ext_400_normal_woff2"
                     Name="roboto-latin-ext-400-normal.woff2"
-                    Source="$(var.PresentMon.TargetDir)web\fonts\roboto-latin-ext-400-normal.woff2"
+                    Source="$(var.WebRoot)\fonts\roboto-latin-ext-400-normal.woff2"
                     KeyPath="yes">
                 </File>
             </Component>
@@ -755,47 +662,11 @@
                 <File
                     Id="pm_app_web_js_app_133012a8_js"
                     Name="app.js"
-                    Source="$(var.PresentMon.TargetDir)web\js\app.js"
-                    KeyPath="yes">
-                </File>
-            </Component>
-            <Component
-                Id="pm_app_web_js_chunk_vendors_547efd4f_js"
-                Guid="892A9134-459A-4271-BBFB-EB6F5E1E1EEC">
-                <File
-                    Id="pm_app_web_js_chunk_vendors_547efd4f_js"
-                    Name="chunk-vendors.js"
-                    Source="$(var.PresentMon.TargetDir)web\js\chunk-vendors.js"
+                    Source="$(var.WebRoot)\js\app.js"
                     KeyPath="yes">
                 </File>
             </Component>
         </ComponentGroup>
-        <!--<ComponentGroup                                        -->                                    
-        <!--    Id="cli_files"                                     -->
-        <!--    Directory="pm_app_folder">                         -->
-        <!--    <Component                                         -->
-        <!--        Id="pm_app_present_mon_cli_exe"                -->
-        <!--        Guid="69100AD5-A5B1-43BB-9739-9F1DD5FAB8EC">   -->
-        <!--        <File                                          -->
-        <!--            Id="pm_app_present_mon_cli_exe"            -->
-        <!--            Name="$(var.PresentMonCli.TargetFileName)" -->
-        <!--            Source="$(var.PresentMonCli.TargetPath)"   -->
-        <!--            KeyPath="yes">                             -->
-        <!--        </File>                                        -->
-        <!--    </Component>                                       -->
-        <!--    <Component                                         -->
-        <!--        Id="cmp_environment_variable"                  -->
-        <!--        Guid="684E9C58-70D4-40C8-8E8D-B88C085A01BF"    -->
-        <!--        KeyPath="yes">                                 -->
-        <!--        <Environment                                   -->
-        <!--            Id="PATH"                                  -->
-        <!--            Name="PATH"                                -->
-        <!--            Value="[pm_app_folder]"                    -->
-        <!--            Part="last"                                -->
-        <!--            Action="set"                               -->
-        <!--            System="yes"/>                             -->
-        <!--    </Component>                                       -->
-        <!--</ComponentGroup>                                      -->
         <?if $(var.has_console_app) = "true" ?>
         <ComponentGroup
             Id="console_app_group"

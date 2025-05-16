@@ -51,7 +51,6 @@ namespace p2c::client::util
 				}
 				break;
 			case AsyncEndpoint::Environment::RenderProcess:
-				pEndpoint->ExecuteOnRenderer(uid, V8ToCefValue(*pObj), accessor);
 				// resolve is invoked in ExecuteOnRenderAccessor
 				iInvoke->second.taskFuture = std::async([&accessor, key, uid, pArgObj = V8ToCefValue(*pObj), pEndpoint, this]() mutable {
 					AsyncEndpoint::Result result;

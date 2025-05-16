@@ -11,10 +11,10 @@ if "%~1"=="Release" (
 )
 
 echo Copy web resources...
-xcopy /SY "Web\dist" "%~2Web\"
+xcopy /SY "ipm-ui-vue\dist" "%~2ipm-ui-vue\"
 
 echo Copy presets...
-xcopy /SY "Web\presets" "%~2Presets\"
+xcopy /SY "ipm-ui-vue\presets" "%~2Presets\"
 
 echo Copy block list...
-xcopy /SY "Web\BlockLists" "%~2BlockLists\"
+xcopy /SY "ipm-ui-vue\BlockLists" "%~2BlockLists\"
