@@ -1,6 +1,8 @@
 // Copyright (C) 2017-2024 Intel Corporation
+// Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
+#define WINVER _WIN32_WINNT_WIN10 // To make TdhLoadManifestFromBinary available
 #include "PresentMon.hpp"
 
 enum {
@@ -14,6 +16,24 @@ enum {
 static HWND gWnd = NULL;
 static bool gIsRecording = false;
 static uint32_t gHotkeyIgnoreCount = 0;
+
+static bool LoadNVDDManifest()
+{
+    WCHAR CurrModuleDirW[MAX_PATH];
+    if (!GetModuleFileNameW(NULL, CurrModuleDirW, MAX_PATH)) {
+        PrintError(L"error: failed to get exe fullpath\n");
+        return false;
+    }
+
+    std::wstring mypath = CurrModuleDirW;
+    auto status = TdhLoadManifestFromBinary(&mypath[0]);
+    if (ERROR_SUCCESS != status)
+    {
+        PrintError(L"error: failed to load manifest embedded in %s\n", mypath.c_str());
+        return false;
+    }
+    return true;
+}
 
 static bool EnableScrollLock(bool enable)
 {
@@ -178,6 +198,11 @@ int wmain(int argc, wchar_t** argv)
     LoadLibraryExA("shell32.dll",  NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
     LoadLibraryExA("tdh.dll",      NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
     LoadLibraryExA("user32.dll",   NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+    // Load NVIDIA DisplayDriver event manifest embedded in the PresentMon binary
+    if (!LoadNVDDManifest()) {
+        return 1;
+    }
 
     // Initialize console
     SetThreadDescription(GetCurrentThread(), L"PresentMon Consumer Thread");
