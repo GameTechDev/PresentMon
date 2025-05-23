@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <Core/source/win/ProcessMapBuilder.h>
+#include <Core/source/kernel/Kernel.h>
+#include <CommonUtilities/win/Handle.h>
 #include "../AsyncEndpoint.h"
 #include "../CefValues.h"
+#include <ranges>
 
 namespace p2c::client::util::async
 {
@@ -15,6 +18,7 @@ namespace p2c::client::util::async
         // {} => {processes: [{name: string, pid: uint}]}
         Result ExecuteOnRenderer(uint64_t uid, CefRefPtr<CefValue> pArgObj, cef::DataBindAccessor&) const override
         {
+            namespace vi = std::views;
             // enumerate processes on system
             win::ProcessMapBuilder builder;
             builder.FillWindowHandles();

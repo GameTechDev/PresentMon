@@ -20,14 +20,7 @@ namespace p2c::client::cef
         :
         pBrowser{ std::move(pBrowser) },
         pKernelWrapper{ pKernelWrapper_ }
-    {
-        pKernelWrapper->pHotkeys = std::make_unique<util::Hotkeys>();
-        // set the hotkey listener component to call hotkey signal on the signal manager when a hotkey chord is detected
-        pKernelWrapper->pHotkeys->SetHandler([this](Action action) {
-            CefPostTask(TID_RENDERER, base::BindOnce(&util::SignalManager::SignalHotkeyFired,
-                base::Unretained(&pKernelWrapper->signals), uint32_t(action)));
-        });
-    }
+    {}
 
     bool DataBindAccessor::Execute(const CefString& name, CefRefPtr<CefV8Value> object, const CefV8ValueList& arguments, CefRefPtr<CefV8Value>& retval, CefString& exception)
     {
@@ -86,44 +79,6 @@ namespace p2c::client::cef
         {
             pKernelWrapper->asyncEndpoints.ResolveInvocation(uid, success, std::move(pArgs));
         }
-    }
-
-    bool DataBindAccessor::BindHotkey(CefValue& pArgObj)
-    {
-        // {action:int, combination: {modifiers:[], key:int}}
-
-        std::shared_lock lk{ kernelMtx };
-        if (pKernelWrapper) {
-            const auto payload = pArgObj.GetDictionary();
-            const auto comboJs = payload->GetDictionary("combination");
-            const auto modsJs = comboJs->GetList("modifiers");
-
-            auto mods = win::Mod::Null;
-            for (int i = 0; i < modsJs->GetSize(); i++) {
-                const auto modCode = modsJs->GetValue(i)->GetInt();
-                mods = mods | *win::ModSet::SingleModFromCode(modCode);
-            }
-
-            return pKernelWrapper->pHotkeys->BindAction(
-                (Action)payload->GetInt("action"),
-                win::Key{ (win::Key::Code)comboJs->GetInt("key") },
-                mods
-            );
-        }
-        return false;
-    }
-
-    bool DataBindAccessor::ClearHotkey(CefValue& pArgObj)
-    {
-        // {action:int}
-
-        std::shared_lock lk{ kernelMtx };
-        if (pKernelWrapper) {
-            return pKernelWrapper->pHotkeys->ClearAction(
-                (Action)pArgObj.GetDictionary()->GetInt("action")
-            );
-        }
-        return false;
     }
 
     void DataBindAccessor::ClearKernelWrapper()

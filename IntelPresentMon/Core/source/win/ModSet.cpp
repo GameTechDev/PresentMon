@@ -140,4 +140,13 @@ namespace p2c::win
 	{
 		return Registry::Get().EnumerateMods();
 	}
+
+	ModSet ModSet::FromCodes(const std::vector<uint32_t>& codes)
+	{
+		uint32_t combined = 0;
+		for (auto& code : codes) {
+			combined |= code;
+		}
+		return { combined };
+	}
 }

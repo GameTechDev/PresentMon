@@ -30,6 +30,7 @@ namespace p2c::win
 		std::vector<std::string> GetModStrings();
 		static std::optional<ModSet> FromString(const std::string& s);
 		static std::optional<ModSet> SingleModFromCode(uint32_t p);
+		static ModSet FromCodes(const std::vector<uint32_t>& codes);
 		static std::vector<Descriptor> EnumerateMods();
 	private:
 		// types

@@ -5,3 +5,5 @@
 #include "EnumerateAdapters.h"
 #include "Introspect.h"
 #include "PushSpecification.h"
+#include "BindHotkey.h"
+#include "ClearHotkey.h"

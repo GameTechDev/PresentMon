@@ -85,6 +85,7 @@
     <ClInclude Include="source\win\EventHookHandler.h" />
     <ClInclude Include="source\win\EventHookManager.h" />
     <ClInclude Include="source\win\GpuUtilization.h" />
+    <ClInclude Include="source\win\HotkeyListener.h" />
     <ClInclude Include="source\win\KernelWindow.h" />
     <ClInclude Include="source\win\Key.h" />
     <ClInclude Include="source\win\MessageBox.h" />
@@ -147,6 +148,7 @@
     <ClCompile Include="source\win\com\ComManager.cpp" />
     <ClCompile Include="source\win\EventHookManager.cpp" />
     <ClCompile Include="source\win\GpuUtilization.cpp" />
+    <ClCompile Include="source\win\HotkeyListener.cpp" />
     <ClCompile Include="source\win\Key.cpp" />
     <ClCompile Include="source\win\MessageBox.cpp" />
     <ClCompile Include="source\win\MessageMap.cpp" />

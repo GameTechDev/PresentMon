@@ -3,3 +3,4 @@
 #include "PresentmonInitFailedAction.h"
 #include "StalePidAction.h"
 #include "TargetLostAction.h"
+#include "HotkeyFiredAction.h"

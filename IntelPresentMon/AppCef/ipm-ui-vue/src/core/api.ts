@@ -81,13 +81,10 @@ export class Api {
         return adapters;
     }
     static async bindHotkey(binding: Binding): Promise<void> {
-        await this.invokeEndpointFuture('bindHotkey', binding);
+        await this.invokeEndpointFuture('BindHotkey', binding);
     }
     static async clearHotkey(action: Action): Promise<void> {
-        await this.invokeEndpointFuture('clearHotkey', {action});
-    }
-    static async launchKernel(): Promise<void> {
-        await this.invokeEndpointFuture('launchKernel', {});
+        await this.invokeEndpointFuture('ClearHotkey', {action});
     }
     static async pushSpecification(spec: Spec): Promise<void> {
         await this.invokeEndpointFuture('PushSpecification', spec);

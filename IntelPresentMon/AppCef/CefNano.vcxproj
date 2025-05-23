@@ -23,7 +23,6 @@
     <ClCompile Include="source\util\cact\CefActionRegistration.cpp" />
     <ClCompile Include="source\util\CefValues.cpp" />
     <ClCompile Include="source\util\FontEnumerator.cpp" />
-    <ClCompile Include="source\util\HotkeyListener.cpp" />
     <ClCompile Include="source\util\IpcInvocationManager.cpp" />
     <ClCompile Include="source\util\KernelActionRegistration.cpp" />
     <ClCompile Include="source\util\LogSetup.cpp" />
@@ -44,6 +43,7 @@
     <ClInclude Include="source\SchemeFileHandler.h" />
     <ClInclude Include="source\SchemeHandlerFactory.h" />
     <ClInclude Include="source\util\ActionClientServer.h" />
+    <ClInclude Include="source\util\cact\HotkeyFiredAction.h" />
     <ClInclude Include="source\util\cact\OverlayDiedAction.h" />
     <ClInclude Include="source\util\cact\PresentmonInitFailedAction.h" />
     <ClInclude Include="source\util\cact\StalePidAction.h" />
@@ -60,8 +60,6 @@
     <ClInclude Include="source\util\async\StoreFile.h" />
     <ClInclude Include="source\util\async\BrowseReadSpec.h" />
     <ClInclude Include="source\util\async\BrowseStoreSpec.h" />
-    <ClInclude Include="source\util\async\BindHotkey.h" />
-    <ClInclude Include="source\util\async\ClearHotkey.h" />
     <ClInclude Include="source\util\async\EnumerateKeys.h" />
     <ClInclude Include="source\util\async\EnumerateModifiers.h" />
     <ClInclude Include="source\util\async\EnumerateProcesses.h" />
@@ -75,7 +73,6 @@
     <ClInclude Include="source\util\PathSanitaryCheck.h" />
     <ClInclude Include="source\util\SignalManager.h" />
     <ClInclude Include="source\util\FontEnumerator.h" />
-    <ClInclude Include="source\util\HotkeyListener.h" />
     <ClInclude Include="source\util\ThreadCompass.h" />
     <ClInclude Include="source\util\V8Transfer.h" />
   </ItemGroup>

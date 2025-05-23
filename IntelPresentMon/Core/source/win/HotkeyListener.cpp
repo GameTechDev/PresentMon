@@ -1,13 +1,10 @@
 // Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "HotkeyListener.h"
-#include "Logging.h"
+#include <Core/source/infra/Logging.h>
 #include <CommonUtilities/Exception.h>
 #include <CommonUtilities/ref/WrapReflect.h>
 #include <ranges>
-#include <include/cef_task.h> 
-#include "include/base/cef_callback.h" 
-#include "include/wrapper/cef_closure_task.h" 
 
 namespace rn = std::ranges;
 namespace vi = rn::views;
@@ -15,24 +12,24 @@ using namespace pmon::util;
 
 // TODO: general logging in this codebase (winapi calls like PostThreadMessage etc.)
 
-namespace p2c::client::util
+namespace p2c::win
 {
 	Hotkeys::Hotkeys()
 		:
-		thread_{ "hotkey", & Hotkeys::Kernel_, this}
+		thread_{ "hotkey", &Hotkeys::Kernel_, this }
 	{
 		startupSemaphore_.acquire();
-		pmlog_verb(v::hotkey)("Hotkey process ctor complete");
+		pmlog_verb(v::hotkey2)("Hotkey process ctor complete");
 	}
 	Hotkeys::~Hotkeys()
 	{
-		pmlog_verb(v::hotkey)("Destroying hotkey processor");
+		pmlog_verb(v::hotkey2)("Destroying hotkey processor");
 		PostThreadMessageA(threadId_, WM_QUIT, 0, 0);
 	}
 	void Hotkeys::Kernel_() noexcept
 	{
 		try {
-			pmlog_verb(v::hotkey)("Hotkey processor kernel start");
+			pmlog_verb(v::hotkey2)("Hotkey processor kernel start");
 
 			// capture thread id
 			threadId_ = GetCurrentThreadId();
@@ -44,17 +41,17 @@ namespace p2c::client::util
 				.hInstance = GetModuleHandle(nullptr),
 				.lpszClassName = "$PresentmonMessageWindowClass$",
 			};
-			const auto atom = RegisterClassEx(&wx);
+			const auto atom = RegisterClassExA(&wx);
 			if (!atom) {
 				pmlog_error().hr();
 				return;
 			}
 
-			pmlog_verb(v::hotkey)(std::format("Hotkey processor wndclass registered: {:X}", atom));
+			pmlog_verb(v::hotkey2)(std::format("Hotkey processor wndclass registered: {:X}", atom));
 
 			// create message window
-			messageWindowHandle_ = CreateWindowExA(
-				0, MAKEINTATOM(atom), "$PresentmonMessageWindow$",
+			messageWindowHandle_ = CreateWindowExW(
+				0, MAKEINTATOM(atom), L"$PresentmonMessageWindow$",
 				0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, nullptr, nullptr
 			);
 			if (!messageWindowHandle_) {
@@ -62,7 +59,7 @@ namespace p2c::client::util
 				return;
 			}
 
-			pmlog_verb(v::hotkey)(std::format("Hotkey processor wnd created: {:X}",
+			pmlog_verb(v::hotkey2)(std::format("Hotkey processor wnd created: {:X}",
 				reinterpret_cast<uintptr_t>(messageWindowHandle_)));
 
 			// register to receive raw keyboard input
@@ -77,7 +74,7 @@ namespace p2c::client::util
 				return;
 			}
 
-			pmlog_verb(v::hotkey)("Raw input registered");
+			pmlog_verb(v::hotkey2)("Raw input registered");
 
 			// signal that constuction is complete
 			startupSemaphore_.release();
@@ -85,7 +82,7 @@ namespace p2c::client::util
 			MSG msg;
 			while (GetMessageA(&msg, nullptr, 0, 0)) {
 				if (msg.message == WM_INPUT) {
-					pmlog_verb(v::hotkey)("WM_INPUT received");
+					pmlog_verb(v::hotkey2)("WM_INPUT received");
 
 					auto& lParam = msg.lParam;
 					// allocate memory for raw input data
@@ -109,16 +106,16 @@ namespace p2c::client::util
 					{
 						const auto& keyboard = input.data.keyboard;
 
-						pmlog_verb(v::hotkey)(std::format("KBD| vk:{} msg:{}", keyboard.VKey, keyboard.Message));
+						pmlog_verb(v::hotkey2)(std::format("KBD| vk:{} msg:{}", keyboard.VKey, keyboard.Message));
 
 						// check for keycode outside of range of our table
 						if (keyboard.VKey >= win::Key::virtualKeyTableSize) {
-							pmlog_verb(v::hotkey)("KBD| vk out of range");
+							pmlog_verb(v::hotkey2)("KBD| vk out of range");
 							continue;
 						}
 						// key presses
 						if (keyboard.Message == WM_KEYDOWN || keyboard.Message == WM_SYSKEYDOWN) {
-							pmlog_verb(v::hotkey)("key press");
+							pmlog_verb(v::hotkey2)("key press");
 							// don't handle autorepeat presses
 							if (!pressedKeys_[keyboard.VKey]) {
 								// mark key as in down state
@@ -133,19 +130,19 @@ namespace p2c::client::util
 										if (auto i = registeredHotkeys_.find({ *key, mods });
 											i != registeredHotkeys_.cend()) {
 											// if match found dispatch action on renderer thread
-											pmlog_verb(v::hotkey)("hotkey dispatching");
+											pmlog_verb(v::hotkey2)("hotkey dispatching");
 											DispatchHotkey_(i->second);
 										}
 									}
 								}
 							}
 							else {
-								pmlog_verb(v::hotkey)("key repeat");
+								pmlog_verb(v::hotkey2)("key repeat");
 							}
 						}
 						// key releases
 						else if (keyboard.Message == WM_KEYUP || keyboard.Message == WM_SYSKEYUP) {
-							pmlog_verb(v::hotkey)("Key up");
+							pmlog_verb(v::hotkey2)("Key up");
 							pressedKeys_[keyboard.VKey] = false;
 						}
 					}
@@ -162,37 +159,37 @@ namespace p2c::client::util
 				pmlog_warn("failed unreg class").hr();
 			}
 
-			pmlog_verb(v::hotkey)();
+			pmlog_verb(v::hotkey2)();
 		}
 		catch (...) {
 			pmlog_error(ReportException());
 		}
 	}
-	void Hotkeys::DispatchHotkey_(Action action) const
+	void Hotkeys::DispatchHotkey_(int action) const
 	{
 		if (Handler_) {
-			pmlog_dbg("hotkey action dispatched to handler").pmwatch(reflect::enum_name(action));
+			pmlog_dbg("hotkey action dispatched to handler").pmwatch(action);
 			Handler_(action);
 		}
 		else {
 			pmlog_warn("Hotkey handler not set");
 		}
 	}
-	void Hotkeys::SetHandler(std::function<void(Action)> handler)
+	void Hotkeys::SetHandler(std::function<void(int)> handler)
 	{
 		std::lock_guard lk{ mtx_ };
-		pmlog_verb(v::hotkey)("Hotkey handler set");
+		pmlog_verb(v::hotkey2)("Hotkey handler set");
 		Handler_ = std::move(handler);
 	}
-	bool Hotkeys::BindAction(Action action, win::Key key, win::ModSet mods)
+	bool Hotkeys::BindAction(int action, win::Key key, win::ModSet mods)
 	{
-		pmlog_verb(v::hotkey)("Hotkey action binding");
+		pmlog_verb(v::hotkey2)("Hotkey action binding");
 		std::lock_guard lk{ mtx_ };
 		// if action is already bound, remove it
 		if (const auto i = rn::find_if(registeredHotkeys_, [action](const auto& i) {
 			return i.second == action;
 		}); i != registeredHotkeys_.cend()) {
-			pmlog_verb(v::hotkey)("Hotkey action binding remove existing action");
+			pmlog_verb(v::hotkey2)("Hotkey action binding remove existing action");
 			registeredHotkeys_.erase(i);
 		}
 		// if hotkey combination is already bound, remove it
@@ -205,14 +202,14 @@ namespace p2c::client::util
 		// signal success
 		return true;
 	}
-	bool Hotkeys::ClearAction(Action action)
+	bool Hotkeys::ClearAction(int action)
 	{
-		pmlog_verb(v::hotkey)("Hotkey action clearing");
+		pmlog_verb(v::hotkey2)("Hotkey action clearing");
 		std::lock_guard lk{ mtx_ };
 		// if action is bound, remove it
 		if (const auto i = rn::find_if(registeredHotkeys_, [action](const auto& i) {
 			return i.second == action;
-			}); i != registeredHotkeys_.cend()) {
+		}); i != registeredHotkeys_.cend()) {
 			registeredHotkeys_.erase(i);
 		}
 		else {

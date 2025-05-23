@@ -12,20 +12,19 @@
 #include <Core/source/win/Key.h>
 #include <Core/source/win/ModSet.h>
 #include <CommonUtilities/mt/Thread.h>
-#include "../Action.h"
 
-namespace p2c::client::util
+namespace p2c::win
 {
 	class Hotkeys
 	{
 	public:
 		Hotkeys();
-        Hotkeys(const Hotkeys&) = delete;
-        Hotkeys& operator=(const Hotkeys&) = delete;
+		Hotkeys(const Hotkeys&) = delete;
+		Hotkeys& operator=(const Hotkeys&) = delete;
 		~Hotkeys();
-		bool BindAction(Action action, win::Key key, win::ModSet mods);
-		bool ClearAction(Action action);
-		void SetHandler(std::function<void(Action)> handler);
+		bool BindAction(int action, win::Key key, win::ModSet mods);
+		bool ClearAction(int action);
+		void SetHandler(std::function<void(int)> handler);
 	private:
 		// types
 		struct Hotkey
@@ -37,10 +36,10 @@ namespace p2c::client::util
 		private:
 			win::Key key;
 			win::ModSet mods;
-		};		
+		};
 		// functions
 		void Kernel_() noexcept;
-		void DispatchHotkey_(Action action) const;
+		void DispatchHotkey_(int action) const;
 		win::ModSet GatherModifiers_() const;
 		// data
 		std::binary_semaphore startupSemaphore_{ 0 };
@@ -50,7 +49,7 @@ namespace p2c::client::util
 		std::bitset<win::Key::virtualKeyTableSize> pressedKeys_;
 		// control access to concurrent memory for key map / handler
 		mutable std::mutex mtx_;
-		std::function<void(Action)> Handler_;
-		std::map<Hotkey, Action> registeredHotkeys_;
+		std::function<void(int)> Handler_;
+		std::map<Hotkey, int> registeredHotkeys_;
 	};
 }

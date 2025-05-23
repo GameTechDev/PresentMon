@@ -3,6 +3,8 @@
 #pragma once
 #include "../AsyncEndpoint.h"
 #include "../CefValues.h"
+#include <Core/source/win/Key.h>
+#include <Core/source/win/ModSet.h>
 
 namespace p2c::client::util::async
 {

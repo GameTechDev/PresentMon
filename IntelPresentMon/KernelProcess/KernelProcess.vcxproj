@@ -158,6 +158,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="kact\AllActions.h" />
+    <ClInclude Include="kact\BindHotkey.h" />
+    <ClInclude Include="kact\ClearHotkey.h" />
     <ClInclude Include="kact\EnumerateAdapters.h" />
     <ClInclude Include="kact\Introspect.h" />
     <ClInclude Include="kact\KernelExecutionContext.h" />

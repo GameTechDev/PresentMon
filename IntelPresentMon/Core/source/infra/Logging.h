@@ -26,4 +26,5 @@ namespace p2c::v
 #else
 		inline constexpr bool metric = true;
 #endif
+		inline constexpr bool hotkey2 = false;
 }

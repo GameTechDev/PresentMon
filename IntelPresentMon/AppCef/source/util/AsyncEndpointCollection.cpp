@@ -6,8 +6,6 @@
 
 #include "async/BrowseReadSpec.h"
 #include "async/BrowseStoreSpec.h"
-#include "async/BindHotkey.h"
-#include "async/ClearHotkey.h"
 #include "async/EnumerateProcesses.h"
 #include "async/EnumerateKeys.h"
 #include "async/EnumerateModifiers.h"
@@ -34,8 +32,6 @@ namespace p2c::client::util
 		using namespace async;
 		AddEndpoint<BrowseReadSpec>();
 		AddEndpoint<BrowseStoreSpec>();
-		AddEndpoint<BindHotkey>();
-		AddEndpoint<ClearHotkey>();
 		AddEndpoint<EnumerateProcesses>();
 		AddEndpoint<EnumerateKeys>();
 		AddEndpoint<EnumerateModifiers>();

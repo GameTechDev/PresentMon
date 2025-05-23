@@ -7,6 +7,7 @@
 #include "../AppCef/source/util/cact/OverlayDiedAction.h"
 #include "../AppCef/source/util/cact/PresentmonInitFailedAction.h"
 #include "../AppCef/source/util/cact/StalePidAction.h"
+#include "../AppCef/source/util/cact/HotkeyFiredAction.h"
 #include <Core/source/cli/CliOptions.h>
 #include <PresentMonAPI2Loader/Loader.h>
 #include <Core/source/infra/LogSetup.h>
@@ -149,9 +150,17 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
 		// this pointer serves as a way to set the kernel on the server exec context after the server is created
 		p2c::kern::Kernel* pKernel = nullptr;
+		// active object that creates a window and sinks raw input messages to listen for hotkey presses
+		p2c::win::Hotkeys hotkeys;
 		// this server receives a connection from the CEF render process
 		const auto actName = std::format(R"(\\.\pipe\ipm-cef-channel-{})", GetCurrentProcessId());
-		KernelServer server{ kact::KernelExecutionContext{.ppKernel = &pKernel }, actName, 1, "D:(A;;GA;;;WD)S:(ML;;NW;;;ME)" };
+		KernelServer server{ kact::KernelExecutionContext{ .ppKernel = &pKernel, .pHotkeys = &hotkeys },
+			actName, 1, "D:(A;;GA;;;WD)S:(ML;;NW;;;ME)" };
+		// set the hotkey manager to send notifications via the action server
+		hotkeys.SetHandler([&](int action) { 
+			pmlog_info("hey hot");
+			server.DispatchDetached(p2c::client::util::cact::HotkeyFiredAction::Params{ .actionId = action });
+		});
 		// this handler receives events from the kernel and transmits them to the render process via the server
 		KernelHandler kernHandler{ server };
 		// the kernel manages the PresentMon data collection and the overlay rendering

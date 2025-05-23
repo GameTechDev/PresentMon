@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <chrono>
 #include "../../Core/source/kernel/Kernel.h"
+#include "../../Core/source/win/HotkeyListener.h"
 
 namespace kproc::kact
 {
@@ -32,5 +33,6 @@ namespace kproc::kact
         std::optional<uint32_t> responseWriteTimeoutMs;
 
         p2c::kern::Kernel** ppKernel = nullptr;
+        p2c::win::Hotkeys* pHotkeys = nullptr;
     };
 }
