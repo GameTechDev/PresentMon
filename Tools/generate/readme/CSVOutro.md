@@ -9,6 +9,7 @@ Some metrics are enabled or disabled depending on the command line options:
 | `--no_track_input`   |                 | *ClickToPhotonLatency* |
 | `--no_track_display`<br>(requires `--no_track_gpu` and `--no_track_input` as well) | | *AllowsTearing<br>PresentMode<br>DisplayLatency<br>DisplayedTime* |
 | `--v1_metrics`       |                 | Most of the above metrics.  See a [1.x README.md](https://github.com/GameTechDev/PresentMon/blob/v1.9.2/README.md#csv-columns) for details on Presentmon 1.x metrics. |
+| `--v2_metrics`       |                 | Most of the above metrics.  See a [2.x README.md](https://github.com/GameTechDev/PresentMon/blob/v2.3.0/README-ConsoleApplication.md#csv-columns) for details on Presentmon 2.x metrics. |
 
 The following values are used in the PresentMode column:
 

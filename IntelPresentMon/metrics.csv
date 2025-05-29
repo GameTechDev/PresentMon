@@ -13,7 +13,7 @@ PM_METRIC_FRAME_TYPE,,Frame Type,Whether the frame was rendered by the applicati
 ,,,
 PM_METRIC_CPU_START_TIME,,CPU Start Time,The time the CPU started working on this frame.
 PM_METRIC_CPU_START_QPC,1,CPU Start QPC,"The time the CPU started working on this frame, as a QueryPerformanceCounter() value."
-PM_METRIC_CPU_FRAME_TIME,,FrameTime-App,How long it took from the start of this frame until the CPU started working on the next frame.
+PM_METRIC_CPU_FRAME_TIME,1,FrameTime-App,How long it took from the start of this frame until the CPU started working on the next frame.
 PM_METRIC_CPU_BUSY,,Ms CPU Busy,How long the CPU spent working on this frame before presenting it.
 PM_METRIC_CPU_WAIT,,Ms CPU Wait,How long the CPU spent waiting before starting the next frame.
 ,,,
@@ -100,6 +100,6 @@ PM_METRIC_UNTIL_DISPLAYED,,Ms Until Displayed,"The time between the Present() ca
 PM_METRIC_RENDER_PRESENT_LATENCY,,Ms Render Present Latency,"The time between the Present() call and when GPU work for this frame completed, in milliseconds."
 PM_METRIC_BETWEEN_SIMULATION_START,,Ms Between Simulation Start,"The time between the start of simulation processing of the previous frame and this one, in milliseconds."
 PM_METRIC_PC_LATENCY,,Ms PC Latency,"Time between PC receiving input and frame being sent to the display, in milliseconds."
-PM_METRIC_DISPLAYED_FRAME_TIME,,FrameTime-Display,"The time between when the previous frame was displayed and this frame was, in milliseconds."
-PM_METRIC_PRESENTED_FRAME_TIME,,FrameTime-Presents,"The time between this Present call and the previous one, in milliseconds."
+PM_METRIC_DISPLAYED_FRAME_TIME,1,FrameTime-Display,"The time between when the previous frame was displayed and this frame was, in milliseconds."
+PM_METRIC_PRESENTED_FRAME_TIME,1,FrameTime-Presents,"The time between this Present call and the previous one, in milliseconds."
 PM_METRIC_BETWEEN_APP_START,,Ms Between App Start,"How long it took from the start of this frame until the CPU started working on the next frame, in milliseconds."

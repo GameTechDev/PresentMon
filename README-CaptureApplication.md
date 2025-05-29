@@ -54,6 +54,8 @@ In Debug configuration, the application will halt with a modal error dialog when
 |GPU Wait|GPUWait|How long the GPU spent waiting while working on this frame|DF|
 |Dropped Frames||Indicates if the frame was not displayed|DF|
 |Displayed Time|DisplayedTime|How long this frame was displayed on screen|DF|
+|Animation Error|MsAnimationError|The difference between the previous frame's CPU delta and display delta|DF|
+|Animation Time|AnimationTime|The difference between the previous frame's CPU delta and display delta|F|
 |Sync Interval|SyncInterval|The application's requested interval between presents measured in vertical sync/vblank events|DF|
 |Present Flags|PresentFlags|Flags used to configure the present operation|DF|
 |Present Mode|PresentMode|Method used to present the frame|DF|
@@ -62,7 +64,7 @@ In Debug configuration, the application will halt with a modal error dialog when
 |Frame Type|FrameType|Whether the frame was rendered by the application or interpolated by a driver/SDK.|DF|
 |GPU Latency|GPULatency|How long it took until GPU work for this frame started|DF|
 |Display Latency|DisplayLatency|Time between frame submission and scan out to display|DF|
-|Click To Photon Latency|ClickToPhotonLatency|Time between input and display|DF|
+|Click To Photon Latency|MsClickToPhotonLatency|Time between mouse click input and display|DF|
 |GPU Sustained Power Limit||Sustained power limit of the GPU|DS|
 |GPU Power|GPUPower|Power consumed by the graphics adapter|DF|
 |GPU Voltage|GPUVoltage|Voltage consumed by the graphics adapter|DF|
@@ -99,6 +101,29 @@ In Debug configuration, the application will halt with a modal error dialog when
 |CPU Temperature|CPUTemperature|Temperature of the CPU|DF|
 |CPU Frequency|CPUFrequency|Clock speed of the CPU|DF|
 |CPU Core Utility||Amount of CPU processing utility being used per core|D|
+|All Input To Photon Latency|MsAllInputToPhotonLatency|Time between any input and display|DF|
+|Instrumented Latency|InstrumentedLatency|How long it took from the instrumented start of this frame until the frame was displayed on the screen|DF|
+|GPU Effective Frequency||Effective clock speed of the GPU cores|DF|
+|GPU Voltage Regulator Temperature||Voltage regulator temperature|DF|
+|GPU Memory Effective Bandwidth||Data transfer rate that the memory modules can sustain based on current clock frequency|DF|
+|GPU Overvoltage Percent||GPU overvoltage increment as a ratio of the maximum increment|DF|
+|GPU Temperature Percent||GPU temperature as a ratio of the thermal margin|DF|
+|GPU Power Percent||GPU power draw as a ratio of default maximum power|DF|
+|GPU Fan Speed Percent||GPU fan speed as a ratio of the max speed for that fan|DF|
+|GPU Card Power||,Total power consumption of the graphics adapter board|DF|
+|Present Start Time|TimeInSeconds|The time the Present() call was made, in seconds|F|
+|Present Start QPC|Present Start QPC|The time the Present() call was made as a QueryPerformanceCounter() value|F|
+|Between Presents|MsBetweenPresents|The time between this Present() call and the previous one, in milliseconds|F|
+|In Present API|MsInPresentAPI|The time spent inside the Present() call, in milliseconds.|F|
+|Between Display Change|MsBetweenDisplayChange|How long the previous frame was displayed before this Present() was displayed, in milliseconds|DF|
+|Until Displayed|MsUntilDisplayed|The time between the Present() call and when the frame was displayed, in milliseconds|DF|
+|Render Present Latency|MsRenderPresentLatency|The time between the Present() call and when GPU work for this frame completed, in milliseconds|F|
+|Between Simulation Start|MsBetweenSimulationStart|The time between the start of simulation processing of the previous frame and this one, in milliseconds.|F|
+|PC Latency|MsPCLatency|Time between PC receiving input and frame being sent to the display, in milliseconds|DF|
+|Displayed Frame Time||The time between when the previous frame was displayed and this frame was, in milliseconds|D|
+|Presented Frame Time||The time between this Present call and the previous one, in milliseconds|D|
+|Between App Start|MsBetweenAppStart|How long it took from the start of this frame until the CPU started working on the next frame, in milliseconds.|F|
+
 *Query Type Codes: **D** = Dynamic Query, **F** = Frame Event Query, **S** = Static Query
 
 ## Comma-separated value (CSV) file output
