@@ -54,8 +54,9 @@ A binary of the console application is provided in the release, e.g.:
 | ------------------------------ | --- |
 | `--track_frame_type`           | Track the type of each displayed frame; requires application and/or driver instrumentation using Intel-PresentMon provider. |
 | `--track_hw_measurements`      | Tracks HW-measured latency and/or power data coming from a LMT and/or PCAT device. |
-| `--track_app_timing`           | Track app times for each displayed frame; requires application and/or driver instrumentation using Intel-PresentMon provider. |
+| `--track_app_timing`           | Track app timines for each displayed frame; requires application and/or driver instrumentation using Intel-PresentMon provider. |
 | `--track_hybrid_present`       | Tracks if the present is a hybrid present and is performing a cross adapter copy. |
+| `--track_pc_latency`           | Track app timines for each displayed frame; requires application instrumentation using PC Latency events. |
 
 ## Comma-separated value (CSV) file output
 

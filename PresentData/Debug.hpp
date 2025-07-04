@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <stdint.h>
+#include "../IntelPresentMon/CommonUtilities/log/Log.h"
 
 #ifndef PRESENTMON_ENABLE_DEBUG_TRACE
 #ifdef NDEBUG
@@ -43,7 +44,7 @@ void VerboseTraceEventImpl(PMTraceConsumer* pmConsumer, _EVENT_RECORD* eventReco
 // When PRESENTMON_ENABLE_DEBUG_TRACE==0, all of the the verbose trace infrastructure should
 // get optimized away.
 #define IsVerboseTraceEnabled() false
-#define DebugAssert(condition)
+#define DebugAssert(condition) !!(condition) || pmlog_warn("PresentData Assert Failed: "#condition)
 #define VerboseTraceBeforeModifyingPresent(p)
 #define VerboseTraceEvent(c, e, m)
 

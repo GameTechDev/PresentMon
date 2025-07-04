@@ -40,6 +40,6 @@ exit /b 0
         exit /b 0
     )
 
-    echo %presentmon% --no_console_stats --stop_existing_session --qpc_time --track_frame_type --track_app_timing --track_gpu_video %~3 --etl_file %1 --output_file %2
-         %presentmon% --no_console_stats --stop_existing_session --qpc_time --track_frame_type --track_app_timing --track_gpu_video %~3 --etl_file %1 --output_file %2 >NUL 2>&1
+    echo %presentmon% --no_console_stats --stop_existing_session --qpc_time --track_frame_type --track_app_timing --track_gpu_video --track_pc_latency %~3 --etl_file %1 --output_file %2
+         %presentmon% --no_console_stats --stop_existing_session --qpc_time --track_frame_type --track_app_timing --track_gpu_video --track_pc_latency %~3 --etl_file %1 --output_file %2 >NUL 2>&1
     exit /b 0

@@ -25,6 +25,7 @@ bethesdanethelper.exe
 bethesdanetlauncher.exe
 blend.exe
 blender.exe
+bootstrapperui_v2.exe
 bsglauncher.exe
 calculator.exe
 calculatorapp.exe

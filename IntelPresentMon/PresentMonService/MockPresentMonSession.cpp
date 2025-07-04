@@ -130,6 +130,7 @@ PM_STATUS MockPresentMonSession::StartTraceSession(uint32_t processId, const std
     pm_consumer_->mTrackInput = true;
     pm_consumer_->mTrackFrameType = true;
     pm_consumer_->mTrackAppTiming = true;
+    pm_consumer_->mTrackPcLatency = true;
     pm_consumer_->mPaceEvents = isPlaybackPaced;
     pm_consumer_->mRetimeEvents = isPlaybackRetimed;
 

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "PresentMon.hpp"
+#include "../IntelPresentMon/CommonUtilities/Math.h"
 
 #include <algorithm>
 #include <shlwapi.h>
@@ -10,6 +11,10 @@
 
 static std::thread gThread;
 static bool gQuit = false;
+
+#include <iostream>
+#include <set>
+#include <deque>
 
 // When we collect realtime ETW events, we don't receive the events in real
 // time but rather sometime after they occur.  Since the user might be toggling
@@ -242,17 +247,55 @@ static void UpdateChain(
         if (p->Displayed.empty() == false) {
             if (p->Displayed.back().first == FrameType::NotSet ||
                 p->Displayed.back().first == FrameType::Application) {
-                if (p->AppSimStartTime != 0) {
+                
+                // If the chain animation error source has been set to either
+                // app provider or PCL latency then set the last displayed simulation start time and the
+                // first app simulation start time based on the animation error source type.
+                if (chain->mAnimationErrorSource == AnimationErrorSource::AppProvider) {
                     chain->mLastDisplayedSimStartTime = p->AppSimStartTime;
                     if (chain->mFirstAppSimStartTime == 0) {
                         // Received the first app sim start time.
                         chain->mFirstAppSimStartTime = p->AppSimStartTime;
                     }
-                } else if (chain->mLastAppPresent != nullptr) {
-                    chain->mLastDisplayedSimStartTime = chain->mLastAppPresent->PresentStartTime +
-                        chain->mLastAppPresent->TimeInPresent;
+                    chain->mLastDisplayedAppScreenTime = p->Displayed.back().second;
+                } else if (chain->mAnimationErrorSource == AnimationErrorSource::PCLatency) {
+                    // In the case of PCLatency only set values if pcl sim start time is not zero.
+                    if (p->PclSimStartTime != 0) {
+                        chain->mLastDisplayedSimStartTime = p->PclSimStartTime;
+                        if (chain->mFirstAppSimStartTime == 0) {
+                            // Received the first app sim start time.
+                            chain->mFirstAppSimStartTime = p->PclSimStartTime;
+                        }
+                        chain->mLastDisplayedAppScreenTime = p->Displayed.back().second;
+                    }
+                } else {
+                    // Currently sourcing animation error from CPU start time, however check
+                    // to see if we have a valid app provider or PCL sim start time and set the
+                    // new animation source and set the first app sim start time
+                    if (p->AppSimStartTime != 0) {
+                        chain->mAnimationErrorSource = AnimationErrorSource::AppProvider;
+                        chain->mLastDisplayedSimStartTime = p->AppSimStartTime;
+                        if (chain->mFirstAppSimStartTime == 0) {
+                            // Received the first app sim start time.
+                            chain->mFirstAppSimStartTime = p->AppSimStartTime;
+                        }
+                        chain->mLastDisplayedAppScreenTime = p->Displayed.back().second;
+                    } else if (p->PclSimStartTime != 0) {
+                        chain->mAnimationErrorSource = AnimationErrorSource::PCLatency;
+                        chain->mLastDisplayedSimStartTime = p->PclSimStartTime;
+                        if (chain->mFirstAppSimStartTime == 0) {
+                            // Received the first app sim start time.
+                            chain->mFirstAppSimStartTime = p->PclSimStartTime;
+                        }
+                        chain->mLastDisplayedAppScreenTime = p->Displayed.back().second;
+                    } else {
+                        if (chain->mLastAppPresent != nullptr) {
+                            chain->mLastDisplayedSimStartTime = chain->mLastAppPresent->PresentStartTime +
+                                chain->mLastAppPresent->TimeInPresent;
+                        }
+                        chain->mLastDisplayedAppScreenTime = p->Displayed.back().second;
+                    }
                 }
-                chain->mLastDisplayedAppScreenTime = p->Displayed.back().second;
             }
         }
         // Want this to always be updated with the last displayed screen time regardless if the
@@ -271,6 +314,14 @@ static void UpdateChain(
         // If the last present was not displayed, we need to set the last app present to the last
         // present.
         chain->mLastAppPresent = p;
+    }
+
+    // Set chain->mLastSimStartTime to either p->PclSimStartTime or p->AppSimStartTime depending on
+    // if either are not zero. If both are zero, do not set.
+    if (p->PclSimStartTime != 0) {
+        chain->mLastSimStartTime = p->PclSimStartTime;
+    } else if (p->AppSimStartTime != 0) {
+        chain->mLastSimStartTime = p->AppSimStartTime;
     }
 
     // Want this to always be updated with the last present regardless if the
@@ -500,6 +551,13 @@ static void ReportMetricsHelper(
             // way to calculate the Xell Gpu latency
             metrics.mMsInstrumentedGpuLatency = InstrumentedStartTime == 0 ? 0 :
                                                 pmSession.TimestampDeltaToUnsignedMilliSeconds(InstrumentedStartTime, gpuStartTime);
+
+            // If we have both a valid pcl sim start time and a valid app sim start time, we use the pcl sim start time.
+            if (p->PclSimStartTime != 0) {
+                metrics.mMsBetweenSimStarts = pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastSimStartTime, p->PclSimStartTime);
+            } else if (p->AppSimStartTime != 0) {
+                metrics.mMsBetweenSimStarts = pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastSimStartTime, p->AppSimStartTime);
+            }
         } else {
             metrics.mMsCPUBusy                = 0;
             metrics.mMsCPUWait                = 0;
@@ -509,8 +567,11 @@ static void ReportMetricsHelper(
             metrics.mMsGPUWait                = 0;
             metrics.mMsInstrumentedSleep      = 0;
             metrics.mMsInstrumentedGpuLatency = 0;
+            metrics.mMsBetweenSimStarts       = 0;
         }
 
+        // If the frame was displayed regardless of how it was produced, calculate the following
+        // metrics
         if (displayed) {
             // Special handling for NV flipDelay
             AdjustScreenTimeForCollapsedPresentNV(p, nextDisplayedPresent, screenTime, nextScreenTime);
@@ -534,6 +595,40 @@ static void ReportMetricsHelper(
             // way to calculate the Xell Gpu latency
             metrics.mMsInstrumentedLatency = InstrumentedStartTime == 0 ? 0 : 
                 pmSession.TimestampDeltaToUnsignedMilliSeconds(InstrumentedStartTime, screenTime);
+
+            metrics.mMsPcLatency = 0.f;
+            // Check to see if we have a valid pc latency sim start time.
+            if (p->PclSimStartTime != 0) {
+                if (p->PclInputPingTime == 0) {
+                    if (chain->mAccumulatedInput2FrameStartTime != 0) {
+                        // This frame was displayed but we don't have a pc latency input time. However, there is accumulated time
+                        // so there is a pending input that will now hit the screen. Add in the time from the last not
+                        // displayed pc simulation start to this frame's pc simulation start.
+                        chain->mAccumulatedInput2FrameStartTime +=
+                            pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastReceivedNotDisplayedPclSimStart, p->PclSimStartTime);
+                        // Add all of the accumlated time to the average input to frame start time.
+                        chain->mEmaInput2FrameStartTime = pmon::util::CalculateEma(
+                            chain->mEmaInput2FrameStartTime,
+                            chain->mAccumulatedInput2FrameStartTime,
+                            0.1);
+                        // Reset the tracking variables for when we have a dropped frame with a pc latency input
+                        chain->mAccumulatedInput2FrameStartTime = 0.f;
+                        chain->mLastReceivedNotDisplayedPclSimStart = 0;
+                    }
+                } else {
+                    chain->mEmaInput2FrameStartTime = pmon::util::CalculateEma(
+                        chain->mEmaInput2FrameStartTime,
+                        pmSession.TimestampDeltaToUnsignedMilliSeconds(p->PclInputPingTime, p->PclSimStartTime),
+                        0.1);
+                }
+            }
+            // If we have a non-zero average input to frame start time and a PC Latency simulation
+            // start time calculate the PC Latency
+            auto simStartTime = p->PclSimStartTime != 0 ? p->PclSimStartTime : chain->mLastSimStartTime;
+            if (chain->mEmaInput2FrameStartTime != 0.f && simStartTime != 0) {
+                metrics.mMsPcLatency = chain->mEmaInput2FrameStartTime +
+                    pmSession.TimestampDeltaToMilliSeconds(simStartTime, screenTime);
+            }
         } else {
             metrics.mMsDisplayLatency               = 0;
             metrics.mMsDisplayedTime                = 0;
@@ -543,10 +638,37 @@ static void ReportMetricsHelper(
             metrics.mMsInstrumentedLatency          = 0;
             metrics.mMsInstrumentedRenderLatency    = 0;
             metrics.mMsReadyTimeToDisplayLatency    = 0;
+            metrics.mMsPcLatency                    = 0;
+            if (p->PclSimStartTime != 0) {
+                if (p->PclInputPingTime != 0) {
+                    // This frame was dropped but we have valid pc latency input and simulation start
+                    // times. Calculate the initial input to sim start time.
+                    chain->mAccumulatedInput2FrameStartTime =
+                        pmSession.TimestampDeltaToUnsignedMilliSeconds(p->PclInputPingTime, p->PclSimStartTime);
+                } else if (chain->mAccumulatedInput2FrameStartTime != 0.f) {
+                    // This frame was also dropped and there is no pc latency input time. However, since we have
+                    // accumulated time this means we have a pending input that has had multiple dropped frames
+                    // and has not yet hit the screen. Calculate the time between the last not displayed sim start and
+                    // this sim start and add it to our accumulated total
+                    chain->mAccumulatedInput2FrameStartTime +=
+                        pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastReceivedNotDisplayedPclSimStart, p->PclSimStartTime);
+                }
+                chain->mLastReceivedNotDisplayedPclSimStart = p->PclSimStartTime;
+            }
         }
+
+        // The following metrics use both the frame's displayed and origin information.
+        metrics.mMsClickToPhotonLatency   = 0;
+        metrics.mMsAllInputPhotonLatency  = 0;
+        metrics.mMsInstrumentedInputTime  = 0;
+        metrics.mMsAnimationError         = std::nullopt;
+        metrics.mAnimationTime            = std::nullopt;
 
         if (displayIndex == appIndex) {
             if (displayed) {
+                // For all input device metrics check to see if there were any previous device input times 
+                // that were attached to a dropped frame and if so use the last received times for the
+                // metric calculations
                 auto updatedInputTime = chain->mLastReceivedNotDisplayedAllInputTime == 0 ? 0 :
                     pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastReceivedNotDisplayedAllInputTime, screenTime);
                 metrics.mMsAllInputPhotonLatency = p->InputTime == 0 ? updatedInputTime : 
@@ -562,13 +684,47 @@ static void ReportMetricsHelper(
                 metrics.mMsInstrumentedInputTime = p->AppInputSample.first == 0 ? updatedInputTime :
                     pmSession.TimestampDeltaToUnsignedMilliSeconds(p->AppInputSample.first, screenTime);
 
+                // Reset all last received device times
                 chain->mLastReceivedNotDisplayedAllInputTime = 0;
                 chain->mLastReceivedNotDisplayedMouseClickTime = 0;
                 chain->mLastReceivedNotDisplayedAppProviderInputTime = 0;
+
+                // Next calculate the animation error and animation time. First calculate the simulation
+                // start time. Simulation start can be either an app provided sim start time via the provider or
+                // PCL stats or, if not present,the cpu start.
+                uint64_t simStartTime = 0;
+                if (chain->mAnimationErrorSource == AnimationErrorSource::PCLatency) {
+                    // If the pcl latency is the source of the animation error then use the pcl sim start time.
+                    simStartTime = p->PclSimStartTime;
+                } else if (chain->mAnimationErrorSource == AnimationErrorSource::AppProvider) {
+                    // If the app provider is the source of the animation error then use the app sim start time.
+                    simStartTime = p->AppSimStartTime;
+                } else if (chain->mAnimationErrorSource == AnimationErrorSource::CpuStart) {
+                    // If the cpu start time is the source of the animation error then use the cpu start time.
+                    simStartTime = metrics.mCPUStart;
+                }
+
+                if (chain->mLastDisplayedSimStartTime != 0) {
+                    // If the simulation start time is less than the last displayed simulation start time it means
+                    // we are transitioning to app provider events.
+                    if (simStartTime > chain->mLastDisplayedSimStartTime) {
+                        metrics.mMsAnimationError = pmSession.TimestampDeltaToMilliSeconds(screenTime - chain->mLastDisplayedAppScreenTime,
+                            simStartTime - chain->mLastDisplayedSimStartTime);
+                    }
+                }
+                // If we have a value in app sim start or pcl sim start and we haven't set the first
+                // sim start time then we are transitioning from using cpu start to
+                // an application provided timestamp. Set the animation time to zero
+                // for the first frame.
+                if ((p->AppSimStartTime != 0 || p->PclSimStartTime != 0) && chain->mFirstAppSimStartTime == 0) {
+                    metrics.mAnimationTime = 0.;
+                }
+                else {
+                    double animationTime = 0.;
+                    CalculateAnimationTime(pmSession, chain->mFirstAppSimStartTime, simStartTime, animationTime);
+                    metrics.mAnimationTime = animationTime;
+                }
             } else {
-                metrics.mMsClickToPhotonLatency = 0;
-                metrics.mMsAllInputPhotonLatency = 0;
-                metrics.mMsInstrumentedInputTime = 0;
                 if (p->InputTime != 0) {
                     chain->mLastReceivedNotDisplayedAllInputTime = p->InputTime;
                 }
@@ -579,44 +735,6 @@ static void ReportMetricsHelper(
                     chain->mLastReceivedNotDisplayedAppProviderInputTime = p->AppInputSample.first;
                 }
             }
-        } else {
-            metrics.mMsClickToPhotonLatency  = 0;
-            metrics.mMsAllInputPhotonLatency = 0;
-            metrics.mMsInstrumentedInputTime = 0;
-        }
-
-        if (displayed && displayIndex == appIndex) {
-            // Calculate the sim start time based on if AppSimStartTime is non-zero
-            auto simStartTime = p->AppSimStartTime != 0 ? p->AppSimStartTime : metrics.mCPUStart;
-
-            if (chain->mLastDisplayedSimStartTime != 0) {
-                // If the simulation start time is less than the last displated simulation start time it means
-                // we are transitioning to app provider events.
-                if (simStartTime > chain->mLastDisplayedSimStartTime) {
-                    metrics.mMsAnimationError = pmSession.TimestampDeltaToMilliSeconds(screenTime - chain->mLastDisplayedAppScreenTime,
-                        simStartTime - chain->mLastDisplayedSimStartTime);
-                }
-                else {
-                    metrics.mMsAnimationError = 0;
-                }
-            } else {
-                metrics.mMsAnimationError = 0;
-            }
-            // If we have a value in app sim start and we haven't set the first
-            // sim start time then we are transitioning from using cpu start to
-            // an application provided timestamp. Set the animation time to zero
-            // for the first frame.
-            if (p->AppSimStartTime != 0 && chain->mFirstAppSimStartTime == 0) {
-                metrics.mAnimationTime = 0.;
-            } else {
-                double animationTime = 0.;
-                CalculateAnimationTime(pmSession, chain->mFirstAppSimStartTime, simStartTime, animationTime);
-                metrics.mAnimationTime = animationTime;
-            }
-            
-        } else {
-            metrics.mMsAnimationError = std::nullopt;
-            metrics.mAnimationTime    = std::nullopt;
         }
 
 

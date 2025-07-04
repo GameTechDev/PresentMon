@@ -4,6 +4,7 @@
 #include <vector>
 #include <span>
 #include <memory>
+#include "FrameTimingData.h"
 
 namespace pmapi::intro
 {
@@ -22,9 +23,9 @@ public:
 	struct Context
 	{
 		// functions
-		Context(uint64_t qpcStart, long long perfCounterFrequency, uint64_t appSimStartTime) : qpcStart{ qpcStart },
+		Context(uint64_t qpcStart, long long perfCounterFrequency, FrameTimingData& frameTimingData) : qpcStart{ qpcStart },
 			performanceCounterPeriodMs{ perfCounterFrequency != 0.f ? 1000.0 / perfCounterFrequency : 0.f },
-			firstAppSimStartTime { appSimStartTime} {}
+			frameTimingData{ frameTimingData } {}
 		void UpdateSourceData(const PmNsmFrameData* pSourceFrameData_in,
 			const PmNsmFrameData* pFrameDataOfNextDisplayed,
 			const PmNsmFrameData* pFrameDataofLastPresented,
@@ -42,14 +43,10 @@ public:
 		uint64_t cpuStart = 0;
         // Present start qpc of the previous frame, displayed or not
         uint64_t previousPresentStartQpc = 0;
-		// The simulation start of the last displayed frame
-		uint64_t previousDisplayedSimStartQpc = 0;
 		// Start cpustart qpc of the previously displayed frame
 		uint64_t lastDisplayedCpuStart = 0;
 		// Screen time qpc of the previously displayed frame.
 		uint64_t previousDisplayedQpc = 0;
-		// Screen time qpc of the last displayed application frame.
-		uint64_t previousDisplayedAppQpc = 0;
 		// Screen time qpc of the first display in the next displayed PmNsmFrameData
 		uint64_t nextDisplayedQpc = 0;
 		// Display index to attribute cpu work, gpu work, animation error and
@@ -59,8 +56,16 @@ public:
 		uint64_t lastReceivedNotDisplayedClickQpc = 0;
 		// All other input time qpc of non displayed frame
 		uint64_t lastReceivedNotDisplayedAllInputTime = 0;
-		// The first app sim start time
-		uint64_t firstAppSimStartTime = 0;
+		// QPC of the last PC Latency simulation start
+		uint64_t mLastReceivedNotDisplayedPclSimStart = 0;
+		// QPC of the last PC Latency pc input
+		uint64_t mLastReceivedNotDisplayedPclInputTime = 0;
+        FrameTimingData frameTimingData{};
+
+		// Accumlated input to frame start time
+		double mAccumulatedInput2FrameStartTime = 0.f;
+		// Current input to frame start average
+		double avgInput2Fs{};
 	};
 	// functions
 	PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements);
