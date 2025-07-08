@@ -21,6 +21,7 @@
 #include <unordered_set>
 #include <windows.h>
 #include <evntcons.h> // must include after windows.h
+#include <functional>
 
 #include "Debug.hpp"
 #include "GpuTrace.hpp"
@@ -158,9 +159,12 @@ struct FlipFrameTypeEvent {
     FrameType FrameType;
 };
 
+// Structure used to track application provided timing information 
+// using ETW events provided by either the PresentMon provider or 
+// PC Latency stats.
 struct AppTimingData {
-    uint32_t AppProcessId = 0;
-    uint32_t AppFrameId = 0;
+    uint32_t ProcessId = 0;
+    uint32_t FrameId = 0;
     uint64_t AppSleepStartTime = 0;
     uint64_t AppSleepEndTime = 0;
     uint64_t AppSimStartTime = 0;
@@ -170,6 +174,15 @@ struct AppTimingData {
     uint64_t AppPresentStartTime = 0;
     uint64_t AppPresentEndTime = 0;
     std::pair<uint64_t, InputDeviceType> AppInputSample = { 0, InputDeviceType::None };
+    uint64_t PclSimStartTime = 0;
+    uint64_t PclSimEndTime = 0;
+    uint64_t PclRenderSubmitStartTime = 0;
+    uint64_t PclRenderSubmitEndTime = 0;
+    uint64_t PclPresentStartTime = 0;
+    uint64_t PclPresentEndTime = 0;
+    uint64_t PclInputPingTime = 0;
+    uint64_t PclInputReceivedTime = 0;
+    uint64_t PclOutOfBandPresentStartTime = 0;
     bool AssignedToPresent = false;
     bool PresentCompleted = false;
 };
@@ -215,6 +228,15 @@ struct PresentEvent {
     uint64_t AppPresentStartTime;       // QPC value of app present start time provided by Intel App Provider
     uint64_t AppPresentEndTime;         // QPC value of app present end time provided by Intel App Provider
     std::pair<uint64_t, InputDeviceType> AppInputSample;    // QPC value of app input data provided by Intel App Provider
+    uint32_t PclFrameId = 0;
+    uint64_t PclSimStartTime = 0;
+    uint64_t PclSimEndTime = 0;
+    uint64_t PclRenderSubmitStartTime = 0;
+    uint64_t PclRenderSubmitEndTime = 0;
+    uint64_t PclPresentStartTime = 0;
+    uint64_t PclPresentEndTime = 0;
+    uint64_t PclInputPingTime = 0;
+    uint64_t PclInputReceivedTime = 0;
 
     // Extra present parameters obtained through DXGI or D3D9 present
     uint64_t SwapChainAddress;
@@ -317,6 +339,7 @@ struct PMTraceConsumer
     bool mTrackPMMeasurements = false; // ... external measurements provided through the Intel-PresentMon provider
     bool mTrackAppTiming = false;      // ... app timing data communicated through the Intel-PresentMon provider.
     bool mTrackHybridPresent = false;  // ... hybrid presents.
+    bool mTrackPcLatency = false;      // ... Nvidia PC Latency stats.
 
     // When PresentEvents are missing data that may still arrive later, they get put into a deferred
     // state until the data arrives.  This time limit specifies how long a PresentEvent can be
@@ -375,6 +398,9 @@ struct PMTraceConsumer
 
     // EventMetadata stores the structure of ETW events to optimize subsequent property retrieval.
     EventMetadata mMetadata;
+
+    // TraceLoggingContext decodes trace logging events and allows for easy property retrieval.
+    TraceLoggingContext mTraceLoggingDecoder;
 
     // Limit tracking to specified processes
     std::set<uint32_t> mTrackedProcessFilter;
@@ -482,6 +508,13 @@ struct PMTraceConsumer
                        uint32_t,
                        PairHash<uint32_t, uint64_t>>            mHybridPresentModeBySwapChainPid;       // SwapChain and process id -> HybridPresentMode
 
+    // State used to track pcl events and their associated presents.
+    std::unordered_map<std::pair<uint32_t, uint32_t>,
+        AppTimingData,
+        PairHash<uint32_t, uint32_t>>                           mPclTimingDataByPclFrameId;             // PCL frame id -> PCLTimingData
+    std::unordered_map<uint32_t, uint64_t>                      mLatestPingTimestampByProcessId;        // ProcessId -> Latest Ping Timestamp
+    bool mUsingOutOfBoundPresentStart = false;
+
     // mGpuTrace tracks work executed on the GPU.
     GpuTrace mGpuTrace;
 
@@ -544,6 +577,8 @@ struct PMTraceConsumer
     void HandleMetadataEvent(EVENT_RECORD* pEventRecord);
     void HandleIntelPresentMonEvent(EVENT_RECORD* pEventRecord);
     void HandleNvidiaDisplayDriverEvent(EVENT_RECORD* pEventRecord);
+    void HandleTraceLoggingEvent(EVENT_RECORD* pEventRecord);
+    void HandlePclEvent(EVENT_RECORD* pEventRecord);
 
     void HandleWin7DxgkBlt(EVENT_RECORD* pEventRecord);
     void HandleWin7DxgkFlip(EVENT_RECORD* pEventRecord);
@@ -578,7 +613,7 @@ struct PMTraceConsumer
     
     // -------------------------------------------------------------------------------------------
     // Function for managing app provided events
-    AppTimingData* ExtractAppTimingData(uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime);
+    AppTimingData* ExtractAppTimingData(std::unordered_map<std::pair<uint32_t, uint32_t>, AppTimingData, PairHash<uint32_t, uint32_t>>& timingDataByFrameId, uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime, std::function<uint64_t(const AppTimingData&)> timingSelector);
     bool IsApplicationPresent(std::shared_ptr<PresentEvent> const& present);
     void SetAppTimingDataAsComplete(uint32_t processId, uint32_t appFrameId);
 

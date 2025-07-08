@@ -374,6 +374,8 @@ int main(int argc, const char** argv)
         traceConsumer.mTrackGPUVideo = true;  // ... GPU video work (separately from non-video GPU work).
         traceConsumer.mTrackInput = true;     // ... keyboard/mouse latency.
         traceConsumer.mTrackFrameType = true; // ... the frame type communicated through the Intel-PresentMon provider.
+        traceConsumer.mTrackAppTiming = true; // ... app timing data communicated through the Intel-PresentMon provider.
+        traceConsumer.mTrackPcLatency = true; // ... Nvidia PCL stats.
         EnableProvidersListing(0, nullptr, &traceConsumer, true, true, pFilter);
     }
 

@@ -56,6 +56,13 @@ enum class CSVOutput {
     Stdout  // To STDOUT in CSV format
 };
 
+// What the animation error calculation is based on
+enum class AnimationErrorSource {
+    CpuStart,
+    AppProvider,
+    PCLatency,
+};
+
 struct CommandLineArgs {
     std::vector<std::wstring> mTargetProcessNames;
     std::vector<std::wstring> mExcludeProcessNames;
@@ -79,6 +86,7 @@ struct CommandLineArgs {
     bool mTrackPMMeasurements;
     bool mTrackAppTiming;
     bool mTrackHybridPresent;
+    bool mTrackPcLatency;
     bool mScrollLockIndicator;
     bool mExcludeDropped;
     bool mTerminateExistingSession;
@@ -120,6 +128,8 @@ struct FrameMetrics {
     uint64_t mScreenTime = 0;
     FrameType mFrameType = FrameType::NotSet;
     double mMsInstrumentedLatency = 0;
+    double mMsPcLatency = 0;
+    double mMsBetweenSimStarts = 0;
 
     // Internal Intel Metrics
     double mMsInstrumentedRenderLatency = 0;
@@ -183,6 +193,9 @@ struct SwapChainData {
     // for frame statistics).
     std::shared_ptr<PresentEvent> mLastAppPresent;
 
+    // QPC of the last simulation start time iregardless of whether it was displayed or not
+    uint64_t mLastSimStartTime = 0;
+
     // The CPU start and screen time for the most recent frame that was displayed
     uint64_t mLastDisplayedSimStartTime = 0;
     uint64_t mLastDisplayedAppScreenTime = 0;
@@ -192,9 +205,15 @@ struct SwapChainData {
 
     // QPC of last received input data that did not make it to the screen due 
     // to the Present() being dropped
-    uint64_t mLastReceivedNotDisplayedAllInputTime;
-    uint64_t mLastReceivedNotDisplayedMouseClickTime;
-    uint64_t mLastReceivedNotDisplayedAppProviderInputTime;
+    uint64_t mLastReceivedNotDisplayedAllInputTime = 0;
+    uint64_t mLastReceivedNotDisplayedMouseClickTime = 0;
+    uint64_t mLastReceivedNotDisplayedAppProviderInputTime = 0;
+    // QPC of the last PC Latency simulation start
+    uint64_t mLastReceivedNotDisplayedPclSimStart = 0;
+
+    // Animation error source. Start with CPU start QPC and switch if
+    // we receive a valid PCL or App Provider simulation start time.
+    AnimationErrorSource mAnimationErrorSource = AnimationErrorSource::CpuStart;
 
     // Frame statistics
     float mAvgCPUDuration = 0.f;
@@ -203,6 +222,8 @@ struct SwapChainData {
     float mAvgDisplayedTime = 0.f;
     float mAvgMsUntilDisplayed = 0.f;
     float mAvgMsBetweenDisplayChange = 0.f;
+    double mEmaInput2FrameStartTime = 0.f;
+    double mAccumulatedInput2FrameStartTime = 0.f;
 
     // Internal NVIDIA Metrics
     uint64_t mLastDisplayedFlipDelay = 0;

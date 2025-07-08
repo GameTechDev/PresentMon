@@ -306,8 +306,10 @@ void WriteCsvHeader<FrameMetrics>(FILE* fp)
             L",MsRenderPresentLatency");
 
         if (args.mTrackDisplay) {
-            fwprintf(fp, L",MsUntilDisplayed"
-                L",MsPCLatency");
+            fwprintf(fp, L",MsUntilDisplayed");
+            if (args.mTrackPcLatency) {
+                fwprintf(fp, L",MsPCLatency");
+            }
         }
     }
 
@@ -387,6 +389,9 @@ void WriteCsvHeader<FrameMetrics>(FILE* fp)
         if (args.mTrackAppTiming) {
             fwprintf(fp, L",AppFrameId");
         }
+        if (args.mTrackPcLatency) {
+            fwprintf(fp, L",PCLFrameId");
+        }
     }
     fwprintf(fp, L"\n");
 
@@ -450,7 +455,12 @@ void WriteCsvRow<FrameMetrics>(
         }
 
         // MsBetweenSimulationStart
-        fwprintf(fp, L",NA");
+        if (metrics.mMsBetweenSimStarts == 0.0) {
+            fwprintf(fp, L",NA");
+        }
+        else {
+            fwprintf(fp, L",%.4lf", metrics.mMsBetweenSimStarts);
+        }
 
         // MsBetweenPresents
         fwprintf(fp, L",%.*lf", DBL_DIG - 1, metrics.mMsBetweenPresents);
@@ -479,9 +489,14 @@ void WriteCsvRow<FrameMetrics>(
                 fwprintf(fp, L",%.4lf", metrics.mMsUntilDisplayed);
             }
         }
-
-        // MsPCLatency
-        fwprintf(fp, L",NA");
+        if (args.mTrackPcLatency) {
+            if (metrics.mMsPcLatency == 0.0) {
+                fwprintf(fp, L",NA");
+            }
+            else {
+                fwprintf(fp, L",%.4lf", metrics.mMsPcLatency);
+            }
+        }
     }
 
     // CPUStartTime
@@ -574,7 +589,6 @@ void WriteCsvRow<FrameMetrics>(
             fwprintf(fp, L",%.4lf", metrics.mMsInstrumentedLatency);
         }
     }
-
     if (args.mWriteDisplayTime) {
         if (metrics.mScreenTime == 0) {
             fwprintf(fp, L",NA");
@@ -588,7 +602,9 @@ void WriteCsvRow<FrameMetrics>(
         if (args.mTrackAppTiming) {
             fwprintf(fp, L",%u", p.AppFrameId);
         }
-        
+        if (args.mTrackPcLatency) {
+            fwprintf(fp, L",%u", p.PclFrameId);
+        }
     }
     fwprintf(fp, L"\n");
 

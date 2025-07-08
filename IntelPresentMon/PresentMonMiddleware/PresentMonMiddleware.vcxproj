@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ActionClient.h" />
+    <ClInclude Include="FrameTimingData.h" />
     <ClInclude Include="ConcreteMiddleware.h" />
     <ClInclude Include="DynamicQuery.h" />
     <ClInclude Include="FrameEventQuery.h" />

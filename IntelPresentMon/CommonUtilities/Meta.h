@@ -4,6 +4,10 @@
 
 namespace pmon::util
 {
+    // Helper: dependent_false for static_assert in templates.
+    template<typename T>
+    struct dependent_false : std::false_type {};
+
     // deconstruct member pointer into the object type the pointer works with and the member type
     template <typename T> struct MemberPointerInfo;
     template <typename S, typename M>

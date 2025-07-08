@@ -14,6 +14,7 @@
 #include "ETW/Microsoft_Windows_EventMetadata.h"
 #include "ETW/Microsoft_Windows_Kernel_Process.h"
 #include "ETW/Microsoft_Windows_Win32k.h"
+#include "ETW/Nvidia_PCL.h"
 
 #include <algorithm>
 #include <assert.h>
@@ -2019,7 +2020,6 @@ void PMTraceConsumer::StopTrackingPresent(std::shared_ptr<PresentEvent> const& p
     if (p->AppFrameId != 0) {
         SetAppTimingDataAsComplete(p->ProcessId, p->AppFrameId);
     }
-    
 }
 
 void PMTraceConsumer::RemoveLostPresent(std::shared_ptr<PresentEvent> p)
@@ -2155,6 +2155,35 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
         }
     }
 
+    if (mTrackPcLatency) {
+        auto* pclTimingData = ExtractAppTimingData(
+            mPclTimingDataByPclFrameId,
+            p->ProcessId,
+            0,
+            p->PresentStartTime,
+            [this](const AppTimingData& d) {
+                if (mUsingOutOfBoundPresentStart) {
+                    return d.PclOutOfBandPresentStartTime;
+                }
+                else {
+                    return d.PclPresentStartTime;
+                }
+            });
+        if (pclTimingData) {
+            if (p->ProcessId == pclTimingData->ProcessId) {
+                p->PclFrameId = pclTimingData->FrameId;
+                p->PclSimStartTime = pclTimingData->PclSimStartTime;
+                p->PclSimEndTime = pclTimingData->PclSimEndTime;
+                p->PclRenderSubmitStartTime = pclTimingData->PclRenderSubmitStartTime;
+                p->PclRenderSubmitEndTime = pclTimingData->PclRenderSubmitEndTime;
+                p->PclPresentStartTime = pclTimingData->PclPresentStartTime;
+                p->PclPresentEndTime = pclTimingData->PclPresentEndTime;
+                p->PclInputPingTime = pclTimingData->PclInputPingTime;
+                p->PclInputReceivedTime = pclTimingData->PclInputReceivedTime;
+            }
+        }
+    }
+
     // Remove the present from tracking structures.
     StopTrackingPresent(p);
 
@@ -2280,11 +2309,11 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
 
     // Prune out old app frame data
     for (auto it = mAppTimingDataByAppFrameId.begin(); it != mAppTimingDataByAppFrameId.end();) {
-        if (appFrameId != 0 && it->second.AppProcessId == processId &&
-            static_cast<int32_t>(appFrameId - it->second.AppFrameId) >= 10) {
+        if (appFrameId != 0 && it->second.ProcessId == processId &&
+            static_cast<int32_t>(appFrameId - it->second.FrameId) >= 10) {
             // Remove the app frame data if the app frame id is too old
             it = mAppTimingDataByAppFrameId.erase(it); // Erase and move to the next element
-        } else if (appFrameId == 0 && it->second.AppProcessId == processId && 
+        } else if (appFrameId == 0 && it->second.ProcessId == processId && 
             it->second.AssignedToPresent == false && it->second.AppPresentStartTime != 0 && 
             presentStartTime >= it->second.AppPresentStartTime &&
             presentStartTime - it->second.AppPresentStartTime >= mDeferralTimeLimit) {
@@ -2487,11 +2516,16 @@ void PMTraceConsumer::RuntimePresentStop(Runtime runtime, EVENT_HEADER const& hd
 
     if (mTrackAppTiming) {
         if (IsApplicationPresent(present)) {
-            auto* appTimingData = ExtractAppTimingData(present->ProcessId, present->AppFrameId, present->PresentStartTime);
+            auto* appTimingData = ExtractAppTimingData(
+                mAppTimingDataByAppFrameId,
+                present->ProcessId,
+                present->AppFrameId,
+                present->PresentStartTime,
+                [](const AppTimingData& d) { return d.AppPresentStartTime; });
             if (appTimingData) {
-                if (present->ProcessId == appTimingData->AppProcessId) {
+                if (present->ProcessId == appTimingData->ProcessId) {
                     if (present->AppFrameId == 0) {
-                        present->AppFrameId = appTimingData->AppFrameId;
+                        present->AppFrameId = appTimingData->FrameId;
                     }
                     present->AppSimStartTime = appTimingData->AppSimStartTime;
                     present->AppSimEndTime = appTimingData->AppSimEndTime;
@@ -2693,8 +2727,8 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
             } else {
                 AppTimingData data;
                 data.AppSleepStartTime = timestamp;
-                data.AppProcessId = processId;
-                data.AppFrameId = props->FrameId;
+                data.ProcessId = processId;
+                data.FrameId = props->FrameId;
                 mAppTimingDataByAppFrameId.emplace(key, data);
             }
         }
@@ -2715,8 +2749,8 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
             } else {
                 AppTimingData data;
                 data.AppSleepEndTime = timestamp;
-                data.AppProcessId = processId;
-                data.AppFrameId = props->FrameId;
+                data.ProcessId = processId;
+                data.FrameId = props->FrameId;
                 mAppTimingDataByAppFrameId.emplace(key, data);
             }
         }
@@ -2737,8 +2771,8 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
             } else {
                 AppTimingData data;
                 data.AppSimStartTime = timestamp;
-                data.AppProcessId = processId;
-                data.AppFrameId = props->FrameId;
+                data.ProcessId = processId;
+                data.FrameId = props->FrameId;
                 mAppTimingDataByAppFrameId.emplace(key, data);
             }
         }
@@ -2759,8 +2793,8 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
             } else {
                 AppTimingData data;
                 data.AppSimEndTime = timestamp;
-                data.AppProcessId = processId;
-                data.AppFrameId = props->FrameId;
+                data.ProcessId = processId;
+                data.FrameId = props->FrameId;
                 mAppTimingDataByAppFrameId.emplace(key, data);
             }
         }
@@ -2781,8 +2815,8 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
             } else {
                 AppTimingData data;
                 data.AppRenderSubmitStartTime = timestamp;
-                data.AppProcessId = processId;
-                data.AppFrameId = props->FrameId;
+                data.ProcessId = processId;
+                data.FrameId = props->FrameId;
                 mAppTimingDataByAppFrameId.emplace(key, data);
             }
         }
@@ -2803,8 +2837,8 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
             } else {
                 AppTimingData data;
                 data.AppRenderSubmitEndTime = timestamp;
-                data.AppProcessId = processId;
-                data.AppFrameId = props->FrameId;
+                data.ProcessId = processId;
+                data.FrameId = props->FrameId;
                 mAppTimingDataByAppFrameId.emplace(key, data);
             }
         }
@@ -2825,8 +2859,8 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
             } else {
                 AppTimingData data;
                 data.AppPresentStartTime = timestamp;
-                data.AppProcessId = processId;
-                data.AppFrameId = props->FrameId;
+                data.ProcessId = processId;
+                data.FrameId = props->FrameId;
                 mAppTimingDataByAppFrameId.emplace(key, data);
             }
         }
@@ -2847,8 +2881,8 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
             } else {
                 AppTimingData data;
                 data.AppPresentEndTime = timestamp;
-                data.AppProcessId = processId;
-                data.AppFrameId = props->FrameId;
+                data.ProcessId = processId;
+                data.FrameId = props->FrameId;
                 mAppTimingDataByAppFrameId.emplace(key, data);
             }
         }
@@ -2870,8 +2904,8 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
                 ij->second.AppInputSample.second = ConvertIntelProviderInputTypes(props->InputType);
             } else {
                 AppTimingData data;
-                data.AppProcessId = processId;
-                data.AppFrameId = props->FrameId;
+                data.ProcessId = processId;
+                data.FrameId = props->FrameId;
                 data.AppInputSample.first = timestamp;
                 data.AppInputSample.second = ConvertIntelProviderInputTypes(props->InputType);
                 mAppTimingDataByAppFrameId.emplace(key, data);
@@ -2977,6 +3011,211 @@ void PMTraceConsumer::HandleIntelPresentMonEvent(EVENT_RECORD* pEventRecord)
     }
 
     assert(!mFilteredEvents); // Assert that filtering is working if expected
+}
+
+void PMTraceConsumer::HandleTraceLoggingEvent(EVENT_RECORD* pEventRecord)
+{
+    if (mTrackPcLatency) {
+        HandlePclEvent(pEventRecord);
+    }
+}
+
+void PMTraceConsumer::HandlePclEvent(EVENT_RECORD* pEventRecord)
+{
+    try {
+        if (!mTraceLoggingDecoder.DecodeTraceLoggingEventRecord(pEventRecord)) {
+            pmlog_dbg("Failed to decode trace logging event"); // too spammy?
+            return;
+        }
+
+        auto eventName = mTraceLoggingDecoder.GetEventName();
+        if (!eventName.has_value()) {
+            pmlog_warn("Could not get trace logging event name");
+            return;
+        }
+
+        if (eventName.has_value()) {
+            if (eventName.value() == L"PCLStatsInit" ||
+                eventName.value() == L"ReflexStatsInit") {
+                pmlog_info("Received init event: " + pmon::util::str::ToNarrow(*eventName));
+            }
+            else if (eventName.value() == L"PCLStatsEvent" || 
+                     eventName.value() == L"ReflexStatsEvent") {
+                auto marker = (Nvidia_PCL::PCLMarker)mTraceLoggingDecoder.GetNumericPropertyValue<uint32_t>(L"Marker");
+                auto frameId = (uint32_t)mTraceLoggingDecoder.GetNumericPropertyValue<uint64_t>(L"FrameID");
+                switch (marker) {
+                case Nvidia_PCL::PCLMarker::SimulationStart: {
+                    auto processId = pEventRecord->EventHeader.ProcessId;
+                    auto timestamp = pEventRecord->EventHeader.TimeStamp.QuadPart;
+                    auto key = std::make_pair(frameId, processId);
+                    auto ij = mPclTimingDataByPclFrameId.find(key);
+                    if (ij != mPclTimingDataByPclFrameId.end()) {
+                        ij->second.PclSimStartTime = timestamp;
+                    } else {
+                        AppTimingData data;
+                        data.PclSimStartTime = timestamp;
+                        data.ProcessId = processId;
+                        data.FrameId = frameId;
+                        mPclTimingDataByPclFrameId.emplace(key, data);
+                    }
+                }
+                break;
+                case Nvidia_PCL::PCLMarker::SimulationEnd: {
+                    auto processId = pEventRecord->EventHeader.ProcessId;
+                    auto timestamp = pEventRecord->EventHeader.TimeStamp.QuadPart;
+                    auto key = std::make_pair(frameId, processId);
+                    auto ij = mPclTimingDataByPclFrameId.find(key);
+                    if (ij != mPclTimingDataByPclFrameId.end()) {
+                        ij->second.PclSimEndTime = timestamp;
+                    } else {
+                        AppTimingData data;
+                        data.PclSimEndTime = timestamp;
+                        data.ProcessId = processId;
+                        data.FrameId = frameId;
+                        mPclTimingDataByPclFrameId.emplace(key, data);
+                    }
+                }
+                break;
+                case Nvidia_PCL::PCLMarker::RenderSubmitStart: {
+                    auto processId = pEventRecord->EventHeader.ProcessId;
+                    auto timestamp = pEventRecord->EventHeader.TimeStamp.QuadPart;
+                    auto key = std::make_pair(frameId, processId);
+                    auto ij = mPclTimingDataByPclFrameId.find(key);
+                    if (ij != mPclTimingDataByPclFrameId.end()) {
+                        ij->second.PclRenderSubmitStartTime = timestamp;
+                    } else {
+                        AppTimingData data;
+                        data.PclRenderSubmitStartTime = timestamp;
+                        data.ProcessId = processId;
+                        data.FrameId = frameId;
+                        mPclTimingDataByPclFrameId.emplace(key, data);
+                    }
+                }
+                break;
+                case Nvidia_PCL::PCLMarker::RenderSubmitEnd: {
+                    auto processId = pEventRecord->EventHeader.ProcessId;
+                    auto timestamp = pEventRecord->EventHeader.TimeStamp.QuadPart;
+                    auto key = std::make_pair(frameId, processId);
+                    auto ij = mPclTimingDataByPclFrameId.find(key);
+                    if (ij != mPclTimingDataByPclFrameId.end()) {
+                        ij->second.PclRenderSubmitEndTime = timestamp;
+                    } else {
+                        AppTimingData data;
+                        data.PclRenderSubmitEndTime = timestamp;
+                        data.ProcessId = processId;
+                        data.FrameId = frameId;
+                        mPclTimingDataByPclFrameId.emplace(key, data);
+                    }
+                }
+                break;
+                case Nvidia_PCL::PCLMarker::PresentStart: {
+                    auto processId = pEventRecord->EventHeader.ProcessId;
+                    auto timestamp = pEventRecord->EventHeader.TimeStamp.QuadPart;
+                    auto key = std::make_pair(frameId, processId);
+                    auto ij = mPclTimingDataByPclFrameId.find(key);
+                    if (ij != mPclTimingDataByPclFrameId.end()) {
+                        ij->second.PclPresentStartTime = timestamp;
+                    } else {
+                        AppTimingData data;
+                        data.PclPresentStartTime = timestamp;
+                        data.ProcessId = processId;
+                        data.FrameId = frameId;
+                        mPclTimingDataByPclFrameId.emplace(key, data);
+                    }
+                }
+                break;
+                case Nvidia_PCL::PCLMarker::PresentEnd: {
+                    auto processId = pEventRecord->EventHeader.ProcessId;
+                    auto timestamp = pEventRecord->EventHeader.TimeStamp.QuadPart;
+                    auto key = std::make_pair(frameId, processId);
+                    auto ij = mPclTimingDataByPclFrameId.find(key);
+                    if (ij != mPclTimingDataByPclFrameId.end()) {
+                        ij->second.PclPresentEndTime = timestamp;
+                    } else {
+                        AppTimingData data;
+                        data.PclPresentEndTime = timestamp;
+                        data.ProcessId = processId;
+                        data.FrameId = frameId;
+                        mPclTimingDataByPclFrameId.emplace(key, data);
+                    }
+                }
+                break;
+                case Nvidia_PCL::PCLMarker::PCLLatencyPing: {
+                    auto processId = pEventRecord->EventHeader.ProcessId;
+                    auto timestamp = pEventRecord->EventHeader.TimeStamp.QuadPart;
+                    auto key = std::make_pair(frameId, processId);
+                    auto ij = mPclTimingDataByPclFrameId.find(key);
+                    if (ij != mPclTimingDataByPclFrameId.end()) {
+                        ij->second.PclInputReceivedTime = timestamp;
+                        ij->second.PclInputPingTime = mLatestPingTimestampByProcessId[processId];
+                        if (mLatestPingTimestampByProcessId[processId] != 0) {
+                            ij->second.PclInputPingTime = mLatestPingTimestampByProcessId[processId];
+                            mLatestPingTimestampByProcessId[processId] = 0;
+                        }
+                    } else {
+                        AppTimingData data;
+                        data.PclInputReceivedTime = timestamp;
+                        if (mLatestPingTimestampByProcessId[processId] != 0) {
+                            data.PclInputPingTime = mLatestPingTimestampByProcessId[processId];
+                            mLatestPingTimestampByProcessId[processId] = 0;
+                        }
+                        data.ProcessId = processId;
+                        mPclTimingDataByPclFrameId.emplace(key, data);
+                    }
+                }
+                break;
+                case Nvidia_PCL::PCLMarker::OutOfBandPresentStart: {
+                    auto processId = pEventRecord->EventHeader.ProcessId;
+                    auto timestamp = pEventRecord->EventHeader.TimeStamp.QuadPart;
+                    // If we receive an out of band present start, we will use it
+                    // to attach the pcl timing data to the present
+                    mUsingOutOfBoundPresentStart = true;
+                    auto key = std::make_pair(frameId, processId);
+                    // We do not track the out of band present in the same way as the other markers.
+                    // We only use it in an attempt to attach the pcl timing data to the present
+                    auto ij = mPclTimingDataByPclFrameId.find(key);
+                    if (ij != mPclTimingDataByPclFrameId.end()) {
+                        if (ij->second.PclOutOfBandPresentStartTime == 0) {
+                            ij->second.PclOutOfBandPresentStartTime = timestamp;
+                        }
+                    }
+                    else {
+                        AppTimingData data;
+                        data.PclOutOfBandPresentStartTime = timestamp;
+                        data.ProcessId = processId;
+                        data.FrameId = frameId;
+                        mPclTimingDataByPclFrameId.emplace(key, data);
+                    }
+
+                }
+                break;
+                }
+            } else if (eventName.value() == L"PCLStatsInput" ||
+                       eventName.value() == L"ReflexStatsInput") {
+                auto processId = pEventRecord->EventHeader.ProcessId;
+                auto timestamp = pEventRecord->EventHeader.TimeStamp.QuadPart;
+                mLatestPingTimestampByProcessId[processId] = timestamp;
+
+            } else if (eventName.value() == L"PCLStatsShutdown" ||
+                       eventName.value() == L"ReflexStatsShutdown") {
+                // PCL stats is shutting down for this process. Remove
+                // all PCL tracking structure for this process id. 
+                pmlog_info("Shutting down PCL stats tracking");
+                auto processId = pEventRecord->EventHeader.ProcessId;
+                std::erase_if(mPclTimingDataByPclFrameId, [processId](const auto& p) {
+                    return p.first.second == processId; });
+                std::erase_if(mLatestPingTimestampByProcessId, [processId](const auto& p) {
+                    return p.first == processId; });
+
+            }
+            else {
+                // unhandled trace event => ignore
+            }
+        }
+    }
+    catch (...) {
+        pmlog_error(pmon::util::ReportException());
+    }
 }
 
 void PMTraceConsumer::DeferFlipFrameType(
@@ -3093,28 +3332,31 @@ void PMTraceConsumer::DequeuePresentEvents(std::vector<std::shared_ptr<PresentEv
         mCompletedRingCondition.notify_one();
     }
 }
-AppTimingData* PMTraceConsumer::ExtractAppTimingData(uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime) {
+AppTimingData* PMTraceConsumer::ExtractAppTimingData(
+    std::unordered_map<std::pair<uint32_t, uint32_t>, AppTimingData, PairHash<uint32_t, uint32_t>>& timingDataByFrameId,
+    uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime, std::function<uint64_t(const AppTimingData&)> timingSelector) {
     if (appFrameId != 0) {
         // If the incoming app frame id is already assigned then we receiving
         // the information from version 2 of the PresentFrameType event.
         auto key = std::make_pair(appFrameId, processId);
-        auto ii = mAppTimingDataByAppFrameId.find(key);
-        if (ii != mAppTimingDataByAppFrameId.end()) {
+        auto ii = timingDataByFrameId.find(key);
+        if (ii != timingDataByFrameId.end()) {
             ii->second.AssignedToPresent = true;
             ii->second.PresentCompleted = false;
             return &ii->second;
         }
     } else {
-        auto itToReturn = mAppTimingDataByAppFrameId.end();
+        auto itToReturn = timingDataByFrameId.end();
         uint32_t earlierFrameId = std::numeric_limits<uint32_t>::max();
         uint64_t smallestPresentStartDelta = std::numeric_limits<uint64_t>::max();
-        // Search for the app timing data with the closest AppPresentStartTime to the passed
+        // Search for the timing data with the closest PresentStartTime to the passed
         // in PresentStartTime that has not been assigned. This is a hack and will not work for x-platform.
-        for (auto it = mAppTimingDataByAppFrameId.begin(); it != mAppTimingDataByAppFrameId.end(); ++it) {
+        for (auto it = timingDataByFrameId.begin(); it != timingDataByFrameId.end(); ++it) {
             if (it->first.second == processId) {
                 if (it->second.AssignedToPresent == false) {
-                    if (it->second.AppPresentStartTime != 0 && it->second.AppPresentStartTime < presentStartTime) {
-                        auto tempPresentStartDelta = presentStartTime - it->second.AppPresentStartTime;
+                    uint64_t timingValue = timingSelector(it->second);
+                    if (timingValue != 0 && timingValue < presentStartTime) {
+                        auto tempPresentStartDelta = presentStartTime - timingValue;
                         if (tempPresentStartDelta < smallestPresentStartDelta) {
                             smallestPresentStartDelta = tempPresentStartDelta;
                             earlierFrameId = it->first.first;
@@ -3127,7 +3369,7 @@ AppTimingData* PMTraceConsumer::ExtractAppTimingData(uint32_t processId, uint32_
 
         // If we found the app timing data and if the Present it is attached is not completed return
         // the data
-        if (itToReturn != mAppTimingDataByAppFrameId.end() && itToReturn->second.PresentCompleted != true) {
+        if (itToReturn != timingDataByFrameId.end() && itToReturn->second.PresentCompleted != true) {
             itToReturn->second.AssignedToPresent = true;
             return &itToReturn->second;
         }
@@ -3150,7 +3392,7 @@ void PMTraceConsumer::SetAppTimingDataAsComplete(uint32_t processId, uint32_t ap
     auto key = std::make_pair(appFrameId, processId);
     auto ii = mAppTimingDataByAppFrameId.find(key);
     if (ii != mAppTimingDataByAppFrameId.end()) {
-        DebugAssert(ii->second.AppProcessId == processId);
+        DebugAssert(ii->second.ProcessId == processId);
         ii->second.PresentCompleted = true;
     }
 }

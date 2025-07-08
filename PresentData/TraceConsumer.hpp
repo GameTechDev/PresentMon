@@ -10,6 +10,7 @@
 #include <vector>
 #include <windows.h>
 #include <tdh.h> // Must include after windows.h
+#include "TraceLogging.h"
 
 struct EventMetadataKey {
     GUID guid_;

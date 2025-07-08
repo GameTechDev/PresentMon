@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|ARM">
@@ -353,12 +353,14 @@
     <ClInclude Include="ETW\Microsoft_Windows_Win32k.h" />
     <ClInclude Include="ETW\NT_Process.h" />
     <ClInclude Include="Debug.hpp" />
+    <ClInclude Include="ETW\Nvidia_PCL.h" />
     <ClInclude Include="ETW\NV_DD.h" />
     <ClInclude Include="GpuTrace.hpp" />
     <ClInclude Include="NvidiaTraceConsumer.hpp" />
     <ClInclude Include="PresentMonTraceConsumer.hpp" />
     <ClInclude Include="TraceConsumer.hpp" />
     <ClInclude Include="PresentMonTraceSession.hpp" />
+    <ClInclude Include="TraceLogging.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Debug.cpp" />
@@ -367,6 +369,7 @@
     <ClCompile Include="PresentMonTraceConsumer.cpp" />
     <ClCompile Include="TraceConsumer.cpp" />
     <ClCompile Include="PresentMonTraceSession.cpp" />
+    <ClCompile Include="TraceLogging.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\IntelPresentMon\CommonUtilities\CommonUtilities.vcxproj">

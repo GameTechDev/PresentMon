@@ -21,7 +21,7 @@ namespace EtlTests
 		std::optional<std::ofstream>& debugCsvFile) {
 		using namespace std::chrono_literals;
 		pmapi::ProcessTracker processTracker;
-		static constexpr uint32_t numberOfBlobs = 4000u;
+		static constexpr uint32_t numberOfBlobs = 10000u;
 		uint32_t totalFramesValidated = 0;
 
 		PM_QUERY_ELEMENT queryElements[]{
@@ -51,6 +51,7 @@ namespace EtlTests
 			{ PM_METRIC_GPU_WAIT, PM_STAT_NONE, 0, 0},
 			{ PM_METRIC_ANIMATION_ERROR, PM_STAT_NONE, 0, 0 },
 			{ PM_METRIC_ANIMATION_TIME, PM_STAT_NONE, 0, 0 },
+			{ PM_METRIC_FLIP_DELAY, PM_STAT_NONE, 0, 0 },
 			{ PM_METRIC_ALL_INPUT_TO_PHOTON_LATENCY, PM_STAT_NONE, 0, 0},
 			{ PM_METRIC_CLICK_TO_PHOTON_LATENCY, PM_STAT_NONE, 0, 0},
 			{ PM_METRIC_INSTRUMENTED_LATENCY, PM_STAT_NONE, 0, 0 },
@@ -1657,10 +1658,6 @@ namespace EtlTests
 				return;
 			}
 
-            std::string outputdir = "F:\\EtlTesting\\"s;
-            std::string csvFileName = "test_output_6.csv";
-			debugCsv = CreateCsvFile(outputdir, csvFileName);
-
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "60000"s,
 				"--control-pipe"s, pipeName,
@@ -1853,14 +1850,14 @@ namespace EtlTests
 				debugCsv->close();
 			}
 		}
-		TEST_METHOD(Tc010v2ReprojLatency9688Ext)
+		TEST_METHOD(Tc010MarvelOnNvPcl1FgOnExt)
 		{
 			namespace bp = boost::process;
 			using namespace std::string_literals;
 			using namespace std::chrono_literals;
 
-			const uint32_t processId = 9688;
-			const std::string processName = "basic_xell_sample.exe";
+			const uint32_t processId = 42132;
+			const std::string processName = "Marvel-Win64-Shipping.exe";
 			std::optional<std::ofstream> debugCsv; // Empty optional
 
 			bp::ipstream out; // Stream for reading the process's output
@@ -1908,6 +1905,117 @@ namespace EtlTests
 				debugCsv->close();
 			}
 		}
-	};
+		TEST_METHOD(Tc011CP2077Pcl2FgOffRelexOffExt)
+		{
+			namespace bp = boost::process;
+			using namespace std::string_literals;
+			using namespace std::chrono_literals;
 
+			const uint32_t processId = 12524;
+			const std::string processName = "Cyberpunk2077.exe";
+			std::optional<std::ofstream> debugCsv; // Empty optional
+
+			bp::ipstream out; // Stream for reading the process's output
+			bp::opstream in;  // Stream for writing to the process's input
+
+			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
+			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto etlName = "F:\\EtlTesting\\test_case_11.etl";
+			const auto goldCsvName = L"F:\\EtlTesting\\test_case_11.csv";
+
+			CsvParser goldCsvFile;
+			if (!goldCsvFile.Open(goldCsvName, processId)) {
+				return;
+			}
+	
+			oChild.emplace("PresentMonService.exe"s,
+				"--timed-stop"s, "60000"s,
+				"--control-pipe"s, pipeName,
+				"--nsm-prefix"s, "pmon_nsm_utest_"s,
+				"--intro-nsm"s, introName,
+				"--etl-test-file"s, etlName,
+				bp::std_out > out, bp::std_in < in);
+
+			std::this_thread::sleep_for(1000ms);
+
+			std::unique_ptr<pmapi::Session> pSession;
+			{
+				try
+				{
+					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
+					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
+					pSession = std::make_unique<pmapi::Session>(pipeName);
+				}
+				catch (const std::exception& e) {
+					std::cout << "Error: " << e.what() << std::endl;
+					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
+					return;
+				}
+			}
+
+			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
+			goldCsvFile.Close();
+			if (debugCsv.has_value()) {
+				debugCsv->close();
+			}
+		}
+		TEST_METHOD(Tc012MarvelOnNvPcl3FgOnAutoReflexOnFrameDelayExt)
+		{
+			namespace bp = boost::process;
+			using namespace std::string_literals;
+			using namespace std::chrono_literals;
+
+			const uint32_t processId = 24412;
+			const std::string processName = "Marvel-Win64-Shipping.exe";
+			std::optional<std::ofstream> debugCsv; // Empty optional
+
+			bp::ipstream out; // Stream for reading the process's output
+			bp::opstream in;  // Stream for writing to the process's input
+
+			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
+			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto etlName = "F:\\EtlTesting\\test_case_12.etl";
+			const auto goldCsvName = L"F:\\EtlTesting\\test_case_12.csv";
+
+			CsvParser goldCsvFile;
+			if (!goldCsvFile.Open(goldCsvName, processId)) {
+				return;
+			}
+
+            std::string folder = "F:\\EtlTesting\\ETLDebugging\\testcase12\\"s;
+			std::string csvName = "debug.csv"s;
+			debugCsv = CreateCsvFile(folder,csvName);
+
+			oChild.emplace("PresentMonService.exe"s,
+				//"--timed-stop"s, "60000"s,
+				"--control-pipe"s, pipeName,
+				"--nsm-prefix"s, "pmon_nsm_utest_"s,
+				"--intro-nsm"s, introName,
+				"--etl-test-file"s, etlName,
+				bp::std_out > out, bp::std_in < in);
+
+			std::this_thread::sleep_for(1000ms);
+
+			std::unique_ptr<pmapi::Session> pSession;
+			{
+				try
+				{
+					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
+					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
+					pSession = std::make_unique<pmapi::Session>(pipeName);
+				}
+				catch (const std::exception& e) {
+					std::cout << "Error: " << e.what() << std::endl;
+					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
+					return;
+				}
+			}
+
+			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
+			goldCsvFile.Close();
+			if (debugCsv.has_value()) {
+				debugCsv->close();
+			}
+		}
+	};
 }
