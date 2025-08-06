@@ -170,7 +170,7 @@ static LRESULT CALLBACK HandleWindowMessage(HWND hWnd, UINT uMsg, WPARAM wParam,
     case WM_HOTKEY:
         if (gHotkeyIgnoreCount > 0) {
             gHotkeyIgnoreCount -= 1;
-            break;
+            return 0;
         }
 
         if (IsRecording()) {
