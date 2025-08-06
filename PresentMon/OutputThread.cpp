@@ -165,6 +165,10 @@ static void ProcessProcessEvent(
 
         if (!pr.second) {
             HandleTerminatedProcess(info);
+            if (info->mHandle != NULL) {
+                CloseHandle(info->mHandle);
+                info->mHandle = NULL;
+            }
         }
 
         info->mHandle          = NULL;
