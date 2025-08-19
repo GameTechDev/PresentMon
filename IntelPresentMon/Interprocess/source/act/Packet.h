@@ -20,13 +20,13 @@ namespace pmon::ipc::act
 
 	struct PacketHeader
 	{
-		std::string identifier;
-		uint32_t commandToken;
-		TransportStatus transportStatus;
-		int executionStatus;
-		PacketType packetType;
-		uint16_t headerVersion;
-		uint16_t actionVersion;
+		std::string identifier{};
+		uint32_t commandToken{};
+		TransportStatus transportStatus{};
+		int executionStatus{};
+		PacketType packetType{};
+		uint16_t headerVersion{};
+		uint16_t actionVersion{};
 
 		template<class A> void serialize(A& ar) {
 			ar(identifier, commandToken, transportStatus, executionStatus,

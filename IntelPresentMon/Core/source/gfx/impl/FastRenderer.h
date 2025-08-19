@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <Core/source/win/WinAPI.h>
-#include <Core/source/gfx/base/ComPtr.h>
+#include <CommonUtilities/win/com/ComPtr.h>
 #include <Core/source/gfx/base/Geometry.h>
 #include <d3d11_2.h>
 #include <optional>
@@ -10,6 +10,7 @@
 
 namespace p2c::gfx::impl
 {
+    using ::pmon::util::win::com::ComPtr;
     class FastRenderer
     {
     public:

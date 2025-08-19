@@ -26,34 +26,7 @@ namespace GfxLayer
 	{
 		using namespace Extension;
 
-		OverlayConfig overlayCfg = {
-			.BarSize = 0.25,
-			.BarRightShift = 0.5,
-			.BarColor = { 1.0f, 1.0f, 1.0f, 1.0f },
-			.RenderBackground = false,
-			.BackgroundColor = { 0.0f, 0.0f, 0.0f, 1.0f }
-		};
-
-		auto& opts = Context::GetInstance().GetOptions();
-		auto barSize = opts.GetFloat(GFXL_OPT_BAR_SIZE);
-		auto barRightShift = opts.GetFloat(GFXL_OPT_BAR_RIGHT_SHIFT);
-		if (!std::isnan(barSize))
-		{
-			overlayCfg.BarSize = barSize;
-		}
-		if (!std::isnan(barRightShift))
-		{
-			overlayCfg.BarRightShift = barRightShift;
-		}
-		overlayCfg.RenderBackground = opts.GetFlag(GFXL_OPT_RENDER_BACKGROUND);
-
-		if (const auto barColor = opts.GetRgb24Color(GFXL_OPT_BAR_COLOR)) {
-			std::memcpy(overlayCfg.BarColor, &*barColor, sizeof(*barColor));
-		}
-
-		if (const auto bgColor = opts.GetRgb24Color(GFXL_OPT_BACKGROUND_COLOR)) {
-			std::memcpy(overlayCfg.BackgroundColor, &*bgColor, sizeof(*bgColor));
-		}
+		OverlayConfig overlayCfg{};
 
 		ComPtr<IDXGISwapChain3> pSwapChain3 = nullptr;
 		pSwapChain->QueryInterface(IID_PPV_ARGS(&pSwapChain3));

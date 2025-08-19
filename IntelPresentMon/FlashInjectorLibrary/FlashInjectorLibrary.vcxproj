@@ -19,14 +19,20 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="act\AllActions.h" />
+    <ClInclude Include="act\Common.h" />
+    <ClInclude Include="act\InjectionPointExecutionContext.h" />
+    <ClInclude Include="act\OpenSession.h" />
+    <ClInclude Include="act\PushConfig.h" />
     <ClInclude Include="ApiId.h" />
-    <ClInclude Include="Config.h" />
     <ClInclude Include="Context.h" />
     <ClInclude Include="Custom\API_D3D11.h" />
     <ClInclude Include="Custom\Extensions.h" />
     <ClInclude Include="Custom\IUnknown_Wrapper.h" />
     <ClInclude Include="Custom\PrePostCalls.h" />
     <ClInclude Include="Extension\DXGIOverlay.h" />
+    <ClInclude Include="Extension\OverlayConfig.h" />
+    <ClInclude Include="Extension\OverlayConfigPack.h" />
     <ClInclude Include="Extension\OverlayRenderer.h" />
     <ClInclude Include="Extension\OverlayRenderer_D3D10.h" />
     <ClInclude Include="Extension\OverlayRenderer_D3D11.h" />
@@ -42,12 +48,13 @@
     <ClInclude Include="WrapUtils.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Config.cpp" />
+    <ClCompile Include="act\ActionRegistration.cpp" />
     <ClCompile Include="Context.cpp" />
     <ClCompile Include="Custom\API_D3D11.cpp" />
     <ClCompile Include="Custom\IUnknown_Wrapper.cpp" />
     <ClCompile Include="DLLMain.cpp" />
     <ClCompile Include="Extension\DXGIOverlay.cpp" />
+    <ClCompile Include="Extension\OverlayConfigPack.cpp" />
     <ClCompile Include="Extension\OverlayRenderer.cpp" />
     <ClCompile Include="Extension\OverlayRenderer_D3D10.cpp" />
     <ClCompile Include="Extension\OverlayRenderer_D3D11.cpp" />
@@ -148,7 +155,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;FLASHINJECTORLIBRARY_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;FLASHINJECTORLIBRARY_EXPORTS;_WINDOWS;_USRDLL;PM_BUILD_PLATFORM="$(Platform)";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -169,7 +176,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;FLASHINJECTORLIBRARY_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;FLASHINJECTORLIBRARY_EXPORTS;_WINDOWS;_USRDLL;PM_BUILD_PLATFORM="$(Platform)";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -190,7 +197,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;FLASHINJECTORLIBRARY_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;FLASHINJECTORLIBRARY_EXPORTS;_WINDOWS;_USRDLL;PM_BUILD_PLATFORM="$(Platform)";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -215,7 +222,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;FLASHINJECTORLIBRARY_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;FLASHINJECTORLIBRARY_EXPORTS;_WINDOWS;_USRDLL;PM_BUILD_PLATFORM="$(Platform)";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>

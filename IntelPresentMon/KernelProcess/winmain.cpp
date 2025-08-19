@@ -32,25 +32,27 @@ namespace kproc
 {
 	using KernelServer = ipc::act::SymmetricActionServer<kact::KernelExecutionContext>;
 
+	namespace cact = p2c::client::util::cact;
+
 	class KernelHandler : public p2c::kern::KernelHandler
 	{
 	public:
 		KernelHandler(KernelServer& server) : server_{ server } {}
 		void OnTargetLost(uint32_t pid) override
 		{
-			server_.DispatchDetached(p2c::client::util::cact::TargetLostAction::Params{ pid });
+			server_.DispatchDetached(cact::TargetLostAction::Params{ pid });
 		}
 		void OnOverlayDied() override
 		{
-			server_.DispatchDetached(p2c::client::util::cact::OverlayDiedAction::Params{});
+			server_.DispatchDetached(cact::OverlayDiedAction::Params{});
 		}
 		void OnPresentmonInitFailed() override
 		{
-			server_.DispatchDetached(p2c::client::util::cact::PresentmonInitFailedAction::Params{});
+			server_.DispatchDetached(cact::PresentmonInitFailedAction::Params{});
 		}
 		void OnStalePidSelected() override
 		{
-			server_.DispatchDetached(p2c::client::util::cact::StalePidAction::Params{});
+			server_.DispatchDetached(cact::StalePidAction::Params{});
 		}
 	private:
 		// data
@@ -157,8 +159,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		KernelServer server{ kact::KernelExecutionContext{ .ppKernel = &pKernel, .pHotkeys = &hotkeys },
 			actName, 1, "D:(A;;GA;;;WD)S:(ML;;NW;;;ME)" };
 		// set the hotkey manager to send notifications via the action server
-		hotkeys.SetHandler([&](int action) { 
-			pmlog_info("hey hot");
+		hotkeys.SetHandler([&](int action) {
 			server.DispatchDetached(p2c::client::util::cact::HotkeyFiredAction::Params{ .actionId = action });
 		});
 		// this handler receives events from the kernel and transmits them to the render process via the server
@@ -200,6 +201,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			"--p2c-log-pipe-name"s, cefLogPipe
 		}); 
 		// launch the CEF browser process, which in turn launches all the other processes in the CEF process constellation
+		// TODO: can we use a single ioctx for all child processes?
 		boost::asio::io_context cefIoctx;
 		auto cefChild = [&] {
 			if (util::win::WeAreElevated()) {

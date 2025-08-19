@@ -22,7 +22,7 @@ namespace p2c::win
 {
     PM_DEFINE_EX(PdhException);
 
-    std::optional<uint32_t> GetTopGpuProcess(const std::vector<Process>& candidates)
+    std::optional<uint32_t> GetTopGpuProcess(const std::vector<::pmon::util::win::Process>& candidates)
 	{
         // query size of counter and instance buffers
         DWORD counterListSize = 0;

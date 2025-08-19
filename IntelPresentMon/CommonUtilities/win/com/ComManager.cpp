@@ -1,12 +1,12 @@
 // Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "ComManager.h"
-#include <Core/source/infra/Logging.h>
-#include <CommonUtilities/Exception.h>
+#include "../../log/Log.h"
+#include "../../Exception.h"
 #include "Comdef.h"
 
 
-namespace p2c::win::com
+namespace pmon::util::win::com
 {
 	using namespace ::pmon::util;
 

@@ -1,12 +1,20 @@
 // Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "ProcessSpawnSink.h"
-#include <Core/source/gfx/base/ComPtr.h>
-#include <Core/source/infra/Logging.h>
-#include <CommonUtilities/str/String.h>
+#include "ComPtr.h"
+#include "../../log/Log.h"
+#include "../../str/String.h"
 #include <format>
 
-namespace p2c::win::com
+namespace v {
+#ifndef VVV_PROCWATCH // system that tracks overlay target process ancestry and windows spawning therein
+    inline constexpr bool procwatch = false;
+#else
+    inline constexpr bool procwatch = true;
+#endif
+}
+
+namespace pmon::util::win::com
 {
     ProcessSpawnSink::ProcessSpawnSink(EventQueue& queue, float delayToleranceSeconds)
         :
@@ -16,7 +24,7 @@ namespace p2c::win::com
     HRESULT STDMETHODCALLTYPE ProcessSpawnSink::Indicate(LONG count,
         IWbemClassObject __RPC_FAR* __RPC_FAR* pObjArr)
     {
-        using gfx::ComPtr;
+        using pmon::util::win::com::ComPtr;
         for (int i = 0; i < count; i++)
         {
             // get wbem interface for process info

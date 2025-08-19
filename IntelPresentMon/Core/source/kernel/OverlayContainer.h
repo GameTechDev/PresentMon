@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "Overlay.h"
-#include <Core/source/win/com/WbemConnection.h>
-#include <Core/source/win/com/WbemListener.h>
-#include <Core/source/win/com/ProcessSpawnSink.h>
+#include <CommonUtilities/win/com/WbemConnection.h>
+#include <CommonUtilities/win/com/WbemListener.h>
+#include <CommonUtilities/win/com/ProcessSpawnSink.h>
 #include <Core/source/win/ProcessMapBuilder.h>
 #include <Core/source/win/EventHookManager.h>
 #include "WindowSpawnHandler.h"
@@ -17,7 +17,7 @@ namespace p2c::kern
 	{
 	public:
         // functions
-        OverlayContainer(win::com::WbemConnection& wbemConn_, std::shared_ptr<OverlaySpec> pSpec_,
+        OverlayContainer(::pmon::util::win::com::WbemConnection& wbemConn_, std::shared_ptr<OverlaySpec> pSpec_,
             pmon::PresentMon* pm_);
         ~OverlayContainer() = default;
         void RebuildDocument(std::shared_ptr<OverlaySpec> pSpec_);
@@ -25,7 +25,7 @@ namespace p2c::kern
         void RunTick();
         void SetCaptureState(bool active, std::wstring path, std::wstring name);
         bool IsTargetLive() const;
-        const win::Process& GetProcess() const;
+        const ::pmon::util::win::Process& GetProcess() const;
         void UpdateTargetFullscreenStatus();
         const OverlaySpec& GetSpec() const;
         void CheckAndProcessFullscreenTransition();
@@ -35,14 +35,14 @@ namespace p2c::kern
         // functions
         void HandleProcessSpawnEvents_();
         // data
-        win::com::WbemConnection& wbemConn;
+        ::pmon::util::win::com::WbemConnection& wbemConn;
 		std::unique_ptr<Overlay> pOverlay;
         // TODO: listen for process death and prune this map
-        std::unordered_map<DWORD, win::Process> ancestorMap;
+        std::unordered_map<DWORD, ::pmon::util::win::Process> ancestorMap;
         std::vector<win::EventHookManager::Token> windowSpawnListeners;
         DWORD rootPid = 0;
         DWORD curPid = 0;
-        win::com::ProcessSpawnSink::EventQueue spawnQueue;
-        std::unique_ptr<win::com::WbemListener> pChildListener;
+        ::pmon::util::win::com::ProcessSpawnSink::EventQueue spawnQueue;
+        std::unique_ptr<::pmon::util::win::com::WbemListener> pChildListener;
 	};
 }

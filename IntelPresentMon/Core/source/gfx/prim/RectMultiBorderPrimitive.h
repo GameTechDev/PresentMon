@@ -3,7 +3,7 @@
 #pragma once
 #include "DrawablePrimitive.h"
 #include "../base/Geometry.h"
-#include "../base/ComPtr.h"
+#include <CommonUtilities/win/com/ComPtr.h>
 #include "ForwardInterfaces.h"
 #include <memory>
 

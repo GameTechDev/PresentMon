@@ -9,12 +9,12 @@
 #include "OverlayContainer.h"
 #include "TargetLostException.h"
 #include <Core/source/win/ProcessMapBuilder.h>
-#include <Core/source/win/com/WbemConnection.h>
+#include <CommonUtilities/win/com/WbemConnection.h>
 #include <Core/source/cli/CliOptions.h>
 #include <CommonUtilities/str/String.h>
 #include <CommonUtilities/Exception.h>
 #include <CommonUtilities/win/Utilities.h>
-#include <boost/process/windows.hpp>
+#include "InjectorComplex.h"
 
 
 using namespace std::literals;
@@ -29,7 +29,8 @@ namespace p2c::kern
         :
         pHandler{ pHandler },
         constructionSemaphore{ 0 },
-        thread{ "kernel", &Kernel::ThreadProcedure_, this}
+        thread{ "kernel", &Kernel::ThreadProcedure_, this},
+        pInjectorComplex{ std::make_unique<InjectorComplex>() }
     {
         constructionSemaphore.acquire();
         HandleMarshalledException_();
@@ -54,129 +55,29 @@ namespace p2c::kern
         cv.notify_one();
     }
 
-    void Kernel::UpdateInjection(bool enableInjection, std::optional<uint32_t> pid, bool enableBackground, 
-        const gfx::Color& flashColor, const gfx::Color& backgroundColor, float width, float rightShift)
+    void Kernel::UpdateInjection(bool enableInjection, std::optional<uint32_t> currentlyTargettedPid,
+        std::optional<std::string> overrideTargetName,
+        const GfxLayer::Extension::OverlayConfig& cfg)
     {
         HandleMarshalledException_();
-        std::lock_guard lk{ mtx };
-        if (!enableInjection) {
-            if (injectorProcess) {
-                pmlog_dbg("terminating injector child");
-                injectorProcess.reset();
+        auto config = cfg;
+        pInjectorComplex->SetActive(enableInjection);
+        if (enableInjection) {
+            if (overrideTargetName) {
+                pInjectorComplex->ChangeTarget(std::move(*overrideTargetName));
             }
-        }
-        else {
-            // routine to compare settings
-            const auto SettingsMatch = [&]() {
-                return
-                    injectorProcess->enableBackground == enableBackground &&
-                    injectorProcess->flashColor == flashColor &&
-                    injectorProcess->backgroundColor == backgroundColor &&
-                    injectorProcess->width == width &&
-                    injectorProcess->rightShift == rightShift;
-            };
-
-            // cases where we have no pid
-            if (!pid) {
-                // no injector => nothing to do, so skip relaunching
-                // yes injectr => if settings are the same skip relaunching
-                if (!injectorProcess || SettingsMatch()) {
-                    return;
-                }
-            }
-
-            std::optional<std::string> nameCache;
-            bool is32BitCache = false;
-            uint32_t pidCache = 0;
-            const auto LookupProcessInfo = [&](uint32_t pid) -> bool {
+            else if (currentlyTargettedPid) {
                 try {
-                    auto hProc = cwin::OpenProcess(pid);
-                    is32BitCache = cwin::ProcessIs32Bit(hProc);
-                    nameCache = cwin::GetExecutableModulePath(hProc).filename().string();
-                    pidCache = pid;
-                    return true;
+                    auto hProc = cwin::OpenProcess(*currentlyTargettedPid);
+                    auto modName = cwin::GetExecutableModulePath(hProc).filename().string();
+                    pInjectorComplex->ChangeTarget(std::move(modName));
                 }
                 catch (...) {
-                    pmlog_warn("Failed target process lookup").pmwatch(pid);
-                    return false;
-                }
-            };
-            // case where we have pid AND injector, deep compare all the things
-            if (pid && injectorProcess && SettingsMatch()) {
-                // pid still matches means we don't even need to check the name
-                if (*pid == injectorProcess->lastTrackedPid) {
-                    return;
-                }
-                // lookup pid so we can compare name
-                if (!LookupProcessInfo(*pid)) {
-                    // pid changed but name was not in the cache
-                    // we won't handle this case for now
-                    pmlog_warn("pid not found in Process info cache, aborting injection").pmwatch(*pid);
-                    injectorProcess.reset();
-                    return;
-                }
-                // if name still matches, skip re-launch
-                if (*nameCache == injectorProcess->trackedName) {
-                    return;
+                    pmlog_warn("Failed target process lookup").pmwatch(*currentlyTargettedPid);
+                    pInjectorComplex->ChangeTarget({});
                 }
             }
-
-            // if we made it this far, we need to (re-)launch the injector child process
-            // if we have a new pid, make sure the name and bit-ness is populated
-            if (pid && !nameCache) {
-                if (!LookupProcessInfo(*pid)) {
-                    pmlog_warn("pid not found in Process info cache, aborting injection").pmwatch(*pid);
-                    injectorProcess.reset();
-                    return;
-                }
-            }
-
-            // if we make it here without a pid, then we must at least have injector
-            // use its target info
-            if (!pid) {
-                is32BitCache = injectorProcess->is32Bit;
-                nameCache = injectorProcess->trackedName;
-                pidCache = injectorProcess->lastTrackedPid;
-            }
-
-            namespace bp = boost::process;
-            const auto MakeColorString24 = [](const gfx::Color& c) {
-                return std::format("{},{},{}",
-                    int(c.r * 255.f), int(c.g * 255.f), int(c.b * 255.f));
-            };
-            const auto path = std::filesystem::current_path() / (is32BitCache ?
-                    "FlashInjector-Win32.exe"s : "FlashInjector-x64.exe"s);
-            std::vector<std::string> args;
-            args.push_back("--exe-name"s); args.push_back(*nameCache);
-            args.push_back("--bar-color"s); args.push_back(MakeColorString24(flashColor));
-            args.push_back("--background-color"s); args.push_back(MakeColorString24(backgroundColor));
-            args.push_back("--bar-size"s); args.push_back(std::to_string(width));
-            args.push_back("--bar-right-shift"s); args.push_back(std::to_string(rightShift));
-            if (enableBackground) {
-                args.push_back("--render-background"s);
-            }
-            pmlog_dbg("launching injector child"s)
-                .pmwatch(path.string())
-                .pmwatch(*nameCache)
-                .pmwatch(enableBackground)
-                .pmwatch(MakeColorString24(flashColor))
-                .pmwatch(MakeColorString24(backgroundColor))
-                .pmwatch(width)
-                .pmwatch(rightShift);
-            injectorProcess.emplace(
-                bp::child{ path.string(),
-                    bp::args(std::move(args)),
-                    bp::windows::hide
-                }
-            );
-            injectorProcess->trackedName = std::move(*nameCache);
-            injectorProcess->lastTrackedPid = pidCache;
-            injectorProcess->is32Bit = is32BitCache;
-            injectorProcess->enableBackground = enableBackground;
-            injectorProcess->flashColor = flashColor;
-            injectorProcess->backgroundColor = backgroundColor;
-            injectorProcess->width = width;
-            injectorProcess->rightShift = rightShift;
+            pInjectorComplex->UpdateConfig(cfg);
         }
     }
 
@@ -264,7 +165,7 @@ namespace p2c::kern
             auto& opt = cli::Options::Get();
 
             // connect to wbem
-            win::com::WbemConnection wbemConn;
+            ::pmon::util::win::com::WbemConnection wbemConn;
 
             // connection names control from cli override / svc-as-child
             auto controlPipe = opt.controlPipe.AsOptional();

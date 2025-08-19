@@ -20,6 +20,7 @@ namespace clio
 		DiagnosticsDemo,
 		PlaybackFrameQuery,
 		PlaybackDynamicQuery,
+		IntrospectAllDynamicOptions,
 		Count,
 	};
 

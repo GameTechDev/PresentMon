@@ -1,7 +1,7 @@
 // Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
-#include <Core/source/win/Process.h>
+#include <CommonUtilities/win/Process.h>
 #include <Core/source/win/EventHookManager.h>
 #include <Core/source/gfx/Graphics.h>
 #include <Core/source/win/KernelWindow.h>
@@ -36,7 +36,7 @@ namespace p2c::kern
     public:
         // functions
         Overlay(
-            win::Process proc_,
+            ::pmon::util::win::Process proc_,
             std::shared_ptr<OverlaySpec> pSpec_, 
             pmon::PresentMon* pm_,
             std::unique_ptr<MetricPackMapper> pPackMapper_,
@@ -50,12 +50,12 @@ namespace p2c::kern
         void SetCaptureState(bool active, std::wstring path, std::wstring name);
         bool IsTargetLive() const;
         bool IsStandardWindow() const;
-        const win::Process& GetProcess() const;
+        const ::pmon::util::win::Process& GetProcess() const;
         void UpdateTargetFullscreenStatus();
         bool NeedsFullscreenReboot() const;
         const OverlaySpec& GetSpec() const;
         std::unique_ptr<Overlay> SacrificeClone(std::optional<HWND> hWnd_ = {}, std::shared_ptr<OverlaySpec> pSpec_ = {});
-        std::unique_ptr<Overlay> RetargetPidClone(win::Process proc_);
+        std::unique_ptr<Overlay> RetargetPidClone(::pmon::util::win::Process proc_);
         const gfx::RectI& GetTargetRect() const;
     private:
         // functions
@@ -96,7 +96,7 @@ namespace p2c::kern
             size_t remainings_[Count_];
         };
         // data
-        win::Process proc;
+        ::pmon::util::win::Process proc;
         std::shared_ptr<OverlaySpec> pSpec;
         TaskScheduler scheduler_;
         pmon::PresentMon* pm;

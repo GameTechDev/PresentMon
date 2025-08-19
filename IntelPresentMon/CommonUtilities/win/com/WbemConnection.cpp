@@ -3,16 +3,15 @@
 #include "WbemConnection.h"
 #include "Comdef.h"
 #include <Wbemidl.h>
-#include <Core/source/infra/Logging.h>
-#include <CommonUtilities/Exception.h>
+#include "../../log/Log.h"
+#include "../../Exception.h"
 #include "WbemListener.h"
 
 #pragma comment(lib, "wbemuuid.lib")
 
-namespace p2c::win::com
+namespace pmon::util::win::com
 {
 	using namespace ::pmon::util;
-	using Microsoft::WRL::ComPtr;
 
 	WbemConnection::WbemConnection()
 	{

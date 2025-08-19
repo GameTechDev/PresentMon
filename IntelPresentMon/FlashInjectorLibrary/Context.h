@@ -5,8 +5,8 @@
 
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 
-#include "Config.h"
 #include "NonCopyable.h"
 #include "MemoryPool.h"
 
@@ -27,8 +27,6 @@ namespace GfxLayer
 		void											RemoveWrapper(IUnknown_Wrapper* pUnknownWrapper);
 		IUnknown_Wrapper*								FindWrapper(IUnknown* pUnknown);
 
-		void											SetOptions(Options config);
-		const Options&									GetOptions() const;
 		MemoryPool&										GetMemoryPool();
 		uint32_t										IncrementCallScope();
 		uint32_t										DecrementCallScope();
@@ -38,7 +36,6 @@ namespace GfxLayer
 
 		ThreadData*										GetThreadData();
 
-		Options											m_Options;
 		WrapperMap										m_Wrappers;
 		std::mutex										m_WrappersMutex;
 

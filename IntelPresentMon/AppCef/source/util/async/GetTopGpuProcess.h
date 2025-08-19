@@ -27,9 +27,9 @@ namespace p2c::client::util::async
             builder.FillWindowHandles();
             builder.FilterHavingWindow();
             const auto procMap = builder.Extract();
-            std::vector<win::Process> procList;
+            std::vector<::pmon::util::win::Process> procList;
             for (auto&&[pid, proc] : procMap) {
-                procList.push_back(static_cast<const win::Process&>(proc));
+                procList.push_back(static_cast<const ::pmon::util::win::Process&>(proc));
             }
             // check if a blacklist was provided
             if (pArgObj->GetType() != CefValueType::VTYPE_NULL) {
@@ -38,7 +38,7 @@ namespace p2c::client::util::async
                 // build hash table set from vector
                 std::unordered_set<std::string> blacklistSet(blacklist.begin(), blacklist.end());
                 // remove candidate target processes that match blacklist (lower case compare)
-                std::erase_if(procList, [&](const win::Process& proc) {
+                std::erase_if(procList, [&](const ::pmon::util::win::Process& proc) {
                     auto narrowName = ::pmon::util::str::ToNarrow(proc.name);
                     for (auto& c : narrowName) {
                         c = std::tolower(c);

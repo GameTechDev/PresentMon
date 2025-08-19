@@ -4,14 +4,38 @@
 
 namespace GfxLayer::Extension
 {
-	OverlayRenderer_D3D10::OverlayRenderer_D3D10(OverlayConfig config, IDXGISwapChain3* pSwapChain, ID3D10Device* pDevice):
+	OverlayRenderer_D3D10::OverlayRenderer_D3D10(const OverlayConfig& config, IDXGISwapChain3* pSwapChain, ID3D10Device* pDevice):
 		OverlayRenderer(config, pSwapChain),
 		m_pDevice(pDevice)
 	{
-		LoadRenderState();
+		InitializeRenderState_(config);
 	}
 
-	void OverlayRenderer_D3D10::LoadRenderState()
+	void OverlayRenderer_D3D10::InitializeColorConstantBuffers_(const OverlayConfig& config)
+	{
+		// background
+		{
+			const D3D10_SUBRESOURCE_DATA initData{ .pSysMem = config.BackgroundColor.data() };
+			D3D10_BUFFER_DESC bufferDesc{};
+			bufferDesc.Usage = D3D10_USAGE_DEFAULT;
+			bufferDesc.ByteWidth = sizeof(config.BackgroundColor);
+			bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+			auto hr = m_pDevice->CreateBuffer(&bufferDesc, &initData, &m_pConstantBufferBackground);
+			CheckResult(hr, "D3D11 - Failed to create ID3D11Buffer (Background Constant Buffer)");
+		}
+		// flash
+		{
+			const D3D10_SUBRESOURCE_DATA initData{ .pSysMem = config.BarColor.data() };
+			D3D10_BUFFER_DESC bufferDesc{};
+			bufferDesc.Usage = D3D10_USAGE_DEFAULT;
+			bufferDesc.ByteWidth = sizeof(config.BarColor);
+			bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+			auto hr = m_pDevice->CreateBuffer(&bufferDesc, &initData, &m_pConstantBufferBar);
+			CheckResult(hr, "D3D11 - Failed to create ID3D11Buffer (Background Constant Buffer)");
+		}
+	}
+
+	void OverlayRenderer_D3D10::InitializeRenderState_(const OverlayConfig& config)
 	{
 		// Load Shaders and Input Layout
 
@@ -55,22 +79,7 @@ namespace GfxLayer::Extension
 		hr = m_pDevice->CreateBuffer(&bufferDesc, &initData, &m_pIndexBuffer);
 		CheckResult(hr, "D3D10 - Failed to create ID3D10Buffer (Index Buffer)");
 
-		// Load Constant Buffers
-
-		Quad::ConstantBuffer cbData = { 0 };
-		std::memcpy(cbData.Color, GetConfig().BackgroundColor, sizeof(cbData.Color));
-
-		bufferDesc.Usage = D3D10_USAGE_DEFAULT;
-		bufferDesc.ByteWidth = sizeof(Quad::ConstantBuffer);
-		bufferDesc.BindFlags = D3D10_BIND_CONSTANT_BUFFER;
-		bufferDesc.CPUAccessFlags = 0;
-		initData.pSysMem = &cbData;
-		hr = m_pDevice->CreateBuffer(&bufferDesc, &initData, &m_pConstantBufferBackground);
-		CheckResult(hr, "D3D10 - Failed to create ID3D10Buffer (Background Constant Buffe)");
-
-		std::memcpy(cbData.Color, GetConfig().BarColor, sizeof(cbData.Color));
-		hr = m_pDevice->CreateBuffer(&bufferDesc, &initData, &m_pConstantBufferBar);
-		CheckResult(hr, "D3D10 - Failed to create ID3D10Buffer (Bar Constant Buffe)");
+		InitializeColorConstantBuffers_(config);
 
 		// Create ID3D10StateBlock to save / restore state
 
@@ -129,17 +138,26 @@ namespace GfxLayer::Extension
 
 		m_pStateBlock->Apply();
 	}
-	void OverlayRenderer_D3D10::Resize(unsigned bufferCount, unsigned width, unsigned height)
+
+	void OverlayRenderer_D3D10::UpdateViewport(const OverlayConfig& cfg)
 	{
-		OverlayRenderer::Resize(bufferCount, width, height);
-
-		m_Rtvs.clear();
-		m_Rtvs.resize(bufferCount);
-
 		auto rect = GetScissorRect();
 		m_Viewport.TopLeftX = rect.left;
 		m_Viewport.TopLeftY = rect.top;
 		m_Viewport.Width = rect.right - rect.left;
 		m_Viewport.Height = rect.bottom - rect.top;
+	}
+
+	void OverlayRenderer_D3D10::UpdateConfig(const OverlayConfig& cfg)
+	{
+		UpdateViewport(cfg);
+		InitializeColorConstantBuffers_(cfg);
+	}
+
+	void OverlayRenderer_D3D10::Resize(unsigned bufferCount, unsigned width, unsigned height)
+	{
+		OverlayRenderer::Resize(bufferCount, width, height);
+		m_Rtvs.clear();
+		m_Rtvs.resize(bufferCount);
 	}
 }

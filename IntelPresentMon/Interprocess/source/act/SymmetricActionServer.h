@@ -47,6 +47,7 @@ namespace pmon::ipc::act
         template<class Params>
         auto DispatchSync(Params&& params)
         {
+            assert(IsRunning());
             // TODO: server needs an actual way to specify which client endpoint to transmit to
             auto& stx = sessions_.begin()->second;
             return stx.pConn->DispatchSync(std::forward<Params>(params), ioctx_, stx);
@@ -54,9 +55,14 @@ namespace pmon::ipc::act
         template<class Params>
         auto DispatchDetached(Params&& params)
         {
+            assert(IsRunning());
             // TODO: server needs an actual way to specify which client endpoint to transmit to
             auto& stx = sessions_.begin()->second;
             return stx.pConn->DispatchDetached(std::forward<Params>(params), ioctx_, stx);
+        }
+        bool IsRunning() const
+        {
+            return !ioctx_.stopped();
         }
 
     private:

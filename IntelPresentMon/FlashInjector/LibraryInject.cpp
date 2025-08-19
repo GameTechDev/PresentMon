@@ -102,40 +102,6 @@ namespace LibraryInject
         VirtualFreeEx(hProcess, pRemoteMem, 0, MEM_RELEASE);
     }
 
-    ProcessMap GetProcessNames()
-    {
-        ProcessMap processMap;
-
-        DWORD processIds[1024];
-        DWORD processIdsSize;
-        EnumProcesses(processIds, sizeof(processIds), &processIdsSize);
-
-        auto processIdsFound = processIdsSize / sizeof(DWORD);
-        for (unsigned idx = 0; idx < processIdsFound; idx++)
-        {
-            auto processId = processIds[idx];
-            if (processId == 0)
-            {
-                continue;
-            }
-
-            auto hProcess = ::OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, processId);
-            if (!hProcess)
-            {
-                continue;
-            }
-
-            CHAR pProcessName[MAX_PATH] = "NOT_FOUND";
-            GetModuleBaseName(hProcess, 0, pProcessName, sizeof(pProcessName) / sizeof(CHAR));
-
-            CloseHandle(hProcess);
-
-            processMap[processId] = pProcessName;
-        }
-
-        return processMap;
-    }
-
     void Attach(uint32_t processId, const std::filesystem::path& dllPath)
     {
         auto hTargetProcess = LibraryInject::OpenProcessAndMaybeElevate_(processId);

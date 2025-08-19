@@ -3,9 +3,9 @@
 #pragma once
 #include "WbemSink.h"
 
-namespace p2c::win::com
+namespace pmon::util::win::com
 {
-	ULONG STDMETHODCALLTYPE p2c::win::com::WbemSink::AddRef()
+	ULONG STDMETHODCALLTYPE WbemSink::AddRef()
 	{
 		return InterlockedIncrement(&refCount);
 	}

@@ -142,6 +142,8 @@ namespace ACT_NS
                 float upscaleFactor;
                 std::optional<int> adapterId; // Uncertain: may be a different type in your system.
                 bool enableFlashInjection;
+                bool flashInjectionEnableTargetOverride;
+                std::string flashInjectionTargetOverride;
                 float flashInjectionSize;
                 Color flashInjectionColor;
                 bool flashInjectionBackgroundEnable;
@@ -156,7 +158,8 @@ namespace ACT_NS
                         timeRange, overlayMargin, overlayBorder, overlayPadding, graphMargin,
                         graphBorder, graphPadding, overlayBorderColor, overlayBackgroundColor,
                         graphFont, overlayWidth, upscale, generateStats, enableTargetBlocklist,
-                        enableAutotargetting, upscaleFactor, adapterId, enableFlashInjection, flashInjectionSize,
+                        enableAutotargetting, upscaleFactor, adapterId, enableFlashInjection,
+                        flashInjectionSize, flashInjectionEnableTargetOverride, flashInjectionTargetOverride,
                         flashInjectionColor, flashInjectionBackgroundEnable, flashInjectionBackgroundColor,
                         flashInjectionRightShift);
                 }
@@ -184,15 +187,16 @@ namespace ACT_NS
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
         static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
         {
-            (*ctx.ppKernel)->UpdateInjection(
-                in.preferences.enableFlashInjection,
-                in.pid,
-                in.preferences.flashInjectionBackgroundEnable,
-                in.preferences.flashInjectionColor,
-                in.preferences.flashInjectionBackgroundColor,
-                in.preferences.flashInjectionSize,
-                in.preferences.flashInjectionRightShift
-            );
+            const GfxLayer::Extension::OverlayConfig cfg{
+                .BarSize = in.preferences.flashInjectionSize,
+                .BarRightShift = in.preferences.flashInjectionRightShift,
+                .BarColor = in.preferences.flashInjectionColor.AsArray(),
+                .RenderBackground = in.preferences.flashInjectionBackgroundEnable,
+                .BackgroundColor = in.preferences.flashInjectionBackgroundColor.AsArray(),
+            };
+            const auto flashTgtOverride = in.preferences.flashInjectionEnableTargetOverride ?
+                std::optional{ in.preferences.flashInjectionTargetOverride } : std::nullopt;
+            (*ctx.ppKernel)->UpdateInjection(in.preferences.enableFlashInjection, in.pid, flashTgtOverride, cfg);
             if (!in.pid) {
                 (*ctx.ppKernel)->ClearOverlay();
             }

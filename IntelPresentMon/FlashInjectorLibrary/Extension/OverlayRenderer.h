@@ -5,40 +5,36 @@
 using Microsoft::WRL::ComPtr;
 #include "../Context.h"
 #include "../NonCopyable.h"
+#include "OverlayConfig.h"
 
 namespace GfxLayer::Extension
 {
 	void CheckResult(HRESULT result, const char* pMessage);
 
-	struct OverlayConfig
-	{
-		float BarSize;
-		float BarRightShift;
-		float BarColor[4];
-
-		bool  RenderBackground;
-		float BackgroundColor[4];
-	};
-
 	class OverlayRenderer : public NonCopyable
 	{
 	public:
-		OverlayRenderer(OverlayConfig config, IDXGISwapChain3* pSwapChain);
+		OverlayRenderer(const OverlayConfig& cfg, IDXGISwapChain3* pSwapChain);
 		virtual ~OverlayRenderer() = default;
 
-		virtual void			Resize(unsigned bufferCount, unsigned width, unsigned height);
+		// called from a hook whenever the host is resizing its render targets
+		virtual void			Resize(unsigned bufferCount, unsigned width, unsigned height) = 0;
 
 		void					NewFrame();
 		RECT					GetScissorRect() const;
 		IDXGISwapChain3*		GetSwapChain() const;
-		OverlayConfig			GetConfig() const;
 
 	protected:
 		virtual void			Render(bool renderBar) = 0;
+		// this is triggered both by Resize and by UpdateConfig
+		virtual void			UpdateViewport(const OverlayConfig& cfg) = 0;
+		// called from Render when it is detected that config has changed (via IPC action)
+		virtual void			UpdateConfig(const OverlayConfig& cfg) = 0;
 
 	private:
-		OverlayConfig			m_Config{};
-		ComPtr<IDXGISwapChain3>	m_pSwapChain{};
-		RECT					m_ScissorRect{};
+		OverlayConfig			m_currentConfig;
+		ComPtr<IDXGISwapChain3>	m_pSwapChain;
+		unsigned m_width;
+		unsigned m_height;
 	};
 }

@@ -9,7 +9,7 @@
 #include <functional>
 #include "../Process.h"
 
-namespace p2c::win::com
+namespace pmon::util::win::com
 {
     class ProcessSpawnSink : public win::com::WbemSink
     {

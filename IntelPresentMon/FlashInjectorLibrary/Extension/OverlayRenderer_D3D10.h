@@ -14,14 +14,21 @@ namespace GfxLayer::Extension
 	class OverlayRenderer_D3D10 : public OverlayRenderer
 	{
 	public:
-		OverlayRenderer_D3D10(OverlayConfig config, IDXGISwapChain3* pSwapChain, ID3D10Device* pDevice);
+		OverlayRenderer_D3D10(const OverlayConfig& config, IDXGISwapChain3* pSwapChain, ID3D10Device* pDevice);
 		~OverlayRenderer_D3D10() = default;
 
-		void										Render(bool renderBar) override;
 		void										Resize(unsigned bufferCount, unsigned width, unsigned height) override;
 
+	protected:
+		void										Render(bool renderBar) override;
+		// this is triggered both by Resize and by UpdateConfig
+		void			UpdateViewport(const OverlayConfig& cfg) override;
+		// called from Render when it is detected that config has changed (via IPC action)
+		void			UpdateConfig(const OverlayConfig& cfg) override;
+
 	private:
-		void 										LoadRenderState();
+		void 										InitializeRenderState_(const OverlayConfig& config);
+		void										InitializeColorConstantBuffers_(const OverlayConfig& config);
 
 		ComPtr<ID3D10Device>						m_pDevice{};
 		std::vector<ComPtr<ID3D10RenderTargetView>>	m_Rtvs;

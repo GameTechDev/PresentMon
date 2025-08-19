@@ -1,6 +1,7 @@
 #include "OverlayRenderer.h"
 #include <cassert>
 #include "../Logging.h"
+#include "OverlayConfigPack.h"
 
 namespace GfxLayer::Extension
 {
@@ -13,14 +14,20 @@ namespace GfxLayer::Extension
 		}
 	}
 
-	OverlayRenderer::OverlayRenderer(OverlayConfig config, IDXGISwapChain3* pSwapChain):
-		m_pSwapChain(pSwapChain),
-		m_Config(config)
+	OverlayRenderer::OverlayRenderer(const OverlayConfig& cfg, IDXGISwapChain3* pSwapChain):
+		m_currentConfig{ cfg },
+		m_pSwapChain(pSwapChain)
 	{}
 
 	RECT OverlayRenderer::GetScissorRect() const
 	{
-		return m_ScissorRect;
+		const float rectWidth = m_width * m_currentConfig.BarSize;
+		RECT scissor;
+		scissor.left = LONG((m_width - rectWidth) * m_currentConfig.BarRightShift);
+		scissor.top = 0;
+		scissor.right = LONG(scissor.left + rectWidth);
+		scissor.bottom = m_height;
+		return scissor;
 	}
 
 	IDXGISwapChain3* OverlayRenderer::GetSwapChain() const
@@ -28,22 +35,21 @@ namespace GfxLayer::Extension
 		return m_pSwapChain.Get();
 	}
 
-	OverlayConfig OverlayRenderer::GetConfig() const
-	{
-		return m_Config;
-	}
-
 	void OverlayRenderer::Resize(unsigned bufferCount, unsigned width, unsigned height)
 	{
-		float rectWidth = width * m_Config.BarSize;
-		m_ScissorRect.left = LONG((width - rectWidth) * m_Config.BarRightShift);
-		m_ScissorRect.top = 0;
-		m_ScissorRect.right = LONG(m_ScissorRect.left + rectWidth);
-		m_ScissorRect.bottom = height;
+		m_width = width;
+		m_height = height;
+		UpdateViewport(m_currentConfig);
 	}
 
 	void OverlayRenderer::NewFrame()
 	{
+		auto& pack = OverlayConfigPack::Get();
+		if (pack.IsDirty()) {
+			m_currentConfig = pack.Read();
+			UpdateConfig(m_currentConfig);
+		}
+
 		static unsigned s_frameCounter = 0;
 		static bool s_mouseClicked = false;
 
@@ -65,7 +71,7 @@ namespace GfxLayer::Extension
 			Render(true);
 			--s_frameCounter;
 		}
-		else if (m_Config.RenderBackground)
+		else if (m_currentConfig.RenderBackground)
 		{
 			Render(false);
 		}

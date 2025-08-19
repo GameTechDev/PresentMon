@@ -3,7 +3,7 @@
 #pragma once
 #include "DrawablePrimitive.h"
 #include "../base/Geometry.h"
-#include "../base/ComPtr.h"
+#include <CommonUtilities/win/com/ComPtr.h>
 #include "TextStylePrimitive.h"
 #include <string>
 #include <optional>
@@ -14,6 +14,7 @@
 
 namespace p2c::gfx::prim
 {
+	using pmon::util::win::com::ComPtr;
 	class TextPrimitive : public DrawablePrimitive
 	{
 	public:

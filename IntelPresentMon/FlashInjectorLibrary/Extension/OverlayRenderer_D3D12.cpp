@@ -3,9 +3,10 @@
 
 namespace GfxLayer::Extension
 {
-	OverlayRenderer_D3D12::OverlayRenderer_D3D12(OverlayConfig config, IDXGISwapChain3* pSwapChain, ID3D12CommandQueue* pCmdQueue):
-		OverlayRenderer(config, pSwapChain),
-		m_pCmdQueue(pCmdQueue)
+	OverlayRenderer_D3D12::OverlayRenderer_D3D12(const OverlayConfig& cfg, IDXGISwapChain3* pSwapChain, ID3D12CommandQueue* pCmdQueue):
+		OverlayRenderer(cfg, pSwapChain),
+		m_pCmdQueue(pCmdQueue),
+		m_config{ cfg }
 	{
 		m_pCmdQueue->GetDevice(IID_PPV_ARGS(&m_pDevice));
 		m_RtvDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -58,10 +59,10 @@ namespace GfxLayer::Extension
 
 	void OverlayRenderer_D3D12::Render(bool renderBar)
 	{
-		float* pColor = GetConfig().BackgroundColor;
+		float* pColor = m_config.BackgroundColor.data();
 		if (renderBar)
 		{
-			pColor = GetConfig().BarColor;
+			pColor = m_config.BarColor.data();
 		}
 
 		auto backBufferIdx = GetSwapChain()->GetCurrentBackBufferIndex();
@@ -78,5 +79,13 @@ namespace GfxLayer::Extension
 
 		ID3D12CommandList* pCommandLists[] = { pCmdList };
 		m_pCmdQueue->ExecuteCommandLists(_countof(pCommandLists), pCommandLists);
+	}
+
+	void OverlayRenderer_D3D12::UpdateViewport(const OverlayConfig& cfg)
+	{}
+
+	void OverlayRenderer_D3D12::UpdateConfig(const OverlayConfig& cfg)
+	{
+		m_config = cfg;
 	}
 }

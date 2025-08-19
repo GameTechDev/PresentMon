@@ -1,9 +1,11 @@
 #include "Introspection.h"
 #include <format>
 #include <cassert>
+#include <ranges>
 #include "Exception.h"
 #include "../CommonUtilities/log/Log.h"
 
+namespace rn = std::ranges;
 
 namespace pmapi::intro
 {
@@ -82,6 +84,17 @@ namespace pmapi::intro
         // trying to deduce the template params for subrange causes intellisense to crash
         // workaround this by providing them explicitly as the return type (normally would use auto)
         return { GetKeysBegin_(), GetKeysEnd_() };
+    }
+
+    EnumKeyView EnumView::FindKey(int key) const
+    {
+        auto keys = GetKeys();
+        if (auto i = rn::find(keys, key, &EnumKeyView::GetId); i == keys.end()) {
+            throw LookupException{ std::format("unable to find key ID={} of enum {}", key, GetSymbol()) };
+        }
+        else {
+            return *i;
+        }
     }
 
     const EnumView::SelfType* EnumView::operator->() const

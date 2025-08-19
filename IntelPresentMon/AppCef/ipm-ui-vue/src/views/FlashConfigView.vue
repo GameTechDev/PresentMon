@@ -2,9 +2,27 @@
 <!-- SPDX-License-Identifier: MIT -->
 
 <script setup lang="ts">
+import { watch, nextTick, ref } from 'vue';
 import { usePreferencesStore } from '@/stores/preferences';
 import ColorPicker from '@/components/ColorPicker.vue';
+import { VTextField } from 'vuetify/components';
 const prefs = usePreferencesStore();
+
+// ref on field
+const overrideTextField = ref<InstanceType<typeof VTextField>|null>(null);
+// Vuetify rule: only validate (and flag red) when enabled
+const overrideRules = [
+  (v: string) => !prefs.preferences.flashInjectionEnableTargetOverride || !!v || 'Required'
+];
+// whenever we enable override, force validation
+watch(
+  () => prefs.preferences.flashInjectionEnableTargetOverride,
+  (enabled) => {
+    if (enabled) {
+      nextTick(() => overrideTextField.value?.validate());
+    }
+  }
+);
 </script>
 
 <template>
@@ -21,6 +39,32 @@ const prefs = usePreferencesStore();
         </v-col>
         <v-col cols="9">
           <v-switch v-model="prefs.preferences.enableFlashInjection" label="Enable"></v-switch>
+        </v-col>
+      </v-row>
+
+      <v-row class="mt-8">
+        <v-col cols="3">
+          Enable Target Override
+          <p class="text-medium-emphasis text-caption mb-0">Use a custom name instead of last-targeted process name.</p>
+        </v-col>
+        <v-col cols="9">
+          <v-switch v-model="prefs.preferences.flashInjectionEnableTargetOverride" label="Enable"></v-switch>
+        </v-col>
+      </v-row>
+
+      <v-row class="mt-8" v-if="prefs.preferences.flashInjectionEnableTargetOverride">
+        <v-col cols="3">
+          Target Name Override
+          <p class="text-medium-emphasis text-caption mb-0">Process module name to use for injection.</p>
+        </v-col>
+        <v-col cols="9">
+          <v-text-field
+            ref="overrideTextField"
+            v-model="prefs.preferences.flashInjectionTargetOverride"
+            label="Module Name"
+            :rules="overrideRules"
+            required
+          />
         </v-col>
       </v-row>
 

@@ -1,12 +1,13 @@
 // Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
-#include <Core/source/gfx/base/ComPtr.h>
+#include "ComPtr.h"
 #include "ComManager.h"
+#include <memory>
 
 struct IWbemServices;
 
-namespace p2c::win::com
+namespace pmon::util::win::com
 {
 	class WbemListener;
 	class WbemSink;

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "FontEnumerator.h"
 #include <CommonUtilities/win/WinAPI.h>
-#include <Core/source/gfx/base/ComPtr.h>
+#include <CommonUtilities/win/com/ComPtr.h>
 #include "Logging.h"
 #include <CommonUtilities/log/HrLogger.h>
 #include <dwrite.h>
@@ -10,7 +10,7 @@
 
 namespace p2c::client::util
 {
-    using gfx::ComPtr;
+    using pmon::util::win::com::ComPtr;
 
 	FontEnumerator::FontEnumerator()
 	{

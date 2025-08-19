@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -87,6 +87,13 @@
     <ClInclude Include="rng\PairToRange.h" />
     <ClInclude Include="str\String.h" />
     <ClInclude Include="third\reflect.hpp" />
+    <ClInclude Include="win\com\Comdef.h" />
+    <ClInclude Include="win\com\ComManager.h" />
+    <ClInclude Include="win\com\ComPtr.h" />
+    <ClInclude Include="win\com\ProcessSpawnSink.h" />
+    <ClInclude Include="win\com\WbemConnection.h" />
+    <ClInclude Include="win\com\WbemListener.h" />
+    <ClInclude Include="win\com\WbemSink.h" />
     <ClInclude Include="win\Event.h" />
     <ClInclude Include="win\Handle.h" />
     <ClInclude Include="win\HrErrorCodeProvider.h" />
@@ -139,6 +146,11 @@
     <ClCompile Include="Qpc.cpp" />
     <ClCompile Include="ref\GeneratedReflection.cpp" />
     <ClCompile Include="str\String.cpp" />
+    <ClCompile Include="win\com\ComManager.cpp" />
+    <ClCompile Include="win\com\ProcessSpawnSink.cpp" />
+    <ClCompile Include="win\com\WbemConnection.cpp" />
+    <ClCompile Include="win\com\WbemListener.cpp" />
+    <ClCompile Include="win\com\WbemSink.cpp" />
     <ClCompile Include="win\Event.cpp" />
     <ClCompile Include="win\Handle.cpp" />
     <ClCompile Include="win\HrErrorCodeProvider.cpp" />

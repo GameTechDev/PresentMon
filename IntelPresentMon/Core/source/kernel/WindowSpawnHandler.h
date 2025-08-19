@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <Core/source/win/EventHookHandler.h>
-#include <Core/source/win/Process.h>
 
 namespace p2c::kern
 {

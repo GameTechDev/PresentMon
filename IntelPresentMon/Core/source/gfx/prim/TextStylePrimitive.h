@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "RetainedPrimitive.h"
-#include "../base/ComPtr.h"
+#include <CommonUtilities/win/com/ComPtr.h>
 #include "../base/Geometry.h"
 #include <string>
 #include "Enums.h"
@@ -12,6 +12,7 @@
 
 namespace p2c::gfx::prim
 {
+	using pmon::util::win::com::ComPtr;
 	class TextStylePrimitive : public RetainedPrimitive
 	{
 	public:

@@ -12,7 +12,7 @@ namespace p2c::kern
     using namespace lay;
 
     OverlayContainer::OverlayContainer(
-        win::com::WbemConnection& wbemConn_, std::shared_ptr<OverlaySpec> pSpec_,
+        ::pmon::util::win::com::WbemConnection& wbemConn_, std::shared_ptr<OverlaySpec> pSpec_,
         pmon::PresentMon* pm_)
         :
         wbemConn{ wbemConn_ },
@@ -44,7 +44,7 @@ namespace p2c::kern
                 pOverlay = std::make_unique<Overlay>(i->second, std::move(pSpec_), pm_, std::make_unique<MetricPackMapper>());
             }
             // begin listening for children
-            pChildListener = wbemConn.MakeListener<win::com::ProcessSpawnSink>(spawnQueue);
+            pChildListener = wbemConn.MakeListener<::pmon::util::win::com::ProcessSpawnSink>(spawnQueue);
             // listen for window spawn events
             // TODO: possibly add window listeners for all processes in ancestor map
             windowSpawnListeners.push_back(win::EventHookManager::AddHandler(
@@ -88,7 +88,7 @@ namespace p2c::kern
     {
         return pOverlay->IsTargetLive();
     }
-    const win::Process& OverlayContainer::GetProcess() const
+    const ::pmon::util::win::Process& OverlayContainer::GetProcess() const
     {
         return pOverlay->GetProcess();
     }
@@ -191,7 +191,7 @@ namespace p2c::kern
             struct WindowEnum {
                 static BOOL CALLBACK Callback(HWND hWnd, LPARAM lParam)
                 {
-                    auto pProc = reinterpret_cast<win::Process*>(lParam);
+                    auto pProc = reinterpret_cast<::pmon::util::win::Process*>(lParam);
 
                     DWORD pid = 0;
                     GetWindowThreadProcessId(hWnd, &pid);

@@ -5,7 +5,7 @@
 
 namespace p2c::kern
 {
-    WindowMoveHandler::WindowMoveHandler(win::Process proc, Overlay* pOverlay) : proc{ std::move(proc) }, pOverlay{ pOverlay } {}
+    WindowMoveHandler::WindowMoveHandler(::pmon::util::win::Process proc, Overlay* pOverlay) : proc{ std::move(proc) }, pOverlay{ pOverlay } {}
     
     win::EventHookHandler::Filter WindowMoveHandler::GetFilter() const
     {

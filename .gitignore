@@ -49,3 +49,11 @@ IntelPresentMon/SampleClient/log.txt
 ETLTrimmer/Release/ETLTrimmer.Build.CppClean.log
 
 ETLTrimmer/Release/ETLTrimmer.vcxproj.FileListAbsolute.txt
+
+PresentMon/ddETWExternalEvents_MSG00001.bin
+
+PresentMon/ddETWExternalEvents.h
+
+PresentMon/ddETWExternalEvents.rc
+
+PresentMon/ddETWExternalEventsTEMP.BIN

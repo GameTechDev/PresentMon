@@ -53,6 +53,8 @@ export interface Preferences {
     };    
     adapterId:number|null;
     enableFlashInjection:boolean;
+    flashInjectionEnableTargetOverride:boolean,
+    flashInjectionTargetOverride:string;
     flashInjectionSize:number;
     flashInjectionColor:RgbaColor;
     flashInjectionBackgroundEnable:boolean;
@@ -110,6 +112,8 @@ export function makeDefaultPreferences(): Preferences {
         upscaleFactor: 2,        
         adapterId: null,
         enableFlashInjection: false,
+        flashInjectionEnableTargetOverride: false,
+        flashInjectionTargetOverride: '',
         flashInjectionSize: 0.25,
         flashInjectionColor: {
             r: 255, 

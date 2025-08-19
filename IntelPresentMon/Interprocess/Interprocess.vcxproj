@@ -15,7 +15,6 @@
     <ClCompile Include="source\IntrospectionHelpers.cpp" />
     <ClCompile Include="source\IntrospectionPopulators.cpp" />
     <ClCompile Include="source\metadata\MetadataValidators.cpp" />
-    <ClCompile Include="source\PmStatusError.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\act\ActionContext.h" />

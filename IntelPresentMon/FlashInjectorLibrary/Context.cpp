@@ -14,8 +14,7 @@ namespace GfxLayer
 	thread_local std::unique_ptr<ThreadData>	Context::s_ThreadData = nullptr;
 	thread_local uint32_t						Context::s_CallScope  = 0;
 
-	Context::Context(): 
-		m_Options({})
+	Context::Context()
 	{}
 
 	Context& Context::GetInstance()
@@ -61,16 +60,6 @@ namespace GfxLayer
 	uint32_t Context::DecrementCallScope()
 	{
 		return --s_CallScope;
-	}
-
-	void Context::SetOptions(Options options)
-	{
-		m_Options = options;
-	}
-
-	const Options& Context::GetOptions() const
-	{
-		return m_Options;
 	}
 
 	MemoryPool& Context::GetMemoryPool()

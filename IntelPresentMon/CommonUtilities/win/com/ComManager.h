@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
-namespace p2c::win::com
+namespace pmon::util::win::com
 {
 	class ComManager
 	{

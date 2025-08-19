@@ -126,7 +126,7 @@ namespace p2c::win
         for (BOOL done = Process32FirstW(processes_snapshot, &process_info);
             done; done = Process32NextW(processes_snapshot, &process_info))
         {
-            map.emplace(process_info.th32ProcessID, Process{
+            map.emplace(process_info.th32ProcessID, ::pmon::util::win::Process{
                 .pid =      process_info.th32ProcessID,
                 .parentId = process_info.th32ParentProcessID,
                 .name =     process_info.szExeFile,

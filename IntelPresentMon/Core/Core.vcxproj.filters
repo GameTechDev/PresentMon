@@ -8,7 +8,6 @@
     <ClInclude Include="source\win\StandardWindow.h" />
     <ClInclude Include="source\win\WinAPI.h" />
     <ClInclude Include="source\win\Window.h" />
-    <ClInclude Include="source\gfx\base\ComPtr.h" />
     <ClInclude Include="source\gfx\Graphics.h" />
     <ClInclude Include="source\gfx\base\InternalGeometry.h" />
     <ClInclude Include="source\gfx\layout\Element.h" />
@@ -42,7 +41,6 @@
     <ClInclude Include="source\win\EventHookHandler.h" />
     <ClInclude Include="source\kernel\Overlay.h" />
     <ClInclude Include="source\kernel\WindowMoveHandler.h" />
-    <ClInclude Include="source\win\Process.h" />
     <ClInclude Include="source\kernel\OverlaySpec.h" />
     <ClInclude Include="source\gfx\layout\style\Selector.h" />
     <ClInclude Include="source\gfx\layout\style\Attributes.h" />
@@ -70,14 +68,8 @@
     <ClInclude Include="source\gfx\layout\ReadoutElement.h" />
     <ClInclude Include="source\kernel\WindowActivateHandler.h" />
     <ClInclude Include="source\kernel\OverlayContainer.h" />
-    <ClInclude Include="source\win\com\ComManager.h" />
-    <ClInclude Include="source\win\com\WbemConnection.h" />
-    <ClInclude Include="source\win\com\WbemListener.h" />
-    <ClInclude Include="source\win\com\WbemSink.h" />
-    <ClInclude Include="source\win\com\Comdef.h" />
     <ClInclude Include="source\kernel\WindowSpawnHandler.h" />
     <ClInclude Include="source\win\KernelWindow.h" />
-    <ClInclude Include="source\win\com\ProcessSpawnSink.h" />
     <ClInclude Include="source\pmon\StatisticsTracker.h" />
     <ClInclude Include="source\win\GpuUtilization.h" />
     <ClInclude Include="source\pmon\AdapterInfo.h" />
@@ -92,6 +84,8 @@
     <ClInclude Include="source\infra\LogSetup.h" />
     <ClInclude Include="source\infra\Logging.h" />
     <ClInclude Include="source\win\HotkeyListener.h" />
+    <ClInclude Include="source\iact\ActionClient.h" />
+    <ClInclude Include="source\kernel\InjectorComplex.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\win\MessageMap.cpp" />
@@ -140,18 +134,15 @@
     <ClCompile Include="source\gfx\layout\ReadoutElement.cpp" />
     <ClCompile Include="source\kernel\WindowActivateHandler.cpp" />
     <ClCompile Include="source\kernel\OverlayContainer.cpp" />
-    <ClCompile Include="source\win\com\ComManager.cpp" />
-    <ClCompile Include="source\win\com\WbemConnection.cpp" />
-    <ClCompile Include="source\win\com\WbemListener.cpp" />
-    <ClCompile Include="source\win\com\WbemSink.cpp" />
     <ClCompile Include="source\kernel\WindowSpawnHandler.cpp" />
-    <ClCompile Include="source\win\com\ProcessSpawnSink.cpp" />
     <ClCompile Include="source\pmon\StatisticsTracker.cpp" />
     <ClCompile Include="source\win\GpuUtilization.cpp" />
     <ClCompile Include="source\pmon\DynamicQuery.cpp" />
     <ClCompile Include="source\pmon\metric\DynamicPollingFetcher.cpp" />
     <ClCompile Include="source\infra\LogSetup.cpp" />
     <ClCompile Include="source\win\HotkeyListener.cpp" />
+    <ClCompile Include="source\iact\ActionClient.cpp" />
+    <ClCompile Include="source\kernel\InjectorComplex.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp.hint" />

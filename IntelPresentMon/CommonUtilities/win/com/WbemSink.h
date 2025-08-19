@@ -4,7 +4,7 @@
 #include <Wbemidl.h>
 #include <string>
 
-namespace p2c::win::com
+namespace pmon::util::win::com
 {
     class WbemSink : public IWbemObjectSink
     {

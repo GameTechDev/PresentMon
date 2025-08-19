@@ -8,9 +8,13 @@
 #include "Hooks/Hooks.h"
 #include "Custom/Extensions.h"
 #include "../FlashInjector/Logging.h"
+#include "act/InjectionPointExecutionContext.h"
+#include "act/Common.h"
 
 using namespace pmon::util;
 using namespace std::literals;
+
+std::unique_ptr<inj::act::ActionServer> pServer;
 
 // null logger factory to satisfy linking requirements for CommonUtilities
 namespace pmon::util::log
@@ -34,27 +38,16 @@ namespace GfxLayer
     {
         LOGI << "GfxLayer attached!";
 
-        // Parse the config file
-        ConfigParser cfgParser;
-        cfgParser.Parse();
-
-        auto& opt = cfgParser.GetOptions();
-        LOGI << "Loaded options from: " << cfgParser.GetConfigFile();
-        opt.Print();
-
-        Context::GetInstance().SetOptions(opt);
-
-        if (opt.GetFlag(GFXL_OPT_WAIT_FOR_USER_INPUT))
-        {
-            WaitForUserInput();
-        }
-
-        Extension::Initialize();
-
         // Hook APIs
         Hooks::DXGI::Hook_DXGI();
         Hooks::D3D10::Hook_D3D10();
         Hooks::D3D11::Hook_D3D11();
+
+        // start action server
+        pServer = std::make_unique<inj::act::ActionServer>(
+            inj::act::InjectionPointExecutionContext{},
+            inj::act::MakePipeName(GetCurrentProcessId()), 2, ""
+        );
     }
 }
 
@@ -64,11 +57,6 @@ BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD reason, LPVOID pReserved)
     {
         case DLL_PROCESS_ATTACH:
             GfxLayer::Initialize();
-            break;
-
-        case DLL_PROCESS_DETACH:
-            if (pReserved == nullptr)
-            {}
             break;
     }
 

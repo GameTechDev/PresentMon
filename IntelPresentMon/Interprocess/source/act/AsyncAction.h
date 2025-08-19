@@ -18,6 +18,7 @@ namespace pmon::ipc::act
 		using ExecutionContext = ExecCtx;
 		using SessionContext = ExecutionContext::SessionContextType;
 		// functions
+		virtual ~AsyncAction() = default;
 		virtual const char* GetIdentifier() const = 0;
 		virtual pipe::as::awaitable<void> Execute(ExecutionContext& ctx, SessionContext& stx,
 			const PacketHeader& header, pipe::DuplexPipe& pipe) const = 0;

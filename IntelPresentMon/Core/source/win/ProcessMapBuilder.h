@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "WinAPI.h"
-#include "Process.h"
+#include <CommonUtilities/win/Process.h>
 #include <unordered_map>
 #include <tlhelp32.h>
 
@@ -13,8 +13,8 @@ namespace p2c::win
     class ProcessMapBuilder
     {
     public:
-        using ProcMap = std::unordered_map<DWORD, Process>;
-        using NameMap = std::unordered_map<std::wstring, Process>;
+        using ProcMap = std::unordered_map<DWORD, ::pmon::util::win::Process>;
+        using NameMap = std::unordered_map<std::wstring, ::pmon::util::win::Process>;
         ProcessMapBuilder();
         ProcMap Extract();
         const ProcMap& Peek() const;

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <format>
+#include <array>
 
 namespace p2c::gfx
 {
@@ -211,6 +212,10 @@ namespace p2c::gfx
         std::wstring ToWString() const
         {
             return std::format(L"r{:.2f}g{:.2f}b{:.2f}a{:.2f}", r, g, b, a);
+        }
+        std::array<float, 4> AsArray() const
+        {
+            return { r, g, b, a };
         }
     };
 

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -12,7 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\cli\CliOptions.h" />
-    <ClInclude Include="source\gfx\base\ComPtr.h" />
     <ClInclude Include="source\gfx\base\Geometry.h" />
     <ClInclude Include="source\gfx\base\InternalGeometry.h" />
     <ClInclude Include="source\gfx\Exception.h" />
@@ -53,11 +52,13 @@
     <ClInclude Include="source\gfx\prim\RectPrimitive.h" />
     <ClInclude Include="source\gfx\prim\TextPrimitive.h" />
     <ClInclude Include="source\gfx\prim\TextStylePrimitive.h" />
+    <ClInclude Include="source\iact\ActionClient.h" />
     <ClInclude Include="source\infra\Logging.h" />
     <ClInclude Include="source\infra\LogSetup.h" />
     <ClInclude Include="source\infra\util\CooldownTimer.h" />
     <ClInclude Include="source\infra\util\FolderResolver.h" />
     <ClInclude Include="source\kernel\DataFetchPack.h" />
+    <ClInclude Include="source\kernel\InjectorComplex.h" />
     <ClInclude Include="source\kernel\MetricPackMapper.h" />
     <ClInclude Include="source\pmon\AdapterInfo.h" />
     <ClInclude Include="source\pmon\DynamicQuery.h" />
@@ -65,7 +66,6 @@
     <ClInclude Include="source\pmon\MetricFetcherFactory.h" />
     <ClInclude Include="source\pmon\RawFrameDataMetricList.h" />
     <ClInclude Include="source\pmon\StatisticsTracker.h" />
-    <ClInclude Include="source\win\com\ProcessSpawnSink.h" />
     <ClInclude Include="source\kernel\KernelHandler.h" />
     <ClInclude Include="source\kernel\OverlayContainer.h" />
     <ClInclude Include="source\kernel\TargetLostException.h" />
@@ -80,8 +80,6 @@
     <ClInclude Include="source\kernel\Kernel.h" />
     <ClInclude Include="source\kernel\Overlay.h" />
     <ClInclude Include="source\kernel\WindowMoveHandler.h" />
-    <ClInclude Include="source\win\com\Comdef.h" />
-    <ClInclude Include="source\win\com\ComManager.h" />
     <ClInclude Include="source\win\EventHookHandler.h" />
     <ClInclude Include="source\win\EventHookManager.h" />
     <ClInclude Include="source\win\GpuUtilization.h" />
@@ -92,13 +90,9 @@
     <ClInclude Include="source\win\MessageMap.h" />
     <ClInclude Include="source\win\ModSet.h" />
     <ClInclude Include="source\win\OverlayWindow.h" />
-    <ClInclude Include="source\win\Process.h" />
     <ClInclude Include="source\win\ProcessMapBuilder.h" />
     <ClInclude Include="source\win\StandardWindow.h" />
     <ClInclude Include="source\win\Util.h" />
-    <ClInclude Include="source\win\com\WbemConnection.h" />
-    <ClInclude Include="source\win\com\WbemListener.h" />
-    <ClInclude Include="source\win\com\WbemSink.h" />
     <ClInclude Include="source\win\WinAPI.h" />
     <ClInclude Include="source\win\Window.h" />
     <ClInclude Include="source\win\WndClass.h" />
@@ -128,13 +122,14 @@
     <ClCompile Include="source\gfx\prim\RetainedPrimitive.cpp" />
     <ClCompile Include="source\gfx\prim\TextPrimitive.cpp" />
     <ClCompile Include="source\gfx\prim\TextStylePrimitive.cpp" />
+    <ClCompile Include="source\iact\ActionClient.cpp" />
     <ClCompile Include="source\infra\LogSetup.cpp" />
     <ClCompile Include="source\infra\util\CooldownTimer.cpp" />
     <ClCompile Include="source\infra\util\FolderResolver.cpp" />
+    <ClCompile Include="source\kernel\InjectorComplex.cpp" />
     <ClCompile Include="source\pmon\DynamicQuery.cpp" />
     <ClCompile Include="source\pmon\metric\DynamicPollingFetcher.cpp" />
     <ClCompile Include="source\pmon\StatisticsTracker.cpp" />
-    <ClCompile Include="source\win\com\ProcessSpawnSink.cpp" />
     <ClCompile Include="source\kernel\OverlayContainer.cpp" />
     <ClCompile Include="source\kernel\WindowActivateHandler.cpp" />
     <ClCompile Include="source\kernel\WindowSpawnHandler.cpp" />
@@ -145,7 +140,6 @@
     <ClCompile Include="source\kernel\Kernel.cpp" />
     <ClCompile Include="source\kernel\Overlay.cpp" />
     <ClCompile Include="source\kernel\WindowMoveHandler.cpp" />
-    <ClCompile Include="source\win\com\ComManager.cpp" />
     <ClCompile Include="source\win\EventHookManager.cpp" />
     <ClCompile Include="source\win\GpuUtilization.cpp" />
     <ClCompile Include="source\win\HotkeyListener.cpp" />
@@ -156,9 +150,6 @@
     <ClCompile Include="source\win\ProcessMapBuilder.cpp" />
     <ClCompile Include="source\win\ModSet.cpp" />
     <ClCompile Include="source\win\StandardWindow.cpp" />
-    <ClCompile Include="source\win\com\WbemConnection.cpp" />
-    <ClCompile Include="source\win\com\WbemListener.cpp" />
-    <ClCompile Include="source\win\com\WbemSink.cpp" />
     <ClCompile Include="source\win\WinAPI.cpp" />
     <ClCompile Include="source\win\Window.cpp" />
     <ClCompile Include="source\win\WndClass.cpp" />

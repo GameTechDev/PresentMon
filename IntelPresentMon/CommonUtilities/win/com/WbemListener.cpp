@@ -3,14 +3,13 @@
 #pragma once
 #include "WbemListener.h"
 #include "WbemSink.h"
-#include <Core/source/infra/Logging.h>
-#include <CommonUtilities/Exception.h>
+#include "../../log/Log.h"
+#include "../../Exception.h"
 #include "Comdef.h"
 
-namespace p2c::win::com
+namespace pmon::util::win::com
 {
 	using namespace ::pmon::util;
-	using Microsoft::WRL::ComPtr;
 
 	WbemListener::WbemListener(
 		WbemSink* pSink_,

@@ -106,7 +106,7 @@ namespace p2c::kern
     // Overlay member functions
 
     Overlay::Overlay(
-        win::Process proc_,
+        ::pmon::util::win::Process proc_,
         std::shared_ptr<OverlaySpec> pSpec_,
         pmon::PresentMon* pm_,
         std::unique_ptr<MetricPackMapper> pPackMapper_,
@@ -456,7 +456,7 @@ namespace p2c::kern
         return pWindow->Standard();
     }
 
-    const win::Process& Overlay::GetProcess() const
+    const ::pmon::util::win::Process& Overlay::GetProcess() const
     {
         return proc;
     }
@@ -517,7 +517,7 @@ namespace p2c::kern
         pNewOverlay->UpdateCaptureStatusText_();
         return pNewOverlay;
     }
-    std::unique_ptr<Overlay> Overlay::RetargetPidClone(win::Process proc_)
+    std::unique_ptr<Overlay> Overlay::RetargetPidClone(::pmon::util::win::Process proc_)
     {
         pmlog_info("doing RetargetPidClone");
 

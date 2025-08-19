@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <Core/source/win/WinAPI.h>
-#include <Core/source/gfx/base/ComPtr.h>
+#include <CommonUtilities/win/com/ComPtr.h>
 #include <Core/source/gfx/base/InternalGeometry.h>
 #include <dxgi1_3.h>
 #include <d3d11_2.h>
@@ -19,6 +19,8 @@
 
 namespace p2c::gfx
 {
+    using ::pmon::util::win::com::ComPtr;
+
     namespace prim
     {
         class RetainedPrimitive;

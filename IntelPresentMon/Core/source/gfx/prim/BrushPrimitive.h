@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "RetainedPrimitive.h"
-#include "../base/ComPtr.h"
+#include <CommonUtilities/win/com/ComPtr.h>
 #include "../base/Geometry.h"
 #include "ForwardInterfaces.h"
 
 
 namespace p2c::gfx::prim
 {
+	using pmon::util::win::com::ComPtr;
 	class BrushPrimitive : public RetainedPrimitive
 	{
 		friend class DrawablePrimitive;
