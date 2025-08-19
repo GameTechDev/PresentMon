@@ -21,7 +21,8 @@ namespace pmon::ipc::intro
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_RENDER_COMPUTE_UTILIZATION> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_render_compute_utilization; };
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEDIA_UTILIZATION> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_media_utilization; };
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_POWER> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::vram_power; };
-	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_VOLTAGE> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::vram_voltage; };
+	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_TEMPERATURE> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::vram_power; };
+	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_VOLTAGE> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::vram_temperature; };
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_FREQUENCY> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::vram_frequency; };
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_EFFECTIVE_FREQUENCY> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::vram_effective_frequency; };
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_TEMPERATURE> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::vram_temperature; };

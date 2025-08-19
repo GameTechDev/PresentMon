@@ -142,6 +142,7 @@ namespace pmapi
             std::string GetSymbol() const;
             std::string GetDescription() const;
             ViewRange<EnumKeyView> GetKeys() const;
+            EnumKeyView FindKey(int key) const;
             const SelfType* operator->() const;
             const BaseType* GetBasePtr() const;
         private:

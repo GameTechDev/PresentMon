@@ -274,6 +274,44 @@ void RunPlaybackDynamicQueryN()
     }
 }
 
+void IntrospectAllDynamicOptions()
+{
+    namespace bp = boost::process;
+    using namespace std::literals;
+
+    const auto pipeName = R"(\\.\pipe\pmsvc-ctl-pipe-tt)"s;
+    bp::child svc{
+        "PresentMonService.exe"s,
+        "--control-pipe"s, pipeName,
+        "--nsm-prefix"s, "pmon_nsm_tt_"s,
+        "--intro-nsm"s, "svc-intro-tt"s,
+        "--etw-session-name"s, "svc-sesh-tt"s,
+    };
+
+    // connect to the service with custom control pipe name
+    pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500);
+    auto api = pmapi::Session{ pipeName };
+
+    auto pIntro = api.GetIntrospectionRoot();
+
+    for (const auto& m : pIntro->GetMetrics()) {
+        if (m.GetType() != PM_METRIC_TYPE_DYNAMIC && m.GetType() != PM_METRIC_TYPE_DYNAMIC_FRAME) {
+            continue;
+        }
+        auto dmi = m.GetDeviceMetricInfo();
+        if (dmi.size() != 1) {
+            continue;
+        }
+        if (!dmi.front().IsAvailable() || dmi.front().GetDevice().GetId() != 0) {
+            continue;
+        }
+        std::cout << m.Introspect().GetSymbol() << ": " << m.Introspect().GetDescription() << "\n";
+        for (const auto& s : m.GetStatInfo()) {
+            std::cout << "   " << s.IntrospectStat().GetSymbol() << "\n";
+        }
+    }
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -330,6 +368,8 @@ int main(int argc, char* argv[])
             RunPlaybackDynamicQueryN(); break;
         case clio::Mode::PlaybackFrameQuery:
             RunPlaybackFrameQuery(); break;
+        case clio::Mode::IntrospectAllDynamicOptions:
+            IntrospectAllDynamicOptions(); break;
         default:
             throw std::runtime_error{ "unknown sample client mode" };
         }

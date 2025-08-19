@@ -7,6 +7,10 @@
       "Command": "--middleware-dll-path .\\PresentMonAPI2.dll"
     },
     {
+      "Id": "25379eda-a41d-4766-a535-ceb46a973303",
+      "Command": "--mode IntrospectAllDynamicOptions"
+    },
+    {
       "Id": "e8bc0b0d-87c9-4465-b3df-ece2942c05a3",
       "Command": "--mode PlaybackFrameQuery"
     },
