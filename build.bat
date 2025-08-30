@@ -56,7 +56,12 @@ echo.
 
 echo [2/6] Building Chromium Embedded Framework (CEF)
 echo -----------------------------------------------------------------
-set /p "CEF_DIR=Please enter the full path to your extracted CEF directory (e.g., C:\cef_133): "
+if "%~1"=="" (
+  set /p "CEF_DIR=Please enter the full path to your extracted CEF directory (e.g., C:\cef_133): "
+) else (
+  set "CEF_DIR=%~1"
+  echo Using CEF directory from command line argument: %CEF_DIR%
+)
 
 if not exist "%CEF_DIR%\CMakeLists.txt" (
     echo Error: CEF directory not found or invalid at '%CEF_DIR%'.
