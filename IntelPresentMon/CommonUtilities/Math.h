@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <limits>
+#include <algorithm>
 
 namespace pmon::util
 {
@@ -52,5 +53,10 @@ namespace pmon::util
 		const auto dstFactor = GetMagnitudeFactor(toPrefix);
 		const auto conversionFactor = srcFactor / dstFactor;
 		return To(fromExtended * conversionFactor);
+	}
+	template<typename T>
+	T CalculateEma(T prevEma, T newSample, T alpha)
+	{
+		return prevEma + alpha * (newSample - prevEma);
 	}
 }

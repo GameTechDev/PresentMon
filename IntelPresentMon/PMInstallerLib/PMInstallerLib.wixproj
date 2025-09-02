@@ -1,0 +1,30 @@
+﻿<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <!-- WiX 3.x library output -->
+    <OutputType>Library</OutputType>
+    <OutputName>PMService</OutputName>
+    <IntermediateOutputPath>obj\</IntermediateOutputPath>
+    <OutputPath>bin\</OutputPath>
+    <!-- Point these at YOUR WiX 3.x install -->
+    <WixToolPath>C:\Program Files (x86)\WiX Toolset v3.11\bin\</WixToolPath>
+    <WixTargetsPath>$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
+    <!-- Define the two variables your .wxs uses -->
+    <DefineConstants>
+      PresentMonService.TargetFileName=PresentMonService.exe;
+      PresentMonService.TargetPath=$(SolutionDir)build\$(Configuration)\PresentMonService.exe;
+      PresentMonAPI2.TargetFileName=PresentMonAPI2.dll;
+      PresentMonAPI2.TargetPath=$(SolutionDir)build\$(Configuration)\PresentMonAPI2.dll
+    </DefineConstants>
+    <!-- Optional: ask lit.exe to embed files into the .wixlib -->
+    <BindFiles>true</BindFiles>
+    <ProjectGuid>{6478f2f6-92ad-4b1c-a13e-c8cea9125152}</ProjectGuid>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Library.wxs" />
+  </ItemGroup>
+  <!-- Add WiX extensions here only if you actually use them in Library.wxs -->
+  <!-- <ItemGroup>
+    <WixExtension Include="WixUtilExtension" />
+  </ItemGroup> -->
+  <Import Project="$(WixTargetsPath)" />
+</Project>

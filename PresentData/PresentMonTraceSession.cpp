@@ -19,6 +19,7 @@
 #include "ETW/NT_Process.h"
 #include "ETW/Intel_PresentMon.h"
 #include "ETW/NV_DD.h"
+#include "ETW/Nvidia_PCL.h"
 
 namespace {
 
@@ -290,7 +291,8 @@ template<
     bool IS_REALTIME_SESSION,
     bool TRACK_DISPLAY,
     bool TRACK_INPUT,
-    bool TRACK_PRESENTMON>
+    bool TRACK_PRESENTMON,
+    bool TRACK_PCL>
 void CALLBACK EventRecordCallback(EVENT_RECORD* pEventRecord)
 {
     auto session = (PMTraceSession*) pEventRecord->UserContext;
@@ -403,6 +405,13 @@ void CALLBACK EventRecordCallback(EVENT_RECORD* pEventRecord)
             return;
         }
     }
+
+    if constexpr (TRACK_PCL) {
+        if (hdr.ProviderId == Nvidia_PCL::GUID) {
+            session->mPMConsumer->HandlePclEvent(pEventRecord);
+            return;
+        }
+    }
 }
 
 template<bool... Ts>
@@ -431,6 +440,13 @@ PEVENT_RECORD_CALLBACK GetEventRecordCallback(bool t1, bool t2, bool t3, bool t4
 {
     return t1 ? GetEventRecordCallback<Ts..., true>(t2, t3, t4)
               : GetEventRecordCallback<Ts..., false>(t2, t3, t4);
+}
+
+template<bool... Ts>
+PEVENT_RECORD_CALLBACK GetEventRecordCallback(bool t1, bool t2, bool t3, bool t4, bool t5)
+{
+    return t1 ? GetEventRecordCallback<Ts..., true>(t2, t3, t4, t5)
+        : GetEventRecordCallback<Ts..., false>(t2, t3, t4, t5);
 }
 
 ULONG CALLBACK BufferCallback(EVENT_TRACE_LOGFILE* pLogFile)
@@ -497,7 +513,8 @@ ULONG PMTraceSession::Start(
         mIsRealtimeSession,            // IS_REALTIME_SESSION
         mPMConsumer->mTrackDisplay,    // TRACK_DISPLAY
         mPMConsumer->mTrackInput,      // TRACK_INPUT
-        mPMConsumer->mTrackFrameType || mPMConsumer->mTrackPMMeasurements || mPMConsumer->mTrackAppTiming); // TRACK_PRESENTMON
+        mPMConsumer->mTrackFrameType || mPMConsumer->mTrackPMMeasurements || mPMConsumer->mTrackAppTiming, // TRACK_PRESENTMON
+        mPMConsumer->mTrackPcLatency); // TRACK_PC_LATENCY
 
     mTraceHandle = OpenTraceW(&traceProps);
     if (mTraceHandle == INVALID_PROCESSTRACE_HANDLE) {
@@ -815,6 +832,12 @@ ULONG EnableProvidersListing(
     provider.AddEvent<NvidiaDisplayDriver_Events::FlipRequest>();
     status = provider.Enable(sessionHandle, NvidiaDisplayDriver_Events::GUID);
     if (status != ERROR_SUCCESS) return status;
+
+    if (pmConsumer->mTrackPcLatency) {
+        provider.ClearFilter();
+        status = provider.EnableWithoutFiltering(sessionHandle, Nvidia_PCL::GUID, TRACE_LEVEL_VERBOSE);
+        if (status != ERROR_SUCCESS) return status;
+    }
 
     return ERROR_SUCCESS;
 }

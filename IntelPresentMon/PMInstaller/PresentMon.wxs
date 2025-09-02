@@ -4,19 +4,20 @@
         Id="*"
         Name="Intel(R) PresentMon"
         Language="1033"
-        Version="2.3.1.0"
+        Version="2.4.0.0"
         Manufacturer="Intel(R) Corporation"
         UpgradeCode="CD0D489E-0FE7-452D-90D9-F94F3F5FF410">
 
-        <Package
-            InstallerVersion="200"
-            Compressed="yes"
-            InstallScope="perMachine">
-        </Package>
+        <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"/>
 
+        <MajorUpgrade
+            Schedule="afterInstallInitialize"
+            AllowDowngrades="no"
+            DowngradeErrorMessage="!(loc.product_downgrade_error_message)"/>
+        
         <MediaTemplate EmbedCab="yes" />
 
-        <?define console_app_ver = 2.3.1 ?>
+        <?define console_app_ver = 2.4.0 ?>
         <?define console_app_path = $(pm.GetConsoleAppPath($(var.SolutionDir), $(var.console_app_ver))) ?>
         <?define console_app_filename = $(pm.GetConsoleAppFileName($(var.console_app_ver))) ?>
         <?define has_console_app = $(pm.CheckFileExists($(var.console_app_path))) ?>
@@ -89,9 +90,6 @@
 
         <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />
 
-        <MajorUpgrade Schedule="afterInstallValidate"
-                      DowngradeErrorMessage="!(loc.product_downgrade_error_message)"/>
-
         <!--
         RemoveFolderEx requires that we pull the folder information from the registry.
         Obtain the main application folder name
@@ -129,11 +127,11 @@
                     Id="intel_folder"
                     Name="Intel">
                     <Directory
+                        Id="service_folder"
+                        Name="PresentMonSharedService"/>
+                    <Directory
                         Id="APPLICATIONFOLDER"
                         Name="PresentMon">
-                        <Directory
-                            Id="service_folder"
-                            Name="Service"/>
                         <Directory
                             Id="sdk_folder"
                             Name="SDK"/>
@@ -194,9 +192,46 @@
                     Type="string"
                     Value="[APPLICATIONFOLDER]"
                     KeyPath="yes"/>
-                <util:RemoveFolderEx
-                    On="uninstall"
-                    Property="APPLICATIONFOLDER" />
+                <RemoveFolder
+                    Id="RemoveSdkIfEmpty"
+                    Directory="sdk_folder"
+                    On="uninstall" />
+                <RemoveFolder
+                    Id="RemoveProviderIfEmpty"
+                    Directory="provider_folder"
+                    On="uninstall" />
+                <RemoveFolder
+                    Id="RemoveConsoleAppIfEmpty"
+                    Directory="pm_console_app_folder"
+                    On="uninstall" />
+                <RemoveFolder
+                    Id="RemoveAppWebCssIfEmpty"
+                    Directory="pm_app_web_css_folder"
+                    On="uninstall" />
+                <RemoveFolder
+                    Id="RemoveAppWebFontsIfEmpty"
+                    Directory="pm_app_web_fonts_folder"
+                    On="uninstall" />
+                <RemoveFolder
+                    Id="RemoveAppWebJsIfEmpty"
+                    Directory="pm_app_web_js_folder"
+                    On="uninstall" />
+                <RemoveFolder
+                    Id="RemoveAppWebIfEmpty"
+                    Directory="pm_app_web_folder"
+                    On="uninstall" />
+                <RemoveFolder
+                    Id="RemoveAppPresetsIfEmpty"
+                    Directory="pm_app_presets_folder"
+                    On="uninstall" />
+                <RemoveFolder
+                    Id="RemoveAppIfEmpty"
+                    Directory="pm_app_folder"
+                    On="uninstall" />                
+                <RemoveFolder
+                    Id="RemoveAppRootIfEmpty"
+                    Directory="APPLICATIONFOLDER"
+                    On="uninstall" />
             </Component>
             <Component
                 Id="CleanupAppLocalDataFolder"
@@ -248,45 +283,6 @@
                     </util:EventManifest>
                 </File>
             </Component>
-        </ComponentGroup>
-        <ComponentGroup
-            Id="service_files"
-            Directory="service_folder">
-            <Component
-                Id="present_mon_service_exe"
-                Guid="791A1C04-2770-47B5-85D8-8FC2BC3BB731">
-                <File
-                    Id="present_mon_service_exe"
-                    Name="$(var.PresentMonService.TargetFileName)"
-                    Source="$(var.PresentMonService.TargetPath)"
-                    KeyPath="yes">
-                </File>
-                <ServiceInstall
-                    Id="install_present_mon_service"
-                    Name="PresentMonService"
-                    DisplayName="PresentMonService"
-                    Description="!(loc.component_service_install_description)"
-                    Start="auto"
-                    ErrorControl="normal"
-                    Type="ownProcess" />
-                <ServiceControl
-                    Id="sc_windows_service"
-                    Name="PresentMonService"
-                    Start="install"
-                    Stop="both"
-                    Remove="uninstall"
-                    Wait="yes" />
-            </Component>
-			<Component
-                Id="pm_service_present_mon_api_2_dll"
-                Guid="B78C51BB-81AC-4AAB-871F-85D2D0EA37C3">
-				<File
-                    Id="pm_service_present_mon_api_2_dll"
-                    Name="$(var.PresentMonAPI2.TargetFileName)"
-                    Source="$(var.PresentMonAPI2.TargetPath)"
-                    KeyPath="yes">
-				</File>
-			</Component>
         </ComponentGroup>
         <ComponentGroup
             Id="pm_app"

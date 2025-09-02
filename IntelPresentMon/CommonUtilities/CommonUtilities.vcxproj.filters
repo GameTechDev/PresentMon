@@ -171,9 +171,6 @@
     <ClInclude Include="log\TimePoint.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Math.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="log\Subsystem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -232,6 +229,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ref\GeneratedReflectionHelpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Math.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="win\MessageBox.h">

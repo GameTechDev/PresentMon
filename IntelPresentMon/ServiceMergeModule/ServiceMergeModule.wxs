@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <!-- Merge Module for the shared service payload -->
+  <Module
+      Id="PresentMonSharedServiceModule"
+      Language="1033"
+      Version="2.4.0.0">
+
+    <Package Id="{58140006-3D39-42B4-A0EE-8AD01B2E0E1A}" Manufacturer="Intel(R) Corporation" InstallerVersion="500" />
+
+    <!-- Map the install path to the Intel-level folder -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="intel_folder" Name="Intel">
+          <Directory Id="service_folder" Name="PresentMonSharedService" />
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <!-- Pull in the payload from your wixlib; no <Feature> in a Module -->
+    <ComponentGroupRef Id="service_files" />
+
+  </Module>
+</Wix>

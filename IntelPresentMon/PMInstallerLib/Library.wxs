@@ -1,0 +1,58 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+
+    <!-- Each consuming MSI must define Directory Id="service_folder"
+         (e.g., ProgramFiles64Folder\Intel\PresentMon\Service). -->
+    <DirectoryRef Id="service_folder">
+
+      <!-- PresentMonService.exe (key file + Windows service) -->
+      <Component Id="pmon_shared_service_component"
+                 Guid="{45531AC0-CEB6-4DD0-B6B6-2BAD7F6AD01E}"
+                 Win64="yes">
+        <File Id="pmon_shared_service_exe"
+              Name="$(var.PresentMonService.TargetFileName)"
+              Source="$(var.PresentMonService.TargetPath)"
+              KeyPath="yes" />
+
+        <ServiceInstall Id="PmSharedServiceInstall"
+                        Name="PresentMonSharedService"
+                        DisplayName="PresentMon Shared Service"
+                        Description="Shared PresentMon service to collect metrics and expose them to client applications."
+                        Start="auto"
+                        Type="ownProcess"
+                        ErrorControl="normal"
+                        Vital="yes" />
+
+        <!-- Stop before replace, remove on uninstall, start after install -->
+        <ServiceControl Id="SharedPresentMonServiceControl"
+                        Name="PresentMonSharedService"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="yes" />
+        <RemoveFolder Id ="PresentMonSharedServiceUninstall"
+                      Directory="service_folder"
+                      On="uninstall"/>
+      </Component>
+
+      <!-- PresentMonAPI2.dll -->
+      <Component Id="present_mon_shared_dll_component"
+                 Guid="{BC2D2B30-9011-48E5-8592-ACC58CEFDF17}"
+                 Win64="yes">
+        <File Id="present_mon_shared_api_2_dll"
+              Name="$(var.PresentMonAPI2.TargetFileName)"
+              Source="$(var.PresentMonAPI2.TargetPath)"
+              KeyPath="yes" />
+      </Component>
+
+    </DirectoryRef>
+
+    <!-- Group that consumers reference -->
+    <ComponentGroup Id="service_files">
+      <ComponentRef Id="pmon_shared_service_component" />
+      <ComponentRef Id="present_mon_shared_dll_component" />
+    </ComponentGroup>
+
+  </Fragment>
+</Wix>

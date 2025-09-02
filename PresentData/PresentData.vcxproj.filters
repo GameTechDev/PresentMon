@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClInclude Include="Debug.hpp" />
@@ -43,6 +43,10 @@
       <Filter>ETW</Filter>
     </ClInclude>
     <ClInclude Include="NvidiaTraceConsumer.hpp" />
+    <ClInclude Include="ETW\Nvidia_PCL.h">
+      <Filter>ETW</Filter>
+    </ClInclude>
+    <ClInclude Include="TraceLogging.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Debug.cpp" />
@@ -51,6 +55,7 @@
     <ClCompile Include="PresentMonTraceSession.cpp" />
     <ClCompile Include="GpuTrace.cpp" />
     <ClCompile Include="NvidiaTraceConsumer.cpp" />
+    <ClCompile Include="TraceLogging.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ETW">

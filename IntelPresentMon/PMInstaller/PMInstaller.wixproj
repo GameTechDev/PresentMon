@@ -23,10 +23,11 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
     <OutputPath>..\..\build\$(Configuration)\</OutputPath>
     <IntermediateOutputPath>..\..\build\obj\PMInstaller-$(Platform)-$(Configuration)\</IntermediateOutputPath>
-    <CompilerAdditionalOptions>-arch x64 -ext WixUtilExtension</CompilerAdditionalOptions>
+    <CompilerAdditionalOptions>-arch x64</CompilerAdditionalOptions>
     <DefineConstants>
     </DefineConstants>
-    <LinkerAdditionalOptions>-ext WixUtilExtension</LinkerAdditionalOptions>
+    <LinkerAdditionalOptions>
+    </LinkerAdditionalOptions>
     <SuppressIces>ICE60</SuppressIces>
   </PropertyGroup>
   <ItemGroup>
@@ -46,6 +47,10 @@
       <HintPath>$(WixExtDir)\WixUIExtension.dll</HintPath>
       <Name>WixUIExtension</Name>
     </WixExtension>
+    <WixExtension Include="WixUtilExtension">
+      <HintPath>$(WixExtDir)\WixUtilExtension.dll</HintPath>
+      <Name>WixUtilExtension</Name>
+    </WixExtension>      
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Provider\Provider.vcxproj">
@@ -112,6 +117,9 @@
       <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
       <RefTargetDir>INSTALLFOLDER</RefTargetDir>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+      <WixLibrary Include="..\PMInstallerLib\bin\PMService.wixlib" />
   </ItemGroup>
   <Import Project="$(WixTargetsPath)" Condition=" '$(WixTargetsPath)' != '' " />
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets" Condition=" '$(WixTargetsPath)' == '' AND Exists('$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets') " />

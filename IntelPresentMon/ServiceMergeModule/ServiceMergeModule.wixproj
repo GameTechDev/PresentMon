@@ -1,0 +1,27 @@
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <!-- Build a MERGE MODULE -->
+    <OutputType>Module</OutputType>
+    <OutputName>PresentMonSharedService</OutputName>
+    <IntermediateOutputPath>obj\</IntermediateOutputPath>
+    <OutputPath>$(SolutionDir)build\$(Configuration)\en-us\</OutputPath>
+    <!-- Point to your WiX 3.11 install -->
+    <WixToolPath>C:\Program Files (x86)\WiX Toolset v3.11\bin\</WixToolPath>
+    <WixTargetsPath>$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
+    <!-- If your wixlib expects a specific DirectoryRef Id -->
+    <DefineConstants>PM.ServiceDirId=service_folder</DefineConstants>
+    <ProjectGuid>{dc72c6b9-ca78-46c4-9962-e927b7a8d607}</ProjectGuid>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The module authoring file -->
+    <Compile Include="ServiceMergeModule.wxs" />
+    <!-- Link your existing wixlib so we get ComponentGroup Id='service_files' -->
+    <WixLibrary Include="PMService">
+      <HintPath>..\PMInstallerLib\bin\PMService.wixlib</HintPath>
+      <Name>PMService</Name>
+    </WixLibrary>
+    <!-- Add extensions only if your wixlib uses them -->
+    <!-- <WixExtension Include="WixUtilExtension" /> -->
+  </ItemGroup>
+  <Import Project="$(WixTargetsPath)" />
+</Project>

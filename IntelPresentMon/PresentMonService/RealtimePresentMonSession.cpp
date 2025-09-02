@@ -128,6 +128,7 @@ PM_STATUS RealtimePresentMonSession::StartTraceSession() {
     pm_consumer_->mTrackInput = true;
     pm_consumer_->mTrackFrameType = true;
     pm_consumer_->mTrackAppTiming = true;
+    pm_consumer_->mTrackPcLatency = true;
 
     auto& opt = clio::Options::Get();
     if (opt.etwSessionName.AsOptional().has_value()) {

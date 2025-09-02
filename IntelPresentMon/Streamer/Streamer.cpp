@@ -100,6 +100,12 @@ void Streamer::CopyFromPresentMonPresentEvent(
     nsm_present_event->AppInputTime = present_event->AppInputSample.first;
     nsm_present_event->AppInputType = present_event->AppInputSample.second;
 
+    nsm_present_event->PclInputPingTime = present_event->PclInputPingTime;
+    nsm_present_event->PclSimStartTime = present_event->PclSimStartTime;
+
+    nsm_present_event->FlipDelay = present_event->FlipDelay;
+    nsm_present_event->FlipToken = present_event->FlipToken;
+
     nsm_present_event->SwapChainAddress = present_event->SwapChainAddress;
     nsm_present_event->SyncInterval = present_event->SyncInterval;
     nsm_present_event->PresentFlags = present_event->PresentFlags;

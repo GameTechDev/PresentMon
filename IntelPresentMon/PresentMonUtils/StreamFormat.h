@@ -96,6 +96,11 @@ struct PmNsmPresentEvent
 	uint64_t AppInputTime;              // QPC value of app input time provided by Intel App Provider
 	InputDeviceType AppInputType;		// Input type provided by Intel App Provider
 
+	uint64_t PclInputPingTime;          // QPC value of input ping time provided by the PC Latency ETW event
+	uint64_t PclSimStartTime;           // QPC value of app sim start time provided by the PC Latency ETW event
+    uint64_t FlipDelay;                 // QPC timestamp delta of FlipDelay calculated using the NV DisplayDriver FlipRequest event.
+    uint32_t FlipToken;                 // Flip token from the NV DisplayDriver FlipRequest event.
+
 	// Extra present parameters obtained through DXGI or D3D9 present
 	uint64_t SwapChainAddress;
 	int32_t SyncInterval;
