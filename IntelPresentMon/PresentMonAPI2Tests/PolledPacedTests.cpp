@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
-#include <boost/process.hpp>
+#include <boost/process/v1/child.hpp>
 #include <vincentlaucsb-csv-parser/csv.hpp>
 #include "../PresentMonAPI2Loader/Loader.h"
 #include "../PresentMonAPI2/Internal.h"
@@ -20,7 +20,7 @@
 #include <numeric>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-namespace bp = boost::process;
+namespace bp = boost::process::v1;
 namespace fs = std::filesystem;
 namespace rn = std::ranges;
 namespace vi = rn::views;

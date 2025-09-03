@@ -1,7 +1,7 @@
 #pragma once
 #include "IDriver.h"
 #include "IChannel.h"
-#include "../../PresentMonAPI2/PresentMonDiagnostics.h"
+#include <IntelPresentMon/PresentMonAPI2/PresentMonDiagnostics.h>
 #include "../win/Event.h"
 #include <atomic>
 #include <concurrentqueue/concurrentqueue.h>

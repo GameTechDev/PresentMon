@@ -202,59 +202,75 @@
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
+  <PropertyGroup>
+    <CustomVcpkgProps Condition="'$(CustomVcpkgProps)' == ''">
+        ..\..\vcpkg.props
+    </CustomVcpkgProps>
+    <CustomCommonProps Condition="'$(CustomCommonProps)' == ''">
+		..\Common.props
+	</CustomCommonProps>
+    <CustomRuntimeControlProps Condition="'$(CustomRuntimeControlProps)' == ''">
+		..\RuntimeControl.props
+	</CustomRuntimeControlProps>
+  </PropertyGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\..\vcpkg.props" />
-    <Import Project="..\RuntimeControl.props" />
-    <Import Project="..\Common.props" />
+    <Import Project="$(CustomVcpkgProps)" />
+    <Import Project="$(CustomRuntimeControlProps)" />
+    <Import Project="$(CustomCommonProps)" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\..\vcpkg.props" />
-    <Import Project="..\RuntimeControl.props" />
-    <Import Project="..\Common.props" />
+    <Import Project="$(CustomVcpkgProps)" />
+    <Import Project="$(CustomRuntimeControlProps)" />
+    <Import Project="$(CustomCommonProps)" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\..\vcpkg.props" />
-    <Import Project="..\RuntimeControl.props" />
-    <Import Project="..\Common.props" />
+    <Import Project="$(CustomVcpkgProps)" />
+    <Import Project="$(CustomRuntimeControlProps)" />
+    <Import Project="$(CustomCommonProps)" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\..\vcpkg.props" />
-    <Import Project="..\RuntimeControl.props" />
-    <Import Project="..\Common.props" />
+    <Import Project="$(CustomVcpkgProps)" />
+    <Import Project="$(CustomRuntimeControlProps)" />
+    <Import Project="$(CustomCommonProps)" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <OutDir>$(SolutionDir)build\lib\$(ProjectName)-$(Platform)-$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)build\obj\$(ProjectName)-$(Platform)-$(Configuration)\</IntDir>
+    <TargetName>IPM$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>$(SolutionDir)build\lib\$(ProjectName)-$(Platform)-$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)build\obj\$(ProjectName)-$(Platform)-$(Configuration)\</IntDir>
+    <TargetName>IPM$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <CustomBuildBeforeTargets>
     </CustomBuildBeforeTargets>
     <OutDir>$(SolutionDir)build\lib\$(ProjectName)-$(Platform)-$(Configuration)\</OutDir>
+    <TargetName>IPM$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <CustomBuildBeforeTargets>
     </CustomBuildBeforeTargets>
     <OutDir>$(SolutionDir)build\lib\$(ProjectName)-$(Platform)-$(Configuration)\</OutDir>
+    <TargetName>IPM$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg" />
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;$(vcPreDefs);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <ExceptionHandling>Async</ExceptionHandling>
+      <AdditionalIncludeDirectories>../..;$(vcSiblingIncludeDirectory);$(vcInstalledIncludeDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -268,11 +284,12 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;$(vcPreDefs);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <ExceptionHandling>Async</ExceptionHandling>
+      <AdditionalIncludeDirectories>../..;$(vcSiblingIncludeDirectory);$(vcInstalledIncludeDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -286,11 +303,12 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_LIB;$(vcPreDefs);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <ExceptionHandling>Async</ExceptionHandling>
+      <AdditionalIncludeDirectories>../..;$(vcSiblingIncludeDirectory);$(vcInstalledIncludeDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -318,11 +336,12 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_LIB;$(vcPreDefs);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <ExceptionHandling>Async</ExceptionHandling>
+      <AdditionalIncludeDirectories>../..;$(vcSiblingIncludeDirectory);$(vcInstalledIncludeDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>

@@ -1,10 +1,10 @@
-#include "../PresentMonAPI2/PresentMonAPI.h"
-#include "../PresentMonAPI2/Internal.h"
-#include "../PresentMonAPI2/PresentMonDiagnostics.h"
-#include "../CommonUtilities/win/WinAPI.h"
-#include "../CommonUtilities/Exception.h"
-#include "../Interprocess/source/PmStatusError.h"
-#include "../Versioning/PresentMonAPIVersion.h"
+#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
+#include <IntelPresentMon/PresentMonAPI2/Internal.h>
+#include <IntelPresentMon/PresentMonAPI2/PresentMonDiagnostics.h>
+#include <IntelPresentMon/CommonUtilities/win/WinAPI.h>
+#include <IntelPresentMon/CommonUtilities/Exception.h>
+#include <IntelPresentMon/Interprocess/source/PmStatusError.h>
+#include <IntelPresentMon/Versioning/PresentMonAPIVersion.h>
 #include <functional>
 #include <vector>
 #include <cassert>
@@ -63,6 +63,7 @@ PM_STATUS(*pFunc_pmStopPlayback__)(PM_SESSION_HANDLE) = nullptr;
 
 
 // internal loader state globals
+HMODULE hMod_ = nullptr;
 std::string middlewareDllPath_;
 std::mutex middlewareLoadMtx_;
 std::optional<PM_STATUS> middlewareLoadResult_;
@@ -102,7 +103,7 @@ FARPROC GetProcAddress_(HMODULE h, const char* name)
 	throw LoaderExcept_(PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT);
 }
 // routine to load the middleware dll and resolve addresses of all the API endpoint functions
-PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_()
+PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 {
 	// ensure following routine is only run once
 	// concurrent calls will block until the first one completes
@@ -113,22 +114,29 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_()
 			return *middlewareLoadResult_;
 		}
 		try {
-			// get path to middleware dll from the registry if not already overridden
-			if (middlewareDllPath_.empty()) {
-				// discover the full path of the middleware dll using registry
-				Reg::SetReadonly();
-				middlewareDllPath_ = Reg::Get().middlewarePath;
+			// load module if not already done
+			if (!hMod_) {
+				// get path to middleware dll from the registry if not already overridden
+				if (middlewareDllPath_.empty()) {
+					// discover the full path of the middleware dll using registry
+					Reg::SetReadonly();
+					middlewareDllPath_ = Reg::Get().middlewarePath;
+				}
+				// attempt to load the dll
+				hMod_ = LoadLibraryA(middlewareDllPath_.c_str());
+				if (!hMod_) {
+					throw LoaderExcept_(PM_STATUS_NONEXISTENT_FILE_PATH, "Middleware Loader could not find DLL");
+				}
 			}
-			// attempt to load the dll
-			const HMODULE hMod = LoadLibraryA(middlewareDllPath_.c_str());
-			if (!hMod) {
-				throw LoaderExcept_(PM_STATUS_NONEXISTENT_FILE_PATH, "Middleware Loader could not find DLL");
-			}
-
-#define RESOLVE(f) pFunc_##f##_ = reinterpret_cast<decltype(pFunc_##f##_)>(GetProcAddress_(hMod, #f))
-#define RESOLVE_CPP(f) pFunc_##f##_ = GetCppProcAddress_<decltype(pFunc_##f##_)>(hMod, #f)
-			// first check version before attempting to resolve all endpoints
+#define RESOLVE(f) pFunc_##f##_ = reinterpret_cast<decltype(pFunc_##f##_)>(GetProcAddress_(hMod_, #f))
+#define RESOLVE_CPP(f) pFunc_##f##_ = GetCppProcAddress_<decltype(pFunc_##f##_)>(hMod_, #f)
+			// resolve version endpoint first as it is needed here
 			RESOLVE(pmGetApiVersion);
+			// if this load operation was instigated by calling version, don't do version check or load other endpoints
+			if (versionOnly) {
+				return PM_STATUS_SUCCESS;
+			}
+			// first check version before attempting to resolve all endpoints
 			{
 				PM_VERSION dllVersion{};
 				if (pFunc_pmGetApiVersion_(&dllVersion) != PM_STATUS_SUCCESS) {
@@ -138,7 +146,7 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_()
 				if (dllVersion.major > buildVersion.major) {
 					throw LoaderExcept_(PM_STATUS_MIDDLEWARE_VERSION_HIGH);
 				}
-				if (dllVersion.major < buildVersion.major) {
+				if (dllVersion.major < buildVersion.major || dllVersion.minor < buildVersion.minor) {
 					throw LoaderExcept_(PM_STATUS_MIDDLEWARE_VERSION_LOW);
 				}
 			}
@@ -280,7 +288,10 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFreeFrameQuery(PM_FRAME_QUERY_HANDLE handle)
 }
 PRESENTMON_API2_EXPORT PM_STATUS pmGetApiVersion(PM_VERSION* pVersion)
 {
-	LoadEndpointsIfEmpty_();
+	if (!middlewareLoadedSuccessfully_) {
+		// load only the version endpoint
+		if (auto sta = LoadLibrary_(true)) return sta;
+	}
 	return pFunc_pmGetApiVersion_(pVersion);
 }
 // deprecate?

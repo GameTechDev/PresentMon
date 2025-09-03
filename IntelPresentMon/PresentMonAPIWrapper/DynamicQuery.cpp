@@ -1,7 +1,7 @@
 #pragma once
 #include "DynamicQuery.h"
-#include "../PresentMonAPIWrapperCommon/Introspection.h"
-#include "../PresentMonAPIWrapperCommon/Exception.h"
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/Introspection.h>
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/Exception.h>
 #include <format>
 #include <cassert>
 

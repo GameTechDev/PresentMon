@@ -1,8 +1,7 @@
 #include "Session.h"
-#include "../PresentMonAPI2/Internal.h"
-#include "../PresentMonAPIWrapperCommon/Exception.h"
-#include "../PresentMonAPIWrapperCommon/EnumMap.h"
-#include "../PresentMonAPIWrapperCommon/Introspection.h"
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/Exception.h>
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/EnumMap.h>
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/Introspection.h>
 #include <cassert>
 #include <format>
 

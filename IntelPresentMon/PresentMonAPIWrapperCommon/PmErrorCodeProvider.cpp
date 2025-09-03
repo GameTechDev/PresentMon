@@ -1,8 +1,8 @@
 #include "PmErrorCodeProvider.h"
-#include "../PresentMonAPI2/PresentMonAPI.h"
-#include "../Interprocess/source/metadata/EnumStatus.h"
-#include "../CommonUtilities/log/ErrorCode.h"
-#include "../Interprocess/source/IntrospectionMacroHelpers.h"
+#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
+#include <IntelPresentMon/Interprocess/source/metadata/EnumStatus.h>
+#include <IntelPresentMon/CommonUtilities/log/ErrorCode.h>
+#include <IntelPresentMon/Interprocess/source/IntrospectionMacroHelpers.h>
 #include "EnumMap.h"
 
 namespace pmapi

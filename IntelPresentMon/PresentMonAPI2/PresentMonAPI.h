@@ -10,7 +10,7 @@
 #include <cstdint>
 
 #define PM_API_VERSION_MAJOR 3
-#define PM_API_VERSION_MINOR 0
+#define PM_API_VERSION_MINOR 1
 
 #ifdef __cplusplus
 extern "C" {

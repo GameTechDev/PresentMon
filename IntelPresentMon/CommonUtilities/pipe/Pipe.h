@@ -58,10 +58,9 @@ namespace pmon::util::pipe
 			// calculate size of body
 			const auto payloadSize = uint32_t(writeBuf_.size() - sizeSize);
 			// replace the placeholder with the actual body size
-			auto bufSeq = writeBuf_.data();
-			const auto iSize = const_cast<char*>(as::buffer_cast<const char*>(bufSeq));
+			const auto pSizeInPlace = const_cast<char*>(&*as::buffers_begin(writeBuf_.data()));
 			auto replacement = std::string_view{ reinterpret_cast<const char*>(&payloadSize), sizeof(payloadSize) };
-			std::ranges::copy(replacement, iSize);
+			std::ranges::copy(replacement, pSizeInPlace);
 			// transmit the packet
 			co_await Write_(timeoutMs);
 		}

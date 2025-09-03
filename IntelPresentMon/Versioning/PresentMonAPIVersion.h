@@ -1,5 +1,5 @@
 #pragma once
-#include "../PresentMonAPI2/PresentMonAPI.h"
+#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
 
 
 namespace pmon::bid

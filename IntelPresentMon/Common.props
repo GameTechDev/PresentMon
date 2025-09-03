@@ -13,6 +13,7 @@
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <DisableAnalyzeExternal>true</DisableAnalyzeExternal>
       <PreprocessorDefinitions>CEREAL_THREAD_SAFE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..;../..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup />

@@ -1,5 +1,5 @@
 #include "DiagnosticHandler.h"
-#include "../PresentMonAPIWrapperCommon/Exception.h"
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/Exception.h>
 #include <thread>
 #include <atomic>
 #include <semaphore>

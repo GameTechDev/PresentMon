@@ -1,9 +1,11 @@
 // Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
+#include "../CommonUtilities/win/WinAPI.h"
 #include <fstream>
 #include "CppUnitTest.h"
 #include "StatusComparison.h"
-#include <boost/process.hpp>
+#include <boost/process/v1/child.hpp>
+#include <boost/process/v1/io.hpp>
 #include <string>
 #include <iostream>
 #include <windows.h>
@@ -15,6 +17,7 @@
 #include "tlhelp32.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+namespace bp = boost::process::v1;
 
 namespace RealtimeMetricTests
 {
@@ -74,8 +77,8 @@ namespace RealtimeMetricTests
 
 	TEST_CLASS(RealtimeMetricTests)
 	{
-		std::optional<boost::process::child> oService;
-		std::optional<boost::process::child> oApp;
+		std::optional<bp::child> oService;
+		std::optional<bp::child> oApp;
 	public:
 
 		TEST_METHOD_CLEANUP(Cleanup)
@@ -94,7 +97,6 @@ namespace RealtimeMetricTests
 
 		TEST_METHOD(RealtimeOpenSessionTest)
 		{
-			namespace bp = boost::process;
 			using namespace std::string_literals;
 			using namespace std::chrono_literals;
 
@@ -141,7 +143,6 @@ namespace RealtimeMetricTests
 
 		TEST_METHOD(RealtimeTrackProcessTest)
 		{
-			namespace bp = boost::process;
 			using namespace std::string_literals;
 			using namespace std::chrono_literals;
 
@@ -201,7 +202,6 @@ namespace RealtimeMetricTests
 		}
 		TEST_METHOD(RealtimeFrameMetricsTest)
 		{
-			namespace bp = boost::process;
 			using namespace std::string_literals;
 			using namespace std::chrono_literals;
 			using namespace pmapi;

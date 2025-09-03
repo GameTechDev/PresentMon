@@ -1,5 +1,5 @@
 #pragma once
-#include "../PresentMonAPI2/PresentMonDiagnostics.h"
+#include <IntelPresentMon/PresentMonAPI2/PresentMonDiagnostics.h>
 #include <span>
 #include <functional>
 #include <memory>

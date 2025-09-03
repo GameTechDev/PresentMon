@@ -15,7 +15,7 @@
 #include <CommonUtilities/win/Privileges.h>
 #include <Versioning/BuildId.h>
 #include <Shobjidl.h>
-#include <boost/process/v2.hpp>
+#include <boost/process/v2/process.hpp>
 #include <boost/process/v2/windows/as_user_launcher.hpp>
 #include <array>
 #include <ranges>

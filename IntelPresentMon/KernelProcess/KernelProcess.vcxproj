@@ -86,6 +86,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ntdll.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -106,6 +107,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <UACUIAccess>true</UACUIAccess>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ntdll.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>SignTool sign /a /v /s PrivateCertStore /n "Test Certificate - For Internal Use Only" /t http://timestamp.comodoca.com/authenticode /fd sha1 "$(OutDir)$(TargetFileName)"</Command>
@@ -132,6 +134,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <UACUIAccess>true</UACUIAccess>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ntdll.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

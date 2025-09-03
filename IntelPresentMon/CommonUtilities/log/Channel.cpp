@@ -3,7 +3,7 @@
 #include "IDriver.h"
 #include "IChannelObject.h"
 #include "Entry.h"
-#include <concurrentqueue\blockingconcurrentqueue.h>
+#include <concurrentqueue/blockingconcurrentqueue.h>
 #include <variant>
 #include <semaphore>
 #include "PanicLogger.h"

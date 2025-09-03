@@ -1,6 +1,6 @@
 #include "Exception.h"
 #include "EnumMap.h"
-#include "../Interprocess/source/metadata/EnumStatus.h"
+#include <IntelPresentMon/Interprocess/source/metadata/EnumStatus.h>
 #include <format>
 
 namespace pmapi

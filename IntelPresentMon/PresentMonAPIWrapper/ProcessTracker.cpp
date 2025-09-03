@@ -1,6 +1,6 @@
 #pragma once
 #include "ProcessTracker.h"
-#include "../PresentMonAPIWrapperCommon/Exception.h"
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/Exception.h>
 #include <format>
 #include <string>
 #include <cassert>
