@@ -10,9 +10,9 @@
 
 - [v3 of the WiX toolset and VS extension](https://wixtoolset.org/docs/wix3/)
 
-Note: if you only want to build the PresentData library, or the PresentMon Console application
-you only need Visual Studio.  Ignore the other build and source dependency instructions and build
-`PresentData\PresentData.vcxproj` or `PresentMon\ConsoleApplication.sln`.
+Note: if you only want to build the PresentData library you only need Visual Studio.
+Ignore the other build and source dependency instructions and build `PresentData\PresentData.vcxproj`.
+For the PresentMon Console application, follow Step 1 then build `PresentMon\ConsoleApplication.sln`.
 
 ## Install Source Dependencies
 
