@@ -2723,7 +2723,7 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
         } else {
             auto ij = mAppTimingDataByAppFrameId.find(key);
             if (ij != mAppTimingDataByAppFrameId.end()) {
-                ij->second.AppSleepEndTime = timestamp;
+                ij->second.AppSleepStartTime = timestamp;
             } else {
                 AppTimingData data;
                 data.AppSleepStartTime = timestamp;

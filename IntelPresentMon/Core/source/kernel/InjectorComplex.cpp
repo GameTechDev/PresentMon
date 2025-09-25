@@ -85,12 +85,11 @@ namespace p2c::kern
 	void InjectorComplex::InjectorModule_::UpdateConfig(const GfxLayer::Extension::OverlayConfig& cfg)
 	{
 		config_ = cfg;
-		if (injectionPointClient_) {
-			PushConfig_();
-		}
-	}void InjectorComplex::InjectorModule_::ChangeTarget(std::optional<std::string> targetModuleName)
+		PushConfig_();
+	}
+	void InjectorComplex::InjectorModule_::ChangeTarget(std::optional<std::string> targetModuleName)
 	{
-		// Drop any prior action client (as you had)
+		// Drop any prior action client
 		{
 			std::lock_guard lk{ actionClientMutex_ };
 			injectionPointClient_.reset();

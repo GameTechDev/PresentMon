@@ -107,96 +107,94 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 {
 	// ensure following routine is only run once
 	// concurrent calls will block until the first one completes
-	{
-		std::lock_guard lk{ middlewareLoadMtx_ };
-		if (middlewareLoadResult_) {
-			// we were not first, return the same result as the first call
-			return *middlewareLoadResult_;
-		}
-		try {
-			// load module if not already done
-			if (!hMod_) {
-				// get path to middleware dll from the registry if not already overridden
-				if (middlewareDllPath_.empty()) {
-					// discover the full path of the middleware dll using registry
-					Reg::SetReadonly();
-					middlewareDllPath_ = Reg::Get().middlewarePath;
-				}
-				// attempt to load the dll
-				hMod_ = LoadLibraryA(middlewareDllPath_.c_str());
-				if (!hMod_) {
-					throw LoaderExcept_(PM_STATUS_NONEXISTENT_FILE_PATH, "Middleware Loader could not find DLL");
-				}
+	std::lock_guard lk{ middlewareLoadMtx_ };
+	if (middlewareLoadResult_) {
+		// we were not first, return the same result as the first call
+		return *middlewareLoadResult_;
+	}
+	try {
+		// load module if not already done
+		if (!hMod_) {
+			// get path to middleware dll from the registry if not already overridden
+			if (middlewareDllPath_.empty()) {
+				// discover the full path of the middleware dll using registry
+				Reg::SetReadonly();
+				middlewareDllPath_ = Reg::Get().middlewarePath;
 			}
+			// attempt to load the dll
+			hMod_ = LoadLibraryA(middlewareDllPath_.c_str());
+			if (!hMod_) {
+				throw LoaderExcept_(PM_STATUS_NONEXISTENT_FILE_PATH, "Middleware Loader could not find DLL");
+			}
+		}
 #define RESOLVE(f) pFunc_##f##_ = reinterpret_cast<decltype(pFunc_##f##_)>(GetProcAddress_(hMod_, #f))
 #define RESOLVE_CPP(f) pFunc_##f##_ = GetCppProcAddress_<decltype(pFunc_##f##_)>(hMod_, #f)
-			// resolve version endpoint first as it is needed here
-			RESOLVE(pmGetApiVersion);
-			// if this load operation was instigated by calling version, don't do version check or load other endpoints
-			if (versionOnly) {
-				return PM_STATUS_SUCCESS;
+		// resolve version endpoint first as it is needed here
+		RESOLVE(pmGetApiVersion);
+		// if this load operation was instigated by calling version, don't do version check or load other endpoints
+		if (versionOnly) {
+			return PM_STATUS_SUCCESS;
+		}
+		// first check version before attempting to resolve all endpoints
+		{
+			PM_VERSION dllVersion{};
+			if (pFunc_pmGetApiVersion_(&dllVersion) != PM_STATUS_SUCCESS) {
+				throw LoaderExcept_(PM_STATUS_FAILURE, "Failed API version discovery");
 			}
-			// first check version before attempting to resolve all endpoints
-			{
-				PM_VERSION dllVersion{};
-				if (pFunc_pmGetApiVersion_(&dllVersion) != PM_STATUS_SUCCESS) {
-					throw LoaderExcept_(PM_STATUS_FAILURE, "Failed API version discovery");
-				}
-				const auto buildVersion = pmon::bid::GetApiVersion();
-				if (dllVersion.major > buildVersion.major) {
-					throw LoaderExcept_(PM_STATUS_MIDDLEWARE_VERSION_HIGH);
-				}
-				if (dllVersion.major < buildVersion.major || dllVersion.minor < buildVersion.minor) {
-					throw LoaderExcept_(PM_STATUS_MIDDLEWARE_VERSION_LOW);
-				}
+			const auto buildVersion = pmon::bid::GetApiVersion();
+			if (dllVersion.major > buildVersion.major) {
+				throw LoaderExcept_(PM_STATUS_MIDDLEWARE_VERSION_HIGH);
 			}
-			// core
-			RESOLVE(pmOpenSession);
-			RESOLVE(pmOpenSessionWithPipe);
-			RESOLVE(pmCloseSession);
-			RESOLVE(pmStartTrackingProcess);
-			RESOLVE(pmStopTrackingProcess);
-			RESOLVE(pmGetIntrospectionRoot);
-			RESOLVE(pmFreeIntrospectionRoot);
-			RESOLVE(pmSetTelemetryPollingPeriod);
-			RESOLVE(pmSetEtwFlushPeriod);
-			RESOLVE(pmRegisterDynamicQuery);
-			RESOLVE(pmFreeDynamicQuery);
-			RESOLVE(pmPollDynamicQuery);
-			RESOLVE(pmPollStaticQuery);
-			RESOLVE(pmRegisterFrameQuery);
-			RESOLVE(pmConsumeFrames);
-			RESOLVE(pmFreeFrameQuery);
-			// diagnostics
-			RESOLVE(pmDiagnosticSetup);
-			RESOLVE(pmDiagnosticGetQueuedMessageCount);
-			RESOLVE(pmDiagnosticGetMaxQueuedMessages);
-			RESOLVE(pmDiagnosticSetMaxQueuedMessages);
-			RESOLVE(pmDiagnosticGetDiscardedMessageCount);
-			RESOLVE(pmDiagnosticDequeueMessage);
-			RESOLVE(pmDiagnosticEnqueueMessage);
-			RESOLVE(pmDiagnosticFreeMessage);
-			RESOLVE(pmDiagnosticWaitForMessage);
-			RESOLVE(pmDiagnosticUnblockWaitingThread);
-			// internal
-			RESOLVE_CPP(pmCreateHeapCheckpoint_);
-			RESOLVE_CPP(pmLinkLogging_);
-			RESOLVE_CPP(pmFlushEntryPoint_);
-			RESOLVE_CPP(pmSetupODSLogging_);
-			RESOLVE_CPP(pmSetupFileLogging_);
-			RESOLVE_CPP(pmStopPlayback_);
-			// if we make it here then we have succeeded
-			middlewareLoadResult_ = PM_STATUS_SUCCESS;
+			if (dllVersion.major < buildVersion.major || dllVersion.minor < buildVersion.minor) {
+				throw LoaderExcept_(PM_STATUS_MIDDLEWARE_VERSION_LOW);
+			}
 		}
-		catch (const pmon::ipc::PmStatusError& ex) {
-			middlewareLoadResult_ = ex.GeneratePmStatus();
-		}
-		catch (const winreg::RegException&) {
-			middlewareLoadResult_ = PM_STATUS_MIDDLEWARE_MISSING_PATH;
-		}
-		catch (...) {
-			middlewareLoadResult_ = PM_STATUS_FAILURE;
-		}
+		// core
+		RESOLVE(pmOpenSession);
+		RESOLVE(pmOpenSessionWithPipe);
+		RESOLVE(pmCloseSession);
+		RESOLVE(pmStartTrackingProcess);
+		RESOLVE(pmStopTrackingProcess);
+		RESOLVE(pmGetIntrospectionRoot);
+		RESOLVE(pmFreeIntrospectionRoot);
+		RESOLVE(pmSetTelemetryPollingPeriod);
+		RESOLVE(pmSetEtwFlushPeriod);
+		RESOLVE(pmRegisterDynamicQuery);
+		RESOLVE(pmFreeDynamicQuery);
+		RESOLVE(pmPollDynamicQuery);
+		RESOLVE(pmPollStaticQuery);
+		RESOLVE(pmRegisterFrameQuery);
+		RESOLVE(pmConsumeFrames);
+		RESOLVE(pmFreeFrameQuery);
+		// diagnostics
+		RESOLVE(pmDiagnosticSetup);
+		RESOLVE(pmDiagnosticGetQueuedMessageCount);
+		RESOLVE(pmDiagnosticGetMaxQueuedMessages);
+		RESOLVE(pmDiagnosticSetMaxQueuedMessages);
+		RESOLVE(pmDiagnosticGetDiscardedMessageCount);
+		RESOLVE(pmDiagnosticDequeueMessage);
+		RESOLVE(pmDiagnosticEnqueueMessage);
+		RESOLVE(pmDiagnosticFreeMessage);
+		RESOLVE(pmDiagnosticWaitForMessage);
+		RESOLVE(pmDiagnosticUnblockWaitingThread);
+		// internal
+		RESOLVE_CPP(pmCreateHeapCheckpoint_);
+		RESOLVE_CPP(pmLinkLogging_);
+		RESOLVE_CPP(pmFlushEntryPoint_);
+		RESOLVE_CPP(pmSetupODSLogging_);
+		RESOLVE_CPP(pmSetupFileLogging_);
+		RESOLVE_CPP(pmStopPlayback_);
+		// if we make it here then we have succeeded
+		middlewareLoadResult_ = PM_STATUS_SUCCESS;
+	}
+	catch (const pmon::ipc::PmStatusError& ex) {
+		middlewareLoadResult_ = ex.GeneratePmStatus();
+	}
+	catch (const winreg::RegException&) {
+		middlewareLoadResult_ = PM_STATUS_MIDDLEWARE_MISSING_PATH;
+	}
+	catch (...) {
+		middlewareLoadResult_ = PM_STATUS_FAILURE;
 	}
 	middlewareLoadedSuccessfully_ = *middlewareLoadResult_ == PM_STATUS_SUCCESS;
 	return *middlewareLoadResult_;

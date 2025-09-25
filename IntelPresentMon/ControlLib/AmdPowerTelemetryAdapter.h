@@ -16,7 +16,7 @@ struct AmdResultGrabber {
   int result_;
   std::source_location loc_;
 };
-int operator>>(AmdResultGrabber, AmdCheckerToken);
+int operator>>(AmdResultGrabber, AmdCheckerToken) noexcept;
 
 class AmdPowerTelemetryAdapter : public PowerTelemetryAdapter {
  public:

@@ -517,7 +517,8 @@ static void ReportMetricsHelper(
                 metrics.mCPUStart = chain->mLastAppPresent->PresentStartTime + chain->mLastAppPresent->TimeInPresent;
             }
         } else {
-            metrics.mCPUStart = chain->mLastPresent->PresentStartTime + chain->mLastPresent->TimeInPresent;
+            metrics.mCPUStart = chain->mLastPresent == nullptr ? 0 :
+                chain->mLastPresent->PresentStartTime + chain->mLastPresent->TimeInPresent;
         }
 
         if (displayIndex == appIndex) {
@@ -839,7 +840,7 @@ static void PruneOldSwapChainData(
         auto processInfo = &pair.second;
         for (auto ii = processInfo->mSwapChain.begin(), ie = processInfo->mSwapChain.end(); ii != ie; ) {
             auto chain = &ii->second;
-            if (chain->mLastPresent->PresentStartTime < minTimestamp) {
+            if (chain->mLastPresent && chain->mLastPresent->PresentStartTime < minTimestamp) {
                 ii = processInfo->mSwapChain.erase(ii);
             } else {
                 ++ii;

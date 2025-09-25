@@ -42,7 +42,12 @@ namespace pmon::ipc::act
         SymmetricActionClient& operator=(SymmetricActionClient&&) = delete;
         ~SymmetricActionClient()
         {
-            ioctx_.stop();
+            try {
+                ioctx_.stop();
+            }
+            catch (...) {
+                pmlog_error("Failed to stop ioctx");
+            }
         }
 
         template<class Params>
