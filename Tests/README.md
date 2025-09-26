@@ -46,3 +46,43 @@ The following expected cases are currently missing (WIP):
 - PresentMode==Hardware_Legacy_Copy_To_Front_Buffer
 - [2,17-23] All Windows7 paths
 - [30] Non-Win7 Microsoft_Windows_Dwm_Core::FlipChain_(Pending|Complete|Dirty) with previous Microsoft_Windows_Dwm_Core::PresentHistory[Detailed]::Start
+
+## Adding Custom Test Directories
+
+To add your own test directory with ETL files and gold CSV files:
+
+### Method 1: Using local runsettings file (Recommended)
+
+1. Copy `PresentMonTests.runsettings.template` to `PresentMonTests.local.runsettings`
+2. Edit the `PRESENTMON_ADDITIONAL_TEST_DIR` path to point to your test directory
+3. In Visual Studio, go to **Test** → **Configure Run Settings** → **Select Solution Wide runsettings File**
+4. Select your `PresentMonTests.local.runsettings` file
+
+### Method 2: Command Line Parameter
+
+Run the test executable directly with the `--opttestdir` parameter:
+```
+PresentMonTests.exe --opttestdir="C:\path\to\your\tests"
+```
+
+### Method 3: Environment Variable
+
+Set the `PRESENTMON_ADDITIONAL_TEST_DIR` environment variable:
+```cmd
+set PRESENTMON_ADDITIONAL_TEST_DIR=C:\path\to\your\tests
+PresentMonTests.exe
+```
+
+### Test Directory Structure
+
+Your test directory should contain:
+- ETL files (e.g., `test_case.etl`)
+- Corresponding CSV files (e.g., `test_case.csv`, `test_case_v1.csv`, etc.)
+
+The test system will automatically discover and register tests for each ETL/CSV pair.
+
+### Notes
+
+- The `.local.runsettings` files are ignored by git, so your local paths won't be committed
+- Tests are dynamically registered at runtime based on the files found
+- Each CSV file creates a separate test case in Test Explorer
