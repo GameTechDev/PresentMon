@@ -2115,7 +2115,29 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                     } else if (p2->FinalState != PresentResult::Discarded) {
                         VerboseTraceBeforeModifyingPresent(p2.get());
                         p2->FinalState = p->FinalState;
-                        p2->Displayed = p->Displayed;
+                        // If the DWM present was displayed, then the dependent present was also displayed.
+                        // However keep the FrameType information from the dependent present.
+                        {
+                            // Copy timestamps from p (source) into p2 (dest), preserving p2's FrameType(s).
+                            if (!p->Displayed.empty()) {
+                                const size_t nCommon = std::min(p2->Displayed.size(), p->Displayed.size());
+
+                                // Reserve space upfront if we know we'll be adding elements
+                                if (p->Displayed.size() > nCommon) {
+                                    p2->Displayed.reserve(p->Displayed.size());
+                                }
+
+                                // Overwrite timestamps for shared entries (keep existing FrameType).
+                                for (size_t i = 0; i < nCommon; ++i) {
+                                    p2->Displayed[i].second = p->Displayed[i].second;
+                                }
+
+                                // Append extra timestamps from source
+                                for (size_t i = nCommon; i < p->Displayed.size(); ++i) {
+                                    p2->Displayed.emplace_back(p->Displayed[i].first, p->Displayed[i].second);
+                                }
+                            }
+                        }
                         p2->WaitingForFlipFrameType = p->WaitingForFlipFrameType;
                         p2->DoneWaitingForFlipFrameType = p->DoneWaitingForFlipFrameType;
                     }
@@ -2209,8 +2231,10 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                         });
                     if (it != p2->Displayed.end()) {
                         // Propagate the Present information attached to the generated frame
-                        // TODO -> explain why we have two paths for copying
                         if (p2->AppPropagatedPresentStartTime != 0) {
+                            // If the completed present has propagated app timing data from an earlier
+                            // present, propagate the data to this present and clear it from the completed
+                            // present so it doesn't get propagated again.
                             present->AppPropagatedPresentStartTime = p2->AppPropagatedPresentStartTime;
                             present->AppPropagatedTimeInPresent = p2->AppPropagatedTimeInPresent;
                             present->AppPropagatedGPUStartTime = p2->AppPropagatedGPUStartTime;
@@ -2224,6 +2248,8 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                             p2->AppPropagatedGPUDuration = 0;
                             p2->AppPropagatedGPUVideoDuration = 0;
                         } else {
+                            // Otherwise set the propagated data using the values from
+                            // the completed present itself.
                             present->AppPropagatedPresentStartTime = p2->PresentStartTime;
                             present->AppPropagatedTimeInPresent = p2->TimeInPresent;
                             present->AppPropagatedGPUStartTime = p2->GPUStartTime;
@@ -2240,7 +2266,6 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                             present->InputType = p2->InputType;
                         }
                     }
-                    break;
                 }
                 p2->WaitingForFrameId = false;
             }
