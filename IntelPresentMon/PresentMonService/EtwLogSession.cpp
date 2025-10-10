@@ -1,0 +1,127 @@
+#include "EtwLogSession.h"
+#include <evntprov.h>
+#include <evntcons.h>
+#include <cstddef>
+#include <format>
+#include <vector>
+#include <span>
+#include <ranges>
+#include "../PresentData/PresentMonTraceSession.hpp"
+#include "../PresentData/PresentMonTraceConsumer.hpp"
+
+namespace rn = std::ranges;
+
+namespace pmon::svc
+{
+    namespace {
+        struct ProviderFilter
+        {
+            std::vector<uint16_t> events;
+            uint64_t anyKeyMask;
+            uint64_t allKeyMask;
+            uint8_t maxLevel;
+            GUID providerGuid;
+        };
+
+        class TraceFilter : public IFilterBuildListener
+        {
+        public:
+            // Inherited via IFilterBuildListener
+            void EventAdded(uint16_t id) override
+            {
+                eventsOnDeck_.push_back(id);
+            }
+            void ProviderEnabled(const GUID& providerGuid, uint64_t anyKey, uint64_t allKey, uint8_t maxLevel) override
+            {
+                ProviderFilter filter{
+                    .events = std::move(eventsOnDeck_),
+                    .anyKeyMask = anyKey ? anyKey : 0xFFFF'FFFF, // TODO: double check this
+                    .allKeyMask = allKey,
+                    .maxLevel = maxLevel,
+                    .providerGuid = providerGuid,
+                };
+                ClearEvents();
+                providerFilters_.push_back(std::move(filter));
+            }
+            void ClearEvents() override
+            {
+                eventsOnDeck_.clear();
+            }
+            std::span<const ProviderFilter> GetProviderFilters() const
+            {
+                return providerFilters_;
+            }
+        private:
+            std::vector<uint16_t> eventsOnDeck_;
+            std::vector<ProviderFilter> providerFilters_;
+        };
+    }
+
+	EtwLogSession::EtwLogSession(const std::wstring& loggerName, const std::wstring& logFilePath)
+	{
+        // extract the provider/filter set from PresentData using a listener
+        auto pTraceFilter = [&] {
+            auto pTraceFilter = std::make_shared<TraceFilter>();
+            // trace consumer that configures what events are processed
+            PMTraceConsumer traceConsumer;
+            traceConsumer.mTrackDisplay = true;   // ... presents to the display.
+            traceConsumer.mTrackGPU = true;       // ... GPU work.
+            traceConsumer.mTrackGPUVideo = true;  // ... GPU video work (separately from non-video GPU work).
+            traceConsumer.mTrackInput = true;     // ... keyboard/mouse latency.
+            traceConsumer.mTrackFrameType = true; // ... the frame type communicated through the Intel-PresentMon provider.
+            traceConsumer.mTrackAppTiming = true; // ... app timing data communicated through the Intel-PresentMon provider.
+            traceConsumer.mTrackPcLatency = true; // ... Nvidia PCL stats.
+            // dry run of the provider enablement routine to extract the provider.event list
+            EnableProvidersListing(0, nullptr, &traceConsumer, true, true, pTraceFilter);
+            return pTraceFilter;
+        }();
+
+        // create / start the trace session that outputs to .etl file
+		traceProps_.Wnode.BufferSize = sizeof(traceProps_);
+		traceProps_.Wnode.Flags = WNODE_FLAG_TRACED_GUID;
+		traceProps_.Wnode.ClientContext = TIMESTAMP_TYPE_QPC;
+		traceProps_.LogFileMode = EVENT_TRACE_FILE_MODE_SEQUENTIAL;
+		traceProps_.LoggerNameOffset = offsetof(TraceProperties_, LoggerName);
+		traceProps_.LogFileNameOffset = offsetof(TraceProperties_, LogFileName);
+		// consider zeroing this to match PresentData
+		traceProps_.BufferSize = 0x1'0000;
+		wcscpy_s(traceProps_.LoggerName, std::size(traceProps_.LoggerName), loggerName.c_str());
+		wcscpy_s(traceProps_.LogFileName, std::size(traceProps_.LogFileName), logFilePath.c_str());
+		// TODO: check error
+		StartTraceW(&hTraceSession_, traceProps_.LoggerName, &traceProps_);
+
+        // enable providers with various filter mechanisms that match PresentData's configuration
+        for (auto& p : pTraceFilter->GetProviderFilters()) {
+            // event filter that filters by event ID whitelist, payload size is dynamic so allocate blob
+            // EVENT_FILTER_EVENT_ID contains a ushort placeholder representing start of array we subtract
+            const size_t eventIdFilterSize = sizeof(EVENT_FILTER_EVENT_ID) +
+                sizeof(USHORT) * (p.events.size() - ANYSIZE_ARRAY);
+            auto pEventIdFilter = static_cast<EVENT_FILTER_EVENT_ID*>(alloca(eventIdFilterSize));
+            pEventIdFilter->FilterIn = TRUE;
+            pEventIdFilter->Reserved = 0;
+            pEventIdFilter->Count = (USHORT)p.events.size();
+            rn::copy(p.events, pEventIdFilter->Events);
+            // descriptor for the event filter
+            EVENT_FILTER_DESCRIPTOR filterDesc{
+                .Ptr = reinterpret_cast<ULONGLONG>(pEventIdFilter),
+                .Size = (ULONG)eventIdFilterSize,
+                .Type = EVENT_FILTER_TYPE_EVENT_ID,
+            };
+            // parameter struct to feed our filter into the enable call
+            ENABLE_TRACE_PARAMETERS enableParams{
+                .Version = ENABLE_TRACE_PARAMETERS_VERSION_2,
+                .EnableProperty = EVENT_ENABLE_PROPERTY_IGNORE_KEYWORD_0,
+                .SourceId = traceProps_.Wnode.Guid,
+                .EnableFilterDesc = &filterDesc,
+                .FilterDescCount = 1,
+            };
+            // TODO: check error
+            EnableTraceEx2(hTraceSession_, &p.providerGuid, EVENT_CONTROL_CODE_ENABLE_PROVIDER, p.maxLevel,
+                p.anyKeyMask, p.allKeyMask, 0, &enableParams);
+        }
+	}
+    EtwLogSession::~EtwLogSession()
+    {
+        ControlTraceW(hTraceSession_, traceProps_.LoggerName, &traceProps_, EVENT_TRACE_CONTROL_STOP);
+    }
+}
