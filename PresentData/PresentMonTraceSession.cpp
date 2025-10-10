@@ -195,12 +195,7 @@ struct FilteredProvider {
         ULONG controlCode = EVENT_CONTROL_CODE_ENABLE_PROVIDER)
     {
         if (pListener_) {
-            if (controlCode == EVENT_CONTROL_CODE_ENABLE_PROVIDER) {
-                pListener_->ProviderEnabled(providerGuid, anyKeywordMask_, allKeywordMask_, maxLevel_);
-            }
-            else {
-                pListener_->ClearEvents();
-            }
+            pListener_->ProviderEnabled(providerGuid, anyKeywordMask_, allKeywordMask_, maxLevel_, controlCode);
         }
 
         if (!isDryRun_) {
@@ -213,9 +208,8 @@ struct FilteredProvider {
                 filterDesc_.Size = sizeof(EVENT_FILTER_EVENT_ID) + sizeof(USHORT) * (filterEventIds->Count - ANYSIZE_ARRAY);
             }
 
-            ULONG timeout = 0;
             return EnableTraceEx2(sessionHandle, &providerGuid, controlCode,
-                maxLevel_, anyKeywordMask_, allKeywordMask_, timeout, pparams);
+                maxLevel_, anyKeywordMask_, allKeywordMask_, 0, pparams);
         }
         return ERROR_SUCCESS;
     }
@@ -226,7 +220,7 @@ struct FilteredProvider {
         UCHAR maxLevel)
     {
         if (pListener_) {
-            pListener_->ProviderEnabled(providerGuid, 0, 0, maxLevel);
+            pListener_->ProviderEnabled(providerGuid, 0, 0, maxLevel, EVENT_CONTROL_CODE_ENABLE_PROVIDER);
         }
 
         if (!isDryRun_) {

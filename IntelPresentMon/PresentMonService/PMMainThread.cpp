@@ -15,9 +15,11 @@
 #include "../CommonUtilities/IntervalWaiter.h"
 #include "../CommonUtilities/PrecisionWaiter.h"
 #include "../CommonUtilities/win/Event.h"
+#include "EtwLogSession.h"
 
 #include "../CommonUtilities/log/GlogShim.h"
 #include "testing/TestControl.h"
+
 
 using namespace std::literals;
 using namespace pmon;
@@ -313,6 +315,8 @@ void PresentMonMainThread(Service* const pSvc)
         if (opt.enableTestControl) {
             pTcm = std::make_unique<pmon::svc::testing::TestControlModule>(&pm, pSvc);
         }
+
+        EtwLogSession els{ L"mylog123", L"C:\\EtlTesting\\happy.etl" };
 
         // periodically check trace sessions while waiting for service stop event
         while (!util::win::WaitAnyEventFor(250ms, pSvc->GetServiceStopHandle())) {

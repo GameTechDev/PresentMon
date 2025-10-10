@@ -21,6 +21,7 @@ namespace pmon::svc
             uint64_t allKeyMask;
             uint8_t maxLevel;
             GUID providerGuid;
+            uint32_t controlCode;
         };
 
         class TraceFilter : public IFilterBuildListener
@@ -31,14 +32,15 @@ namespace pmon::svc
             {
                 eventsOnDeck_.push_back(id);
             }
-            void ProviderEnabled(const GUID& providerGuid, uint64_t anyKey, uint64_t allKey, uint8_t maxLevel) override
+            void ProviderEnabled(const GUID& providerGuid, uint64_t anyKey, uint64_t allKey, uint8_t maxLevel, uint32_t controlCode) override
             {
                 ProviderFilter filter{
                     .events = std::move(eventsOnDeck_),
-                    .anyKeyMask = anyKey ? anyKey : 0xFFFF'FFFF, // TODO: double check this
+                    .anyKeyMask = anyKey,
                     .allKeyMask = allKey,
                     .maxLevel = maxLevel,
                     .providerGuid = providerGuid,
+                    .controlCode = controlCode,
                 };
                 ClearEvents();
                 providerFilters_.push_back(std::move(filter));
@@ -84,40 +86,48 @@ namespace pmon::svc
 		traceProps_.LoggerNameOffset = offsetof(TraceProperties_, LoggerName);
 		traceProps_.LogFileNameOffset = offsetof(TraceProperties_, LogFileName);
 		// consider zeroing this to match PresentData
-		traceProps_.BufferSize = 0x1'0000;
+		traceProps_.BufferSize = 64;
 		wcscpy_s(traceProps_.LoggerName, std::size(traceProps_.LoggerName), loggerName.c_str());
 		wcscpy_s(traceProps_.LogFileName, std::size(traceProps_.LogFileName), logFilePath.c_str());
 		// TODO: check error
-		StartTraceW(&hTraceSession_, traceProps_.LoggerName, &traceProps_);
+		auto sta = StartTraceW(&hTraceSession_, traceProps_.LoggerName, &traceProps_);
 
         // enable providers with various filter mechanisms that match PresentData's configuration
         for (auto& p : pTraceFilter->GetProviderFilters()) {
-            // event filter that filters by event ID whitelist, payload size is dynamic so allocate blob
-            // EVENT_FILTER_EVENT_ID contains a ushort placeholder representing start of array we subtract
-            const size_t eventIdFilterSize = sizeof(EVENT_FILTER_EVENT_ID) +
-                sizeof(USHORT) * (p.events.size() - ANYSIZE_ARRAY);
-            auto pEventIdFilter = static_cast<EVENT_FILTER_EVENT_ID*>(alloca(eventIdFilterSize));
-            pEventIdFilter->FilterIn = TRUE;
-            pEventIdFilter->Reserved = 0;
-            pEventIdFilter->Count = (USHORT)p.events.size();
-            rn::copy(p.events, pEventIdFilter->Events);
-            // descriptor for the event filter
-            EVENT_FILTER_DESCRIPTOR filterDesc{
-                .Ptr = reinterpret_cast<ULONGLONG>(pEventIdFilter),
-                .Size = (ULONG)eventIdFilterSize,
-                .Type = EVENT_FILTER_TYPE_EVENT_ID,
-            };
-            // parameter struct to feed our filter into the enable call
-            ENABLE_TRACE_PARAMETERS enableParams{
-                .Version = ENABLE_TRACE_PARAMETERS_VERSION_2,
-                .EnableProperty = EVENT_ENABLE_PROPERTY_IGNORE_KEYWORD_0,
-                .SourceId = traceProps_.Wnode.Guid,
-                .EnableFilterDesc = &filterDesc,
-                .FilterDescCount = 1,
-            };
-            // TODO: check error
-            EnableTraceEx2(hTraceSession_, &p.providerGuid, EVENT_CONTROL_CODE_ENABLE_PROVIDER, p.maxLevel,
-                p.anyKeyMask, p.allKeyMask, 0, &enableParams);
+            // filter by event id if there are any ids captured by the listener (otherwise assume unfiltered)
+            if (!p.events.empty()) {
+                // event filter that filters by event ID whitelist, payload size is dynamic so allocate blob
+                // EVENT_FILTER_EVENT_ID contains a ushort placeholder representing start of array we subtract
+                const size_t eventIdFilterSize = sizeof(EVENT_FILTER_EVENT_ID) +
+                    sizeof(USHORT) * (p.events.size() - ANYSIZE_ARRAY);
+                auto pEventIdFilter = static_cast<EVENT_FILTER_EVENT_ID*>(alloca(eventIdFilterSize));
+                pEventIdFilter->FilterIn = TRUE;
+                pEventIdFilter->Reserved = 0;
+                pEventIdFilter->Count = (USHORT)p.events.size();
+                rn::copy(p.events, pEventIdFilter->Events);
+                // descriptor for the event filter
+                EVENT_FILTER_DESCRIPTOR filterDesc{
+                    .Ptr = reinterpret_cast<ULONGLONG>(pEventIdFilter),
+                    .Size = (ULONG)eventIdFilterSize,
+                    .Type = EVENT_FILTER_TYPE_EVENT_ID,
+                };
+                // parameter struct to feed our filter into the enable call
+                ENABLE_TRACE_PARAMETERS enableParams{
+                    .Version = ENABLE_TRACE_PARAMETERS_VERSION_2,
+                    .EnableProperty = EVENT_ENABLE_PROPERTY_IGNORE_KEYWORD_0,
+                    .SourceId = traceProps_.Wnode.Guid,
+                    .EnableFilterDesc = &filterDesc,
+                    .FilterDescCount = 1,
+                };
+                // TODO: check error
+                EnableTraceEx2(hTraceSession_, &p.providerGuid, p.controlCode, p.maxLevel,
+                    p.anyKeyMask, p.allKeyMask, 0, &enableParams);
+            }
+            else {
+                // TODO: check error
+                EnableTraceEx2(hTraceSession_, &p.providerGuid, p.controlCode, p.maxLevel,
+                    p.anyKeyMask, p.allKeyMask, 0, nullptr);
+            }
         }
 	}
     EtwLogSession::~EtwLogSession()
