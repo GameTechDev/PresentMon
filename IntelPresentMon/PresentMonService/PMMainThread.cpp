@@ -316,7 +316,7 @@ void PresentMonMainThread(Service* const pSvc)
             pTcm = std::make_unique<pmon::svc::testing::TestControlModule>(&pm, pSvc);
         }
 
-        EtwLogSession els{ L"mylog123", L"C:\\EtlTesting\\happy.etl" };
+        EtwLogSession els{ L"mylog123", L"C:\\EtlTesting\\newlog\\oct13-newlog.etl" };
 
         // periodically check trace sessions while waiting for service stop event
         while (!util::win::WaitAnyEventFor(250ms, pSvc->GetServiceStopHandle())) {

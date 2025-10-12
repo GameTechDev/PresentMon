@@ -6,6 +6,7 @@
 #include <vector>
 #include <span>
 #include <ranges>
+#include <CommonUtilities/win/Utilities.h>
 #include "../PresentData/PresentMonTraceSession.hpp"
 #include "../PresentData/PresentMonTraceConsumer.hpp"
 
@@ -89,8 +90,11 @@ namespace pmon::svc
 		traceProps_.BufferSize = 64;
 		wcscpy_s(traceProps_.LoggerName, std::size(traceProps_.LoggerName), loggerName.c_str());
 		wcscpy_s(traceProps_.LogFileName, std::size(traceProps_.LogFileName), logFilePath.c_str());
-		// TODO: check error
-		auto sta = StartTraceW(&hTraceSession_, traceProps_.LoggerName, &traceProps_);
+		// create the trace logger session
+        if (auto sta = StartTraceW(&hTraceSession_, traceProps_.LoggerName, &traceProps_);
+            sta != ERROR_SUCCESS) {
+            pmlog_error("Failed to start ETL trace").hr(sta).raise<util::Exception>();
+        }
 
         // enable providers with various filter mechanisms that match PresentData's configuration
         for (auto& p : pTraceFilter->GetProviderFilters()) {
@@ -119,19 +123,28 @@ namespace pmon::svc
                     .EnableFilterDesc = &filterDesc,
                     .FilterDescCount = 1,
                 };
-                // TODO: check error
-                EnableTraceEx2(hTraceSession_, &p.providerGuid, p.controlCode, p.maxLevel,
-                    p.anyKeyMask, p.allKeyMask, 0, &enableParams);
+                // enable the provider with event id filter
+                if (auto sta = EnableTraceEx2(hTraceSession_, &p.providerGuid, p.controlCode, p.maxLevel,
+                    p.anyKeyMask, p.allKeyMask, 0, &enableParams); sta != ERROR_SUCCESS) {
+                    auto providerGuid = util::str::ToNarrow(util::win::GuidToString(p.providerGuid));
+                    pmlog_error("Failed to enable ETW provider").hr(sta).pmwatch(providerGuid);
+                }
             }
             else {
-                // TODO: check error
-                EnableTraceEx2(hTraceSession_, &p.providerGuid, p.controlCode, p.maxLevel,
-                    p.anyKeyMask, p.allKeyMask, 0, nullptr);
+                // enable the provider without event filter
+                if (auto sta = EnableTraceEx2(hTraceSession_, &p.providerGuid, p.controlCode, p.maxLevel,
+                    p.anyKeyMask, p.allKeyMask, 0, nullptr); sta != ERROR_SUCCESS) {
+                    auto providerGuid = util::str::ToNarrow(util::win::GuidToString(p.providerGuid));
+                    pmlog_error("Failed to enable ETW provider").hr(sta).pmwatch(providerGuid);
+                }
             }
         }
 	}
     EtwLogSession::~EtwLogSession()
     {
-        ControlTraceW(hTraceSession_, traceProps_.LoggerName, &traceProps_, EVENT_TRACE_CONTROL_STOP);
+        if (auto sta = ControlTraceW(hTraceSession_, traceProps_.LoggerName, &traceProps_, EVENT_TRACE_CONTROL_STOP);
+            sta != ERROR_SUCCESS) {
+            pmlog_error("Failed to stop ETL log session").hr(sta);
+        }
     }
 }
