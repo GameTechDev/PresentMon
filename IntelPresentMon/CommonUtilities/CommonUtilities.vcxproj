@@ -21,6 +21,8 @@
   <ItemGroup>
     <ClInclude Include="cli\CliFramework.h" />
     <ClInclude Include="Exception.h" />
+    <ClInclude Include="file\SecureSubdirectory.h" />
+    <ClInclude Include="file\TempFile.h" />
     <ClInclude Include="IntervalWaiter.h" />
     <ClInclude Include="log\ChannelFlusher.h" />
     <ClInclude Include="log\CopyDriver.h" />
@@ -112,6 +114,8 @@
   <ItemGroup>
     <ClCompile Include="cli\CliFramework.cpp" />
     <ClCompile Include="Exception.cpp" />
+    <ClCompile Include="file\SecureSubdirectory.cpp" />
+    <ClCompile Include="file\TempFile.cpp" />
     <ClCompile Include="IntervalWaiter.cpp" />
     <ClCompile Include="log\ChannelFlusher.cpp" />
     <ClCompile Include="log\CopyDriver.cpp" />
