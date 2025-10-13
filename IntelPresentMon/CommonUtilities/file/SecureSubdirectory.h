@@ -27,6 +27,12 @@ namespace pmon::util::file
 
         const std::filesystem::path& Path() const noexcept { return path_; }
         void Clear();
+        void Remove();
+        bool Empty() const;
+        operator bool() const
+        {
+            return !Empty();
+        }
 
     private:
         // data

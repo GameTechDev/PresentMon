@@ -14,6 +14,8 @@ namespace rn = std::ranges;
 
 namespace pmon::svc
 {
+    using namespace util;
+
     void EtwLogProviderListener::EventAdded(uint16_t id)
     {
         eventsOnDeck_.push_back(id);
@@ -39,9 +41,11 @@ namespace pmon::svc
         return providerDescriptions_;
     }
 
-	EtwLogSession::EtwLogSession(const std::wstring& loggerName, const std::wstring& logFilePath,
+	EtwLogSession::EtwLogSession(const std::wstring& loggerName, const std::filesystem::path& logFileDirectory,
         std::span<const EtwLogProviderListener::ProviderDescription> providers)
 	{
+        // assemble the path for the etl file
+        auto logFilePath = logFileDirectory / file::TempFile::MakeRandomName();
         // create / start the trace session that outputs to .etl file
 		traceProps_.Wnode.BufferSize = sizeof(traceProps_);
 		traceProps_.Wnode.Flags = WNODE_FLAG_TRACED_GUID;
@@ -101,12 +105,33 @@ namespace pmon::svc
                 }
             }
         }
+        // wrap the output file in TempFile object
+        file_ = file::TempFile::AdoptExisting(logFilePath);
 	}
-    EtwLogSession::~EtwLogSession()
+    file::TempFile EtwLogSession::Finish()
     {
+        if (Empty()) {
+            throw Except<Exception>("cannot finish empty etw log session");
+        }
         if (auto sta = ControlTraceW(hTraceSession_, traceProps_.LoggerName, &traceProps_, EVENT_TRACE_CONTROL_STOP);
             sta != ERROR_SUCCESS) {
             pmlog_error("Failed to stop ETL log session").hr(sta);
         }
+        hTraceSession_ = 0;
+        return std::move(file_);
+    }
+    EtwLogSession::~EtwLogSession()
+    {
+        if (!Empty()) {
+            Finish();
+        }
+    }
+    bool EtwLogSession::Empty() const
+    {
+        return hTraceSession_ == 0;
+    }
+    EtwLogSession::operator bool() const
+    {
+        return !Empty();
     }
 }

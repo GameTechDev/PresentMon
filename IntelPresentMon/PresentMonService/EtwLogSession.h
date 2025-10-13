@@ -1,5 +1,6 @@
 #pragma once
 #include <CommonUtilities/win/WinAPI.h>
+#include <CommonUtilities/file/TempFile.h>
 #include <evntrace.h>
 #include <cstdint>
 #include <string>
@@ -36,8 +37,12 @@ namespace pmon::svc
 	class EtwLogSession
 	{
 	public:
-		EtwLogSession(const std::wstring& loggerName, const std::wstring& logFilePath,
+		EtwLogSession(const std::wstring& loggerName, const std::filesystem::path& logFileDirectory,
 			std::span<const EtwLogProviderListener::ProviderDescription> providers);
+		util::file::TempFile Finish();
+		bool Empty() const;
+		operator bool() const;
+
 		EtwLogSession(const EtwLogSession&) = delete;
 		EtwLogSession& operator=(const EtwLogSession&) = delete;
 		EtwLogSession(EtwLogSession&&) = delete;
@@ -57,6 +62,7 @@ namespace pmon::svc
 			TIMESTAMP_TYPE_CPU_CYCLE_COUNTER = 3,
 		};
 		// data
+		util::file::TempFile file_;
 		TRACEHANDLE hTraceSession_ = 0;
 		TraceProperties_ traceProps_{};
 	};

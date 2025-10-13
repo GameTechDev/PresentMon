@@ -7,10 +7,23 @@ using namespace std::literals;
 
 namespace pmon::svc
 {
+    using namespace util;
+
     uint32_t EtwLogger::nextSessionId_ = 0;
+
+    EtwLogger::EtwLogger(bool isElevated) noexcept try
+        : workDirectory_{ file::SecureSubdirectory::CreateInSystemTemp(
+            L"PresentMonServiceEtl", isElevated, true, true) }
+    {}
+    catch (...) {
+        pmlog_error(ReportException("Failed establishing etw logger work directory"));
+    }
 
     uint32_t EtwLogger::StartLogSession(std::shared_ptr<EtwLogProviderListener> pListener)
     {
+        if (!workDirectory_) {
+            throw Except<Exception>("Failed ETL session start: no working dir");
+        }
         std::lock_guard lk{ mtx_ };
         if (!pListener) {
             pListener = GetDefaultProviderDescriptions_();
@@ -21,15 +34,17 @@ namespace pmon::svc
         sessions_.emplace(std::piecewise_construct, std::forward_as_tuple(id),
             std::forward_as_tuple(
                 util::str::ToWide(name),
-                L"C:\\EtlTesting\\newlog\\oct13-newlog.etl"s,
+                workDirectory_.Path(),
                 pListener->GetProviderDescriptions()
             )
         );
         return id;
     }
-    void EtwLogger::StopLogSession(uint32_t id)
+    util::file::TempFile EtwLogger::FinishLogSession(uint32_t id)
     {
+        auto file = sessions_.at(id).Finish();
         sessions_.erase(id);
+        return file;
     }
     void EtwLogger::CancelLogSession(uint32_t id)
     {

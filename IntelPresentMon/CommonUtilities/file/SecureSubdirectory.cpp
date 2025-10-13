@@ -128,7 +128,7 @@ namespace pmon::util::file
         IO_STATUS_BLOCK ios{};
         win::Handle hChild;
 
-        ACCESS_MASK childAccess = FILE_LIST_DIRECTORY | SYNCHRONIZE | READ_CONTROL;
+        ACCESS_MASK childAccess = FILE_LIST_DIRECTORY | SYNCHRONIZE | READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES;
         if (isElevated) childAccess |= WRITE_DAC;
 
         NTSTATUS st = ::NtCreateFile(
@@ -151,6 +151,7 @@ namespace pmon::util::file
         // 3) If the child is a reparse point, attempt to normalize it.
         FILE_ATTRIBUTE_TAG_INFO ct{};
         if (!::GetFileInformationByHandleEx(hChild, FileAttributeTagInfo, &ct, sizeof(ct))) {
+            auto hr = GetLastError();
             throw Except<Exception>("GetFileInformationByHandleEx(child) failed");
         }
 
@@ -291,15 +292,14 @@ namespace pmon::util::file
         bool deleteOnDestruct,
         bool clearOnConstruct)
     {
-        return Create(fs::temp_directory_path(), name, deleteOnDestruct, clearOnConstruct, isElevated);
+        return Create(fs::temp_directory_path(), name, isElevated, deleteOnDestruct, clearOnConstruct);
     }
 
     SecureSubdirectory::~SecureSubdirectory()
     {
         if (deleteOnDestruct_ && !path_.empty()) {
             try {
-                RemoveTreeNoFollow_(path_);
-                ::RemoveDirectoryW(path_.c_str());
+                Remove();
             }
             catch (...) {
                 // TODO: log
@@ -322,8 +322,7 @@ namespace pmon::util::file
         if (this == &other) return *this;
         if (deleteOnDestruct_ && !path_.empty()) {
             try {
-                RemoveTreeNoFollow_(path_);
-                ::RemoveDirectoryW(path_.c_str());
+                Remove();
             }
             catch (...) {
                 // TODO: log
@@ -381,5 +380,17 @@ namespace pmon::util::file
                 }
             }
         }
+    }
+    void SecureSubdirectory::Remove()
+    {
+        if (!Empty()) {
+            Clear();
+            fs::remove(path_);
+            path_.clear();
+        }
+    }
+    bool SecureSubdirectory::Empty() const
+    {
+        return path_.empty();
     }
 }

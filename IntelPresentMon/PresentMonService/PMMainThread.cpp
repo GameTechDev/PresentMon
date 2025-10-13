@@ -15,6 +15,7 @@
 #include "../CommonUtilities/IntervalWaiter.h"
 #include "../CommonUtilities/PrecisionWaiter.h"
 #include "../CommonUtilities/win/Event.h"
+#include "../CommonUtilities/win/Privileges.h"
 #include "EtwLogger.h"
 
 #include "../CommonUtilities/log/GlogShim.h"
@@ -316,16 +317,20 @@ void PresentMonMainThread(Service* const pSvc)
             pTcm = std::make_unique<pmon::svc::testing::TestControlModule>(&pm, pSvc);
         }
 
-        EtwLogger etwLogger;
-        etwLogger.StartLogSession();
+        EtwLogger etwLogger{ util::win::WeAreElevated() };
+        auto id = etwLogger.StartLogSession();
 
         // periodically check trace sessions while waiting for service stop event
         while (!util::win::WaitAnyEventFor(250ms, pSvc->GetServiceStopHandle())) {
             pm.CheckTraceSessions();
         }
 
+        auto file = etwLogger.FinishLogSession(id);
+        file.Ascend();
+        pmlog_info("Etl finished").pmwatch(file.GetPath().string());
+
         // Stop the PresentMon sessions
-        pm.StopTraceSessions();
+         pm.StopTraceSessions();
     }
     catch (...) {
         LOG(ERROR) << "Exception in PMMainThread, bailing" << std::endl;
