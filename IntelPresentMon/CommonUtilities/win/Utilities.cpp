@@ -5,6 +5,8 @@
 #include <thread>
 #include "objbase.h"
 
+#pragma comment(lib, "ole32.lib")
+
 namespace pmon::util::win
 {
 	std::string GetErrorDescription(HRESULT hr) noexcept

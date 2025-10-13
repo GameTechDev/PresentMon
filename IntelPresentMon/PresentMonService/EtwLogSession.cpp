@@ -7,78 +7,41 @@
 #include <span>
 #include <ranges>
 #include <CommonUtilities/win/Utilities.h>
-#include "../PresentData/PresentMonTraceSession.hpp"
-#include "../PresentData/PresentMonTraceConsumer.hpp"
+#include <CommonUtilities/Exception.h>
+#include <CommonUtilities/log/Log.h>
 
 namespace rn = std::ranges;
 
 namespace pmon::svc
 {
-    namespace {
-        struct ProviderFilter
-        {
-            std::vector<uint16_t> events;
-            uint64_t anyKeyMask;
-            uint64_t allKeyMask;
-            uint8_t maxLevel;
-            GUID providerGuid;
-            uint32_t controlCode;
-        };
-
-        class TraceFilter : public IFilterBuildListener
-        {
-        public:
-            // Inherited via IFilterBuildListener
-            void EventAdded(uint16_t id) override
-            {
-                eventsOnDeck_.push_back(id);
-            }
-            void ProviderEnabled(const GUID& providerGuid, uint64_t anyKey, uint64_t allKey, uint8_t maxLevel, uint32_t controlCode) override
-            {
-                ProviderFilter filter{
-                    .events = std::move(eventsOnDeck_),
-                    .anyKeyMask = anyKey,
-                    .allKeyMask = allKey,
-                    .maxLevel = maxLevel,
-                    .providerGuid = providerGuid,
-                    .controlCode = controlCode,
-                };
-                ClearEvents();
-                providerFilters_.push_back(std::move(filter));
-            }
-            void ClearEvents() override
-            {
-                eventsOnDeck_.clear();
-            }
-            std::span<const ProviderFilter> GetProviderFilters() const
-            {
-                return providerFilters_;
-            }
-        private:
-            std::vector<uint16_t> eventsOnDeck_;
-            std::vector<ProviderFilter> providerFilters_;
-        };
+    void EtwLogProviderListener::EventAdded(uint16_t id)
+    {
+        eventsOnDeck_.push_back(id);
+    }
+    void EtwLogProviderListener::ProviderEnabled(const GUID& providerGuid, uint64_t anyKey, uint64_t allKey,
+        uint8_t maxLevel, uint32_t controlCode)
+    {
+        providerDescriptions_.push_back({
+            .events = std::move(eventsOnDeck_),
+            .anyKeyMask = anyKey,
+            .allKeyMask = allKey,
+            .maxLevel = maxLevel,
+            .providerGuid = providerGuid,
+            .controlCode = controlCode,
+        });
+    }
+    void EtwLogProviderListener::ClearEvents()
+    {
+        eventsOnDeck_.clear();
+    }
+    std::span<const EtwLogProviderListener::ProviderDescription> EtwLogProviderListener::GetProviderDescriptions() const
+    {
+        return providerDescriptions_;
     }
 
-	EtwLogSession::EtwLogSession(const std::wstring& loggerName, const std::wstring& logFilePath)
+	EtwLogSession::EtwLogSession(const std::wstring& loggerName, const std::wstring& logFilePath,
+        std::span<const EtwLogProviderListener::ProviderDescription> providers)
 	{
-        // extract the provider/filter set from PresentData using a listener
-        auto pTraceFilter = [&] {
-            auto pTraceFilter = std::make_shared<TraceFilter>();
-            // trace consumer that configures what events are processed
-            PMTraceConsumer traceConsumer;
-            traceConsumer.mTrackDisplay = true;   // ... presents to the display.
-            traceConsumer.mTrackGPU = true;       // ... GPU work.
-            traceConsumer.mTrackGPUVideo = true;  // ... GPU video work (separately from non-video GPU work).
-            traceConsumer.mTrackInput = true;     // ... keyboard/mouse latency.
-            traceConsumer.mTrackFrameType = true; // ... the frame type communicated through the Intel-PresentMon provider.
-            traceConsumer.mTrackAppTiming = true; // ... app timing data communicated through the Intel-PresentMon provider.
-            traceConsumer.mTrackPcLatency = true; // ... Nvidia PCL stats.
-            // dry run of the provider enablement routine to extract the provider.event list
-            EnableProvidersListing(0, nullptr, &traceConsumer, true, true, pTraceFilter);
-            return pTraceFilter;
-        }();
-
         // create / start the trace session that outputs to .etl file
 		traceProps_.Wnode.BufferSize = sizeof(traceProps_);
 		traceProps_.Wnode.Flags = WNODE_FLAG_TRACED_GUID;
@@ -95,9 +58,8 @@ namespace pmon::svc
             sta != ERROR_SUCCESS) {
             pmlog_error("Failed to start ETL trace").hr(sta).raise<util::Exception>();
         }
-
-        // enable providers with various filter mechanisms that match PresentData's configuration
-        for (auto& p : pTraceFilter->GetProviderFilters()) {
+        // enable providers with various filter mechanisms base on the injected provider descriptions
+        for (auto& p : providers) {
             // filter by event id if there are any ids captured by the listener (otherwise assume unfiltered)
             if (!p.events.empty()) {
                 // event filter that filters by event ID whitelist, payload size is dynamic so allocate blob

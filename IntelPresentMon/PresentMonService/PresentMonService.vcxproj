@@ -115,6 +115,7 @@
   <ItemGroup>
     <ClCompile Include="ActionExecutionContext.cpp" />
     <ClCompile Include="ActionRegistration.cpp" />
+    <ClCompile Include="EtwLogger.cpp" />
     <ClCompile Include="EtwLogSession.cpp" />
     <ClCompile Include="LogSetup.cpp" />
     <ClCompile Include="MockPresentMonSession.cpp" />

@@ -15,7 +15,7 @@
 #include "../CommonUtilities/IntervalWaiter.h"
 #include "../CommonUtilities/PrecisionWaiter.h"
 #include "../CommonUtilities/win/Event.h"
-#include "EtwLogSession.h"
+#include "EtwLogger.h"
 
 #include "../CommonUtilities/log/GlogShim.h"
 #include "testing/TestControl.h"
@@ -316,7 +316,8 @@ void PresentMonMainThread(Service* const pSvc)
             pTcm = std::make_unique<pmon::svc::testing::TestControlModule>(&pm, pSvc);
         }
 
-        EtwLogSession els{ L"mylog123", L"C:\\EtlTesting\\newlog\\oct13-newlog.etl" };
+        EtwLogger etwLogger;
+        etwLogger.StartLogSession();
 
         // periodically check trace sessions while waiting for service stop event
         while (!util::win::WaitAnyEventFor(250ms, pSvc->GetServiceStopHandle())) {
