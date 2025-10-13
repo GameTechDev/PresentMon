@@ -73,8 +73,9 @@ namespace pmon::svc
         props.Wnode.BufferSize = sizeof(props);
         // attempt to close a session with the target name
         auto sta = ControlTraceA(0, name.c_str(), &props, EVENT_TRACE_CONTROL_STOP);
-        if (sta != ERROR_SUCCESS && sta != ERROR_WMI_INSTANCE_NOT_FOUND &&
-            sta != ERROR_MORE_DATA) {
+        if (sta == ERROR_SUCCESS || sta == ERROR_MORE_DATA) {
+            pmlog_info("Removed stale log session").pmwatch(name);
+        } else if (sta != ERROR_WMI_INSTANCE_NOT_FOUND) {
             pmlog_error("Failed to clear stale log session name").pmwatch(name).hr(sta);
         }
     }
