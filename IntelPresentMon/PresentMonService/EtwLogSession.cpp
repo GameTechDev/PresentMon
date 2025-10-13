@@ -89,7 +89,7 @@ namespace pmon::svc
                 if (auto sta = EnableTraceEx2(hTraceSession_, &p.providerGuid, p.controlCode, p.maxLevel,
                     p.anyKeyMask, p.allKeyMask, 0, &enableParams); sta != ERROR_SUCCESS) {
                     auto providerGuid = util::str::ToNarrow(util::win::GuidToString(p.providerGuid));
-                    pmlog_error("Failed to enable ETW provider").hr(sta).pmwatch(providerGuid);
+                    pmlog_warn("Failed to enable ETW provider").hr(sta).pmwatch(providerGuid);
                 }
             }
             else {
@@ -97,7 +97,7 @@ namespace pmon::svc
                 if (auto sta = EnableTraceEx2(hTraceSession_, &p.providerGuid, p.controlCode, p.maxLevel,
                     p.anyKeyMask, p.allKeyMask, 0, nullptr); sta != ERROR_SUCCESS) {
                     auto providerGuid = util::str::ToNarrow(util::win::GuidToString(p.providerGuid));
-                    pmlog_error("Failed to enable ETW provider").hr(sta).pmwatch(providerGuid);
+                    pmlog_warn("Failed to enable ETW provider").hr(sta).pmwatch(providerGuid);
                 }
             }
         }
