@@ -1,6 +1,7 @@
 // Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
+#include "../CommonUtilities/file/FileUtils.h"
 #include "CppUnitTest.h"
 #include "StatusComparison.h"
 #include "../PresentMonAPI2Loader/Loader.h"
@@ -230,11 +231,12 @@ namespace EtlLoggerTests
 	public:
 		OpmProcess(as::io_context& ioctx, JobManager& jm, const std::vector<std::string>& customArgs = {})
 			:
-			process_{ ioctx, path_, customArgs }
+			exePath_{ util::file::FindFilesMatchingPattern(fs::current_path(), exePattern_).at(0) },
+			process_{ ioctx, exePath_.string(), customArgs}
 		{
 			jm.Attach(process_.native_handle());
 			Logger::WriteMessage(std::format(" - Launched process {{{}}} [{}]\n",
-				path_, process_.id()).c_str());
+				exePath_.string(), process_.id()).c_str());
 		}
 		uint32_t GetId() const
 		{
@@ -246,7 +248,8 @@ namespace EtlLoggerTests
 		}
 	private:
 		// this will break on version up, needs a better solution
-		static constexpr const char* path_ = "PresentMon-2.4.0-x64.exe";
+		static constexpr const char* exePattern_ = R"(^PresentMon-\d+\.\d+\.\d+-x64\.exe$)";
+		fs::path exePath_;
 		bp::process process_;
 	};
 
@@ -337,7 +340,6 @@ namespace EtlLoggerTests
 		{
 			const auto etlFilePath = outFolder_ + "\\RecordAndProcessEtl.etl"s;
 			const auto csvFilePath = outFolder_ + "\\RecordAndProcessEtl.csv"s;
-			fs::create_directories(outFolder_);
 			// launch target for tracking
 			auto presenter = fixture_.LaunchPresenter();
 			std::this_thread::sleep_for(150ms);
