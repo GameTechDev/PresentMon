@@ -12,6 +12,8 @@
 #define PM_API_VERSION_MAJOR 3
 #define PM_API_VERSION_MINOR 2
 
+#define PM_MAX_PATH 260
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -384,6 +386,7 @@ extern "C" {
 	typedef struct PM_DYNAMIC_QUERY* PM_DYNAMIC_QUERY_HANDLE;
 	typedef struct PM_FRAME_QUERY* PM_FRAME_QUERY_HANDLE;
 	typedef struct PM_SESSION* PM_SESSION_HANDLE;
+	typedef uint32_t PM_ETL_HANDLE;
 
 	// open a session (connection) to the PresentMon service, outputting a session handle required for most other API calls
 	PRESENTMON_API2_EXPORT PM_STATUS pmOpenSession(PM_SESSION_HANDLE* pHandle);
@@ -423,6 +426,11 @@ extern "C" {
 	PRESENTMON_API2_EXPORT PM_STATUS pmFreeFrameQuery(PM_FRAME_QUERY_HANDLE handle);
 	// retrieve the API version of the PresentMon service / middleware DLL
 	PRESENTMON_API2_EXPORT PM_STATUS pmGetApiVersion(PM_VERSION* pVersion);
+	// start an ETL file logging trace
+	PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE* pEtlHandle);
+	// finish an ETL file logging trace and receive the path to the ETL (pass in pointer to a buffer of size PM_MAX_PATH)
+	PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE etlHandle,
+		char* pOutputFilePathBuffer, uint32_t bufferSize);
 
 #ifdef __cplusplus
 } // extern "C"

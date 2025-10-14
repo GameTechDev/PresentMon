@@ -8,11 +8,12 @@
 #include "PresentMonDiagnostics.h"
 #include "../PresentMonMiddleware/LogSetup.h"
 #include "../Versioning/PresentMonAPIVersion.h"
-
+#include <ranges>
 
 
 using namespace pmon;
 using namespace pmon::mid;
+namespace rn = std::ranges;
 
 // global state
 bool useCrtHeapDebug_ = false;
@@ -425,6 +426,44 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStopPlayback_(PM_SESSION_HANDLE handle)
 	try {
 		auto& mid = LookupMiddleware_(handle);
 		mid.StopPlayback();
+		return PM_STATUS_SUCCESS;
+	}
+	catch (...) {
+		const auto code = util::GeneratePmStatus();
+		pmlog_error(util::ReportException()).code(code);
+		return code;
+	}
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE* pEtlHandle)
+{
+	try {
+		auto& mid = LookupMiddleware_(session);
+		*pEtlHandle = mid.StartEtlLogging();
+		return PM_STATUS_SUCCESS;
+	}
+	catch (...) {
+		const auto code = util::GeneratePmStatus();
+		pmlog_error(util::ReportException()).code(code);
+		return code;
+	}
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE etlHandle,
+	char* pOutputFilePathBuffer, uint32_t bufferSize)
+{
+	try {
+		auto& mid = LookupMiddleware_(session);
+		const auto path = mid.FinishEtlLogging(etlHandle);
+		if (path.size() + 1 > bufferSize) {
+			const auto code = PM_STATUS_INSUFFICIENT_BUFFER;
+			pmlog_error().code(code);
+			// best effort to remove hanging temp file, ignore any further error here
+			std::error_code ec;
+			std::filesystem::remove(path, ec);
+			return code;
+		}
+		rn::copy(path, pOutputFilePathBuffer);
 		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
