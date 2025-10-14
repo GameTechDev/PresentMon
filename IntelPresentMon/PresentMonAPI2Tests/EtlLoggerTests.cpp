@@ -13,6 +13,7 @@
 #include <sstream>
 #include <filesystem>
 #include "TestCommands.h"
+#include "Folders.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -27,8 +28,6 @@ namespace EtlLoggerTests
 {
 	static constexpr const char* controlPipe_ = R"(\\.\pipe\pm-etllog-test-ctrl)";
 	static constexpr const char* introNsm_ = "pm_etllog_test_intro";
-	static constexpr const char* logFolder_ = "TestLogs\\EtlLogger";
-	static constexpr const char* outFolder_ = "TestOutput\\EtlLogger";
 	static constexpr const char* logLevel_ = "info";
 
 	// ties child processes to the current test case and ensures
