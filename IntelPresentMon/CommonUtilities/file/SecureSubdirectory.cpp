@@ -337,47 +337,16 @@ namespace pmon::util::file
         return *this;
     }
 
-    // Clear now assumes there are NO reparse points inside the directory.
-    // It deletes contents using a recursive directory iterator and fs::remove,
-    // throwing on errors.
     void SecureSubdirectory::Clear()
     {
-        if (path_.empty()) return;
+        if (Empty()) return;
 
-        std::error_code ec;
-
-        // Collect directories for post-order deletion; remove non-directories immediately.
-        std::vector<fs::path> dirs;
-        for (fs::recursive_directory_iterator it(path_, ec), end; it != end; it.increment(ec)) {
-            if (ec) {
-                throw Except<Exception>("recursive_directory_iterator failed");
+        for (const auto& entry : std::filesystem::directory_iterator(path_)) {
+            try {
+                std::filesystem::remove_all(entry.path());
             }
-
-            const fs::path p = it->path();
-
-            // We assume no reparse points; treat directory vs file normally.
-            if (it->is_directory(ec)) {
-                if (ec) {
-                    throw Except<Exception>("is_directory failed");
-                }
-                dirs.push_back(p);
-            }
-            else {
-                // file or other non-directory
-                if (!fs::remove(p, ec)) {
-                    if (ec) {
-                        throw Except<Exception>("remove (file) failed");
-                    }
-                }
-            }
-        }
-
-        // Delete directories in reverse (deepest first)
-        for (auto it = dirs.rbegin(); it != dirs.rend(); ++it) {
-            if (!fs::remove(*it, ec)) {
-                if (ec) {
-                    throw Except<Exception>("remove (dir) failed");
-                }
+            catch (const std::filesystem::filesystem_error&) {
+                throw Except<Exception>("remove_all failed when clearing out SecureSubdirectory");
             }
         }
     }
