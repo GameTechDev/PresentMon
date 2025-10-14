@@ -16,8 +16,7 @@ namespace pmapi
 
     ProcessTracker& ProcessTracker::operator=(ProcessTracker&& rhs) noexcept
     {
-        if (&rhs != this)
-        {
+        if (&rhs != this) {
             pid_ = rhs.pid_;
             hSession_ = rhs.hSession_;
             rhs.Clear_();;
