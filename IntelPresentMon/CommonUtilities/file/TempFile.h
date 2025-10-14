@@ -9,6 +9,8 @@ namespace pmon::util::file
 		TempFile() = default;
 		TempFile(TempFile&&) = default;
 		TempFile& operator=(TempFile&&) = default;
+		TempFile(const TempFile&) = delete;
+		TempFile& operator=(const TempFile&) = delete;
 		~TempFile();
 
 		static TempFile Create(const std::string& name = {});

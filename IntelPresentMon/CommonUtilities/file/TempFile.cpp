@@ -94,4 +94,10 @@ namespace pmon::util::file
 		// TODO: fallback to <random>
 		return str::ToNarrow(win::GuidToString(uuid));
 	}
+	std::filesystem::path TempFile::Release()
+	{
+		auto p = std::move(path_);
+		path_.clear();
+		return p;
+	}
 }

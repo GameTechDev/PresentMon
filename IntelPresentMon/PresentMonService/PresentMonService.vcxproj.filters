@@ -48,6 +48,8 @@
     <ClInclude Include="testing\TestControl.h" />
     <ClInclude Include="EtwLogger.h" />
     <ClInclude Include="EtwLogSession.h" />
+    <ClInclude Include="acts\StartEtlLogging.h" />
+    <ClInclude Include="acts\FinishEtlLogging.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PresentMonService.rc" />

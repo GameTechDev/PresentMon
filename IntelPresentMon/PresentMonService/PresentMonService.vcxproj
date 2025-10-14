@@ -131,12 +131,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="acts\EnumerateAdapters.h" />
+    <ClInclude Include="acts\FinishEtlLogging.h" />
     <ClInclude Include="acts\GetStaticCpuMetrics.h" />
     <ClInclude Include="acts\GetIntrospectionShmName.h" />
     <ClInclude Include="acts\OpenSession.h" />
     <ClInclude Include="acts\SelectAdapter.h" />
     <ClInclude Include="acts\SetEtwFlushPeriod.h" />
     <ClInclude Include="acts\SetTelemetryPeriod.h" />
+    <ClInclude Include="acts\StartEtlLogging.h" />
     <ClInclude Include="acts\StartTracking.h" />
     <ClInclude Include="acts\StopPlayback.h" />
     <ClInclude Include="acts\StopTracking.h" />
