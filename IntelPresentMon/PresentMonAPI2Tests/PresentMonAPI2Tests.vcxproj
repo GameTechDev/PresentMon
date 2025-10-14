@@ -96,6 +96,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="EtlLoggerTests.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
     <ClCompile Include="PolledPacedTests.cpp" />
     <ClCompile Include="WrapperIntrospectionTests.cpp" />

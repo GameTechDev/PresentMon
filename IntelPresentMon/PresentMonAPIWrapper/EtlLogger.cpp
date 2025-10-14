@@ -36,6 +36,9 @@ namespace pmapi
             std::filesystem::rename(buffer, outputEtlFullPath);
         }
         catch (...) {
+            // attempt to remove if still there
+            std::error_code ec;
+            std::filesystem::remove(buffer, ec);
             throw ApiErrorException{ PM_STATUS_FAILURE, "Failed to move output .etl file" };
         }
     }

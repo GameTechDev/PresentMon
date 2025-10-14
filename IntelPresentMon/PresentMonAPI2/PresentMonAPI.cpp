@@ -464,6 +464,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, P
 			return code;
 		}
 		rn::copy(path, pOutputFilePathBuffer);
+		pOutputFilePathBuffer[path.size()] = '\0';
 		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
