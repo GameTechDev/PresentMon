@@ -56,5 +56,8 @@
     <ClInclude Include="Folders.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="JobManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
