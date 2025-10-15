@@ -85,6 +85,9 @@ Api.registerHotkeyHandler((action: number) => {
     case Action.ToggleCapture:
       prefs.toggleCapture()
       break;
+    case Action.ToggleEtlLogging:
+      prefs.toggleEtlLogging();
+      break;
     default:
       console.warn(`Unhandled hotkey action: ${action}`);
       break;
@@ -196,6 +199,7 @@ watch(() => loadout.widgets, async () => {
             <v-icon v-show="prefs.capturing" small color="red-darken-1">mdi-camera-control</v-icon>
           </div>
           <div class="sta-region">
+            <div v-show="prefs.etlLogging">ETL</div>
             <div>{{ visibilityString }}</div>
             <div>{{ prefs.preferences.metricPollRate }}Hz</div>
             <div>{{ prefs.preferences.overlayDrawRate }}fps</div>

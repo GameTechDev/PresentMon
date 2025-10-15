@@ -4,6 +4,8 @@
 <script setup lang="ts">
 import { usePreferencesStore } from '@/stores/preferences';
 import { Api } from '@/core/api';
+import { Action } from '@/core/hotkey';
+import HotkeyButton from '@/components/HotkeyButton.vue';
 
 const prefs = usePreferencesStore();
 async function handleEtlCapture() {
@@ -12,27 +14,46 @@ async function handleEtlCapture() {
 async function handleEtlExplore() {
     await Api.exploreEtls()
 }
+function getEtlToggleButtonName() {
+    return prefs.etlLogging ? 'Finish ETL' : 'Start ETL';
+}
 </script>
 
 <template>
   <div class="page-wrap">
     <h2 class="mt-5 ml-5 header-top">
-      Capture Configuration
+      Logging Configuration
     </h2>
 
     <v-card class="page-card">
 
       <v-row class="mt-5">
         <v-col cols="3">
-          ajsdjfdjsj
+          ETL Capture Hotkey
           <p class="text-medium-emphasis text-caption mb-0">
-            Genasdfasdfasdfasdfn
+            Hotkey for starting/finishing an ETL trace
+          </p>
+        </v-col>
+        <v-col cols="9">
+          <v-row>
+            <v-col cols="6">              
+              <hotkey-button :action="Action.ToggleEtlLogging"></hotkey-button>
+            </v-col>
+          </v-row>
+        </v-col>
+      </v-row>
+
+      <v-row class="mt-5">
+        <v-col cols="3">
+          Capture ETL
+          <p class="text-medium-emphasis text-caption mb-0">
+            Capture ETW events to a raw event stream trace for offline analysis and reporting
           </p>
         </v-col>
         <v-col cols="9">
           <v-row>
             <v-col cols="6">
-              <v-btn @click="handleEtlCapture">Toggle ETL Capture</v-btn>
+              <v-btn @click="handleEtlCapture">{{ getEtlToggleButtonName() }}</v-btn>
             </v-col>
           </v-row>
         </v-col>
@@ -42,7 +63,7 @@ async function handleEtlExplore() {
         <v-col cols="3">
           ETL Folder
           <p class="text-medium-emphasis text-caption mb-0">
-            Navigate to the folder that stores captured .etl trace files
+            Navigate to the folder that receives the captured .etl trace files
           </p>
         </v-col>
         <v-col cols="9">

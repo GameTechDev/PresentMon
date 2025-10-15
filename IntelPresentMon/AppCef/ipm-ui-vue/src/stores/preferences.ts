@@ -168,6 +168,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
   return {
     preferences,
     capturing,
+    etlLogging,
     pid,
     serialize,
     writeCapture,
