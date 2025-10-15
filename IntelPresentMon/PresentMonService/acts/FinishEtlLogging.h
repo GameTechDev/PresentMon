@@ -42,8 +42,8 @@ namespace pmon::svc::acts
 			try {
 				auto& etl = ctx.pPmon->GetEtwLogger();
 				auto file = etl.FinishLogSession(in.etwLogSessionHandle);
-				// move file one level higher from protected work dir
-				file.Ascend();
+				// move file one level higher from protected staging dir and give public ACL
+				file.Ascend().MakePublic();
 				stx.etwLogSessionIds.erase(in.etwLogSessionHandle);
 				return Response{ .etlFilePath = file.Release().string() };
 			}

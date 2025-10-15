@@ -5,6 +5,8 @@
 #include "../Exception.h"
 #include <fstream>
 #include <rpc.h>
+#include <sddl.h>
+#include <aclapi.h>
 
 #pragma comment(lib, "Rpcrt4.lib")
 
@@ -48,7 +50,7 @@ namespace pmon::util::file
 		}
 		return tmp;
 	}
-    void TempFile::MoveTo(const std::filesystem::path& dest)
+	TempFile& TempFile::MoveTo(const std::filesystem::path& dest)
     {
         if (path_.empty()) {
             throw Except<Exception>("MoveTo failed: source path is empty");
@@ -71,15 +73,17 @@ namespace pmon::util::file
 
         // Update our stored path on success
         path_ = target;
+
+		return *this;
     }
 
-	void TempFile::Ascend()
+	TempFile& TempFile::Ascend()
 	{
         const auto oneLevelUp = path_.parent_path().parent_path();
         if (oneLevelUp.empty()) {
             throw Except<Exception>("Ascend failed: already in volume root");
         }
-        MoveTo(oneLevelUp);
+        return MoveTo(oneLevelUp);
 	}
     const std::filesystem::path& TempFile::GetPath() const
     {
@@ -93,6 +97,56 @@ namespace pmon::util::file
 		}
 		// TODO: fallback to <random>
 		return str::ToNarrow(win::GuidToString(uuid));
+	}
+	inline bool TempFile::Empty() const
+	{
+		return path_.empty();
+	}
+	TempFile::operator bool() const
+	{
+		return !Empty();
+	}
+	TempFile& TempFile::MakePublic()
+	{
+		if (path_.empty()) {
+			throw std::runtime_error("No file to make public");
+		}
+
+		// Build ACEs
+		EXPLICIT_ACCESSW ea[3]{};
+
+		// SYSTEM full
+		BuildExplicitAccessWithNameW(&ea[0], (LPWSTR)L"SYSTEM",
+			GENERIC_ALL, SET_ACCESS, NO_INHERITANCE);
+
+		// Administrators full
+		BuildExplicitAccessWithNameW(&ea[1], (LPWSTR)L"BUILTIN\\Administrators",
+			GENERIC_ALL, SET_ACCESS, NO_INHERITANCE);
+
+		// Authenticated Users modify (RWX + delete)
+		DWORD modifyMask = FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE;
+		BuildExplicitAccessWithNameW(&ea[2], (LPWSTR)L"Authenticated Users",
+			modifyMask, SET_ACCESS, NO_INHERITANCE);
+
+		PACL newDacl = nullptr;
+		DWORD dwRes = SetEntriesInAclW(3, ea, nullptr, &newDacl);
+		if (dwRes != ERROR_SUCCESS) {
+			throw std::system_error(dwRes, std::system_category(), "SetEntriesInAclW failed");
+		}
+
+		dwRes = SetNamedSecurityInfoW(
+			(LPWSTR)path_.c_str(),
+			SE_FILE_OBJECT,
+			DACL_SECURITY_INFORMATION | UNPROTECTED_DACL_SECURITY_INFORMATION,
+			nullptr, nullptr, newDacl, nullptr);
+
+		LocalFree(newDacl);
+
+		if (dwRes != ERROR_SUCCESS) {
+			throw std::system_error(dwRes, std::system_category(), "SetNamedSecurityInfoW failed");
+		}
+
+		return *this;
 	}
 	std::filesystem::path TempFile::Release()
 	{

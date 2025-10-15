@@ -14,6 +14,7 @@ namespace pmon::svc
 		uint32_t StartLogSession(std::shared_ptr<EtwLogProviderListener> = {});
 		util::file::TempFile FinishLogSession(uint32_t id);
 		void CancelLogSession(uint32_t id);
+		bool HasActiveSession(uint32_t id) const;
 	private:
 		// functions
 		static std::shared_ptr<EtwLogProviderListener> CaptureProviderDescriptions_();
@@ -27,6 +28,6 @@ namespace pmon::svc
 		util::file::SecureSubdirectory workDirectory_;
 		std::shared_ptr<EtwLogProviderListener> defaultProviderDescriptionCache_;
 		std::unordered_map<uint32_t, EtwLogSession> sessions_;
-		std::mutex mtx_;
+		mutable std::mutex mtx_;
 	};
 }

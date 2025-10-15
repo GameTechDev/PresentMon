@@ -42,13 +42,20 @@ namespace pmon::svc
     }
     util::file::TempFile EtwLogger::FinishLogSession(uint32_t id)
     {
+        std::lock_guard lk{ mtx_ };
         auto file = sessions_.at(id).Finish();
         sessions_.erase(id);
         return file;
     }
     void EtwLogger::CancelLogSession(uint32_t id)
     {
+        std::lock_guard lk{ mtx_ };
         sessions_.erase(id);
+    }
+    bool EtwLogger::HasActiveSession(uint32_t id) const
+    {
+        std::lock_guard lk{ mtx_ };
+        return sessions_.contains(id);
     }
     std::shared_ptr<EtwLogProviderListener> EtwLogger::CaptureProviderDescriptions_()
 	{
