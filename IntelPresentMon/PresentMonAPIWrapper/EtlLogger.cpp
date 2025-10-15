@@ -29,11 +29,12 @@ namespace pmapi
         char buffer[PM_MAX_PATH + 1];
         if (auto sta = pmFinishEtlLogging(hSession_, hLogger_, buffer, (uint32_t)std::size(buffer));
             sta != PM_STATUS_SUCCESS) {
+            Clear_();
             throw ApiErrorException{ sta, "Failed to finish etl logging" };
         }
         try {
-            Clear_();
             std::filesystem::rename(buffer, outputEtlFullPath);
+            Clear_();
         }
         catch (...) {
             // attempt to remove if still there
@@ -63,7 +64,7 @@ namespace pmapi
     // check if logger is empty
     bool EtlLogger::Empty() const
     {
-        return hLogger_ == 0;
+        return hSession_ == nullptr;
     }
     // alias for Empty();
     EtlLogger::operator bool() const

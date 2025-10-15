@@ -25,6 +25,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
   // === State ===
   const preferences = ref<PreferencesType>(makeDefaultPreferences())
   const capturing = ref(false)
+  const etlLogging = ref(false)
   const pid = ref<number | null>(null)
 
   // === Nonreactive State ===
@@ -106,6 +107,11 @@ export const usePreferencesStore = defineStore('preferences', () => {
       writeCapture(true);
     }
   }
+
+  function toggleEtlLogging() {
+    etlLogging.value = !etlLogging.value;
+    Api.setEtlLogging(etlLogging.value);
+  }
   
   async function pushSpecification() {
     // we need to get a non-proxy object for the  call
@@ -166,6 +172,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
     serialize,
     writeCapture,
     toggleCapture,
+    toggleEtlLogging,
     pushSpecification,
     initPreferences,
     resetPreferences

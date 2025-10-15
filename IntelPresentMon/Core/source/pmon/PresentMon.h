@@ -6,6 +6,7 @@
 #include <memory>
 #include "AdapterInfo.h"
 #include <PresentMonAPIWrapper/ProcessTracker.h>
+#include <PresentMonAPIWrapper/EtlLogger.h>
 
 namespace pmapi
 {
@@ -36,6 +37,7 @@ namespace p2c::pmon
 		// std::wstring GetCpuName() const;
 		std::vector<AdapterInfo> EnumerateAdapters() const;
 		void SetAdapter(uint32_t id);
+		void SetEtlLogging(bool active);
 		std::optional<uint32_t> GetPid() const;
 		const pmapi::ProcessTracker& GetTracker() const;
 		std::shared_ptr<RawFrameDataWriter> MakeRawFrameDataWriter(std::wstring path, std::optional<std::wstring> statsPath,
@@ -47,6 +49,7 @@ namespace p2c::pmon
 		double window = -1.;
 		uint32_t telemetrySamplePeriod = 0;
 		std::optional<uint32_t> etwFlushPeriodMs;
+		pmapi::EtlLogger etlLogger;
 		std::unique_ptr<pmapi::Session> pSession;
 		std::unique_ptr<FrameEventFlusher> pFlusher;
 		std::shared_ptr<pmapi::intro::Root> pIntrospectionRoot;

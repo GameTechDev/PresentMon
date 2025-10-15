@@ -18,9 +18,9 @@ namespace p2c::client::util::async
         // {} => {payload: string}
 		void ExecuteOnBrowser(uint64_t uid, CefRefPtr<CefValue> pArgObj, CefRefPtr<CefBrowser> pBrowser) const override
 		{
-            using infra::util::FolderResolver;
-            std::wstring startPath = infra::util::FolderResolver::Get()
-                .Resolve(FolderResolver::Folder::Documents, L"Loadouts\\");
+            using FR = infra::util::FolderResolver;
+            std::wstring startPath = FR::Get()
+                .Resolve(FR::Folder::Documents, FR::loadoutsSubdirectory);
 
             wchar_t pathBuffer[MAX_PATH] = { 0 };
             OPENFILENAMEW ofn{

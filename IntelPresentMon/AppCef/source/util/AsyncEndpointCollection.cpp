@@ -10,6 +10,7 @@
 #include "async/EnumerateKeys.h"
 #include "async/EnumerateModifiers.h"
 #include "async/ExploreCaptures.h"
+#include "async/ExploreEtls.h"
 #include "async/LoadFile.h"
 #include "async/StoreFile.h"
 #include "async/GetTopGpuProcess.h"
@@ -36,6 +37,7 @@ namespace p2c::client::util
 		AddEndpoint<EnumerateKeys>();
 		AddEndpoint<EnumerateModifiers>();
 		AddEndpoint<ExploreCaptures>();
+		AddEndpoint<ExploreEtls>();
 		AddEndpoint<LoadFile>();
 		AddEndpoint<StoreFile>();
 		AddEndpoint<GetTopGpuProcess>();

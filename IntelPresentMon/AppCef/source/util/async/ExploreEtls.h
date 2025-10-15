@@ -11,17 +11,17 @@
 
 namespace p2c::client::util::async
 {
-    class ExploreCaptures : public AsyncEndpoint
+    class ExploreEtls : public AsyncEndpoint
     {
     public:
-        static constexpr std::string GetKey() { return "exploreCaptures"; }
-        ExploreCaptures() : AsyncEndpoint{ AsyncEndpoint::Environment::RenderProcess } {}
+        static constexpr std::string GetKey() { return "exploreEtls"; }
+        ExploreEtls() : AsyncEndpoint{ AsyncEndpoint::Environment::RenderProcess } {}
         // {} => null
         Result ExecuteOnRenderer(uint64_t uid, CefRefPtr<CefValue> pArgObj, cef::DataBindAccessor&) const override
         {
             using FR = infra::util::FolderResolver;
             // try to resolve app folder, fallback to cwd
-            auto path = FR::Get().Resolve(FR::Folder::Documents, FR::capturesSubdirectory);
+            auto path = FR::Get().Resolve(FR::Folder::Documents, FR::etlSubdirectory);
 
             if ((INT_PTR)ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWDEFAULT) <= 32) {
                 pmlog_error("Failed to explore Captures folder");

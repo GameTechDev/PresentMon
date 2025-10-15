@@ -135,6 +135,17 @@ namespace p2c::kern
         pushedCaptureActive = active;
     }
 
+    void Kernel::SetEtlLogging(bool active)
+    {
+        HandleMarshalledException_();
+        std::lock_guard lk{ mtx };
+        if (!pm) {
+            pmlog_warn("presentmon not initialized");
+            return;
+        }
+        pm->SetEtlLogging(active);
+    }
+
     bool Kernel::IsIdle_() const
     {
         return !dying && !pPushedSpec && !pOverlayContainer;
