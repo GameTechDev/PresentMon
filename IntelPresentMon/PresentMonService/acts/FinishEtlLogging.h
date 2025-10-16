@@ -45,6 +45,8 @@ namespace pmon::svc::acts
 				// move file one level higher from protected staging dir and give public ACL
 				file.Ascend().MakePublic();
 				stx.etwLogSessionIds.erase(in.etwLogSessionHandle);
+				pmlog_info("Finished ETL log session").pmwatch(in.etwLogSessionHandle)
+					.pmwatch(file.GetPath().string());
 				return Response{ .etlFilePath = file.Release().string() };
 			}
 			catch (...) {

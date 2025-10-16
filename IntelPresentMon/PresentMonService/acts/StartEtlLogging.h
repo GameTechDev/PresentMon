@@ -35,6 +35,7 @@ namespace pmon::svc::acts
 				auto& etl = ctx.pPmon->GetEtwLogger();
 				const Response out{ .etwLogSessionHandle = etl.StartLogSession() };
 				stx.etwLogSessionIds.insert(out.etwLogSessionHandle);
+				pmlog_info("Starting ETL log session").pmwatch(out.etwLogSessionHandle);
 				return out;
 			}
 			catch (...) {
