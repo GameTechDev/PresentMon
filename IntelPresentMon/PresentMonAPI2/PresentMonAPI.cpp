@@ -435,7 +435,8 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStopPlayback_(PM_SESSION_HANDLE handle)
 	}
 }
 
-PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE* pEtlHandle)
+PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE* pEtlHandle,
+	uint64_t reserved1, uint64_t reserved2)
 {
 	try {
 		auto& mid = LookupMiddleware_(session);

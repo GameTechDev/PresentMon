@@ -427,7 +427,7 @@ extern "C" {
 	// retrieve the API version of the PresentMon service / middleware DLL
 	PRESENTMON_API2_EXPORT PM_STATUS pmGetApiVersion(PM_VERSION* pVersion);
 	// start an ETL file logging trace
-	PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE* pEtlHandle);
+	PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE* pEtlHandle, uint64_t reserved1, uint64_t reserved2);
 	// finish an ETL file logging trace and receive the path to the ETL (pass in pointer to a buffer of size PM_MAX_PATH)
 	PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE etlHandle,
 		char* pOutputFilePathBuffer, uint32_t bufferSize);

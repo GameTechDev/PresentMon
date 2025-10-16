@@ -76,7 +76,7 @@ namespace pmapi
         :
         hSession_{ hSession }
     {
-        if (auto sta = pmStartEtlLogging(hSession_, &hLogger_);
+        if (auto sta = pmStartEtlLogging(hSession_, &hLogger_, 0, 0);
             sta != PM_STATUS_SUCCESS) {
             throw ApiErrorException{ sta, "Failed to start etl logging session" };
         }
