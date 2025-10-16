@@ -326,6 +326,8 @@ namespace EtlLoggerTests
 				"--output_file"s, csvFilePath,
 			}).Wait();
 			// verify that the csv has expected minimum size
+			Logger::WriteMessage(std::format("Processed CSV size: {:.2f}kB\n",
+				double(std::filesystem::file_size(csvFilePath)) / 1024.).c_str());
 			Assert::IsTrue(std::filesystem::file_size(csvFilePath) > 10'000);
 		}
 	};
