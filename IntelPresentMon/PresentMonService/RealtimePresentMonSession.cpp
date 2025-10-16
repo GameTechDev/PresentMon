@@ -133,7 +133,7 @@ PM_STATUS RealtimePresentMonSession::StartTraceSession() {
     pm_consumer_->mTrackPcLatency = true;
 
     auto& opt = clio::Options::Get();
-    pm_session_name_ = util::str::ToWide(opt.etwSessionName.AsOptional().value());
+    pm_session_name_ = util::str::ToWide(*opt.etwSessionName);
 
     const wchar_t* etl_file_name = nullptr;
     // Start the session. If a session with this name is already running, we stop
