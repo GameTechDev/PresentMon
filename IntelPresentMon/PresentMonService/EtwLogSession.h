@@ -10,35 +10,36 @@
 
 namespace pmon::svc
 {
+	struct EtwProviderDescription
+	{
+		std::vector<uint16_t> events;
+		uint64_t anyKeyMask;
+		uint64_t allKeyMask;
+		uint8_t maxLevel;
+		GUID providerGuid;
+		uint32_t controlCode;
+	};
+
     class EtwLogProviderListener : public IFilterBuildListener
     {
     public:
         // types
-        struct ProviderDescription
-        {
-            std::vector<uint16_t> events;
-            uint64_t anyKeyMask;
-            uint64_t allKeyMask;
-            uint8_t maxLevel;
-            GUID providerGuid;
-            uint32_t controlCode;
-        };
         // functions
         void EventAdded(uint16_t id) override;
         void ProviderEnabled(const GUID& providerGuid, uint64_t anyKey, uint64_t allKey, uint8_t maxLevel,
             uint32_t controlCode) override;
 		void ClearEvents() override;
-		std::span<const ProviderDescription> GetProviderDescriptions() const;
+		std::span<const EtwProviderDescription> GetProviderDescriptions() const;
     private:
         std::vector<uint16_t> eventsOnDeck_;
-        std::vector<ProviderDescription> providerDescriptions_;
+        std::vector<EtwProviderDescription> providerDescriptions_;
     };
 
 	class EtwLogSession
 	{
 	public:
 		EtwLogSession(const std::wstring& loggerName, const std::filesystem::path& logFileDirectory,
-			std::span<const EtwLogProviderListener::ProviderDescription> providers);
+			std::span<const EtwProviderDescription> providers);
 		util::file::TempFile Finish();
 		bool Empty() const;
 		operator bool() const;

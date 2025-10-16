@@ -36,13 +36,13 @@ namespace pmon::svc
     {
         eventsOnDeck_.clear();
     }
-    std::span<const EtwLogProviderListener::ProviderDescription> EtwLogProviderListener::GetProviderDescriptions() const
+    std::span<const EtwProviderDescription> EtwLogProviderListener::GetProviderDescriptions() const
     {
         return providerDescriptions_;
     }
 
 	EtwLogSession::EtwLogSession(const std::wstring& loggerName, const std::filesystem::path& logFileDirectory,
-        std::span<const EtwLogProviderListener::ProviderDescription> providers)
+        std::span<const EtwProviderDescription> providers)
 	{
         // assemble the path for the etl file
         auto logFilePath = logFileDirectory / file::TempFile::MakeRandomName();

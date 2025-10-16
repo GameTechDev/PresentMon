@@ -1,7 +1,8 @@
 #pragma once
 #include "EtwLogSession.h"
-#include <memory>
+#include <vector>
 #include <mutex>
+#include <span>
 #include <unordered_map>
 #include <CommonUtilities/file/SecureSubdirectory.h>
 
@@ -11,14 +12,13 @@ namespace pmon::svc
 	{
 	public:
 		EtwLogger(bool isElevated) noexcept;
-		uint32_t StartLogSession(std::shared_ptr<EtwLogProviderListener> = {});
+		uint32_t StartLogSession(std::span<const EtwProviderDescription> = {});
 		util::file::TempFile FinishLogSession(uint32_t id);
 		void CancelLogSession(uint32_t id);
 		bool HasActiveSession(uint32_t id) const;
 	private:
 		// functions
-		static std::shared_ptr<EtwLogProviderListener> CaptureProviderDescriptions_();
-		std::shared_ptr<EtwLogProviderListener> GetDefaultProviderDescriptions_();
+		std::span<const EtwProviderDescription> GetDefaultProviderDescriptions_();
 		static std::string MakeSessionBaseName_();
 		static std::string MakeSessionName_(uint32_t id);
 		static void EnsureSessionNameAvailability_(const std::string& name);
@@ -26,7 +26,7 @@ namespace pmon::svc
 		// data
 		static uint32_t nextSessionId_;
 		util::file::SecureSubdirectory workDirectory_;
-		std::shared_ptr<EtwLogProviderListener> defaultProviderDescriptionCache_;
+		std::vector<EtwProviderDescription> defaultProviderDescriptionCache_;
 		std::unordered_map<uint32_t, EtwLogSession> sessions_;
 		mutable std::mutex mtx_;
 	};

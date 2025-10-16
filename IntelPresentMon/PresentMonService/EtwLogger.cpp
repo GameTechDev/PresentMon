@@ -9,6 +9,27 @@ namespace pmon::svc
 {
     using namespace util;
 
+    namespace
+    {
+        std::vector<EtwProviderDescription> CaptureProviderDescriptions_()
+        {
+            auto pTraceFilter = std::make_shared<EtwLogProviderListener>();
+            // trace consumer that configures what events are processed
+            PMTraceConsumer traceConsumer;
+            traceConsumer.mTrackDisplay = true;   // ... presents to the display.
+            traceConsumer.mTrackGPU = true;       // ... GPU work.
+            traceConsumer.mTrackGPUVideo = true;  // ... GPU video work (separately from non-video GPU work).
+            traceConsumer.mTrackInput = true;     // ... keyboard/mouse latency.
+            traceConsumer.mTrackFrameType = true; // ... the frame type communicated through the Intel-PresentMon provider.
+            traceConsumer.mTrackAppTiming = true; // ... app timing data communicated through the Intel-PresentMon provider.
+            traceConsumer.mTrackPcLatency = true; // ... Nvidia PCL stats.
+            traceConsumer.mTrackProcessState = true; // initial process state dump (gets us names)
+            // dry run of the provider enablement routine to extract the provider.event list
+            EnableProvidersListing(0, nullptr, &traceConsumer, true, true, pTraceFilter);
+            return std::vector{ std::from_range, pTraceFilter->GetProviderDescriptions() };
+        }
+    }
+
     uint32_t EtwLogger::nextSessionId_ = 0;
 
     EtwLogger::EtwLogger(bool isElevated) noexcept try
@@ -19,14 +40,14 @@ namespace pmon::svc
         pmlog_error(ReportException("Failed establishing etw logger work directory"));
     }
 
-    uint32_t EtwLogger::StartLogSession(std::shared_ptr<EtwLogProviderListener> pListener)
+    uint32_t EtwLogger::StartLogSession(std::span<const EtwProviderDescription> providers)
     {
         if (!workDirectory_) {
             throw Except<Exception>("Failed ETL session start: no working dir");
         }
         std::lock_guard lk{ mtx_ };
-        if (!pListener) {
-            pListener = GetDefaultProviderDescriptions_();
+        if (providers.empty()) {
+            providers = GetDefaultProviderDescriptions_();
         }
         const auto id = GetNextSessionId_();
         const auto name = MakeSessionName_(id);
@@ -35,7 +56,7 @@ namespace pmon::svc
             std::forward_as_tuple(
                 util::str::ToWide(name),
                 workDirectory_.Path(),
-                pListener->GetProviderDescriptions()
+                providers
             )
         );
         return id;
@@ -57,26 +78,9 @@ namespace pmon::svc
         std::lock_guard lk{ mtx_ };
         return sessions_.contains(id);
     }
-    std::shared_ptr<EtwLogProviderListener> EtwLogger::CaptureProviderDescriptions_()
-	{
-        auto pTraceFilter = std::make_shared<EtwLogProviderListener>();
-        // trace consumer that configures what events are processed
-        PMTraceConsumer traceConsumer;
-        traceConsumer.mTrackDisplay = true;   // ... presents to the display.
-        traceConsumer.mTrackGPU = true;       // ... GPU work.
-        traceConsumer.mTrackGPUVideo = true;  // ... GPU video work (separately from non-video GPU work).
-        traceConsumer.mTrackInput = true;     // ... keyboard/mouse latency.
-        traceConsumer.mTrackFrameType = true; // ... the frame type communicated through the Intel-PresentMon provider.
-        traceConsumer.mTrackAppTiming = true; // ... app timing data communicated through the Intel-PresentMon provider.
-        traceConsumer.mTrackPcLatency = true; // ... Nvidia PCL stats.
-        traceConsumer.mTrackProcessState = true; // initial process state dump (gets us names)
-        // dry run of the provider enablement routine to extract the provider.event list
-        EnableProvidersListing(0, nullptr, &traceConsumer, true, true, pTraceFilter);
-        return pTraceFilter;
-	}
-    std::shared_ptr<EtwLogProviderListener> EtwLogger::GetDefaultProviderDescriptions_()
+    std::span<const EtwProviderDescription> EtwLogger::GetDefaultProviderDescriptions_()
     {
-        if (!defaultProviderDescriptionCache_) {
+        if (defaultProviderDescriptionCache_.empty()) {
             defaultProviderDescriptionCache_ = CaptureProviderDescriptions_();
         }
         return defaultProviderDescriptionCache_;
