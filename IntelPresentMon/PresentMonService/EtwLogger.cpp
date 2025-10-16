@@ -69,6 +69,7 @@ namespace pmon::svc
         traceConsumer.mTrackFrameType = true; // ... the frame type communicated through the Intel-PresentMon provider.
         traceConsumer.mTrackAppTiming = true; // ... app timing data communicated through the Intel-PresentMon provider.
         traceConsumer.mTrackPcLatency = true; // ... Nvidia PCL stats.
+        traceConsumer.mTrackProcessState = true; // initial process state dump (gets us names)
         // dry run of the provider enablement routine to extract the provider.event list
         EnableProvidersListing(0, nullptr, &traceConsumer, true, true, pTraceFilter);
         return pTraceFilter;

@@ -2630,7 +2630,8 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
 
     if (hdr.ProviderId == Microsoft_Windows_Kernel_Process::GUID) {
         switch (hdr.EventDescriptor.Id) {
-        case Microsoft_Windows_Kernel_Process::ProcessStart_Start::Id: {
+        case Microsoft_Windows_Kernel_Process::ProcessStart_Start::Id:
+        case Microsoft_Windows_Kernel_Process::ProcessRundown_Info::Id: {
             EventDataDesc desc[] = {
                 { L"ProcessID" },
                 { L"ImageName" },
