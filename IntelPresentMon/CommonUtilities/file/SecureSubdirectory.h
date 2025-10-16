@@ -39,9 +39,5 @@ namespace pmon::util::file
         std::filesystem::path path_;
         bool deleteOnDestruct_ = false;
         bool isElevated_ = false;
-        // functions
-        static void CreateOrOpenDirSystemOnlySecure_(const std::filesystem::path& parent,
-            const std::wstring& leafName, std::filesystem::path& outPath, bool isElvated);
-        static bool IsReparseByHandle_(void* h);
     };
 }

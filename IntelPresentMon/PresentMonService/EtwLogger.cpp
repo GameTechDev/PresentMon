@@ -32,12 +32,15 @@ namespace pmon::svc
 
     uint32_t EtwLogger::nextSessionId_ = 0;
 
-    EtwLogger::EtwLogger(bool isElevated) noexcept try
-        : workDirectory_{ file::SecureSubdirectory::CreateInSystemTemp(
-            L"PresentMonServiceEtl", isElevated, true, true) }
-    {}
-    catch (...) {
-        pmlog_error(ReportException("Failed establishing etw logger work directory"));
+    EtwLogger::EtwLogger(bool isElevated) noexcept
+    {
+        try {
+            workDirectory_ = file::SecureSubdirectory::CreateInSystemTemp(
+                L"PresentMonServiceEtl", isElevated, true, true);
+        }
+        catch (...) {
+            pmlog_error(ReportException("Failed establishing etw logger work directory"));
+        }
     }
 
     uint32_t EtwLogger::StartLogSession(std::span<const EtwProviderDescription> providers)
