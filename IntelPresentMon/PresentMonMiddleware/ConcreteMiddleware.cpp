@@ -19,7 +19,6 @@
 #include "../Interprocess/source/IntrospectionHelpers.h"
 #include "../Interprocess/source/IntrospectionCloneAllocators.h"
 #include "../Interprocess/source/PmStatusError.h"
-//#include "MockCommon.h"
 #include "DynamicQuery.h"
 #include "../ControlLib/PresentMonPowerTelemetry.h"
 #include "../ControlLib/CpuTelemetryInfo.h"
@@ -1425,6 +1424,16 @@ static void ReportMetrics(
     void ConcreteMiddleware::StopPlayback()
     {
         pActionClient->DispatchSync(StopPlayback::Params{});
+    }
+
+    uint32_t ConcreteMiddleware::StartEtlLogging()
+    {
+        return pActionClient->DispatchSync(StartEtlLogging::Params{}).etwLogSessionHandle;
+    }
+
+    std::string ConcreteMiddleware::FinishEtlLogging(uint32_t etlLogSessionHandle)
+    {
+        return pActionClient->DispatchSync(FinishEtlLogging::Params{ etlLogSessionHandle }).etlFilePath;
     }
 
     void ConcreteMiddleware::CalculateFpsMetric(fpsSwapChainData& swapChain, const PM_QUERY_ELEMENT& element, uint8_t* pBlob, LARGE_INTEGER qpcFrequency)

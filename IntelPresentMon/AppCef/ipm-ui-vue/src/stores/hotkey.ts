@@ -36,6 +36,10 @@ export const useHotkeyStore = defineStore('hotkey', () => {
           action: HotkeyAction.ToggleOverlay,
           combination: { key: 46 as KeyCode, modifiers: [2 as ModifierCode, 4 as ModifierCode] },
         },
+        {
+          action: HotkeyAction.ToggleEtlLogging,
+          combination: { key: 37 as KeyCode, modifiers: [2 as ModifierCode, 4 as ModifierCode] },
+        },
     ] as Binding[]
 
     // === Actions ===

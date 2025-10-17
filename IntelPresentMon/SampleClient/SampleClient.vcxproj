@@ -108,6 +108,7 @@
   <ItemGroup>
     <ClCompile Include="Console.cpp" />
     <ClCompile Include="DiagnosticDemo.cpp" />
+    <ClCompile Include="EtlLogger.cpp" />
     <ClCompile Include="LogSetup.cpp" />
     <ClCompile Include="LogDemo.cpp" />
     <ClCompile Include="MultiClient.cpp" />
@@ -119,6 +120,7 @@
     <ClInclude Include="Console.h" />
     <ClInclude Include="DiagnosticDemo.h" />
     <ClInclude Include="DynamicQuerySample.h" />
+    <ClInclude Include="EtlLogger.h" />
     <ClInclude Include="FrameQuerySample.h" />
     <ClInclude Include="IntrospectionSample.h" />
     <ClInclude Include="LogSetup.h" />

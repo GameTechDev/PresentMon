@@ -39,6 +39,9 @@
     <ClCompile Include="DiagnosticHandler.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="EtlLogger.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="PresentMonAPIWrapper.h">
@@ -66,6 +69,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="DiagnosticHandler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="EtlLogger.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

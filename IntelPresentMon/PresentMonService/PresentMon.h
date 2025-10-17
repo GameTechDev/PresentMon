@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "PresentMonSession.h"
+#include "EtwLogger.h"
 #include <memory>
 #include <span>
+
+using namespace pmon;
 
 class PresentMon
 {
@@ -74,8 +77,13 @@ public:
 	{
 		return pSession_->GetTestingStatus();
 	}
+	auto& GetEtwLogger()
+	{
+		return etwLogger_;
+	}
 	void StartPlayback();
 	void StopPlayback();
 private:
+	svc::EtwLogger etwLogger_;
 	std::unique_ptr<PresentMonSession> pSession_;
 };

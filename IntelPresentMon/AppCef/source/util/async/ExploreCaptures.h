@@ -19,9 +19,9 @@ namespace p2c::client::util::async
         // {} => null
         Result ExecuteOnRenderer(uint64_t uid, CefRefPtr<CefValue> pArgObj, cef::DataBindAccessor&) const override
         {
+            using FR = infra::util::FolderResolver;
             // try to resolve app folder, fallback to cwd
-            std::wstring path = infra::util::FolderResolver::Get()
-                .Resolve(infra::util::FolderResolver::Folder::Documents, L"Captures");
+            auto path = FR::Get().Resolve(FR::Folder::Documents, FR::capturesSubdirectory);
 
             if ((INT_PTR)ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWDEFAULT) <= 32) {
                 pmlog_error("Failed to explore Captures folder");

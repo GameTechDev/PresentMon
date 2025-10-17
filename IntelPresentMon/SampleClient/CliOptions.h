@@ -22,6 +22,7 @@ namespace clio
 		PlaybackDynamicQuery,
 		IntrospectAllDynamicOptions,
 		MultiClient,
+		EtlLogger,
 		Count,
 	};
 
@@ -45,6 +46,7 @@ namespace clio
 		Option<unsigned int> telemetryPeriodMs{ this, "--telemetry-period-ms", {}, "Telemetry period in milliseconds" };
 		Option<unsigned int> etwFlushPeriodMs{ this, "--etw-flush-period-ms", {}, "ETW manual flush period in milliseconds" };
 		Option<double> runTime{ this, "--run-time", {}, "How long to capture for, in seconds" };
+		Option<std::string> outputPath{ this, "--output-path", {}, "Full path to output to" };
 	private: Group gl_{ this, "Logging", "Control logging behavior" }; public:
 		Option<log::Level> logLevel{ this, "--log-level", log::Level::Error, "Severity to log at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };
 		Option<log::Level> logTraceLevel{ this, "--log-trace-level", log::Level::Error, "Severity to print stacktrace at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };
@@ -64,7 +66,6 @@ namespace clio
 
 	private:
 		MutualExclusion logListExclusion_{ logDenyList, logAllowList };
-		Dependency runTimeDep_{ runTime, processId };
 		Mandatory mandatoryMode_{ mode };
 	};
 }

@@ -10,8 +10,11 @@
 #include <VersionHelpers.h>
 #include <shlwapi.h>
 #include <span>
+#include "../CommonUtilities/win/Privileges.h"
 
 PresentMon::PresentMon(bool isRealtime)
+	:
+	etwLogger_{ util::win::WeAreElevated() }
 {
 	if (isRealtime) {
 		pSession_ = std::make_unique<RealtimePresentMonSession>();

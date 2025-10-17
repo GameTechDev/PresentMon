@@ -14,6 +14,7 @@
     <ClCompile Include="BlobContainer.cpp" />
     <ClCompile Include="DiagnosticHandler.cpp" />
     <ClCompile Include="DynamicQuery.cpp" />
+    <ClCompile Include="EtlLogger.cpp" />
     <ClCompile Include="FixedQuery.cpp" />
     <ClCompile Include="FrameQuery.cpp" />
     <ClCompile Include="ProcessTracker.cpp" />
@@ -24,6 +25,7 @@
     <ClInclude Include="BlobContainer.h" />
     <ClInclude Include="DiagnosticHandler.h" />
     <ClInclude Include="DynamicQuery.h" />
+    <ClInclude Include="EtlLogger.h" />
     <ClInclude Include="FrameQuery.h" />
     <ClInclude Include="PresentMonAPIWrapper.h" />
     <ClInclude Include="ProcessTracker.h" />

@@ -426,6 +426,8 @@ namespace p2c::kern
     {
         pmlog_info(std::format("Capture set to {}", active));
 
+        using FR = infra::util::FolderResolver;
+
         if (active && !pWriter) {
             std::wstring fullPath;
             const std::chrono::zoned_time now{ std::chrono::current_zone(), std::chrono::system_clock::now() };
@@ -433,16 +435,14 @@ namespace p2c::kern
                 fullPath = std::move(*pSpec->captureFullPathOverride);
             }
             else {
-                const auto folder = infra::util::FolderResolver::Get().Resolve(infra::util::FolderResolver::Folder::Documents)
-                    + L"\\Captures\\";
+                const auto folder = FR::Get().Resolve(FR::Folder::Documents, FR::capturesSubdirectory);
                 fullPath = std::format(L"{0}{1}-{3}-{2:%y}{2:%m}{2:%d}-{2:%H}{2:%M}{2:%OS}.csv",
                     folder, pSpec->captureName, now, proc.name);
             }
             // create optional path for stats file
             auto fullStatsPath = [&]() -> std::optional<std::wstring> {
                 if (pSpec->generateStats) {
-                    const auto folder = infra::util::FolderResolver::Get().Resolve(infra::util::FolderResolver::Folder::Documents)
-                        + L"\\Captures\\";
+                    const auto folder = FR::Get().Resolve(FR::Folder::Documents, FR::capturesSubdirectory);
                     return std::format(L"{0}{1}-{3}-{2:%y}{2:%m}{2:%d}-{2:%H}{2:%M}{2:%OS}-stats.csv",
                         folder, pSpec->captureName, now, proc.name);
                 }

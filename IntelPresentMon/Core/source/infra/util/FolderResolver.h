@@ -21,10 +21,13 @@ namespace p2c::infra::util
 		std::wstring Resolve(Folder f, std::wstring path = {}) const;
 		static FolderResolver& Get();
 		static void SetDevMode();
-	private:
-		FolderResolver(std::wstring appPathSubdir = {}, std::wstring docPathSubdir = {}, bool createSubdirectories = true);
+
 		static constexpr const wchar_t* loadoutsSubdirectory = L"Loadouts";
 		static constexpr const wchar_t* capturesSubdirectory = L"Captures";
+		static constexpr const wchar_t* etlSubdirectory = L"Etl";
+	private:
+		FolderResolver(std::wstring appPathSubdir = {}, std::wstring docPathSubdir = {}, bool createSubdirectories = true);
+
 		std::wstring appPath;
 		std::wstring docPath;
 		inline static bool useDevMode = false;

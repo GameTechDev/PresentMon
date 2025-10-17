@@ -2,6 +2,7 @@
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 #include "../IntelPresentMon/CommonUtilities/PrecisionWaiter.h"
+#include "IFilterBuildListener.h"
 
 struct PMTraceConsumer;
 
@@ -50,16 +51,6 @@ struct PMTraceSession {
 };
 
 ULONG StopNamedTraceSession(wchar_t const* sessionName);
-
-
-// interface for injecting a listener callback that will record all provider:event filters
-class IFilterBuildListener
-{
-public:
-    virtual void EventAdded(uint16_t Id) = 0;
-    virtual void ProviderEnabled(const GUID& providerGuid, uint64_t anyKey, uint64_t allKey, uint8_t maxLevel) = 0;
-    virtual void ClearEvents() = 0;
-};
 
 // this is called by EnableProviders, does the actual provider enabling and filter settings
 // can be called without session or consumer to just extract out the filter parameters for use elsewhere

@@ -95,6 +95,11 @@ namespace pmapi
         return { handle_, elements };
     }
 
+    EtlLogger Session::StartEtlLogging()
+    {
+        return EtlLogger{ handle_ };
+    }
+
     void Session::SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t milliseconds)
     {
         assert(handle_);

@@ -3,6 +3,9 @@
 #include "HrError.h"
 #include <chrono>
 #include <thread>
+#include "objbase.h"
+
+#pragma comment(lib, "ole32.lib")
 
 namespace pmon::util::win
 {
@@ -162,5 +165,11 @@ namespace pmon::util::win
 			return isWow64;
 		}
 		throw Except<HrError>("failed to check WOW64 status");
+	}
+	std::wstring GuidToString(const GUID& guid)
+	{
+		wchar_t buf[64];
+		int len = StringFromGUID2(guid, buf, 64);
+		return std::wstring(buf, len > 0 ? len - 1 : 0); // drop trailing null
 	}
 }

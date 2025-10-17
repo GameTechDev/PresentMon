@@ -1,32 +1,21 @@
 #include "Level.h"
 #include "../str/String.h"
+#include <CommonUtilities/ref/WrapReflect.h>
+
+using namespace std::literals;
 
 namespace pmon::util::log
 {
 	std::string GetLevelName(Level lv) noexcept
 	{
-		try {
-			switch (lv) {
-			case Level::None: return "None";
-			case Level::Fatal: return "Fatal";
-			case Level::Error: return "Error";
-			case Level::Warning: return "Warning";
-			case Level::Info: return "Info";
-			case Level::Performance: return "Performance";
-			case Level::Debug: return "Debug";
-			case Level::Verbose: return "Verbose";
-			case Level::Verbose2: return "Verbose2";
-			default: return "Unknown";
-			}
-		} catch (...) {}
-		return {};
+		return std::string{ reflect::enum_name<Level, "Unknown", 0, int(Level::EndOfEnumKeys)>(lv)};
 	}
 
 	std::map<std::string, Level> GetLevelMapNarrow() noexcept
 	{
 		using namespace pmon::util::str;
 		std::map<std::string, Level> map;
-		for (int n = (int)Level::Fatal; n <= (int)Level::Verbose; n++) {
+		for (int n = 0; n < (int)Level::EndOfEnumKeys; n++) {
 			const auto lvl = Level(n);
 			auto key = ToLower(GetLevelName(lvl));
 			if (key != "Unknown") {

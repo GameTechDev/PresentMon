@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -115,6 +115,8 @@
   <ItemGroup>
     <ClCompile Include="ActionExecutionContext.cpp" />
     <ClCompile Include="ActionRegistration.cpp" />
+    <ClCompile Include="EtwLogger.cpp" />
+    <ClCompile Include="EtwLogSession.cpp" />
     <ClCompile Include="LogSetup.cpp" />
     <ClCompile Include="MockPresentMonSession.cpp" />
     <ClCompile Include="ActionServer.cpp" />
@@ -129,17 +131,21 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="acts\EnumerateAdapters.h" />
+    <ClInclude Include="acts\FinishEtlLogging.h" />
     <ClInclude Include="acts\GetStaticCpuMetrics.h" />
     <ClInclude Include="acts\GetIntrospectionShmName.h" />
     <ClInclude Include="acts\OpenSession.h" />
     <ClInclude Include="acts\SelectAdapter.h" />
     <ClInclude Include="acts\SetEtwFlushPeriod.h" />
     <ClInclude Include="acts\SetTelemetryPeriod.h" />
+    <ClInclude Include="acts\StartEtlLogging.h" />
     <ClInclude Include="acts\StartTracking.h" />
     <ClInclude Include="acts\StopPlayback.h" />
     <ClInclude Include="acts\StopTracking.h" />
     <ClInclude Include="AllActions.h" />
     <ClInclude Include="CliOptions.h" />
+    <ClInclude Include="EtwLogger.h" />
+    <ClInclude Include="EtwLogSession.h" />
     <ClInclude Include="GlobalIdentifiers.h" />
     <ClInclude Include="Logging.h" />
     <ClInclude Include="LogSetup.h" />

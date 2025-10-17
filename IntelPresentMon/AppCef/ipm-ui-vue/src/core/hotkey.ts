@@ -6,6 +6,7 @@ export enum Action {
     ToggleCapture,
     ToggleOverlay,
     CyclePreset,
+    ToggleEtlLogging,
 }
 
 export type KeyCode = Distinct<number, "hotkey:KeyCode">;

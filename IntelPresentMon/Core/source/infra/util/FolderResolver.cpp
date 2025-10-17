@@ -12,6 +12,17 @@ namespace p2c::infra::util
 {
 	using namespace ::pmon::util;
 
+	void CreateSubdir(const std::wstring& docPath, const wchar_t* subdir)
+	{
+		try {
+			std::filesystem::create_directory(std::format(L"{}\\{}", docPath, subdir));
+		}
+		catch (const std::exception&) {
+			pmlog_error("Failed creating directory: " + std::format("{}\\{}", str::ToNarrow(docPath), str::ToNarrow(subdir)));
+			throw Except<Exception>();
+		}
+	}
+
 	FolderResolver::FolderResolver(std::wstring appPathSubdir, std::wstring docPathSubdir, bool createSubdirectories)
 	{
 		if (!appPathSubdir.empty())
@@ -21,7 +32,6 @@ namespace p2c::infra::util
 			{
 				CoTaskMemFree(pPath);
 				pPath = nullptr;
-				// TODO: logging: we can't use logging service here during resolve creation
 				pmlog_error("Failed getting local app data path");
 				throw Except<Exception>();
 							}
@@ -33,7 +43,6 @@ namespace p2c::infra::util
 			catch (const std::exception&) {
 				CoTaskMemFree(pPath);
 				pPath = nullptr;
-				// TODO: logging: we can't use logging service here during resolve creation
 				pmlog_error("Failed creating directory: " + str::ToNarrow(dir));
 				throw Except<Exception>();
 			}
@@ -54,7 +63,6 @@ namespace p2c::infra::util
 			{
 				CoTaskMemFree(pPath);
 				pPath = nullptr;
-				// TODO: logging: we can't use logging service here during resolve creation
 				pmlog_error("Failed getting user documents path");
 				throw Except<Exception>();
 							}
@@ -66,7 +74,6 @@ namespace p2c::infra::util
 			catch (const std::exception&) {
 				CoTaskMemFree(pPath);
 				pPath = nullptr;
-				// TODO: logging: we can't use logging service here during resolve creation
 				pmlog_error("Failed creating directory: " + str::ToNarrow(dir));
 				throw Except<Exception>();
 			}
@@ -82,25 +89,9 @@ namespace p2c::infra::util
 
 		// TODO: this really doesn't belong here, but here it stays until time for something saner
 		if (createSubdirectories) {
-			// captures folder 
-			try {
-				std::filesystem::create_directory(std::format(L"{}\\{}", docPath, capturesSubdirectory));
-			}
-			catch (const std::exception&) {
-				// TODO: logging: we can't use logging service here during resolve creation
-				pmlog_error("Failed creating directory: " + std::format("{}\\{}", str::ToNarrow(docPath), str::ToNarrow(capturesSubdirectory)));
-				throw Except<Exception>();
-			}
-			// custom loadouts folder
-			try {
-				std::filesystem::create_directory(std::format(L"{}\\{}", docPath, loadoutsSubdirectory));
-			}
-			catch (const std::exception&) {
-				// TODO: logging: we can't use logging service here during resolve creation
-				pmlog_error("Failed creating directory: " + std::format("{}\\{}",
-					str::ToNarrow(docPath), str::ToNarrow(loadoutsSubdirectory)));
-				throw Except<Exception>();
-			}
+			CreateSubdir(docPath, capturesSubdirectory);
+			CreateSubdir(docPath, loadoutsSubdirectory);
+			CreateSubdir(docPath, etlSubdirectory);
 		}
 	}
 

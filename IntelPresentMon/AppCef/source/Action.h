@@ -16,6 +16,7 @@ namespace p2c::client
 		HideOverlay,
 		ToggleOverlay,
 		CyclePreset,
+		ToggleEtlLogging,
 		Count_,
 	};
 
@@ -35,6 +36,7 @@ namespace p2c::client
 			{ (uint32_t)Action::HideOverlay, "HideOverlay" },
 			{ (uint32_t)Action::ToggleOverlay, "ToggleOverlay" },
 			{ (uint32_t)Action::CyclePreset, "CyclePreset" },
+			{ (uint32_t)Action::ToggleEtlLogging, "ToggleEtlLogging" },
 		};
 	}
 }

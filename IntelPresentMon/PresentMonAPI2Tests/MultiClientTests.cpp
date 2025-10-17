@@ -13,6 +13,8 @@
 #include <sstream>
 #include <filesystem>
 #include "TestCommands.h"
+#include "Folders.h"
+#include "JobManager.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -27,57 +29,8 @@ namespace MultiClientTests
 {
 	static constexpr const char* controlPipe_ = R"(\\.\pipe\pm-multi-test-ctrl)";
 	static constexpr const char* introNsm_ = "pm_multi_test_intro";
-	static constexpr const char* logFolder_ = "TestLogs\\MultiClient";
 	static constexpr const char* logLevel_ = "info";
 
-	TEST_MODULE_INITIALIZE(ModuleInit)
-	{
-		// Wipe the log folder before any tests run
-		try {
-			if (fs::exists(logFolder_)) {
-				fs::remove_all(logFolder_);
-			}
-			fs::create_directories(logFolder_);
-		}
-		catch (const std::exception& ex) {
-			Logger::WriteMessage(std::format("Failed to wipe log folder: {}\n", ex.what()).c_str());
-			throw; // let MSTest see this as a test infrastructure error
-		}
-	}
-
-	// ties child processes to the current test case and ensures
-	// they are terminated regardless of how test run ends
-	class JobManager
-	{
-	public:
-		JobManager()
-			:
-			hJob_{ ::CreateJobObjectA(nullptr, nullptr) }
-		{
-			if (!hJob_) ThrowLastError_("CreateJobObject");
-
-			JOBOBJECT_EXTENDED_LIMIT_INFORMATION li{};
-			li.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-			if (!::SetInformationJobObject(
-				hJob_, JobObjectExtendedLimitInformation, &li, sizeof(li))) {
-				ThrowLastError_("SetInformationJobObject");
-			}
-		}
-		// Attach a child process HANDLE to the job.
-		void Attach(HANDLE hChild) const
-		{
-			if (!::AssignProcessToJobObject(hJob_, hChild)) {
-				ThrowLastError_("AssignProcessToJobObject");
-			}
-		}
-	private:
-		static void ThrowLastError_(const char* where)
-		{
-			throw std::system_error(::GetLastError(), std::system_category(), where);
-		}
-
-		util::win::Handle hJob_;
-	};
 
 	class TestProcess
 	{

@@ -7,6 +7,12 @@ namespace pmon::svc::acts
 {
     void ActionExecutionContext::Dispose(SessionContextType& stx)
     {
+        auto& etw = pPmon->GetEtwLogger();
+        for (auto id : stx.etwLogSessionIds) {
+            if (etw.HasActiveSession(id)) {
+                etw.CancelLogSession(id);
+            }
+        }
         for (auto& tracked : stx.trackedPids) {
             pPmon->StopStreaming(stx.remotePid, tracked);
         }

@@ -14,6 +14,8 @@
     <ClCompile Include="ActionRegistration.cpp" />
     <ClCompile Include="testing\TestControl.cpp" />
     <ClCompile Include="ActionExecutionContext.cpp" />
+    <ClCompile Include="EtwLogSession.cpp" />
+    <ClCompile Include="EtwLogger.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LateStageReprojectionData.hpp" />
@@ -44,6 +46,10 @@
     <ClInclude Include="acts\GetIntrospectionShmName.h" />
     <ClInclude Include="acts\StopPlayback.h" />
     <ClInclude Include="testing\TestControl.h" />
+    <ClInclude Include="EtwLogger.h" />
+    <ClInclude Include="EtwLogSession.h" />
+    <ClInclude Include="acts\StartEtlLogging.h" />
+    <ClInclude Include="acts\FinishEtlLogging.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PresentMonService.rc" />

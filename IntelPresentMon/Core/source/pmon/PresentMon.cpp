@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "PresentMon.h"
 #include <Core/source/infra/Logging.h>
+#include <Core/source/infra/util/FolderResolver.h>
 #include <PresentMonAPI2/PresentMonAPI.h>
 #include <PresentMonAPIWrapper/PresentMonAPIWrapper.h>
 #include <PresentMonAPIWrapperCommon/EnumMap.h>
@@ -90,20 +91,6 @@ namespace p2c::pmon
 	{
 		return telemetrySamplePeriod;
 	}
-	//std::wstring PresentMon::GetCpuName() const
-	//{
-	//	char buffer[512];
-	//	uint32_t bufferSize = sizeof(buffer);
-	//	if (auto sta = pmGetCpuName(buffer, &bufferSize); sta != PM_STATUS_SUCCESS) {
-	//		pmlog_warn(L"could not get cpu name").code(sta);
-	//		return {};
-	//	}
-	//	pmapi::PollStatic(*pSession, )
-	//	if (bufferSize >= sizeof(buffer)) {
-	//		pmlog_warn(std::format(L"insufficient buffer size to get cpu name. written: {}", bufferSize));
-	//	}
-	//	return infra::util::ToWide(std::string{ buffer, bufferSize });
-	//}
 	std::vector<AdapterInfo> PresentMon::EnumerateAdapters() const
 	{
 		std::vector<AdapterInfo> infos;
@@ -128,6 +115,31 @@ namespace p2c::pmon
 		}
 		else {
 			selectedAdapter = id;
+		}
+	}
+	void PresentMon::SetEtlLogging(bool active)
+	{
+		pmlog_info("Setting etl logging").pmwatch(active);
+		if (active) {
+			if (etlLogger) {
+				pmlog_error("Etl logging desync: session already active").pmwatch(etlLogger.GetHandle());
+			}
+			else {
+				etlLogger = pSession->StartEtlLogging();
+				pmlog_dbg("Got etl logging handle").pmwatch(etlLogger.GetHandle());
+			}
+		}
+		else {
+			if (!etlLogger) {
+				pmlog_error("Etl logging desync: no active session");
+			}
+			else {
+				using FR = infra::util::FolderResolver;
+				const auto folderPath = FR::Get().Resolve(FR::Folder::Documents, FR::etlSubdirectory);
+				const std::chrono::zoned_time now{ std::chrono::current_zone(), std::chrono::system_clock::now() };
+				const auto fullPath = std::format(L"{0}\\ipm-{1:%y}{1:%m}{1:%d}-{1:%H}{1:%M}{1:%OS}.etl", folderPath, now);
+				etlLogger.Finish(fullPath);
+			}
 		}
 	}
 	std::optional<uint32_t> PresentMon::GetPid() const {

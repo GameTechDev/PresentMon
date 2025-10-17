@@ -41,7 +41,7 @@ function cyclePreset() {
 // === Computed ===
 const inSettings = computed(() => {
   const routeName = typeof route.name === 'symbol' ? route.name.toString() : route.name;
-  return ['capture-config', 'overlay-config', 'data-config', 'other-config', 'flash-config']
+  return ['capture-config', 'overlay-config', 'data-config', 'other-config', 'flash-config', 'logging-config']
     .includes(routeName ?? '')
 });
 const targetName = computed(() => {
@@ -84,6 +84,9 @@ Api.registerHotkeyHandler((action: number) => {
       break;
     case Action.ToggleCapture:
       prefs.toggleCapture()
+      break;
+    case Action.ToggleEtlLogging:
+      prefs.toggleEtlLogging();
       break;
     default:
       console.warn(`Unhandled hotkey action: ${action}`);
@@ -173,6 +176,9 @@ watch(() => loadout.widgets, async () => {
             <v-list-item color="primary" :to="{ name: 'flash-config' }">
               <v-list-item-title class="nav-item">Flash</v-list-item-title>
             </v-list-item>
+            <v-list-item color="primary" :to="{ name: 'logging-config' }">
+              <v-list-item-title class="nav-item">Logging</v-list-item-title>
+            </v-list-item>
             <v-list-item color="primary" :to="{ name: 'other-config' }">
               <v-list-item-title class="nav-item">Other</v-list-item-title>
             </v-list-item>
@@ -193,6 +199,7 @@ watch(() => loadout.widgets, async () => {
             <v-icon v-show="prefs.capturing" small color="red-darken-1">mdi-camera-control</v-icon>
           </div>
           <div class="sta-region">
+            <div v-show="prefs.etlLogging">ETL</div>
             <div>{{ visibilityString }}</div>
             <div>{{ prefs.preferences.metricPollRate }}Hz</div>
             <div>{{ prefs.preferences.overlayDrawRate }}fps</div>

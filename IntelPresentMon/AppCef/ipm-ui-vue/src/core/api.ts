@@ -92,6 +92,9 @@ export class Api {
     static async setCapture(active: boolean): Promise<void> {
         await this.invokeEndpointFuture('SetCapture', {active});
     }
+    static async setEtlLogging(active: boolean): Promise<void> {
+        await this.invokeEndpointFuture('SetEtlLogging', {active});
+    }
 
     /////// file access-related /////////
     // base file endpoints
@@ -112,6 +115,9 @@ export class Api {
     }
     static async exploreCaptures(): Promise<void> {
         await this.invokeEndpointFuture('exploreCaptures', {});
+    }
+    static async exploreEtls(): Promise<void> {
+        await this.invokeEndpointFuture('exploreEtls', {});
     }
     // derived file endpoints
     static async loadPreset(path: string): Promise<{payload: string}> {
