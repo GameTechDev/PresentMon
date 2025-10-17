@@ -25,14 +25,11 @@ namespace pmon::util::file
         SecureSubdirectory(SecureSubdirectory&&) noexcept;
         SecureSubdirectory& operator=(SecureSubdirectory&&) noexcept;
 
-        const std::filesystem::path& Path() const noexcept { return path_; }
+        const std::filesystem::path& Path() const noexcept;
         void Clear();
         void Remove();
         bool Empty() const;
-        operator bool() const
-        {
-            return !Empty();
-        }
+        operator bool() const;
 
     private:
         // data

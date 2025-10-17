@@ -256,7 +256,7 @@ namespace pmon::util::file
 
     SecureSubdirectory::~SecureSubdirectory()
     {
-        if (deleteOnDestruct_ && !path_.empty()) {
+        if (deleteOnDestruct_ && !Empty()) {
             try {
                 Remove();
             }
@@ -267,9 +267,10 @@ namespace pmon::util::file
     }
 
     SecureSubdirectory::SecureSubdirectory(SecureSubdirectory&& other) noexcept
-        : path_(std::move(other.path_))
-        , deleteOnDestruct_(other.deleteOnDestruct_)
-        , isElevated_(other.isElevated_)
+        : 
+        path_(std::move(other.path_)),
+        deleteOnDestruct_(other.deleteOnDestruct_),
+        isElevated_(other.isElevated_)
     {
         other.deleteOnDestruct_ = false;
         other.path_.clear();
@@ -279,7 +280,7 @@ namespace pmon::util::file
     SecureSubdirectory& SecureSubdirectory::operator=(SecureSubdirectory&& other) noexcept
     {
         if (this == &other) return *this;
-        if (deleteOnDestruct_ && !path_.empty()) {
+        if (deleteOnDestruct_ && !Empty()) {
             try {
                 Remove();
             }
@@ -295,7 +296,10 @@ namespace pmon::util::file
         other.isElevated_ = false;
         return *this;
     }
-
+    const std::filesystem::path& SecureSubdirectory::Path() const noexcept
+    {
+        return path_;
+    }
     void SecureSubdirectory::Clear()
     {
         if (Empty()) return;
@@ -320,5 +324,9 @@ namespace pmon::util::file
     bool SecureSubdirectory::Empty() const
     {
         return path_.empty();
+    }
+    SecureSubdirectory::operator bool() const
+    {
+        return !Empty();
     }
 }

@@ -1,9 +1,12 @@
 #include "TempFile.h"
 #include "../win/WinAPI.h"
 #include "../win/Utilities.h"
+#include "../win/HrError.h"
 #include "../str/String.h"
 #include "../Exception.h"
 #include <fstream>
+#include <random>
+#include <format>
 #include <rpc.h>
 #include <sddl.h>
 #include <aclapi.h>
@@ -52,8 +55,8 @@ namespace pmon::util::file
 	}
 	TempFile& TempFile::MoveTo(const std::filesystem::path& dest)
     {
-        if (path_.empty()) {
-            throw Except<Exception>("MoveTo failed: source path is empty");
+        if (Empty()) {
+            throw Except<Exception>("MoveTo failed: this object is empty");
         }
         if (dest.empty()) {
             throw Except<Exception>("MoveTo failed: destination folder is empty");
@@ -92,13 +95,25 @@ namespace pmon::util::file
 	std::string TempFile::MakeRandomName()
 	{
 		UUID uuid;
-		if (UuidCreate(&uuid) != RPC_S_OK) {
-			throw Except<Exception>("Failed creating uuid");
+		if (UuidCreate(&uuid) == RPC_S_OK) {
+			return str::ToNarrow(win::GuidToString(uuid));
 		}
-		// TODO: fallback to <random>
-		return str::ToNarrow(win::GuidToString(uuid));
+
+		// Fallback: generate a pseudo-random GUID-like string.
+		static thread_local std::mt19937_64 rng{ std::random_device{}() };
+		std::uniform_int_distribution<uint32_t> dist32;
+		std::uniform_int_distribution<uint16_t> dist16;
+
+		return std::format(
+			"{{{:08x}-{:04x}-{:04x}-{:04x}-{:012x}}}",
+			dist32(rng),                                       // 32 bits
+			dist16(rng),                                       // 16 bits
+			(dist16(rng) & 0x0FFF) | 0x4000,                   // version 4
+			(dist16(rng) & 0x3FFF) | 0x8000,                   // variant 1
+			(static_cast<uint64_t>(dist32(rng)) << 32) | dist32(rng)  // 48 bits from 64
+		);
 	}
-	inline bool TempFile::Empty() const
+	bool TempFile::Empty() const
 	{
 		return path_.empty();
 	}
@@ -108,34 +123,34 @@ namespace pmon::util::file
 	}
 	TempFile& TempFile::MakePublic()
 	{
-		if (path_.empty()) {
-			throw std::runtime_error("No file to make public");
+		if (Empty()) {
+			throw Except<Exception>("No file to make public");
 		}
 
 		// Build ACEs
-		EXPLICIT_ACCESSW ea[3]{};
+		EXPLICIT_ACCESSA ea[3]{};
 
 		// SYSTEM full
-		BuildExplicitAccessWithNameW(&ea[0], (LPWSTR)L"SYSTEM",
+		BuildExplicitAccessWithNameA(&ea[0], (LPSTR)"SYSTEM",
 			GENERIC_ALL, SET_ACCESS, NO_INHERITANCE);
 
 		// Administrators full
-		BuildExplicitAccessWithNameW(&ea[1], (LPWSTR)L"BUILTIN\\Administrators",
+		BuildExplicitAccessWithNameA(&ea[1], (LPSTR)"BUILTIN\\Administrators",
 			GENERIC_ALL, SET_ACCESS, NO_INHERITANCE);
 
 		// Authenticated Users modify (RWX + delete)
 		DWORD modifyMask = FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE;
-		BuildExplicitAccessWithNameW(&ea[2], (LPWSTR)L"Authenticated Users",
+		BuildExplicitAccessWithNameA(&ea[2], (LPSTR)"Authenticated Users",
 			modifyMask, SET_ACCESS, NO_INHERITANCE);
 
 		PACL newDacl = nullptr;
-		DWORD dwRes = SetEntriesInAclW(3, ea, nullptr, &newDacl);
+		DWORD dwRes = SetEntriesInAclA(3, ea, nullptr, &newDacl);
 		if (dwRes != ERROR_SUCCESS) {
-			throw std::system_error(dwRes, std::system_category(), "SetEntriesInAclW failed");
+			throw Except<win::HrError>(dwRes, "SetEntriesInAcl failed");
 		}
 
-		dwRes = SetNamedSecurityInfoW(
-			(LPWSTR)path_.c_str(),
+		dwRes = SetNamedSecurityInfoA(
+			(LPSTR)path_.string().c_str(),
 			SE_FILE_OBJECT,
 			DACL_SECURITY_INFORMATION | UNPROTECTED_DACL_SECURITY_INFORMATION,
 			nullptr, nullptr, newDacl, nullptr);
@@ -143,7 +158,7 @@ namespace pmon::util::file
 		LocalFree(newDacl);
 
 		if (dwRes != ERROR_SUCCESS) {
-			throw std::system_error(dwRes, std::system_category(), "SetNamedSecurityInfoW failed");
+			throw Except<win::HrError>(dwRes, "SetNamedSecurityInfo failed");
 		}
 
 		return *this;
