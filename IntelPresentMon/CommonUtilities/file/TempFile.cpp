@@ -4,6 +4,7 @@
 #include "../win/HrError.h"
 #include "../str/String.h"
 #include "../Exception.h"
+#include "../Memory.h"
 #include <fstream>
 #include <random>
 #include <format>
@@ -143,22 +144,18 @@ namespace pmon::util::file
 		BuildExplicitAccessWithNameA(&ea[2], (LPSTR)"Authenticated Users",
 			modifyMask, SET_ACCESS, NO_INHERITANCE);
 
-		PACL newDacl = nullptr;
-		DWORD dwRes = SetEntriesInAclA(3, ea, nullptr, &newDacl);
-		if (dwRes != ERROR_SUCCESS) {
-			throw Except<win::HrError>(dwRes, "SetEntriesInAcl failed");
+		UniqueLocalPtr<ACL> pNewDacl;
+		if (auto res = SetEntriesInAclA(3, ea, nullptr, OutPtr(pNewDacl)); res != ERROR_SUCCESS) {
+			throw Except<win::HrError>(HRESULT(res), "SetEntriesInAcl failed");
 		}
 
-		dwRes = SetNamedSecurityInfoA(
+		if (auto res = SetNamedSecurityInfoA(
 			(LPSTR)path_.string().c_str(),
 			SE_FILE_OBJECT,
 			DACL_SECURITY_INFORMATION | UNPROTECTED_DACL_SECURITY_INFORMATION,
-			nullptr, nullptr, newDacl, nullptr);
-
-		LocalFree(newDacl);
-
-		if (dwRes != ERROR_SUCCESS) {
-			throw Except<win::HrError>(dwRes, "SetNamedSecurityInfo failed");
+			nullptr, nullptr, pNewDacl.get(), nullptr);
+			res != ERROR_SUCCESS) {
+			throw Except<win::HrError>(HRESULT(res), "SetNamedSecurityInfo failed");
 		}
 
 		return *this;

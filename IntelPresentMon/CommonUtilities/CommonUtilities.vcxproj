@@ -109,6 +109,7 @@
     <ClInclude Include="win\Privileges.h" />
     <ClInclude Include="win\Process.h" />
     <ClInclude Include="win\ProcessMapBuilder.h" />
+    <ClInclude Include="win\Security.h" />
     <ClInclude Include="win\Utilities.h" />
     <ClInclude Include="win\WinAPI.h" />
   </ItemGroup>
@@ -165,9 +166,11 @@
     <ClCompile Include="win\Handle.cpp" />
     <ClCompile Include="win\HrErrorCodeProvider.cpp" />
     <ClCompile Include="win\HrError.cpp" />
+    <ClCompile Include="Memory.cpp" />
     <ClCompile Include="win\MessageBox.cpp" />
     <ClCompile Include="win\Privileges.cpp" />
     <ClCompile Include="win\ProcessMapBuilder.cpp" />
+    <ClCompile Include="win\Security.cpp" />
     <ClCompile Include="win\Utilities.cpp" />
   </ItemGroup>
   <ItemGroup>
