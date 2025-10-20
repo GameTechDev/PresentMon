@@ -2,6 +2,7 @@
 #include "../PresentMonAPI2/PresentMonAPI.h"
 #include <span>
 #include <optional>
+#include <string>
 
 struct PM_SESSION { virtual ~PM_SESSION() = default; };
 
@@ -24,6 +25,7 @@ namespace pmon::mid
 		virtual void FreeFrameEventQuery(const PM_FRAME_QUERY* pQuery) = 0;
 		virtual void ConsumeFrameEvents(const PM_FRAME_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t& numFrames) = 0;
 		virtual void StopPlayback() = 0;
-
+		virtual uint32_t StartEtlLogging() = 0;
+		virtual std::string FinishEtlLogging(uint32_t etlLogSessionHandle) = 0;
 	};
 }

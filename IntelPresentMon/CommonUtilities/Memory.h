@@ -100,4 +100,23 @@ namespace pmon::util
 	OutPtrProxy<SP> OutPtr(SP& smartPtr) {
 		return OutPtrProxy<SP>(smartPtr);
 	}
+
+	void LocalFree(void* p) noexcept;
+
+	// Generic LocalFree deleter
+	template<class T = void>
+	struct LocalFreeDeleter
+	{
+		using pointer = T*;
+		void operator()(pointer p) const noexcept
+		{
+			if (p) {
+				util::LocalFree(p);
+			}
+		}
+	};
+
+	// unique_ptr that uses LocalFree.
+	template<class T = void>
+	using UniqueLocalPtr = std::unique_ptr<T, LocalFreeDeleter<T>>;
 }

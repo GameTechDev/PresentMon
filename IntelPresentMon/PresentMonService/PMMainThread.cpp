@@ -19,6 +19,7 @@
 #include "../CommonUtilities/log/GlogShim.h"
 #include "testing/TestControl.h"
 
+
 using namespace std::literals;
 using namespace pmon;
 using namespace svc;
@@ -320,7 +321,7 @@ void PresentMonMainThread(Service* const pSvc)
         }
 
         // Stop the PresentMon sessions
-        pm.StopTraceSessions();
+         pm.StopTraceSessions();
     }
     catch (...) {
         LOG(ERROR) << "Exception in PMMainThread, bailing" << std::endl;

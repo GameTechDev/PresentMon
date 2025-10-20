@@ -44,6 +44,7 @@ struct ProviderFilter
     uint64_t allKeyMask;
     uint8_t maxLevel;
     GUID providerGuid;
+    uint32_t controlCode;
     bool MatchesId(uint16_t eventId) const
     {
         return eventSet.empty() || eventSet.contains(eventId);
@@ -74,24 +75,25 @@ public:
 
         // NT_Process
         //
-        ProviderEnabled(NT_Process::GUID, 0, 0, EnableAllLevels);
+        ProviderEnabled(NT_Process::GUID, 0, 0, EnableAllLevels, EVENT_CONTROL_CODE_ENABLE_PROVIDER);
 
         // Microsoft_Windows_EventMetadata::GUID
         //
-        ProviderEnabled(Microsoft_Windows_EventMetadata::GUID, 0, 0, EnableAllLevels);
+        ProviderEnabled(Microsoft_Windows_EventMetadata::GUID, 0, 0, EnableAllLevels, EVENT_CONTROL_CODE_ENABLE_PROVIDER);
     }
     // Inherited via IFilterBuildListener
     void EventAdded(uint16_t id) override
     {
         eventsOnDeck_.push_back(id);
     }
-    void ProviderEnabled(const GUID& providerGuid, uint64_t anyKey, uint64_t allKey, uint8_t maxLevel) override
+    void ProviderEnabled(const GUID& providerGuid, uint64_t anyKey, uint64_t allKey, uint8_t maxLevel, uint32_t controlCode) override
     {
         ProviderFilter filter{
             .anyKeyMask = anyKey ? anyKey : 0xFFFF'FFFF,
             .allKeyMask = allKey,
             .maxLevel = maxLevel,
             .providerGuid = providerGuid,
+            .controlCode = controlCode,
         };
         filter.eventSet.insert_range(eventsOnDeck_);
         ClearEvents();
@@ -148,7 +150,7 @@ public:
         // when trimming by timestamp, we must take care not to remove the state data psuedo-events generated
         // at the beginning of the trace (also true state events coming before the trim region)
         // nt process
-        stateFilter_.ProviderEnabled(NT_Process::GUID, 0, 0, EnableAllLevels);
+        stateFilter_.ProviderEnabled(NT_Process::GUID, 0, 0, EnableAllLevels, EVENT_CONTROL_CODE_ENABLE_PROVIDER);
         // dxgkrnl --> DCs
         stateFilter_.EventAdded(Microsoft_Windows_DxgKrnl::Context_DCStart::Id);
         stateFilter_.EventAdded(Microsoft_Windows_DxgKrnl::Device_DCStart::Id);
@@ -162,11 +164,11 @@ public:
         stateFilter_.EventAdded(Microsoft_Windows_DxgKrnl::HwQueue_DCStart::Id);
         stateFilter_.EventAdded(Microsoft_Windows_DxgKrnl::HwQueue_Start::Id);
         // <-- finish
-        stateFilter_.ProviderEnabled(Microsoft_Windows_DxgKrnl::GUID, 0, 0, EnableAllLevels);
+        stateFilter_.ProviderEnabled(Microsoft_Windows_DxgKrnl::GUID, 0, 0, EnableAllLevels, EVENT_CONTROL_CODE_ENABLE_PROVIDER);
         // kernel proc start/stop
         stateFilter_.EventAdded(Microsoft_Windows_Kernel_Process::ProcessStart_Start::Id);
         stateFilter_.EventAdded(Microsoft_Windows_Kernel_Process::ProcessStop_Stop::Id);
-        stateFilter_.ProviderEnabled(Microsoft_Windows_Kernel_Process::GUID, 0, 0, EnableAllLevels);
+        stateFilter_.ProviderEnabled(Microsoft_Windows_Kernel_Process::GUID, 0, 0, EnableAllLevels, EVENT_CONTROL_CODE_ENABLE_PROVIDER);
     }
     STDMETHODIMP QueryInterface(const IID& iid, void** pObj)
     {

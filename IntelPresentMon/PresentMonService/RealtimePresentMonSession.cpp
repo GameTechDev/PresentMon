@@ -13,8 +13,6 @@ using namespace pmon;
 using namespace std::literals;
 using v = util::log::V;
 
-static const std::wstring kRealTimeSessionName = L"PMService";
-
 RealtimePresentMonSession::RealtimePresentMonSession()
 {
     ResetEtwFlushPeriod();
@@ -135,13 +133,7 @@ PM_STATUS RealtimePresentMonSession::StartTraceSession() {
     pm_consumer_->mTrackPcLatency = true;
 
     auto& opt = clio::Options::Get();
-    if (opt.etwSessionName.AsOptional().has_value()) {
-        pm_session_name_ =
-            util::str::ToWide(opt.etwSessionName.AsOptional().value());
-    }
-    else {
-        pm_session_name_ = kRealTimeSessionName;
-    }
+    pm_session_name_ = util::str::ToWide(*opt.etwSessionName);
 
     const wchar_t* etl_file_name = nullptr;
     // Start the session. If a session with this name is already running, we stop

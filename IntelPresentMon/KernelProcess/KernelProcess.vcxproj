@@ -173,6 +173,7 @@
     <ClInclude Include="kact\PushSpecification.h" />
     <ClInclude Include="kact\SetAdapter.h" />
     <ClInclude Include="kact\SetCapture.h" />
+    <ClInclude Include="kact\SetEtlLogging.h" />
     <ClInclude Include="MakeOverlaySpec.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>

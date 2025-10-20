@@ -15,6 +15,7 @@ namespace pmon::util::log
 		Debug = 60,
 		Verbose = 70,
 		Verbose2 = 80,
+		EndOfEnumKeys,
 	};
 
 	std::string GetLevelName(Level) noexcept;

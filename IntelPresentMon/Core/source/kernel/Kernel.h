@@ -54,6 +54,7 @@ namespace p2c::kern
         void SetAdapter(uint32_t id);
         std::vector<pmon::AdapterInfo> EnumerateAdapters() const;
         void SetCapture(bool active);
+        void SetEtlLogging(bool active);
         const pmapi::intro::Root& GetIntrospectionRoot() const;
     private:
         // functions

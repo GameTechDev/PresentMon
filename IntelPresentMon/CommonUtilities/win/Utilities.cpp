@@ -1,39 +1,37 @@
 #include "Utilities.h"
 #include "../log/Log.h"
+#include "../Memory.h"
 #include "HrError.h"
 #include <chrono>
 #include <thread>
+#include "objbase.h"
+
+#pragma comment(lib, "ole32.lib")
 
 namespace pmon::util::win
 {
 	std::string GetErrorDescription(HRESULT hr) noexcept
 	{
 		try {
+			UniqueLocalPtr<CHAR> descriptionLocal;
 			char* descriptionWinalloc = nullptr;
-			const auto result = FormatMessageA(
+			if (!FormatMessageA(
 				FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
 				nullptr, hr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-				reinterpret_cast<LPSTR>(&descriptionWinalloc), 0, nullptr
-			);
-
-			std::string description;
-			if (!result) {
+				reinterpret_cast<LPSTR>(static_cast<char**>(OutPtr(descriptionLocal))), 0, nullptr))
+			{
 				pmlog_warn("Failed formatting windows error");
+				return "COULD NOT FORMAT";
 			}
-			else {
-				description = descriptionWinalloc;
-				if (LocalFree(descriptionWinalloc)) {
-					pmlog_warn("Failed freeing memory for windows error formatting");
-				}
-				if (description.ends_with("\r\n")) {
-					description.resize(description.size() - 2);
-				}
+			std::string description = descriptionLocal.get();
+			if (description.ends_with("\r\n")) {
+				description.resize(description.size() - 2);
 			}
 			return description;
 		}
 		catch (...) {
-			pmlog_warn(ReportException("Exception in win::GetErrorDescription"));
-			return {};
+			pmlog_warn(ReportException("Failed formatting windows error"));
+			return "COULD NOT FORMAT";
 		}
 	}
 
@@ -162,5 +160,11 @@ namespace pmon::util::win
 			return isWow64;
 		}
 		throw Except<HrError>("failed to check WOW64 status");
+	}
+	std::wstring GuidToString(const GUID& guid)
+	{
+		wchar_t buf[64];
+		int len = StringFromGUID2(guid, buf, 64);
+		return std::wstring(buf, len > 0 ? len - 1 : 0); // drop trailing null
 	}
 }

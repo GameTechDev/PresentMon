@@ -63,14 +63,14 @@ void RunDiagnosticDemo(int mode)
 				{ .metric = PM_METRIC_CPU_START_TIME, .stat = PM_STAT_AVG },
 				{ .metric = PM_METRIC_GPU_FREQUENCY, .stat = PM_STAT_AVG, .deviceId = 42 },
 			};
-			sesh.RegisterDyanamicQuery(elements);
+			sesh.RegisterDynamicQuery(elements);
 		}
 		// hard fail to register dynamic query with bogus metric id
 		try {
 			PM_QUERY_ELEMENT elements[]{
 				{ .metric = PM_METRIC(42069), .stat = PM_STAT_AVG }
 			};
-			sesh.RegisterDyanamicQuery(elements);
+			sesh.RegisterDynamicQuery(elements);
 		}
 		catch (...) {
 			std::cout << std::format("ERROR) {}\n", ReportException().first);

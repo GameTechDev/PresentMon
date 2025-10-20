@@ -21,6 +21,9 @@
   <ItemGroup>
     <ClInclude Include="cli\CliFramework.h" />
     <ClInclude Include="Exception.h" />
+    <ClInclude Include="file\FileUtils.h" />
+    <ClInclude Include="file\SecureSubdirectory.h" />
+    <ClInclude Include="file\TempFile.h" />
     <ClInclude Include="IntervalWaiter.h" />
     <ClInclude Include="log\ChannelFlusher.h" />
     <ClInclude Include="log\CopyDriver.h" />
@@ -106,12 +109,16 @@
     <ClInclude Include="win\Privileges.h" />
     <ClInclude Include="win\Process.h" />
     <ClInclude Include="win\ProcessMapBuilder.h" />
+    <ClInclude Include="win\Security.h" />
     <ClInclude Include="win\Utilities.h" />
     <ClInclude Include="win\WinAPI.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cli\CliFramework.cpp" />
     <ClCompile Include="Exception.cpp" />
+    <ClCompile Include="file\FileUtils.cpp" />
+    <ClCompile Include="file\SecureSubdirectory.cpp" />
+    <ClCompile Include="file\TempFile.cpp" />
     <ClCompile Include="IntervalWaiter.cpp" />
     <ClCompile Include="log\ChannelFlusher.cpp" />
     <ClCompile Include="log\CopyDriver.cpp" />
@@ -159,9 +166,11 @@
     <ClCompile Include="win\Handle.cpp" />
     <ClCompile Include="win\HrErrorCodeProvider.cpp" />
     <ClCompile Include="win\HrError.cpp" />
+    <ClCompile Include="Memory.cpp" />
     <ClCompile Include="win\MessageBox.cpp" />
     <ClCompile Include="win\Privileges.cpp" />
     <ClCompile Include="win\ProcessMapBuilder.cpp" />
+    <ClCompile Include="win\Security.cpp" />
     <ClCompile Include="win\Utilities.cpp" />
   </ItemGroup>
   <ItemGroup>

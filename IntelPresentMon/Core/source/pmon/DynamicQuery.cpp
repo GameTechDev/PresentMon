@@ -16,7 +16,7 @@ namespace p2c::pmon
 				.arrayIndex = qmet.arrayIndex,
 			});
 		}
-		query = session.RegisterDyanamicQuery(elements, winSizeMs, metricOffsetMs);
+		query = session.RegisterDynamicQuery(elements, winSizeMs, metricOffsetMs);
 		blobs = query.MakeBlobContainer(1u);
 	}
 

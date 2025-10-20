@@ -23,6 +23,7 @@ namespace pmon::svc::acts
         uint32_t nextCommandToken = 0;
         // custom items
         std::set<uint32_t> trackedPids;
+        std::set<uint32_t> etwLogSessionIds;
         std::optional<uint32_t> requestedAdapterId;
         std::optional<uint32_t> requestedTelemetryPeriodMs;
         std::optional<uint32_t> requestedEtwFlushPeriodMs;

@@ -40,6 +40,8 @@ PM_STATUS(*pFunc_pmRegisterFrameQuery_)(PM_SESSION_HANDLE, PM_FRAME_QUERY_HANDLE
 PM_STATUS(*pFunc_pmConsumeFrames_)(PM_FRAME_QUERY_HANDLE, uint32_t, uint8_t*, uint32_t*) = nullptr;
 PM_STATUS(*pFunc_pmFreeFrameQuery_)(PM_FRAME_QUERY_HANDLE) = nullptr;
 PM_STATUS(*pFunc_pmGetApiVersion_)(PM_VERSION*) = nullptr;
+PM_STATUS(*pFunc_pmStartEtlLogging_)(PM_SESSION_HANDLE, PM_ETL_HANDLE*, uint64_t, uint64_t) = nullptr;
+PM_STATUS(*pFunc_pmFinishEtlLogging_)(PM_SESSION_HANDLE, PM_ETL_HANDLE, char*, uint32_t) = nullptr;
 // pointers to runtime-resolved diagnostic functions
 PM_STATUS(*pFunc_pmDiagnosticSetup_)(const PM_DIAGNOSTIC_CONFIGURATION*) = nullptr;
 uint32_t(*pFunc_pmDiagnosticGetQueuedMessageCount_)() = nullptr;
@@ -166,6 +168,8 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 		RESOLVE(pmRegisterFrameQuery);
 		RESOLVE(pmConsumeFrames);
 		RESOLVE(pmFreeFrameQuery);
+		RESOLVE(pmStartEtlLogging);
+		RESOLVE(pmFinishEtlLogging);
 		// diagnostics
 		RESOLVE(pmDiagnosticSetup);
 		RESOLVE(pmDiagnosticGetQueuedMessageCount);
@@ -291,6 +295,18 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetApiVersion(PM_VERSION* pVersion)
 		if (auto sta = LoadLibrary_(true)) return sta;
 	}
 	return pFunc_pmGetApiVersion_(pVersion);
+}
+PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE* pEtlHandle,
+	uint64_t reserved1, uint64_t reserved2)
+{
+	LoadEndpointsIfEmpty_();
+	return pFunc_pmStartEtlLogging_(session, pEtlHandle, reserved1, reserved2);
+}
+PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE etlHandle,
+	char* pOutputFilePathBuffer, uint32_t bufferSize)
+{
+	LoadEndpointsIfEmpty_();
+	return pFunc_pmFinishEtlLogging_(session, etlHandle, pOutputFilePathBuffer, bufferSize);
 }
 // deprecate?
 PRESENTMON_API2_EXPORT _CrtMemState pmCreateHeapCheckpoint_()

@@ -7,3 +7,4 @@
 #include "PushSpecification.h"
 #include "BindHotkey.h"
 #include "ClearHotkey.h"
+#include "SetEtlLogging.h"

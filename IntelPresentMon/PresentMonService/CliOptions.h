@@ -15,7 +15,7 @@ namespace clio
 		CLI::CheckedTransformer logVmodTf_{ GetVerboseModuleMapNarrow(), CLI::ignore_case };
 
 	private: Group gc_{ this, "Connection", "Control client connection" }; public:
-		Option<std::string> etwSessionName{ this, "--etw-session-name", "", "Name to use when creating the ETW session" };
+		Option<std::string> etwSessionName{ this, "--etw-session-name", "PMService", "Name to use when creating the ETW session" };
 		Option<std::string> controlPipe{ this, "--control-pipe", "", "Name of the named pipe to use for the client-service control channel" };
 		Option<std::string> nsmPrefix{ this, "--nsm-prefix", "", "Prefix to use when naming named shared memory segments created for frame data circular buffers" };
 		Option<std::string> introNsm{ this, "--intro-nsm", "", "Name of the NSM used for introspection data" };

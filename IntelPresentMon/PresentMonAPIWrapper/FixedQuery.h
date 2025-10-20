@@ -295,5 +295,5 @@ namespace pmapi
 #define PM_BEGIN_FIXED_DYNAMIC_QUERY(type) struct type : pmapi::FixedDynamicQueryContainer { using FixedDynamicQueryContainer::FixedDynamicQueryContainer;
 // begin a fixed frame query
 #define PM_BEGIN_FIXED_FRAME_QUERY(type) struct type : pmapi::FixedFrameQueryContainer { using FixedFrameQueryContainer::FixedFrameQueryContainer;
-// end a fixed query (dyanmic or frame)
+// end a fixed query (dynamic or frame)
 #define PM_END_FIXED_QUERY private: pmapi::FinalizingElement finalizer{ this }; }

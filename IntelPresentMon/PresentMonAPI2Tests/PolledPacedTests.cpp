@@ -305,7 +305,7 @@ namespace PacedPollingTests
 						header = MakeHeader(qels, *pIntro);
 					}
 					// register query and create necessary blob
-					auto query = api.RegisterDyanamicQuery(qels, 1000., 64.);
+					auto query = api.RegisterDynamicQuery(qels, 1000., 64.);
 					auto blobs = query.MakeBlobContainer(1);
 					// start tracking target
 					auto tracker = api.TrackProcess(targetPid);

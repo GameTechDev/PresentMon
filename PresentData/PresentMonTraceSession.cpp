@@ -195,12 +195,7 @@ struct FilteredProvider {
         ULONG controlCode = EVENT_CONTROL_CODE_ENABLE_PROVIDER)
     {
         if (pListener_) {
-            if (controlCode == EVENT_CONTROL_CODE_ENABLE_PROVIDER) {
-                pListener_->ProviderEnabled(providerGuid, anyKeywordMask_, allKeywordMask_, maxLevel_);
-            }
-            else {
-                pListener_->ClearEvents();
-            }
+            pListener_->ProviderEnabled(providerGuid, anyKeywordMask_, allKeywordMask_, maxLevel_, controlCode);
         }
 
         if (!isDryRun_) {
@@ -213,9 +208,8 @@ struct FilteredProvider {
                 filterDesc_.Size = sizeof(EVENT_FILTER_EVENT_ID) + sizeof(USHORT) * (filterEventIds->Count - ANYSIZE_ARRAY);
             }
 
-            ULONG timeout = 0;
             return EnableTraceEx2(sessionHandle, &providerGuid, controlCode,
-                maxLevel_, anyKeywordMask_, allKeywordMask_, timeout, pparams);
+                maxLevel_, anyKeywordMask_, allKeywordMask_, 0, pparams);
         }
         return ERROR_SUCCESS;
     }
@@ -226,7 +220,7 @@ struct FilteredProvider {
         UCHAR maxLevel)
     {
         if (pListener_) {
-            pListener_->ProviderEnabled(providerGuid, 0, 0, maxLevel);
+            pListener_->ProviderEnabled(providerGuid, 0, 0, maxLevel, EVENT_CONTROL_CODE_ENABLE_PROVIDER);
         }
 
         if (!isDryRun_) {
@@ -674,6 +668,20 @@ ULONG EnableProvidersListing(
     // we can track them.
     FilteredProvider provider(pSessionGuid, filterEventIds, isWin11OrGreater, std::move(pListener));
 
+    // Microsoft_Windows_Kernel_Process
+    //
+    provider.ClearFilter();
+    provider.AddEvent<Microsoft_Windows_Kernel_Process::ProcessStart_Start>();
+    provider.AddEvent<Microsoft_Windows_Kernel_Process::ProcessStop_Stop>();
+    provider.AddEvent<Microsoft_Windows_Kernel_Process::ProcessRundown_Info>();
+    auto status = provider.Enable(sessionHandle, Microsoft_Windows_Kernel_Process::GUID);
+    if (status != ERROR_SUCCESS && status != ERROR_ACCESS_DENIED) return status;
+    // additionally, request a rundown if we have kproc access and the pertinent consumer flag is set
+    if (pmConsumer->mTrackProcessState && status == ERROR_SUCCESS) {
+        status = provider.Enable(sessionHandle, Microsoft_Windows_Kernel_Process::GUID,
+            EVENT_CONTROL_CODE_CAPTURE_STATE);
+        if (status != ERROR_SUCCESS && status != ERROR_ACCESS_DENIED) return status;
+    }
 
     // Microsoft_Windows_DxgKrnl
     //
@@ -717,7 +725,7 @@ ULONG EnableProvidersListing(
     if (pmConsumer->mTrackFrameType) {
         provider.AddEvent<Microsoft_Windows_DxgKrnl::MMIOFlipMultiPlaneOverlay3_Info>();
     }
-    auto status = provider.Enable(sessionHandle, Microsoft_Windows_DxgKrnl::GUID);
+    status = provider.Enable(sessionHandle, Microsoft_Windows_DxgKrnl::GUID);
     if (status != ERROR_SUCCESS) return status;
 
     // we call Enable here once more to capture initial state of the device contexts
@@ -784,15 +792,6 @@ ULONG EnableProvidersListing(
     }
     status = provider.Enable(sessionHandle, Microsoft_Windows_DXGI::GUID);
     if (status != ERROR_SUCCESS) return status;
-
-
-    // Microsoft_Windows_Kernel_Process
-    //
-    provider.ClearFilter();
-    provider.AddEvent<Microsoft_Windows_Kernel_Process::ProcessStart_Start>();
-    provider.AddEvent<Microsoft_Windows_Kernel_Process::ProcessStop_Stop>();
-    status = provider.Enable(sessionHandle, Microsoft_Windows_Kernel_Process::GUID);
-    if (status != ERROR_SUCCESS && status != ERROR_ACCESS_DENIED) return status;
 
 
     // Microsoft_Windows_D3D9

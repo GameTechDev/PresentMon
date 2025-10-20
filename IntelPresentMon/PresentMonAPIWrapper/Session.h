@@ -3,6 +3,7 @@
 #include "ProcessTracker.h"
 #include "FrameQuery.h"
 #include "DynamicQuery.h"
+#include "EtlLogger.h"
 #include <string>
 #include <memory>
 #include <span>
@@ -52,9 +53,11 @@ namespace pmapi
         // begin tracking a process, necessary to consume frame data or query metrics involving that process
         ProcessTracker TrackProcess(uint32_t pid);
         // register (build/compile) a dynamic query used to poll metrics
-        DynamicQuery RegisterDyanamicQuery(std::span<PM_QUERY_ELEMENT> elements, double winSizeMs = 1000, double metricOffsetMs = 1020);
+        DynamicQuery RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> elements, double winSizeMs = 1000, double metricOffsetMs = 1020);
         // register (build/compile) a frame query used to consume frame events
         FrameQuery RegisterFrameQuery(std::span<PM_QUERY_ELEMENT> elements);
+        // commence an ETL file logging session
+        EtlLogger StartEtlLogging();
         // set the rate at which the service polls device telemetry data
         // NOTE: this is independent/distinct from the rate at which a client app polls dynamic queries
         void SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t milliseconds);

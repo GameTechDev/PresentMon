@@ -47,6 +47,7 @@
       <Filter>ETW</Filter>
     </ClInclude>
     <ClInclude Include="TraceLogging.h" />
+    <ClInclude Include="IFilterBuildListener.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Debug.cpp" />

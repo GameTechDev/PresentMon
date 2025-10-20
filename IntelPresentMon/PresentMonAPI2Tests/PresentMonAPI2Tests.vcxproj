@@ -96,6 +96,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="EtlLoggerTests.cpp" />
+    <ClCompile Include="ModuleInit.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
     <ClCompile Include="PolledPacedTests.cpp" />
     <ClCompile Include="WrapperIntrospectionTests.cpp" />
@@ -125,6 +127,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CsvHelper.h" />
+    <ClInclude Include="Folders.h" />
+    <ClInclude Include="JobManager.h" />
     <ClInclude Include="TestCommands.h" />
     <ClInclude Include="StatusComparison.h" />
     <ClInclude Include="Utilities.h" />
