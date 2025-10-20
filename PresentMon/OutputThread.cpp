@@ -838,11 +838,27 @@ static void PruneOldSwapChainData(
 
     for (auto& pair : gProcesses) {
         auto processInfo = &pair.second;
+
+        // Check if this is DWM process
+        bool isDwmProcess = false;
+        std::wstring processName = processInfo->mModuleName;
+        std::transform(processName.begin(), processName.end(), processName.begin(),
+            [](wchar_t c) { return (wchar_t) ::towlower(c); });
+        if (processName.find(L"dwm.exe") != std::wstring::npos) {
+            isDwmProcess = true;
+        }
+
         for (auto ii = processInfo->mSwapChain.begin(), ie = processInfo->mSwapChain.end(); ii != ie; ) {
+            auto swapChainAddress = ii->first;
             auto chain = &ii->second;
-            if (chain->mLastPresent && chain->mLastPresent->PresentStartTime < minTimestamp) {
+
+            // Don't prune DWM swap chains with address 0x0
+            bool shouldSkipPruning = isDwmProcess && swapChainAddress == 0x0;
+
+            if (!shouldSkipPruning && chain->mLastPresent && chain->mLastPresent->PresentStartTime < minTimestamp) {
                 ii = processInfo->mSwapChain.erase(ii);
-            } else {
+            }
+            else {
                 ++ii;
             }
         }
