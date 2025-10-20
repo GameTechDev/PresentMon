@@ -24,7 +24,7 @@ namespace pmon::util::file
 			fs::remove(path_);
 		}
 	}
-	TempFile TempFile::Create(const std::string& nameIn)
+	TempFile TempFile::Create()
 	{
 		return CreateAt(fs::temp_directory_path());
 	}

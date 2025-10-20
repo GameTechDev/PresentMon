@@ -21,7 +21,7 @@ namespace pmon::util::file
 		bool Empty() const;
         operator bool() const;
 
-		static TempFile Create(const std::string& name = {});
+		static TempFile Create();
 		static TempFile CreateAt(const std::filesystem::path& path, const std::string& name = {});
 		static TempFile AdoptExisting(const std::filesystem::path& path);
 		static std::string MakeRandomName();
