@@ -19,7 +19,7 @@ namespace pmon::util::file
     {
         // open a directory into handle without following reparse at the path leaf
         win::Handle OpenDirNoFollow_(const fs::path& dirPath,
-            DWORD desiredAccess = FILE_LIST_DIRECTORY | READ_CONTROL | WRITE_DAC | SYNCHRONIZE | DELETE,
+            DWORD desiredAccess = FILE_LIST_DIRECTORY | READ_CONTROL | WRITE_DAC | SYNCHRONIZE | FILE_WRITE_ATTRIBUTES,
             DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE)
         {
             auto h = (win::Handle)CreateFileW(
