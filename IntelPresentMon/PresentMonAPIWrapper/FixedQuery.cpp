@@ -98,7 +98,7 @@ namespace pmapi
 
 		// register query
 		assert(pSession_);
-		query_ = pSession_->RegisterDyanamicQuery(rawElements_, winSizeMs_, metricOffsetMs_);
+		query_ = pSession_->RegisterDynamicQuery(rawElements_, winSizeMs_, metricOffsetMs_);
 
 		// make blobs
 		blobs_ = query_.MakeBlobContainer(nBlobs_);

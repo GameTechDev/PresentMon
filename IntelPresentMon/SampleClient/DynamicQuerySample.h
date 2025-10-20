@@ -70,7 +70,7 @@ int AddGpuMetric(pmapi::Session& pSession, unsigned int processId, double window
             elements.push_back(PM_QUERY_ELEMENT{ .metric = gpuMetric, .stat = PM_STAT_AVG, .deviceId = gpuDeviceId, .arrayIndex = 0 });
         }
 
-        auto dynamicQuery = pSession.RegisterDyanamicQuery(elements, windowSize, metricOffset);
+        auto dynamicQuery = pSession.RegisterDynamicQuery(elements, windowSize, metricOffset);
         auto blobs = dynamicQuery.MakeBlobContainer(1u);
 
         if (InitializeConsole() == false) {

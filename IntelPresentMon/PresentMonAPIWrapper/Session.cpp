@@ -83,7 +83,7 @@ namespace pmapi
         return { handle_, pid };
     }
 
-    DynamicQuery Session::RegisterDyanamicQuery(std::span<PM_QUERY_ELEMENT> elements, double winSizeMs, double metricOffsetMs)
+    DynamicQuery Session::RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> elements, double winSizeMs, double metricOffsetMs)
     {
         assert(handle_);
         return { handle_, elements, winSizeMs, metricOffsetMs };
