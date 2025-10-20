@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include "../win/Handle.h"
 
 namespace pmon::util::file
 {
@@ -33,6 +34,7 @@ namespace pmon::util::file
 
     private:
         // data
+        win::Handle hDirectory_;
         std::filesystem::path path_;
         bool deleteOnDestruct_ = false;
         bool isElevated_ = false;

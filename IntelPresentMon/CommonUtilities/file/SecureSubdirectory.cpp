@@ -2,17 +2,13 @@
 #include "../win/WinAPI.h"
 #include "../win/Handle.h"
 #include "../win/HrError.h"
-#include <winternl.h>
+#include "../win/Security.h"
 #include <winioctl.h>
-#include <sddl.h>
 #include <aclapi.h>
 #include <vector>
 #include <filesystem>
 #include "../Exception.h"
 #include "../log/Log.h"
-
-#pragma comment(lib, "Advapi32.lib")
-#pragma comment(lib, "Ntdll.lib")
 
 namespace fs = std::filesystem;
 
@@ -21,9 +17,10 @@ namespace pmon::util::file
     // internal helpers
     namespace
     {
+        // open a directory into handle without following reparse at the path leaf
         win::Handle OpenDirNoFollow_(const fs::path& dirPath,
-            DWORD desiredAccess = FILE_LIST_DIRECTORY | READ_CONTROL | WRITE_DAC | SYNCHRONIZE,
-            DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+            DWORD desiredAccess = FILE_LIST_DIRECTORY | READ_CONTROL | WRITE_DAC | SYNCHRONIZE | DELETE,
+            DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE)
         {
             auto h = (win::Handle)CreateFileW(
                 dirPath.c_str(),
@@ -52,9 +49,8 @@ namespace pmon::util::file
             hdr.ReparseTag = tag;
             hdr.ReparseDataLength = 0;
             hdr.Reserved = 0;
-
             DWORD bytes = 0;
-            BOOL ok = DeviceIoControl(
+            return (bool)DeviceIoControl(
                 h,
                 FSCTL_DELETE_REPARSE_POINT,
                 &hdr,
@@ -62,15 +58,11 @@ namespace pmon::util::file
                 nullptr,
                 0,
                 &bytes,
-                nullptr);
-
-            if (!ok) {
-                pmlog_warn("Could not delete reparse point by handle").hr();
-                return false;
-            }
-            return true;
+                nullptr
+            );
         }
 
+        // check if a directory referenced by the handle has a reparse point
         std::optional<DWORD> IsReparseByHandle_(HANDLE h)
         {
             FILE_ATTRIBUTE_TAG_INFO tag{};
@@ -85,11 +77,11 @@ namespace pmon::util::file
             }
         }
 
-        // Create/open a directory named 'leafName' as a child of 'parent' without following reparses.
+        // Create/open a directory named 'leafName' as a child of 'parent'
+        // If running elevated, additionally undertake the following defensive measures:
         // If the entry is a reparse point, attempt to convert it in place by deleting its reparse
         // attribute; if that fails, delete and recreate as a real directory.
-        // Apply SYSTEM-only DACL by handle if isElevated == true.
-        fs::path CreateOrOpenDirSystemOnlySecure_(const fs::path& parent,
+        win::Handle CreateOrOpenDirSystemOnlySecure_(const fs::path& parent,
             const std::wstring& leafName,
             bool isElevated)
         {
@@ -97,130 +89,89 @@ namespace pmon::util::file
                 throw Except<Exception>("leafName must not contain path separators");
             }
 
-            // 1) Open parent directory by handle (no-follow) and verify/normalize reparse if present.
-            DWORD parentAccess = FILE_LIST_DIRECTORY | SYNCHRONIZE | READ_CONTROL;
-            if (isElevated) parentAccess |= WRITE_DAC;
+            const auto fullpath = parent / leafName;
 
-            auto hParent = (win::Handle)OpenDirNoFollow_(parent, parentAccess);
-            if (!hParent) {
-                throw Except<win::HrError>("Open parent directory failed");
-            }
-
-            if (auto reparseTag = IsReparseByHandle_(hParent)) {
-                // Try to delete the reparse attribute on the parent (best-effort).
-                if (!TryDeleteReparsePointByHandle_(hParent, *reparseTag)) {
-                    throw Except<Exception>("Parent directory is a reparse point and could not be normalized");
-                }
-                // Re-check; if still reparse, bail.
-                if (IsReparseByHandle_(hParent)) {
-                    throw Except<Exception>("Parent directory remains a reparse point after normalization");
-                }
-            }
-
-            // 2) Create/open the child directory *by name relative to parent handle* via NtCreateFile.
-            UNICODE_STRING uName{};
-            uName.Buffer = const_cast<wchar_t*>(leafName.c_str());
-            uName.Length = static_cast<USHORT>(leafName.size() * sizeof(WCHAR));
-            uName.MaximumLength = uName.Length;
-
-            OBJECT_ATTRIBUTES oa{};
-            InitializeObjectAttributes(&oa, &uName, OBJ_CASE_INSENSITIVE, hParent, nullptr);
-
-            IO_STATUS_BLOCK ios{};
-            win::Handle hChild;
-
-            ACCESS_MASK childAccess = FILE_LIST_DIRECTORY | SYNCHRONIZE | READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES;
-            if (isElevated) childAccess |= WRITE_DAC;
-            NTSTATUS st = NtCreateFile(
-                hChild.ClearAndGetAddressOf(),
-                childAccess,
-                &oa,
-                &ios,
-                nullptr, // AllocationSize
-                FILE_ATTRIBUTE_DIRECTORY,
-                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                FILE_OPEN_IF, // create if missing, open if exists
-                FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT, // directory open/create
-                nullptr,
-                0);
-            if (st < 0) {
-                throw Except<Exception>(std::format("NtCreateFile(directory) failed; NTSTATUS:{}", st));
-            }
-
-            // 3) If the child is a reparse point, attempt to normalize it.
-            if (auto reparseTag = IsReparseByHandle_(hChild)) {                
-                if (bool normalized = TryDeleteReparsePointByHandle_(hChild, *reparseTag); !normalized) {
-                    // Close the handle and attempt delete-and-recreate as a plain directory.
-                    hChild.Clear();
-
-                    fs::path full = fs::path(parent) / leafName;
-                    if (!RemoveDirectoryW(full.c_str())) {
-                        pmlog_warn("Failed remove reparse as dir").hr();
-                        // As a last-ditch attempt, if it's a file reparse, try DeleteFileW
-                        if (!DeleteFileW(full.c_str())) {
-                            pmlog_error("Could not remove reparse point").hr();
-                        }
-                    }
-
-                    // Recreate with FILE_CREATE to ensure a brand-new real directory
-                    st = NtCreateFile(
-                        hChild.ClearAndGetAddressOf(),
-                        childAccess,
-                        &oa,
-                        &ios,
-                        nullptr,
-                        FILE_ATTRIBUTE_DIRECTORY,
-                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                        FILE_CREATE,
-                        FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
-                        nullptr,
-                        0);
-                    if (st < 0) {
-                        throw Except<Exception>(std::format(
-                            "Recreate plain directory replacing reparse point failed; NTSTATUS:{}", st));
-                    }
-                }
-                // After dealing with reparse point, confirm it's now plain.
-                if (IsReparseByHandle_(hChild)) {
-                    throw Except<Exception>("Directory remains a reparse point after cleansing efforts");
-                }
-            }
-
-            // 4) Apply SYSTEM-only DACL by handle (no path) - only if running elevated.
+            // setup ACL to apply
+            UniqueLocalPtr<void> pSecDesc;
             if (isElevated) {
-                // SDDL: D:P(A;OICI;FA;;;SY) -> protected DACL, SYSTEM full, inherits to children.
-                LPCWSTR sddl = L"D:P(A;OICI;FA;;;SY)";
-                PSECURITY_DESCRIPTOR psd = nullptr;
-                if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, SDDL_REVISION_1, &psd, nullptr)) {
-                    throw Except<win::HrError>("ConvertStringSecurityDescriptorToSecurityDescriptorW failed");
+                pSecDesc = win::MakeSecurityDescriptor("D:P(A;OICI;FA;;;SY)");
+            }
+            SECURITY_ATTRIBUTES secAttr{
+                .nLength = sizeof(SECURITY_ATTRIBUTES),
+                .lpSecurityDescriptor = pSecDesc.get(),
+            };
+
+            // 1. try and create with ACL
+            const auto CreateNew = [&] {
+                if (CreateDirectoryW(fullpath.c_str(), &secAttr)) {
+                    // successfully created new directory
+                    pmlog_dbg("Created new temp subdir").pmwatch(fullpath.string());
+                    return true;
+                }
+                else if (HRESULT hr = GetLastError(); hr != ERROR_ALREADY_EXISTS) {
+                    throw Except<win::HrError>(hr, "Failed to create secure subdir");
+                }
+                return false;
+            };
+            const auto isFresh = CreateNew();
+
+            // 2. open the existing dir without following any reparse on it
+            auto hExistingSubdir = OpenDirNoFollow_(fullpath);
+            if (!hExistingSubdir) {
+                throw Except<win::HrError>("Failed to open existing subdir by handle");
+            }
+
+            // if dir is not fresh and we are elevated, we have defensive work to do
+            if (!isFresh && isElevated) {
+                // 3. own the existing dir
+                {
+                    // get the dacl out of the security description
+                    PACL pDacl = nullptr;
+                    BOOL daclPresent = FALSE, daclDefaulted = FALSE;
+                    if (!GetSecurityDescriptorDacl(pSecDesc.get(), &daclPresent, &pDacl, &daclDefaulted)) {
+                        throw Except<win::HrError>("GetSecurityDescriptorDacl failed");
+                    }
+                    // set security on the directory object
+                    if (auto rc = SetSecurityInfo(
+                        hExistingSubdir,
+                        SE_FILE_OBJECT,
+                        DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                        nullptr, // owner
+                        nullptr, // group
+                        pDacl,
+                        nullptr  // sacl
+                    ); rc != ERROR_SUCCESS) {
+                        throw Except<win::HrError>(HRESULT(rc), "SetSecurityInfo(DACL) failed");
+                    }
                 }
 
-                PACL dacl = nullptr;
-                BOOL daclPresent = FALSE, daclDefaulted = FALSE;
-                if (!GetSecurityDescriptorDacl(psd, &daclPresent, &dacl, &daclDefaulted)) {
-                    ::LocalFree(psd);
-                    throw Except<win::HrError>("GetSecurityDescriptorDacl failed");
-                }
-
-                DWORD rc = SetSecurityInfo(
-                    hChild,
-                    SE_FILE_OBJECT,
-                    DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-                    nullptr, // owner
-                    nullptr, // group
-                    dacl,
-                    nullptr  // sacl
-                );
-
-                ::LocalFree(psd);
-
-                if (rc != ERROR_SUCCESS) {
-                    throw Except<win::HrError>((HRESULT)rc, "SetSecurityInfo(DACL) failed");
+                // 3. check for reparse
+                if (auto tag = IsReparseByHandle_(hExistingSubdir)) {
+                    pmlog_warn("detected reparse point when estabilishing subdir").pmwatch(fullpath.string());
+                    // 3a. try and remove reparse point
+                    if (TryDeleteReparsePointByHandle_(hExistingSubdir, *tag)) {
+                        pmlog_dbg("deleted reparse point from subdir");
+                    }
+                    else {
+                        pmlog_warn("Failed to delete reparse point from subdir");
+                        // 3b. try to delete entire directory
+                        hExistingSubdir.Clear();
+                        fs::remove_all(fullpath);
+                        // 3c. try and create anew with ACL
+                        if (!CreateNew()) {
+                            throw Except<Exception>("Failed to create new directory after deleting existing");
+                        }
+                        hExistingSubdir = OpenDirNoFollow_(fullpath);
+                    }
+                    // 3d. final check that directory no longer has reparse
+                    if (IsReparseByHandle_(hExistingSubdir)) {
+                        throw Except<Exception>("Could not neutralize reparse obstacle");
+                    }
                 }
             }
 
-            // 5) Return the final absolute path for convenience.
-            return parent / leafName;
+            // we are in the clear
+            return hExistingSubdir;
         }
     }
 
@@ -230,14 +181,11 @@ namespace pmon::util::file
         bool deleteOnDestruct,
         bool clearOnConstruct)
     {
-        if (name.empty()) {
-            throw Except<Exception>("name must not be empty");
-        }
-
         SecureSubdirectory d;
         d.isElevated_ = isElevated;
         d.deleteOnDestruct_ = deleteOnDestruct;
-        d.path_ = CreateOrOpenDirSystemOnlySecure_(parent, name, isElevated);
+        d.path_ = parent / name;
+        d.hDirectory_ = CreateOrOpenDirSystemOnlySecure_(parent, name, isElevated);
 
         if (clearOnConstruct) {
             d.Clear();
@@ -270,7 +218,8 @@ namespace pmon::util::file
         : 
         path_(std::move(other.path_)),
         deleteOnDestruct_(other.deleteOnDestruct_),
-        isElevated_(other.isElevated_)
+        isElevated_(other.isElevated_),
+        hDirectory_(std::move(other.hDirectory_))
     {
         other.deleteOnDestruct_ = false;
         other.path_.clear();
@@ -291,6 +240,7 @@ namespace pmon::util::file
         path_ = std::move(other.path_);
         deleteOnDestruct_ = other.deleteOnDestruct_;
         isElevated_ = other.isElevated_;
+        hDirectory_ = std::move(other.hDirectory_);
         other.deleteOnDestruct_ = false;
         other.path_.clear();
         other.isElevated_ = false;
