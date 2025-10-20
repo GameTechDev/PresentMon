@@ -33,33 +33,19 @@ namespace pmon::util::file
             return h;
         }
 
-        // Minimal header for FSCTL_DELETE_REPARSE_POINT (no reparse data on input).
-        struct REPARSE_DATA_BUFFER_HEADER
-        {
-            DWORD ReparseTag;
-            WORD  ReparseDataLength;
-            WORD  Reserved;
-        };
-
         // Attempt to delete the reparse point attribute on an object handle (directory)
         // Leaves the object in place as a normal directory if supported by the tag.
         static bool TryDeleteReparsePointByHandle_(HANDLE h, DWORD tag)
         {
-            REPARSE_DATA_BUFFER_HEADER hdr{};
-            hdr.ReparseTag = tag;
-            hdr.ReparseDataLength = 0;
-            hdr.Reserved = 0;
+            // Minimal header for FSCTL_DELETE_REPARSE_POINT (no reparse data on input).
+            struct {
+                DWORD ReparseTag;
+                WORD  ReparseDataLength;
+                WORD  Reserved;
+            } hdr{ .ReparseTag = tag };
             DWORD bytes = 0;
-            return (bool)DeviceIoControl(
-                h,
-                FSCTL_DELETE_REPARSE_POINT,
-                &hdr,
-                sizeof(hdr),
-                nullptr,
-                0,
-                &bytes,
-                nullptr
-            );
+            return (bool)DeviceIoControl(h, FSCTL_DELETE_REPARSE_POINT, &hdr, sizeof(hdr),
+                nullptr, 0, &bytes, nullptr);
         }
 
         // check if a directory referenced by the handle has a reparse point
