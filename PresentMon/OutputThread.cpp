@@ -4,10 +4,13 @@
 
 #include "PresentMon.hpp"
 #include "../IntelPresentMon/CommonUtilities/Math.h"
+#include "../IntelPresentMon/CommonUtilities/str/String.h"
 
 #include <algorithm>
 #include <shlwapi.h>
 #include <thread>
+
+using namespace pmon;
 
 static std::thread gThread;
 static bool gQuit = false;
@@ -838,11 +841,22 @@ static void PruneOldSwapChainData(
 
     for (auto& pair : gProcesses) {
         auto processInfo = &pair.second;
+
+        // Check if this is DWM process
+        const bool isDwmProcess =
+            util::str::ToLower(processInfo->mModuleName).contains(L"dwm.exe");
+
         for (auto ii = processInfo->mSwapChain.begin(), ie = processInfo->mSwapChain.end(); ii != ie; ) {
+            auto swapChainAddress = ii->first;
             auto chain = &ii->second;
-            if (chain->mLastPresent && chain->mLastPresent->PresentStartTime < minTimestamp) {
+
+            // Don't prune DWM swap chains with address 0x0
+            bool shouldSkipPruning = isDwmProcess && swapChainAddress == 0x0;
+
+            if (!shouldSkipPruning && chain->mLastPresent && chain->mLastPresent->PresentStartTime < minTimestamp) {
                 ii = processInfo->mSwapChain.erase(ii);
-            } else {
+            }
+            else {
                 ++ii;
             }
         }
