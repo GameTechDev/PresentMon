@@ -59,5 +59,8 @@
     <ClInclude Include="JobManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="TestProcess.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

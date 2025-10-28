@@ -380,17 +380,13 @@ int main(int argc, char* argv[])
         default:
             throw std::runtime_error{ "unknown sample client mode" };
         }
-
-        // exit code
-        return 0;
-    }
-    catch (const std::exception& e) {
-        std::cout << "Error: " << e.what() << std::endl;
-        return -1;
     }
     catch (...) {
-        std::cout << "Unknown Error" << std::endl;
+        const auto exr = pmon::util::ReportException();
+        std::cout << "Error: " << exr.first << std::endl;
+        pmlog_error(exr);
         return -1;
     }
 
+    return 0;
 }
