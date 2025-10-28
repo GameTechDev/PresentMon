@@ -4,7 +4,6 @@
 #include "CppUnitTest.h"
 #include "StatusComparison.h"
 #include "TestProcess.h"
-#include "../PresentMonAPI2Loader/Loader.h"
 #include <string>
 #include <ranges>
 #include "Folders.h"

@@ -239,6 +239,7 @@ private:
 		catch (...) {
 			Logger::WriteMessage(std::format("Failed to find executable matching: [{}]", pattern).c_str());
 			Assert::IsTrue(false);
+			return "";
 		}
 	}
 };
