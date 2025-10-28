@@ -146,7 +146,7 @@ namespace p2c::kern
 				try {
 					int pid = std::stoi(line);
 					const auto pipeName = inj::act::MakePipeName(pid);
-					::pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 2'000, 250);
+					::pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 2'000, 250);
 					{
 						std::lock_guard lk{ actionClientMutex_ };
 						injectionPointClient_.emplace(pipeName);

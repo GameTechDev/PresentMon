@@ -48,7 +48,7 @@ namespace pmon::mid
 
         // Try to open a named pipe; wait for it, if necessary
         try {
-            if (!pipe::DuplexPipe::WaitForAvailability(pipeName + "-in"s, 500)) {
+            if (!pipe::DuplexPipe::WaitForAvailability(pipeName, 500)) {
                 throw std::runtime_error{ "Timeout waiting for service action pipe to become available" };
             }
             pActionClient = std::make_shared<ActionClient>(pipeName);

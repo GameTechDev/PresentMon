@@ -5,9 +5,10 @@
 #include "CppUnitTest.h"
 #include "JobManager.h"
 #include "TestCommands.h"
+#include "../CommonUtilities/file/FileUtils.h"
+#include "../CommonUtilities/pipe/Pipe.h"
 #include <boost/process.hpp>
 #include <cereal/archives/json.hpp>
-#include <boost/asio.hpp>
 #include <iostream>
 #include <format>
 #include <sstream>
@@ -17,6 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace as = boost::asio;
 namespace bp = boost::process;
 namespace as = boost::asio;
+namespace fs = std::filesystem;
 using namespace std::literals;
 using namespace pmon;
 
@@ -30,6 +32,7 @@ struct CommonProcessArgs
 	std::string sampleClientMode;
 };
 
+// base class to represent child processes launched by test cases
 class TestProcess
 {
 public:
@@ -67,6 +70,10 @@ public:
 	uint32_t GetId() const
 	{
 		return process_.id();
+	}
+	void Wait()
+	{
+		process_.wait();
 	}
 	std::string Command(const std::string& command)
 	{
@@ -133,6 +140,7 @@ protected:
 	std::string GetCommandResponsePostamble_() const override { return "}%%\r\n"; }
 };
 
+// service as child
 class ServiceProcess : public ConnectedTestProcess
 {
 public:
@@ -210,10 +218,32 @@ public:
 	PresenterProcess(as::io_context& ioctx, JobManager& jm, const std::vector<std::string>& customArgs)
 		:
 		TestProcess{ ioctx, jm, R"(..\..\Tools\PresentBench.exe)", customArgs }
+	{}
+};
+
+// original presentmon console application
+class OpmProcess : public TestProcess
+{
+public:
+	OpmProcess(as::io_context& ioctx, JobManager& jm, const std::vector<std::string>& customArgs)
+		:
+		TestProcess{ ioctx, jm, LocateExecutable_(), customArgs }
+	{}
+private:
+	static std::string LocateExecutable_()
 	{
+		const auto pattern = R"(^PresentMon-\d+\.\d+\.\d+-x64\.exe$)";
+		try {
+			return util::file::FindFilesMatchingPattern(fs::current_path(), pattern).at(0).string();
+		}
+		catch (...) {
+			Logger::WriteMessage(std::format("Failed to find executable matching: [{}]", pattern).c_str());
+			Assert::IsTrue(false);
+		}
 	}
 };
 
+// fixture to embed into each test class to give common setup/cleanup/child management
 class CommonTestFixture
 {
 public:
@@ -228,10 +258,12 @@ public:
 
 	void Setup(const std::vector<std::string>& args = {})
 	{
-		service.emplace(ioctx, jobMan, args, GetCommonArgs_());
+		const auto& common = GetCommonArgs_();
+		service.emplace(ioctx, jobMan, args, common);
 		ioctxRunThread = std::thread{ [&] {try{ioctx.run();}catch(...){}} };
-		// wait before every test to ensure that service is available
-		std::this_thread::sleep_for(50ms);
+		// ensure that service pipe is available
+		Assert::IsTrue(util::pipe::DuplexPipe::WaitForAvailability(common.ctrlPipe, 250),
+			L"Timed out waiting for pipe availability");
 	}
 	void Cleanup()
 	{
@@ -251,6 +283,10 @@ public:
 	PresenterProcess LaunchPresenter(const std::vector<std::string>& args = {})
 	{
 		return PresenterProcess{ ioctx, jobMan, args };
+	}
+	OpmProcess LaunchOpm(const std::vector<std::string>& args = {})
+	{
+		return OpmProcess{ ioctx, jobMan, args };
 	}
 protected:
 	virtual const CommonProcessArgs& GetCommonArgs_() const = 0;

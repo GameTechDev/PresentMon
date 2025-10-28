@@ -291,7 +291,7 @@ namespace PacedPollingTests
 						"--etl-test-file"s, etlName,
 						"--pace-playback" };
 					// wait until child svc is ready to accept connections, fail if it takes too long
-					Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+					Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 						L"Timeout waiting for service control pipe");
 					// connect to svc and get introspection
 					pmapi::Session api{ pipeName };
