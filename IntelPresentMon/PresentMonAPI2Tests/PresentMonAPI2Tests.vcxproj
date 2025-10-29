@@ -99,7 +99,7 @@
     <ClCompile Include="EtlLoggerTests.cpp" />
     <ClCompile Include="ModuleInit.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
-    <ClCompile Include="PolledPacedTests.cpp" />
+    <ClCompile Include="PacedPollingTests.cpp" />
     <ClCompile Include="WrapperIntrospectionTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />
     <ClCompile Include="Logging.cpp" />

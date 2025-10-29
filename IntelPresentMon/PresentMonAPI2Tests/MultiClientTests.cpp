@@ -20,7 +20,7 @@ namespace MultiClientTests
 	class TestFixture : public CommonTestFixture
 	{
 	protected:
-		const CommonProcessArgs& GetCommonArgs_() const override
+		const CommonProcessArgs& GetCommonArgs() const override
 		{
 			static CommonProcessArgs args{
 				.ctrlPipe = R"(\\.\pipe\pm-multi-test-ctrl)",

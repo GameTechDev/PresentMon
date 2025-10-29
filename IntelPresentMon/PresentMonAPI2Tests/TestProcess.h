@@ -259,7 +259,7 @@ public:
 
 	void Setup(const std::vector<std::string>& args = {})
 	{
-		const auto& common = GetCommonArgs_();
+		const auto& common = GetCommonArgs();
 		service.emplace(ioctx, jobMan, args, common);
 		ioctxRunThread = std::thread{ [&] {try{ioctx.run();}catch(...){}} };
 		// ensure that service pipe is available
@@ -275,11 +275,11 @@ public:
 	}
 	ClientProcess LaunchClient(const std::vector<std::string>& args = {})
 	{
-		return ClientProcess{ ioctx, jobMan, args, GetCommonArgs_() };
+		return ClientProcess{ ioctx, jobMan, args, GetCommonArgs() };
 	}
 	std::unique_ptr<ClientProcess> LaunchClientAsPtr(const std::vector<std::string>& args = {})
 	{
-		return std::make_unique<ClientProcess>(ioctx, jobMan, args, GetCommonArgs_());
+		return std::make_unique<ClientProcess>(ioctx, jobMan, args, GetCommonArgs());
 	}
 	PresenterProcess LaunchPresenter(const std::vector<std::string>& args = {})
 	{
@@ -289,8 +289,7 @@ public:
 	{
 		return OpmProcess{ ioctx, jobMan, args };
 	}
-protected:
-	virtual const CommonProcessArgs& GetCommonArgs_() const = 0;
+	virtual const CommonProcessArgs& GetCommonArgs() const = 0;
 private:
 	JobManager jobMan;
 	std::thread ioctxRunThread;

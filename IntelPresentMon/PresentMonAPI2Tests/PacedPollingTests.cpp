@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
-#include <boost/process/v1/child.hpp>
+#include "TestProcess.h"
+#include "Folders.h"
 #include <vincentlaucsb-csv-parser/csv.hpp>
+#include "../CommonUtilities/IntervalWaiter.h"
 #include "../PresentMonAPI2Loader/Loader.h"
 #include "../PresentMonAPI2/Internal.h"
-#include "../CommonUtilities/pipe/Pipe.h"
-#include "../CommonUtilities/IntervalWaiter.h"
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include <string>
 #include <iostream>
@@ -20,19 +20,34 @@
 #include <numeric>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-namespace bp = boost::process::v1;
 namespace fs = std::filesystem;
 namespace rn = std::ranges;
 namespace vi = rn::views;
 using namespace std::literals;
 using namespace pmon;
 
-namespace PacedPollingTests
+namespace PacedPolling
 {
+	class TestFixture : public CommonTestFixture
+	{
+	public:
+		const CommonProcessArgs& GetCommonArgs() const override
+		{
+			static CommonProcessArgs args{
+				.ctrlPipe = R"(\\.\pipe\pm-paced-polling-test-ctrl)",
+				.introNsm = "pm_paced_polling_test_intro",
+				.frameNsm = "pm_paced_polling_test_nsm",
+				.logLevel = "debug",
+				.logFolder = logFolder_,
+				.sampleClientMode = "MultiClient",
+			};
+			return args;
+		}
+	};
+
 	std::vector<double> ExtractColumn(const std::vector<std::vector<double>>& mat, std::size_t i)
 	{
-		return mat | vi::transform([i](auto const& row) { return row[i]; })
-			| rn::to<std::vector>();
+		return mat | vi::transform([i](auto const& row) { return row[i]; }) | rn::to<std::vector>();
 	}
 
 	class BlobReader
@@ -250,9 +265,18 @@ namespace PacedPollingTests
 
 	TEST_CLASS(PacedPollingTests)
 	{
+		TestFixture fixture_;
 	public:
+		TEST_METHOD_INITIALIZE(Setup)
+		{
+			fixture_.Setup({
+				"--etl-test-file"s, "Heaven-win-vsync-2080ti.etl"s,
+				"--pace-playback"s,
+			});
+		}
 		TEST_METHOD_CLEANUP(Cleanup)
 		{
+			fixture_.Cleanup();
 		}
 		TEST_METHOD(PollDynamic)
 		{
@@ -260,13 +284,8 @@ namespace PacedPollingTests
 			const auto recordingStart = 1s;
 			const auto recordingStop = 14s;
 
-			const auto pipeName = R"(\\.\pipe\pm-poll-test-act)"s;
-			const auto etlName = "Heaven-win-vsync-2080ti.etl"s;
 			const auto goldCsvPath = R"(..\..\Tests\PacedGold\polled_gold.csv)"s;
-			const auto outputBasePath = R"(PacedTest\Polled1\)"s;
 			const auto toleranceFactor = 0.02;
-
-			std::filesystem::create_directories(outputBasePath);
 
 			pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
 			pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
@@ -283,18 +302,8 @@ namespace PacedPollingTests
 					if (x > 0) {
 						std::this_thread::sleep_for(50ms);
 					}
-
-					bp::child svc{ "PresentMonService.exe"s,
-						"--control-pipe"s, pipeName,
-						"--nsm-prefix"s, "pmon_poll_test_nsm"s,
-						"--intro-nsm"s, "pm_poll_test_intro"s,
-						"--etl-test-file"s, etlName,
-						"--pace-playback" };
-					// wait until child svc is ready to accept connections, fail if it takes too long
-					Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
-						L"Timeout waiting for service control pipe");
 					// connect to svc and get introspection
-					pmapi::Session api{ pipeName };
+					pmapi::Session api{ fixture_.GetCommonArgs().ctrlPipe };
 					auto pIntro = api.GetIntrospectionRoot();
 					// build the query element set via introspect if not yet built (first run only)
 					if (qels.empty()) {
@@ -335,7 +344,7 @@ namespace PacedPollingTests
 						waiter.Wait();
 					}
 					// write the full run data to csv file
-					WriteRunToCsv(std::format("{}test_run_{}.csv", outputBasePath, allRuns.size()), header, rows);
+					WriteRunToCsv(std::format("{}test_run_{}.csv", outFolder_, allRuns.size()), header, rows);
 					// append run data to the vector of all runs
 					allRuns.push_back(std::move(rows));
 				}
@@ -350,13 +359,13 @@ namespace PacedPollingTests
 					// loop over all runs in memory and compare with gold, write results
 					for (auto&& [i, run] : vi::enumerate(allRuns)) {
 						auto results = CompareRuns(qels, run, gold, toleranceFactor);
-						WriteResults(std::format("{}results_{}.csv", outputBasePath, i), header, results);
+						WriteResults(std::format("{}results_{}.csv", outFolder_, i), header, results);
 						allResults.push_back(std::move(results));
 					}
 				};
 				const auto ValidateAndWriteAggregateResults = [&] {
 					// output aggregate results of all runs
-					std::ofstream aggStream{ outputBasePath + "results_agg.csv"s };
+					std::ofstream aggStream{ outFolder_ + "results_agg.csv"s };
 					auto aggWriter = csv::make_csv_writer(aggStream);
 					aggWriter << std::array{ "#"s, "n-miss-total"s, "n-miss-max"s, "mse-total"s, "mse-max"s };
 					int nFail = 0;
@@ -411,7 +420,7 @@ namespace PacedPollingTests
 						// compare run A vs run B
 						auto results = CompareRuns(qels, allRuns[iA], allRuns[iB], toleranceFactor);
 						// write per-pair results
-						WriteResults(std::format("{}round_robin_{}_{}.csv", outputBasePath, iA, iB), header, results);
+						WriteResults(std::format("{}round_robin_{}_{}.csv", outFolder_, iA, iB), header, results);
 
 						// accumulate total mismatches for ranking
 						size_t sumMiss = 0;
@@ -424,7 +433,7 @@ namespace PacedPollingTests
 				}
 
 				// write aggregate ranking of runs by total mismatches
-				std::ofstream aggStream{ outputBasePath + "round_robin_agg.csv"s };
+				std::ofstream aggStream{ outFolder_ + "round_robin_agg.csv"s };
 				auto aggWriter = csv::make_csv_writer(aggStream);
 				aggWriter << std::array{ "#"s, "n-miss-total"s };
 				for (size_t i = 0; i < mismatchTotals.size(); ++i) {
