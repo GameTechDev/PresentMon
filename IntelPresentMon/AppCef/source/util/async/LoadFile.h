@@ -29,7 +29,7 @@ namespace p2c::client::util::async
             }
             else {
                 auto s = std::format("Unable to open file path: {}", filePath.string());
-                pmlog_error(s);
+                pmlog_warn(s);
                 throw std::runtime_error{ s };
             }
         }

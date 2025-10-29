@@ -436,14 +436,14 @@ namespace p2c::kern
             }
             else {
                 const auto folder = FR::Get().Resolve(FR::Folder::Documents, FR::capturesSubdirectory);
-                fullPath = std::format(L"{0}{1}-{3}-{2:%y}{2:%m}{2:%d}-{2:%H}{2:%M}{2:%OS}.csv",
+                fullPath = std::format(L"{0}\\{1}-{3}-{2:%y}{2:%m}{2:%d}-{2:%H}{2:%M}{2:%OS}.csv",
                     folder, pSpec->captureName, now, proc.name);
             }
             // create optional path for stats file
             auto fullStatsPath = [&]() -> std::optional<std::wstring> {
                 if (pSpec->generateStats) {
                     const auto folder = FR::Get().Resolve(FR::Folder::Documents, FR::capturesSubdirectory);
-                    return std::format(L"{0}{1}-{3}-{2:%y}{2:%m}{2:%d}-{2:%H}{2:%M}{2:%OS}-stats.csv",
+                    return std::format(L"{0}\\{1}-{3}-{2:%y}{2:%m}{2:%d}-{2:%H}{2:%M}{2:%OS}-stats.csv",
                         folder, pSpec->captureName, now, proc.name);
                 }
                 else {

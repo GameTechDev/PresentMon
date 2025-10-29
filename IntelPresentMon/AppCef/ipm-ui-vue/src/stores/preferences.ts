@@ -159,8 +159,8 @@ export const usePreferencesStore = defineStore('preferences', () => {
       await hotkeys.bindDefaults();
       resetPreferences();
       preferences.value.selectedPreset = Preset.Slot1;
-      console.warn('Preferences reset due to load failure: ' + e)
-      notes.notify({ text: `Preferences reset due to load failure: ${e}` })
+      serialize();
+      console.info('Preferences reset due to load failure: ' + e);
     }
   }
 
