@@ -211,6 +211,8 @@ struct PresentMon : PROCESS_INFORMATION {
     static std::wstring exePath_;
     std::wstring cmdline_;
     bool csvArgSet_;
+    HANDLE hOutputRead_ = NULL;
+    HANDLE hOutputWrite_ = NULL;
 
     PresentMon();
     ~PresentMon();
@@ -226,6 +228,9 @@ struct PresentMon : PROCESS_INFORMATION {
     // Expect the process to exit with expectedExitCode within
     // timeoutMilliseconds (or kill it otherwise).
     void ExpectExited(char const* file, int line, DWORD timeoutMilliseconds=INFINITE, DWORD expectedExitCode=0);
+
+    // Read all output from the process.
+    std::string GetOutput();
 };
 
 #define PMSTART() Start(__FILE__, __LINE__)
