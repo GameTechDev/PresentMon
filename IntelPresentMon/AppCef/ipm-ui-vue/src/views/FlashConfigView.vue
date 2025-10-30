@@ -97,12 +97,38 @@ watch(
 
       <v-row class="mt-8">
         <v-col cols="3">
+          Rainbow Strip
+          <p class="text-medium-emphasis text-caption mb-0">Draw a strip on the left-hand side of the screen that cycles through colors every frame.</p>
+        </v-col>
+        <v-col cols="9">
+          <v-switch v-model="prefs.preferences.flashInjectionUseRainbow" label="Enable"></v-switch>
+        </v-col>
+      </v-row>
+
+      <v-row class="mt-8">
+        <v-col cols="3">
           Flash Width
-          <p class="text-medium-emphasis text-caption mb-0">Width of the flash rectangle and background</p>
+          <p class="text-medium-emphasis text-caption mb-0">Width of the flash rectangle</p>
         </v-col>
         <v-col cols="9">
           <v-slider
             v-model="prefs.preferences.flashInjectionSize"
+            :min="0.01"
+            :max="1"
+            :step="0.01"
+            thumb-label="always"
+          ></v-slider>
+        </v-col>
+      </v-row>
+
+      <v-row class="mt-8">
+        <v-col cols="3">
+          Background Width
+          <p class="text-medium-emphasis text-caption mb-0">Width of the background rectangle (if active)</p>
+        </v-col>
+        <v-col cols="9">
+          <v-slider
+            v-model="prefs.preferences.flashInjectionBackgroundSize"
             :min="0.01"
             :max="1"
             :step="0.01"
@@ -122,6 +148,22 @@ watch(
             :min="0"
             :max="1"
             :step="0.01"
+            thumb-label="always"
+          ></v-slider>
+        </v-col>
+      </v-row>
+
+      <v-row class="mt-8">
+        <v-col cols="3">
+          Flash Duration
+          <p class="text-medium-emphasis text-caption mb-0">Duration of the flash in seconds.</p>
+        </v-col>
+        <v-col cols="9">
+          <v-slider
+            v-model="prefs.preferences.flashInjectionFlashDuration"
+            :min="0"
+            :max="1"
+            :step="0.001"
             thumb-label="always"
           ></v-slider>
         </v-col>

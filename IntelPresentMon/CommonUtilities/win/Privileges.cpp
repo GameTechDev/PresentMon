@@ -1,5 +1,6 @@
 ﻿#include "Privileges.h"
 #include "HrError.h"
+#include "../log/Log.h"
 #include <format>
 #include "../Memory.h"
 
@@ -116,9 +117,15 @@ namespace pmon::util::win
 	}
 	bool WeAreElevated() noexcept
 	{
-		auto hToken = OpenCurrentProcessToken(TOKEN_QUERY);
-		TOKEN_ELEVATION elev{}; DWORD len = 0;
-		GetTokenInformation(hToken, TokenElevation, &elev, sizeof(elev), &len);
-		return bool(elev.TokenIsElevated);
+		try {
+			auto hToken = OpenCurrentProcessToken(TOKEN_QUERY);
+			TOKEN_ELEVATION elev{}; DWORD len = 0;
+			GetTokenInformation(hToken, TokenElevation, &elev, sizeof(elev), &len);
+			return bool(elev.TokenIsElevated);
+		}
+		catch (...) {
+			pmlog_error("Error checking elevation");
+			return false;
+		}
 	}
 }

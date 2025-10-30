@@ -28,6 +28,10 @@ namespace pmon::util::log
 	{
 		pFormatter_ = std::move(pFormatter);
 	}
+	std::shared_ptr<ITextFormatter> StdioDriver::GetFormatter() const
+	{
+		return pFormatter_;
+	}
 	void StdioDriver::Flush()
 	{
 		if (useStderr_) {

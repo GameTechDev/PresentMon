@@ -28,6 +28,7 @@ namespace p2c::kern
 {
 	namespace rn = std::ranges;
 	namespace vi = std::views;
+	using v = ::pmon::util::log::V;
 	// maps QualifiedMetrics to packs (data sinks + sources)
 	// interacts with MetricFetcherFactory (outputs range of QualifiedMetrics, inputs Fetchers and poll obj)
 	// manages carry-over of graph data buffers between pushes while refreshing query / fetchers
@@ -62,7 +63,7 @@ namespace p2c::kern
 			usageMap_.clear();
 			// build vector of qmet
 			const auto qualifiedMetrics = metricPackMap_ | vi::keys | rn::to<std::vector>();
-			pmlog_verb(v::metric)("Metrics for query build:\n" + [&] { return qualifiedMetrics |
+			pmlog_verb(v::core_metric)("Metrics for query build:\n" + [&] { return qualifiedMetrics |
 				vi::transform([](auto& q) {return "    " + q.Dump(); }) |
 				vi::join_with('\n') | rn::to<std::basic_string>(); }());
 			// build fetchers / query
@@ -82,11 +83,11 @@ namespace p2c::kern
 			auto& pPack = metricPackMap_[qmet];
 			if (!pPack.graphData) {
 				pPack.graphData = std::make_shared<gfx::lay::GraphData>(timeWindow);
-				pmlog_verb(v::metric)(std::format("AddGraph[new]> {}", qmet.Dump()));
+				pmlog_verb(v::core_metric)(std::format("AddGraph[new]> {}", qmet.Dump()));
 			}
 			else if (pPack.graphData->GetWindowSize() != timeWindow) {
 				pPack.graphData->Resize(timeWindow);
-				pmlog_verb(v::metric)(std::format("AddGraph[resize]> {}", qmet.Dump()));
+				pmlog_verb(v::core_metric)(std::format("AddGraph[resize]> {}", qmet.Dump()));
 			}
 			usageMap_[qmet].graph = true;
 		}
@@ -95,7 +96,7 @@ namespace p2c::kern
 			auto& pPack = metricPackMap_[qmet];
 			if (!pPack.textData) {
 				pPack.textData = std::make_shared<std::wstring>();
-				pmlog_verb(v::metric)(std::format("AddReadout[new]> {}", qmet.Dump()));
+				pmlog_verb(v::core_metric)(std::format("AddReadout[new]> {}", qmet.Dump()));
 			}
 			usageMap_[qmet].text = true;
 		}

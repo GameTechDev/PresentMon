@@ -3,7 +3,7 @@
 #include "IDriver.h"
 #include "IChannelObject.h"
 #include "Entry.h"
-#include <concurrentqueue\blockingconcurrentqueue.h>
+#include <concurrentqueue/moodycamel/blockingconcurrentqueue.h>
 #include <variant>
 #include <semaphore>
 #include "PanicLogger.h"
@@ -39,6 +39,23 @@ namespace pmon::util::log
 				}
 				else if (ptr) {
 					vec.push_back(std::make_pair(std::move(tag), std::move(ptr)));
+				}
+			}
+		}
+		// find in vector with tag
+		template<typename T>
+		std::shared_ptr<T> Find_(const std::vector<std::pair<std::string, std::shared_ptr<T>>>& vec, const std::string& tag)
+		{
+			if (tag.empty()) {
+				return {};
+			}
+			else {
+				using PairType = std::decay_t<decltype(vec)>::value_type;
+				if (auto i = rn::find(vec, tag, &PairType::first); i != vec.end()) {
+					return i->second;
+				}
+				else {
+					return {};
 				}
 			}
 		}
@@ -184,6 +201,25 @@ namespace pmon::util::log
 			std::lock_guard lk{ mtx_ };
 			AttachComponent_(std::move(pComponent), std::move(tag));
 		}
+		std::shared_ptr<IChannelComponent> ChannelInternal_::GetComponentBlocking(std::string tag) const
+		{
+			if (tag.empty()) {
+				return {};
+			}
+			std::lock_guard lk{ mtx_ };
+			// search in order driver, policy, channelObject with that priority
+			if (auto p = Find_(driverPtrs_, tag)) {
+				return p;
+			}
+			else if (auto p = Find_(policyPtrs_, tag)) {
+				return p;
+			}
+			else if (auto p = Find_(objectPtrs_, tag)) {
+				return p;
+			}
+
+			return {};
+		}
 		void ChannelInternal_::RemoveComponentByTagBlocking(const std::string& tag)
 		{
 			std::lock_guard lk{ mtx_ };
@@ -274,6 +310,10 @@ namespace pmon::util::log
 		else if (!tag.empty()) {
 			RemoveComponentByTagBlocking(tag);
 		}
+	}
+	std::shared_ptr<IChannelComponent> Channel::GetComponent(std::string tag) const
+	{
+		return GetComponentBlocking(std::move(tag));
 	}
 	void Channel::FlushEntryPointExit()
 	{

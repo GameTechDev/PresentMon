@@ -1,6 +1,6 @@
 #pragma once
 #include "StaticQuery.h"
-#include "../PresentMonAPIWrapperCommon/Exception.h"
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/Exception.h>
 
 namespace pmapi
 {

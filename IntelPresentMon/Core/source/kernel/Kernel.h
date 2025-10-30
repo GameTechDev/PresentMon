@@ -42,7 +42,7 @@ namespace p2c::kern
     class Kernel
     {
     public:
-        Kernel(KernelHandler* pHandler);
+        Kernel(KernelHandler* pHandler, bool headless);
         Kernel(const Kernel&) = delete;
         Kernel& operator=(const Kernel&) = delete;
         ~Kernel();
@@ -54,6 +54,7 @@ namespace p2c::kern
         void SetAdapter(uint32_t id);
         std::vector<pmon::AdapterInfo> EnumerateAdapters() const;
         void SetCapture(bool active);
+        void SetEtlLogging(bool active);
         const pmapi::intro::Root& GetIntrospectionRoot() const;
     private:
         // functions
@@ -81,5 +82,6 @@ namespace p2c::kern
         std::exception_ptr marshalledException;
         std::atomic<bool> hasMarshalledException = false;
         ::pmon::util::mt::Thread thread;
+        bool headless;
     };
 }

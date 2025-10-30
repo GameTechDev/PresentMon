@@ -1,6 +1,7 @@
+#include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
 #include "StatusComparison.h"
-#include <boost/process.hpp>
+#include <boost/process/v1/child.hpp>
 #include "../PresentMonAPI2/Internal.h"
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include "../PresentMonAPI2Loader/Loader.h"
@@ -20,7 +21,7 @@ namespace EndToEndTests
 	{
 		std::string ctlPipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
 		std::string introName = "PM_intro_test_nsm_2"s;
-		std::optional<boost::process::child> oChild;
+		std::optional<boost::process::v1::child> oChild;
 		std::optional<Session> oSession;
 		std::shared_ptr<intro::Root> pData;
 	public:

@@ -31,12 +31,22 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
-			if (auto sta = ctx.pPmon->SetGpuTelemetryPeriod(in.telemetrySamplePeriodMs); sta != PM_STATUS_SUCCESS) {
-				pmlog_error("Set telemetry period failed").code(sta);
-				throw util::Except<ActionExecutionError>(sta);
+			// make sure requested period is within allowed range
+			if (in.telemetrySamplePeriodMs) {
+				if (in.telemetrySamplePeriodMs < PM_TELEMETRY_PERIOD_MIN ||
+					in.telemetrySamplePeriodMs > PM_TELEMETRY_PERIOD_MAX) {
+					const auto sta = PM_STATUS::PM_STATUS_OUT_OF_RANGE;
+					pmlog_error("Set telemetry period failed").pmwatch(in.telemetrySamplePeriodMs).code(sta);
+					throw util::Except<ActionExecutionError>(sta);
+				}
 			}
+			// set request for this session
 			stx.requestedTelemetryPeriodMs = in.telemetrySamplePeriodMs;
-			pmlog_dbg(std::format("Setting telemetry sample period to {}ms", in.telemetrySamplePeriodMs));
+			// update the service
+			ctx.UpdateTelemetryPeriod();
+
+			pmlog_dbg(std::format("Requested telemetry sample period of {}ms by client [{}]",
+				in.telemetrySamplePeriodMs, stx.remotePid));
 			return {};
 		}
 	};

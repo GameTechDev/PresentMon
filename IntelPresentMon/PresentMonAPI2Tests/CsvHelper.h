@@ -694,9 +694,6 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
             case Header_MsPCLatency:
                 if (v2MetricRow_.msPcLatency.has_value()) {
                     columnsMatch = Validate(v2MetricRow_.msPcLatency.value(), msPcLatency);
-                    if (!columnsMatch) {
-                        OutputDebugStringA("What!?\n");
-                    }
                 }
                 else
                 {

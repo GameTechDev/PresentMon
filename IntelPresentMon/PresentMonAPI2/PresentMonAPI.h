@@ -10,7 +10,9 @@
 #include <cstdint>
 
 #define PM_API_VERSION_MAJOR 3
-#define PM_API_VERSION_MINOR 0
+#define PM_API_VERSION_MINOR 2
+
+#define PM_MAX_PATH 260
 
 #ifdef __cplusplus
 extern "C" {
@@ -384,6 +386,7 @@ extern "C" {
 	typedef struct PM_DYNAMIC_QUERY* PM_DYNAMIC_QUERY_HANDLE;
 	typedef struct PM_FRAME_QUERY* PM_FRAME_QUERY_HANDLE;
 	typedef struct PM_SESSION* PM_SESSION_HANDLE;
+	typedef uint32_t PM_ETL_HANDLE;
 
 	// open a session (connection) to the PresentMon service, outputting a session handle required for most other API calls
 	PRESENTMON_API2_EXPORT PM_STATUS pmOpenSession(PM_SESSION_HANDLE* pHandle);
@@ -399,10 +402,14 @@ extern "C" {
 	PRESENTMON_API2_EXPORT PM_STATUS pmGetIntrospectionRoot(PM_SESSION_HANDLE handle, const PM_INTROSPECTION_ROOT** ppRoot);
 	// free the introspection tree structure
 	PRESENTMON_API2_EXPORT PM_STATUS pmFreeIntrospectionRoot(const PM_INTROSPECTION_ROOT* pRoot);
-	// sets the rate at which hardware telemetry (including CPU) is polled on a per-device basis
-	PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE handle, uint32_t deviceId, uint32_t timeMs);
+	// sets the rate at which hardware telemetry (including CPU) is polled
+	PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE handle, uint32_t reserved, uint32_t timeMs);
+#define PM_TELEMETRY_PERIOD_MIN 4
+#define PM_TELEMETRY_PERIOD_MAX 5000
 	// sets the rate at which ETW event buffers are flushed, affecting the delay of frame data reported by PresentMon
+	// a value of zero indicates to use current service setting (default or value requested by other client)
 	PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, uint32_t periodMs);
+#define PM_ETW_FLUSH_PERIOD_MAX 1000
 	// register a dynamic query used for polling metric data with (optional) statistic processing such as average or percentile
 	PRESENTMON_API2_EXPORT PM_STATUS pmRegisterDynamicQuery(PM_SESSION_HANDLE sessionHandle, PM_DYNAMIC_QUERY_HANDLE* pHandle, PM_QUERY_ELEMENT* pElements, uint64_t numElements, double windowSizeMs, double metricOffsetMs);
 	// free the resources associated with a registered dynamic query
@@ -419,6 +426,11 @@ extern "C" {
 	PRESENTMON_API2_EXPORT PM_STATUS pmFreeFrameQuery(PM_FRAME_QUERY_HANDLE handle);
 	// retrieve the API version of the PresentMon service / middleware DLL
 	PRESENTMON_API2_EXPORT PM_STATUS pmGetApiVersion(PM_VERSION* pVersion);
+	// start an ETL file logging trace
+	PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE* pEtlHandle, uint64_t reserved1, uint64_t reserved2);
+	// finish an ETL file logging trace and receive the path to the ETL (pass in pointer to a buffer of size PM_MAX_PATH)
+	PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE etlHandle,
+		char* pOutputFilePathBuffer, uint32_t bufferSize);
 
 #ifdef __cplusplus
 } // extern "C"

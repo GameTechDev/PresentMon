@@ -86,6 +86,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ntdll.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -106,6 +107,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <UACUIAccess>true</UACUIAccess>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ntdll.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>SignTool sign /a /v /s PrivateCertStore /n "Test Certificate - For Internal Use Only" /t http://timestamp.comodoca.com/authenticode /fd sha1 "$(OutDir)$(TargetFileName)"</Command>
@@ -132,6 +134,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <UACUIAccess>true</UACUIAccess>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ntdll.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -146,6 +149,9 @@
     </ProjectReference>
     <ProjectReference Include="..\Interprocess\Interprocess.vcxproj">
       <Project>{ca23d648-daef-4f06-81d5-fe619bd31f0b}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\PresentMonAPIWrapper\PresentMonAPIWrapper.vcxproj">
+      <Project>{cee032ed-b0d3-47f8-bdae-d46757b0061b}</Project>
     </ProjectReference>
     <ProjectReference Include="..\Versioning\Versioning.vcxproj">
       <Project>{c73aa532-e532-4d93-9279-905444653c08}</Project>
@@ -167,6 +173,7 @@
     <ClInclude Include="kact\PushSpecification.h" />
     <ClInclude Include="kact\SetAdapter.h" />
     <ClInclude Include="kact\SetCapture.h" />
+    <ClInclude Include="kact\SetEtlLogging.h" />
     <ClInclude Include="MakeOverlaySpec.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
@@ -175,6 +182,14 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="flask.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="presentmon-cli.cmd">
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</DeploymentContent>
+      <FileType>Document</FileType>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release-EDSS|x64'">true</DeploymentContent>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</DeploymentContent>
+    </CopyFileToFolders>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

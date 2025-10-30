@@ -339,7 +339,7 @@ void WriteCsvHeader<FrameMetrics>(FILE* fp)
                          L",DisplayedTime"
                          L",AnimationError"
                          L",AnimationTime"
-                         L",FlipDelay");
+                         L",MsFlipDelay");
         }
         if (args.mTrackInput) {
             fwprintf(fp, L",AllInputToPhotonLatency");
@@ -371,7 +371,7 @@ void WriteCsvHeader<FrameMetrics>(FILE* fp)
         if (args.mTrackDisplay) {
             fwprintf(fp, L",MsAnimationError"
                 L",AnimationTime"
-                L",FlipDelay");
+                L",MsFlipDelay");
         }
         if (args.mTrackInput) {
             fwprintf(fp, L",MsAllInputToPhotonLatency");

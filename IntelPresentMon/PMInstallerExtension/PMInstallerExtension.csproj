@@ -40,7 +40,7 @@
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
     <Reference Include="wix">
-      <HintPath>C:\Program Files (x86)\WiX Toolset v3.11\bin\wix.dll</HintPath>
+      <HintPath>$(WIX)bin\wix.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

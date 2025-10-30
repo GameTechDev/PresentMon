@@ -2,6 +2,7 @@
 #include <atomic>
 #include "Level.h"
 #include "Subsystem.h"
+#include "Verbose.h"
 
 namespace pmon::util::log
 {
@@ -22,7 +23,16 @@ namespace pmon::util::log
 		void SetSehTracing(bool on) noexcept;
 		Subsystem GetSubsystem() const noexcept;
 		void SetSubsystem(Subsystem) noexcept;
+		void ActivateVerboseModule(V mod) noexcept;
+		void DeactivateVerboseModule(V mod) noexcept;
+		bool CheckVerboseModule(V mod) const noexcept;
+		void ClearVerboseModules() noexcept;
+		void StoreVerboseModules(uint64_t modset) noexcept;
 		static GlobalPolicy& Get() noexcept;
+		static bool VCheck(V mod) noexcept
+		{
+			return Get().CheckVerboseModule(mod);
+		}
 	private:
 		// functions
 		GlobalPolicy() noexcept;
@@ -33,5 +43,6 @@ namespace pmon::util::log
 		std::atomic<bool> exceptionTracePolicy_ = false;
 		std::atomic<bool> sehTraceOn_ = false;
 		std::atomic<Subsystem> subsystem_ = Subsystem::None;
+		std::atomic<uint64_t> activeVerboseModules_ = 0;
 	};
 }

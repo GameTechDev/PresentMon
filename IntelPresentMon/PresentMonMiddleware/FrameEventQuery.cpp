@@ -1598,9 +1598,9 @@ void PM_FRAME_QUERY::Context::UpdateSourceData(const PmNsmFrameData* pSourceFram
 			cpuStart = pFrameDataOfLastAppPresented->present_event.PresentStartTime +
 				pFrameDataOfLastAppPresented->present_event.TimeInPresent;
 		}
-		if (pFrameDataOfLastPresented->present_event.PclSimStartTime != 0) {
+		if (pFrameDataOfLastPresented && pFrameDataOfLastPresented->present_event.PclSimStartTime != 0) {
 			frameTimingData.lastAppSimStartTime = pFrameDataOfLastAppPresented->present_event.PclSimStartTime;
-		} else if (pFrameDataOfLastPresented->present_event.AppSimStartTime != 0) {
+		} else if (pFrameDataOfLastPresented && pFrameDataOfLastPresented->present_event.AppSimStartTime != 0) {
 			frameTimingData.lastAppSimStartTime = pFrameDataOfLastAppPresented->present_event.AppSimStartTime;
 		}
 	}

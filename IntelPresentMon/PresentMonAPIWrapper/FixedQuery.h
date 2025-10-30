@@ -1,8 +1,8 @@
 #pragma once
-#include "../PresentMonAPI2/PresentMonAPI.h"
-#include "../Interprocess/source/IntrospectionDataTypeMapping.h"
-#include "../CommonUtilities//str/String.h"
-#include "../PresentMonAPIWrapperCommon/EnumMap.h"
+#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
+#include <IntelPresentMon/Interprocess/source/IntrospectionDataTypeMapping.h>
+#include <IntelPresentMon/CommonUtilities/str/String.h>
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/EnumMap.h>
 #include "Session.h"
 #include "BlobContainer.h"
 #include <vector>
@@ -229,7 +229,7 @@ namespace pmapi
 		// device slot is 1-based index referring to the array of devices passed in with the FixedQueryContainer ctor
 		// 1st parameter should be "this" (see example at top of this file)
 		FixedQueryElement(FixedQueryContainer_* pContainer, PM_METRIC metric,
-			PM_STAT stat, uint32_t deviceSlot = 0, uint32_t index = 0);
+			PM_STAT stat = PM_STAT_NONE, uint32_t deviceSlot = 0, uint32_t index = 0);
 		// access this result as a specific static data type, assigning to the pass-in reference
 		// this will perform the conversion based on the runtime information about the metric's type
 		// enum types will use the introspection system to generate human-readable strings
@@ -295,5 +295,5 @@ namespace pmapi
 #define PM_BEGIN_FIXED_DYNAMIC_QUERY(type) struct type : pmapi::FixedDynamicQueryContainer { using FixedDynamicQueryContainer::FixedDynamicQueryContainer;
 // begin a fixed frame query
 #define PM_BEGIN_FIXED_FRAME_QUERY(type) struct type : pmapi::FixedFrameQueryContainer { using FixedFrameQueryContainer::FixedFrameQueryContainer;
-// end a fixed query (dyanmic or frame)
+// end a fixed query (dynamic or frame)
 #define PM_END_FIXED_QUERY private: pmapi::FinalizingElement finalizer{ this }; }

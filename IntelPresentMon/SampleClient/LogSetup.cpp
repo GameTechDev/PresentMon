@@ -13,8 +13,10 @@
 #include "../PresentMonAPI2/Internal.h"
 #include "CliOptions.h"
 #include "LogSetup.h"
+#include "../CommonUtilities/win/WinAPI.h"
 #include <memory>
 
+using namespace std::literals;
 
 namespace pmon::util::log
 {
@@ -34,7 +36,7 @@ namespace pmon::util::log
 			pChannel->AttachComponent(std::move(pErrPolicy));
 			// make the formatter
 			const auto pFormatter = std::make_shared<TextFormatter>();
-			const auto pFileStrategy = std::make_shared<SimpleFileStrategy>("log.txt");
+			const auto pFileStrategy = std::make_shared<SimpleFileStrategy>("sample-client-log.txt");
 			// make and add the line-tracking policy
 			pChannel->AttachComponent(std::make_shared<LinePolicy>());
 			// construct and configure default logging channel
@@ -59,12 +61,24 @@ namespace p2sam
 	void ConfigureLogging() noexcept
 	{
 		try {
+			// get the channel to work on it
+			auto pChan = GetDefaultChannel();
 			// connect dll channel and id table to exe, get access to global settings in dll
-			const auto getters = pmLinkLogging_(GetDefaultChannel(), []()
-				-> IdentificationTable& { return IdentificationTable::Get_(); });
+			const auto getters = pmLinkLogging_(pChan, []() -> IdentificationTable&
+				{ return IdentificationTable::Get_(); });
 			// shortcut for command line
 			const auto& opt = clio::Options::Get();
 			// configure logging based on command line
+			if (opt.logFolder || opt.logNamePid) {
+				const auto logFileName = opt.logNamePid ?
+					std::format("sample-client-{}.txt", GetCurrentProcessId()) :
+					"sample - client.txt"s;
+				const auto logFileFolder = opt.logFolder ? *opt.logFolder : "."s;
+				const auto logFilePath = std::format("{}\\{}", logFileFolder, logFileName);
+				pChan->AttachComponent(std::make_shared<BasicFileDriver>(
+					std::make_shared<TextFormatter>(),
+					std::make_shared<SimpleFileStrategy>(logFilePath)), "drv:file");
+			}
 			if (opt.logLevel) {
 				GlobalPolicy::Get().SetLogLevel(*opt.logLevel);
 				getters.getGlobalPolicy().SetLogLevel(*opt.logLevel);

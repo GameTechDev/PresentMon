@@ -8,13 +8,13 @@
 #include <include/base/cef_callback.h>
 #include <include/wrapper/cef_closure_task.h>
 #include <include/wrapper/cef_helpers.h>
-#include "CefValues.h"
 #include <CommonUtilities\str\String.h>
 
 
 namespace p2c::client::util
 {
 	using ::pmon::util::str::ToWide;
+	using v = log::V;
 
 	void AsyncEndpointManager::DispatchInvocation(const std::string& key, CallbackContext ctx, CefRefPtr<CefV8Value> pObj, CefBrowser& browser, cef::DataBindAccessor& accessor)
 	{
@@ -30,8 +30,8 @@ namespace p2c::client::util
 			);
 			lck.unlock();
 
-			if constexpr (v::v8async) {
-				pmlog_verb(v::v8async)(std::format("JS async call {{{}}} from V8 to endpoint [{}] with payload:\n{}",
+			if (log::GlobalPolicy::VCheck(v::v8async)) {
+				pmlog_(log::Level::Verbose).note(std::format("JS async call {{{}}} from V8 to endpoint [{}] with payload:\n{}",
 					uid, key, Traverse(V8ToCefValue(*pObj)).Dump()));
 			}
 			else {
@@ -88,12 +88,12 @@ namespace p2c::client::util
 		{
 			auto invocation = std::move(i->second);
 
-			if constexpr (v::v8async) {
-				pmlog_verb(v::v8async)(std::format("Async call {{{}}} resolved with payload: \n{}",
+			if (log::GlobalPolicy::VCheck(v::v8async)) {
+				pmlog_(log::Level::Verbose).note(std::format("Async call {{{}}} resolved with payload: \n{}",
 					uid, Traverse(pArgs).Dump()));
 			}
 			else {
-				pmlog_verb(v::v8async)(std::format("Async call {{{}}} resolved", uid));
+				pmlog_dbg(std::format("Async call {{{}}} resolved", uid));
 			}
 
 			invocations.erase(i);

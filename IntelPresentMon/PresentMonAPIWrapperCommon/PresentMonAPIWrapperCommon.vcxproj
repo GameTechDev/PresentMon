@@ -53,15 +53,23 @@
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
+  <PropertyGroup>
+    <CustomCommonProps Condition="'$(CustomCommonProps)' == ''">
+			..\Common.props
+		</CustomCommonProps>
+    <CustomRuntimeControlProps Condition="'$(CustomRuntimeControlProps)' == ''">
+			..\RuntimeControl.props
+		</CustomRuntimeControlProps>
+  </PropertyGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\RuntimeControl.props" />
-    <Import Project="..\Common.props" />
+    <Import Project="$(CustomCommonProps)" />
+    <Import Project="$(CustomRuntimeControlProps)" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\RuntimeControl.props" />
-    <Import Project="..\Common.props" />
+    <Import Project="$(CustomCommonProps)" />
+    <Import Project="$(CustomRuntimeControlProps)" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" />
@@ -80,6 +88,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <ExceptionHandling>Async</ExceptionHandling>
+      <AdditionalIncludeDirectories>../..;$(vcSiblingIncludeDirectory);$(vcInstalledIncludeDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -99,6 +108,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <ExceptionHandling>Async</ExceptionHandling>
+      <AdditionalIncludeDirectories>../..;$(vcSiblingIncludeDirectory);$(vcInstalledIncludeDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>

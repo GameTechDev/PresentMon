@@ -7,7 +7,7 @@
 #include "Context.h"
 #include "Hooks/Hooks.h"
 #include "Custom/Extensions.h"
-#include "../FlashInjector/Logging.h"
+#include "Logging.h"
 #include "act/InjectionPointExecutionContext.h"
 #include "act/Common.h"
 

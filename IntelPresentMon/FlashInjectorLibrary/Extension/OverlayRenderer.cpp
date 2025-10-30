@@ -3,8 +3,10 @@
 #include "../Logging.h"
 #include "OverlayConfigPack.h"
 
-namespace GfxLayer::Extension
+namespace GfxLayer::Extension 
 {
+	using namespace std::literals;
+
 	void CheckResult(HRESULT result, const char* pMessage)
 	{
 		if (FAILED(result))
@@ -19,15 +21,18 @@ namespace GfxLayer::Extension
 		m_pSwapChain(pSwapChain)
 	{}
 
-	RECT OverlayRenderer::GetScissorRect() const
+	ScissorRects OverlayRenderer::GetScissorRects() const
 	{
-		const float rectWidth = m_width * m_currentConfig.BarSize;
-		RECT scissor;
-		scissor.left = LONG((m_width - rectWidth) * m_currentConfig.BarRightShift);
-		scissor.top = 0;
-		scissor.right = LONG(scissor.left + rectWidth);
-		scissor.bottom = m_height;
-		return scissor;
+		const float wfg = m_width * m_currentConfig.BarSize;
+		const float wbg = m_width * m_currentConfig.BackgroundSize;
+		const float w = std::max(wfg, wbg);
+		const float c = (m_width - w) * m_currentConfig.BarRightShift + 0.5f * w;
+
+		ScissorRects r{};
+		r.fg = { LONG(c - 0.5f * wfg), 0, LONG(c - 0.5f * wfg + wfg), LONG(m_height) };
+		r.bg = { LONG(c - 0.5f * wbg), 0, LONG(c - 0.5f * wbg + wbg), LONG(m_height) };
+		r.rb = { 0, 0, LONG(m_width * 0.05f), LONG(m_height) };
+		return r;
 	}
 
 	IDXGISwapChain3* OverlayRenderer::GetSwapChain() const
@@ -50,31 +55,46 @@ namespace GfxLayer::Extension
 			UpdateConfig(m_currentConfig);
 		}
 
-		static unsigned s_frameCounter = 0;
-		static bool s_mouseClicked = false;
-
-		if (GetAsyncKeyState(VK_LBUTTON) & 0x8000)
-		{
-			if (!s_mouseClicked)
-			{
-				s_frameCounter = 16;
+		bool flashStartedThisFrame = false;
+		// we only check mouse state if we're not currently in a flash
+		if (!m_flashStartTime) {
+			if (GetAsyncKeyState(VK_LBUTTON) & 0x8000) {
+				// if lmb is down, start a flash as long as we're not in holdoff
+				if (!m_clickHoldoff) {
+					m_flashStartTime = clock::now();
+					flashStartedThisFrame = true;
+					m_clickHoldoff = true;
+				}
 			}
-			s_mouseClicked = true;
+			else {
+				// if lmb up (and not in flash) remove the holdoff so another flash could begin
+				m_clickHoldoff = false;
+			}
 		}
-		else
-		{
-			s_mouseClicked = false;
+		// if we have a flash start we might need to draw flash
+		bool needFlash = false;
+		if (m_flashStartTime) {
+			// draw flash if initiated this frame OR within flash duration
+			const std::chrono::duration<float> flashDuration{ m_currentConfig.FlashDuration };
+			if (flashStartedThisFrame || (clock::now() - *m_flashStartTime < flashDuration)) {
+				needFlash = true;
+			}
+			else {
+				// reset flash time if duration lapsed
+				m_flashStartTime.reset();
+			}
 		}
+		// only draw if we have flash or background or rainbow active
+		if (needFlash || m_currentConfig.RenderBackground || m_currentConfig.UseRainbow) {
+			Render(needFlash, m_currentConfig.UseRainbow, m_currentConfig.RenderBackground);
+		}
+		// advance index for rainbow strip every frame
+		m_rainbowFrameIndex++;
+	}
 
-		if (s_frameCounter > 0)
-		{
-			Render(true);
-			--s_frameCounter;
-		}
-		else if (m_currentConfig.RenderBackground)
-		{
-			Render(false);
-		}
+	size_t OverlayRenderer::GetRainbowIndex() const
+	{
+		return m_rainbowFrameIndex % m_rainbowColors.size();
 	}
 }
 

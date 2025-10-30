@@ -29,6 +29,7 @@ namespace pmon::util::log
 			void SignalExit();
 			void DisableTraceResolution();
 			void AttachComponentBlocking(std::shared_ptr<IChannelComponent>, std::string);
+			std::shared_ptr<IChannelComponent> GetComponentBlocking(std::string) const;
 			void RemoveComponentByTagBlocking(const std::string&);
 			void EnqueueEntry(Entry&&);
 			void EnqueueEntry(const Entry&);
@@ -43,7 +44,7 @@ namespace pmon::util::log
 			void AttachComponent_(std::shared_ptr<IChannelComponent>, std::string);
 			// data
 			// mutex used for infrequent operations like managing components
-			std::mutex mtx_;
+			mutable std::mutex mtx_;
 			bool resolvingTraces_ = true;
 			bool exiting_ = false;
 			std::vector<std::pair<std::string, std::shared_ptr<IDriver>>> driverPtrs_;
@@ -68,6 +69,7 @@ namespace pmon::util::log
 		void Submit(const Entry&) noexcept override;
 		void Flush() override;
 		void AttachComponent(std::shared_ptr<IChannelComponent>, std::string = {}) override;
+		std::shared_ptr<IChannelComponent> GetComponent(std::string tag) const override;
 		void FlushEntryPointExit() override;
 	};
 }

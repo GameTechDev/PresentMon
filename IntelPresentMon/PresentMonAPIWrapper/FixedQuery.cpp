@@ -1,9 +1,8 @@
 #pragma once
 #include "FixedQuery.h"
-#include "../PresentMonAPI2/PresentMonAPI.h"
-#include "../Interprocess/source/IntrospectionDataTypeMapping.h"
-#include "../CommonUtilities//str/String.h"
-#include "../PresentMonAPIWrapperCommon/EnumMap.h"
+#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
+#include <IntelPresentMon/CommonUtilities//str/String.h>
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/EnumMap.h>
 #include "Session.h"
 #include "BlobContainer.h"
 #include <vector>
@@ -99,7 +98,7 @@ namespace pmapi
 
 		// register query
 		assert(pSession_);
-		query_ = pSession_->RegisterDyanamicQuery(rawElements_, winSizeMs_, metricOffsetMs_);
+		query_ = pSession_->RegisterDynamicQuery(rawElements_, winSizeMs_, metricOffsetMs_);
 
 		// make blobs
 		blobs_ = query_.MakeBlobContainer(nBlobs_);

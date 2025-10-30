@@ -7,6 +7,9 @@
 
 namespace p2c::kern
 {
+    using ::pmon::util::log::GlobalPolicy;
+    using ::pmon::util::log::Level;
+
     WindowSpawnHandler::WindowSpawnHandler(DWORD pid, OverlayContainer* pOverlay) : pid{ pid }, pOverlay{ pOverlay }
     {
         pmlog_verb(v::procwatch)(std::format("win spawn handler ctor | pid:{:5x}", pid));
@@ -26,10 +29,10 @@ namespace p2c::kern
         LONG idObject, LONG idChild,
         DWORD dwEventThread, DWORD dwmsEventTime)
     {
-        if constexpr (v::procwatch) {
+        if (GlobalPolicy::VCheck(v::procwatch)) {
             RECT r{};
             GetWindowRect(hWnd, &r);
-            pmlog_verb(true)(std::format("win-spawn-event | pid:{:5} hwd:{:8x} own:{:8x} vis:{} siz:{} nam:{}",
+            pmlog_(Level::Verbose).note(std::format("win-spawn-event | pid:{:5} hwd:{:8x} own:{:8x} vis:{} siz:{} nam:{}",
                 pid,
                 reinterpret_cast<uintptr_t>(hWnd),
                 reinterpret_cast<uintptr_t>(GetWindow(hWnd, GW_OWNER)),

@@ -1,0 +1,34 @@
+{
+  "FileVersion": 2,
+  "Id": "0f60dfd9-208e-443e-8d01-43c902b458a6",
+  "Items": [
+    {
+      "Id": "0a297b29-b817-4fec-899b-b608a7e51bc4",
+      "Command": "Debug|x64",
+      "ProjectConfig": "Debug",
+      "ProjectPlatform": "x64",
+      "Items": [
+        {
+          "Id": "a6fb5569-0d64-4e0d-85eb-2409faee14cc",
+          "Command": "WindowsLocalDebugger",
+          "Items": [
+            {
+              "Id": "24c8b220-ee14-4795-bc47-8e8202db9798",
+              "Command": "--help --debug_verbose_trace --track_gpu_video --qpc_time --output_file vvv.csv --etl_file \"C:\\Users\\Chili\\Desktop\\cpp\\ipm-relay\\Tests\\Gold\\test_case_4.etl\" --stop_existing_session --no_console_stats"
+            }
+          ]
+        },
+        {
+          "Id": "461dab48-e20b-4a91-b9a4-601f6847153f",
+          "Command": "WindowsRemoteDebugger",
+          "Items": [
+            {
+              "Id": "96c9e57a-c06b-46ab-bc78-89c193c23249",
+              "Command": "--help --debug_verbose_trace --track_gpu_video --qpc_time --output_file vvv.csv --etl_file \"C:\\Users\\Chili\\Desktop\\cpp\\ipm-relay\\Tests\\Gold\\test_case_4.etl\" --stop_existing_session --no_console_stats"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -172,7 +172,8 @@ bool PresentMonCsv::Open(char const* file, int line, std::wstring const& path)
                                                                                Header_PresentMode,
                                                                                Header_msBetweenDisplayChange,
                                                                                Header_msUntilRenderComplete,
-                                                                               Header_msUntilDisplayed });
+                                                                               Header_msUntilDisplayed,
+                                                                               Header_msFlipDelay});
         auto track_gpu       = CheckAllIfAny(headerColumnIndex_, &columnsOK, { Header_msUntilRenderStart,
                                                                                Header_msGPUActive });
         auto track_gpu_video = CheckAllIfAny(headerColumnIndex_, &columnsOK, { Header_msGPUVideoActive });
@@ -239,7 +240,8 @@ bool PresentMonCsv::Open(char const* file, int line, std::wstring const& path)
                                                    Header_MsPCLatency, 
                                                    Header_MsBetweenAppStart,
                                                    Header_MsCPUBusy,
-                                                   Header_MsCPUWait });
+                                                   Header_MsCPUWait,
+                                                   Header_MsFlipDelay });
 
         size_t time           = CheckOne(headerColumnIndex_, &columnsOK,      { Header_TimeInSeconds,
                                                                                 Header_TimeInQPC,

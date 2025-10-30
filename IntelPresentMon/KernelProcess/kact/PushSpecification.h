@@ -141,6 +141,7 @@ namespace ACT_NS
                 bool enableAutotargetting;
                 float upscaleFactor;
                 std::optional<int> adapterId; // Uncertain: may be a different type in your system.
+
                 bool enableFlashInjection;
                 bool flashInjectionEnableTargetOverride;
                 std::string flashInjectionTargetOverride;
@@ -149,6 +150,9 @@ namespace ACT_NS
                 bool flashInjectionBackgroundEnable;
                 Color flashInjectionBackgroundColor;
                 float flashInjectionRightShift;
+                float flashInjectionFlashDuration;
+                bool flashInjectionUseRainbow;
+                float flashInjectionBackgroundSize;
 
                 template<class A> void serialize(A& ar) {
                     ar(capturePath, captureDelay, enableCaptureDelay,
@@ -161,7 +165,8 @@ namespace ACT_NS
                         enableAutotargetting, upscaleFactor, adapterId, enableFlashInjection,
                         flashInjectionSize, flashInjectionEnableTargetOverride, flashInjectionTargetOverride,
                         flashInjectionColor, flashInjectionBackgroundEnable, flashInjectionBackgroundColor,
-                        flashInjectionRightShift);
+                        flashInjectionRightShift, flashInjectionFlashDuration, flashInjectionUseRainbow,
+                        flashInjectionBackgroundSize);
                 }
             } preferences;
 
@@ -193,6 +198,9 @@ namespace ACT_NS
                 .BarColor = in.preferences.flashInjectionColor.AsArray(),
                 .RenderBackground = in.preferences.flashInjectionBackgroundEnable,
                 .BackgroundColor = in.preferences.flashInjectionBackgroundColor.AsArray(),
+                .FlashDuration = in.preferences.flashInjectionFlashDuration,
+                .UseRainbow = in.preferences.flashInjectionUseRainbow,
+                .BackgroundSize = in.preferences.flashInjectionBackgroundSize,
             };
             const auto flashTgtOverride = in.preferences.flashInjectionEnableTargetOverride ?
                 std::optional{ in.preferences.flashInjectionTargetOverride } : std::nullopt;

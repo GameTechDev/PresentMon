@@ -18,6 +18,9 @@ public:
     void StopStreaming(uint32_t client_process_id, uint32_t target_process_id) override;
     bool CheckTraceSessions(bool forceTerminate) override;
     HANDLE GetStreamingStartHandle() override;
+    void ResetEtwFlushPeriod() override;
+
+
     void StartPlayback();
     void StopPlayback();
 
@@ -67,8 +70,8 @@ private:
     std::thread consumer_thread_;
     std::thread output_thread_;
 
-    std::atomic<bool> quit_output_thread_;
-    std::atomic<bool> stop_playback_requested_;
+    std::atomic<bool> quit_output_thread_ = false;
+    std::atomic<bool> stop_playback_requested_ = false;
 
     std::unordered_map<uint32_t, ProcessInfo> processes_;
     
@@ -76,10 +79,11 @@ private:
     uint32_t etlProcessId_ = 0;
 
     // TODO: Determine if this actually does anything!
-    uint32_t target_process_count_;
+    uint32_t target_process_count_ = 0;
 
     // Event for when streaming has started (needed to satisfy virtual interface)
     pmon::util::win::Event evtStreamingStarted_;
 
     mutable std::mutex session_mutex_;
+    std::atomic<bool> session_active_{false};  // Lock-free session state for hot path queries
 };

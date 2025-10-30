@@ -37,7 +37,7 @@ public:
     T GetNumericPropertyValue(const std::wstring& propertyName) const
     {
         using pmon::util::Except;
-        using pmon::util::dependent_false;
+        using pmon::util::DependentFalse;
 
         unsigned propertyCount = this->mpTraceEventInfo->PropertyCount;
 
@@ -144,7 +144,7 @@ public:
             }
             else
             {
-                static_assert(dependent_false<T>::value, "Unsupported type in GetNumericPropertyValue");
+                static_assert(DependentFalse<T>, "Unsupported type in GetNumericPropertyValue");
             }
         }
 

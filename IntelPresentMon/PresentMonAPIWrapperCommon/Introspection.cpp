@@ -3,7 +3,7 @@
 #include <cassert>
 #include <ranges>
 #include "Exception.h"
-#include "../CommonUtilities/log/Log.h"
+#include <IntelPresentMon/CommonUtilities/log/Log.h>
 
 namespace rn = std::ranges;
 

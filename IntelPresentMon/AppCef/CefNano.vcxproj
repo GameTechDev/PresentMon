@@ -43,6 +43,7 @@
     <ClInclude Include="source\SchemeFileHandler.h" />
     <ClInclude Include="source\SchemeHandlerFactory.h" />
     <ClInclude Include="source\util\ActionClientServer.h" />
+    <ClInclude Include="source\util\async\ExploreEtls.h" />
     <ClInclude Include="source\util\cact\HotkeyFiredAction.h" />
     <ClInclude Include="source\util\cact\OverlayDiedAction.h" />
     <ClInclude Include="source\util\cact\PresentmonInitFailedAction.h" />

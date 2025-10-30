@@ -189,10 +189,10 @@
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">mc.exe -um -v -z %(Filename)Events -h .\  %(FullPath)</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Autogenerate header from DD events manifest</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename)Events.rc;%(Filename)Events.h;%(Filename)_MSG00001.bin</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename)Events.rc;%(Filename)Events.h;%(Filename)Events_MSG00001.bin</Outputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">mc.exe -um -v -z %(Filename)Events -h .\  %(FullPath)</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Autogenerate header from DD events manifest</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename)Events.rc;%(Filename)Events.h;%(Filename)_MSG00001.bin</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename)Events.rc;%(Filename)Events.h;%(Filename)Events_MSG00001.bin</Outputs>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>

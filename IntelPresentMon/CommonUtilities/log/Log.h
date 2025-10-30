@@ -27,11 +27,7 @@ namespace pmon::util::log
 #endif
 
 #ifndef PMLOG_BUILD_LEVEL_
-#ifndef NDEBUG
-#define PMLOG_BUILD_LEVEL_ ::pmon::util::log::Level::Debug
-#else
-#define PMLOG_BUILD_LEVEL_ ::pmon::util::log::Level::Info
-#endif
+#define PMLOG_BUILD_LEVEL_ ::pmon::util::log::Level::Verbose
 #endif
 
 #define pmlog_from_(lvl, file, function, line) ((PMLOG_BUILD_LEVEL_ < lvl) || (::pmon::util::log::GlobalPolicy::Get().GetLogLevel() < lvl)) \
@@ -44,7 +40,8 @@ namespace pmon::util::log
 #define pmlog_warn	pmlog_(::pmon::util::log::Level::Warning).note
 #define pmlog_info	pmlog_(::pmon::util::log::Level::Info).note
 #define pmlog_dbg	pmlog_(::pmon::util::log::Level::Debug).note
-#define pmlog_verb(vtag) !vtag ? (void)0 : pmlog_(::pmon::util::log::Level::Verbose).note
+#define pmlog_verb(vtag) !::pmon::util::log::GlobalPolicy::VCheck(vtag) ? (void)0 : pmlog_(::pmon::util::log::Level::Verbose).note
+#define pmlog_verb2(v2tag) !v2tag ? (void)0 : pmlog_(::pmon::util::log::Level::Verbose2).note
 #define pmlog_perf(ptag) !ptag ? (void)0 : pmlog_(::pmon::util::log::Level::Performance).note
 
 #define pmwatch(expr) watch(#expr, (expr))

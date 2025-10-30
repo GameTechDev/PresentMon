@@ -23,4 +23,6 @@ namespace pmon::util::win
 	std::filesystem::path GetExecutableModulePathFromPid(uint32_t pid);
 	// checks whether a process is 32-bit or 64-bit
 	bool ProcessIs32Bit(HANDLE hProc);
+	// convert a guid to string
+	std::wstring GuidToString(const GUID& guid);
 }

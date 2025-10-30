@@ -18,7 +18,7 @@ int MetricListSample(std::unique_ptr<pmapi::Session> pSession)
         << "| - | - | - |:-:|\n";
 
     // get list of metrics used in CSV (as vector of query element definitions)
-    const auto csvElements = p2c::pmon::GetRawFrameDataMetricList(0, false);
+    const auto csvElements = p2c::pmon::GetDefaultRawFrameDataMetricList(0, false);
 
     // Loop through ALL PresentMon metrics
     for (auto metric : session.GetIntrospectionRoot()->GetMetrics()) {

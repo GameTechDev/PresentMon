@@ -40,6 +40,7 @@ namespace pmon::util::cli
 		std::vector<std::pair<std::string, std::string>> GetForwardedOptions() const;
 	private:
 		void AddGroup_(std::string name, std::string desc);
+		CLI::App* AddSubcommand_(std::string name, std::string desc);
 		void RegisterElement_(OptionsElement_* pElement);
 	protected:
 		// types
@@ -61,12 +62,14 @@ namespace pmon::util::cli
 		// functions
 		void Finalize_(int argc, const char* const* argv);
 		int Exit_(const CLI::ParseError& e, bool captureDiagnostics);
+		std::string GetDiagnostics_() const;
 		// data
 		std::ostringstream diagnostics_;
 		std::vector<OptionsElement_*> elementPtrs_;
 		bool finalized_ = false;
 		std::string activeGroup_;
 		CLI::App app_;
+		CLI::App* pCurrentSubcommand_ = &app_;
 	};
 	
 	template<class T>
@@ -105,7 +108,7 @@ namespace pmon::util::cli
 		}
 		static std::string GetDiagnostics()
 		{
-			return Get_().diagnostics_.str();
+			return Get_().GetDiagnostics_();
 		}
 	private:
 		static T& Get_()
@@ -126,7 +129,7 @@ namespace pmon::util::cli
 			data_{ defaultValue }
 		{
 			// create the option
-			pOption_ = pParent->app_.add_option(std::move(names), data_, std::move(description));
+			pOption_ = pParent->pCurrentSubcommand_->add_option(std::move(names), data_, std::move(description));
 			// if customizer is a Validator object, add it to the option
 			if constexpr (std::is_base_of_v<CLI::Validator, std::decay_t<U>> ) {
 				if (customizer.get_modifying()) {
@@ -146,7 +149,7 @@ namespace pmon::util::cli
 			data_{ defaultValue }
 		{
 			// create the option
-			pOption_ = pParent->app_.add_option(std::move(names), data_, std::move(description));
+			pOption_ = pParent->pCurrentSubcommand_->add_option(std::move(names), data_, std::move(description));
 			OptionCommonPostCreate_(pParent);
 		}
 		Option(const Option&) = delete;
@@ -227,7 +230,10 @@ namespace pmon::util::cli
 		CLI::Option* GetOption_(T& el) const { return el.pOption_; }
 		CLI::App& GetApp_(OptionsContainer& con) const { return con.app_; }
 		void SetForwarding_(OptionsElement_& el, bool forwarding = false) { el.forwarding_ = forwarding; }
-		void AddGroup_(OptionsContainer& con, std::string name, std::string desc = {}) { con.AddGroup_(std::move(name), std::move(desc)); }
+		void AddGroup_(OptionsContainer& con, std::string name, std::string desc = {}) {
+			con.AddGroup_(std::move(name), std::move(desc)); }
+		const CLI::App* AddSubcommand_(OptionsContainer& con, std::string name, std::string desc = {}) {
+			return con.AddSubcommand_(std::move(name), std::move(desc)); }
 	};
 
 	class MutualExclusion : RuleBase_
@@ -301,6 +307,24 @@ namespace pmon::util::cli
 		{
 			AddGroup_(*pCon, std::move(name), std::move(desc));
 		}
+	};
+
+	class Subcommand : RuleBase_
+	{
+	public:
+		Subcommand(OptionsContainer* pCon, std::string name, std::string desc = {})
+		{
+			pSubcommand_ = AddSubcommand_(*pCon, std::move(name), std::move(desc));
+		}
+		bool Active() const
+		{
+			if (pSubcommand_) {
+				return pSubcommand_->parsed();
+			}
+			return false;
+		}
+	private:
+		const CLI::App* pSubcommand_ = nullptr;
 	};
 
 	class SilentGroup : RuleBase_

@@ -31,18 +31,18 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
-			if (auto sta = ctx.pPmon->SetEtwFlushPeriod(in.etwFlushPeriodMs); sta != PM_STATUS_SUCCESS) {
-				pmlog_error("Set ETW flush period failed").code(sta);
+			if (in.etwFlushPeriodMs && *in.etwFlushPeriodMs > PM_ETW_FLUSH_PERIOD_MAX) {
+				const auto sta = PM_STATUS::PM_STATUS_OUT_OF_RANGE;
+				pmlog_error("Set ETW flush period failed: out of range").pmwatch(*in.etwFlushPeriodMs).code(sta);
 				throw util::Except<ActionExecutionError>(sta);
 			}
-			stx.requestedEtwFlushEnabled = bool(in.etwFlushPeriodMs);
+			stx.requestedEtwFlushPeriodMs = in.etwFlushPeriodMs;
+			ctx.UpdateEtwFlushPeriod();
 			if (in.etwFlushPeriodMs) {
 				pmlog_dbg(std::format("Setting ETW flush period to {}ms", *in.etwFlushPeriodMs));
-				stx.requestedEtwFlushPeriodMs = *in.etwFlushPeriodMs;
 			}
 			else {
 				pmlog_dbg("Disabling manual ETW flush");
-				stx.requestedEtwFlushPeriodMs.reset();
 			}
 			return {};
 		}

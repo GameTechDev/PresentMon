@@ -8,6 +8,9 @@
 #include <format>
 #include "PMMainThread.h"
 #include <iostream>
+#include <chrono>
+
+using namespace std::literals;
 
 const GUID GUID_DEVINTERFACE_DISPLAY_ADAPTER = {
 	0x5B45201D,
@@ -230,6 +233,12 @@ BOOL WINAPI ConsoleDebugMockService::ConsoleHandler(DWORD signal)
 {
 	if (signal == CTRL_C_EVENT || signal == CTRL_CLOSE_EVENT) {
 		Get().SignalServiceStop();
+		if (signal == CTRL_CLOSE_EVENT) {
+			// give the main thread time to respond to the close signal
+			// exiting this handler to quickly often gets the process killed
+			// before it can shutdown gracefully
+			std::this_thread::sleep_for(1ms);
+		}
 		return TRUE;
 	}
 	return FALSE;

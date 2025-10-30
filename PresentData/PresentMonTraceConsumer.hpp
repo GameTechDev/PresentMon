@@ -340,6 +340,7 @@ struct PMTraceConsumer
     bool mTrackAppTiming = false;      // ... app timing data communicated through the Intel-PresentMon provider.
     bool mTrackHybridPresent = false;  // ... hybrid presents.
     bool mTrackPcLatency = false;      // ... Nvidia PC Latency stats.
+    bool mTrackProcessState = false;   // ... Initial process state dump
 
     // When PresentEvents are missing data that may still arrive later, they get put into a deferred
     // state until the data arrives.  This time limit specifies how long a PresentEvent can be

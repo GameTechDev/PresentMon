@@ -1,7 +1,6 @@
 #include "PresentMonAPIVersion.h"
 #include "BuildId.h"
 #include <cstring>
-#include "../PresentMonAPI2/PresentMonAPI.h"
 
 namespace pmon::bid
 {

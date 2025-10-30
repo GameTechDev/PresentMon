@@ -71,6 +71,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ntdll.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -91,9 +92,13 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ntdll.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="EtlLoggerTests.cpp" />
+    <ClCompile Include="ModuleInit.cpp" />
+    <ClCompile Include="MultiClientTests.cpp" />
     <ClCompile Include="PolledPacedTests.cpp" />
     <ClCompile Include="WrapperIntrospectionTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />
@@ -110,12 +115,21 @@
     <ProjectReference Include="..\PresentMonAPIWrapper\PresentMonAPIWrapper.vcxproj">
       <Project>{cee032ed-b0d3-47f8-bdae-d46757b0061b}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\PresentMonService\PresentMonService.vcxproj">
+      <Project>{3a848e5b-a376-4a22-bbac-e9b3c01bd385}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\SampleClient\SampleClient.vcxproj">
+      <Project>{79fe382a-c29c-4c32-a028-b8d1abdf51b0}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\Versioning\Versioning.vcxproj">
       <Project>{c73aa532-e532-4d93-9279-905444653c08}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CsvHelper.h" />
+    <ClInclude Include="Folders.h" />
+    <ClInclude Include="JobManager.h" />
+    <ClInclude Include="TestCommands.h" />
     <ClInclude Include="StatusComparison.h" />
     <ClInclude Include="Utilities.h" />
   </ItemGroup>

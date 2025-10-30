@@ -33,6 +33,10 @@
       "Command": "--log-level verbose"
     },
     {
+      "Id": "49b6fc1f-b969-4280-b0d8-17a213e80f16",
+      "Command": "--log-verbose-modules core_window v8async etwq"
+    },
+    {
       "Id": "bab48d6d-3a48-4b3b-9ed9-903e381824c6",
       "Command": "--log-svc-pipe-enable"
     },
@@ -111,6 +115,40 @@
     {
       "Id": "5217575f-37d8-4f60-a2d2-a85992ce4341",
       "Command": "--ui-flag enable-chromium-debug"
+    },
+    {
+      "Id": "a82f2a21-c9de-460e-8f38-b10026e23809",
+      "Command": "capture",
+      "Items": [
+        {
+          "Id": "01098f07-6207-4778-b3e6-911bd3d5444b",
+          "Command": "capture"
+        },
+        {
+          "Id": "05f54862-3aec-41de-a6fc-d8414c6337f7",
+          "Command": "--target-pid 10212"
+        },
+        {
+          "Id": "b1fed477-ce24-4a76-90b8-708955b7045d",
+          "Command": "--target-name Factorio.exe"
+        },
+        {
+          "Id": "ace81036-6fd9-426b-ad52-90bdc2101182",
+          "Command": "--duration 5"
+        },
+        {
+          "Id": "a228f5ab-b00f-4a34-9dae-29f443740b6f",
+          "Command": "--output Captures/yaboi.csv"
+        },
+        {
+          "Id": "b4e270ad-cd80-4d91-91e0-40222d597af6",
+          "Command": "--metrics PM_METRIC_APPLICATION PM_METRIC_CPU_START_TIME PM_METRIC_BETWEEN_PRESENTS PM_METRIC_GPU_TEMPERATURE"
+        },
+        {
+          "Id": "23a7f71a-08ab-4932-a78a-79dfbf9327b4",
+          "Command": "--telemetry-period 50"
+        }
+      ]
     }
   ]
 }

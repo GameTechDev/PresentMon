@@ -8,11 +8,12 @@
 #include "PresentMonDiagnostics.h"
 #include "../PresentMonMiddleware/LogSetup.h"
 #include "../Versioning/PresentMonAPIVersion.h"
-
+#include <ranges>
 
 
 using namespace pmon;
 using namespace pmon::mid;
+namespace rn = std::ranges;
 
 // global state
 bool useCrtHeapDebug_ = false;
@@ -226,8 +227,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFreeIntrospectionRoot(const PM_INTROSPECTION_
 PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE handle, uint32_t deviceId, uint32_t timeMs)
 {
 	try {
-		LookupMiddleware_(handle).SetTelemetryPollingPeriod(deviceId, timeMs);
-		return PM_STATUS_SUCCESS;
+		return LookupMiddleware_(handle).SetTelemetryPollingPeriod(deviceId, timeMs);
 	}
 	catch (...) {
 		const auto code = util::GeneratePmStatus();
@@ -239,8 +239,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE h
 PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, uint32_t periodMs)
 {
 	try {
-		LookupMiddleware_(handle).SetEtwFlushPeriod(periodMs ? std::optional{ periodMs } : std::nullopt);
-		return PM_STATUS_SUCCESS;
+		return LookupMiddleware_(handle).SetEtwFlushPeriod(periodMs ? std::optional{ periodMs } : std::nullopt);
 	}
 	catch (...) {
 		const auto code = util::GeneratePmStatus();
@@ -427,6 +426,46 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStopPlayback_(PM_SESSION_HANDLE handle)
 	try {
 		auto& mid = LookupMiddleware_(handle);
 		mid.StopPlayback();
+		return PM_STATUS_SUCCESS;
+	}
+	catch (...) {
+		const auto code = util::GeneratePmStatus();
+		pmlog_error(util::ReportException()).code(code);
+		return code;
+	}
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE* pEtlHandle,
+	uint64_t reserved1, uint64_t reserved2)
+{
+	try {
+		auto& mid = LookupMiddleware_(session);
+		*pEtlHandle = mid.StartEtlLogging();
+		return PM_STATUS_SUCCESS;
+	}
+	catch (...) {
+		const auto code = util::GeneratePmStatus();
+		pmlog_error(util::ReportException()).code(code);
+		return code;
+	}
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE etlHandle,
+	char* pOutputFilePathBuffer, uint32_t bufferSize)
+{
+	try {
+		auto& mid = LookupMiddleware_(session);
+		const auto path = mid.FinishEtlLogging(etlHandle);
+		if (path.size() + 1 > bufferSize) {
+			const auto code = PM_STATUS_INSUFFICIENT_BUFFER;
+			pmlog_error().code(code);
+			// best effort to remove hanging temp file, ignore any further error here
+			std::error_code ec;
+			std::filesystem::remove(path, ec);
+			return code;
+		}
+		rn::copy(path, pOutputFilePathBuffer);
+		pOutputFilePathBuffer[path.size()] = '\0';
 		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {

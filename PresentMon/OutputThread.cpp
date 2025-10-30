@@ -4,10 +4,13 @@
 
 #include "PresentMon.hpp"
 #include "../IntelPresentMon/CommonUtilities/Math.h"
+#include "../IntelPresentMon/CommonUtilities/str/String.h"
 
 #include <algorithm>
 #include <shlwapi.h>
 #include <thread>
+
+using namespace pmon;
 
 static std::thread gThread;
 static bool gQuit = false;
@@ -517,7 +520,8 @@ static void ReportMetricsHelper(
                 metrics.mCPUStart = chain->mLastAppPresent->PresentStartTime + chain->mLastAppPresent->TimeInPresent;
             }
         } else {
-            metrics.mCPUStart = chain->mLastPresent->PresentStartTime + chain->mLastPresent->TimeInPresent;
+            metrics.mCPUStart = chain->mLastPresent == nullptr ? 0 :
+                chain->mLastPresent->PresentStartTime + chain->mLastPresent->TimeInPresent;
         }
 
         if (displayIndex == appIndex) {
@@ -837,11 +841,22 @@ static void PruneOldSwapChainData(
 
     for (auto& pair : gProcesses) {
         auto processInfo = &pair.second;
+
+        // Check if this is DWM process
+        const bool isDwmProcess =
+            util::str::ToLower(processInfo->mModuleName).contains(L"dwm.exe");
+
         for (auto ii = processInfo->mSwapChain.begin(), ie = processInfo->mSwapChain.end(); ii != ie; ) {
+            auto swapChainAddress = ii->first;
             auto chain = &ii->second;
-            if (chain->mLastPresent->PresentStartTime < minTimestamp) {
+
+            // Don't prune DWM swap chains with address 0x0
+            bool shouldSkipPruning = isDwmProcess && swapChainAddress == 0x0;
+
+            if (!shouldSkipPruning && chain->mLastPresent && chain->mLastPresent->PresentStartTime < minTimestamp) {
                 ii = processInfo->mSwapChain.erase(ii);
-            } else {
+            }
+            else {
                 ++ii;
             }
         }
@@ -985,6 +1000,15 @@ static void ProcessEvents(
         // Handle any process events that occurred before this present
         if (checkProcessTime) {
             while ((*processEvents)[processEventIndex].QpcTime < presentTime) {
+                auto& processEvent = (*processEvents)[processEventIndex];
+
+                // If this is a termination event for the same process as the current present,
+                // skip processing this termination to avoid removing the process info we need
+                if (!processEvent.IsStartEvent && processEvent.ProcessId == presentEvent->ProcessId) {
+                    // Don't process this termination yet - we have a present from this process to handle first
+                    break;
+                }
+
                 ProcessProcessEvent((*processEvents)[processEventIndex]);
                 processEventIndex += 1;
                 if (processEventIndex == processEventCount) {

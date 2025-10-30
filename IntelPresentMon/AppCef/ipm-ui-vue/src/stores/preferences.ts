@@ -25,6 +25,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
   // === State ===
   const preferences = ref<PreferencesType>(makeDefaultPreferences())
   const capturing = ref(false)
+  const etlLogging = ref(false)
   const pid = ref<number | null>(null)
 
   // === Nonreactive State ===
@@ -106,6 +107,11 @@ export const usePreferencesStore = defineStore('preferences', () => {
       writeCapture(true);
     }
   }
+
+  function toggleEtlLogging() {
+    etlLogging.value = !etlLogging.value;
+    Api.setEtlLogging(etlLogging.value);
+  }
   
   async function pushSpecification() {
     // we need to get a non-proxy object for the  call
@@ -153,8 +159,8 @@ export const usePreferencesStore = defineStore('preferences', () => {
       await hotkeys.bindDefaults();
       resetPreferences();
       preferences.value.selectedPreset = Preset.Slot1;
-      console.warn('Preferences reset due to load failure: ' + e)
-      notes.notify({ text: `Preferences reset due to load failure: ${e}` })
+      serialize();
+      console.info('Preferences reset due to load failure: ' + e);
     }
   }
 
@@ -162,10 +168,12 @@ export const usePreferencesStore = defineStore('preferences', () => {
   return {
     preferences,
     capturing,
+    etlLogging,
     pid,
     serialize,
     writeCapture,
     toggleCapture,
+    toggleEtlLogging,
     pushSpecification,
     initPreferences,
     resetPreferences

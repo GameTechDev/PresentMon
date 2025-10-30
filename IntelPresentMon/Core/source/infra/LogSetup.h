@@ -12,6 +12,8 @@ namespace p2c
 	};
 	// call after command line arguments have been parsed
 	void ConfigureLogging() noexcept;
+	// add stdio logging for when running headless
+	void ConfigureHeadlessLogging() noexcept;
 	// call when ready to connect to a logging source (logging pipe server)
 	void ConnectToLoggingSourcePipe(const std::string& pipePrefix);
 }

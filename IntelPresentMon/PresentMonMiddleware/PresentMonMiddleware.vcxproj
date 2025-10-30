@@ -21,7 +21,9 @@
     <ClInclude Include="MockCommon.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ConcreteMiddleware.cpp" />
+    <ClCompile Include="ConcreteMiddleware.cpp">
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/bigobj %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="FrameEventQuery.cpp" />
     <ClCompile Include="LogSetup.cpp" />
   </ItemGroup>

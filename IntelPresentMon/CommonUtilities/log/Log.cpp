@@ -90,4 +90,28 @@ namespace pmon::util::log
 			pmquell(pChan->FlushEntryPointExit())
 		}
 	}
+
+#ifdef PM_PORT_DEFINE_NULL_CHANNEL_GETTER_
+	std::shared_ptr<IChannel> GetDefaultChannel() noexcept
+	{
+		return {};
+	}
+#endif
+#ifdef PM_PORT_DEFINE_DBG_CHANNEL_GETTER_
+#include "MsvcDebugDriver.h"
+#include "TextFormatter.h"
+	std::shared_ptr<IChannel> GetDefaultChannel() noexcept
+	{
+		static std::shared_ptr<IChannel> pChannel;
+		if (!pChannel) {
+			pChannel = std::make_shared<Channel>();
+			// TODO: add error code resolvers (PM error code resolver is from wrapper, inject later?)
+			// TODO: consider adding line tracking policy
+			pChannel->AttachComponent(std::make_shared<MsvcDebugDriver>(
+				std::make_shared<TextFormatter>()
+			), "drv:dbg");
+		}
+		return pChannel;
+	}
+#endif
 }

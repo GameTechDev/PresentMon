@@ -13,7 +13,7 @@ namespace p2c::kern
 
     OverlayContainer::OverlayContainer(
         ::pmon::util::win::com::WbemConnection& wbemConn_, std::shared_ptr<OverlaySpec> pSpec_,
-        pmon::PresentMon* pm_)
+        pmon::PresentMon* pm_, bool headless)
         :
         wbemConn{ wbemConn_ },
         rootPid{ pSpec_->pid }
@@ -33,7 +33,7 @@ namespace p2c::kern
                 curPid = j->second.pid;
                 pmlog_verb(v::procwatch)(std::format("overlay container found candidate child process|pid:{} hwn:{:6x}",
                     curPid, (uintptr_t)j->second.hWnd));
-                pOverlay = std::make_unique<Overlay>(j->second, std::move(pSpec_), pm_, std::make_unique<MetricPackMapper>());
+                pOverlay = std::make_unique<Overlay>(j->second, std::move(pSpec_), pm_, std::make_unique<MetricPackMapper>(), headless);
             }
             // if no windowed child exists, use the root
             else
@@ -41,7 +41,7 @@ namespace p2c::kern
                 curPid = rootPid;
                 pmlog_verb(v::procwatch)(std::format("overlay container using root process|pid:{} hwn:{:6x}",
                     curPid, (uintptr_t)i->second.hWnd));
-                pOverlay = std::make_unique<Overlay>(i->second, std::move(pSpec_), pm_, std::make_unique<MetricPackMapper>());
+                pOverlay = std::make_unique<Overlay>(i->second, std::move(pSpec_), pm_, std::make_unique<MetricPackMapper>(), headless);
             }
             // begin listening for children
             pChildListener = wbemConn.MakeListener<::pmon::util::win::com::ProcessSpawnSink>(spawnQueue);
@@ -53,7 +53,7 @@ namespace p2c::kern
         }
         else
         {
-            pmlog_warn("spec-specified pid not in process map");
+            pmlog_warn("spec-specified pid not in process map").pmwatch(pSpec_->pid);
             throw Except<TargetLostException>();
         }
     }
@@ -80,9 +80,9 @@ namespace p2c::kern
             else throw;
         }
     }
-    void OverlayContainer::SetCaptureState(bool active, std::wstring path, std::wstring name)
+    void OverlayContainer::SetCaptureState(bool active)
     {
-        pOverlay->SetCaptureState(active, std::move(path), std::move(name));
+        pOverlay->SetCaptureState(active);
     }
     bool OverlayContainer::IsTargetLive() const
     {
@@ -143,7 +143,7 @@ namespace p2c::kern
                 else if (pid != rootPid && pid == curPid) {
                     pmlog_verb(v::procwatch)(std::format("register-win-spawn-upg-child | hwn: {:8x} => {:8x}", (uintptr_t)prevHwnd, (uintptr_t)hWnd));
                     // standard overlay doesn't really care what window is being targetted
-                    if (!pOverlay->IsStandardWindow()) {
+                    if (!pOverlay->IsHeadless() && !pOverlay->IsStandardWindow()) {
                         pOverlay = pOverlay->SacrificeClone(hWnd);
                     }
                 }
@@ -151,7 +151,7 @@ namespace p2c::kern
                 else if (pid == rootPid && curPid == rootPid) {
 					pmlog_verb(v::procwatch)(std::format("register-win-spawn-upg-root | hwn: {:8x} => {:8x}", (uintptr_t)prevHwnd, (uintptr_t)hWnd));
                     // standard overlay doesn't really care what window is being targetted
-                    if (!pOverlay->IsStandardWindow()) {
+                    if (!pOverlay->IsHeadless() && !pOverlay->IsStandardWindow()) {
                         pOverlay = pOverlay->SacrificeClone(hWnd);
                     }
 				}
@@ -163,7 +163,9 @@ namespace p2c::kern
     }
     void OverlayContainer::RebootOverlay(std::shared_ptr<OverlaySpec> pSpec_)
     {
-        pOverlay = pOverlay->SacrificeClone({}, std::move(pSpec_));
+        if (!pOverlay->IsHeadless()) {
+            pOverlay = pOverlay->SacrificeClone({}, std::move(pSpec_));
+        }
     }
     void OverlayContainer::HandleProcessSpawnEvents_()
     {
@@ -197,10 +199,11 @@ namespace p2c::kern
                     GetWindowThreadProcessId(hWnd, &pid);
 
                     if (pid == pProc->pid) {
-                        if constexpr (v::procwatch) {
+                        if (log::GlobalPolicy::VCheck(v::procwatch)) {
                             RECT r;
                             GetWindowRect(hWnd, &r);
-                            pmlog_verb(true)(std::format("handle-proc-spawn-enum-win | pid:{:5} hwd:{:8x} own:{:8x} vis:{} siz:{} nam:{}",
+                            pmlog_(log::Level::Verbose).note(std::format(
+                                "handle-proc-spawn-enum-win | pid:{:5} hwd:{:8x} own:{:8x} vis:{} siz:{} nam:{}",
                                 pid,
                                 reinterpret_cast<uintptr_t>(hWnd),
                                 reinterpret_cast<uintptr_t>(GetWindow(hWnd, GW_OWNER)),

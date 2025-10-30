@@ -6,6 +6,7 @@
 #include <thread>
 #include <string>
 #include <map>
+#include <set>
 
 #include "../PresentMonUtils/StreamFormat.h"
 #include "gtest/gtest.h"
@@ -49,6 +50,7 @@ class Streamer {
       std::bitset<static_cast<size_t>(CpuTelemetryCapBits::cpu_telemetry_count)>
           cpu_telemetry_cap_bits);
   std::string GetMapFileName(DWORD process_id);
+  std::set<uint32_t> GetActiveStreamPids() const;
   void SetStartQpc(uint64_t start_qpc) { start_qpc_ = start_qpc; };
   bool IsTimedOut() { return write_timedout_; };
   int NumActiveStreams() { return (int)process_shared_mem_map_.size(); }

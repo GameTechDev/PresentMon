@@ -17,11 +17,14 @@
 #include "../CommonUtilities/win/Event.h"
 
 #include "../CommonUtilities/log/GlogShim.h"
+#include "testing/TestControl.h"
+
 
 using namespace std::literals;
 using namespace pmon;
 using namespace svc;
 using namespace util;
+using v = log::V;
 
 
 std::string GetIntrospectionShmName()
@@ -38,8 +41,8 @@ void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
 
     // this is the interval to wait when manual flush is disabled
     // we still want to run the inner loop to poll in case it gets enabled
-    const double disabledInterval = 0.25;
-    double currentInterval = pm->GetEtwFlushPeriod().value_or(disabledInterval);
+    const uint32_t disabledIntervalMs = 250u;
+    double currentInterval = (double)pm->GetEtwFlushPeriod().value_or(disabledIntervalMs) / 1000.;
     IntervalWaiter waiter{ currentInterval };
 
     // outer dormant loop waits for either start of process tracking or service exit
@@ -71,7 +74,7 @@ void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
             }
             else {
                 pmlog_verb(v::etwq)("Detected disabled ETW flush, using idle poll period");
-                currentInterval = disabledInterval;
+                currentInterval = disabledIntervalMs / 1000.;
             }
         }
     }
@@ -306,13 +309,19 @@ void PresentMonMainThread(Service* const pSvc)
         // start thread for manual ETW event buffer flushing
         std::jthread flushThread{ EventFlushThreadEntry_, pSvc, &pm };
 
-        while (WaitForSingleObjectEx(pSvc->GetServiceStopHandle(), 0, FALSE) != WAIT_OBJECT_0) {
+        // communication controller for testing purposes
+        std::unique_ptr<pmon::svc::testing::TestControlModule> pTcm;
+        if (opt.enableTestControl) {
+            pTcm = std::make_unique<pmon::svc::testing::TestControlModule>(&pm, pSvc);
+        }
+
+        // periodically check trace sessions while waiting for service stop event
+        while (!util::win::WaitAnyEventFor(250ms, pSvc->GetServiceStopHandle())) {
             pm.CheckTraceSessions();
-            SleepEx(1000, (bool)opt.timedStop);
         }
 
         // Stop the PresentMon sessions
-        pm.StopTraceSessions();
+         pm.StopTraceSessions();
     }
     catch (...) {
         LOG(ERROR) << "Exception in PMMainThread, bailing" << std::endl;

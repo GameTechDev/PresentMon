@@ -9,6 +9,7 @@
 #endif
  
 using namespace pmon::util;
+using v = log::V;
 
 namespace p2c::win 
 {
@@ -79,7 +80,7 @@ namespace p2c::win
                     throw Except<Exception>();
                 }
 
-                pmlog_verb(v::window)(std::format("OVR-Z-CREATE: x:{} y:{} dim:[{},{}] area:[{},{}] name:{}",
+                pmlog_verb(v::core_window)(std::format("OVR-Z-CREATE: x:{} y:{} dim:[{},{}] area:[{},{}] name:{}",
                     x, y, clientDimensions.width, clientDimensions.height,
                     windowArea.width, windowArea.height, str::ToNarrow(GetTitle())));
                 if (!pCreateWindowInBand(
@@ -101,7 +102,7 @@ namespace p2c::win
 
         // fallback in any case to normal window creation
         if (GetHandle() == nullptr) {
-            pmlog_verb(v::window)(std::format("OVR-N-CREATE: x:{} y:{} dim:[{},{}] area:[{},{}] name:{}",
+            pmlog_verb(v::core_window)(std::format("OVR-N-CREATE: x:{} y:{} dim:[{},{}] area:[{},{}] name:{}",
                 x, y, clientDimensions.width, clientDimensions.height,
                 windowArea.width, windowArea.height, str::ToNarrow(GetTitle())));
             CreateWindowExW(

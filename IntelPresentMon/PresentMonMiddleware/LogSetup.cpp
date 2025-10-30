@@ -142,13 +142,18 @@ namespace pmon::util::log
 	{
 		// create / replace diagnostic driver
 		std::lock_guard lk{ diagnosticsMtx_ };
-		pDiagnostics_ = std::make_shared<log::DiagnosticDriver>(pConfig);
-		// attach to existing channel if present
-		InjectDefaultChannel(MakeDiagnosticChannel_(pDiagnostics_));
-		// set global logging policy based on the configuration
-		GlobalPolicy::Get().SetLogLevel((Level)pConfig->filterLevel);
-		if (!pConfig->enableTrace) {
-			GlobalPolicy::Get().SetTraceLevel(Level::None);
+		try {
+			pDiagnostics_ = std::make_shared<log::DiagnosticDriver>(pConfig);
+			// attach to existing channel if present
+			InjectDefaultChannel(MakeDiagnosticChannel_(pDiagnostics_));
+			// set global logging policy based on the configuration
+			GlobalPolicy::Get().SetLogLevel((Level)pConfig->filterLevel);
+			if (!pConfig->enableTrace) {
+				GlobalPolicy::Get().SetTraceLevel(Level::None);
+			}
+		}
+		catch (...) {
+			pmlog_error(ReportException("Failed to create diagnostic driver"));
 		}
 	}
 

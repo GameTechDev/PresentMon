@@ -10,22 +10,16 @@
 #include <shlwapi.h>
 
 using namespace pmon;
-using namespace svc;
 using namespace std::literals;
-
-static const std::wstring kRealTimeSessionName = L"PMService";
+using v = util::log::V;
 
 RealtimePresentMonSession::RealtimePresentMonSession()
-    : target_process_count_(0),
-    quit_output_thread_(false)
 {
-    pm_session_name_.clear();
-    processes_.clear();
-    pm_consumer_.reset();
+    ResetEtwFlushPeriod();
 }
 
 bool RealtimePresentMonSession::IsTraceSessionActive() {
-    return (pm_consumer_ != nullptr);
+    return session_active_.load(std::memory_order_acquire);
 }
 
 PM_STATUS RealtimePresentMonSession::StartStreaming(uint32_t client_process_id,
@@ -96,9 +90,17 @@ void RealtimePresentMonSession::FlushEvents()
     } props{};
     props.Wnode.BufferSize = (ULONG)sizeof(TraceProperties);
     props.LoggerNameOffset = offsetof(TraceProperties, mSessionName);
-    if (ControlTraceW(trace_session_.mSessionHandle, nullptr, &props, EVENT_TRACE_CONTROL_FLUSH)) {
-        pmlog_warn("Failed manual flush of ETW event buffer").hr();
+    if (session_active_.load(std::memory_order_acquire)) {
+        if (ControlTraceW(trace_session_.mSessionHandle, nullptr, &props, EVENT_TRACE_CONTROL_FLUSH)) {
+            pmlog_warn("Failed manual flush of ETW event buffer").hr();
+        }
     }
+
+}
+
+void RealtimePresentMonSession::ResetEtwFlushPeriod()
+{
+    etw_flush_period_ms_ = default_realtime_etw_flush_period_ms_;
 }
 
 PM_STATUS RealtimePresentMonSession::StartTraceSession() {
@@ -131,13 +133,7 @@ PM_STATUS RealtimePresentMonSession::StartTraceSession() {
     pm_consumer_->mTrackPcLatency = true;
 
     auto& opt = clio::Options::Get();
-    if (opt.etwSessionName.AsOptional().has_value()) {
-        pm_session_name_ =
-            util::str::ToWide(opt.etwSessionName.AsOptional().value());
-    }
-    else {
-        pm_session_name_ = kRealTimeSessionName;
-    }
+    pm_session_name_ = util::str::ToWide(*opt.etwSessionName);
 
     const wchar_t* etl_file_name = nullptr;
     // Start the session. If a session with this name is already running, we stop
@@ -174,6 +170,9 @@ PM_STATUS RealtimePresentMonSession::StartTraceSession() {
         trace_session_.mPMConsumer->mDeferralTimeLimit = trace_session_.mTimestampFrequency.QuadPart * 2;
     }
 
+    // Mark session as active (atomic operation)
+    session_active_.store(true, std::memory_order_release);
+
     // Start the consumer and output threads
     StartConsumerThread(trace_session_.mTraceHandle);
     StartOutputThread();
@@ -181,15 +180,19 @@ PM_STATUS RealtimePresentMonSession::StartTraceSession() {
 }
 
 void RealtimePresentMonSession::StopTraceSession() {
-    std::lock_guard<std::mutex> lock(session_mutex_);
-    // Stop the trace session.
+    // PHASE 1: Signal shutdown and wait for threads to observe it
+    session_active_.store(false, std::memory_order_release);
+    
+    // Stop the trace session to stop new events from coming in
     trace_session_.Stop();
-
-    // Wait for the consumer and output threads to end (which are using the
-    // consumers).
+    
+    // Wait for threads to exit their critical sections and finish
     WaitForConsumerThreadToExit();
     StopOutputThread();
-
+    
+    // PHASE 2: Safe cleanup after threads have finished
+    std::lock_guard<std::mutex> lock(session_mutex_);
+    
     // Stop all streams
     streamer_.StopAllStreams();
     if (evtStreamingStarted_) {
@@ -214,8 +217,11 @@ void RealtimePresentMonSession::WaitForConsumerThreadToExit() {
 void RealtimePresentMonSession::DequeueAnalyzedInfo(
     std::vector<ProcessEvent>* processEvents,
     std::vector<std::shared_ptr<PresentEvent>>* presentEvents) {
-    pm_consumer_->DequeueProcessEvents(*processEvents);
-    pm_consumer_->DequeuePresentEvents(*presentEvents);
+    // Check if session is active before accessing pm_consumer_ (atomic guard)
+    if (session_active_.load(std::memory_order_acquire) && pm_consumer_) {        
+        pm_consumer_->DequeueProcessEvents(*processEvents);
+        pm_consumer_->DequeuePresentEvents(*presentEvents);
+    }
 }
 
 void RealtimePresentMonSession::AddPresents(
@@ -224,13 +230,15 @@ void RealtimePresentMonSession::AddPresents(
     uint64_t stopQpc, bool* hitStopQpc) {
     auto i = *presentEventIndex;
 
-    if (trace_session_.mStartTimestamp.QuadPart != 0) {
-        streamer_.SetStartQpc(trace_session_.mStartTimestamp.QuadPart);
+    if (session_active_.load(std::memory_order_acquire)) {
+        if (trace_session_.mStartTimestamp.QuadPart != 0) {
+            streamer_.SetStartQpc(trace_session_.mStartTimestamp.QuadPart);
+        }
     }
 
     // logging of ETW latency
-    if constexpr (svc::v::etwq) {
-        pmlog_verb(svc::v::etwq)(std::format("Processing [{}] frames", presentEvents.size()));
+    if (util::log::GlobalPolicy::VCheck(v::etwq)) {
+        pmlog_(util::log::Level::Verbose).note(std::format("Processing [{}] frames", presentEvents.size()));
         for (auto& p : presentEvents) {
             if (p->FinalState == PresentResult::Presented) {
                 const auto per = util::GetTimestampPeriodSeconds();
@@ -238,7 +246,7 @@ void RealtimePresentMonSession::AddPresents(
                 // TODO: Presents can now have multiple displayed frames if we are tracking
                 // frame types. For now take the first displayed frame for logging stats
                 const auto lag = util::TimestampDeltaToSeconds(p->Displayed[0].second, now, per);
-                pmlog_verb(svc::v::etwq)(std::format("Frame [{}] lag: {} ms", p->FrameId, lag * 1000.));
+                pmlog_(util::log::Level::Verbose).note(std::format("Frame [{}] lag: {} ms", p->FrameId, lag * 1000.));
             }
         }
     }

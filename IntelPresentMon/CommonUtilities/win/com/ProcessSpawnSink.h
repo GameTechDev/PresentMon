@@ -31,7 +31,7 @@ namespace pmon::util::win::com
             std::function<void()> notificationFunction_;
         };
         // functions
-        ProcessSpawnSink(EventQueue& queue, float delayToleranceSeconds = 0.4);
+        ProcessSpawnSink(EventQueue& queue, float delayToleranceSeconds = 0.5);
         HRESULT STDMETHODCALLTYPE Indicate(LONG count,
             IWbemClassObject __RPC_FAR* __RPC_FAR* pObjArr) override;
         std::string GetQueryString() const override;

@@ -16,14 +16,14 @@ namespace LibraryInject
     {
         auto hProcess = (win::Handle)OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
         if (!hProcess) {
-            LOGI << "OpenProcess failed with [" << win::GetErrorDescription(GetLastError()) << "]; re-attemping with elevated privileges";
+            LOGI << "OpenProcess failed with [" << win::GetErrorDescription(GetLastError()) << "]; re-attemping with elevated privileges" << std::endl;
             
             // Increase privileges
             win::Handle hToken;
             {
                 HANDLE tempHandle;
                 if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &tempHandle)) {
-                    LOGE << "OpenProcessToken failed for current process. Error: " << win::GetErrorDescription(GetLastError());
+                    LOGE << "OpenProcessToken failed for current process. Error: " << win::GetErrorDescription(GetLastError()) << std::endl;
                     exit(1);
                 }
                 hToken = win::Handle(tempHandle);
@@ -31,7 +31,7 @@ namespace LibraryInject
 
             LUID debugPrivilegeId;
             if (!LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &debugPrivilegeId)) {
-                LOGE << "LookupPrivilegeValue failed for current process. Error: " << win::GetErrorDescription(GetLastError());
+                LOGE << "LookupPrivilegeValue failed for current process. Error: " << win::GetErrorDescription(GetLastError()) << std::endl;
                 exit(1);
             }
 
@@ -42,12 +42,12 @@ namespace LibraryInject
                 }
             };
             if (!AdjustTokenPrivileges(hToken, FALSE, &tokenPrivileges, sizeof(tokenPrivileges), NULL, NULL)) {
-                LOGE << "AdjustTokenPrivileges failed for current process. Error: " << win::GetErrorDescription(GetLastError());
+                LOGE << "AdjustTokenPrivileges failed for current process. Error: " << win::GetErrorDescription(GetLastError()) << std::endl;
                 exit(1);
             }
 
             if (!(hProcess = (win::Handle)OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId))) {
-                LOGE << "Could not open process to attach with elevated privileges. Error: " << win::GetErrorDescription(GetLastError());
+                LOGE << "Could not open process to attach with elevated privileges. Error: " << win::GetErrorDescription(GetLastError()) << std::endl;
                 exit(1);
             }
         }
@@ -64,14 +64,14 @@ namespace LibraryInject
         if (pRemoteMem == NULL)
         {
             auto error = GetLastError();
-            LOGE << "Could not allocate memory in target process. Error: " << win::GetErrorDescription(error);
+            LOGE << "Could not allocate memory in target process. Error: " << win::GetErrorDescription(error) << std::endl;
             exit(1);
         }
 
         if (!WriteProcessMemory(hProcess, pRemoteMem, absDllPath.c_str(), remoteMemSize, NULL))
         {
             auto error = GetLastError();
-            LOGE << "WriteProcessMemory failed. Error: " << win::GetErrorDescription(error);
+            LOGE << "WriteProcessMemory failed. Error: " << win::GetErrorDescription(error) << std::endl;
             exit(1);
         }
         FlushInstructionCache(hProcess, pRemoteMem, remoteMemSize);
@@ -91,7 +91,7 @@ namespace LibraryInject
         {
             auto error = GetLastError();
             LOGE << "Could not create remote thread in target process. Error: " << win::GetErrorDescription(error);
-            LOGE << "Tip: Check bit-ness of the application and DXGIOverlay.exe.";
+            LOGE << "Tip: Check bit-ness of the application and DXGIOverlay.exe." << std::endl;
             VirtualFreeEx(hProcess, pRemoteMem, 0, MEM_RELEASE);
             exit(1);
         }
@@ -106,5 +106,39 @@ namespace LibraryInject
     {
         auto hTargetProcess = LibraryInject::OpenProcessAndMaybeElevate_(processId);
         LibraryInject::InjectDll(hTargetProcess, dllPath);
+    }
+
+    ProcessMap GetProcessNames()
+    {
+        ProcessMap processMap;
+
+        DWORD processIds[1024];
+        DWORD processIdsSize;
+        EnumProcesses(processIds, sizeof(processIds), &processIdsSize);
+
+        auto processIdsFound = processIdsSize / sizeof(DWORD);
+        for (unsigned idx = 0; idx < processIdsFound; idx++)
+        {
+            auto processId = processIds[idx];
+            if (processId == 0)
+            {
+                continue;
+            }
+
+            auto hProcess = ::OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, processId);
+            if (!hProcess)
+            {
+                continue;
+            }
+
+            CHAR pProcessName[MAX_PATH] = "NOT_FOUND";
+            GetModuleBaseName(hProcess, 0, pProcessName, sizeof(pProcessName) / sizeof(CHAR));
+
+            CloseHandle(hProcess);
+
+            processMap[processId] = pProcessName;
+        }
+
+        return processMap;
     }
 }

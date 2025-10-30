@@ -21,7 +21,8 @@ namespace ACT_NS
 		struct Params : GfxLayer::Extension::OverlayConfig
 		{
 			template<class A> void serialize(A& ar) {
-				ar(BarSize, BarRightShift, BarColor, RenderBackground, BackgroundColor);
+				ar(BarSize, BarRightShift, BarColor, RenderBackground, BackgroundColor,
+					FlashDuration, UseRainbow, BackgroundSize);
 			}
 		};
 		struct Response {

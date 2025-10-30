@@ -15,9 +15,13 @@
 #include <chrono>
 #include <ctime>
 #include <cstdlib>
+#include <ranges>
 #include "../PresentMonService/CliOptions.h"
 #include "../CommonUtilities/str/String.h"
 #include "../CommonUtilities/log/GlogShim.h"
+
+namespace vi = std::views;
+namespace rn = std::ranges;
 
 static const std::chrono::milliseconds kTimeoutLimitMs =
     std::chrono::milliseconds(500);
@@ -467,4 +471,10 @@ std::string Streamer::GetMapFileName(DWORD process_id) {
   }
 
   return mapfile_name;
+}
+
+std::set<uint32_t> Streamer::GetActiveStreamPids() const
+{
+    std::lock_guard lk{ nsm_map_mutex_ };
+    return { std::from_range, process_shared_mem_map_ | vi::keys };
 }

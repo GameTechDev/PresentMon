@@ -73,6 +73,7 @@ namespace p2c::kern
         DWORD pid;
         std::wstring capturePath;
         std::wstring captureName = L"pmcap";
+        std::optional<std::wstring> captureFullPathOverride;
         double graphDataWindowSize;
         double averagingWindowSize;
         double metricsOffset;

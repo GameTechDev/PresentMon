@@ -135,6 +135,18 @@ int wmain(
 {
     // Set defaults
     std::wstring goldDir(L"../../Tests/Gold");
+    
+    // Check for additional test directory from environment variable
+    // This allows developers to specify their own test directories without
+    // modifying the source code. Set PRESENTMON_ADDITIONAL_TEST_DIR environment
+    // variable or use a .runsettings.user file (see template).
+    std::wstring additionalTestDir;
+    wchar_t* envTestDir = nullptr;
+    size_t envTestDirLen = 0;
+    if (_wdupenv_s(&envTestDir, &envTestDirLen, L"PRESENTMON_ADDITIONAL_TEST_DIR") == 0 && envTestDir != nullptr) {
+        additionalTestDir = envTestDir;
+        free(envTestDir);
+    }
 
     {
         // If exe == <dir>/PresentMonTests-<ver>-<platform>.exe use
@@ -198,6 +210,7 @@ int wmain(
                 "options:\n"
                 "    --presentmon=path    Path to the PresentMon exe path to test (default=%ls).\n"
                 "    --golddir=path       Path to directory of test ETLs and gold CSVs (default=%ls).\n"
+                "    --opttestdir=path    Optional additional directory of test ETLs and gold CSVs.\n"
                 "    --outdir=path        Path to directory for test outputs (default=%%temp%%/PresentMonTestOutput).\n"
                 "    --nodelete           Keep the output directory after tests.\n"
                 "    --nowarnmissing      Don't warn if a found ETL is missing a gold CSV.\n"
@@ -221,6 +234,7 @@ int wmain(
     // Parse remaining command line arguments for custom commands.
     wchar_t* presentMonPathArg = nullptr;
     wchar_t* goldDirArg = nullptr;
+    wchar_t* optTestDirArg = nullptr;
     wchar_t* outDirArg = nullptr;
     bool deleteOutDir = true;
     for (int i = 1; i < argc; ++i) {
@@ -231,6 +245,11 @@ int wmain(
 
         if (_wcsnicmp(argv[i], L"--golddir=", 10) == 0) {
             goldDirArg = argv[i] + 10;
+            continue;
+        }
+
+        if (_wcsnicmp(argv[i], L"--opttestdir=", 10) == 0) {
+            optTestDirArg = argv[i] + 13;
             continue;
         }
 
@@ -267,9 +286,18 @@ int wmain(
     // Check command line arguments...
     bool goldDirExists = true;
     bool outDirExists = true;
+    std::wstring optTestDir;
+    bool optTestDirExists = false;
+    bool hasOptTestDir = optTestDirArg != nullptr;
+    
+    if (hasOptTestDir) {
+        optTestDir = optTestDirArg;
+    }
+    
     if (!CheckPath("--presentmon", &PresentMon::exePath_, presentMonPathArg, false, nullptr) ||
         !CheckPath("--golddir", &goldDir, goldDirArg, true, &goldDirExists) ||
-        !CheckPath("--outdir", &outDir_, outDirArg, true, &outDirExists)) {
+        !CheckPath("--outdir", &outDir_, outDirArg, true, &outDirExists) ||
+        (hasOptTestDir && !CheckPath("--opttestdir", &optTestDir, optTestDirArg, true, &optTestDirExists))) {
         return 1;
     }
 
@@ -279,6 +307,39 @@ int wmain(
         fprintf(stderr, "warning: gold directory does not exist: %ls\n", goldDir.c_str());
         fprintf(stderr, "         Continuing, but no GoldEtlCsvTests.* will run.  Specify a new path\n");
         fprintf(stderr, "         using the --golddir command line argument.\n");
+    }
+
+    // Add tests from optional test directory if specified (command line)
+    if (hasOptTestDir) {
+        printf("INFO: Using optional test directory from command line: %ls\n", optTestDir.c_str());
+        if (optTestDirExists) {
+            printf("INFO: Adding tests from test directory: %ls\n", optTestDir.c_str());
+            AddGoldEtlCsvTests(optTestDir, optTestDir.size());
+        } else {
+            fprintf(stderr, "warning: optional test directory does not exist: %ls\n", optTestDir.c_str());
+            fprintf(stderr, "         Continuing, but no tests from this directory will run.\n");
+        }
+    }
+    
+    // Add tests from additional test directory (environment variable)
+    if (!additionalTestDir.empty()) {
+        printf("INFO: Using additional test directory from environment: %ls\n", additionalTestDir.c_str());
+        // Ensure directory ends with backslash
+        if (additionalTestDir.back() != L'\\') {
+            additionalTestDir += L'\\';
+        }
+        
+        auto attr = GetFileAttributes(additionalTestDir.c_str());
+        if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY)) {
+            printf("INFO: Adding tests from additional directory: %ls\n", additionalTestDir.c_str());
+            AddGoldEtlCsvTests(additionalTestDir, additionalTestDir.size());
+        } else {
+            fprintf(stderr, "warning: additional test directory does not exist: %ls\n", additionalTestDir.c_str());
+        }
+    }
+    
+    if (!hasOptTestDir && additionalTestDir.empty()) {
+        printf("INFO: No optional test directories specified.\n");
     }
 
     if (outDirExists) {

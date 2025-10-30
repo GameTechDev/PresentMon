@@ -22,5 +22,9 @@ namespace pmon::util::log
 	{
 		pFormatter_ = std::move(pFormatter);
 	}
+	std::shared_ptr<ITextFormatter> MsvcDebugDriver::GetFormatter() const
+	{
+		return pFormatter_;
+	}
 	void MsvcDebugDriver::Flush() {}
 }

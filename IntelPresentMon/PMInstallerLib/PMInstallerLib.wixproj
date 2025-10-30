@@ -2,25 +2,36 @@
   <PropertyGroup>
     <!-- WiX 3.x library output -->
     <OutputType>Library</OutputType>
-    <OutputName>PMService</OutputName>
-    <IntermediateOutputPath>obj\</IntermediateOutputPath>
-    <OutputPath>bin\</OutputPath>
+    <OutputName>PMInstallerLib</OutputName>
+    <IntermediateOutputPath>$(SolutionDir)build\obj\$(MSBuildProjectName)-$(Platform)-$(Configuration)</IntermediateOutputPath>
+    <OutputPath>$(SolutionDir)build\$(Configuration)</OutputPath>
     <!-- Point these at YOUR WiX 3.x install -->
-    <WixToolPath>C:\Program Files (x86)\WiX Toolset v3.11\bin\</WixToolPath>
+    <WixToolPath>$(WIX)bin\</WixToolPath>
     <WixTargetsPath>$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
-    <!-- Define the two variables your .wxs uses -->
-    <DefineConstants>
-      PresentMonService.TargetFileName=PresentMonService.exe;
-      PresentMonService.TargetPath=$(SolutionDir)build\$(Configuration)\PresentMonService.exe;
-      PresentMonAPI2.TargetFileName=PresentMonAPI2.dll;
-      PresentMonAPI2.TargetPath=$(SolutionDir)build\$(Configuration)\PresentMonAPI2.dll
-    </DefineConstants>
     <!-- Optional: ask lit.exe to embed files into the .wixlib -->
     <BindFiles>true</BindFiles>
     <ProjectGuid>{6478f2f6-92ad-4b1c-a13e-c8cea9125152}</ProjectGuid>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Library.wxs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PresentMonAPI2\PresentMonAPI2.vcxproj">
+      <Name>PresentMonAPI2</Name>
+      <Project>{5ddba061-53a0-4835-8aaf-943f403f924f}</Project>
+      <Private>True</Private>
+      <DoNotHarvest>True</DoNotHarvest>
+      <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
+      <RefTargetDir>INSTALLFOLDER</RefTargetDir>
+    </ProjectReference>
+    <ProjectReference Include="..\PresentMonService\PresentMonService.vcxproj">
+      <Name>PresentMonService</Name>
+      <Project>{3a848e5b-a376-4a22-bbac-e9b3c01bd385}</Project>
+      <Private>True</Private>
+      <DoNotHarvest>True</DoNotHarvest>
+      <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
+      <RefTargetDir>INSTALLFOLDER</RefTargetDir>
+    </ProjectReference>
   </ItemGroup>
   <!-- Add WiX extensions here only if you actually use them in Library.wxs -->
   <!-- <ItemGroup>

@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "PresentMonSession.h"
+#include "EtwLogger.h"
 #include <memory>
+#include <span>
+
+using namespace pmon;
 
 class PresentMon
 {
@@ -27,10 +31,9 @@ public:
 	std::string GetCpuName() { return pSession_->GetCpuName(); }
 	double GetCpuPowerLimit() { return pSession_->GetCpuPowerLimit(); }
 	PM_STATUS SelectAdapter(uint32_t adapter_id);
-	PM_STATUS SetGpuTelemetryPeriod(uint32_t period_ms)
+	PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> telemetryPeriodRequestsMs)
 	{
-		// Only the real time trace sets GPU telemetry period
-		return pSession_->SetGpuTelemetryPeriod(period_ms);
+		return pSession_->SetGpuTelemetryPeriod(telemetryPeriodRequestsMs);
 	}
 	uint32_t GetGpuTelemetryPeriod()
 	{
@@ -70,8 +73,17 @@ public:
 	{
 		pSession_->FlushEvents();
 	}
+	auto GetTestingStatus() const
+	{
+		return pSession_->GetTestingStatus();
+	}
+	auto& GetEtwLogger()
+	{
+		return etwLogger_;
+	}
 	void StartPlayback();
 	void StopPlayback();
 private:
+	svc::EtwLogger etwLogger_;
 	std::unique_ptr<PresentMonSession> pSession_;
 };

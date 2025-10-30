@@ -10,6 +10,7 @@ namespace p2c::client::util::cli
 	{
 	private:
 		CLI::CheckedTransformer logLevelTf_{ log::GetLevelMapNarrow(), CLI::ignore_case };
+		CLI::CheckedTransformer logVmodTf_{ log::GetVerboseModuleMapNarrow(), CLI::ignore_case };
 
 	private: Group gd_{ this, "Debugging", "Aids in debugging this tool" }; public:
 		Option<std::string> url{ this, "--p2c-url", "", "URL to load instead of app files" };
@@ -29,6 +30,7 @@ namespace p2c::client::util::cli
 		Option<std::string> logDenyList{ this, "--p2c-log-deny-list", "", "Path to log deny list (with trace overrides)", CLI::ExistingFile };
 		Option<std::string> logAllowList{ this, "--p2c-log-allow-list", "", "Path to log allow list (with trace overrides)", CLI::ExistingFile };
 		Option<std::string> logFolder{ this, "--p2c-log-folder", "", "Path to directory in which to store log files", CLI::ExistingDirectory };
+		Option<std::vector<log::V>> logVerboseModules{ this, "--p2c-log-verbose-modules", {}, "Verbose logging modules to enable", logVmodTf_ };
 
 	private: Group gi_{ this, "Internal", "Internal options, do not supply manually" }; public:
 		Option<std::string> cefType{ this, "--type", "", "Type of the current chromium process" };
@@ -40,7 +42,7 @@ namespace p2c::client::util::cli
 
 	private:
 		MutualExclusion excl_{ logDenyList, logAllowList };
-		NoForward noForward_{ cefType, logPipeName };
+		NoForward noForward_{ cefType, logPipeName, logVerboseModules };
 		AllowExtras ext_{ this };
 	};
 }

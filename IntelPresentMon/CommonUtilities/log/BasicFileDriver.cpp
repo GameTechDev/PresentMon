@@ -31,6 +31,10 @@ namespace pmon::util::log
 	{
 		pFormatter_ = std::move(pFormatter);
 	}
+	std::shared_ptr<ITextFormatter> BasicFileDriver::GetFormatter() const
+	{
+		return pFormatter_;
+	}
 	void BasicFileDriver::SetFileStrategy(std::shared_ptr<IFileStrategy> pFileStrategy)
 	{
 		pFileStrategy_ = std::move(pFileStrategy);

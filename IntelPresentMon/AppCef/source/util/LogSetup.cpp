@@ -111,6 +111,11 @@ namespace p2c::client::util
 			if (opt.logLevel) {
 				pol.SetLogLevel(*opt.logLevel);
 			}
+			if (opt.logVerboseModules) {
+				for (auto mod : *opt.logVerboseModules) {
+					pol.ActivateVerboseModule(mod);
+				}
+			}
 			if (opt.logTraceLevel) {
 				pol.SetTraceLevel(*opt.logTraceLevel);
 			}

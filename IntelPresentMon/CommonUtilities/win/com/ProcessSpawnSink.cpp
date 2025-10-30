@@ -6,14 +6,6 @@
 #include "../../str/String.h"
 #include <format>
 
-namespace v {
-#ifndef VVV_PROCWATCH // system that tracks overlay target process ancestry and windows spawning therein
-    inline constexpr bool procwatch = false;
-#else
-    inline constexpr bool procwatch = true;
-#endif
-}
-
 namespace pmon::util::win::com
 {
     ProcessSpawnSink::ProcessSpawnSink(EventQueue& queue, float delayToleranceSeconds)
@@ -106,7 +98,7 @@ namespace pmon::util::win::com
                 }
             }
 
-            pmlog_verb(v::procwatch)(std::format("proc-spawn event | pid:{:5} par:{:5} nam:{}", 
+            pmlog_verb(log::V::procwatch)(std::format("proc-spawn event | pid:{:5} par:{:5} nam:{}", 
                 pid, parentPid, pmon::util::str::ToNarrow(name)));
 
             // queue notification for handling on kernel thread

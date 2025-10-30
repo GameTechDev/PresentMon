@@ -965,9 +965,6 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
             auto present = FindPresentBySubmitSequence(submitSequence);
             if (present != nullptr) {
 
-                // Apply Nvidia FlipDelay, if any, to the presentEvent
-                mNvTraceConsumer.ApplyFlipDelay(present.get(), hdr.ThreadId);
-
                 // Complete the GPU tracking for this frame.
                 //
                 // For some present modes (e.g., Hardware_Legacy_Flip) this may be
@@ -991,6 +988,8 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
                         if (FlipEntryStatusAfterFlip != (uint32_t) Microsoft_Windows_DxgKrnl::FlipEntryStatus::FlipWaitHSync) {
 
                             SetScreenTime(present, hdr.TimeStamp.QuadPart + present->FlipDelay);
+                            // Apply Nvidia FlipDelay, if any, to the presentEvent
+                            mNvTraceConsumer.ApplyFlipDelay(present.get(), hdr.ThreadId);
 
                             if (present->PresentMode == PresentMode::Hardware_Legacy_Flip) {
                                 CompletePresent(present);
@@ -2026,7 +2025,34 @@ void PMTraceConsumer::RemoveLostPresent(std::shared_ptr<PresentEvent> p)
 {
     VerboseTraceBeforeModifyingPresent(p.get());
     p->IsLost = true;
-    CompletePresent(p);
+
+    if (p->IsCompleted) {
+        // Present is already completed but lost - simulate what Present_Stop would do
+        if (p->WaitingForPresentStop) {
+            VerboseTraceBeforeModifyingPresent(p.get());
+            p->WaitingForPresentStop = false;
+
+            // Remove from thread tracking since Present_Stop won't come
+            auto ii = mPresentByThreadId.find(p->ThreadId);
+            if (ii != mPresentByThreadId.end() && ii->second == p) {
+                mPresentByThreadId.erase(ii);
+            }
+            if (p->DriverThreadId != 0) {
+                auto jj = mPresentByThreadId.find(p->DriverThreadId);
+                if (jj != mPresentByThreadId.end() && jj->second == p) {
+                    mPresentByThreadId.erase(jj);
+                }
+            }
+
+            // Make ready for dequeue
+            UpdateReadyCount(true);
+        }
+        // If not waiting for Present_Stop, it should already be cleaned up properly
+    }
+    else {
+        // Present is not completed yet - complete it normally
+        CompletePresent(p);
+    }
 }
 
 void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
@@ -2115,7 +2141,29 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                     } else if (p2->FinalState != PresentResult::Discarded) {
                         VerboseTraceBeforeModifyingPresent(p2.get());
                         p2->FinalState = p->FinalState;
-                        p2->Displayed = p->Displayed;
+                        // If the DWM present was displayed, then the dependent present was also displayed.
+                        // However keep the FrameType information from the dependent present.
+                        {
+                            // Copy timestamps from p (source) into p2 (dest), preserving p2's FrameType(s).
+                            if (!p->Displayed.empty()) {
+                                const size_t nCommon = std::min(p2->Displayed.size(), p->Displayed.size());
+
+                                // Reserve space upfront if we know we'll be adding elements
+                                if (p->Displayed.size() > nCommon) {
+                                    p2->Displayed.reserve(p->Displayed.size());
+                                }
+
+                                // Overwrite timestamps for shared entries (keep existing FrameType).
+                                for (size_t i = 0; i < nCommon; ++i) {
+                                    p2->Displayed[i].second = p->Displayed[i].second;
+                                }
+
+                                // Append extra timestamps from source
+                                for (size_t i = nCommon; i < p->Displayed.size(); ++i) {
+                                    p2->Displayed.emplace_back(p->Displayed[i].first, p->Displayed[i].second);
+                                }
+                            }
+                        }
                         p2->WaitingForFlipFrameType = p->WaitingForFlipFrameType;
                         p2->DoneWaitingForFlipFrameType = p->DoneWaitingForFlipFrameType;
                     }
@@ -2209,8 +2257,10 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                         });
                     if (it != p2->Displayed.end()) {
                         // Propagate the Present information attached to the generated frame
-                        // TODO -> explain why we have two paths for copying
                         if (p2->AppPropagatedPresentStartTime != 0) {
+                            // If the completed present has propagated app timing data from an earlier
+                            // present, propagate the data to this present and clear it from the completed
+                            // present so it doesn't get propagated again.
                             present->AppPropagatedPresentStartTime = p2->AppPropagatedPresentStartTime;
                             present->AppPropagatedTimeInPresent = p2->AppPropagatedTimeInPresent;
                             present->AppPropagatedGPUStartTime = p2->AppPropagatedGPUStartTime;
@@ -2224,6 +2274,8 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                             p2->AppPropagatedGPUDuration = 0;
                             p2->AppPropagatedGPUVideoDuration = 0;
                         } else {
+                            // Otherwise set the propagated data using the values from
+                            // the completed present itself.
                             present->AppPropagatedPresentStartTime = p2->PresentStartTime;
                             present->AppPropagatedTimeInPresent = p2->TimeInPresent;
                             present->AppPropagatedGPUStartTime = p2->GPUStartTime;
@@ -2240,7 +2292,6 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                             present->InputType = p2->InputType;
                         }
                     }
-                    break;
                 }
                 p2->WaitingForFrameId = false;
             }
@@ -2630,7 +2681,8 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
 
     if (hdr.ProviderId == Microsoft_Windows_Kernel_Process::GUID) {
         switch (hdr.EventDescriptor.Id) {
-        case Microsoft_Windows_Kernel_Process::ProcessStart_Start::Id: {
+        case Microsoft_Windows_Kernel_Process::ProcessStart_Start::Id:
+        case Microsoft_Windows_Kernel_Process::ProcessRundown_Info::Id: {
             EventDataDesc desc[] = {
                 { L"ProcessID" },
                 { L"ImageName" },
@@ -2723,7 +2775,7 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
         } else {
             auto ij = mAppTimingDataByAppFrameId.find(key);
             if (ij != mAppTimingDataByAppFrameId.end()) {
-                ij->second.AppSleepEndTime = timestamp;
+                ij->second.AppSleepStartTime = timestamp;
             } else {
                 AppTimingData data;
                 data.AppSleepStartTime = timestamp;

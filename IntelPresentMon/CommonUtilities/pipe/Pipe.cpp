@@ -1,5 +1,5 @@
 #include "Pipe.h"
-#include <sddl.h>
+#include "../win/Security.h"
 #include <string_view>
 
 namespace pmon::util::pipe
@@ -144,15 +144,11 @@ namespace pmon::util::pipe
 			.lpSecurityDescriptor = nullptr,
 			.bInheritHandle = FALSE,
 		};
-		// if we have a security string, create the descriptor and have it owned by above structure
+		// if we have a security string, create the descriptor
+		UniqueLocalPtr<void> pSecDesc;
 		if (!security.empty()) {
-			if (!ConvertStringSecurityDescriptorToSecurityDescriptorA(
-				security.c_str(), SDDL_REVISION_1,
-				&securityAttributes.lpSecurityDescriptor, NULL)) {
-				pmlog_error(std::format(
-					"Failed creating security descriptor for pipe [{}], descriptor string was '{}'",
-					name, security)).hr().raise<PipeError>();
-			}
+			pSecDesc = win::MakeSecurityDescriptor(security);
+			securityAttributes.lpSecurityDescriptor = pSecDesc.get();
 		}
 		// if we have a security string, call create pipe with above structure, else call with nullptr
 		SECURITY_ATTRIBUTES* pSecurityAttributes = security.empty() ? nullptr : &securityAttributes;
@@ -166,12 +162,6 @@ namespace pmon::util::pipe
 			4096,					// in buffer
 			0,						// timeout
 			pSecurityAttributes));	// security
-		// regardless of result, if we are using security, free the descriptor owned by above structure
-		if (!security.empty()) {
-			if (LocalFree(securityAttributes.lpSecurityDescriptor) != NULL) {
-				pmlog_warn("Failed freeing memory for security descriptor");
-			}
-		}
 		if (!handle) {
 			pmlog_error("Server failed to create named pipe instance").hr().raise<PipeError>();
 		}

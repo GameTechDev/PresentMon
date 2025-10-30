@@ -1,6 +1,5 @@
 #pragma once
 #include "../Interprocess/source/act/SymmetricActionConnector.h"
-#include "../CommonUtilities/pipe/ManualAsyncEvent.h"
 #include <memory>
 #include <set>
 #include <unordered_map>
@@ -24,10 +23,10 @@ namespace pmon::svc::acts
         uint32_t nextCommandToken = 0;
         // custom items
         std::set<uint32_t> trackedPids;
+        std::set<uint32_t> etwLogSessionIds;
         std::optional<uint32_t> requestedAdapterId;
         std::optional<uint32_t> requestedTelemetryPeriodMs;
         std::optional<uint32_t> requestedEtwFlushPeriodMs;
-        std::optional<bool> requestedEtwFlushEnabled;
         std::string clientBuildId;
     };
 
@@ -37,16 +36,14 @@ namespace pmon::svc::acts
         using SessionContextType = ActionSessionContext;
 
         // data
-        Service* pSvc;
-        PresentMon* pPmon;
+        Service* pSvc = nullptr;
+        PresentMon* pPmon = nullptr;
+        const std::unordered_map<uint32_t, SessionContextType>* pSessionMap = nullptr;
         std::optional<uint32_t> responseWriteTimeoutMs;
 
         // functions
-        void Dispose(SessionContextType& stx)
-        {
-            for (auto& tracked : stx.trackedPids) {
-                pPmon->StopStreaming(stx.remotePid, tracked);
-            }
-        }
+        void Dispose(SessionContextType& stx);
+        void UpdateTelemetryPeriod() const;
+        void UpdateEtwFlushPeriod() const;
     };
 }

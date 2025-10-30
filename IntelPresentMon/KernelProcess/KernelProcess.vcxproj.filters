@@ -62,6 +62,9 @@
     <ClInclude Include="kact\ClearHotkey.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="kact\SetEtlLogging.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="KernelProcess.rc">
@@ -72,5 +75,8 @@
     <Image Include="flask.ico">
       <Filter>Resource Files</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="presentmon-cli.cmd" />
   </ItemGroup>
 </Project>

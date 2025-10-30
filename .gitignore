@@ -57,3 +57,8 @@ PresentMon/ddETWExternalEvents.h
 PresentMon/ddETWExternalEvents.rc
 
 PresentMon/ddETWExternalEventsTEMP.BIN
+
+# Local runsettings files (user-specific test configurations)
+*.local.runsettings
+
+Directory.Build.props

@@ -6,7 +6,6 @@
 #include "CliOptions.h"
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include "../CommonUtilities/win/WinAPI.h"
-// #define PMLOG_BUILD_LEVEL Verbose
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/log/NamedPipeMarshallReceiver.h"
 #include "../CommonUtilities/log/NamedPipeMarshallSender.h"
@@ -14,8 +13,6 @@
 #include "../CommonUtilities/log/EntryMarshallInjector.h"
 #include "../CommonUtilities/log/LineTable.h"
 #include "../CommonUtilities/Exception.h"
-// #define VVV_LOGDEMO
-#include "Verbose.h"
 #include "LogSetup.h"
 
 #include "../CommonUtilities/pipe/Pipe.h"
@@ -97,15 +94,6 @@ void RunLogDemo(int mode)
 			pmlog_warn("first 2").first(2);
 			pmlog_warn("after 6").after(6);
 		}
-	}
-	// verbose logging in a loop
-	else if (mode == 10) {
-		log::GlobalPolicy::Get().SetLogLevel(log::Level::Verbose);
-		pmlog_info("starting loop");
-		for (int i = 0; i < 20; i++) {
-			pmlog_verb(v::logdemo)("in loop").pmwatch(i);
-		}
-		pmlog_info("loop complete");
 	}
 	// define, throw, catch custom exception
 	else if (mode == 11) {

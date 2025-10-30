@@ -43,6 +43,7 @@ struct PresentMonCsv
         Header_TimeInQPC,
         Header_TimeInMs,
         Header_TimeInDateTime,
+        Header_MsFlipDelay,
 
         // Current Internal Intel Metrics
         Header_MsInstrumentedLatency,
@@ -100,6 +101,7 @@ struct PresentMonCsv
         Header_msGPUVideoActive,
         Header_msSinceInput,
         Header_QPCTime,
+        Header_msFlipDelay,
 
         // Deprecated
         Header_WasBatched,
@@ -178,6 +180,8 @@ struct PresentMonCsv
         case Header_MsInstrumentedLatency:      return "MsInstrumentedLatency";
         case Header_MsBetweenSimulationStart:   return "MsBetweenSimulationStart";
         case Header_MsPCLatency:                return "MsPCLatency";
+        case Header_MsFlipDelay:                return "MsFlipDelay";
+        case Header_msFlipDelay:                return "msFlipDelay";
         }
         return "<unknown>";
     }

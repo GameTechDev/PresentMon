@@ -19,6 +19,7 @@ public:
     bool CheckTraceSessions(bool forceTerminate) override;
     HANDLE GetStreamingStartHandle() override;
     void FlushEvents() override;
+    void ResetEtwFlushPeriod() override;
 
 private:
     // functions
@@ -63,14 +64,15 @@ private:
     std::thread consumer_thread_;
     std::thread output_thread_;
 
-    std::atomic<bool> quit_output_thread_;
+    std::atomic<bool> quit_output_thread_ = false;
 
     std::unordered_map<uint32_t, ProcessInfo> processes_;
-    uint32_t target_process_count_;
+    uint32_t target_process_count_ = 0;
 
     // Event for when streaming has started
     pmon::util::win::Event evtStreamingStarted_;
 
     mutable std::mutex session_mutex_;
     mutable std::mutex process_mutex_;
+    std::atomic<bool> session_active_{false};  // Lock-free session state for hot path queries
 };

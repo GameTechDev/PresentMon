@@ -12,6 +12,7 @@
 #include <Core/source/win/StandardWindow.h>
 #include <Core/source/win/OverlayWindow.h>
 #include <Core/source/cli/CliOptions.h>
+#include <Core/source/infra/util/FolderResolver.h>
 #include <ranges>
 #include <set>
 #include <chrono>
@@ -110,6 +111,7 @@ namespace p2c::kern
         std::shared_ptr<OverlaySpec> pSpec_,
         pmon::PresentMon* pm_,
         std::unique_ptr<MetricPackMapper> pPackMapper_,
+        bool headless_,
         std::optional<gfx::Vec2I> pos_)
         :
         proc{ std::move(proc_) },
@@ -126,14 +128,18 @@ namespace p2c::kern
         upscaleFactor{ pSpec->upscale ? pSpec->upscaleFactor : 1.f },
         graphicsDimensions{ pSpec->overlayWidth, 240 },
         windowDimensions{ Dimensions{ graphicsDimensions } * upscaleFactor },
-        pWindow{ MakeWindow_(pos_) },
-        gfx{ pWindow->GetHandle(), graphicsDimensions, upscaleFactor, cli::Options::Get().allowTearing, !cli::Options::Get().disableAlpha },
         hideDuringCapture{ pSpec->hideDuringCapture },
         hideAlways{ pSpec->hideAlways },
-        samplingWaiter{ 1.f / pSpec->metricPollRate }
+        samplingWaiter{ 1.f / pSpec->metricPollRate },
+        headless{ headless_ }
     {
         UpdateDataSets_();
-        pRoot = MakeDocument_(gfx, *pSpec, *pPackMapper, fetcherFactory, pCaptureIndicatorText);
+        if (!headless) {
+            pWindow = MakeWindow_(pos_);
+            pGfx = std::make_unique<Graphics>(pWindow->GetHandle(), graphicsDimensions, upscaleFactor,
+                cli::Options::Get().allowTearing, !cli::Options::Get().disableAlpha);
+            pRoot = MakeDocument_(*pGfx, *pSpec, *pPackMapper, fetcherFactory, pCaptureIndicatorText);
+        }
         UpdateCaptureStatusText_();
         AdjustOverlaySituation_(position);
         pm->StartTracking(proc.pid);
@@ -218,9 +224,11 @@ namespace p2c::kern
 
     void Overlay::RebuildDocument(std::shared_ptr<OverlaySpec> pSpec_)
     {
+        if (!pWindow) return;
+
         pSpec = std::move(pSpec_);
         UpdateDataSets_();
-        pRoot = MakeDocument_(gfx, *pSpec, *pPackMapper, fetcherFactory, pCaptureIndicatorText);
+        pRoot = MakeDocument_(*pGfx, *pSpec, *pPackMapper, fetcherFactory, pCaptureIndicatorText);
         UpdateCaptureStatusText_();
         scheduler_ = { pSpec->metricPollRate, pSpec->overlayDrawRate, 10 },
         hideDuringCapture = pSpec->hideDuringCapture;
@@ -239,6 +247,8 @@ namespace p2c::kern
 
     void Overlay::AdjustOverlaySituation_(OverlaySpec::OverlayPosition position_)
     {
+        if (!pWindow) return;
+
         if (const DimensionsI newDims = pRoot->GetElementDims(); newDims != graphicsDimensions)
         {
             graphicsDimensions = newDims;
@@ -247,7 +257,7 @@ namespace p2c::kern
             if (!pWindow->Standard()) {
                 pWindow->Move(CalculateOverlayPosition_());
             }
-            gfx.Resize(graphicsDimensions);
+            pGfx->Resize(graphicsDimensions);
             position = position_;
         }
         else if (position != position_)
@@ -269,6 +279,8 @@ namespace p2c::kern
 
     void Overlay::UpdateTargetRect(const RectI& newRect)
     {
+        if (!pWindow) return;
+
         if (pWindow->Standard()) {
             // if we are a independent overlay (which is a standard) window, don't move when target moves
             return;
@@ -285,6 +297,8 @@ namespace p2c::kern
 
     void Overlay::UpdateTargetOrder(bool topmost)
     {
+        if (!pWindow) return;
+
         if (pWindow->Standard()) {
             // if we are a independent overlay (which is a standard) window, don't do reordering
             return;
@@ -347,14 +361,18 @@ namespace p2c::kern
 
     void Overlay::Render_()
     {
+        if (!pWindow) return;
+
         // update window contents
-        gfx.BeginFrame();
-        pRoot->Draw(gfx);
-        gfx.EndFrame();
+        pGfx->BeginFrame();
+        pRoot->Draw(*pGfx);
+        pGfx->EndFrame();
     }
 
     void Overlay::UpdateCaptureStatusText_()
     {
+        if (!pWindow) return;
+
         if (pWriter) {
             pCaptureIndicatorText->SetText(L"In Progress");
         }
@@ -365,6 +383,8 @@ namespace p2c::kern
 
     void Overlay::InitiateClose()
     {
+        if (!pWindow) return;
+
         pWindow->Close();
     }
 
@@ -378,7 +398,7 @@ namespace p2c::kern
         if (scheduler_.AtPoll() && !IsHidden_()) {
             pmlog_mark mkPoll;
             UpdateGraphData_(pmon::Timekeeper::GetLockedNow());
-            pmlog_perf(v::overlay)("Data update time").mark(mkPoll);
+            pmlog_perf(clog::p::overlay)("Data update time").mark(mkPoll);
         }
         if (scheduler_.AtRender()) {
             // handle hide during move logic (show if time elapsed and now otherwise hidden)
@@ -386,7 +406,7 @@ namespace p2c::kern
                 const auto now = std::chrono::high_resolution_clock::now();
                 if (std::chrono::duration<float>(now - *lastMoveTime).count() >= 0.1f) {
                     lastMoveTime = {};
-                    if (!IsHidden_()) {
+                    if (pWindow && !IsHidden_()) {
                         pWindow->Show();
                     }
                 }
@@ -394,7 +414,7 @@ namespace p2c::kern
             if (!IsHidden_()) {
                 pmlog_mark mkRender;
                 Render_();
-                pmlog_perf(v::overlay)("Overlay draw time").mark(mkRender);
+                pmlog_perf(clog::p::overlay)("Overlay draw time").mark(mkRender);
             }
         }
         if (scheduler_.AtTrace() && pWriter) {
@@ -402,18 +422,29 @@ namespace p2c::kern
         }
     }
 
-    void Overlay::SetCaptureState(bool active, std::wstring path, std::wstring name)
+    void Overlay::SetCaptureState(bool active)
     {
         pmlog_info(std::format("Capture set to {}", active));
 
-        if (active && !pWriter)
-        {
+        using FR = infra::util::FolderResolver;
+
+        if (active && !pWriter) {
+            std::wstring fullPath;
             const std::chrono::zoned_time now{ std::chrono::current_zone(), std::chrono::system_clock::now() };
-            auto fullPath = std::format(L"{0}{1}-{3}-{2:%y}{2:%m}{2:%d}-{2:%H}{2:%M}{2:%OS}.csv", path, name, now, proc.name);
+            if (pSpec->captureFullPathOverride) {
+                fullPath = std::move(*pSpec->captureFullPathOverride);
+            }
+            else {
+                const auto folder = FR::Get().Resolve(FR::Folder::Documents, FR::capturesSubdirectory);
+                fullPath = std::format(L"{0}\\{1}-{3}-{2:%y}{2:%m}{2:%d}-{2:%H}{2:%M}{2:%OS}.csv",
+                    folder, pSpec->captureName, now, proc.name);
+            }
             // create optional path for stats file
             auto fullStatsPath = [&]() -> std::optional<std::wstring> {
                 if (pSpec->generateStats) {
-                    return std::format(L"{0}{1}-{3}-{2:%y}{2:%m}{2:%d}-{2:%H}{2:%M}{2:%OS}-stats.csv", path, name, now, proc.name);
+                    const auto folder = FR::Get().Resolve(FR::Folder::Documents, FR::capturesSubdirectory);
+                    return std::format(L"{0}\\{1}-{3}-{2:%y}{2:%m}{2:%d}-{2:%H}{2:%M}{2:%OS}-stats.csv",
+                        folder, pSpec->captureName, now, proc.name);
                 }
                 else {
                     return std::nullopt;
@@ -421,20 +452,19 @@ namespace p2c::kern
             }();
             pWriter = { pm->MakeRawFrameDataWriter(std::move(fullPath), std::move(fullStatsPath), proc.pid, proc.name) };
         }
-        else if (!active && pWriter)
-        {
+        else if (!active && pWriter) {
             pWriter.reset();
         }
 
         // handle window visibility
-        if (IsHidden_())
-        {
-            pWindow->Hide();
-        }
-        else
-        {
-            pWindow->Show();
-            pWindow->Reorder(proc.hWnd);
+        if (pWindow) {
+            if (IsHidden_()) {
+                pWindow->Hide();
+            }
+            else {
+                pWindow->Show();
+                pWindow->Reorder(proc.hWnd);
+            }
         }
 
         // update indicator on overlay
@@ -453,6 +483,7 @@ namespace p2c::kern
 
     bool Overlay::IsStandardWindow() const
     {
+        if (!pWindow) return false;
         return pWindow->Standard();
     }
 
@@ -481,7 +512,7 @@ namespace p2c::kern
 
     bool Overlay::NeedsFullscreenReboot() const
     {
-        return !pWindow->Standard() && (targetFullscreen != pWindow->Fullscreen());
+        return pWindow && !pWindow->Standard() && (targetFullscreen != pWindow->Fullscreen());
     }
 
     const OverlaySpec& Overlay::GetSpec() const
@@ -509,6 +540,7 @@ namespace p2c::kern
             std::move(pSpec_),
             pm,
             std::move(pPackMapper),
+            headless,
             pos
         );
         // clear pm so that stream isn't closed when this overlay dies
@@ -532,6 +564,7 @@ namespace p2c::kern
             std::move(pSpec),
             pm,
             std::make_unique<MetricPackMapper>(),
+            headless,
             pos
         );
         // clear pm so that stream isn't closed when this overlay dies
@@ -543,6 +576,11 @@ namespace p2c::kern
     const gfx::RectI& Overlay::GetTargetRect() const
     {
         return targetRect;
+    }
+
+    bool Overlay::IsHeadless() const
+    {
+        return headless;
     }
 
     Overlay::TaskScheduler::TaskScheduler(size_t pollRate, size_t renderRate, size_t traceRate)

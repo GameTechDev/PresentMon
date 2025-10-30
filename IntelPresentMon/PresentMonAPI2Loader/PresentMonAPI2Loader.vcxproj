@@ -36,15 +36,23 @@
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
+  <PropertyGroup>
+    <CustomVcpkgProps Condition="'$(CustomVcpkgProps)' == ''">
+  		..\..\vcpkg.props
+  	</CustomVcpkgProps>
+    <CustomCommonProps Condition="'$(CustomCommonProps)' == ''">
+  		..\Common.props
+  	</CustomCommonProps>
+  </PropertyGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\Common.props" />
-    <Import Project="..\..\vcpkg.props" />
+    <Import Project="$(CustomVcpkgProps)" />
+    <Import Project="$(CustomCommonProps)" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\Common.props" />
-    <Import Project="..\..\vcpkg.props" />
+    <Import Project="$(CustomVcpkgProps)" />
+    <Import Project="$(CustomCommonProps)" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Label="Vcpkg">
@@ -58,11 +66,13 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <AdditionalIncludeDirectories>../..;$(vcSiblingIncludeDirectory);$(vcInstalledIncludeDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(vcPortingLibdir)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -75,6 +85,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>../..;$(vcSiblingIncludeDirectory);$(vcInstalledIncludeDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -82,6 +93,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(vcPortingLibdir)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -91,12 +103,6 @@
   <ItemGroup>
     <ProjectReference Include="..\CommonUtilities\CommonUtilities.vcxproj">
       <Project>{08a704d8-ca1c-45e9-8ede-542a1a43b53e}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\Interprocess\Interprocess.vcxproj">
-      <Project>{ca23d648-daef-4f06-81d5-fe619bd31f0b}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\PresentMonAPI2\PresentMonAPI2.vcxproj">
-      <Project>{5ddba061-53a0-4835-8aaf-943f403f924f}</Project>
     </ProjectReference>
     <ProjectReference Include="..\Versioning\Versioning.vcxproj">
       <Project>{c73aa532-e532-4d93-9279-905444653c08}</Project>

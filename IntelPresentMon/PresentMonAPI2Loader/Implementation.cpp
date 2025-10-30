@@ -1,10 +1,10 @@
-#include "../PresentMonAPI2/PresentMonAPI.h"
-#include "../PresentMonAPI2/Internal.h"
-#include "../PresentMonAPI2/PresentMonDiagnostics.h"
-#include "../CommonUtilities/win/WinAPI.h"
-#include "../CommonUtilities/Exception.h"
-#include "../Interprocess/source/PmStatusError.h"
-#include "../Versioning/PresentMonAPIVersion.h"
+#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
+#include <IntelPresentMon/PresentMonAPI2/Internal.h>
+#include <IntelPresentMon/PresentMonAPI2/PresentMonDiagnostics.h>
+#include <IntelPresentMon/CommonUtilities/win/WinAPI.h>
+#include <IntelPresentMon/CommonUtilities/Exception.h>
+#include <IntelPresentMon/Interprocess/source/PmStatusError.h>
+#include <IntelPresentMon/Versioning/PresentMonAPIVersion.h>
 #include <functional>
 #include <vector>
 #include <cassert>
@@ -40,6 +40,8 @@ PM_STATUS(*pFunc_pmRegisterFrameQuery_)(PM_SESSION_HANDLE, PM_FRAME_QUERY_HANDLE
 PM_STATUS(*pFunc_pmConsumeFrames_)(PM_FRAME_QUERY_HANDLE, uint32_t, uint8_t*, uint32_t*) = nullptr;
 PM_STATUS(*pFunc_pmFreeFrameQuery_)(PM_FRAME_QUERY_HANDLE) = nullptr;
 PM_STATUS(*pFunc_pmGetApiVersion_)(PM_VERSION*) = nullptr;
+PM_STATUS(*pFunc_pmStartEtlLogging_)(PM_SESSION_HANDLE, PM_ETL_HANDLE*, uint64_t, uint64_t) = nullptr;
+PM_STATUS(*pFunc_pmFinishEtlLogging_)(PM_SESSION_HANDLE, PM_ETL_HANDLE, char*, uint32_t) = nullptr;
 // pointers to runtime-resolved diagnostic functions
 PM_STATUS(*pFunc_pmDiagnosticSetup_)(const PM_DIAGNOSTIC_CONFIGURATION*) = nullptr;
 uint32_t(*pFunc_pmDiagnosticGetQueuedMessageCount_)() = nullptr;
@@ -63,6 +65,7 @@ PM_STATUS(*pFunc_pmStopPlayback__)(PM_SESSION_HANDLE) = nullptr;
 
 
 // internal loader state globals
+HMODULE hMod_ = nullptr;
 std::string middlewareDllPath_;
 std::mutex middlewareLoadMtx_;
 std::optional<PM_STATUS> middlewareLoadResult_;
@@ -102,17 +105,18 @@ FARPROC GetProcAddress_(HMODULE h, const char* name)
 	throw LoaderExcept_(PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT);
 }
 // routine to load the middleware dll and resolve addresses of all the API endpoint functions
-PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_()
+PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 {
 	// ensure following routine is only run once
 	// concurrent calls will block until the first one completes
-	{
-		std::lock_guard lk{ middlewareLoadMtx_ };
-		if (middlewareLoadResult_) {
-			// we were not first, return the same result as the first call
-			return *middlewareLoadResult_;
-		}
-		try {
+	std::lock_guard lk{ middlewareLoadMtx_ };
+	if (middlewareLoadResult_) {
+		// we were not first, return the same result as the first call
+		return *middlewareLoadResult_;
+	}
+	try {
+		// load module if not already done
+		if (!hMod_) {
 			// get path to middleware dll from the registry if not already overridden
 			if (middlewareDllPath_.empty()) {
 				// discover the full path of the middleware dll using registry
@@ -120,75 +124,81 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_()
 				middlewareDllPath_ = Reg::Get().middlewarePath;
 			}
 			// attempt to load the dll
-			const HMODULE hMod = LoadLibraryA(middlewareDllPath_.c_str());
-			if (!hMod) {
+			hMod_ = LoadLibraryA(middlewareDllPath_.c_str());
+			if (!hMod_) {
 				throw LoaderExcept_(PM_STATUS_NONEXISTENT_FILE_PATH, "Middleware Loader could not find DLL");
 			}
-
-#define RESOLVE(f) pFunc_##f##_ = reinterpret_cast<decltype(pFunc_##f##_)>(GetProcAddress_(hMod, #f))
-#define RESOLVE_CPP(f) pFunc_##f##_ = GetCppProcAddress_<decltype(pFunc_##f##_)>(hMod, #f)
-			// first check version before attempting to resolve all endpoints
-			RESOLVE(pmGetApiVersion);
-			{
-				PM_VERSION dllVersion{};
-				if (pFunc_pmGetApiVersion_(&dllVersion) != PM_STATUS_SUCCESS) {
-					throw LoaderExcept_(PM_STATUS_FAILURE, "Failed API version discovery");
-				}
-				const auto buildVersion = pmon::bid::GetApiVersion();
-				if (dllVersion.major > buildVersion.major) {
-					throw LoaderExcept_(PM_STATUS_MIDDLEWARE_VERSION_HIGH);
-				}
-				if (dllVersion.major < buildVersion.major) {
-					throw LoaderExcept_(PM_STATUS_MIDDLEWARE_VERSION_LOW);
-				}
+		}
+#define RESOLVE(f) pFunc_##f##_ = reinterpret_cast<decltype(pFunc_##f##_)>(GetProcAddress_(hMod_, #f))
+#define RESOLVE_CPP(f) pFunc_##f##_ = GetCppProcAddress_<decltype(pFunc_##f##_)>(hMod_, #f)
+		// resolve version endpoint first as it is needed here
+		RESOLVE(pmGetApiVersion);
+		// if this load operation was instigated by calling version, don't do version check or load other endpoints
+		if (versionOnly) {
+			return PM_STATUS_SUCCESS;
+		}
+		// first check version before attempting to resolve all endpoints
+		{
+			PM_VERSION dllVersion{};
+			if (pFunc_pmGetApiVersion_(&dllVersion) != PM_STATUS_SUCCESS) {
+				throw LoaderExcept_(PM_STATUS_FAILURE, "Failed API version discovery");
 			}
-			// core
-			RESOLVE(pmOpenSession);
-			RESOLVE(pmOpenSessionWithPipe);
-			RESOLVE(pmCloseSession);
-			RESOLVE(pmStartTrackingProcess);
-			RESOLVE(pmStopTrackingProcess);
-			RESOLVE(pmGetIntrospectionRoot);
-			RESOLVE(pmFreeIntrospectionRoot);
-			RESOLVE(pmSetTelemetryPollingPeriod);
-			RESOLVE(pmSetEtwFlushPeriod);
-			RESOLVE(pmRegisterDynamicQuery);
-			RESOLVE(pmFreeDynamicQuery);
-			RESOLVE(pmPollDynamicQuery);
-			RESOLVE(pmPollStaticQuery);
-			RESOLVE(pmRegisterFrameQuery);
-			RESOLVE(pmConsumeFrames);
-			RESOLVE(pmFreeFrameQuery);
-			// diagnostics
-			RESOLVE(pmDiagnosticSetup);
-			RESOLVE(pmDiagnosticGetQueuedMessageCount);
-			RESOLVE(pmDiagnosticGetMaxQueuedMessages);
-			RESOLVE(pmDiagnosticSetMaxQueuedMessages);
-			RESOLVE(pmDiagnosticGetDiscardedMessageCount);
-			RESOLVE(pmDiagnosticDequeueMessage);
-			RESOLVE(pmDiagnosticEnqueueMessage);
-			RESOLVE(pmDiagnosticFreeMessage);
-			RESOLVE(pmDiagnosticWaitForMessage);
-			RESOLVE(pmDiagnosticUnblockWaitingThread);
-			// internal
-			RESOLVE_CPP(pmCreateHeapCheckpoint_);
-			RESOLVE_CPP(pmLinkLogging_);
-			RESOLVE_CPP(pmFlushEntryPoint_);
-			RESOLVE_CPP(pmSetupODSLogging_);
-			RESOLVE_CPP(pmSetupFileLogging_);
-			RESOLVE_CPP(pmStopPlayback_);
-			// if we make it here then we have succeeded
-			middlewareLoadResult_ = PM_STATUS_SUCCESS;
+			const auto buildVersion = pmon::bid::GetApiVersion();
+			if (dllVersion.major > buildVersion.major) {
+				throw LoaderExcept_(PM_STATUS_MIDDLEWARE_VERSION_HIGH);
+			}
+			if (dllVersion.major < buildVersion.major || dllVersion.minor < buildVersion.minor) {
+				throw LoaderExcept_(PM_STATUS_MIDDLEWARE_VERSION_LOW);
+			}
 		}
-		catch (const pmon::ipc::PmStatusError& ex) {
-			middlewareLoadResult_ = ex.GeneratePmStatus();
-		}
-		catch (const winreg::RegException&) {
-			middlewareLoadResult_ = PM_STATUS_MIDDLEWARE_MISSING_PATH;
-		}
-		catch (...) {
-			middlewareLoadResult_ = PM_STATUS_FAILURE;
-		}
+		// core
+		RESOLVE(pmOpenSession);
+		RESOLVE(pmOpenSessionWithPipe);
+		RESOLVE(pmCloseSession);
+		RESOLVE(pmStartTrackingProcess);
+		RESOLVE(pmStopTrackingProcess);
+		RESOLVE(pmGetIntrospectionRoot);
+		RESOLVE(pmFreeIntrospectionRoot);
+		RESOLVE(pmSetTelemetryPollingPeriod);
+		RESOLVE(pmSetEtwFlushPeriod);
+		RESOLVE(pmRegisterDynamicQuery);
+		RESOLVE(pmFreeDynamicQuery);
+		RESOLVE(pmPollDynamicQuery);
+		RESOLVE(pmPollStaticQuery);
+		RESOLVE(pmRegisterFrameQuery);
+		RESOLVE(pmConsumeFrames);
+		RESOLVE(pmFreeFrameQuery);
+		RESOLVE(pmStartEtlLogging);
+		RESOLVE(pmFinishEtlLogging);
+		// diagnostics
+		RESOLVE(pmDiagnosticSetup);
+		RESOLVE(pmDiagnosticGetQueuedMessageCount);
+		RESOLVE(pmDiagnosticGetMaxQueuedMessages);
+		RESOLVE(pmDiagnosticSetMaxQueuedMessages);
+		RESOLVE(pmDiagnosticGetDiscardedMessageCount);
+		RESOLVE(pmDiagnosticDequeueMessage);
+		RESOLVE(pmDiagnosticEnqueueMessage);
+		RESOLVE(pmDiagnosticFreeMessage);
+		RESOLVE(pmDiagnosticWaitForMessage);
+		RESOLVE(pmDiagnosticUnblockWaitingThread);
+		// internal
+		RESOLVE_CPP(pmCreateHeapCheckpoint_);
+		RESOLVE_CPP(pmLinkLogging_);
+		RESOLVE_CPP(pmFlushEntryPoint_);
+		RESOLVE_CPP(pmSetupODSLogging_);
+		RESOLVE_CPP(pmSetupFileLogging_);
+		RESOLVE_CPP(pmStopPlayback_);
+		// if we make it here then we have succeeded
+		middlewareLoadResult_ = PM_STATUS_SUCCESS;
+	}
+	catch (const pmon::ipc::PmStatusError& ex) {
+		middlewareLoadResult_ = ex.GeneratePmStatus();
+	}
+	catch (const winreg::RegException&) {
+		middlewareLoadResult_ = PM_STATUS_MIDDLEWARE_MISSING_PATH;
+	}
+	catch (...) {
+		middlewareLoadResult_ = PM_STATUS_FAILURE;
 	}
 	middlewareLoadedSuccessfully_ = *middlewareLoadResult_ == PM_STATUS_SUCCESS;
 	return *middlewareLoadResult_;
@@ -280,8 +290,23 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFreeFrameQuery(PM_FRAME_QUERY_HANDLE handle)
 }
 PRESENTMON_API2_EXPORT PM_STATUS pmGetApiVersion(PM_VERSION* pVersion)
 {
-	LoadEndpointsIfEmpty_();
+	if (!middlewareLoadedSuccessfully_) {
+		// load only the version endpoint
+		if (auto sta = LoadLibrary_(true)) return sta;
+	}
 	return pFunc_pmGetApiVersion_(pVersion);
+}
+PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE* pEtlHandle,
+	uint64_t reserved1, uint64_t reserved2)
+{
+	LoadEndpointsIfEmpty_();
+	return pFunc_pmStartEtlLogging_(session, pEtlHandle, reserved1, reserved2);
+}
+PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE etlHandle,
+	char* pOutputFilePathBuffer, uint32_t bufferSize)
+{
+	LoadEndpointsIfEmpty_();
+	return pFunc_pmFinishEtlLogging_(session, etlHandle, pOutputFilePathBuffer, bufferSize);
 }
 // deprecate?
 PRESENTMON_API2_EXPORT _CrtMemState pmCreateHeapCheckpoint_()

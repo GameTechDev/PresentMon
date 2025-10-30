@@ -18,5 +18,6 @@ namespace pmon::util::log
 	{
 	public:
 		virtual void SetFormatter(std::shared_ptr<ITextFormatter>) = 0;
+		virtual std::shared_ptr<ITextFormatter> GetFormatter() const = 0;
 	};
 }

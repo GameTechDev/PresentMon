@@ -1,6 +1,6 @@
 #pragma once
 #include "ProcessTracker.h"
-#include "../PresentMonAPIWrapperCommon/Exception.h"
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/Exception.h>
 #include <format>
 #include <string>
 #include <cassert>
@@ -16,8 +16,7 @@ namespace pmapi
 
     ProcessTracker& ProcessTracker::operator=(ProcessTracker&& rhs) noexcept
     {
-        if (&rhs != this)
-        {
+        if (&rhs != this) {
             pid_ = rhs.pid_;
             hSession_ = rhs.hSession_;
             rhs.Clear_();;

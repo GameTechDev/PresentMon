@@ -2,6 +2,7 @@
 #include <CommonUtilities/log/Channel.h>
 #include <CommonUtilities/log/MsvcDebugDriver.h>
 #include <CommonUtilities/log/BasicFileDriver.h>
+#include <CommonUtilities/log/StdioDriver.h>
 #include <CommonUtilities/log/MarshallDriver.h>
 #include <CommonUtilities/log/NamedPipeMarshallSender.h>
 #include <CommonUtilities/log/TextFormatter.h>
@@ -135,6 +136,14 @@ namespace p2c
 					getters.getGlobalPolicy().SetLogLevel(*opt.logLevel);
 				}
 			}
+			if (opt.logVerboseModules) {
+				for (auto mod : *opt.logVerboseModules) {
+					pol.ActivateVerboseModule(mod);
+					if (getters) {
+						getters.getGlobalPolicy().ActivateVerboseModule(mod);
+					}
+				}
+			}
 			if (opt.logTraceLevel) {
 				pol.SetTraceLevel(*opt.logTraceLevel);
 				if (getters) {
@@ -170,6 +179,50 @@ namespace p2c
 				); sta != PM_STATUS_SUCCESS) {
 					pmlog_error("configuring middleware file logging").code(sta).no_trace();
 				}
+			}
+		}
+		catch (...) {
+			pmlog_error(ReportException());
+		}
+	}
+
+	void ConfigureHeadlessLogging() noexcept
+	{
+		class StdioTextFormatter : public ITextFormatter
+		{
+		public:
+			std::string Format(const Entry& e) const override
+			{
+				try {
+					std::ostringstream oss;
+					oss << GetLevelName(e.level_) << ": " << e.note_ << "\n";
+					if (e.errorCode_) {
+						auto& ec = e.errorCode_;
+						if (ec.IsResolvedNontrivial()) {
+							auto pStrings = ec.GetStrings();
+							oss << std::format("  !{} [{}] ({}): {} => {}\n", pStrings->type, ec.AsHex(), pStrings->symbol, pStrings->name, pStrings->description);
+						}
+						else {
+							oss << std::format("  !UNKNOWN [{}]\n", ec.AsHex());
+						}
+					}
+					return oss.str();
+				}
+				catch (...) {
+					pmlog_panic_("Exception in StdioTextFormatter::Format");
+					return {};
+				}
+			}
+		};
+
+		try {
+			auto pChan = GetDefaultChannel();
+			// shortcut for command line
+			const auto& opt = cli::Options::Get();
+			pChan->AttachComponent(std::make_shared<StdioDriver>(std::make_shared<StdioTextFormatter>()));
+			// default to error levels of logging to not spam stderr
+			if (!opt.logLevel) {
+				log::GlobalPolicy::Get().SetLogLevel(Level::Error);
 			}
 		}
 		catch (...) {

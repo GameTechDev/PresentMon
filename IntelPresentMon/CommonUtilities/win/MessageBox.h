@@ -10,6 +10,12 @@ namespace pmon::util::win
 		MsgBox();
 		MsgBox(std::string message);
 		~MsgBox();
+
+		MsgBox(const MsgBox&) = delete;
+		MsgBox & operator=(const MsgBox&) = delete;
+		MsgBox(MsgBox&&) = delete;
+		MsgBox & operator=(MsgBox&&) = delete;
+
 		MsgBox& WithMessage(std::string message);
 		MsgBox& WithTitle(std::string title);
 		MsgBox& AsError();

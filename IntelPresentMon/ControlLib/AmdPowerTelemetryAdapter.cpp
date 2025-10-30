@@ -13,10 +13,13 @@ AmdCheckerToken chk;
 AmdResultGrabber::AmdResultGrabber(int result,
                                    std::source_location loc) noexcept
     : result_(result), loc_(loc) {}
-int operator>>(AmdResultGrabber g, AmdCheckerToken) {
+int operator>>(AmdResultGrabber g, AmdCheckerToken) noexcept {
   if (g.result_ != ADL_OK) {
-    LOG(INFO) << "Failed Telemetry Query: " << g.loc_.file_name() << " "
+      try {
+          LOG(INFO) << "Failed Telemetry Query: " << g.loc_.file_name() << " "
               << g.loc_.line() << " " << g.result_;
+      }
+      catch (...) {}
   }
   return g.result_;
 }

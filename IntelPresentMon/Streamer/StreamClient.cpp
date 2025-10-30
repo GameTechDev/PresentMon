@@ -70,7 +70,7 @@ PmNsmFrameData* StreamClient::ReadFrameByIdx(uint64_t frame_idx, bool checked) {
 
   if (shared_mem_view_->IsEmpty()) {
       if (checked) {
-          pmlog_error("Trying to read from empty nsm ring").pmwatch(frame_idx);
+          pmlog_warn("Trying to read from empty nsm ring").pmwatch(frame_idx);
       }
     return nullptr;
   }
@@ -78,13 +78,13 @@ PmNsmFrameData* StreamClient::ReadFrameByIdx(uint64_t frame_idx, bool checked) {
   auto p_header = shared_mem_view_->GetHeader();
 
   if (!p_header->process_active) {
-    LOG(ERROR) << "Process is not active. Shared mem view to be destroyed.";
+    pmlog_warn("Process is not active. Shared mem view to be destroyed.");
     CloseSharedMemView();
     return nullptr;
   }
 
   if (frame_idx > p_header->max_entries - 1) {
-      pmlog_error("Bad out of bounds index in circular buffer").pmwatch(frame_idx);
+      pmlog_warn("Bad out of bounds index in circular buffer").pmwatch(frame_idx);
       return nullptr;
   }
 
@@ -106,7 +106,7 @@ PmNsmFrameData* StreamClient::ReadFrameByIdx(uint64_t frame_idx, bool checked) {
             }
         }
         if (invalid) {
-            pmlog_error("Invalid frame idx").pmwatch(frame_idx);
+            pmlog_warn("Invalid frame idx").pmwatch(frame_idx);
             return nullptr;
         }
     }

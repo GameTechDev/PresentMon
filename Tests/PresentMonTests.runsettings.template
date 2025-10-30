@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+  Copy this file to PresentMonTests.local.runsettings and modify the path below
+  to point to your local test directory containing ETL and CSV files.
+  
+  The .local.runsettings file is ignored by git, so your local paths won't be committed.
+-->
+<RunSettings>
+  <RunConfiguration>
+    <TargetPlatform>x64</TargetPlatform>
+    <EnvironmentVariables>
+      <!-- Set this to your local test directory path -->
+      <PRESENTMON_ADDITIONAL_TEST_DIR>C:\path\to\your\test\directory</PRESENTMON_ADDITIONAL_TEST_DIR>
+    </EnvironmentVariables>
+  </RunConfiguration>
+  
+  <GoogleTestAdapterSettings>
+    <PrintTestOutput>true</PrintTestOutput>
+  </GoogleTestAdapterSettings>
+</RunSettings>

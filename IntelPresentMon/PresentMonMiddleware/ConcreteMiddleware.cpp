@@ -19,7 +19,6 @@
 #include "../Interprocess/source/IntrospectionHelpers.h"
 #include "../Interprocess/source/IntrospectionCloneAllocators.h"
 #include "../Interprocess/source/PmStatusError.h"
-//#include "MockCommon.h"
 #include "DynamicQuery.h"
 #include "../ControlLib/PresentMonPowerTelemetry.h"
 #include "../ControlLib/CpuTelemetryInfo.h"
@@ -884,7 +883,7 @@ static void ReportMetricsHelper(
                     // If the simulation start time is less than the last displayed simulation start time it means
                     // we are transitioning to app provider events.
                     if (simStartTime > chain->mLastDisplayedSimStartTime) {
-                        metrics.mAnimationError = pmSession.TimestampDeltaToMilliSeconds(screenTime - chain->mLastDisplayedScreenTime,
+                        metrics.mAnimationError = pmSession.TimestampDeltaToMilliSeconds(screenTime - chain->mLastDisplayedAppScreenTime,
                             simStartTime - chain->mLastDisplayedSimStartTime);
                         chain->mAnimationError.push_back(std::abs(metrics.mAnimationError));
                     }
@@ -1425,6 +1424,16 @@ static void ReportMetrics(
     void ConcreteMiddleware::StopPlayback()
     {
         pActionClient->DispatchSync(StopPlayback::Params{});
+    }
+
+    uint32_t ConcreteMiddleware::StartEtlLogging()
+    {
+        return pActionClient->DispatchSync(StartEtlLogging::Params{}).etwLogSessionHandle;
+    }
+
+    std::string ConcreteMiddleware::FinishEtlLogging(uint32_t etlLogSessionHandle)
+    {
+        return pActionClient->DispatchSync(FinishEtlLogging::Params{ etlLogSessionHandle }).etlFilePath;
     }
 
     void ConcreteMiddleware::CalculateFpsMetric(fpsSwapChainData& swapChain, const PM_QUERY_ELEMENT& element, uint8_t* pBlob, LARGE_INTEGER qpcFrequency)

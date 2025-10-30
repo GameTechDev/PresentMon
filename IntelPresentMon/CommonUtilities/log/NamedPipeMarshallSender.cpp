@@ -11,7 +11,7 @@
 #include <ranges>
 #include "EntryCereal.h"
 #include <cereal/archives/binary.hpp>
-#include <concurrentqueue/concurrentqueue.h>
+#include <concurrentqueue/moodycamel/concurrentqueue.h>
 #include "MarshallingProtocol.h"
 #include "../Exception.h"
 #include "PanicLogger.h"

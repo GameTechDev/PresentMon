@@ -1,5 +1,5 @@
 #pragma once
-#include "../CommonUtilities/log/IErrorCodeProvider.h"
+#include <IntelPresentMon/CommonUtilities/log/IErrorCodeProvider.h>
 #include <map>
 
 namespace pmapi

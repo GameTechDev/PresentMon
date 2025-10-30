@@ -20,6 +20,7 @@ namespace pmon::util::log
 	{
 	public:
 		virtual void AttachComponent(std::shared_ptr<IChannelComponent>, std::string = {}) = 0;
+		virtual std::shared_ptr<IChannelComponent> GetComponent(std::string tag) const = 0;
 		virtual void FlushEntryPointExit() = 0;
 	};
 }

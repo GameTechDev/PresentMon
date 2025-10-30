@@ -57,24 +57,43 @@ namespace GfxLayer::Extension
 		}
 	}
 
-	void OverlayRenderer_D3D12::Render(bool renderBar)
+	void OverlayRenderer_D3D12::Render(bool renderBar, bool useRainbow, bool enableBackground)
 	{
-		float* pColor = m_config.BackgroundColor.data();
-		if (renderBar)
-		{
-			pColor = m_config.BarColor.data();
+		const float* pColor = nullptr;
+		if (renderBar) {
+			if (useRainbow) {
+				pColor = GetRainbowColors().at(GetRainbowIndex()).data();
+			}
+			else {
+				pColor = m_config.BarColor.data();
+			}
 		}
+		else {
+			pColor = m_config.BackgroundColor.data();
+		}
+
 
 		auto backBufferIdx = GetSwapChain()->GetCurrentBackBufferIndex();
 		auto rtvHandle = m_RtvHeap->GetCPUDescriptorHandleForHeapStart();
 		rtvHandle.ptr = rtvHandle.ptr + (m_RtvDescriptorSize * backBufferIdx);
 
-		auto  scissorRect = GetScissorRect();
 		auto* pCmdAllocator = m_CmdAllocators[backBufferIdx].Get();
 		auto* pCmdList = m_CmdLists[backBufferIdx].Get();
 		pCmdAllocator->Reset();
 		pCmdList->Reset(pCmdAllocator, nullptr);
-		pCmdList->ClearRenderTargetView(rtvHandle, pColor, 1, &scissorRect);
+		const auto scissors = GetScissorRects();
+		const auto bgWidth = scissors.bg.right - scissors.bg.left;
+		const auto fgWidth = scissors.fg.right - scissors.fg.left;
+		if (useRainbow) {
+			pCmdList->ClearRenderTargetView(rtvHandle, GetRainbowColors().at(GetRainbowIndex()).data(), 1, &scissors.rb);
+		}
+		// draw background before flash bar if enabled, but only if A) not flash or B) background larger than flash
+		if (enableBackground && (bgWidth > fgWidth || !renderBar)) {
+			pCmdList->ClearRenderTargetView(rtvHandle, m_config.BackgroundColor.data(), 1, &scissors.bg);
+		}
+		if (renderBar) {
+			pCmdList->ClearRenderTargetView(rtvHandle, m_config.BarColor.data(), 1, &scissors.fg);
+		}
 		pCmdList->Close();
 
 		ID3D12CommandList* pCommandLists[] = { pCmdList };

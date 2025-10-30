@@ -8,6 +8,7 @@ import OverlayConfigView from '@/views/OverlayConfigView.vue'
 import CaptureConfigView from '@/views/CaptureConfigView.vue'
 import FlashConfigView from '@/views/FlashConfigView.vue'
 import OtherConfigView from '@/views/OtherConfigView.vue'
+import LoggingConfigView from '@/views/LoggingConfigView.vue'
 
 const router = createRouter({
   history: createMemoryHistory(),
@@ -52,6 +53,11 @@ const router = createRouter({
       path: '/capture',
       name: 'capture-config',
       component: CaptureConfigView,
+    },
+    {
+      path: '/logging',
+      name: 'logging-config',
+      component: LoggingConfigView,
     },
     {
       path: '/other',

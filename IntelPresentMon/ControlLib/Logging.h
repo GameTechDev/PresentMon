@@ -5,7 +5,6 @@
 #include <format>
 #include "igcl_api.h"
 #include "../CommonUtilities/log/Log.h"
-#include "LoggingVerbose.h"
 
 namespace pwr::log
 {

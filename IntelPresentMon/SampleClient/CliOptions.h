@@ -21,6 +21,8 @@ namespace clio
 		PlaybackFrameQuery,
 		PlaybackDynamicQuery,
 		IntrospectAllDynamicOptions,
+		MultiClient,
+		EtlLogger,
 		Count,
 	};
 
@@ -41,15 +43,23 @@ namespace clio
 		Option<unsigned int> processId{ this, "--process-id", 0, "Process Id to use for polling or frame data capture" };
 		Option<std::string> processName{ this, "--process-name", "", "Name of process to use for polling or frame data capture" };
 		Option<std::string> metric{ this, "--metric", "", "PM_METRIC, ex. PM_METRIC_PRESENTED_FPS" };
+		Option<unsigned int> telemetryPeriodMs{ this, "--telemetry-period-ms", {}, "Telemetry period in milliseconds" };
+		Option<unsigned int> etwFlushPeriodMs{ this, "--etw-flush-period-ms", {}, "ETW manual flush period in milliseconds" };
+		Option<double> runTime{ this, "--run-time", {}, "How long to capture for, in seconds" };
+		Option<std::string> outputPath{ this, "--output-path", {}, "Full path to output to" };
 	private: Group gl_{ this, "Logging", "Control logging behavior" }; public:
 		Option<log::Level> logLevel{ this, "--log-level", log::Level::Error, "Severity to log at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };
 		Option<log::Level> logTraceLevel{ this, "--log-trace-level", log::Level::Error, "Severity to print stacktrace at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };
 		Flag logTraceExceptions{ this, "--log-trace-exceptions", "Add stack trace to all thrown exceptions (including SEH exceptions)" };
 		Option<std::string> logDenyList{ this, "--log-deny-list", "", "Path to log deny list (with trace overrides)", CLI::ExistingFile };
 		Option<std::string> logAllowList{ this, "--log-allow-list", "", "Path to log allow list (with trace overrides)", CLI::ExistingFile };
+		Option<std::string> logFolder{ this, "--log-folder", "", "Folder to create log file(s) in" };
+		Flag logNamePid{ this, "--log-name-pid", "Append PID to the log file name" };
 	private: Group gv_{ this, "Service", "Control service options" }; public:
 		Flag servicePacePlayback{ this, "--service-pace-playback", "Pace ETL playback on the service" };
 		Option<std::string> serviceEtlPath{ this, "--service-etl-path", "", "Path of the ETL file to pass to the service for playback" };
+	private: Group gt_{ this, "Testing", "Control testing support options" }; public:
+		Flag testExpectError{ this, "--test-expect-error", "Indicates to test modes that fail state is being tested" };
 
 		static constexpr const char* description = "Minimal Sample Client for Intel PresentMon service";
 		static constexpr const char* name = "SampleClient.exe";

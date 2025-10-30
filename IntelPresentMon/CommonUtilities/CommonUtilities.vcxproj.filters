@@ -252,6 +252,48 @@
     <ClInclude Include="win\Process.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="win\com\Comdef.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="win\com\ComManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="win\com\ComPtr.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="win\com\ProcessSpawnSink.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="win\com\WbemConnection.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="win\com\WbemListener.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="win\com\WbemSink.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="rng\MemberSlice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="rng\OptionalMinMax.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="log\Verbose.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="file\TempFile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="file\SecureSubdirectory.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="file\FileUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="win\Security.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cli\CliFramework.cpp">
@@ -395,7 +437,37 @@
     <ClCompile Include="win\ProcessMapBuilder.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Math.cpp">
+    <ClCompile Include="win\com\ComManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="win\com\ProcessSpawnSink.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="win\com\WbemConnection.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="win\com\WbemListener.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="win\com\WbemSink.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="log\Verbose.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="file\TempFile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="file\SecureSubdirectory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="file\FileUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="win\Security.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Memory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

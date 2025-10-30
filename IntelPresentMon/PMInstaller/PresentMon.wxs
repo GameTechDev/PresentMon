@@ -11,7 +11,7 @@
         <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"/>
 
         <MajorUpgrade
-            Schedule="afterInstallInitialize"
+            Schedule="afterInstallValidate"
             AllowDowngrades="no"
             DowngradeErrorMessage="!(loc.product_downgrade_error_message)"/>
         
@@ -45,8 +45,6 @@
                 <ComponentGroupRef Id="pm_app_web_css" />
                 <ComponentGroupRef Id="pm_app_web_fonts" />
                 <ComponentGroupRef Id="pm_app_web_js" />
-                <ComponentGroupRef Id="shortcuts" />
-                <ComponentGroupRef Id="desktop_shortcut" />
             </Feature>
             <Feature
                 Id="presentmon_provider_install"
@@ -89,32 +87,6 @@
         <UIRef Id="WixUI_ErrorProgressText" />
 
         <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />
-
-        <!--
-        RemoveFolderEx requires that we pull the folder information from the registry.
-        Obtain the main application folder name
-        -->
-        <Property
-            Id="APPLICATIONFOLDER">
-            <RegistrySearch
-                Id="MainApplicationFolderRegSearch"
-                Root="HKCU"
-                Key="Software\Intel\PresentMon"
-                Name="PresentMonInstallFolder"
-                Type="raw" />
-        </Property>
-        <!--
-        As well as the local app date folder
-        -->
-        <Property
-            Id="LOCALAPPDATAFOLDER">
-            <RegistrySearch
-                Id="LocalAppDataFolderSearch"
-                Root="HKCU"
-                Key="Software\Intel\PresentMon"
-                Name="LocalAppDataPresentMonFolder"
-                Type="raw" />
-        </Property>
     </Product>
 
     <Fragment>
@@ -169,9 +141,7 @@
             </Directory>
             <Directory
                 Id="ProgramMenuFolder">
-                <Directory
-                    Id="shortcuts_folder"
-                    Name="PresentMon"/>
+                <Directory Id="PM_ProgramMenuFolder" Name="Intel PresentMon" />
             </Directory>
             <Directory
                 Id="DesktopFolder"
@@ -279,8 +249,8 @@
                     KeyPath="yes">
                     <util:EventManifest
                         MessageFile="[#Intel_PresentMon.dll]"
-                        ResourceFile="[#Intel_PresentMon.dll]">
-                    </util:EventManifest>
+                        ResourceFile="[#Intel_PresentMon.dll]"
+					></util:EventManifest>
                 </File>
             </Component>
         </ComponentGroup>
@@ -297,6 +267,36 @@
                     KeyPath="yes">
                 </File>
             </Component>
+            <Component Id="pm_app_shortcuts" Guid="7222FDA2-E341-43F8-836E-F62044C62595">
+                <!-- Desktop shortcut (per-user) -->
+                <Shortcut Id="sc_presentmon_desktop"
+                          Directory="DesktopFolder"
+                          Name="Intel PresentMon"
+                          Advertise="no"
+                          Target="[pm_app_folder]PresentMon.exe"
+                          WorkingDirectory="pm_app_folder" />
+
+                <!-- Start Menu shortcut (per-user, into our subfolder) -->
+                <Shortcut Id="sc_presentmon_startmenu"
+                          Directory="PM_ProgramMenuFolder"
+                          Name="Intel PresentMon"
+                          Advertise="no"
+                          Target="[pm_app_folder]PresentMon.exe"
+                          WorkingDirectory="pm_app_folder" />
+
+                <!-- HKCU registry value = KeyPath (per-user component) -->
+                <RegistryValue Root="HKCU"
+                               Key="Software\Intel\PresentMon"
+                               Name="Installed"
+                               Type="integer"
+                               Value="1"
+                               KeyPath="yes" />
+
+                <!-- Tidy the (empty) Start Menu subfolder on uninstall -->
+                <RemoveFolder Id="RemovePMProgramMenuFolder"
+                              Directory="PM_ProgramMenuFolder"
+                              On="uninstall" />
+            </Component>
             <Component
                 Id="pm_app_kern_proc_exe"
                 Guid="7E4A9C50-97C5-4BFE-B4D0-0E3B2FA5C3F7">
@@ -307,6 +307,16 @@
                     KeyPath="yes">
                 </File>
             </Component>
+			<Component
+                Id="pm_app_cli_script"
+                Guid="EFFCBD82-BF3D-43CE-9442-E8293466F77B">
+				<File
+                    Id="pm_app_cli_script"
+                    Name="presentmon-cli.cmd"
+                    Source="$(var.PresentMon.TargetDir)presentmon-cli.cmd"
+                    KeyPath="yes">
+				</File>
+			</Component>
 			<Component
                 Id="pm_app_target_block_list_txt"
                 Guid="203B303F-A097-4B1E-BFA0-895794F192C1">
@@ -577,54 +587,5 @@
 				</File>
 			</Component>
 		</ComponentGroup>
-        <ComponentGroup
-            Id="shortcuts"
-            Directory="shortcuts_folder">
-            <Component
-                Id="present_mon_shortcuts"
-                Guid="3F7502E9-BE4B-47A2-9270-C653816A7112">
-                <Shortcut
-                    Id="present_mon_start_menu_shortcut"
-                    Name="Intel PresentMon"
-                    Target="[pm_app_folder]PresentMon.exe"
-                    WorkingDirectory="pm_app_folder"/>
-                <Shortcut
-                    Id="uninstall_shortcut"
-                    Name="Uninstall Intel PresentMon"
-                    Target="[System64Folder]msiexec.exe"
-                    Arguments="/x [ProductCode]"/>
-                <RemoveFolder
-                    Id="remove_sample_client_executable_shortcut"
-                    On="uninstall"/>
-                <RegistryValue
-                    Root="HKCU"
-                    Key="Software\Intel\PresentMon"
-                    Name="installed"
-                    Type="integer"
-                    Value="1"
-                    KeyPath="yes"/>
-            </Component>
-        </ComponentGroup>
-        <ComponentGroup
-            Id="desktop_shortcut"
-            Directory="DesktopFolder">
-            <Component
-                Id="present_mon_desktop_shortcut"
-                Guid="8FD09995-32BF-42D3-B5E2-57F5D2592D67">
-                <Shortcut Id="present_mon_desktop_shortcut"
-                          Name="Intel PresentMon"
-                          Description="Launch Intel PresentMon"
-                          Target="[pm_app_folder]PresentMon.exe"
-                          WorkingDirectory="pm_app_folder">
-                </Shortcut>
-                <RegistryValue Root="HKCU"
-                               Key="Software\Intel\PresentMon"
-                               Name="DesktopShortcut"
-                               Type="integer"
-                               Value="1"
-                               KeyPath="yes">
-                </RegistryValue>
-            </Component>
-        </ComponentGroup>
     </Fragment>
 </Wix>

@@ -4,10 +4,52 @@
 #include <vector>
 #include <format>
 #include <ranges>
+#include <memory>
 
 namespace pmon::util::cli
 {
-	OptionsContainer::OptionsContainer(const char* description, const char* name) : app_{ description, name } {}
+	void StripOptionGroupListFromHelp_(std::string& help)
+	{
+		const std::string kGroup = "[Option Group:";
+		const std::string kSub = "SUBCOMMANDS:";
+
+		auto begin = help.begin();
+		auto end = help.end();
+
+		// Find start of the first "[Option Group:"
+		auto itStart = std::search(begin, end, kGroup.begin(), kGroup.end());
+		if (itStart == end) return; // nothing to strip
+
+		// Find the first "SUBCOMMANDS:" after that
+		auto itEnd = std::search(itStart, end, kSub.begin(), kSub.end());
+
+		// If not found, erase to end
+		if (itEnd == end) {
+			help.erase(static_cast<size_t>(itStart - begin));
+			return;
+		}
+
+		// Trim trailing newlines before the header so we don't leave a blank gap
+		auto itTrimEnd = itEnd;
+		while (itTrimEnd != itStart) {
+			auto prev = itTrimEnd - 1;
+			if (*prev == '\n' || *prev == '\r') itTrimEnd = prev;
+			else break;
+		}
+
+		help.erase(static_cast<size_t>(itStart - begin),
+			static_cast<size_t>(itTrimEnd - itStart));
+	}
+
+	OptionsContainer::OptionsContainer(const char* description, const char* name) : app_{ description, name } {
+		struct NoGroupListFormatter : CLI::Formatter {
+			std::string make_footer(const CLI::App* app) const override {
+				// Suppress entirely
+				return "";
+			}
+		};
+		app_.formatter(std::make_shared<NoGroupListFormatter>());
+	}
 	std::string OptionsContainer::GetName() const
 	{
 		return app_.get_name();
@@ -26,11 +68,16 @@ namespace pmon::util::cli
 	{
 		activeGroup_ = name;
 		if (name.empty()) {
-			app_.add_option_group({})->silent();
+			pCurrentSubcommand_->add_option_group({})->silent();
 		}
 		else {
-			app_.add_option_group(std::move(name), std::move(desc));
+			pCurrentSubcommand_->add_option_group(std::move(name), std::move(desc));
 		}
+	}
+	CLI::App* OptionsContainer::AddSubcommand_(std::string name, std::string desc)
+	{
+		pCurrentSubcommand_ = app_.add_subcommand(std::move(name), std::move(desc));
+		return pCurrentSubcommand_;
 	}
 	void OptionsContainer::RegisterElement_(OptionsElement_* pElement)
 	{
@@ -49,6 +96,12 @@ namespace pmon::util::cli
 		else {
 			return app_.exit(e);
 		}
+	}
+	std::string OptionsContainer::GetDiagnostics_() const
+	{
+		auto out = diagnostics_.str();
+		StripOptionGroupListFromHelp_(out);
+		return out;
 	}
 
 	OptionsContainer::ConvertedNarrowOptions_::ConvertedNarrowOptions_(int argc, const wchar_t* const* wargv)
@@ -74,7 +127,7 @@ namespace pmon::util::cli
 	Flag::Flag(OptionsContainer* pParent, std::string names, std::string description)
 	{
 		// create the option
-		pOption_ = pParent->app_.add_flag(std::move(names), data_, std::move(description));
+		pOption_ = pParent->pCurrentSubcommand_->add_flag(std::move(names), data_, std::move(description));
 		// add to active group
 		pOption_->group(pParent->activeGroup_);
 		// capture main name for the option (used when forwarding)

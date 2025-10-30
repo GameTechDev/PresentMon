@@ -1,10 +1,10 @@
 #pragma once
-#include "../PresentMonAPI2/PresentMonAPI.h"
-#include "../PresentMonAPIWrapperCommon/Introspection.h"
-#include "../PresentMonAPIWrapperCommon/EnumMap.h"
-#include "../Interprocess/source/IntrospectionDataTypeMapping.h"
-#include "../CommonUtilities/str/String.h"
-#include "../CommonUtilities/Meta.h"
+#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/Introspection.h>
+#include <IntelPresentMon/PresentMonAPIWrapperCommon/EnumMap.h>
+#include <IntelPresentMon/Interprocess/source/IntrospectionDataTypeMapping.h>
+#include <IntelPresentMon/CommonUtilities/str/String.h>
+#include <IntelPresentMon/CommonUtilities/Meta.h>
 #include "Session.h"
 #include "ProcessTracker.h"
 #include <string>

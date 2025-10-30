@@ -17,6 +17,8 @@
 
 using namespace pmon::util;
 using namespace std::chrono_literals;
+namespace rn = std::ranges;
+namespace vi = std::views;
 
 namespace p2c::client::cef
 {
@@ -85,6 +87,12 @@ namespace p2c::client::cef
             else {
                 pChildCommandLine->AppendSwitchWithValue(std::move(name), std::move(val));
             }
+        }
+        // special handling or CLI options that are vectors with map transformer (verbose modules)
+        // TODO: figure out how to get this special case working with the auto forwarding mechanism
+        for (auto mod : *opt.logVerboseModules) {
+            pChildCommandLine->AppendSwitchWithValue(opt.logVerboseModules.GetName(),
+                log::GetVerboseModuleName(mod));
         }
         // initiate logging ipc connection for renderer children
         if (pChildCommandLine->GetSwitchValue("type") == "renderer") {

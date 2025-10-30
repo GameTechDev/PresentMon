@@ -15,7 +15,8 @@
 #include <format>
 #include <chrono>
 #include <conio.h>
-#include <boost/process.hpp>
+#include <boost/process/v1/child.hpp>
+#include <boost/process/v1/args.hpp>
 #include "../PresentMonAPI2/PresentMonAPI.h"
 #include "../PresentMonAPI2/Internal.h"
 #include "CliOptions.h"
@@ -30,6 +31,8 @@
 #include "CheckMetricSample.h"
 #include "WrapperStaticQuery.h"
 #include "MetricListSample.h"
+#include "MultiClient.h"
+#include "EtlLogger.h"
 #include "LogDemo.h"
 #include "DiagnosticDemo.h"
 #include "LogSetup.h"
@@ -43,7 +46,7 @@ void RunPlaybackFrameQuery()
     auto& opt = clio::Options::Get();
 
     // launch the service, getting it to process an ETL gold file (custom object names)
-    namespace bp = boost::process;
+    namespace bp = boost::process::v1;
     using namespace std::literals;
     const auto pipeName = R"(\\.\pipe\pmsvc-ctl-pipe-tt)"s;
     std::vector<std::string> dargs;
@@ -129,7 +132,7 @@ void RunPlaybackDynamicQuery()
     auto& opt = clio::Options::Get();
 
     // launch the service, getting it to process an ETL gold file (custom object names)
-    namespace bp = boost::process;
+    namespace bp = boost::process::v1;
     using namespace std::literals;
     const auto pipeName = R"(\\.\pipe\pmsvc-ctl-pipe-tt)"s;
     std::vector<std::string> dargs;
@@ -202,7 +205,7 @@ void RunPlaybackDynamicQueryN()
     auto& opt = clio::Options::Get();
 
     // launch the service, getting it to process an ETL gold file (custom object names)
-    namespace bp = boost::process;
+    namespace bp = boost::process::v1;
     using namespace std::literals;
     const auto pipeName = R"(\\.\pipe\pmsvc-ctl-pipe-tt)"s;
     std::vector<std::string> dargs;
@@ -276,7 +279,7 @@ void RunPlaybackDynamicQueryN()
 
 void IntrospectAllDynamicOptions()
 {
-    namespace bp = boost::process;
+    namespace bp = boost::process::v1;
     using namespace std::literals;
 
     const auto pipeName = R"(\\.\pipe\pmsvc-ctl-pipe-tt)"s;
@@ -364,6 +367,10 @@ int main(int argc, char* argv[])
             return FrameQuerySample(ConnectSession(), false);
         case clio::Mode::CsvFrameQuery:
             return FrameQuerySample(ConnectSession(), true);
+        case clio::Mode::MultiClient:
+            return MultiClientTest(ConnectSession());
+        case clio::Mode::EtlLogger:
+            return EtlLoggerTest(ConnectSession());
         case clio::Mode::PlaybackDynamicQuery:
             RunPlaybackDynamicQueryN(); break;
         case clio::Mode::PlaybackFrameQuery:

@@ -4,6 +4,36 @@
 
 namespace GfxLayer::Extension
 {
+	HRESULT OverlayRenderer_D3D11::CreateBuffer_(UINT byteWidth,
+		D3D11_USAGE usage,
+		UINT bindFlags,
+		UINT cpuAccessFlags,
+		const void* initData,
+		ID3D11Buffer** ppBuffer)
+	{
+		D3D11_BUFFER_DESC desc{};
+		desc.Usage = usage;
+		desc.ByteWidth = byteWidth;
+		desc.BindFlags = bindFlags;
+		desc.CPUAccessFlags = cpuAccessFlags;
+		desc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA srd{};
+		const D3D11_SUBRESOURCE_DATA* pSRD = nullptr;
+		if (initData) { srd.pSysMem = initData; pSRD = &srd; }
+
+		return m_pDevice->CreateBuffer(&desc, pSRD, ppBuffer);
+	}
+
+	HRESULT OverlayRenderer_D3D11::CreateConstantBuffer_(const void* data,
+		UINT dataSizeBytes,
+		ID3D11Buffer** ppBuffer)
+	{
+		// Round up to 16-byte multiple
+		UINT cbSize = (dataSizeBytes + 15u) & ~15u;
+		return CreateBuffer_(cbSize, D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, data, ppBuffer);
+	}
+
 	OverlayRenderer_D3D11::OverlayRenderer_D3D11(const OverlayConfig& config,
 		IDXGISwapChain3* pSwapChain, ID3D11Device* pDevice) :
 		OverlayRenderer(config, pSwapChain),
@@ -16,23 +46,24 @@ namespace GfxLayer::Extension
 	{
 		// background
 		{
-			const D3D11_SUBRESOURCE_DATA initData{ .pSysMem = config.BackgroundColor.data() };
-			D3D11_BUFFER_DESC bufferDesc{};
-			bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-			bufferDesc.ByteWidth = sizeof(config.BackgroundColor);
-			bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-			auto hr = m_pDevice->CreateBuffer(&bufferDesc, &initData, &m_pConstantBufferBackground);
+			auto hr = CreateConstantBuffer_(config.BackgroundColor.data(),
+				sizeof(config.BackgroundColor), &m_pConstantBufferBackground);
 			CheckResult(hr, "D3D11 - Failed to create ID3D11Buffer (Background Constant Buffer)");
 		}
 		// flash
 		{
-			const D3D11_SUBRESOURCE_DATA initData{ .pSysMem = config.BarColor.data() };
-			D3D11_BUFFER_DESC bufferDesc{};
-			bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-			bufferDesc.ByteWidth = sizeof(config.BarColor);
-			bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-			auto hr = m_pDevice->CreateBuffer(&bufferDesc, &initData, &m_pConstantBufferBar);
-			CheckResult(hr, "D3D11 - Failed to create ID3D11Buffer (Background Constant Buffer)");
+			auto hr = CreateConstantBuffer_(config.BarColor.data(),
+				sizeof(config.BarColor), &m_pConstantBufferBar);
+			CheckResult(hr, "D3D11 - Failed to create ID3D11Buffer (Flash Constant Buffer)");
+		}
+		// rainbow
+		if (m_rainbowConstantBufferPtrs.empty()) {
+			for (auto& color : GetRainbowColors()) {
+				ComPtr<ID3D11Buffer> cb;
+				auto hr = CreateConstantBuffer_(color.data(), sizeof(color), &cb);
+				CheckResult(hr, "D3D11 - Failed to create ID3D11Buffer (Rainbow Constant Buffer)");
+				m_rainbowConstantBufferPtrs.push_back(std::move(cb));
+			}
 		}
 	}
 
@@ -48,8 +79,7 @@ namespace GfxLayer::Extension
 		hr = m_pDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &m_pPixelShader);
 		CheckResult(hr, "D3D11 - Failed to create ID3D11PixelShader");
 
-		D3D11_INPUT_ELEMENT_DESC layout[] =
-		{
+		const D3D11_INPUT_ELEMENT_DESC layout[] = {
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
 		hr = m_pDevice->CreateInputLayout(layout, 1, pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), &m_pVertexLayout);
@@ -83,20 +113,13 @@ namespace GfxLayer::Extension
 		CheckResult(hr, "D3D11 - Failed to create ID3D11DeviceContext");
 	}
 
-	void OverlayRenderer_D3D11::Render(bool renderBar)
+	void OverlayRenderer_D3D11::Render(bool renderBar, bool useRainbow, bool enableBackground)
 	{
-		ID3D11Buffer* pConstantBuffer = m_pConstantBufferBackground.Get();
-		if (renderBar)
-		{
-			pConstantBuffer = m_pConstantBufferBar.Get();
-		}
-
 		// Cache the render target view
 
 		auto* pSwapChain = GetSwapChain();
 		auto  idx = pSwapChain->GetCurrentBackBufferIndex();
-		if (!m_Rtvs[idx])
-		{
+		if (!m_Rtvs[idx]) {
 			ComPtr<ID3D11Texture2D> pBackBuffer = nullptr;
 			pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
 			auto hr = m_pDevice->CreateRenderTargetView(pBackBuffer.Get(), nullptr, &m_Rtvs[idx]);
@@ -110,16 +133,30 @@ namespace GfxLayer::Extension
 		UINT stride = sizeof(Quad::Vertex);
 		UINT offset = 0;
 
-		m_pDeferredContext->RSSetViewports(1, &m_Viewport);
+		// set common state
 		m_pDeferredContext->OMSetRenderTargets(1, &pRtv, nullptr);
 		m_pDeferredContext->IASetInputLayout(m_pVertexLayout.Get());
 		m_pDeferredContext->IASetVertexBuffers(0, 1, &pVertexBuffer, &stride, &offset);
 		m_pDeferredContext->IASetIndexBuffer(m_pIndexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
 		m_pDeferredContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		m_pDeferredContext->VSSetShader(m_pVertexShader.Get(), nullptr, 0);
-		m_pDeferredContext->PSSetConstantBuffers(0, 1, &pConstantBuffer);
 		m_pDeferredContext->PSSetShader(m_pPixelShader.Get(), nullptr, 0);
-		m_pDeferredContext->DrawIndexed(6, 0, 0);
+		// issue fg/bg draw calls
+		const auto Draw = [&](ID3D11Buffer* pConstantBuffer, const D3D11_VIEWPORT& vp) {
+			m_pDeferredContext->RSSetViewports(1, &vp);
+			m_pDeferredContext->PSSetConstantBuffers(0, 1, &pConstantBuffer);
+			m_pDeferredContext->DrawIndexed(6, 0, 0);
+		};
+		if (useRainbow) {
+			Draw(m_rainbowConstantBufferPtrs[GetRainbowIndex()].Get(), m_rainbowViewport);
+		}
+		// draw background before flash bar if enabled, but only if A) not flash or B) background larger than flash
+		if (enableBackground && (m_backgroundViewport.Width > m_foregrountViewport.Width || !renderBar)) {
+			Draw(m_pConstantBufferBackground.Get(), m_backgroundViewport);
+		}
+		if (renderBar) {
+			Draw(m_pConstantBufferBar.Get(), m_foregrountViewport);
+		}
 
 		// Finish recording and obtain a command list
 		
@@ -135,11 +172,10 @@ namespace GfxLayer::Extension
 
 	void OverlayRenderer_D3D11::UpdateViewport(const OverlayConfig& cfg)
 	{
-		auto rect = GetScissorRect();
-		m_Viewport.TopLeftX = FLOAT(rect.left);
-		m_Viewport.TopLeftY = FLOAT(rect.top);
-		m_Viewport.Width = FLOAT(rect.right - rect.left);
-		m_Viewport.Height = FLOAT(rect.bottom - rect.top);
+		const auto scissors = GetScissorRects();
+		m_foregrountViewport = MakeViewport<D3D11_VIEWPORT>(scissors.fg);
+		m_backgroundViewport = MakeViewport<D3D11_VIEWPORT>(scissors.bg);
+		m_rainbowViewport = MakeViewport<D3D11_VIEWPORT>(scissors.rb);
 	}
 
 	void OverlayRenderer_D3D11::UpdateConfig(const OverlayConfig& cfg)
