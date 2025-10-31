@@ -2,6 +2,8 @@
 #include "CppUnitTest.h"
 #include <filesystem>
 #include "Folders.h"
+#include "../PresentMonAPI2Loader/Loader.h"
+#include "../PresentMonAPI2/Internal.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;
@@ -23,6 +25,10 @@ void WipeAndRecreate(const fs::path& path)
 
 TEST_MODULE_INITIALIZE(Api2TestModuleInit)
 {
+	// initialize c-api setting for in-module operation
+	pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
+	pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
+	// setup folders
 	WipeAndRecreate(MultiClientTests::logFolder_);
 	WipeAndRecreate(EtlLoggerTests::logFolder_);
 	WipeAndRecreate(EtlLoggerTests::outFolder_);

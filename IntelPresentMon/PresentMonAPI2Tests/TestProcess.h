@@ -257,41 +257,72 @@ public:
 	CommonTestFixture& operator=(CommonTestFixture&&) = delete;
 	virtual ~CommonTestFixture() = default;
 
-	void Setup(const std::vector<std::string>& args = {})
+	void Setup(std::vector<std::string> args = {})
 	{
-		const auto& common = GetCommonArgs();
-		service.emplace(ioctx, jobMan, args, common);
-		ioctxRunThread = std::thread{ [&] {try{ioctx.run();}catch(...){}} };
-		// ensure that service pipe is available
-		Assert::IsTrue(util::pipe::DuplexPipe::WaitForAvailability(common.ctrlPipe, 250),
-			L"Timed out waiting for pipe availability");
+		StartService_(args, GetCommonArgs());
+		svcArgs_ = std::move(args);
 	}
 	void Cleanup()
 	{
-		service.reset();
-		ioctxRunThread.join();
-		// sleep after every test to ensure that previous named pipe has vacated
-		std::this_thread::sleep_for(50ms);
+		StopService_(GetCommonArgs());
+		ioctxRunThread_.join();
+	}
+	void RebootService(std::optional<std::vector<std::string>> newArgs = {})
+	{
+		auto& common = GetCommonArgs();
+		auto& svcArgs = newArgs ? *newArgs : svcArgs_;
+		StopService_(common);
+		StartService_(svcArgs, common);
+		svcArgs_ = std::move(svcArgs);
 	}
 	ClientProcess LaunchClient(const std::vector<std::string>& args = {})
 	{
-		return ClientProcess{ ioctx, jobMan, args, GetCommonArgs() };
+		return ClientProcess{ ioctx_, jobMan_, args, GetCommonArgs() };
 	}
 	std::unique_ptr<ClientProcess> LaunchClientAsPtr(const std::vector<std::string>& args = {})
 	{
-		return std::make_unique<ClientProcess>(ioctx, jobMan, args, GetCommonArgs());
+		return std::make_unique<ClientProcess>(ioctx_, jobMan_, args, GetCommonArgs());
 	}
 	PresenterProcess LaunchPresenter(const std::vector<std::string>& args = {})
 	{
-		return PresenterProcess{ ioctx, jobMan, args };
+		return PresenterProcess{ ioctx_, jobMan_, args };
 	}
 	OpmProcess LaunchOpm(const std::vector<std::string>& args = {})
 	{
-		return OpmProcess{ ioctx, jobMan, args };
+		return OpmProcess{ ioctx_, jobMan_, args };
 	}
 	virtual const CommonProcessArgs& GetCommonArgs() const = 0;
 private:
-	JobManager jobMan;
-	std::thread ioctxRunThread;
-	as::io_context ioctx;
+	// functions
+	void StartService_(const std::vector<std::string>& args, const CommonProcessArgs& common)
+	{
+		// make sure ioctx thread is running and keep it running until service launches
+		auto workGuard = ReserveIoctxThread_();
+		// launch the service
+		service.emplace(ioctx_, jobMan_, args, common);
+		// ensure that service pipe is available
+		Assert::IsTrue(util::pipe::DuplexPipe::WaitForAvailability(common.ctrlPipe, svcPipeTimeout_),
+			L"Timed out waiting for pipe availability");
+	}
+	void StopService_(const CommonProcessArgs& common)
+	{
+		service.reset();
+		// ensure that service pipe has vacated
+		Assert::IsTrue(util::pipe::DuplexPipe::WaitForVacancy(common.ctrlPipe, svcPipeTimeout_),
+			L"Timed out waiting for pipe vacancy");
+	}
+	as::executor_work_guard<as::io_context::executor_type> ReserveIoctxThread_()
+	{
+		auto workGuard = as::executor_work_guard<as::io_context::executor_type>{ ioctx_.get_executor() };
+		if (!ioctxRunThread_.joinable()) {
+			ioctxRunThread_ = std::thread{ [&] {try { ioctx_.run(); } catch (...) {}} };
+		}
+		return workGuard;
+	}
+	// data
+	static constexpr int svcPipeTimeout_ = 250;
+	std::vector<std::string> svcArgs_;
+	JobManager jobMan_;
+	std::thread ioctxRunThread_;
+	as::io_context ioctx_;
 };

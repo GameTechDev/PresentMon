@@ -102,7 +102,8 @@ namespace pmon::util::pipe
 		}
 		size_t GetWriteBufferPending() const;
 		void ClearWriteBuffer();
-		static bool WaitForAvailability(const std::string& baseName, uint32_t timeoutMs, bool noSuffix = false, uint32_t pollPeriodMs = 10);
+		static bool WaitForAvailability(const std::string& baseName, uint32_t timeoutMs, bool noSuffix = false, uint32_t pollPeriodMs = 5);
+		static bool WaitForVacancy(const std::string& baseName, uint32_t timeoutMs, bool noSuffix = false, uint32_t pollPeriodMs = 5);
 		uint32_t GetId() const;
 		std::string GetName() const;
 		static std::string GetSecurityString(SecurityMode mode);

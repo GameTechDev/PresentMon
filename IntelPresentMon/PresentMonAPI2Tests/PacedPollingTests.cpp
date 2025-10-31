@@ -6,8 +6,6 @@
 #include "Folders.h"
 #include <vincentlaucsb-csv-parser/csv.hpp>
 #include "../CommonUtilities/IntervalWaiter.h"
-#include "../PresentMonAPI2Loader/Loader.h"
-#include "../PresentMonAPI2/Internal.h"
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include <string>
 #include <iostream>
@@ -44,11 +42,6 @@ namespace PacedPolling
 			return args;
 		}
 	};
-
-	std::vector<double> ExtractColumn(const std::vector<std::vector<double>>& mat, std::size_t i)
-	{
-		return mat | vi::transform([i](auto const& row) { return row[i]; }) | rn::to<std::vector>();
-	}
 
 	class BlobReader
 	{
@@ -134,8 +127,19 @@ namespace PacedPolling
 		}
 
 		// 3) finish computing MSE
-		result.meanSquareError = sumSq / static_cast<double>(run0.size());
+		if (run0.size() > 0) {
+			result.meanSquareError = sumSq / double(run0.size());
+		}
+		else {
+			result.meanSquareError = 0.;
+		}
+
 		return result;
+	}
+
+	std::vector<double> ExtractColumn(const std::vector<std::vector<double>>& mat, std::size_t i)
+	{
+		return mat | vi::transform([i](auto const& row) { return row[i]; }) | rn::to<std::vector>();
 	}
 
 	std::vector<MetricCompareResult> CompareRuns(
@@ -146,6 +150,7 @@ namespace PacedPolling
 	{
 		std::vector<MetricCompareResult> results;
 		for (auto&& [i, q] : vi::enumerate(qels)) {
+			// triple tolerance for sensitive stats
 			if (rn::contains(std::array{
 				PM_STAT_MAX,
 				PM_STAT_MIN,
@@ -154,6 +159,7 @@ namespace PacedPolling
 				PM_STAT_MID_POINT }, q.stat)) {
 				toleranceFactor *= 3.;
 			}
+			// compare columns for each query element
 			results.push_back(CompareRunsForMetric(
 				ExtractColumn(run0, i),
 				ExtractColumn(run1, i),
@@ -196,16 +202,20 @@ namespace PacedPolling
 				}, m.GetId())) {
 				continue;
 			}
+			// only allow dynamic metrics
 			if (m.GetType() != PM_METRIC_TYPE_DYNAMIC && m.GetType() != PM_METRIC_TYPE_DYNAMIC_FRAME) {
 				continue;
 			}
+			// should be exactly 1 device (universal one)
 			auto dmi = m.GetDeviceMetricInfo();
 			if (dmi.size() != 1) {
 				continue;
 			}
+			// device must be available and 0 (universal)
 			if (!dmi.front().IsAvailable() || dmi.front().GetDevice().GetId() != 0) {
 				continue;
 			}
+			// don't work on string data metrics
 			if (m.GetDataTypeInfo().GetPolledType() == PM_DATA_TYPE_STRING) {
 				continue;
 			}
@@ -257,10 +267,120 @@ namespace PacedPolling
 		auto resWriter = csv::make_csv_writer(resStream);
 		resWriter << std::array{ "metric"s, "n-miss"s, "mse"s };
 		for (auto&& [i, res] : vi::enumerate(results)) {
-			// we need to protect csv lib from inf values, it does not handle them well
-			auto mse = std::isinf(res.meanSquareError) ? -0.0001 : res.meanSquareError;
-			resWriter << std::make_tuple(header[i], res.mismatches.size(), mse);
+			resWriter << std::make_tuple(header[i], res.mismatches.size(), res.meanSquareError);
 		}
+	}
+
+	class TestClientModule
+	{
+	public:
+		TestClientModule(const std::string& pipeName, double windowMs,
+			double offsetMs, std::span<PM_QUERY_ELEMENT> qels)
+			:
+			session_{ pipeName },
+			qels_{ qels },
+			query_{ session_.RegisterDynamicQuery(qels_, windowMs, offsetMs) },
+			blobs_{ query_.MakeBlobContainer(1) }
+		{}
+		std::vector<std::vector<double>> RecordPolling(uint32_t targetPid, double recordingStartSec,
+			double recordingStopSec, double pollInterval)
+		{
+			auto pIntro = session_.GetIntrospectionRoot();
+			// start tracking target
+			auto tracker = session_.TrackProcess(targetPid);
+			// get the waiter and the timer clocks ready
+			using Clock = std::chrono::high_resolution_clock;
+			const auto startTime = Clock::now();
+			util::IntervalWaiter waiter{ pollInterval, 0.001 };
+			// run polling loop and poll into vector
+			std::vector<std::vector<double>> rows;
+			std::vector<double> cells;
+			BlobReader br{ qels_, pIntro };
+			br.Target(blobs_);
+			const auto recordingStart = recordingStartSec * 1s;
+			const auto recordingStop = recordingStopSec * 1s;
+			for (auto now = Clock::now(), start = Clock::now();
+				now - start <= recordingStop; now = Clock::now()) {
+				// skip recording while time has not reached start time
+				if (now - start >= recordingStart) {
+					cells.reserve(qels_.size() + 1);
+					query_.Poll(tracker, blobs_);
+					// first column is the time as measured in polling loop
+					cells.push_back(std::chrono::duration<double>(now - start).count());
+					// remaining columns are from the query
+					for (size_t i = 0; i < qels_.size(); i++) {
+						cells.push_back(br.At<double>(i));
+					}
+					rows.push_back(std::move(cells));
+				}
+				waiter.Wait();
+			}
+			return rows;
+		}
+	private:
+		pmapi::Session session_;
+		std::span<PM_QUERY_ELEMENT> qels_;
+		pmapi::DynamicQuery query_;
+		pmapi::BlobContainer blobs_;
+	};
+
+	// works on the set of all results comparing one run (test) against another (gold)
+	// outputs aggregate showing at a glance how each test run compares to the gold
+	int ValidateAndAggregateResults(double sampleCount, std::string fileName,
+		const std::vector<std::vector<MetricCompareResult>>& allResults)
+	{
+		// output aggregate results of all runs
+		std::ofstream aggStream{ outFolder_ + "\\"s + fileName };
+		auto aggWriter = csv::make_csv_writer(aggStream);
+		aggWriter << std::array{ "#"s, "n-miss-total"s, "n-miss-max"s, "mse-total"s, "mse-max"s };
+		int nFail = 0;
+		for (auto&& [i, runResult] : vi::enumerate(allResults)) {
+			size_t nMissTotal = 0;
+			size_t nMissMax = 0;
+			double mseTotal = 0.;
+			double mseMax = 0.;
+			for (auto& colRes : runResult) {
+				nMissTotal += colRes.mismatches.size();
+				nMissMax = std::max(colRes.mismatches.size(), nMissMax);
+				mseTotal += colRes.meanSquareError;
+				mseMax = std::max(colRes.meanSquareError, mseMax);
+			}
+			aggWriter << std::make_tuple(i, nMissTotal, nMissMax, mseTotal, mseMax);
+			// factors to tweak the pass/fail decision points
+			const auto overallMissRatio = 0.033;
+			const auto perColumnMissRatio = 0.01;
+			const auto mseTotalFactor = 2.5;
+			const auto mseMaxFactor = 1.;
+			// fail if any single column has too many mismatches, or if the total of all
+			// columns exceeds a threshold (same idea for mse below as well)
+			if (nMissTotal > size_t(sampleCount * overallMissRatio) ||
+				nMissMax > size_t(sampleCount * perColumnMissRatio)) {
+				nFail++;
+			}
+			else if (mseTotal > sampleCount * mseTotalFactor ||
+				mseMax > sampleCount * mseMaxFactor) {
+				nFail++;
+			}
+		}
+		return nFail;
+	}
+
+	auto DoPollingRunAndCompare(const std::string& ctrlPipe, std::span<PM_QUERY_ELEMENT> qels,
+		uint32_t targetPid, double recordingStart, double recordingStop, double pollPeriod,
+		const std::vector<std::string>& header, const std::vector<std::vector<double>>& gold,
+		double toleranceFactor, const std::string& testName, const std::string& phaseName)
+	{
+		// execute a test run and record samples
+		TestClientModule client{ ctrlPipe, 1000., 64., qels };
+		auto run = client.RecordPolling(targetPid, recordingStart, recordingStop, pollPeriod);
+		WriteRunToCsv(std::format("{}\\{}_{}.csv", outFolder_, testName, phaseName), header, run);
+		// compare against gold
+		auto compResults = CompareRuns(qels, run, gold, toleranceFactor);
+		// record results for possible post-mortem
+		WriteResults(std::format("{}\\{}_{}_rslt.csv", outFolder_, testName, phaseName),
+			header, compResults);
+		// return the results
+		return compResults;
 	}
 
 	TEST_CLASS(PacedPollingTests)
@@ -280,164 +400,88 @@ namespace PacedPolling
 		}
 		TEST_METHOD(PollDynamic)
 		{
-			const uint32_t targetPid = 12820;
-			const auto recordingStart = 1s;
-			const auto recordingStop = 14s;
-
+			const auto testName = "t0_hea"s;
 			const auto goldCsvPath = R"(..\..\Tests\PacedGold\polled_gold.csv)"s;
+			const uint32_t targetPid = 12820;
+			const auto recordingStart = 1.;
+			const auto recordingStop = 14.;
+			const auto pollPeriod = 0.1;
+			const auto sampleCount = (recordingStop - recordingStart) / pollPeriod;
+			const size_t nRunsFull = 9;
+			const size_t nRoundRobin = 12;
 			const auto toleranceFactor = 0.02;
+			const auto fullFailRatio = 0.667;
 
-			pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-			pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-			
-			std::vector<std::vector<std::vector<double>>> allRuns;
-			std::vector<PM_QUERY_ELEMENT> qels;
-			std::vector<std::string> header;
-
-			// generate playback polling data for N runs
-			const auto Run = [&](int n) {
-				for (int x = 0; x < n; x++) {
-					// short sleep at the beginning of very run but the first
-					// waiting to make sure previous svc has cleaned up 100%
-					if (x > 0) {
-						std::this_thread::sleep_for(50ms);
-					}
-					// connect to svc and get introspection
-					pmapi::Session api{ fixture_.GetCommonArgs().ctrlPipe };
-					auto pIntro = api.GetIntrospectionRoot();
-					// build the query element set via introspect if not yet built (first run only)
-					if (qels.empty()) {
-						qels = BuildQueryElementSet(*pIntro);
-					}
-					// build the header if necessary
-					if (header.empty()) {
-						header = MakeHeader(qels, *pIntro);
-					}
-					// register query and create necessary blob
-					auto query = api.RegisterDynamicQuery(qels, 1000., 64.);
-					auto blobs = query.MakeBlobContainer(1);
-					// start tracking target
-					auto tracker = api.TrackProcess(targetPid);
-					// get the waiter and the timer clocks ready
-					using Clock = std::chrono::high_resolution_clock;
-					const auto startTime = Clock::now();
-					util::IntervalWaiter waiter{ 0.1, 0.001 };
-					// run polling loop and poll into vector
-					std::vector<std::vector<double>> rows;
-					std::vector<double> cells;
-					BlobReader br{ qels, pIntro };
-					br.Target(blobs);
-					for (auto now = Clock::now(), start = Clock::now();
-						now - start <= recordingStop; now = Clock::now()) {
-						// skip recording while time has not reached start time
-						if (now - start >= recordingStart) {
-							cells.reserve(qels.size() + 1);
-							query.Poll(tracker, blobs);
-							// first column is the time as measured in polling loop
-							cells.push_back(std::chrono::duration<double>(now - start).count());
-							// remaining columns are from the query
-							for (size_t i = 0; i < qels.size(); i++) {
-								cells.push_back(br.At<double>(i));
-							}
-							rows.push_back(std::move(cells));
-						}
-						waiter.Wait();
-					}
-					// write the full run data to csv file
-					WriteRunToCsv(std::format("{}test_run_{}.csv", outFolder_, allRuns.size()), header, rows);
-					// append run data to the vector of all runs
-					allRuns.push_back(std::move(rows));
-				}
-			};
+			auto& common = fixture_.GetCommonArgs();
+			auto pIntro = pmapi::Session{ common.ctrlPipe }.GetIntrospectionRoot();
+			auto qels = BuildQueryElementSet(*pIntro);
+			auto header = MakeHeader(qels, *pIntro);
 
 			// compare all runs against gold if exists
 			if (std::filesystem::exists(goldCsvPath)) {
-				std::vector<std::vector<MetricCompareResult>> allResults;
-				// load gold csv
 				auto gold = LoadRunFromCsv(goldCsvPath);
-				const auto DoComparison = [&] {
-					// loop over all runs in memory and compare with gold, write results
-					for (auto&& [i, run] : vi::enumerate(allRuns)) {
-						auto results = CompareRuns(qels, run, gold, toleranceFactor);
-						WriteResults(std::format("{}results_{}.csv", outFolder_, i), header, results);
-						allResults.push_back(std::move(results));
-					}
-				};
-				const auto ValidateAndWriteAggregateResults = [&] {
-					// output aggregate results of all runs
-					std::ofstream aggStream{ outFolder_ + "results_agg.csv"s };
-					auto aggWriter = csv::make_csv_writer(aggStream);
-					aggWriter << std::array{ "#"s, "n-miss-total"s, "n-miss-max"s, "mse-total"s, "mse-max"s };
-					int nFail = 0;
-					for (auto&& [i, columnResults] : vi::enumerate(allResults)) {
-						size_t nMissTotal = 0;
-						size_t nMissMax = 0;
-						double mseTotal = 0.;
-						double mseMax = 0.;
-						for (auto& colRes : columnResults) {
-							nMissTotal += colRes.mismatches.size();
-							nMissMax = std::max(colRes.mismatches.size(), nMissMax);
-							mseTotal += colRes.meanSquareError;
-							mseMax = std::max(colRes.meanSquareError, mseMax);
-						}
-						aggWriter << std::make_tuple(i, nMissTotal, nMissMax, mseTotal, mseMax);
-						const auto rowCount = allRuns[i].size();
-						// fail if any single column has too many mismatches, or if the total of all
-						// columns exceeds a threshold (same idea for mse below as well)
-						if (nMissTotal > size_t(rowCount / 33.) || nMissMax > size_t(rowCount / 100.)) {
-							nFail++;
-						}
-						else if (mseTotal > rowCount * 2.5 || mseMax > double(rowCount)) {
-							nFail++;
-						}
-					}
-					return nFail;
-				};
-				// first attempt to compare single run against gold
-				Run(1);
-				DoComparison();
-				if (ValidateAndWriteAggregateResults() == 0) {
+				// do one polling run and compare against gold
+				const auto nFailOneshot = [&] {
+					auto oneshotCompRes = DoPollingRunAndCompare(common.ctrlPipe, qels, targetPid, recordingStart,
+						recordingStop, pollPeriod, header, gold, toleranceFactor, testName, "oneshot");
+					return ValidateAndAggregateResults(sampleCount, testName + "_oneshot_agg.csv", { oneshotCompRes });
+				}();
+				// if oneshot run succeeds with zero failures, we finish here
+				if (nFailOneshot == -1) {
 					Logger::WriteMessage("One-shot success");
 				}
 				else {
-					// first single run fails, run N times and see if enough pass to seem plausible
-					allResults.clear();
-					const int nRuns = 9;
-					Run(nRuns);
-					DoComparison();
-					const auto nFail = ValidateAndWriteAggregateResults();
-					Assert::IsTrue(nFail < (int)std::roundf(nRuns * 0.667f),
-						std::format(L"Failed [{}] runs (of {})", nFail, nRuns).c_str());
-					Logger::WriteMessage(std::format(L"Retry success (failed [{}] of [{}])", nFail, nRuns).c_str());
+					// oneshot failed, run N times and see if enough pass to seem plausible
+					std::vector<std::vector<MetricCompareResult>> allResults;
+					for (size_t i = 0; i < nRunsFull; i++) {
+						// restart service to restart playback
+						fixture_.RebootService();
+						// do Nth polling run and compare against gold
+						auto compRes = DoPollingRunAndCompare(common.ctrlPipe, qels, targetPid, recordingStart,
+							recordingStop, pollPeriod, header, gold, toleranceFactor, testName, std::format("full_{}", i));
+						allResults.push_back(std::move(compRes));
+					}
+					// validate comparison results
+					const auto nFail = ValidateAndAggregateResults(sampleCount, testName + "full_agg", allResults);
+					Assert::IsTrue(nFail < (int)std::round(nRunsFull * fullFailRatio),
+						std::format(L"Failed [{}] runs (of {})", nFail, nRunsFull).c_str());
+					Logger::WriteMessage(std::format(L"Retry success (failed [{}] of [{}])", nFail, nRunsFull).c_str());
 				}
 			}
-			else { // if gold doesn't exist, do cartesian product comparison of all
-				const int nRuns = 9;
-				Run(nRuns);
-				std::vector<size_t> mismatchTotals(allRuns.size(), 0);
-				for (size_t iA = 0; iA < allRuns.size(); ++iA) {
-					for (size_t iB = iA + 1; iB < allRuns.size(); ++iB) {
+			else { // if gold doesn't exist, do cartesian product comparison over many runs to genarate data for a new gold
+				std::vector<std::vector<std::vector<double>>> allRobinRuns;
+				for (size_t i = 0; i < nRoundRobin; i++) {
+					// restart service to restart playback
+					fixture_.RebootService();
+					// execute polling run
+					TestClientModule client{ common.ctrlPipe, 1000., 64., qels };
+					auto run = client.RecordPolling(targetPid, recordingStart, recordingStop, pollPeriod);
+					// record run samples for analysis
+					WriteRunToCsv(std::format("{}\\{}_robin_{}.csv", outFolder_, testName, i), header, run);
+					allRobinRuns.push_back(std::move(run));
+				}
+				// do cartesian product and record all results
+				std::vector<std::vector<std::vector<MetricCompareResult>>> allRobinResults(allRobinRuns.size());
+				for (size_t iA = 0; iA < allRobinRuns.size(); ++iA) {
+					for (size_t iB = 0; iB < allRobinRuns.size(); ++iB) {
+						if (iA == iB) continue;
 						// compare run A vs run B
-						auto results = CompareRuns(qels, allRuns[iA], allRuns[iB], toleranceFactor);
+						auto results = CompareRuns(qels, allRobinRuns[iA], allRobinRuns[iB], toleranceFactor);
 						// write per-pair results
-						WriteResults(std::format("{}round_robin_{}_{}.csv", outFolder_, iA, iB), header, results);
-
-						// accumulate total mismatches for ranking
-						size_t sumMiss = 0;
-						for (const auto& res : results) {
-							sumMiss += res.mismatches.size();
-						}
-						mismatchTotals[iA] += sumMiss;
-						mismatchTotals[iB] += sumMiss;
+						WriteResults(std::format("{}\\{}_robin_{}_{}_rslt.csv", outFolder_, testName, iA, iB), header, results);
+						allRobinResults[iA].push_back(std::move(results));
 					}
 				}
-
-				// write aggregate ranking of runs by total mismatches
-				std::ofstream aggStream{ outFolder_ + "round_robin_agg.csv"s };
-				auto aggWriter = csv::make_csv_writer(aggStream);
+				// aggregate for each candidate
+				std::ofstream robinUberAggStream{ std::format("{}\\{}_robin_uber_agg.csv", outFolder_, testName) };
+				auto aggWriter = csv::make_csv_writer(robinUberAggStream);
 				aggWriter << std::array{ "#"s, "n-miss-total"s };
-				for (size_t i = 0; i < mismatchTotals.size(); ++i) {
-					aggWriter << std::make_tuple(i, mismatchTotals[i]);
+				Logger::WriteMessage("Round Robin Results\n===================\n");
+				for (size_t i = 0; i < allRobinRuns.size(); i++) {
+					const auto nFail = ValidateAndAggregateResults(sampleCount, 
+						std::format("{}_robin_{}_agg.csv", testName, i), allRobinResults[i]);
+					aggWriter << std::make_tuple(i, nFail);
+					Logger::WriteMessage(std::format("#{}: {}", i, nFail).c_str());
 				}
 				// hardcode a fail because this execution path requires analysis and
 				// selection of a gold result to lock in
