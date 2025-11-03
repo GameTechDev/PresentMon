@@ -400,8 +400,8 @@ namespace PacedPolling
 		}
 		TEST_METHOD(PollDynamic)
 		{
-			const auto testName = "t0_hea"s;
-			const auto goldCsvPath = R"(..\..\Tests\PacedGold\polled_gold.csv)"s;
+			const auto testName = "p00_hea_win_2080"s;
+			const auto goldCsvPath = R"(..\..\Tests\PacedGold\p00_hea_win_2080_gold.csv)"s;
 			const uint32_t targetPid = 12820;
 			const auto recordingStart = 1.;
 			const auto recordingStop = 14.;
@@ -427,7 +427,7 @@ namespace PacedPolling
 					return ValidateAndAggregateResults(sampleCount, testName + "_oneshot_agg.csv", { oneshotCompRes });
 				}();
 				// if oneshot run succeeds with zero failures, we finish here
-				if (nFailOneshot == -1) {
+				if (nFailOneshot == 0) {
 					Logger::WriteMessage("One-shot success");
 				}
 				else {
@@ -442,7 +442,7 @@ namespace PacedPolling
 						allResults.push_back(std::move(compRes));
 					}
 					// validate comparison results
-					const auto nFail = ValidateAndAggregateResults(sampleCount, testName + "full_agg", allResults);
+					const auto nFail = ValidateAndAggregateResults(sampleCount, testName + "_full_agg.csv", allResults);
 					Assert::IsTrue(nFail < (int)std::round(nRunsFull * fullFailRatio),
 						std::format(L"Failed [{}] runs (of {})", nFail, nRunsFull).c_str());
 					Logger::WriteMessage(std::format(L"Retry success (failed [{}] of [{}])", nFail, nRunsFull).c_str());
@@ -464,7 +464,6 @@ namespace PacedPolling
 				std::vector<std::vector<std::vector<MetricCompareResult>>> allRobinResults(allRobinRuns.size());
 				for (size_t iA = 0; iA < allRobinRuns.size(); ++iA) {
 					for (size_t iB = 0; iB < allRobinRuns.size(); ++iB) {
-						if (iA == iB) continue;
 						// compare run A vs run B
 						auto results = CompareRuns(qels, allRobinRuns[iA], allRobinRuns[iB], toleranceFactor);
 						// write per-pair results
@@ -475,13 +474,13 @@ namespace PacedPolling
 				// aggregate for each candidate
 				std::ofstream robinUberAggStream{ std::format("{}\\{}_robin_uber_agg.csv", outFolder_, testName) };
 				auto aggWriter = csv::make_csv_writer(robinUberAggStream);
-				aggWriter << std::array{ "#"s, "n-miss-total"s };
+				aggWriter << std::array{ "#"s, "n-fail-total"s };
 				Logger::WriteMessage("Round Robin Results\n===================\n");
 				for (size_t i = 0; i < allRobinRuns.size(); i++) {
 					const auto nFail = ValidateAndAggregateResults(sampleCount, 
 						std::format("{}_robin_{}_agg.csv", testName, i), allRobinResults[i]);
 					aggWriter << std::make_tuple(i, nFail);
-					Logger::WriteMessage(std::format("#{}: {}", i, nFail).c_str());
+					Logger::WriteMessage(std::format("#{}: {}\n", i, nFail).c_str());
 				}
 				// hardcode a fail because this execution path requires analysis and
 				// selection of a gold result to lock in
