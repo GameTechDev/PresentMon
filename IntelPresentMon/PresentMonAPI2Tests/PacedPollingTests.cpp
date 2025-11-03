@@ -412,6 +412,12 @@ namespace PacedPolling
 			const auto toleranceFactor = 0.02;
 			const auto fullFailRatio = 0.667;
 
+			// script analysis command line info
+			const auto rootPath = fs::current_path().parent_path().parent_path();
+			const auto scriptPath = (rootPath / "Tests\\Scripts\\analyze-paced.py").string();
+			const auto outPath = (rootPath / "build\\Debug\\TestOutput\\PacedPolling").string();
+			const auto goldPath = (rootPath / "Tests\\PacedGold").string();
+
 			auto& common = fixture_.GetCommonArgs();
 			auto pIntro = pmapi::Session{ common.ctrlPipe }.GetIntrospectionRoot();
 			auto qels = BuildQueryElementSet(*pIntro);
@@ -465,6 +471,11 @@ namespace PacedPolling
 					}
 					// validate comparison results
 					const auto nFail = ValidateAndAggregateResults(sampleCount, testName + "_full_agg.csv", allResults);
+					// output analysis command
+					Logger::WriteMessage("Analyze with:\n");
+					Logger::WriteMessage(std::format(R"(python "{}" --folder "{}" --name {} --golds "{}")",
+						scriptPath, outPath, testName, goldPath).c_str());
+					Logger::WriteMessage("\n");
 					Assert::IsTrue(nFail < (int)std::round(nRunsFull * fullFailRatio),
 						std::format(L"Failed [{}] runs (of {})", nFail, nRunsFull).c_str());
 					Logger::WriteMessage(std::format(L"Retry success (failed [{}] of [{}])", nFail, nRunsFull).c_str());
@@ -515,6 +526,11 @@ namespace PacedPolling
 					aggWriter << std::make_tuple(i, nFail);
 					Logger::WriteMessage(std::format("#{:02}: {}\n", i, nFail).c_str());
 				}
+				// output analysis command
+				Logger::WriteMessage("Analyze with:\n");
+				Logger::WriteMessage(std::format(R"(python "{}" --folder "{}" --name {})",
+					scriptPath, outPath, testName).c_str());
+				Logger::WriteMessage("\n");
 				// hardcode a fail because this execution path requires analysis and
 				// selection of a gold result to lock in
 				Assert::IsTrue(false, L"Run complete, analysis is required to select gold result.");
