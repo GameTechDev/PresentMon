@@ -422,8 +422,19 @@ namespace PacedPolling
 				auto gold = LoadRunFromCsv(goldCsvPath);
 				// do one polling run and compare against gold
 				const auto nFailOneshot = [&] {
-					auto oneshotCompRes = DoPollingRunAndCompare(common.ctrlPipe, qels, targetPid, recordingStart,
-						recordingStop, pollPeriod, header, gold, toleranceFactor, testName, "oneshot");
+					auto oneshotCompRes = DoPollingRunAndCompare(
+						common.ctrlPipe,
+						qels,
+						targetPid,
+						recordingStart,
+						recordingStop,
+						pollPeriod,
+						header,
+						gold,
+						toleranceFactor,
+						testName,
+						"oneshot"
+					);
 					return ValidateAndAggregateResults(sampleCount, testName + "_oneshot_agg.csv", { oneshotCompRes });
 				}();
 				// if oneshot run succeeds with zero failures, we finish here
@@ -437,8 +448,19 @@ namespace PacedPolling
 						// restart service to restart playback
 						fixture_.RebootService();
 						// do Nth polling run and compare against gold
-						auto compRes = DoPollingRunAndCompare(common.ctrlPipe, qels, targetPid, recordingStart,
-							recordingStop, pollPeriod, header, gold, toleranceFactor, testName, std::format("full_{}", i));
+						auto compRes = DoPollingRunAndCompare(
+							common.ctrlPipe,
+							qels,
+							targetPid,
+							recordingStart,
+							recordingStop,
+							pollPeriod,
+							header,
+							gold,
+							toleranceFactor,
+							testName,
+							std::format("full_{:02}", i)
+						);
 						allResults.push_back(std::move(compRes));
 					}
 					// validate comparison results
@@ -448,7 +470,7 @@ namespace PacedPolling
 					Logger::WriteMessage(std::format(L"Retry success (failed [{}] of [{}])", nFail, nRunsFull).c_str());
 				}
 			}
-			else { // if gold doesn't exist, do cartesian product comparison over many runs to genarate data for a new gold
+			else { // if gold doesn't exist, do cartesian product comparison over many runs to generate data for a new gold
 				std::vector<std::vector<std::vector<double>>> allRobinRuns;
 				for (size_t i = 0; i < nRoundRobin; i++) {
 					// restart service to restart playback
@@ -457,7 +479,11 @@ namespace PacedPolling
 					TestClientModule client{ common.ctrlPipe, 1000., 64., qels };
 					auto run = client.RecordPolling(targetPid, recordingStart, recordingStop, pollPeriod);
 					// record run samples for analysis
-					WriteRunToCsv(std::format("{}\\{}_robin_{}.csv", outFolder_, testName, i), header, run);
+					WriteRunToCsv(
+						std::format("{}\\{}_robin_{:02}.csv", outFolder_, testName, i),
+						header,
+						run
+					);
 					allRobinRuns.push_back(std::move(run));
 				}
 				// do cartesian product and record all results
@@ -467,7 +493,11 @@ namespace PacedPolling
 						// compare run A vs run B
 						auto results = CompareRuns(qels, allRobinRuns[iA], allRobinRuns[iB], toleranceFactor);
 						// write per-pair results
-						WriteResults(std::format("{}\\{}_robin_{}_{}_rslt.csv", outFolder_, testName, iA, iB), header, results);
+						WriteResults(
+							std::format("{}\\{}_robin_{:02}_{:02}_rslt.csv", outFolder_, testName, iA, iB),
+							header,
+							results
+						);
 						allRobinResults[iA].push_back(std::move(results));
 					}
 				}
@@ -477,10 +507,13 @@ namespace PacedPolling
 				aggWriter << std::array{ "#"s, "n-fail-total"s };
 				Logger::WriteMessage("Round Robin Results\n===================\n");
 				for (size_t i = 0; i < allRobinRuns.size(); i++) {
-					const auto nFail = ValidateAndAggregateResults(sampleCount, 
-						std::format("{}_robin_{}_agg.csv", testName, i), allRobinResults[i]);
+					const auto nFail = ValidateAndAggregateResults(
+						sampleCount,
+						std::format("{}_robin_{:02}_agg.csv", testName, i),
+						allRobinResults[i]
+					);
 					aggWriter << std::make_tuple(i, nFail);
-					Logger::WriteMessage(std::format("#{}: {}\n", i, nFail).c_str());
+					Logger::WriteMessage(std::format("#{:02}: {}\n", i, nFail).c_str());
 				}
 				// hardcode a fail because this execution path requires analysis and
 				// selection of a gold result to lock in
