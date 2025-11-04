@@ -412,15 +412,15 @@ namespace PacedPolling
 		}
 	}
 
-	TEST_CLASS(P00HeaWin2080)
+#define TEST_NAME P00HeaWin2080
+	TEST_CLASS(TEST_NAME)
 	{
-		static constexpr const char* testName_ = "P00HeaWin2080";
 		TestFixture fixture_;
 	public:
 		TEST_METHOD_INITIALIZE(Setup)
 		{
 			fixture_.Setup({
-				"--etl-test-file"s, std::format(R"(..\..\Tests\AuxData\PacedPolled\{}.etl)", testName_),
+				"--etl-test-file"s, std::format(R"(..\..\Tests\AuxData\PacedPolled\{}.etl)", STRINGIFY(TEST_NAME)),
 				"--pace-playback"s,
 			});
 		}
@@ -438,8 +438,9 @@ namespace PacedPolling
 			const auto toleranceFactor = 0.02;
 			const auto fullFailRatio = 0.667;
 			// run test
-			ExecutePacedPollingTest(testName_, targetPid, recordingStart, recordingStop, pollPeriod,
-				toleranceFactor, fullFailRatio, fixture_);
+			ExecutePacedPollingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart, recordingStop,
+				pollPeriod, toleranceFactor, fullFailRatio, fixture_);
 		}
 	};
+#undef TEST_NAME
 }
