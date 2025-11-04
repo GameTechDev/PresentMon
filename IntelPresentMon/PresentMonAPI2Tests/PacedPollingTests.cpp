@@ -131,8 +131,7 @@ namespace PacedPolling
 		return results;
 	}
 
-	std::pair<std::vector<std::string>, std::vector<std::vector<double>>>
-		LoadRunFromCsv(const std::string& path)
+	auto LoadRunFromCsv(const std::string& path)
 	{
  		csv::CSVReader gold{ path };
 		auto header = gold.get_col_names();
@@ -145,7 +144,7 @@ namespace PacedPolling
 			}
 			dataRows.push_back(std::move(rowData));
 		}
-		return { std::move(header), std::move(dataRows) };
+		return std::make_pair(std::move(header), std::move(dataRows));
 	}
 
 	using StatMap = std::unordered_map<std::string, PM_STAT>;
@@ -270,55 +269,64 @@ namespace PacedPolling
 		return compResults;
 	}
 
-	TEST_CLASS(PacedPollingTests)
+	void ExecutePacedPollingTest(const std::string& testName, uint32_t targetPid, double recordingStart,
+		double recordingStop, double pollPeriod, double toleranceFactor, double fullFailRatio,
+		TestFixture& fixture)
 	{
-		TestFixture fixture_;
-	public:
-		TEST_METHOD_INITIALIZE(Setup)
-		{
-			fixture_.Setup({
-				"--etl-test-file"s, "Heaven-win-vsync-2080ti.etl"s,
-				"--pace-playback"s,
-			});
-		}
-		TEST_METHOD_CLEANUP(Cleanup)
-		{
-			fixture_.Cleanup();
-		}
-		TEST_METHOD(PollDynamic)
-		{
-			const auto testName = "p00_hea_win_2080"s;
-			const auto goldCsvPath = R"(..\..\Tests\PacedGold\p00_hea_win_2080_gold.csv)"s;
-			const uint32_t targetPid = 12820;
-			const auto recordingStart = 1.;
-			const auto recordingStop = 14.;
-			const auto pollPeriod = 0.1;
-			const auto sampleCount = (recordingStop - recordingStart) / pollPeriod;
-			const size_t nRunsFull = 9;
-			const size_t nRoundRobin = 12;
-			const auto toleranceFactor = 0.02;
-			const auto fullFailRatio = 0.667;
+		// hardcoded constants
+		const size_t nRunsFull = 9;
+		const size_t nRoundRobin = 12;
 
-			// script analysis command line info
-			const auto rootPath = fs::current_path().parent_path().parent_path();
-			const auto scriptPath = (rootPath / "Tests\\Scripts\\analyze-paced.py").string();
-			const auto outPath = (rootPath / "build\\Debug\\TestOutput\\PacedPolling").string();
-			const auto goldPath = (rootPath / "Tests\\PacedGold").string();
+		// derived parameters
+		const auto goldCsvPath = std::format(R"(..\..\Tests\PacedGold\{}_gold.csv)", testName);
+		const auto sampleCount = (recordingStop - recordingStart) / pollPeriod;
 
-			auto& common = fixture_.GetCommonArgs();
-			const auto smap = [&] {
-				pmapi::Session tempSession{ common.ctrlPipe };
-				const auto pTempIntro = tempSession.GetIntrospectionRoot();
-				return MakeStatMap(*pTempIntro);
+		// script analysis command line info
+		const auto rootPath = fs::current_path().parent_path().parent_path();
+		const auto scriptPath = (rootPath / "Tests\\Scripts\\analyze-paced.py").string();
+		const auto outPath = (rootPath / "build\\Debug\\TestOutput\\PacedPolling").string();
+		const auto goldPath = (rootPath / "Tests\\PacedGold").string();
+
+		auto& common = fixture.GetCommonArgs();
+		const auto smap = [&] {
+			pmapi::Session tempSession{ common.ctrlPipe };
+			const auto pTempIntro = tempSession.GetIntrospectionRoot();
+			return MakeStatMap(*pTempIntro);
+		}();
+
+		// compare all runs against gold if exists
+		if (std::filesystem::exists(goldCsvPath)) {
+			auto [gh, gold] = LoadRunFromCsv(goldCsvPath);
+			// do one polling run and compare against gold
+			const auto nFailOneshot = [&] {
+				auto oneshotCompRes = DoPollingRunAndCompare(
+					fixture,
+					common.ctrlPipe,
+					smap,
+					targetPid,
+					recordingStart,
+					recordingStop,
+					pollPeriod,
+					gold,
+					toleranceFactor,
+					testName,
+					"oneshot"
+				);
+				return ValidateAndAggregateResults(sampleCount, testName + "_oneshot_agg.csv", { oneshotCompRes });
 			}();
-
-			// compare all runs against gold if exists
-			if (std::filesystem::exists(goldCsvPath)) {
-				auto [gh, gold] = LoadRunFromCsv(goldCsvPath);
-				// do one polling run and compare against gold
-				const auto nFailOneshot = [&] {
-					auto oneshotCompRes = DoPollingRunAndCompare(
-						fixture_,
+			// if oneshot run succeeds with zero failures, we finish here
+			if (nFailOneshot == 0) {
+				Logger::WriteMessage("One-shot success");
+			}
+			else {
+				// oneshot failed, run N times and see if enough pass to seem plausible
+				std::vector<std::vector<MetricCompareResult>> allResults;
+				for (size_t i = 0; i < nRunsFull; i++) {
+					// restart service to restart playback
+					fixture.RebootService();
+					// do Nth polling run and compare against gold
+					auto compRes = DoPollingRunAndCompare(
+						fixture,
 						common.ctrlPipe,
 						smap,
 						targetPid,
@@ -328,106 +336,110 @@ namespace PacedPolling
 						gold,
 						toleranceFactor,
 						testName,
-						"oneshot"
+						std::format("full_{:02}", i)
 					);
-					return ValidateAndAggregateResults(sampleCount, testName + "_oneshot_agg.csv", { oneshotCompRes });
-				}();
-				// if oneshot run succeeds with zero failures, we finish here
-				if (nFailOneshot == 0) {
-					Logger::WriteMessage("One-shot success");
+					allResults.push_back(std::move(compRes));
 				}
-				else {
-					// oneshot failed, run N times and see if enough pass to seem plausible
-					std::vector<std::vector<MetricCompareResult>> allResults;
-					for (size_t i = 0; i < nRunsFull; i++) {
-						// restart service to restart playback
-						fixture_.RebootService();
-						// do Nth polling run and compare against gold
-						auto compRes = DoPollingRunAndCompare(
-							fixture_,
-							common.ctrlPipe,
-							smap,
-							targetPid,
-							recordingStart,
-							recordingStop,
-							pollPeriod,
-							gold,
-							toleranceFactor,
-							testName,
-							std::format("full_{:02}", i)
-						);
-						allResults.push_back(std::move(compRes));
-					}
-					// validate comparison results
-					const auto nFail = ValidateAndAggregateResults(sampleCount, testName + "_full_agg.csv", allResults);
-					// output analysis command
-					Logger::WriteMessage("Analyze with:\n");
-					Logger::WriteMessage(std::format(R"(python "{}" --folder "{}" --name {} --golds "{}")",
-						scriptPath, outPath, testName, goldPath).c_str());
-					Logger::WriteMessage("\n");
-					Assert::IsTrue(nFail < (int)std::round(nRunsFull * fullFailRatio),
-						std::format(L"Failed [{}] runs (of {})", nFail, nRunsFull).c_str());
-					Logger::WriteMessage(std::format(L"Retry success (failed [{}] of [{}])", nFail, nRunsFull).c_str());
-				}
-			}
-			else { // if gold doesn't exist, do cartesian product comparison over many runs to generate data for a new gold
-				std::vector<std::vector<std::vector<double>>> allRobinRuns;
-				std::vector<std::string> header;
-				for (size_t i = 0; i < nRoundRobin; i++) {
-					// restart service to restart playback
-					fixture_.RebootService();
-					// execute a test run and record samples, sync on exit
-					auto outCsvPath = std::format("{}\\{}_robin_{:02}.csv", outFolder_, testName, i);
-					fixture_.LaunchClient({
-						"--process-id"s, std::to_string(targetPid),
-						"--output-path"s, outCsvPath,
-					});
-					// load up result and collect in memory
-					auto [runHeader, run] = LoadRunFromCsv(outCsvPath);
-					if (header.empty()) {
-						header = runHeader;
-					}
-					allRobinRuns.push_back(std::move(run));
-				}
-				const auto stats = HeaderToStats(header, smap);
-				// do cartesian product and record all results
-				std::vector<std::vector<std::vector<MetricCompareResult>>> allRobinResults(allRobinRuns.size());
-				for (size_t iA = 0; iA < allRobinRuns.size(); ++iA) {
-					for (size_t iB = 0; iB < allRobinRuns.size(); ++iB) {
-						// compare run A vs run B
-						auto results = CompareRuns(stats, allRobinRuns[iA], allRobinRuns[iB], toleranceFactor);
-						// write per-pair results
-						WriteResults(
-							std::format("{}\\{}_robin_{:02}_{:02}_rslt.csv", outFolder_, testName, iA, iB),
-							header,
-							results
-						);
-						allRobinResults[iA].push_back(std::move(results));
-					}
-				}
-				// aggregate for each candidate
-				std::ofstream robinUberAggStream{ std::format("{}\\{}_robin_uber_agg.csv", outFolder_, testName) };
-				auto aggWriter = csv::make_csv_writer(robinUberAggStream);
-				aggWriter << std::array{ "#"s, "n-fail-total"s };
-				Logger::WriteMessage("Round Robin Results\n===================\n");
-				for (size_t i = 0; i < allRobinRuns.size(); i++) {
-					const auto nFail = ValidateAndAggregateResults(
-						sampleCount,
-						std::format("{}_robin_{:02}_agg.csv", testName, i),
-						allRobinResults[i]
-					);
-					aggWriter << std::make_tuple(i, nFail);
-					Logger::WriteMessage(std::format("#{:02}: {}\n", i, nFail).c_str());
-				}
+				// validate comparison results
+				const auto nFail = ValidateAndAggregateResults(sampleCount, testName + "_full_agg.csv", allResults);
 				// output analysis command
 				Logger::WriteMessage("Analyze with:\n");
-				Logger::WriteMessage(std::format(R"(python "{}" --folder "{}" --name {})",
-					scriptPath, outPath, testName).c_str());
+				Logger::WriteMessage(std::format(R"(python "{}" --folder "{}" --name {} --golds "{}")",
+					scriptPath, outPath, testName, goldPath).c_str());
 				Logger::WriteMessage("\n");
-				// hardcode a fail because this execution path requires analysis and
-				// selection of a gold result to lock in
-				Assert::IsTrue(false, L"Run complete, analysis is required to select gold result.");
+				Assert::IsTrue(nFail < (int)std::round(nRunsFull * fullFailRatio),
+					std::format(L"Failed [{}] runs (of {})", nFail, nRunsFull).c_str());
+				Logger::WriteMessage(std::format(L"Retry success (failed [{}] of [{}])", nFail, nRunsFull).c_str());
 			}
+		}
+		else { // if gold doesn't exist, do cartesian product comparison over many runs to generate data for a new gold
+			std::vector<std::vector<std::vector<double>>> allRobinRuns;
+			std::vector<std::string> header;
+			for (size_t i = 0; i < nRoundRobin; i++) {
+				// restart service to restart playback
+				fixture.RebootService();
+				// execute a test run and record samples, sync on exit
+				auto outCsvPath = std::format("{}\\{}_robin_{:02}.csv", outFolder_, testName, i);
+				fixture.LaunchClient({
+					"--process-id"s, std::to_string(targetPid),
+					"--output-path"s, outCsvPath,
+					});
+				// load up result and collect in memory
+				auto [runHeader, run] = LoadRunFromCsv(outCsvPath);
+				if (header.empty()) {
+					header = runHeader;
+				}
+				allRobinRuns.push_back(std::move(run));
+			}
+			const auto stats = HeaderToStats(header, smap);
+			// do cartesian product and record all results
+			std::vector<std::vector<std::vector<MetricCompareResult>>> allRobinResults(allRobinRuns.size());
+			for (size_t iA = 0; iA < allRobinRuns.size(); ++iA) {
+				for (size_t iB = 0; iB < allRobinRuns.size(); ++iB) {
+					// compare run A vs run B
+					auto results = CompareRuns(stats, allRobinRuns[iA], allRobinRuns[iB], toleranceFactor);
+					// write per-pair results
+					WriteResults(
+						std::format("{}\\{}_robin_{:02}_{:02}_rslt.csv", outFolder_, testName, iA, iB),
+						header,
+						results
+					);
+					allRobinResults[iA].push_back(std::move(results));
+				}
+			}
+			// aggregate for each candidate
+			std::ofstream robinUberAggStream{ std::format("{}\\{}_robin_uber_agg.csv", outFolder_, testName) };
+			auto aggWriter = csv::make_csv_writer(robinUberAggStream);
+			aggWriter << std::array{ "#"s, "n-fail-total"s };
+			Logger::WriteMessage("Round Robin Results\n===================\n");
+			for (size_t i = 0; i < allRobinRuns.size(); i++) {
+				const auto nFail = ValidateAndAggregateResults(
+					sampleCount,
+					std::format("{}_robin_{:02}_agg.csv", testName, i),
+					allRobinResults[i]
+				);
+				aggWriter << std::make_tuple(i, nFail);
+				Logger::WriteMessage(std::format("#{:02}: {}\n", i, nFail).c_str());
+			}
+			// output analysis command
+			Logger::WriteMessage("Analyze with:\n");
+			Logger::WriteMessage(std::format(R"(python "{}" --folder "{}" --name {})",
+				scriptPath, outPath, testName).c_str());
+			Logger::WriteMessage("\n");
+			// hardcode a fail because this execution path requires analysis and
+			// selection of a gold result to lock in
+			Assert::IsTrue(false, L"Run complete, analysis is required to select gold result.");
+		}
+	}
+
+	TEST_CLASS(P00HeaWin2080)
+	{
+		static constexpr const char* testName_ = "P00HeaWin2080";
+		TestFixture fixture_;
+	public:
+		TEST_METHOD_INITIALIZE(Setup)
+		{
+			fixture_.Setup({
+				"--etl-test-file"s, testName_ + ".etl"s,
+				"--pace-playback"s,
+			});
+		}
+		TEST_METHOD_CLEANUP(Cleanup)
+		{
+			fixture_.Cleanup();
+		}
+		TEST_METHOD(PollDynamic)
+		{
+			// setup test parameters
+			const uint32_t targetPid = 12820;
+			const auto recordingStart = 1.;
+			const auto recordingStop = 14.;
+			const auto pollPeriod = 0.1;
+			const auto toleranceFactor = 0.02;
+			const auto fullFailRatio = 0.667;
+			// run test
+			ExecutePacedPollingTest(testName_, targetPid, recordingStart, recordingStop, pollPeriod,
+				toleranceFactor, fullFailRatio, fixture_);
 		}
 	};
 }
