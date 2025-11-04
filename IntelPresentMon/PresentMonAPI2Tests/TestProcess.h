@@ -48,19 +48,13 @@ public:
 		Logger::WriteMessage(std::format(" - Launched process {{{}}} [{}]\n",
 			executable, process_.id()).c_str());
 	}
-	virtual ~TestProcess()
-	{
-		if (process_.running()) {
-			Quit();
-		}
-	}
 
 	TestProcess(const TestProcess&) = delete;
 	TestProcess& operator=(const TestProcess&) = delete;
 	TestProcess(TestProcess&& other) noexcept = delete;
 	TestProcess& operator=(TestProcess&& other) noexcept = delete;
+	virtual ~TestProcess() = default;
 
-	virtual void Quit() {}
 	void Murder()
 	{
 		Assert::IsTrue(process_.running());
@@ -124,7 +118,7 @@ public:
 	{
 		Ping();
 	}
-	void Quit() override
+	void Quit()
 	{
 		Assert::IsTrue(process_.running());
 		Assert::AreEqual("quit-ok"s, Command("quit"));
@@ -133,6 +127,12 @@ public:
 	void Ping()
 	{
 		Assert::AreEqual("ping-ok"s, Command("ping"));
+	}
+	~ConnectedTestProcess() override
+	{
+		if (process_.running()) {
+			Quit();
+		}
 	}
 protected:
 	std::string GetCommandPrefix_() const override { return "%"; }

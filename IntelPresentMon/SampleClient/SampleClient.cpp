@@ -33,6 +33,7 @@
 #include "MetricListSample.h"
 #include "MultiClient.h"
 #include "EtlLogger.h"
+#include "PacedPlayback.h"
 #include "LogDemo.h"
 #include "DiagnosticDemo.h"
 #include "LogSetup.h"
@@ -371,6 +372,8 @@ int main(int argc, char* argv[])
             return MultiClientTest(ConnectSession());
         case clio::Mode::EtlLogger:
             return EtlLoggerTest(ConnectSession());
+        case clio::Mode::PacedPlayback:
+            return PacedPlaybackTest(ConnectSession());
         case clio::Mode::PlaybackDynamicQuery:
             RunPlaybackDynamicQueryN(); break;
         case clio::Mode::PlaybackFrameQuery:

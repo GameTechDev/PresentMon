@@ -23,6 +23,7 @@ namespace clio
 		IntrospectAllDynamicOptions,
 		MultiClient,
 		EtlLogger,
+		PacedPlayback,
 		Count,
 	};
 
@@ -46,6 +47,7 @@ namespace clio
 		Option<unsigned int> telemetryPeriodMs{ this, "--telemetry-period-ms", {}, "Telemetry period in milliseconds" };
 		Option<unsigned int> etwFlushPeriodMs{ this, "--etw-flush-period-ms", {}, "ETW manual flush period in milliseconds" };
 		Option<double> runTime{ this, "--run-time", {}, "How long to capture for, in seconds" };
+		Option<double> runTimeStart{ this, "--run-time-start", {}, "How many seconds to delay before beginning run" };
 		Option<std::string> outputPath{ this, "--output-path", {}, "Full path to output to" };
 	private: Group gl_{ this, "Logging", "Control logging behavior" }; public:
 		Option<log::Level> logLevel{ this, "--log-level", log::Level::Error, "Severity to log at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };
