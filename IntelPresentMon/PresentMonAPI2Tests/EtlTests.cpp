@@ -9,15 +9,77 @@
 #include "CsvHelper.h"
 #include "../PresentMonAPI2Loader/Loader.h"
 #include "../CommonUtilities/pipe/Pipe.h"
+#include "../CommonUtilities/str/String.h"
 #include <string>
 #include <iostream>
 #include <format>
+#include <filesystem>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace bp = boost::process::v1;
+namespace fs = std::filesystem;
 
 namespace EtlTests
 {
+	static constexpr const char* controlPipe_ = R"(\\.\pipe\pm-etlults-ctrl)";
+	static constexpr const char* introNsm_ = "pm_etlults_test_intro";
+	static constexpr const char* nsmPrefix_ = "pmon_nsm_utest_";
+
+    // Necessary data for each test case
+	struct TestCaseData {
+		std::string testName;
+		uint32_t processId;
+		std::string processName;
+		std::string etlFile;
+		std::wstring goldCsvFile;
+		bool isExpectedFailure;
+		std::string failureReason;
+	};
+
+	static const TestCaseData GOLD_TEST_CASES[] {
+		{"test_case_0_10792",	10792,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
+		{"test_case_0_1268",	1268,	"dwm.exe",												"test_case_0.etl", L"test_case_0.csv",		false,	""},
+		{"test_case_0_8320",	8320,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
+		{"test_case_0_11648",	11648,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
+		{"test_case_0_3976",	3976,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
+		{"test_case_0_11112",	11112,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
+		{"test_case_0_2032",	2032,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
+		{"test_case_0_5988",	5988,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
+		{"test_case_0_12268",	12268,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
+		{"test_case_0_11100",	11100,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
+		{"test_case_1_1564",	1564,	"dwm.exe",												"test_case_1.etl", L"test_case_1.csv",		true,	"Expected failure - SwapChain Initialization needed"},
+		{"test_case_1_24560",	24560,	"Presenter.exe",										"test_case_1.etl", L"test_case_1.csv",		false,	""},
+		{"test_case_1_24944",	24944,	"devenv.exe",											"test_case_1.etl", L"test_case_1.csv",		false,	""},
+		{"test_case_2_1300",	1300,	"dwm.exe",												"test_case_2.etl", L"test_case_2.csv",		false,	""},
+		{"test_case_2_10016",	10016,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		false,	""},
+		{"test_case_2_5348",	5348,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		false,	""},
+		{"test_case_2_5220",	5220,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		false,	""},
+		{"test_case_3_1252",	1252,	"dwm.exe",												"test_case_3.etl", L"test_case_3.csv",		false,	""},
+		{"test_case_3_5892",	5892,	"dwm.exe",												"test_case_3.etl", L"test_case_3.csv",		false,	""},
+		{"test_case_3_10112",	10112,	"Presenter.exe",										"test_case_3.etl", L"test_case_3.csv",		false,	""},
+		{"test_case_3_12980",	12980,	"Presenter.exe",										"test_case_3.etl", L"test_case_3.csv",		false,	""},
+		{"test_case_3_5192",	5192,	"Presenter.exe",										"test_case_3.etl", L"test_case_3.csv",		false,	""},
+		{"test_case_4_12980",	12980,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		false,	""},
+		{"test_case_4_5236",	5236,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		true,	"Expected failure - SwapChain Initialization needed"},
+		{"test_case_4_8536",	8536,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		false,	""},
+		{"test_case_4_9620",	9620,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		false,	""},
+		{"test_case_4_10376",	10376,	"dwm.exe",												"test_case_4.etl", L"test_case_4.csv",		true,	"Expected failure - SwapChain Initialization needed"},
+		{"test_case_5_24892",	24892,	"PresentBench.exe",										"test_case_5.etl", L"test_case_5.csv",		true,	"Expected failure - SwapChain Initialization needed"},
+		{"test_case_6_10796",	10796,	"cpLauncher.exe",										"test_case_6.etl", L"test_case_6.csv",		false,	""},
+		{"test_case_7_11320",	11320,	"cpLauncher.exe",										"test_case_7.etl", L"test_case_7.csv",		false,	""},
+		{"test_case_8_6920",	6920,	"scimitar_engine_win64_vs2022_llvm_fusion_dx12_px.exe",	"test_case_8.etl", L"test_case_8.csv",		true,	"Expected failure - SwapChain Initialization needed"},
+		{"test_case_9_10340",	10340,	"F1_24.exe",											"test_case_9.etl", L"test_case_9.csv",		false,	""},
+		{"test_case_10_42132",	42132,	"Marvel-Win64-Shipping.exe",							"test_case_10.etl", L"test_case_10.csv",	false,	""},
+		{"test_case_11_12524",	12524,	"Cyberpunk2077.exe",									"test_case_11.etl", L"test_case_11.csv",	false,	""},
+		{"test_case_12_24412",	24412,	"Marvel-Win64-Shipping.exe",							"test_case_12.etl", L"test_case_12.csv",	false,	""},
+	};
+
+	TestCaseData* FindTestCaseByName(const std::string& testName) {
+		auto it = std::ranges::find_if(GOLD_TEST_CASES,
+			[&testName](const TestCaseData& tc) { return tc.testName == testName; });
+		return it != std::end(GOLD_TEST_CASES) ? const_cast<TestCaseData*>(&*it) : nullptr;
+	}
+
 	void RunTestCaseV2(std::unique_ptr<pmapi::Session>&& pSession,
 		const uint32_t& processId, const std::string& processName, CsvParser& goldCsvFile,
 		std::optional<std::ofstream>& debugCsvFile) {
@@ -95,6 +157,97 @@ namespace EtlTests
 	TEST_CLASS(GoldEtlCsvTests)
 	{
 		std::optional<boost::process::v1::child> oChild;
+	private:
+		std::optional<std::string> GetAdditionalTestLocation() {
+			// Check for additional test directory from environment variable
+			// This allows developers to specify their own test directories without
+			// modifying the source code. Set PRESENTMON_ADDITIONAL_TEST_DIR environment
+			// variable or use a .runsettings.user file (see template).
+			std::wstring additionalTestDir;
+			wchar_t* envTestDir = nullptr;
+			size_t envTestDirLen = 0;
+			if (_wdupenv_s(&envTestDir, &envTestDirLen, L"PRESENTMON_ADDITIONAL_TEST_DIR") == 0 && envTestDir != nullptr) {
+				additionalTestDir = envTestDir;
+				free(envTestDir);
+			}
+			return additionalTestDir.empty() ? std::nullopt : std::make_optional<std::string>(pmon::util::str::ToNarrow(additionalTestDir));
+		}
+
+		bool SetupTestEnvironment(const std::string& etlFile, const std::string& timedStop, std::unique_ptr<pmapi::Session>& outSession)
+		{
+			using namespace std::string_literals;
+			using namespace std::chrono_literals;
+
+			bp::ipstream out;
+			bp::opstream in;
+
+			oChild.emplace("PresentMonService.exe"s,
+				"--timed-stop"s, timedStop,
+				"--control-pipe"s, controlPipe_,
+				"--nsm-prefix"s, nsmPrefix_,
+				"--intro-nsm"s, introNsm_,
+				"--etl-test-file"s, etlFile,
+				bp::std_out > out, bp::std_in < in);
+
+			if (!pmon::util::pipe::DuplexPipe::WaitForAvailability(std::string(controlPipe_) + "-in", 500)) {
+				Assert::Fail(L"Timeout waiting for service control pipe");
+				return false;
+			}
+
+			try {
+				pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
+				pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
+				outSession = std::make_unique<pmapi::Session>(controlPipe_);
+				return true;
+			}
+			catch (const std::exception& e) {
+				std::cout << "Error: " << e.what() << std::endl;
+				Assert::Fail(L"Failed to connect to service via named pipe");
+				return false;
+			}
+		}
+		void RunGoldCsvTest(const TestCaseData& testCase, const std::string& goldPath, std::optional<std::ofstream> debugCsv)
+		{
+			using namespace std::string_literals;
+
+            if (testCase.isExpectedFailure) {
+				Assert::Fail(pmon::util::str::ToWide(testCase.failureReason).c_str());
+				return;
+            }
+
+            fs::path etlFile = fs::path(goldPath) / testCase.etlFile;
+			fs::path csvPath = fs::path(goldPath) / testCase.goldCsvFile;
+
+			CsvParser goldCsvFile;
+			if (!goldCsvFile.Open(csvPath.wstring(), testCase.processId)) {
+				Assert::Fail(L"Failed to open gold CSV file");
+				return;
+			}
+
+			std::unique_ptr<pmapi::Session> pSession;
+			if (!SetupTestEnvironment(etlFile.string(), "10000"s, pSession)) {
+				goldCsvFile.Close();
+				return;
+			}
+
+			RunTestCaseV2(std::move(pSession), testCase.processId, testCase.processName,
+				goldCsvFile, debugCsv);
+
+			goldCsvFile.Close();
+		}
+		void RunTestFromCase(const std::string& caseName, bool useDefault = true)
+		{
+			auto testCase = FindTestCaseByName(caseName);
+			if (!testCase) {
+				Assert::Fail(L"Test case not found");
+				return;
+			}
+
+			fs::path path = useDefault ? fs::path("..") / ".." / "tests" / "gold"
+				: fs::path(GetAdditionalTestLocation().value_or(""));
+
+			RunGoldCsvTest(*testCase, path.string(), std::nullopt);
+		}
 	public:
 		TEST_METHOD_CLEANUP(Cleanup)
 		{
@@ -107,7 +260,6 @@ namespace EtlTests
 			using namespace std::literals;
 			std::this_thread::sleep_for(50ms);
 		}
-
 		TEST_METHOD(OpenCsvTest)
 		{
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
@@ -143,41 +295,11 @@ namespace EtlTests
 		}
 		TEST_METHOD(OpenMockSessionTest)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-			
+            auto testCase = FindTestCaseByName("test_case_0_10792");
+            auto etlFile = "..\\..\\tests\\gold\\" + testCase->etlFile;
 			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
+			auto result = SetupTestEnvironment(etlFile, "10000", pSession);
+            Assert::IsTrue(result, L"SetupTestEnvironment failed");
 		}
 
 		TEST_METHOD(ConsumeBlobsTest)
@@ -253,395 +375,36 @@ namespace EtlTests
 		}
 		TEST_METHOD(Tc000v2Presenter10792)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 10792;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				//"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_0_10792");
 		}
 		TEST_METHOD(Tc000v2DWM1268)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 1268;
-			const std::string processName = "dwm.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_0_1268");
 		}
+
 		TEST_METHOD(Tc000v2Presenter8320)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 8320;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_0_8320");
 		}
 		TEST_METHOD(Tc000v2Presenter11648)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 11648;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_0_11648");
 		}
 		TEST_METHOD(Tc000v2Presenter3976)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 3976;
-			const std::string processName = "Presenter.exe";
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_0_3976");
 		}
 		TEST_METHOD(Tc000v2Presenter11112)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 11112;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_0_11112");
 		}
 		TEST_METHOD(Tc000v2Presenter2032)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 2032;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_0_2032");
 		}
 		TEST_METHOD(Tc000v2Presenter5988)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 5988;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_0_5988");
 		}
 		TEST_METHOD(Tc000v2Presenter12268)
 		{
@@ -652,597 +415,52 @@ namespace EtlTests
 			// the process is not active and exit. Need to add some type of synchronization
 			// in mock presentmon session to not shutdown the session until notified
 			// by close session call.
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 12268;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_0_12268");
 		}
 		TEST_METHOD(Tc000v2Presenter11100)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 11100;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_0_11100");
 		}
 
 		TEST_METHOD(Tc001v2Dwm1564)
 		{
-			Assert::AreEqual(true, false, L"*** Expected Failure. WIP.");
-			// This test is an expected failure. The reason for the failure is the
-			// mock presentmon session is writing a present to the nsm that is
-			// earlier than the console application allows because of swap chain
-			// initialization that is not implemented in the mock presentmon session.
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 1564;
-			const std::string processName = "dwm.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_1.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_1.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_1_1564");
 		}
 		TEST_METHOD(Tc001v2Presenter24560)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 24560;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_1.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_1.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_1_24560");
 		}
 		TEST_METHOD(Tc001v2devenv24944)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 24944;
-			const std::string processName = "devenv.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_1.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_1.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_1_24944");
 		}
 		TEST_METHOD(Tc002v2Dwm1300)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 1300;
-			const std::string processName = "dwm.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_2.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_2.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_2_1300");
 		}
 		TEST_METHOD(Tc002v2Presenter10016)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 10016;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_2.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_2.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_2_10016");
 		}
 		TEST_METHOD(Tc002v2Presenter5348)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 5348;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_2.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_2.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_2_5348");
 		}
 		TEST_METHOD(Tc002v2Presenter5220)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 5220;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_2.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_2.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_2_5220");
 		}
 		TEST_METHOD(Tc003v2Dwm1252)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 1252;
-			const std::string processName = "dwm.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_3.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_3.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_3_1252");
 		}
 		TEST_METHOD(Tc003v2Presenter5892)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 5892;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_3.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_3.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_3_5892");
 		}
 		TEST_METHOD(Tc003v2Presenter10112)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 10112;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_3.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_3.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_3_10112");
 		}
 		TEST_METHOD(Tc003v2Presenter12980)
 		{
@@ -1253,201 +471,19 @@ namespace EtlTests
 			// the process is not active and exit. Need to add some type of synchronization
 			// in mock presentmon session to not shutdown the session until notified
 			// by close session call.
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 12980;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_3.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_3.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_3_12980");
 		}
-		TEST_METHOD(Tc004v2Presenter5192)
+		TEST_METHOD(Tc003v2Presenter5192)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 5192;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_4.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_4.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_3_5192");
 		}
 		TEST_METHOD(Tc004v2Presenter5236)
 		{
-			Assert::AreEqual(true, false, L"*** Expected Failure. WIP.");
-			// Expected failure due to incorrect swap chain handling by middleware.
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 5236;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_4.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_4.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_4_5236");
 		}
 		TEST_METHOD(Tc004v2Presenter8536)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 8536;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_4.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_4.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_4_8536");
 		}
 		TEST_METHOD(Tc004v2Presenter9620)
 		{
@@ -1458,529 +494,43 @@ namespace EtlTests
 			// the process is not active and exit. Need to add some type of synchronization
 			// in mock presentmon session to not shutdown the session until notified
 			// by close session call.
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 9620;
-			const std::string processName = "Presenter.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_4.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_4.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_4_9620");
 		}
 		TEST_METHOD(Tc004v2Dwm10376)
 		{
-			Assert::AreEqual(true, false, L"*** Expected Failure. WIP.");
-			// Expected failure due to incorrect swap chain handling by middleware.
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 10376;
-			const std::string processName = "dwm.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_4.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_4.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_4_10376");
 		}
 		TEST_METHOD(Tc005v2PresentBench24892)
 		{
-			Assert::AreEqual(true, false, L"*** Expected Failure. WIP.");
-			// Expected failure due to incorrect swap chain handling by middleware.
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 24892;
-			const std::string processName = "PresentBench.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "..\\..\\tests\\gold\\test_case_5.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_5.csv";
-
-			CsvParser goldCsvFile;
-			goldCsvFile.Open(goldCsvName, processId);
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_5_24892");
 		}
 		TEST_METHOD(Tc006v2CPXellOn10796Ext)
-		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 10796;
-			const std::string processName = "cpLauncher.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "F:\\EtlTesting\\test_case_6.etl";
-			const auto goldCsvName = L"F:\\EtlTesting\\test_case_6.csv";
-
-			CsvParser goldCsvFile;
-			if (!goldCsvFile.Open(goldCsvName, processId)) {
-				return;
-			}
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "60000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+		{	
+			RunTestFromCase("test_case_6_10796", false);
 		}
 		TEST_METHOD(Tc007v2CPXellOnFgOn11320Ext)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 11320;
-			const std::string processName = "cpLauncher.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "F:\\EtlTesting\\test_case_7.etl";
-			const auto goldCsvName = L"F:\\EtlTesting\\test_case_7.csv";
-
-			CsvParser goldCsvFile;
-			if (!goldCsvFile.Open(goldCsvName, processId)) {
-				return;
-			}
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "60000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+			RunTestFromCase("test_case_7_11320", false);
 		}
 		TEST_METHOD(Tc008v2ACSXellOnFgOn6920Ext)
 		{
-			Assert::AreEqual(true, false, L"*** Expected Failure. WIP.");
-			// This test is an expected failure. The reason for the failure is the
-			// mock presentmon session is writing a present to the nsm that is
-			// earlier than the console application allows because of swap chain
-			// initialization that is not implemented in the mock presentmon session.
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 6920;
-			const std::string processName = "scimitar_engine_win64_vs2022_llvm_fusion_dx12_px.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "F:\\EtlTesting\\test_case_8.etl";
-			const auto goldCsvName = L"F:\\EtlTesting\\test_case_8.csv";
-
-			CsvParser goldCsvFile;
-			if (!goldCsvFile.Open(goldCsvName, processId)) {
-				return;
-			}
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "60000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
+            RunTestFromCase("test_case_8_6920", false);
 		}
 		TEST_METHOD(Tc009v2F124XellOnFgOn10340Ext)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 10340;
-			const std::string processName = "F1_24.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "F:\\EtlTesting\\test_case_9.etl";
-			const auto goldCsvName = L"F:\\EtlTesting\\test_case_9.csv";
-
-			CsvParser goldCsvFile;
-			if (!goldCsvFile.Open(goldCsvName, processId)) {
-				return;
-			}
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "60000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
-			if (debugCsv.has_value()) {
-				debugCsv->close();
-			}
+			RunTestFromCase("test_case_9_10340", false);
 		}
 		TEST_METHOD(Tc010MarvelOnNvPcl1FgOnExt)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 42132;
-			const std::string processName = "Marvel-Win64-Shipping.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "F:\\EtlTesting\\test_case_10.etl";
-			const auto goldCsvName = L"F:\\EtlTesting\\test_case_10.csv";
-
-			CsvParser goldCsvFile;
-			if (!goldCsvFile.Open(goldCsvName, processId)) {
-				return;
-			}
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "60000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
-				L"Timeout waiting for service control pipe");
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
-			if (debugCsv.has_value()) {
-				debugCsv->close();
-			}
+			RunTestFromCase("test_case_10_42132", false);
 		}
 		TEST_METHOD(Tc011CP2077Pcl2FgOffRelexOffExt)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 12524;
-			const std::string processName = "Cyberpunk2077.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "F:\\EtlTesting\\test_case_11.etl";
-			const auto goldCsvName = L"F:\\EtlTesting\\test_case_11.csv";
-
-			CsvParser goldCsvFile;
-			if (!goldCsvFile.Open(goldCsvName, processId)) {
-				return;
-			}
-	
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "60000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			std::this_thread::sleep_for(1000ms);
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
-			if (debugCsv.has_value()) {
-				debugCsv->close();
-			}
+			RunTestFromCase("test_case_11_12524", false);
 		}
 		TEST_METHOD(Tc012MarvelOnNvPcl3FgOnAutoReflexOnFrameDelayExt)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			const uint32_t processId = 24412;
-			const std::string processName = "Marvel-Win64-Shipping.exe";
-			std::optional<std::ofstream> debugCsv; // Empty optional
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
-			const auto etlName = "F:\\EtlTesting\\test_case_12.etl";
-			const auto goldCsvName = L"F:\\EtlTesting\\test_case_12.csv";
-
-			CsvParser goldCsvFile;
-			if (!goldCsvFile.Open(goldCsvName, processId)) {
-				return;
-			}
-
-            std::string folder = "F:\\EtlTesting\\ETLDebugging\\testcase12\\"s;
-			std::string csvName = "debug.csv"s;
-			debugCsv = CreateCsvFile(folder,csvName);
-
-			oChild.emplace("PresentMonService.exe"s,
-				//"--timed-stop"s, "60000"s,
-				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			std::this_thread::sleep_for(1000ms);
-
-			std::unique_ptr<pmapi::Session> pSession;
-			{
-				try
-				{
-					pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-					pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
-					pSession = std::make_unique<pmapi::Session>(pipeName);
-				}
-				catch (const std::exception& e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					Assert::AreEqual(false, true, L"*** Connecting to service via named pipe");
-					return;
-				}
-			}
-
-			RunTestCaseV2(std::move(pSession), processId, processName, goldCsvFile, debugCsv);
-			goldCsvFile.Close();
-			if (debugCsv.has_value()) {
-				debugCsv->close();
-			}
+			RunTestFromCase("test_case_12_24412", false);
 		}
 	};
 }
