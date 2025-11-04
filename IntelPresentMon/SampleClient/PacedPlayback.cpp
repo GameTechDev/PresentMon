@@ -8,7 +8,8 @@
 #include <PresentMonAPI2Tests/TestCommands.h>
 #include <cereal/archives/json.hpp>
 #include <vincentlaucsb-csv-parser/csv.hpp>
-#include "../CommonUtilities/IntervalWaiter.h"
+#include <CommonUtilities/IntervalWaiter.h>
+#include <CommonUtilities/Exception.h>
 #include <CommonUtilities/log/Log.h>
 
 using namespace pmon;
@@ -149,6 +150,14 @@ public:
 	{
 		return qels_;
 	}
+	void SetETWFlushPeriod(uint32_t ms)
+	{
+		pSession_->SetEtwFlushPeriod(ms);
+	}
+	void SetTelemetryPeriod(uint32_t ms)
+	{
+		pSession_->SetTelemetryPollingPeriod(0, ms);
+	}
 	std::vector<std::vector<double>> RecordPolling(uint32_t targetPid, double recordingStartSec,
 		double recordingStopSec, double pollInterval)
 	{
@@ -198,20 +207,18 @@ int PacedPlaybackTest(std::unique_ptr<pmapi::Session> pSession)
 	std::optional<PM_STATUS> errorStatus;
 
 	try {
-		if (opt.telemetryPeriodMs) {
-			pmlog_error("teleper not impl");
-			//pSession->SetTelemetryPollingPeriod(0, *opt.telemetryPeriodMs);
-		}
-		if (opt.etwFlushPeriodMs) {
-			pmlog_error("flushper not impl");
-			//pSession->SetEtwFlushPeriod(*opt.etwFlushPeriodMs);
-		}
 		if (!opt.processId) {
 			pmlog_error("need pid");
 		}
 
 		// connect to service and register query
-		TestClientModule client{ std::move(pSession), 1000., 64. };
+		TestClientModule client{ std::move(pSession), *opt.windowSize, *opt.metricOffset };
+		if (opt.etwFlushPeriodMs) {
+			client.SetETWFlushPeriod(*opt.etwFlushPeriodMs);
+		}
+		if (opt.telemetryPeriodMs) {
+			client.SetTelemetryPeriod(*opt.telemetryPeriodMs);
+		}
 
 		// ping gate to sync on init finished
 		std::string line;
@@ -223,7 +230,8 @@ int PacedPlaybackTest(std::unique_ptr<pmapi::Session> pSession)
 		std::cout << "%%{ping-ok}%%" << std::endl;
 
 		// poll for designated period and parse run results
-		auto run = client.RecordPolling(*opt.processId, 1., 14., 0.1);
+		const auto runTimeEnd = *opt.runStart + *opt.runTime;
+		auto run = client.RecordPolling(*opt.processId, *opt.runStart, runTimeEnd, *opt.pollPeriod);
 		WriteRunToCsv(*opt.outputPath, MakeHeader(client.GetQueryElements(), client.GetIntrospection()), run);
 	}
 	catch (const pmapi::ApiErrorException& e) {

@@ -39,15 +39,16 @@ namespace clio
 		Option<std::string> introNsm{ this, "--intro-nsm", "", "Name of the NSM used for introspection data" };
 		Option<std::string> middlewareDllPath{ this, "--middleware-dll-path", "", "Override middleware DLL path discovery with custom path" };
 	private: Group gs_{ this, "Sampling", "Control sampling / targeting behavior" }; public:
-		Option<double> metricOffset{ this, "--metric-offset", 1000., "Offset from top for frame data. Used in --dynamic-query-sample" };
-		Option<double> windowSize{ this, "--window-size", 2000., "Window size used for metrics calculation. Used in --dynamic-query-sample" };
+		Option<double> metricOffset{ this, "--metric-offset", 1064., "Offset from top for frame data. Used in --dynamic-query-sample" };
+		Option<double> windowSize{ this, "--window-size", 1000., "Window size used for metrics calculation. Used in --dynamic-query-sample" };
 		Option<unsigned int> processId{ this, "--process-id", 0, "Process Id to use for polling or frame data capture" };
 		Option<std::string> processName{ this, "--process-name", "", "Name of process to use for polling or frame data capture" };
 		Option<std::string> metric{ this, "--metric", "", "PM_METRIC, ex. PM_METRIC_PRESENTED_FPS" };
 		Option<unsigned int> telemetryPeriodMs{ this, "--telemetry-period-ms", {}, "Telemetry period in milliseconds" };
 		Option<unsigned int> etwFlushPeriodMs{ this, "--etw-flush-period-ms", {}, "ETW manual flush period in milliseconds" };
-		Option<double> runTime{ this, "--run-time", {}, "How long to capture for, in seconds" };
-		Option<double> runTimeStart{ this, "--run-time-start", {}, "How many seconds to delay before beginning run" };
+		Option<double> runTime{ this, "--run-time", 10., "How long to capture for, in seconds" };
+		Option<double> runStart{ this, "--run-start", 1., "How many seconds to delay before beginning run" };
+		Option<double> pollPeriod{ this, "--poll-period", 0.1, "Period in seconds for polling the API query" };
 		Option<std::string> outputPath{ this, "--output-path", {}, "Full path to output to" };
 	private: Group gl_{ this, "Logging", "Control logging behavior" }; public:
 		Option<log::Level> logLevel{ this, "--log-level", log::Level::Error, "Severity to log at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };

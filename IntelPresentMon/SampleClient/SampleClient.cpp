@@ -321,7 +321,9 @@ int main(int argc, char* argv[])
 {
     try {
         // command line options initialization
-        if (auto e = clio::Options::Init(argc, argv)) {
+        if (auto e = clio::Options::Init(argc, argv, true)) {
+            pmlog_error(clio::Options::GetDiagnostics()).no_trace();
+            std::cerr << clio::Options::GetDiagnostics() << std::endl;
             return *e;
         }
         auto& opt = clio::Options::Get();

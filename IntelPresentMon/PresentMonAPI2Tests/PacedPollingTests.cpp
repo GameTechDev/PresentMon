@@ -251,6 +251,11 @@ namespace PacedPolling
 		fix.LaunchClient({
 			"--process-id"s, std::to_string(targetPid),
 			"--output-path"s, outCsvPath,
+			"--run-time"s, std::to_string(recordingStop - recordingStart),
+			"--run-start"s, std::to_string(recordingStart),
+			"--poll-period"s, std::to_string(pollPeriod),
+			"--metric-offset"s, "64"s,
+			"--window-size"s, "1000"s,
 		});
 		// load up result
 		auto [header, run] = LoadRunFromCsv(outCsvPath);
