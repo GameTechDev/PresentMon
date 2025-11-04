@@ -420,7 +420,7 @@ namespace PacedPolling
 		TEST_METHOD_INITIALIZE(Setup)
 		{
 			fixture_.Setup({
-				"--etl-test-file"s, testName_ + ".etl"s,
+				"--etl-test-file"s, std::format(R"(..\..\Tests\AuxData\PacedPolled\{}.etl)", testName_),
 				"--pace-playback"s,
 			});
 		}
