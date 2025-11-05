@@ -48,6 +48,7 @@ namespace pmon::svc
         auto logFilePath = logFileDirectory / file::TempFile::MakeRandomName();
         // create / start the trace session that outputs to .etl file
 		traceProps_.Wnode.BufferSize = sizeof(traceProps_);
+        traceProps_.MaximumFileSize = 1024;
 		traceProps_.Wnode.Flags = WNODE_FLAG_TRACED_GUID;
 		traceProps_.Wnode.ClientContext = TIMESTAMP_TYPE_QPC;
 		traceProps_.LogFileMode = EVENT_TRACE_FILE_MODE_SEQUENTIAL;
