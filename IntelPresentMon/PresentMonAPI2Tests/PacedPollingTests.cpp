@@ -363,7 +363,12 @@ namespace PacedPolling
 				fixture.LaunchClient({
 					"--process-id"s, std::to_string(targetPid),
 					"--output-path"s, outCsvPath,
-					});
+					"--run-time"s, std::to_string(recordingStop - recordingStart),
+					"--run-start"s, std::to_string(recordingStart),
+					"--poll-period"s, std::to_string(pollPeriod),
+					"--metric-offset"s, "64"s,
+					"--window-size"s, "1000"s,
+				});
 				// load up result and collect in memory
 				auto [runHeader, run] = LoadRunFromCsv(outCsvPath);
 				if (header.empty()) {
@@ -435,7 +440,39 @@ namespace PacedPolling
 			const auto recordingStart = 1.;
 			const auto recordingStop = 14.;
 			const auto pollPeriod = 0.1;
-			const auto toleranceFactor = 0.02;
+			const auto toleranceFactor = 0.005;
+			const auto fullFailRatio = 0.667;
+			// run test
+			ExecutePacedPollingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart, recordingStop,
+				pollPeriod, toleranceFactor, fullFailRatio, fixture_);
+		}
+	};
+#undef TEST_NAME
+
+#define TEST_NAME P01TimeSpyDemoFS2080
+	TEST_CLASS(TEST_NAME)
+	{
+		TestFixture fixture_;
+	public:
+		TEST_METHOD_INITIALIZE(Setup)
+		{
+			fixture_.Setup({
+				"--etl-test-file"s, std::format(R"(..\..\Tests\AuxData\PacedPolled\{}.etl)", STRINGIFY(TEST_NAME)),
+				"--pace-playback"s,
+				});
+		}
+		TEST_METHOD_CLEANUP(Cleanup)
+		{
+			fixture_.Cleanup();
+		}
+		TEST_METHOD(PollDynamic)
+		{
+			// setup test parameters
+			const uint32_t targetPid = 19736;
+			const auto recordingStart = 1.;
+			const auto recordingStop = 34.;
+			const auto pollPeriod = 0.1;
+			const auto toleranceFactor = 0.005;
 			const auto fullFailRatio = 0.667;
 			// run test
 			ExecutePacedPollingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart, recordingStop,
