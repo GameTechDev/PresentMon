@@ -32,46 +32,49 @@ namespace EtlTests
 		std::string processName;
 		std::string etlFile;
 		std::wstring goldCsvFile;
+		int pollCount;
+		int waitTimeSecs;
 		bool isExpectedFailure;
 		std::string failureReason;
 	};
 
 	static const TestCaseData GOLD_TEST_CASES[] {
-		{"test_case_0_10792",	10792,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
-		{"test_case_0_1268",	1268,	"dwm.exe",												"test_case_0.etl", L"test_case_0.csv",		false,	""},
-		{"test_case_0_8320",	8320,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
-		{"test_case_0_11648",	11648,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
-		{"test_case_0_3976",	3976,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
-		{"test_case_0_11112",	11112,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
-		{"test_case_0_2032",	2032,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
-		{"test_case_0_5988",	5988,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
-		{"test_case_0_12268",	12268,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
-		{"test_case_0_11100",	11100,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		false,	""},
-		{"test_case_1_1564",	1564,	"dwm.exe",												"test_case_1.etl", L"test_case_1.csv",		true,	"Expected failure - SwapChain Initialization needed"},
-		{"test_case_1_24560",	24560,	"Presenter.exe",										"test_case_1.etl", L"test_case_1.csv",		false,	""},
-		{"test_case_1_24944",	24944,	"devenv.exe",											"test_case_1.etl", L"test_case_1.csv",		false,	""},
-		{"test_case_2_1300",	1300,	"dwm.exe",												"test_case_2.etl", L"test_case_2.csv",		false,	""},
-		{"test_case_2_10016",	10016,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		false,	""},
-		{"test_case_2_5348",	5348,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		false,	""},
-		{"test_case_2_5220",	5220,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		false,	""},
-		{"test_case_3_1252",	1252,	"dwm.exe",												"test_case_3.etl", L"test_case_3.csv",		false,	""},
-		{"test_case_3_5892",	5892,	"dwm.exe",												"test_case_3.etl", L"test_case_3.csv",		false,	""},
-		{"test_case_3_10112",	10112,	"Presenter.exe",										"test_case_3.etl", L"test_case_3.csv",		false,	""},
-		{"test_case_3_12980",	12980,	"Presenter.exe",										"test_case_3.etl", L"test_case_3.csv",		false,	""},
-		{"test_case_3_5192",	5192,	"Presenter.exe",										"test_case_3.etl", L"test_case_3.csv",		false,	""},
-		{"test_case_4_12980",	12980,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		false,	""},
-		{"test_case_4_5236",	5236,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		true,	"Expected failure - SwapChain Initialization needed"},
-		{"test_case_4_8536",	8536,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		false,	""},
-		{"test_case_4_9620",	9620,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		false,	""},
-		{"test_case_4_10376",	10376,	"dwm.exe",												"test_case_4.etl", L"test_case_4.csv",		true,	"Expected failure - SwapChain Initialization needed"},
-		{"test_case_5_24892",	24892,	"PresentBench.exe",										"test_case_5.etl", L"test_case_5.csv",		true,	"Expected failure - SwapChain Initialization needed"},
-		{"test_case_6_10796",	10796,	"cpLauncher.exe",										"test_case_6.etl", L"test_case_6.csv",		false,	""},
-		{"test_case_7_11320",	11320,	"cpLauncher.exe",										"test_case_7.etl", L"test_case_7.csv",		false,	""},
-		{"test_case_8_6920",	6920,	"scimitar_engine_win64_vs2022_llvm_fusion_dx12_px.exe",	"test_case_8.etl", L"test_case_8.csv",		true,	"Expected failure - SwapChain Initialization needed"},
-		{"test_case_9_10340",	10340,	"F1_24.exe",											"test_case_9.etl", L"test_case_9.csv",		false,	""},
-		{"test_case_10_42132",	42132,	"Marvel-Win64-Shipping.exe",							"test_case_10.etl", L"test_case_10.csv",	false,	""},
-		{"test_case_11_12524",	12524,	"Cyberpunk2077.exe",									"test_case_11.etl", L"test_case_11.csv",	false,	""},
-		{"test_case_12_24412",	24412,	"Marvel-Win64-Shipping.exe",							"test_case_12.etl", L"test_case_12.csv",	false,	""},
+		{"test_case_0_10792",	10792,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
+		{"test_case_0_1268",	1268,	"dwm.exe",												"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
+		{"test_case_0_8320",	8320,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
+		{"test_case_0_11648",	11648,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
+		{"test_case_0_3976",	3976,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
+		{"test_case_0_11112",	11112,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
+		{"test_case_0_2032",	2032,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
+		{"test_case_0_5988",	5988,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
+		{"test_case_0_12268",	12268,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
+		{"test_case_0_11100",	11100,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
+		{"test_case_1_1564",	1564,	"dwm.exe",												"test_case_1.etl", L"test_case_1.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
+		{"test_case_1_24560",	24560,	"Presenter.exe",										"test_case_1.etl", L"test_case_1.csv",		10, 1,	false,	""},
+		{"test_case_1_24944",	24944,	"devenv.exe",											"test_case_1.etl", L"test_case_1.csv",		10, 1,	false,	""},
+		{"test_case_2_1300",	1300,	"dwm.exe",												"test_case_2.etl", L"test_case_2.csv",		10, 1,	false,	""},
+		{"test_case_2_10016",	10016,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		10, 1,	false,	""},
+		{"test_case_2_5348",	5348,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		10, 1,	false,	""},
+		{"test_case_2_5220",	5220,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		10, 1,	false,	""},
+		{"test_case_3_1252",	1252,	"dwm.exe",												"test_case_3.etl", L"test_case_3.csv",		10, 1,	false,	""},
+		{"test_case_3_5892",	5892,	"dwm.exe",												"test_case_3.etl", L"test_case_3.csv",		10, 1,	false,	""},
+		{"test_case_3_10112",	10112,	"Presenter.exe",										"test_case_3.etl", L"test_case_3.csv",		10, 1,	false,	""},
+		{"test_case_3_12980",	12980,	"Presenter.exe",										"test_case_3.etl", L"test_case_3.csv",		10, 1,	false,	""},
+		{"test_case_4_5192",	5192,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		10, 1,	false,	""},
+		{"test_case_4_12980",	12980,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		10, 1,	false,	""},
+		{"test_case_4_5236",	5236,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
+		{"test_case_4_8536",	8536,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		10, 1,	false,	""},
+		{"test_case_4_9620",	9620,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		10, 1,	false,	""},
+		{"test_case_4_10376",	10376,	"dwm.exe",												"test_case_4.etl", L"test_case_4.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
+		{"test_case_5_24892",	24892,	"PresentBench.exe",										"test_case_5.etl", L"test_case_5.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
+		{"test_case_6_10796",	10796,	"cpLauncher.exe",										"test_case_6.etl", L"test_case_6.csv",		10, 1,	false,	""},
+		{"test_case_7_11320",	11320,	"cpLauncher.exe",										"test_case_7.etl", L"test_case_7.csv",		10, 1,	false,	""},
+		{"test_case_8_6920",	6920,	"scimitar_engine_win64_vs2022_llvm_fusion_dx12_px.exe",	"test_case_8.etl", L"test_case_8.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
+		{"test_case_9_10340",	10340,	"F1_24.exe",											"test_case_9.etl", L"test_case_9.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
+		{"test_case_10_9888",	9888,	"NarakaBladepoint.exe",      							"test_case_10.etl", L"test_case_10.csv",	10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
+		{"test_case_11_1524",	1524,	"NarakaBladepoint.exe",									"test_case_11.etl", L"test_case_11.csv",	10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
+		{"test_case_12_10168",	10168,	"F1_24.exe",											"test_case_12.etl", L"test_case_12.csv",	20, 5,	false,	""},
+		{"test_case_13_11780",	11780,	"Dingo.Main_Win64_retail.exe",							"test_case_13.etl", L"test_case_13.csv",	10, 1,	false,	""},
 	};
 
 	TestCaseData* FindTestCaseByName(const std::string& testName) {
@@ -82,10 +85,10 @@ namespace EtlTests
 
 	void RunTestCaseV2(std::unique_ptr<pmapi::Session>&& pSession,
 		const uint32_t& processId, const std::string& processName, CsvParser& goldCsvFile,
-		std::optional<std::ofstream>& debugCsvFile) {
+		std::optional<std::ofstream>& debugCsvFile, int pollCount, int waitTimeSecs) {
 		using namespace std::chrono_literals;
 		pmapi::ProcessTracker processTracker;
-		static constexpr uint32_t numberOfBlobs = 10000u;
+		static constexpr uint32_t numberOfBlobs = 2000;
 		uint32_t totalFramesValidated = 0;
 
 		PM_QUERY_ELEMENT queryElements[]{
@@ -134,12 +137,12 @@ namespace EtlTests
 			frameQuery.Consume(processTracker, blobs);
 			if (blobs.GetNumBlobsPopulated() == 0) {
 				// if we poll 10 times in a row and get no new frames, consider this ETL finished
-				if (++emptyPollCount >= 10) {
+				if (++emptyPollCount >= pollCount) {
 					if (totalFramesValidated > 0) {
 						// only finish if we have consumed at least one frame
 						break;
 					}
-					else if (Clock::now() - start >= 1s) {
+					else if (Clock::now() - start >= std::chrono::seconds(waitTimeSecs)) {
 						// if it takes longer than 1 second to consume the first frame, throw failure
 						Assert::Fail(L"Timeout waiting to consume first frame");
 					}
@@ -206,7 +209,7 @@ namespace EtlTests
 				return false;
 			}
 		}
-		void RunGoldCsvTest(const TestCaseData& testCase, const std::string& goldPath, std::optional<std::ofstream> debugCsv)
+		void RunGoldCsvTest(const TestCaseData& testCase, const std::string& goldPath, std::optional<std::ofstream>& debugCsv)
 		{
 			using namespace std::string_literals;
 
@@ -231,11 +234,11 @@ namespace EtlTests
 			}
 
 			RunTestCaseV2(std::move(pSession), testCase.processId, testCase.processName,
-				goldCsvFile, debugCsv);
+				goldCsvFile, debugCsv, testCase.pollCount, testCase.waitTimeSecs);
 
 			goldCsvFile.Close();
 		}
-		void RunTestFromCase(const std::string& caseName, bool useDefault = true)
+		void RunTestFromCase(const std::string& caseName, bool useDefault = true, bool createDebugCsv = false)
 		{
 			auto testCase = FindTestCaseByName(caseName);
 			if (!testCase) {
@@ -246,7 +249,16 @@ namespace EtlTests
 			fs::path path = useDefault ? fs::path("..") / ".." / "tests" / "gold"
 				: fs::path(GetAdditionalTestLocation().value_or(""));
 
-			RunGoldCsvTest(*testCase, path.string(), std::nullopt);
+			std::optional<std::ofstream> debugCsv;
+			if (createDebugCsv) {
+				auto outputDir = path.string();
+                auto debugCsvName = testCase->processName + "-debug.csv";
+                debugCsv = CreateCsvFile(outputDir, debugCsvName);
+			}
+			RunGoldCsvTest(*testCase, path.string(), debugCsv);
+			if (debugCsv.has_value()) {
+				debugCsv->close();
+			}
 		}
 	public:
 		TEST_METHOD_CLEANUP(Cleanup)
@@ -401,9 +413,9 @@ namespace EtlTests
 			// by close session call.
 			RunTestFromCase("test_case_3_12980");
 		}
-		TEST_METHOD(Tc003v2Presenter5192)
+		TEST_METHOD(Tc004v2Presenter5192)
 		{
-			RunTestFromCase("test_case_3_5192");
+			RunTestFromCase("test_case_4_5192", true, true);
 		}
 		TEST_METHOD(Tc004v2Presenter5236)
 		{
@@ -432,33 +444,37 @@ namespace EtlTests
 		{
 			RunTestFromCase("test_case_5_24892");
 		}
-		TEST_METHOD(Tc006v2CPXellOn10796Ext)
+		TEST_METHOD(Tc006CP2077)
 		{	
 			RunTestFromCase("test_case_6_10796", false);
 		}
-		TEST_METHOD(Tc007v2CPXellOnFgOn11320Ext)
+		TEST_METHOD(Tc007CP2077)
 		{
 			RunTestFromCase("test_case_7_11320", false);
 		}
-		TEST_METHOD(Tc008v2ACSXellOnFgOn6920Ext)
+		TEST_METHOD(Tc008ACShadows)
 		{
             RunTestFromCase("test_case_8_6920", false);
 		}
-		TEST_METHOD(Tc009v2F124XellOnFgOn10340Ext)
+		TEST_METHOD(Tc009F124)
 		{
 			RunTestFromCase("test_case_9_10340", false);
 		}
-		TEST_METHOD(Tc010MarvelOnNvPcl1FgOnExt)
+		TEST_METHOD(Tc010NarakaBladepoint)
 		{
-			RunTestFromCase("test_case_10_42132", false);
+			RunTestFromCase("test_case_10_9888", false);
 		}
-		TEST_METHOD(Tc011CP2077Pcl2FgOffRelexOffExt)
+		TEST_METHOD(Tc011NarakaBladepoint)
 		{
-			RunTestFromCase("test_case_11_12524", false);
+			RunTestFromCase("test_case_11_1524", false);
 		}
-		TEST_METHOD(Tc012MarvelOnNvPcl3FgOnAutoReflexOnFrameDelayExt)
+		TEST_METHOD(Tc012F124)
 		{
-			RunTestFromCase("test_case_12_24412", false);
+			RunTestFromCase("test_case_12_10168", false);
+		}
+		TEST_METHOD(Tc013Dingo)
+		{
+			RunTestFromCase("test_case_13_11780", false);
 		}
 	};
 }
