@@ -394,13 +394,19 @@ PresentMon::PresentMon()
 {
     cmdline_ += L'\"';
     cmdline_ += exePath_;
-    cmdline_ += L"\" --no_console_stats";
+    cmdline_ += L'\"';
 }
 
 PresentMon::~PresentMon()
 {
     if (::testing::Test::HasFailure()) {
         printf("%ls\n", cmdline_.c_str());
+    }
+    if (hOutputRead_ != NULL) {
+        CloseHandle(hOutputRead_);
+    }
+    if (hOutputWrite_ != NULL) {
+        CloseHandle(hOutputWrite_);
     }
 }
 
@@ -437,9 +443,26 @@ void PresentMon::Start(char const* file, int line)
         csvArgSet_ = true;
     }
 
+    SECURITY_ATTRIBUTES sa = {};
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+
+    if (!CreatePipe(&hOutputRead_, &hOutputWrite_, &sa, 0)) {
+        AddTestFailure(file, line, "Failed to create output pipe");
+        return;
+    }
+
+    if (!SetHandleInformation(hOutputRead_, HANDLE_FLAG_INHERIT, 0)) {
+        AddTestFailure(file, line, "Failed to make output pipe inheritable");
+        return;
+    }
+
     STARTUPINFO si = {};
     si.cb = sizeof(si);
     si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = hOutputWrite_;
+    si.hStdError = hOutputWrite_;
+
     if (CreateProcess(nullptr, &cmdline_[0], nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, (PROCESS_INFORMATION*) this) == 0) {
         AddTestFailure(file, line, "Failed to start PresentMon");
     }
@@ -469,4 +492,27 @@ void PresentMon::ExpectExited(char const* file, int line, DWORD timeoutMilliseco
 
     CloseHandle(hProcess);
     CloseHandle(hThread);
+}
+
+std::string PresentMon::GetOutput()
+{
+    if (hOutputRead_ == NULL) {
+        return "";
+    }
+
+    // Close the write handle to the pipe so that ReadFile() will not block
+    // if the child process has already exited.
+    if (hOutputWrite_ != NULL) {
+        CloseHandle(hOutputWrite_);
+        hOutputWrite_ = NULL;
+    }
+
+    std::string output;
+    char buffer[4096];
+    DWORD bytesRead;
+    while (ReadFile(hOutputRead_, buffer, sizeof(buffer), &bytesRead, NULL) && bytesRead > 0) {
+        output.append(buffer, bytesRead);
+    }
+
+    return output;
 }

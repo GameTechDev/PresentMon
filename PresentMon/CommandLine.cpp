@@ -534,13 +534,12 @@ bool ParseCommandLine(int argc, wchar_t** argv)
     }
 
     // Ignore CSV-only options when --no_csv is used
-    if (csvOutputNone && (qpcTime || qpcmsTime || dtTime || args->mMultiCsv || args->mHotkeySupport)) {
+    if (csvOutputNone && (qpcTime || qpcmsTime || dtTime || args->mMultiCsv)) {
         PrintWarning(L"warning: ignoring CSV-related options due to --no_csv:");
         if (qpcTime)              { qpcTime              = false; PrintWarning(L" --qpc_time"); }
         if (qpcmsTime)            { qpcmsTime            = false; PrintWarning(L" --qpc_time_ms"); }
         if (dtTime)               { dtTime               = false; PrintWarning(L" --date_time"); }
         if (args->mMultiCsv)      { args->mMultiCsv      = false; PrintWarning(L" --multi_csv"); }
-        if (args->mHotkeySupport) { args->mHotkeySupport = false; PrintWarning(L" --hotkey"); }
         PrintWarning(L"\n");
     }
 
