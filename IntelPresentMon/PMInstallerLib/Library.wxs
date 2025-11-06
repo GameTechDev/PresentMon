@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Fragment>
 
@@ -9,11 +9,15 @@
       <!-- PresentMonService.exe (key file + Windows service) -->
       <Component Id="pmon_shared_service_component"
                  Guid="{45531AC0-CEB6-4DD0-B6B6-2BAD7F6AD01E}"
-                 Win64="yes">
+                 Win64="yes"
+                 NeverOverwrite="no"
+                 Permanent="no">
         <File Id="pmon_shared_service_exe"
               Name="$(var.PresentMonService.TargetFileName)"
               Source="$(var.PresentMonService.TargetPath)"
-              KeyPath="yes" />
+              KeyPath="yes"
+              Checksum="yes"
+              Vital="yes" />
 
         <ServiceInstall Id="PmSharedServiceInstall"
                         Name="PresentMonSharedService"
@@ -22,15 +26,12 @@
                         Start="auto"
                         Type="ownProcess"
                         ErrorControl="normal"
-                        Vital="yes" />
-
-        <!-- Stop before replace, remove on uninstall, start after install -->
+                        Vital="no" />
+        <!-- Only handle service removal on uninstall - let RestartManager handle in-use files -->
         <ServiceControl Id="SharedPresentMonServiceControl"
                         Name="PresentMonSharedService"
-                        Start="install"
-                        Stop="both"
                         Remove="uninstall"
-                        Wait="yes" />
+                        Wait="no" />
         <RemoveFolder Id ="PresentMonSharedServiceUninstall"
                       Directory="service_folder"
                       On="uninstall"/>
@@ -39,15 +40,32 @@
       <!-- PresentMonAPI2.dll -->
       <Component Id="present_mon_shared_dll_component"
                  Guid="{BC2D2B30-9011-48E5-8592-ACC58CEFDF17}"
-                 Win64="yes">
+                 Win64="yes"
+                 NeverOverwrite="no"
+                 Permanent="no">
         <File Id="present_mon_shared_api_2_dll"
               Name="$(var.PresentMonAPI2.TargetFileName)"
               Source="$(var.PresentMonAPI2.TargetPath)"
-              KeyPath="yes" />
+              KeyPath="yes"
+              Checksum="yes"
+              Vital="yes" />
       </Component>
 
     </DirectoryRef>
 
+    <!-- Smart service start - only if service is not already running -->
+    <CustomAction Id="TryStartSharedService"
+                  Directory="SystemFolder"
+                  ExeCommand='cmd /c "sc query PresentMonSharedService | find "RUNNING" > nul || sc start PresentMonSharedService"'
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+        <!-- After InstallServices has registered the service (and StartServices would have run) -->
+        <Custom Action="TryStartSharedService" After="StartServices">1</Custom>
+    </InstallExecuteSequence>
+      
     <!-- Group that consumers reference -->
     <ComponentGroup Id="service_files">
       <ComponentRef Id="pmon_shared_service_component" />

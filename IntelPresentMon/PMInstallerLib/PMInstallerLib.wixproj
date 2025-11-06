@@ -33,9 +33,5 @@
       <RefTargetDir>INSTALLFOLDER</RefTargetDir>
     </ProjectReference>
   </ItemGroup>
-  <!-- Add WiX extensions here only if you actually use them in Library.wxs -->
-  <!-- <ItemGroup>
-    <WixExtension Include="WixUtilExtension" />
-  </ItemGroup> -->
   <Import Project="$(WixTargetsPath)" />
 </Project>

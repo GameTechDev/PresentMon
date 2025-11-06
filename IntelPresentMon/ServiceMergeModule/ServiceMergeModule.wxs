@@ -15,6 +15,9 @@
           <Directory Id="service_folder" Name="PresentMonSharedService" />
         </Directory>
       </Directory>
+        <Directory Id="WindowsFolder">
+            <Directory Id="SystemFolder" Name="System32" />
+        </Directory>
     </Directory>
 
     <!-- Pull in the payload from your wixlib; no <Feature> in a Module -->
