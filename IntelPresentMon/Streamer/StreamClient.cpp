@@ -389,6 +389,19 @@ PM_STATUS StreamClient::ConsumePtrToNextNsmFrameData(const PmNsmFrameData** pNsm
             *pNextFrame = nullptr;
             return PM_STATUS::PM_STATUS_SUCCESS;
         }
+
+        if (pFrameDataOfNextDisplayed != nullptr) {
+            if ((*pNsmData)->present_event.PresentStartTime >=
+                (*pFrameDataOfNextDisplayed)->present_event.PresentStartTime) {
+                // The next displayed frame must be after the current frame.
+                // This is an error so reset the next_dequeue_idx back to where we first started.
+                next_dequeue_idx_ = previous_dequeue_idx;
+                // Also reset the current and next frame data pointers
+                *pNsmData = nullptr;
+                *pNextFrame = nullptr;
+                return PM_STATUS::PM_STATUS_SUCCESS;
+            }
+        }
         PeekPreviousFrames(
             pFrameDataOfLastPresented,
             pFrameDataOfLastAppPresented,
