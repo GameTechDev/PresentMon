@@ -2,7 +2,7 @@
 $Owner = "planetchili"                    # AuxTestData GitHub organization
 $Repo = "IPMAuxTestData"                  # The AuxTestData repo
 $MainRepoPath = ".\"                      # Path to the main repo (should contain the aux-test-data.lock.json)
-$TestDataPath = ".\AuxData"           # Path to the test AuxTestData repo
+$TestDataPath = ".\AuxData"               # Path to the test AuxTestData repo
 $LockFile = "aux-test-data.lock.json"     # Lock file in the main repo that pins the testdata commit
 $NewReleaseTag = "etl-update-$(Get-Date -Format 'yyyyMMddHHmmss')"  # New release tag based on the current timestamp
 
@@ -22,7 +22,18 @@ Write-Host "Fetching the latest changes from the test data repository..."
 git fetch origin
 
 # Load the test data lock file to get the pinned commit hash
-$lock = Get-Content -Path $MainRepoPath\$LockFile | ConvertFrom-Json
+$lockFilePath = Join-Path $MainRepoPath $LockFile
+if (-not (Test-Path $lockFilePath)) {
+    Write-Warning "Lock file not found. Bootstrapping from origin/main..."
+    $seedCommit = (git rev-parse origin/main).Trim()
+    if (-not $seedCommit) { Write-Error "Failed to resolve origin/main for bootstrap."; exit 1 }
+    Write-Host "Checking out seed commit $seedCommit..."
+    git checkout $seedCommit
+    $lock = @{ pinnedCommitHash = $seedCommit }
+    $lock | ConvertTo-Json -Depth 3 | Set-Content -Path $lockFilePath
+} else {
+    $lock = Get-Content -Path $lockFilePath | ConvertFrom-Json
+}
 $pinnedCommit = $lock.pinnedCommitHash  # Commit hash from the main repo to pin to
 
 # Checkout the pinned commit in the test data repo
@@ -150,13 +161,11 @@ if ($etlChanges.Count -gt 0 -or $addedETLs.Count -gt 0) {
 
 # Commit the updated lock file with the new pinned commit hash
 if ($csvChangesDetected -or $etlChanges.Count -gt 0 -or $addedETLs.Count -gt 0) {
-    Write-Host "Committing the updated testdata.lock.json..."
+    Write-Host "Writing updated lock file (no commit to main repo will be made)..."
     $lock.pinnedCommitHash = (git rev-parse HEAD)
     $lock.etlStore.releaseTag = $NewReleaseTag
     $lock | ConvertTo-Json -Depth 3 | Set-Content -Path $MainRepoPath\$LockFile
-    git add $MainRepoPath\$LockFile
-    git commit -m "Update pinned commit and release tag for testdata"
-    git push origin main
+    Write-Host "Lock file written to $($MainRepoPath + $LockFile)."
 }
 
 Write-Host "Push process complete."
