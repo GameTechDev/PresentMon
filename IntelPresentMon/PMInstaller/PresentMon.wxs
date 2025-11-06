@@ -10,6 +10,10 @@
 
         <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"/>
 
+        <!-- Handle in-use files by scheduling for reboot (user will see FilesInUse dialog) -->
+        <Property Id="MSIRESTARTMANAGERCONTROL" Value="DisableShutdown" />
+        <Property Id="REBOOT" Value="ReallySuppress" />
+
         <MajorUpgrade
             Schedule="afterInstallValidate"
             AllowDowngrades="no"
@@ -87,6 +91,17 @@
         <UIRef Id="WixUI_ErrorProgressText" />
 
         <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />
+
+        <!-- Custom action to set REINSTALLMODE for handling in-use files -->
+        <CustomAction Id="SetReinstallMode"
+                      Property="REINSTALLMODE"
+                      Value="amus"
+                      Execute="immediate" />
+
+        <InstallExecuteSequence>
+            <!-- Always set REINSTALLMODE to handle file replacement -->
+            <Custom Action="SetReinstallMode" Before="CostInitialize">1</Custom>
+        </InstallExecuteSequence>
     </Product>
 
     <Fragment>
@@ -147,6 +162,10 @@
                 Id="DesktopFolder"
                 Name="Desktop">
             </Directory>
+            <Directory 
+                Id="WindowsFolder">
+                <Directory Id="SystemFolder" Name="System32" />
+            </Directory>            
         </Directory>
     </Fragment>
 
