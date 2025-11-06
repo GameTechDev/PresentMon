@@ -4,7 +4,7 @@ $Repo = "IPMAuxTestData"                  # The AuxTestData repo
 $MainRepoPath = ".\"                      # Path to the main repo (should contain the aux-test-data.lock.json)
 $AuxDataRepoPath = ".\AuxData"            # Path to the AuxTestData repo (ignored by main repo)
 $DataSubdirName = "Data"                  # Subdirectory inside AuxTestData that holds BOTH CSVs and .etl files
-$LockFile = "aux-test-data.lock.json"     # Lock file in the main repo that pins the testdata commit
+$LockFile = "aux-test-data.lock.json"     # Lock file in the main repo that pins the testdata commit (commit hash ONLY)
 $NewReleaseTag = "etl-update-$(Get-Date -Format 'yyyyMMddHHmmss')"  # New release tag based on the current timestamp
 
 # Load GitHub token from environment variable
@@ -14,6 +14,10 @@ if (-not $GitHubToken) {
     exit 1
 }
 $Headers = @{ Authorization = "Bearer $GitHubToken" }
+
+# Resolve paths to absolute to avoid nesting like AuxData\AuxData\...
+$MainRepoPath = (Resolve-Path $MainRepoPath).Path
+$AuxDataRepoPath = (Resolve-Path $AuxDataRepoPath).Path
 
 # Ensure we are in the correct working directory for the test data repo
 Set-Location -Path $AuxDataRepoPath
@@ -36,10 +40,6 @@ if (-not (Test-Path $lockFilePath)) {
     $lock = Get-Content -Path $lockFilePath | ConvertFrom-Json
 }
 $pinnedCommit = $lock.pinnedCommitHash  # Commit hash from the main repo to pin to
-
-# Checkout the pinned commit in the test data repo
-Write-Host "Checking out pinned commit $pinnedCommit..."
-git checkout $pinnedCommit
 
 # Paths inside the AuxData repo for actual data
 $dataRoot = Join-Path $AuxDataRepoPath $DataSubdirName
@@ -129,7 +129,8 @@ if ($etlChanges.Count -gt 0 -or $addedETLs.Count -gt 0) {
     Write-Host "Preparing new release for ETLs..."
 
     # Create tarball of new or updated ETLs (they live directly in the Data dir)
-    foreach ($etl in $etlChanges + $addedETLs) {
+    $toPackage = ($etlChanges + $addedETLs) | Select-Object -Property Name,FullName -Unique
+    foreach ($etl in $toPackage) {
         $tarFile = Join-Path $stagingFolder "$($etl.Name).tar.gz"
         Write-Host "Creating tarball for ETL: $($etl.Name)..."
         tar -czf $tarFile -C $dataRoot $etl.Name
@@ -152,12 +153,12 @@ if ($etlChanges.Count -gt 0 -or $addedETLs.Count -gt 0) {
     # Upload ETLs as release assets
     foreach ($file in $filesToUpload) {
         $uploadUrl = "https://uploads.github.com/repos/$Owner/$Repo/releases/$releaseId/assets?name=" + [System.Net.WebUtility]::UrlEncode([System.IO.Path]::GetFileName($file))
-        Invoke-RestMethod -Uri $uploadUrl -Method Post -Headers $Headers -InFile $file
+        Invoke-RestMethod -Uri $uploadUrl -Method Post -Headers $Headers -InFile $file -ContentType "application/gzip"
     }
 
     # Upload the manifest file to the release
     $manifestUploadUrl = "https://uploads.github.com/repos/$Owner/$Repo/releases/$releaseId/assets?name=etl-manifest.json"
-    Invoke-RestMethod -Uri $manifestUploadUrl -Method Post -Headers $Headers -InFile $manifestFilePath
+    Invoke-RestMethod -Uri $manifestUploadUrl -Method Post -Headers $Headers -InFile $manifestFilePath -ContentType "application/json"
 
     Write-Host "New ETL release created and uploaded."
 }
@@ -166,9 +167,14 @@ if ($etlChanges.Count -gt 0 -or $addedETLs.Count -gt 0) {
 if ($repoChangesCommitted -or $etlChanges.Count -gt 0 -or $addedETLs.Count -gt 0) {
     Write-Host "Writing updated lock file (no commit to main repo will be made)..."
     $lock.pinnedCommitHash = (git rev-parse HEAD)
-    $lock.etlStore.releaseTag = $NewReleaseTag
-    $lock | ConvertTo-Json -Depth 3 | Set-Content -Path $MainRepoPath\$LockFile
-    Write-Host "Lock file written to $($MainRepoPath + $LockFile)."
+    # Lock contains ONLY the commit hash; release tags are resolved from the manifest when pulling.
+    $lock | ConvertTo-Json -Depth 3 | Set-Content -Path $lockFilePath
+    Write-Host "Lock file written to $lockFilePath."
+}
+
+# Cleanup: remove staging folder after run
+if (Test-Path $stagingFolder) {
+    Remove-Item -Recurse -Force $stagingFolder
 }
 
 Write-Host "Push process complete."
