@@ -25,9 +25,9 @@ git fetch origin
 # Load the test data lock file to get the pinned commit hash
 $lockFilePath = Join-Path $MainRepoPath $LockFile
 if (-not (Test-Path $lockFilePath)) {
-    Write-Warning "Lock file not found. Bootstrapping from origin/main..."
-    $seedCommit = (git rev-parse origin/main).Trim()
-    if (-not $seedCommit) { Write-Error "Failed to resolve origin/main for bootstrap."; exit 1 }
+    Write-Warning "Lock file not found. Bootstrapping from origin/master..."
+    $seedCommit = (git rev-parse origin/master).Trim()
+    if (-not $seedCommit) { Write-Error "Failed to resolve origin/master for bootstrap."; exit 1 }
     Write-Host "Checking out seed commit $seedCommit..."
     git checkout $seedCommit
     $lock = @{ pinnedCommitHash = $seedCommit }
