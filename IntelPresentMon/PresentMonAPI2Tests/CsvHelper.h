@@ -12,8 +12,10 @@
 #include <stdexcept>
 #include <map>
 #include <optional>
+#include <filesystem>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+namespace fs = std::filesystem;
 
 enum Header {
     Header_Application,
@@ -344,16 +346,31 @@ bool Validate(const T& param1, const T& param2) {
 
 }
 
-std::optional<std::ofstream> CreateCsvFile(std::string& output_dir, std::string& processName)
+std::optional<std::ofstream> CreateCsvFile(const std::string& output_dir, const std::string& processName)
 {
     // Setup csv file
     time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     tm local_time;
     localtime_s(&local_time, &now);
-    std::ofstream csvFile;
-    std::string csvFileName = output_dir + processName;
+
     try {
-        csvFile.open(csvFileName);
+        // Use filesystem to construct the path properly
+        fs::path outputPath(output_dir);
+        fs::path fileName = processName + "_" +
+            std::to_string(local_time.tm_year + 1900) +
+            std::to_string(local_time.tm_mon + 1) +
+            std::to_string(local_time.tm_mday) +
+            std::to_string(local_time.tm_hour) +
+            std::to_string(local_time.tm_min) +
+            std::to_string(local_time.tm_sec) + ".csv";
+
+        fs::path fullPath = outputPath / fileName;
+
+        std::ofstream csvFile(fullPath);
+        if (!csvFile.is_open()) {
+            return std::nullopt;
+        }
+
         csvFile <<
             "Application,ProcessID,SwapChainAddress,PresentRuntime"
             ",SyncInterval,PresentFlags,AllowsTearing,PresentMode"
