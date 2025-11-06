@@ -2,7 +2,8 @@
 $Owner = "planetchili"                    # AuxTestData GitHub organization
 $Repo = "IPMAuxTestData"                  # The AuxTestData repo
 $MainRepoPath = ".\"                      # Path to the main repo (should contain the aux-test-data.lock.json)
-$TestDataPath = ".\AuxData"               # Path to the test AuxTestData repo
+$AuxDataRepoPath = ".\AuxData"            # Path to the AuxTestData repo (ignored by main repo)
+$DataSubdirName = "Data"                  # Subdirectory inside AuxTestData that holds BOTH CSVs and .etl files
 $LockFile = "aux-test-data.lock.json"     # Lock file in the main repo that pins the testdata commit
 $NewReleaseTag = "etl-update-$(Get-Date -Format 'yyyyMMddHHmmss')"  # New release tag based on the current timestamp
 
@@ -15,7 +16,7 @@ if (-not $GitHubToken) {
 $Headers = @{ Authorization = "Bearer $GitHubToken" }
 
 # Ensure we are in the correct working directory for the test data repo
-Set-Location -Path $TestDataPath
+Set-Location -Path $AuxDataRepoPath
 
 # Fetch the latest changes from the test data repo
 Write-Host "Fetching the latest changes from the test data repository..."
@@ -40,24 +41,28 @@ $pinnedCommit = $lock.pinnedCommitHash  # Commit hash from the main repo to pin 
 Write-Host "Checking out pinned commit $pinnedCommit..."
 git checkout $pinnedCommit
 
+# Paths inside the AuxData repo for actual data
+$dataRoot = Join-Path $AuxDataRepoPath $DataSubdirName
+
 # Load the manifest to check for existing ETL file metadata (hashes)
-$manifestFilePath = Join-Path $TestDataPath "etl-manifest.json"
+# (Manifest is stored at repo root, not in Data)
+$manifestFilePath = Join-Path $AuxDataRepoPath "etl-manifest.json"
 if (Test-Path $manifestFilePath) {
     $manifest = Get-Content -Path $manifestFilePath | ConvertFrom-Json
 } else {
     $manifest = @{ etlFiles = @() }
 }
 
-# Collect current ETL files in the test data repo
-$etlFolder = Join-Path $TestDataPath "etl"
-$currentETLs = Get-ChildItem -Path $etlFolder -Recurse -Filter "*.etl"
+# Collect current ETL files in the single data directory (only *.etl live here alongside CSVs)
+if (-not (Test-Path $dataRoot)) { New-Item -ItemType Directory -Path $dataRoot | Out-Null }
+$currentETLs = Get-ChildItem -Path $dataRoot -Filter "*.etl"
 
-# Prepare a staging folder for gzipped ETLs that need to be uploaded
-$stagingFolder = Join-Path $TestDataPath "etl-staging"
+# Prepare a staging folder for gzipped ETLs that need to be uploaded (kept under the repo root)
+$stagingFolder = Join-Path $AuxDataRepoPath "etl-staging"
 if (Test-Path $stagingFolder) {
     Remove-Item -Recurse -Force $stagingFolder
 }
-New-Item -ItemType Directory -Path $stagingFolder
+New-Item -ItemType Directory -Path $stagingFolder | Out-Null
 
 # Initialize an array to track files to be uploaded
 $filesToUpload = @()
@@ -102,34 +107,32 @@ $manifest.etlFiles += $addedETLs | ForEach-Object {
     }
 }
 
-# Save the updated manifest
+# Save the updated manifest (at repo root)
 $manifest | ConvertTo-Json -Depth 3 | Set-Content -Path $manifestFilePath
 
-# If there are any changes to the CSVs, commit those changes
-$csvChangesDetected = $false
-$csvFolder = Join-Path $TestDataPath "tests/Gold"
-
-# Check for CSV file changes (similar logic as ETL changes)
-git diff --exit-code -- $csvFolder
-if ($?) {
-    Write-Host "No changes to CSV files."
-} else {
-    Write-Host "CSV changes detected, committing changes..."
-    git add $csvFolder
-    git commit -m "Update CSV files"
+# --- Generic repo commit for any detected changes (CSV or manifest) ---
+$repoChangesCommitted = $false
+git add -- $dataRoot $manifestFilePath
+# Check if anything staged differs from HEAD
+git diff --cached --quiet
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Repository changes detected (Data and/or manifest). Committing..."
+    git commit -m "Update data (CSVs/ETLs) and manifest"
     git push origin $pinnedCommit
-    $csvChangesDetected = $true
+    $repoChangesCommitted = $true
+} else {
+    Write-Host "No changes to Data or manifest; nothing to commit."
 }
 
 # Prepare the new release (if there are any new/changed ETLs to upload)
 if ($etlChanges.Count -gt 0 -or $addedETLs.Count -gt 0) {
     Write-Host "Preparing new release for ETLs..."
 
-    # Create tarball of new or updated ETLs
+    # Create tarball of new or updated ETLs (they live directly in the Data dir)
     foreach ($etl in $etlChanges + $addedETLs) {
         $tarFile = Join-Path $stagingFolder "$($etl.Name).tar.gz"
         Write-Host "Creating tarball for ETL: $($etl.Name)..."
-        tar -czf $tarFile -C $etlFolder $etl.Name
+        tar -czf $tarFile -C $dataRoot $etl.Name
         $filesToUpload += $tarFile
     }
 
@@ -159,8 +162,8 @@ if ($etlChanges.Count -gt 0 -or $addedETLs.Count -gt 0) {
     Write-Host "New ETL release created and uploaded."
 }
 
-# Commit the updated lock file with the new pinned commit hash
-if ($csvChangesDetected -or $etlChanges.Count -gt 0 -or $addedETLs.Count -gt 0) {
+# Write the updated lock file with the new pinned commit hash (do not commit to main repo here)
+if ($repoChangesCommitted -or $etlChanges.Count -gt 0 -or $addedETLs.Count -gt 0) {
     Write-Host "Writing updated lock file (no commit to main repo will be made)..."
     $lock.pinnedCommitHash = (git rev-parse HEAD)
     $lock.etlStore.releaseTag = $NewReleaseTag
