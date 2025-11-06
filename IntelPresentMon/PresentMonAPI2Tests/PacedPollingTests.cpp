@@ -278,14 +278,14 @@ namespace PacedPolling
 		const size_t nRoundRobin = 12;
 
 		// derived parameters
-		const auto goldCsvPath = std::format(R"(..\..\Tests\PacedGold\{}_gold.csv)", testName);
+		const auto goldCsvPath = std::format(R"(..\..\Tests\AuxData\Data\{}_gold.csv)", testName);
 		const auto sampleCount = (recordingStop - recordingStart) / pollPeriod;
 
 		// script analysis command line info
 		const auto rootPath = fs::current_path().parent_path().parent_path();
 		const auto scriptPath = (rootPath / "Tests\\Scripts\\analyze-paced.py").string();
 		const auto outPath = (rootPath / "build\\Debug\\TestOutput\\PacedPolling").string();
-		const auto goldPath = (rootPath / "Tests\\PacedGold").string();
+		const auto goldPath = (rootPath / "Tests\\AuxData\\Data").string();
 
 		auto& common = fixture.GetCommonArgs();
 		const auto smap = [&] {
@@ -425,7 +425,7 @@ namespace PacedPolling
 		TEST_METHOD_INITIALIZE(Setup)
 		{
 			fixture_.Setup({
-				"--etl-test-file"s, std::format(R"(..\..\Tests\AuxData\PacedPolled\{}.etl)", STRINGIFY(TEST_NAME)),
+				"--etl-test-file"s, std::format(R"(..\..\Tests\AuxData\Data\{}.etl)", STRINGIFY(TEST_NAME)),
 				"--pace-playback"s,
 			});
 		}
@@ -457,7 +457,7 @@ namespace PacedPolling
 		TEST_METHOD_INITIALIZE(Setup)
 		{
 			fixture_.Setup({
-				"--etl-test-file"s, std::format(R"(..\..\Tests\AuxData\PacedPolled\{}.etl)", STRINGIFY(TEST_NAME)),
+				"--etl-test-file"s, std::format(R"(..\..\Tests\AuxData\Data\{}.etl)", STRINGIFY(TEST_NAME)),
 				"--pace-playback"s,
 				});
 		}
