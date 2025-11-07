@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include <fstream>
@@ -49,7 +49,7 @@ namespace EtlTests
 		{"test_case_0_5988",	5988,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
 		{"test_case_0_12268",	12268,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
 		{"test_case_0_11100",	11100,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
-		{"test_case_1_1564",	1564,	"dwm.exe",												"test_case_1.etl", L"test_case_1.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
+		{"test_case_1_1564",	1564,	"dwm.exe",												"test_case_1.etl", L"test_case_1.csv",		10, 1,	false,	""},
 		{"test_case_1_24560",	24560,	"Presenter.exe",										"test_case_1.etl", L"test_case_1.csv",		10, 1,	false,	""},
 		{"test_case_1_24944",	24944,	"devenv.exe",											"test_case_1.etl", L"test_case_1.csv",		10, 1,	false,	""},
 		{"test_case_2_1300",	1300,	"dwm.exe",												"test_case_2.etl", L"test_case_2.csv",		10, 1,	false,	""},
@@ -68,8 +68,8 @@ namespace EtlTests
 		{"test_case_4_10376",	10376,	"dwm.exe",												"test_case_4.etl", L"test_case_4.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
 		{"test_case_5_24892",	24892,	"PresentBench.exe",										"test_case_5.etl", L"test_case_5.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
 		{"test_case_6_10796",	10796,	"cpLauncher.exe",										"test_case_6.etl", L"test_case_6.csv",		10, 1,	false,	""},
-		{"test_case_7_11320",	11320,	"cpLauncher.exe",										"test_case_7.etl", L"test_case_7.csv",		10, 1,	false,	""},
-		{"test_case_8_6920",	6920,	"scimitar_engine_win64_vs2022_llvm_fusion_dx12_px.exe",	"test_case_8.etl", L"test_case_8.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
+		{"test_case_7_11320",	11320,	"cpLauncher.exe",										"test_case_7.etl", L"test_case_7.csv",		20, 5,	false,	""},
+		{"test_case_8_6920",	6920,	"scimitar_engine_win64_vs2022_llvm_fusion_dx12_px.exe",	"test_case_8.etl", L"test_case_8.csv",		20, 5,	true,	"Expected failure - Multiple SwapChain support needed"},
 		{"test_case_9_10340",	10340,	"F1_24.exe",											"test_case_9.etl", L"test_case_9.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
 		{"test_case_10_9888",	9888,	"NarakaBladepoint.exe",      							"test_case_10.etl", L"test_case_10.csv",	10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
 		{"test_case_11_1524",	1524,	"NarakaBladepoint.exe",									"test_case_11.etl", L"test_case_11.csv",	10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
@@ -213,12 +213,7 @@ namespace EtlTests
 		{
 			using namespace std::string_literals;
 
-            if (testCase.isExpectedFailure) {
-				Assert::Fail(pmon::util::str::ToWide(testCase.failureReason).c_str());
-				return;
-            }
-
-            fs::path etlFile = fs::path(goldPath) / testCase.etlFile;
+			fs::path etlFile = fs::path(goldPath) / testCase.etlFile;
 			fs::path csvPath = fs::path(goldPath) / testCase.goldCsvFile;
 
 			CsvParser goldCsvFile;
@@ -230,14 +225,95 @@ namespace EtlTests
 			std::unique_ptr<pmapi::Session> pSession;
 			if (!SetupTestEnvironment(etlFile.string(), "10000"s, pSession)) {
 				goldCsvFile.Close();
+				Assert::Fail(L"Failed to setup test environment");
 				return;
 			}
 
-			RunTestCaseV2(std::move(pSession), testCase.processId, testCase.processName,
-				goldCsvFile, debugCsv, testCase.pollCount, testCase.waitTimeSecs);
+			// Track if we encountered an assertion failure
+			bool testPassed = true;
+			std::string exceptionMessage;
+
+			try {
+				RunTestCaseV2(std::move(pSession), testCase.processId, testCase.processName,
+					goldCsvFile, debugCsv, testCase.pollCount, testCase.waitTimeSecs);
+			}
+			catch (const CsvValidationException& e) {
+				testPassed = false;
+				exceptionMessage = std::format(
+					"CSV Validation Error:\n"
+					"  Column: {}\n"
+					"  Line: {}\n"
+					"  Details: {}",
+					GetHeaderString(e.GetColumnId()),
+					e.GetLine(),
+					e.what());
+				Logger::WriteMessage(std::format("[ERROR] {}\n", exceptionMessage).c_str());
+			}
+			catch (const CsvConversionException& e) {
+				testPassed = false;
+				exceptionMessage = std::format(
+					"CSV Conversion Error:\n"
+					"  Column: {}\n"
+					"  Line: {}\n"
+					"  Invalid Value: '{}'\n"
+					"  Details: {}",
+					GetHeaderString(e.GetColumnId()),
+					e.GetLine(),
+					e.GetValue(),
+					e.what());
+				Logger::WriteMessage(std::format("[ERROR] {}\n", exceptionMessage).c_str());
+			}
+			catch (const CsvFileException& e) {
+				testPassed = false;
+				exceptionMessage = std::format("CSV File Error: {}", e.what());
+				Logger::WriteMessage(std::format("[ERROR] {}\n", exceptionMessage).c_str());
+			}
+			catch (const CsvException& e) {
+				testPassed = false;
+				exceptionMessage = std::format("CSV Error: {}", e.what());
+				Logger::WriteMessage(std::format("[ERROR] {}\n", exceptionMessage).c_str());
+			}
+			catch (const std::exception& e) {
+				testPassed = false;
+				exceptionMessage = std::format("Unexpected Error: {}", e.what());
+				Logger::WriteMessage(std::format("[ERROR] {}\n", exceptionMessage).c_str());
+			}
+			catch (...) {
+				testPassed = false;
+				exceptionMessage = "Unknown exception caught";
+				Logger::WriteMessage(std::format("[ERROR] {}\n", exceptionMessage).c_str());
+			}
 
 			goldCsvFile.Close();
+
+			// Now handle expected failure logic
+			if (testCase.isExpectedFailure) {
+				if (testPassed) {
+					// Test passed but was expected to fail - this is noteworthy!
+					Logger::WriteMessage(std::format(
+						"[PASS] UNEXPECTED PASS: Test '{}' passed but was marked as expected failure!\n"
+						"  Expected failure reason: {}\n"
+						"  ACTION: Update GOLD_TEST_CASES to set isExpectedFailure = false\n",
+						testCase.testName, testCase.failureReason).c_str());
+					// Still pass the test since it's good news
+				}
+				else {
+					// Test failed as expected
+					Logger::WriteMessage(std::format(
+						"[FAIL] Expected failure: {}\n",
+						testCase.failureReason).c_str());
+					// Re-throw to fail the test, but it's documented as expected
+					Assert::Fail(std::format(L"[EXPECTED FAILURE] {}",
+						pmon::util::str::ToWide(testCase.failureReason)).c_str());
+				}
+			}
+			else if (!testPassed) {
+				// Unexpected failure - fail the test with detailed message
+				Assert::Fail(pmon::util::str::ToWide(exceptionMessage).c_str());
+			}
+			// else: test passed and wasn't expected to fail - all good!
 		}
+
 		void RunTestFromCase(const std::string& caseName, bool useDefault = true, bool createDebugCsv = false)
 		{
 			auto testCase = FindTestCaseByName(caseName);
@@ -364,7 +440,7 @@ namespace EtlTests
 
 		TEST_METHOD(Tc001v2Dwm1564)
 		{
-			RunTestFromCase("test_case_1_1564");
+			RunTestFromCase("test_case_1_1564", true, true);
 		}
 		TEST_METHOD(Tc001v2Presenter24560)
 		{
@@ -415,7 +491,7 @@ namespace EtlTests
 		}
 		TEST_METHOD(Tc004v2Presenter5192)
 		{
-			RunTestFromCase("test_case_4_5192", true, true);
+			RunTestFromCase("test_case_4_5192");
 		}
 		TEST_METHOD(Tc004v2Presenter5236)
 		{
