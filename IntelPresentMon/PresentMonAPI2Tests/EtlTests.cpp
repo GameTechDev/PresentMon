@@ -25,7 +25,7 @@ namespace EtlTests
 	static constexpr const char* introNsm_ = "pm_etlults_test_intro";
 	static constexpr const char* nsmPrefix_ = "pmon_nsm_utest_";
 
-    // Necessary data for each test case
+	// Test case data structure - loaded from CSV file
 	struct TestCaseData {
 		std::string testName;
 		uint32_t processId;
@@ -36,51 +36,125 @@ namespace EtlTests
 		int waitTimeSecs;
 		bool isExpectedFailure;
 		std::string failureReason;
+		bool useAdditionalTestLocation;  // Load from additional test directory (runsettings)
+		bool produceDebugCsv;             // Generate debug CSV output
+		bool runTest;                     // Whether to run this test (for selective debugging)
 	};
 
-	static const TestCaseData GOLD_TEST_CASES[] {
-		{"test_case_0_10792",	10792,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
-		{"test_case_0_1268",	1268,	"dwm.exe",												"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
-		{"test_case_0_8320",	8320,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
-		{"test_case_0_11648",	11648,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
-		{"test_case_0_3976",	3976,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
-		{"test_case_0_11112",	11112,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
-		{"test_case_0_2032",	2032,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
-		{"test_case_0_5988",	5988,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
-		{"test_case_0_12268",	12268,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
-		{"test_case_0_11100",	11100,	"Presenter.exe",										"test_case_0.etl", L"test_case_0.csv",		10, 1,	false,	""},
-		{"test_case_1_1564",	1564,	"dwm.exe",												"test_case_1.etl", L"test_case_1.csv",		10, 1,	false,	""},
-		{"test_case_1_24560",	24560,	"Presenter.exe",										"test_case_1.etl", L"test_case_1.csv",		10, 1,	false,	""},
-		{"test_case_1_24944",	24944,	"devenv.exe",											"test_case_1.etl", L"test_case_1.csv",		10, 1,	false,	""},
-		{"test_case_2_1300",	1300,	"dwm.exe",												"test_case_2.etl", L"test_case_2.csv",		10, 1,	false,	""},
-		{"test_case_2_10016",	10016,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		10, 1,	false,	""},
-		{"test_case_2_5348",	5348,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		10, 1,	false,	""},
-		{"test_case_2_5220",	5220,	"Presenter.exe",										"test_case_2.etl", L"test_case_2.csv",		10, 1,	false,	""},
-		{"test_case_3_1252",	1252,	"dwm.exe",												"test_case_3.etl", L"test_case_3.csv",		10, 1,	false,	""},
-		{"test_case_3_5892",	5892,	"dwm.exe",												"test_case_3.etl", L"test_case_3.csv",		10, 1,	false,	""},
-		{"test_case_3_10112",	10112,	"Presenter.exe",										"test_case_3.etl", L"test_case_3.csv",		10, 1,	false,	""},
-		{"test_case_3_12980",	12980,	"Presenter.exe",										"test_case_3.etl", L"test_case_3.csv",		10, 1,	false,	""},
-		{"test_case_4_5192",	5192,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		10, 1,	false,	""},
-		{"test_case_4_12980",	12980,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		10, 1,	false,	""},
-		{"test_case_4_5236",	5236,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
-		{"test_case_4_8536",	8536,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		10, 1,	false,	""},
-		{"test_case_4_9620",	9620,	"Presenter.exe",										"test_case_4.etl", L"test_case_4.csv",		10, 1,	false,	""},
-		{"test_case_4_10376",	10376,	"dwm.exe",												"test_case_4.etl", L"test_case_4.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
-		{"test_case_5_24892",	24892,	"PresentBench.exe",										"test_case_5.etl", L"test_case_5.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
-		{"test_case_6_10796",	10796,	"cpLauncher.exe",										"test_case_6.etl", L"test_case_6.csv",		10, 1,	false,	""},
-		{"test_case_7_11320",	11320,	"cpLauncher.exe",										"test_case_7.etl", L"test_case_7.csv",		20, 5,	false,	""},
-		{"test_case_8_6920",	6920,	"scimitar_engine_win64_vs2022_llvm_fusion_dx12_px.exe",	"test_case_8.etl", L"test_case_8.csv",		20, 5,	true,	"Expected failure - Multiple SwapChain support needed"},
-		{"test_case_9_10340",	10340,	"F1_24.exe",											"test_case_9.etl", L"test_case_9.csv",		10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
-		{"test_case_10_9888",	9888,	"NarakaBladepoint.exe",      							"test_case_10.etl", L"test_case_10.csv",	10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
-		{"test_case_11_1524",	1524,	"NarakaBladepoint.exe",									"test_case_11.etl", L"test_case_11.csv",	10, 1,	true,	"Expected failure - Multiple SwapChain support needed"},
-		{"test_case_12_10168",	10168,	"F1_24.exe",											"test_case_12.etl", L"test_case_12.csv",	20, 5,	false,	""},
-		{"test_case_13_11780",	11780,	"Dingo.Main_Win64_retail.exe",							"test_case_13.etl", L"test_case_13.csv",	10, 1,	false,	""},
-	};
+	// Helper function to parse boolean from CSV string
+	bool ParseBool(const std::string& value) {
+		std::string lower = value;
+		std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+		return lower == "true" || lower == "1" || lower == "yes" || lower == "y";
+	}
 
-	TestCaseData* FindTestCaseByName(const std::string& testName) {
-		auto it = std::ranges::find_if(GOLD_TEST_CASES,
-			[&testName](const TestCaseData& tc) { return tc.testName == testName; });
-		return it != std::end(GOLD_TEST_CASES) ? const_cast<TestCaseData*>(&*it) : nullptr;
+	// Helper function to trim whitespace from string
+	std::string Trim(const std::string& str) {
+		const auto start = str.find_first_not_of(" \t\r\n");
+		if (start == std::string::npos) return "";
+		const auto end = str.find_last_not_of(" \t\r\n");
+		return str.substr(start, end - start + 1);
+	}
+
+	// Parse a CSV line handling quoted fields
+	std::vector<std::string> ParseCsvLine(const std::string& line) {
+		std::vector<std::string> fields;
+		std::string field;
+		bool inQuotes = false;
+		
+		for (size_t i = 0; i < line.length(); ++i) {
+			char c = line[i];
+			
+			if (c == '"') {
+				inQuotes = !inQuotes;
+			}
+			else if (c == ',' && !inQuotes) {
+				fields.push_back(Trim(field));
+				field.clear();
+			}
+			else {
+				field += c;
+			}
+		}
+		fields.push_back(Trim(field));
+		return fields;
+	}
+
+	// Load test cases from CSV file
+	// CSV Format: TestName,ProcessID,ProcessName,EtlFile,GoldCsvFile,PollCount,WaitTimeSecs,IsExpectedFailure,FailureReason,UseAdditionalTestLocation,ProduceDebugCsv,RunTest
+	std::vector<TestCaseData> LoadTestCasesFromCsv(const std::string& csvFilePath) {
+		std::vector<TestCaseData> testCases;
+		
+		// Convert to absolute path for better error reporting
+		fs::path absolutePath = fs::absolute(csvFilePath);
+		
+		std::ifstream file(csvFilePath);
+		if (!file.is_open()) {
+			throw std::runtime_error(std::format(
+				"Failed to open test cases CSV file:\n"
+				"  Requested path: {}\n"
+				"  Absolute path: {}\n"
+				"  Current directory: {}",
+				csvFilePath, 
+				absolutePath.string(),
+				fs::current_path().string()));
+		}
+
+		std::string line;
+		bool isFirstLine = true;
+		size_t lineNumber = 0;
+
+		while (std::getline(file, line)) {
+			lineNumber++;
+			
+			// Skip empty lines
+			if (Trim(line).empty()) {
+				continue;
+			}
+
+			// Skip header line
+			if (isFirstLine) {
+				isFirstLine = false;
+				continue;
+			}
+
+			try {
+				auto fields = ParseCsvLine(line);
+				
+				// Validate field count
+				if (fields.size() < 12) {
+					throw std::runtime_error(std::format(
+						"Line {}: Expected at least 12 fields, got {}",
+						lineNumber, fields.size()));
+				}
+
+				TestCaseData testCase;
+				testCase.testName = fields[0];
+				testCase.processId = std::stoul(fields[1]);
+				testCase.processName = fields[2];
+				testCase.etlFile = fields[3];
+				testCase.goldCsvFile = pmon::util::str::ToWide(fields[4]);
+				testCase.pollCount = std::stoi(fields[5]);
+				testCase.waitTimeSecs = std::stoi(fields[6]);
+				testCase.isExpectedFailure = ParseBool(fields[7]);
+				testCase.failureReason = fields[8];
+				testCase.useAdditionalTestLocation = ParseBool(fields[9]);
+				testCase.produceDebugCsv = ParseBool(fields[10]);
+				testCase.runTest = ParseBool(fields[11]);
+
+				testCases.push_back(testCase);
+			}
+			catch (const std::exception& e) {
+				throw std::runtime_error(std::format(
+					"Error parsing line {}: {}", lineNumber, e.what()));
+			}
+		}
+
+		if (testCases.empty()) {
+			throw std::runtime_error("No test cases loaded from CSV file");
+		}
+
+		return testCases;
 	}
 
 	void RunTestCaseV2(std::unique_ptr<pmapi::Session>&& pSession,
@@ -143,8 +217,8 @@ namespace EtlTests
 						break;
 					}
 					else if (Clock::now() - start >= std::chrono::seconds(waitTimeSecs)) {
-						// if it takes longer than 1 second to consume the first frame, throw failure
-						Assert::Fail(L"Timeout waiting to consume first frame");
+						// if it takes longer than alloted test time to consume the first frame, throw failure
+						throw CsvException("Timeout waiting to consume first frame");
 					}
 				}
 				std::this_thread::sleep_for(8ms);
@@ -209,7 +283,10 @@ namespace EtlTests
 				return false;
 			}
 		}
-		void RunGoldCsvTest(const TestCaseData& testCase, const std::string& goldPath, std::optional<std::ofstream>& debugCsv)
+		// Returns true if test passed, false if test failed
+		// When throwOnFailure=false, returns status instead of throwing
+		// When throwOnFailure=true, throws Assert::Fail on failure
+		bool RunGoldCsvTest(const TestCaseData& testCase, const std::string& goldPath, std::optional<std::ofstream>& debugCsv, bool throwOnFailure = true)
 		{
 			using namespace std::string_literals;
 
@@ -218,15 +295,25 @@ namespace EtlTests
 
 			CsvParser goldCsvFile;
 			if (!goldCsvFile.Open(csvPath.wstring(), testCase.processId)) {
-				Assert::Fail(L"Failed to open gold CSV file");
-				return;
+				if (throwOnFailure) {
+					Assert::Fail(L"Failed to open gold CSV file");
+				}
+				else {
+					throw std::runtime_error("Failed to open gold CSV file");
+				}
+				return false;
 			}
 
 			std::unique_ptr<pmapi::Session> pSession;
 			if (!SetupTestEnvironment(etlFile.string(), "10000"s, pSession)) {
 				goldCsvFile.Close();
-				Assert::Fail(L"Failed to setup test environment");
-				return;
+				if (throwOnFailure) {
+					Assert::Fail(L"Failed to setup test environment");
+				}
+				else {
+					throw std::runtime_error("Failed to setup test environment");
+				}
+				return false;
 			}
 
 			// Track if we encountered an assertion failure
@@ -290,50 +377,177 @@ namespace EtlTests
 			if (testCase.isExpectedFailure) {
 				if (testPassed) {
 					// Test passed but was expected to fail - this is noteworthy!
-					Logger::WriteMessage(std::format(
-						"[PASS] UNEXPECTED PASS: Test '{}' passed but was marked as expected failure!\n"
-						"  Expected failure reason: {}\n"
-						"  ACTION: Update GOLD_TEST_CASES to set isExpectedFailure = false\n",
-						testCase.testName, testCase.failureReason).c_str());
-					// Still pass the test since it's good news
+					if (throwOnFailure) {
+						Logger::WriteMessage(std::format(
+							"[PASS] UNEXPECTED PASS: Test '{}' passed but was marked as expected failure!\n"
+							"  Expected failure reason: {}\n"
+							"  ACTION: Update GOLD_TEST_CASES to set isExpectedFailure = false\n",
+							testCase.testName, testCase.failureReason).c_str());
+					}
+					// Return true because test technically passed (even though unexpected)
+					return true;
 				}
 				else {
 					// Test failed as expected
-					Logger::WriteMessage(std::format(
-						"[FAIL] Expected failure: {}\n",
-						testCase.failureReason).c_str());
-					// Re-throw to fail the test, but it's documented as expected
-					Assert::Fail(std::format(L"[EXPECTED FAILURE] {}",
-						pmon::util::str::ToWide(testCase.failureReason)).c_str());
+					if (throwOnFailure) {
+						// For individual test methods, log and assert
+						Logger::WriteMessage(std::format(
+							"[FAIL] Expected failure: {}\n",
+							testCase.failureReason).c_str());
+						Assert::Fail(std::format(L"[EXPECTED FAILURE] {}",
+							pmon::util::str::ToWide(testCase.failureReason)).c_str());
+					}
+					// Return false to indicate test failed (even though expected)
+					return false;
 				}
 			}
 			else if (!testPassed) {
-				// Unexpected failure - fail the test with detailed message
-				Assert::Fail(pmon::util::str::ToWide(exceptionMessage).c_str());
+				// Unexpected failure
+				if (throwOnFailure) {
+					Assert::Fail(pmon::util::str::ToWide(exceptionMessage).c_str());
+				}
+				else {
+					// For CSV runner, throw std::runtime_error so it can be caught and counted
+					throw std::runtime_error(exceptionMessage);
+				}
+				return false;
 			}
-			// else: test passed and wasn't expected to fail - all good!
+			// Test passed and wasn't expected to fail - all good!
+			return true;
 		}
 
-		void RunTestFromCase(const std::string& caseName, bool useDefault = true, bool createDebugCsv = false)
+		// Run all test cases from a CSV file
+		void RunTestsFromCsv(const std::string& csvFilePath)
 		{
-			auto testCase = FindTestCaseByName(caseName);
-			if (!testCase) {
-				Assert::Fail(L"Test case not found");
+			// Load test cases from CSV
+			std::vector<TestCaseData> testCases;
+			try {
+				testCases = LoadTestCasesFromCsv(csvFilePath);
+				Logger::WriteMessage(std::format("Loaded {} test cases from {}\n", 
+					testCases.size(), csvFilePath).c_str());
+			}
+			catch (const std::exception& e) {
+				Assert::Fail(pmon::util::str::ToWide(
+					std::format("Failed to load test cases CSV: {}", e.what())).c_str());
 				return;
 			}
 
-			fs::path path = useDefault ? fs::path("..") / ".." / "tests" / "gold"
-				: fs::path(GetAdditionalTestLocation().value_or(""));
+			// Statistics
+			int totalTests = 0;
+			int passedTests = 0;
+			int failedTests = 0;
+			int expectedFailures = 0;
+			int skippedTests = 0;
+			std::vector<std::string> failureDetails;
 
-			std::optional<std::ofstream> debugCsv;
-			if (createDebugCsv) {
-				auto outputDir = path.string();
-                auto debugCsvName = testCase->processName + "-debug.csv";
-                debugCsv = CreateCsvFile(outputDir, debugCsvName);
+			// Run each test case
+			for (const auto& testCase : testCases) {
+				// Skip if RunTest is false
+				if (!testCase.runTest) {
+					skippedTests++;
+					Logger::WriteMessage(std::format("[SKIP] {} (RunTest=false)\n", 
+						testCase.testName).c_str());
+					continue;
+				}
+
+				totalTests++;
+				Logger::WriteMessage(std::format("\n=== Running Test {}/{}: {} ===\n", 
+					totalTests, testCases.size() - skippedTests, testCase.testName).c_str());
+
+				// Determine test location
+				fs::path testPath = testCase.useAdditionalTestLocation
+					? fs::path(GetAdditionalTestLocation().value_or(""))
+					: fs::path("..") / ".." / "tests" / "gold";
+
+				// Prepare debug CSV if requested
+				std::optional<std::ofstream> debugCsv;
+				if (testCase.produceDebugCsv) {
+					auto outputDir = testPath.string();
+					auto debugCsvName = testCase.testName + "-debug";
+					debugCsv = CreateCsvFile(outputDir, debugCsvName);
+					if (debugCsv.has_value()) {
+						Logger::WriteMessage(std::format("  Producing debug CSV: {}-debug.csv\n", 
+							testCase.testName).c_str());
+					}
+				}
+
+				// Run the test
+				bool testPassed = false;
+				std::string errorMessage;
+
+				try {
+					testPassed = RunGoldCsvTest(testCase, testPath.string(), debugCsv, false); // Returns true/false instead of throwing
+				}
+				catch (const std::exception& e) {
+					// Only unexpected failures throw exceptions
+					testPassed = false;
+					errorMessage = e.what();
+				}
+
+				// Handle the result
+				if (testPassed) {
+					if (testCase.isExpectedFailure) {
+						// Test passed but was expected to fail - this is noteworthy!
+						Logger::WriteMessage(std::format(
+							"[UNEXPECTED PASS] Test passed but was marked as expected failure!\n"
+							"  Expected failure reason: {}\n"
+							"  ACTION: Update CSV to set IsExpectedFailure = false\n",
+							testCase.failureReason).c_str());
+					}
+					else {
+						Logger::WriteMessage(std::format("[PASS] {}\n", testCase.testName).c_str());
+					}
+					passedTests++;
+				}
+				else {
+					// Test failed
+					if (testCase.isExpectedFailure) {
+						// Test failed as expected
+						expectedFailures++;
+						Logger::WriteMessage(std::format(
+							"[EXPECTED FAIL] {}\n  Reason: {}\n",
+							testCase.testName, testCase.failureReason).c_str());
+					}
+					else {
+						// Unexpected failure
+						failedTests++;
+						std::string detail = std::format("[FAIL] {}: {}", 
+							testCase.testName, errorMessage.empty() ? "Test failed" : errorMessage);
+						failureDetails.push_back(detail);
+						Logger::WriteMessage(std::format("{}\n", detail).c_str());
+					}
+				}
+
+				// Close debug CSV if it was created
+				if (debugCsv.has_value()) {
+					debugCsv->close();
+				}
 			}
-			RunGoldCsvTest(*testCase, path.string(), debugCsv);
-			if (debugCsv.has_value()) {
-				debugCsv->close();
+
+			// Print summary
+			Logger::WriteMessage(std::format(
+				"\n========================================\n"
+				"Test Summary\n"
+				"========================================\n"
+				"Total Test Cases in CSV: {}\n"
+				"Skipped (RunTest=false): {}\n"
+				"Tests Run: {}\n"
+				"  Passed: {}\n"
+				"  Failed (Unexpected): {}\n"
+				"  Failed (Expected): {}\n"
+				"========================================\n",
+				testCases.size(), skippedTests, totalTests, 
+				passedTests, failedTests, expectedFailures).c_str());
+
+			// Fail the overall test if there were unexpected failures
+			if (failedTests > 0) {
+				std::string summary = std::format(
+					"\n{} of {} tests failed unexpectedly:\n\n", 
+					failedTests, totalTests);
+				for (const auto& detail : failureDetails) {
+					summary += detail + "\n";
+				}
+				Assert::Fail(pmon::util::str::ToWide(summary).c_str());
 			}
 		}
 	public:
@@ -354,6 +568,16 @@ namespace EtlTests
 			CsvParser goldCsvFile;
 			goldCsvFile.Open(goldCsvName, 1268);
 			goldCsvFile.Close();
+		}
+
+		// Example: Run all tests from CSV file
+		// This single test will run all test cases defined in the CSV
+		// Use the RunTest column in CSV to selectively enable/disable tests
+		TEST_METHOD(RunAllTestsFromCsv)
+		{
+			// CSV file is in the PresentMonAPI2Tests source directory
+			// Working dir is build/Debug, so go up to source tree
+			RunTestsFromCsv("..\\..\\IntelPresentMon\\PresentMonAPI2Tests\\test_cases.csv");
 		}
 
 		TEST_METHOD(OpenServiceTest)
@@ -383,174 +607,11 @@ namespace EtlTests
 		}
 		TEST_METHOD(OpenMockSessionTest)
 		{
-            auto testCase = FindTestCaseByName("test_case_0_10792");
-            auto etlFile = "..\\..\\tests\\gold\\" + testCase->etlFile;
+			// Simple test to verify we can create a session with an ETL file
+			const auto etlFile = "..\\..\\tests\\gold\\test_case_0.etl";
 			std::unique_ptr<pmapi::Session> pSession;
 			auto result = SetupTestEnvironment(etlFile, "10000", pSession);
-            Assert::IsTrue(result, L"SetupTestEnvironment failed");
-		}
-		TEST_METHOD(Tc000v2Presenter10792)
-		{
-			RunTestFromCase("test_case_0_10792");
-		}
-		TEST_METHOD(Tc000v2DWM1268)
-		{
-			RunTestFromCase("test_case_0_1268");
-		}
-
-		TEST_METHOD(Tc000v2Presenter8320)
-		{
-			RunTestFromCase("test_case_0_8320");
-		}
-		TEST_METHOD(Tc000v2Presenter11648)
-		{
-			RunTestFromCase("test_case_0_11648");
-		}
-		TEST_METHOD(Tc000v2Presenter3976)
-		{
-			RunTestFromCase("test_case_0_3976");
-		}
-		TEST_METHOD(Tc000v2Presenter11112)
-		{
-			RunTestFromCase("test_case_0_11112");
-		}
-		TEST_METHOD(Tc000v2Presenter2032)
-		{
-			RunTestFromCase("test_case_0_2032");
-		}
-		TEST_METHOD(Tc000v2Presenter5988)
-		{
-			RunTestFromCase("test_case_0_5988");
-		}
-		TEST_METHOD(Tc000v2Presenter12268)
-		{
-			// This test is a sporadic failure due to timing of when the ETL session is
-			// finishedby the the mock presentmon session. If the ETL session finishes
-			// and sets the process id to not active from the mock presentmon session
-			// when the middleware is starting to process the NSM it will determine
-			// the process is not active and exit. Need to add some type of synchronization
-			// in mock presentmon session to not shutdown the session until notified
-			// by close session call.
-			RunTestFromCase("test_case_0_12268");
-		}
-		TEST_METHOD(Tc000v2Presenter11100)
-		{
-			RunTestFromCase("test_case_0_11100");
-		}
-
-		TEST_METHOD(Tc001v2Dwm1564)
-		{
-			RunTestFromCase("test_case_1_1564", true, true);
-		}
-		TEST_METHOD(Tc001v2Presenter24560)
-		{
-			RunTestFromCase("test_case_1_24560");
-		}
-		TEST_METHOD(Tc001v2devenv24944)
-		{
-			RunTestFromCase("test_case_1_24944");
-		}
-		TEST_METHOD(Tc002v2Dwm1300)
-		{
-			RunTestFromCase("test_case_2_1300");
-		}
-		TEST_METHOD(Tc002v2Presenter10016)
-		{
-			RunTestFromCase("test_case_2_10016");
-		}
-		TEST_METHOD(Tc002v2Presenter5348)
-		{
-			RunTestFromCase("test_case_2_5348");
-		}
-		TEST_METHOD(Tc002v2Presenter5220)
-		{
-			RunTestFromCase("test_case_2_5220");
-		}
-		TEST_METHOD(Tc003v2Dwm1252)
-		{
-			RunTestFromCase("test_case_3_1252");
-		}
-		TEST_METHOD(Tc003v2Presenter5892)
-		{
-			RunTestFromCase("test_case_3_5892");
-		}
-		TEST_METHOD(Tc003v2Presenter10112)
-		{
-			RunTestFromCase("test_case_3_10112");
-		}
-		TEST_METHOD(Tc003v2Presenter12980)
-		{
-			// This test is a sporadic failure due to timing of when the ETL session is
-			// finishedby the the mock presentmon session. If the ETL session finishes
-			// and sets the process id to not active from the mock presentmon session
-			// when the middleware is starting to process the NSM it will determine
-			// the process is not active and exit. Need to add some type of synchronization
-			// in mock presentmon session to not shutdown the session until notified
-			// by close session call.
-			RunTestFromCase("test_case_3_12980");
-		}
-		TEST_METHOD(Tc004v2Presenter5192)
-		{
-			RunTestFromCase("test_case_4_5192");
-		}
-		TEST_METHOD(Tc004v2Presenter5236)
-		{
-			RunTestFromCase("test_case_4_5236");
-		}
-		TEST_METHOD(Tc004v2Presenter8536)
-		{
-			RunTestFromCase("test_case_4_8536");
-		}
-		TEST_METHOD(Tc004v2Presenter9620)
-		{
-			// This test is a sporadic failure due to timing of when the ETL session is
-			// finishedby the the mock presentmon session. If the ETL session finishes
-			// and sets the process id to not active from the mock presentmon session
-			// when the middleware is starting to process the NSM it will determine
-			// the process is not active and exit. Need to add some type of synchronization
-			// in mock presentmon session to not shutdown the session until notified
-			// by close session call.
-			RunTestFromCase("test_case_4_9620");
-		}
-		TEST_METHOD(Tc004v2Dwm10376)
-		{
-			RunTestFromCase("test_case_4_10376");
-		}
-		TEST_METHOD(Tc005v2PresentBench24892)
-		{
-			RunTestFromCase("test_case_5_24892");
-		}
-		TEST_METHOD(Tc006CP2077)
-		{	
-			RunTestFromCase("test_case_6_10796", false);
-		}
-		TEST_METHOD(Tc007CP2077)
-		{
-			RunTestFromCase("test_case_7_11320", false);
-		}
-		TEST_METHOD(Tc008ACShadows)
-		{
-            RunTestFromCase("test_case_8_6920", false);
-		}
-		TEST_METHOD(Tc009F124)
-		{
-			RunTestFromCase("test_case_9_10340", false);
-		}
-		TEST_METHOD(Tc010NarakaBladepoint)
-		{
-			RunTestFromCase("test_case_10_9888", false);
-		}
-		TEST_METHOD(Tc011NarakaBladepoint)
-		{
-			RunTestFromCase("test_case_11_1524", false);
-		}
-		TEST_METHOD(Tc012F124)
-		{
-			RunTestFromCase("test_case_12_10168", false);
-		}
-		TEST_METHOD(Tc013Dingo)
-		{
-			RunTestFromCase("test_case_13_11780", false);
+			Assert::IsTrue(result, L"SetupTestEnvironment failed");
 		}
 	};
 }
