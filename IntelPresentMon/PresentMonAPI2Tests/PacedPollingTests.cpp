@@ -225,7 +225,7 @@ namespace PacedPolling
 			const auto perColumnMissRatio = 0.01;
 			const auto mseTotalFactor = 2.5;
 			const auto mseMaxFactor = 1.;
-			// fail if any single column has too many mismatches, or if the total of all
+			// fail if any single column has too many mismatches, or if the total across all
 			// columns exceeds a threshold (same idea for mse below as well)
 			if (nMissTotal > size_t(sampleCount * overallMissRatio) ||
 				nMissMax > size_t(sampleCount * perColumnMissRatio)) {
@@ -283,6 +283,38 @@ namespace PacedPolling
 		Logger::WriteMessage("\n");
 	}
 
+	// ordering results by misses w/ column ids
+	// returns column index,column compare result
+	std::vector<std::tuple<ptrdiff_t, MetricCompareResult>> GetRankedResults(
+		const std::vector<MetricCompareResult>& columnResults, size_t nOut)
+	{
+		// attach column index to results and filter out those with zero mismatches
+		auto enumeratedResults = columnResults | vi::enumerate | vi::filter(
+			[](const std::tuple<ptrdiff_t, MetricCompareResult>& rslt) {
+			return !std::get<1>(rslt).mismatches.empty(); }) |
+			rn::to<std::vector>();
+		// sort indices by mismatch count
+		rn::sort(enumeratedResults, [](const std::tuple<ptrdiff_t, MetricCompareResult>& a,
+			const std::tuple<ptrdiff_t, MetricCompareResult>& b) {
+			return std::get<1>(a).mismatches.size() > std::get<1>(b).mismatches.size();
+		});
+		// limit max results
+		if (enumeratedResults.size() > nOut) enumeratedResults.resize(nOut);
+		// return results
+		return enumeratedResults;
+	}
+
+	// print ranked column results
+	void PrintRankedResults(const std::vector<MetricCompareResult>& columnResults, size_t nOut,
+		const std::vector<std::string>& header, size_t indentation = 3)
+	{
+		auto tabs = std::string(indentation, ' ');
+		for (auto&& [idx, rslt] : GetRankedResults(columnResults, nOut)) {
+			Logger::WriteMessage(std::format("{}[{}] {}: {}\n",
+				tabs, idx, header[idx], rslt.mismatches.size()).c_str());
+		}
+	}
+
 	void ExecutePacedPollingTest(const std::string& testName, uint32_t targetPid, double recordingStart,
 		double recordingStop, double pollPeriod, double toleranceFactor, double fullFailRatio,
 		TestFixture& fixture)
@@ -305,31 +337,35 @@ namespace PacedPolling
 
 		// compare all runs against gold if exists
 		if (std::filesystem::exists(goldCsvPath)) {
-			auto [gh, gold] = LoadRunFromCsv(goldCsvPath);
+			auto [goldHeader, gold] = LoadRunFromCsv(goldCsvPath);
 			// do one polling run and compare against gold
-			const auto nFailOneshot = [&] {
-				auto oneshotCompRes = DoPollingRunAndCompare(
-					fixture,
-					common.ctrlPipe,
-					smap,
-					targetPid,
-					recordingStart,
-					recordingStop,
-					pollPeriod,
-					gold,
-					toleranceFactor,
-					testName,
-					"oneshot"
-				);
-				return ValidateAndAggregateResults(sampleCount, testName + "_oneshot_agg.csv", { oneshotCompRes });
-			}();
+			auto oneshotCompRes = DoPollingRunAndCompare(
+				fixture,
+				common.ctrlPipe,
+				smap,
+				targetPid,
+				recordingStart,
+				recordingStop,
+				pollPeriod,
+				gold,
+				toleranceFactor,
+				testName,
+				"oneshot"
+			);
+			const auto nFailOneshot = ValidateAndAggregateResults(sampleCount,
+				testName + "_oneshot_agg.csv", { oneshotCompRes });
 			// if oneshot run succeeds with zero failures, we finish here
 			if (nFailOneshot == 0) {
 				Logger::WriteMessage("One-shot success\n");
 				// output commandline to run to visually analyze results
 				PrintAnalysisHint(testName, "one-shot");
+				// output ranked results
+				PrintRankedResults(oneshotCompRes, 3, goldHeader);
 			}
 			else {
+				Logger::WriteMessage("One-shot failed, executing full run...\n");
+				// output ranked results
+				PrintRankedResults(oneshotCompRes, 3, goldHeader);
 				// oneshot failed, run N times and see if enough pass to seem plausible
 				std::vector<std::vector<MetricCompareResult>> allResults;
 				for (size_t i = 0; i < nRunsFull; i++) {
@@ -355,6 +391,11 @@ namespace PacedPolling
 				const auto nFail = ValidateAndAggregateResults(sampleCount, testName + "_full_agg.csv", allResults);
 				// output commandline to run to visually analyze results
 				PrintAnalysisHint(testName, "full");
+				for (auto&& [j, r] : allResults | vi::enumerate) {
+					Logger::WriteMessage(std::format("   Run [{}]\n", j).c_str());
+					// output ranked results
+					PrintRankedResults(r, 3, goldHeader, 6);
+				}
 				Assert::IsTrue(nFail < (int)std::round(nRunsFull * fullFailRatio),
 					std::format(L"Failed [{}] runs (of {})", nFail, nRunsFull).c_str());
 				Logger::WriteMessage(std::format(L"Retry success (failed [{}] of [{}])\n", nFail, nRunsFull).c_str());
