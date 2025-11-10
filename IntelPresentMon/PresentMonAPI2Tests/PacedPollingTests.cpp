@@ -269,6 +269,20 @@ namespace PacedPolling
 		return compResults;
 	}
 
+	void PrintAnalysisHint(const std::string& testName, const std::string& mode)
+	{
+		// script analysis command line info
+		const auto rootPath = fs::current_path().parent_path().parent_path();
+		static const auto scriptPath = (rootPath / "Tests\\Scripts\\analyze-paced.py").string();
+		static const auto outPath = (rootPath / "build\\Debug\\TestOutput\\PacedPolling").string();
+		static const auto goldPath = (rootPath / "Tests\\AuxData\\Data").string();
+		// print command to run
+		Logger::WriteMessage("Analyze with:\n");
+		Logger::WriteMessage(std::format(R"(python "{}" --run-mode {} --folder "{}" --name {} --golds "{}")",
+			scriptPath, mode, outPath, testName, goldPath).c_str());
+		Logger::WriteMessage("\n");
+	}
+
 	void ExecutePacedPollingTest(const std::string& testName, uint32_t targetPid, double recordingStart,
 		double recordingStop, double pollPeriod, double toleranceFactor, double fullFailRatio,
 		TestFixture& fixture)
@@ -281,11 +295,6 @@ namespace PacedPolling
 		const auto goldCsvPath = std::format(R"(..\..\Tests\AuxData\Data\{}_gold.csv)", testName);
 		const auto sampleCount = (recordingStop - recordingStart) / pollPeriod;
 
-		// script analysis command line info
-		const auto rootPath = fs::current_path().parent_path().parent_path();
-		const auto scriptPath = (rootPath / "Tests\\Scripts\\analyze-paced.py").string();
-		const auto outPath = (rootPath / "build\\Debug\\TestOutput\\PacedPolling").string();
-		const auto goldPath = (rootPath / "Tests\\AuxData\\Data").string();
 
 		auto& common = fixture.GetCommonArgs();
 		const auto smap = [&] {
@@ -316,7 +325,9 @@ namespace PacedPolling
 			}();
 			// if oneshot run succeeds with zero failures, we finish here
 			if (nFailOneshot == 0) {
-				Logger::WriteMessage("One-shot success");
+				Logger::WriteMessage("One-shot success\n");
+				// output commandline to run to visually analyze results
+				PrintAnalysisHint(testName, "one-shot");
 			}
 			else {
 				// oneshot failed, run N times and see if enough pass to seem plausible
@@ -342,14 +353,11 @@ namespace PacedPolling
 				}
 				// validate comparison results
 				const auto nFail = ValidateAndAggregateResults(sampleCount, testName + "_full_agg.csv", allResults);
-				// output analysis command
-				Logger::WriteMessage("Analyze with:\n");
-				Logger::WriteMessage(std::format(R"(python "{}" --folder "{}" --name {} --golds "{}")",
-					scriptPath, outPath, testName, goldPath).c_str());
-				Logger::WriteMessage("\n");
+				// output commandline to run to visually analyze results
+				PrintAnalysisHint(testName, "full");
 				Assert::IsTrue(nFail < (int)std::round(nRunsFull * fullFailRatio),
 					std::format(L"Failed [{}] runs (of {})", nFail, nRunsFull).c_str());
-				Logger::WriteMessage(std::format(L"Retry success (failed [{}] of [{}])", nFail, nRunsFull).c_str());
+				Logger::WriteMessage(std::format(L"Retry success (failed [{}] of [{}])\n", nFail, nRunsFull).c_str());
 			}
 		}
 		else { // if gold doesn't exist, do cartesian product comparison over many runs to generate data for a new gold
@@ -406,11 +414,8 @@ namespace PacedPolling
 				aggWriter << std::make_tuple(i, nFail);
 				Logger::WriteMessage(std::format("#{:02}: {}\n", i, nFail).c_str());
 			}
-			// output analysis command
-			Logger::WriteMessage("Analyze with:\n");
-			Logger::WriteMessage(std::format(R"(python "{}" --folder "{}" --name {})",
-				scriptPath, outPath, testName).c_str());
-			Logger::WriteMessage("\n");
+			// output commandline to run to visually analyze results
+			PrintAnalysisHint(testName, "round-robin");
 			// hardcode a fail because this execution path requires analysis and
 			// selection of a gold result to lock in
 			Assert::IsTrue(false, L"Run complete, analysis is required to select gold result.");

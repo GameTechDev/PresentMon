@@ -21,6 +21,7 @@ def _dep_hint_excepthook(exc_type, exc, tb):
 sys.excepthook = _dep_hint_excepthook
 
 import re
+from enum import Enum
 import argparse
 import pandas as pd
 import tkinter as tk
@@ -28,6 +29,11 @@ from tkinter import ttk, messagebox
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.lines import Line2D
+
+class RunMode(Enum):
+    OneShot = "one-shot"
+    Full = "full"
+    RoundRobin = "round-robin"
 
 class AutocompleteCombobox(ttk.Combobox):
     """A Combobox that filters its dropdown list as you type."""
@@ -49,7 +55,7 @@ class AutocompleteCombobox(ttk.Combobox):
         self['values'] = data
 
 class PolledPlotApp(tk.Tk):
-    def __init__(self, folder, name, golds_folder=None):
+    def __init__(self, folder, name, run_mode, golds_folder=None):
         super().__init__()
         self.title("Polled CSV Plotter")
         self.geometry("900x650")
@@ -59,8 +65,8 @@ class PolledPlotApp(tk.Tk):
         # Persist per-series style for legend proxies
         self.styles = {}   # {series_label: dict(color=..., linestyle=..., marker=...)}
 
-        # Load CSVs per mode
-        self.dfs = self.load_csvs(folder, name, golds_folder)
+        # Load CSVs according to run mode
+        self.dfs = self.load_csvs(folder, name, golds_folder, run_mode)
         if not self.dfs:
             messagebox.showerror("Error", "No valid CSV files found for the given inputs.")
             self.destroy()
@@ -109,69 +115,93 @@ class PolledPlotApp(tk.Tk):
         # Initial draw
         self.draw_plot(self.x_col, self.y_choices[0])
 
-    def load_csvs(self, folder, name, golds_folder):
+    def load_csvs(self, folder, name, golds_folder, run_mode):
         """
-        Returns list of (label, DataFrame).
-        With golds: load folder/name_full_#.csv and golds/name_gold.csv (if present).
-        Without golds: load folder/name_robin_#.csv
+        Returns list of (label, DataFrame) based on run mode.
+
+        RoundRobin:
+          - Load: folder/name_robin_#.csv
+
+        OneShot:
+          - Must load: folder/name_oneshot.csv (mandatory)
+          - Must also load: golds_folder/name_gold.csv
+
+        Full:
+          - Load: folder/name_full_#.csv
+          - Must also load: golds_folder/name_gold.csv
+          - Also try to include: folder/name_oneshot.csv (if present)
         """
         out = []
 
-        if golds_folder:
-            numbered_re = re.compile(rf'^{re.escape(name)}_full_(\d+)\.csv$')
+        def try_load_csv(path, label=None):
             try:
-                for fname in sorted(os.listdir(folder)):
-                    if not numbered_re.match(fname):
-                        continue
-                    path = os.path.join(folder, fname)
-                    try:
-                        df = pd.read_csv(path, header=0)
-                        if df.shape[1] >= 2:
-                            out.append((fname, df))
-                            if fname not in self.visible:
-                                self.visible[fname] = True
-                        else:
-                            print(f"Skipping {path}: not enough columns")
-                    except Exception as e:
-                        print(f"Skipping {path}: {e}")
-            except FileNotFoundError:
-                print(f"Folder not found: {folder}")
+                df = pd.read_csv(path, header=0)
+                if df.shape[1] >= 2:
+                    lab = label if label is not None else os.path.basename(path)
+                    out.append((lab, df))
+                    if lab not in self.visible:
+                        self.visible[lab] = True
+                else:
+                    print(f"Skipping {path}: not enough columns")
+            except Exception as e:
+                print(f"Skipping {path}: {e}")
 
-            gold_fname = f"{name}_gold.csv"
+        try:
+            folder_files = sorted(os.listdir(folder))
+        except FileNotFoundError:
+            print(f"Folder not found: {folder}")
+            folder_files = []
+
+        oneshot_fname = f"{name}_oneshot.csv"
+        gold_fname = f"{name}_gold.csv"
+
+        if run_mode == RunMode.RoundRobin:
+            robin_re = re.compile(rf'^{re.escape(name)}_robin_(\d+)\.csv$')
+            for fname in folder_files:
+                if robin_re.match(fname):
+                    try_load_csv(os.path.join(folder, fname))
+
+        elif run_mode == RunMode.OneShot:
+            # Mandatory oneshot
+            oneshot_path = os.path.join(folder, oneshot_fname)
+            if os.path.isfile(oneshot_path):
+                try_load_csv(oneshot_path)
+            else:
+                print(f"ERROR: Oneshot file is mandatory but not found: {oneshot_path}")
+                return []  # cause error popup upstream
+
+            # Gold must be available for the comparison basis
+            if not golds_folder:
+                print("ERROR: Golds folder is required in one-shot mode.")
+                return []
             gold_path = os.path.join(golds_folder, gold_fname)
             if os.path.isfile(gold_path):
-                try:
-                    gold_df = pd.read_csv(gold_path, header=0)
-                    if gold_df.shape[1] >= 2:
-                        out.append((gold_fname, gold_df))
-                        if gold_fname not in self.visible:
-                            self.visible[gold_fname] = True
-                    else:
-                        print(f"Skipping {gold_path}: not enough columns")
-                except Exception as e:
-                    print(f"Skipping {gold_path}: {e}")
+                try_load_csv(gold_path)
             else:
-                print(f"Gold file not found: {gold_path}")
+                print(f"ERROR: Gold file is mandatory but not found: {gold_path}")
+                return []
 
-        else:
-            robin_re = re.compile(rf'^{re.escape(name)}_robin_(\d+)\.csv$')
-            try:
-                for fname in sorted(os.listdir(folder)):
-                    if not robin_re.match(fname):
-                        continue
-                    path = os.path.join(folder, fname)
-                    try:
-                        df = pd.read_csv(path, header=0)
-                        if df.shape[1] >= 2:
-                            out.append((fname, df))
-                            if fname not in self.visible:
-                                self.visible[fname] = True
-                        else:
-                            print(f"Skipping {path}: not enough columns")
-                    except Exception as e:
-                        print(f"Skipping {path}: {e}")
-            except FileNotFoundError:
-                print(f"Folder not found: {folder}")
+        elif run_mode == RunMode.Full:
+            full_re = re.compile(rf'^{re.escape(name)}_full_(\d+)\.csv$')
+            for fname in folder_files:
+                if full_re.match(fname):
+                    try_load_csv(os.path.join(folder, fname))
+            # Always try to include oneshot and gold as context
+            oneshot_path = os.path.join(folder, oneshot_fname)
+            if os.path.isfile(oneshot_path):
+                try_load_csv(oneshot_path)
+            else:
+                print(f"Oneshot file not found (optional in full): {oneshot_path}")
+            if golds_folder:
+                gold_path = os.path.join(golds_folder, gold_fname)
+                if os.path.isfile(gold_path):
+                    try_load_csv(gold_path)
+                else:
+                    print(f"ERROR: Gold file is mandatory but not found: {gold_path}")
+                    return []
+            else:
+                print("ERROR: Golds folder is required in one-shot mode.")
+                return []
 
         return out
 
@@ -278,17 +308,23 @@ def parse_args():
     )
     parser.add_argument(
         "--golds",
-        help="Folder containing gold run data (optional). If omitted, only robin-series CSVs are loaded."
+        help="Folder containing gold run data (required for one-shot mode)."
     )
     parser.add_argument(
         "--name", required=True,
         help="Test case name (prefix of CSV files)."
     )
+    parser.add_argument(
+        "--run-mode", required=True,
+        type=RunMode,
+        choices=list(RunMode),
+        help="Specify a mode of execution"
+    )
     return parser.parse_args()
 
 def main():
     args = parse_args()
-    app = PolledPlotApp(folder=args.folder, name=args.name, golds_folder=args.golds)
+    app = PolledPlotApp(folder=args.folder, name=args.name, run_mode=args.run_mode, golds_folder=args.golds)
     app.mainloop()
 
 if __name__ == "__main__":
