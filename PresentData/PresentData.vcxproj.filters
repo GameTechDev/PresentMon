@@ -48,6 +48,7 @@
     </ClInclude>
     <ClInclude Include="TraceLogging.h" />
     <ClInclude Include="IFilterBuildListener.h" />
+    <ClInclude Include="ConsoleAdapter.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Debug.cpp" />

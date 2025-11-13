@@ -294,6 +294,18 @@
     <ClInclude Include="win\Security.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="mc\MetricsCalculator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mc\MetricsPolicies.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mc\MetricsTypes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mc\QpcCalculator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cli\CliFramework.cpp">
@@ -468,6 +480,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Memory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsTypes.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
