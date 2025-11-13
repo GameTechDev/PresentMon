@@ -68,6 +68,10 @@
     <ClInclude Include="log\Verbose.h" />
     <ClInclude Include="Macro.h" />
     <ClInclude Include="Math.h" />
+    <ClInclude Include="mc\MetricsAdapters.h" />
+    <ClInclude Include="mc\MetricsCalculator.h" />
+    <ClInclude Include="mc\MetricsPolicies.h" />
+    <ClInclude Include="mc\MetricsTypes.h" />
     <ClInclude Include="Memory.h" />
     <ClInclude Include="Hash.h" />
     <ClInclude Include="Meta.h" />
@@ -150,6 +154,7 @@
     <ClCompile Include="log\NamedPipeMarshallSender.cpp" />
     <ClCompile Include="log\TimePoint.cpp" />
     <ClCompile Include="log\Verbose.cpp" />
+    <ClCompile Include="mc\MetricsTypes.cpp" />
     <ClCompile Include="mt\Thread.cpp" />
     <ClCompile Include="pipe\CoroMutex.cpp" />
     <ClCompile Include="pipe\Pipe.cpp" />
