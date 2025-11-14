@@ -306,6 +306,9 @@
     <ClInclude Include="mc\QpcCalculator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="mc\SwapChainCoreState.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cli\CliFramework.cpp">
