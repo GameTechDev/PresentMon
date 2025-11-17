@@ -5,9 +5,9 @@
 #include "MetricsCalculator.h"
 
 struct SwapChainData;        // Defined in PresentData/PresentMonTraceConsumer.hpp
-struct fpsSwapChainData;     // Defined in IntelPresentMon/Interprocess/source/SyncData.h
+struct fpsSwapChainData;     // Defined in IntelPresentMon/
 struct ProcessInfo;          // Defined in PresentData/PresentMonTraceConsumer.hpp
-class InputToFsManager;      // Defined in IntelPresentMon/Interprocess/
+class InputToFsManager;      // Defined in 
 
 namespace pmon::util::metrics {
     // Policy interface - works with forward-declared types

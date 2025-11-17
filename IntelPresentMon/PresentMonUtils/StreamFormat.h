@@ -129,6 +129,7 @@ struct PmNsmPresentEvent
 	uint32_t DriverThreadId;
 
 	uint32_t FrameId;           // ID for the logical frame that this Present is associated with.
+    uint32_t AppFrameId;        // Application provided frame ID
 
 	Runtime Runtime;
 	PresentMode PresentMode;

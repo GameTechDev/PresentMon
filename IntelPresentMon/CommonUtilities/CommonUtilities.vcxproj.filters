@@ -297,9 +297,6 @@
     <ClInclude Include="mc\MetricsCalculator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="mc\MetricsPolicies.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="mc\MetricsTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>

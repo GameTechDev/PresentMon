@@ -3,6 +3,7 @@
   <ItemGroup>
     <ClCompile Include="Style.cpp" />
     <ClCompile Include="ExtremeQueue.cpp" />
+    <ClCompile Include="MetricsCore.cpp" />
     <ClCompile Include="Timing.cpp" />
   </ItemGroup>
 </Project>

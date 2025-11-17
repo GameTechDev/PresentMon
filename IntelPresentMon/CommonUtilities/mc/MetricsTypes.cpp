@@ -56,8 +56,7 @@ namespace pmon::util::metrics {
         snap.frameId = p.FrameId;
         snap.processId = p.ProcessId;
         snap.threadId = p.ThreadId;
-        // Application provided frame ID
-        // snap.appFrameId = p.AppFrameId;
+        snap.appFrameId = p.AppFrameId;
 
         return snap;
     }

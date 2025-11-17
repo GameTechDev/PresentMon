@@ -69,7 +69,6 @@
     <ClInclude Include="Macro.h" />
     <ClInclude Include="Math.h" />
     <ClInclude Include="mc\MetricsCalculator.h" />
-    <ClInclude Include="mc\MetricsPolicies.h" />
     <ClInclude Include="mc\MetricsTypes.h" />
     <ClInclude Include="mc\QpcCalculator.h" />
     <ClInclude Include="mc\SwapChainCoreState.h" />
