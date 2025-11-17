@@ -134,6 +134,7 @@ private:
     // analysis stats
     int eventCount_ = 0;
     int keepCount_ = 0;
+    int metadataEventCount_ = 0;
     std::optional<uint64_t> firstTimestamp_;
     uint64_t lastTimestamp_ = 0;
     std::unordered_map<uint32_t, uint64_t> eventCountByProcess_;
@@ -218,6 +219,9 @@ public:
         }
         lastTimestamp_ = ts;
         eventCount_++;
+        if (hdr.ProviderId == Microsoft_Windows_EventMetadata::GUID) {
+            metadataEventCount_++;
+        }
         bool canDiscard = true;
         if (trimRangeQpc_) {
             // tail events always discardable
@@ -277,6 +281,10 @@ public:
     void SetTrimRangeMs(std::pair<double, double> range)
     {
         trimRangeMs_ = range;
+    }
+    int GetMetadataEventCount() const
+    {
+        return metadataEventCount_;
     }
     int GetKeepCount() const
     {
@@ -416,6 +424,7 @@ int main(int argc, const char** argv)
     const auto dur = tsr.second - tsr.first;
     std::cout << std::format(" ======== Report for [ {} ] ========\n", *opt.inputFile);
     std::cout << std::format("Total event count: {:L}\n", pCallbackProcessor->GetEventCount());
+    std::cout << std::format("Metadata event count: {:L}\n", pCallbackProcessor->GetMetadataEventCount());
     std::cout << std::format("Timestamp range {:L} - {:L} (duration: {:L})\n", tsr.first, tsr.second, dur);
     std::cout << std::format("Duration of trace in milliseconds: {:L}\n\n", double(dur) / 10'000.);
 

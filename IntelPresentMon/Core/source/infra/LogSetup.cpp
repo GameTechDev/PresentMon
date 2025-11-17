@@ -236,7 +236,7 @@ namespace p2c
 			try {
 				const auto fullPipeName = R"(\\.\pipe\)" + pipePrefix;
 				// wait maximum 1.5sec for pipe to be created
-				if (!pipe::DuplexPipe::WaitForAvailability(fullPipeName, 1500)) {
+				if (!pipe::DuplexPipe::WaitForAvailability(fullPipeName, 1500, true)) {
 					pmlog_warn(std::format("Failed to connect to logging source server {} after waiting 1.5s", pipePrefix));
 					return;
 				}

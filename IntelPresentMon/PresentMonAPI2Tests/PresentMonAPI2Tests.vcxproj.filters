@@ -27,7 +27,7 @@
     <ClCompile Include="RealtimeMetricTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="PolledPacedTests.cpp">
+    <ClCompile Include="PacedPollingTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="MultiClientTests.cpp">
@@ -57,6 +57,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="JobManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestProcess.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -161,7 +161,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 			
 			std::unique_ptr<pmapi::Session> pSession;
@@ -204,7 +204,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -279,7 +279,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -328,7 +328,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -377,7 +377,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -426,7 +426,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -475,7 +475,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -524,7 +524,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -573,7 +573,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -622,7 +622,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -678,7 +678,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -727,7 +727,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -782,7 +782,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -831,7 +831,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -880,7 +880,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -929,7 +929,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -978,7 +978,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1027,7 +1027,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1076,7 +1076,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1125,7 +1125,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1174,7 +1174,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1223,7 +1223,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1279,7 +1279,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1328,7 +1328,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1379,7 +1379,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1428,7 +1428,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1484,7 +1484,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1535,7 +1535,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1586,7 +1586,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1637,7 +1637,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1688,7 +1688,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1744,7 +1744,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1794,7 +1794,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;
@@ -1848,7 +1848,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
-			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500),
+			Assert::IsTrue(pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500),
 				L"Timeout waiting for service control pipe");
 
 			std::unique_ptr<pmapi::Session> pSession;

@@ -194,7 +194,12 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetIntrospectionRoot(PM_SESSION_HANDLE handle
 			return PM_STATUS_BAD_ARGUMENT;
 		}
 		const auto pIntro = LookupMiddleware_(handle).GetIntrospectionData();
-		AddHandleMapping_(handle, pIntro);
+		// we don't need the middleware to free introspection data
+		// detaching like this (eliding handle mapping) will allow introspection data
+		// to not obstruct cleanup of middleware
+		// if the lifecycle of marshalled introspection data changes this might need to
+		// change as well
+		// AddHandleMapping_(handle, pIntro);
 		*ppInterface = pIntro;
 		return PM_STATUS_SUCCESS;
 	}
@@ -212,9 +217,11 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFreeIntrospectionRoot(const PM_INTROSPECTION_
 			// freeing nullptr is a no-op
 			return PM_STATUS_SUCCESS;
 		}
-		auto& mid = LookupMiddleware_(pInterface);
-		RemoveHandleMapping_(pInterface);
-		mid.FreeIntrospectionData(pInterface);
+		// see note in pmGetIntrospectionRoot above
+		// RemoveHandleMapping_(pInterface);
+		// if we free directly here instead of using the middleware method
+		// we can support freeing even after middleware has been destroyed
+		free(const_cast<PM_INTROSPECTION_ROOT*>(pInterface));
 		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {

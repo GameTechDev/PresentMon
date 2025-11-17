@@ -33,6 +33,7 @@
 #include "MetricListSample.h"
 #include "MultiClient.h"
 #include "EtlLogger.h"
+#include "PacedPlayback.h"
 #include "LogDemo.h"
 #include "DiagnosticDemo.h"
 #include "LogSetup.h"
@@ -228,7 +229,7 @@ void RunPlaybackDynamicQueryN()
         };
 
         // connect to the service with custom control pipe name
-        pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500);
+        pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500);
         auto api = pmapi::Session{ pipeName };
 
         std::ofstream csv{ std::format("polled_{}.csv", x)};
@@ -292,7 +293,7 @@ void IntrospectAllDynamicOptions()
     };
 
     // connect to the service with custom control pipe name
-    pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName + "-in", 500);
+    pmon::util::pipe::DuplexPipe::WaitForAvailability(pipeName, 500);
     auto api = pmapi::Session{ pipeName };
 
     auto pIntro = api.GetIntrospectionRoot();
@@ -320,7 +321,9 @@ int main(int argc, char* argv[])
 {
     try {
         // command line options initialization
-        if (auto e = clio::Options::Init(argc, argv)) {
+        if (auto e = clio::Options::Init(argc, argv, true)) {
+            pmlog_error(clio::Options::GetDiagnostics()).no_trace();
+            std::cerr << clio::Options::GetDiagnostics() << std::endl;
             return *e;
         }
         auto& opt = clio::Options::Get();
@@ -371,6 +374,8 @@ int main(int argc, char* argv[])
             return MultiClientTest(ConnectSession());
         case clio::Mode::EtlLogger:
             return EtlLoggerTest(ConnectSession());
+        case clio::Mode::PacedPlayback:
+            return PacedPlaybackTest(ConnectSession());
         case clio::Mode::PlaybackDynamicQuery:
             RunPlaybackDynamicQueryN(); break;
         case clio::Mode::PlaybackFrameQuery:
@@ -380,17 +385,13 @@ int main(int argc, char* argv[])
         default:
             throw std::runtime_error{ "unknown sample client mode" };
         }
-
-        // exit code
-        return 0;
-    }
-    catch (const std::exception& e) {
-        std::cout << "Error: " << e.what() << std::endl;
-        return -1;
     }
     catch (...) {
-        std::cout << "Unknown Error" << std::endl;
+        const auto exr = pmon::util::ReportException();
+        std::cout << "Error: " << exr.first << std::endl;
+        pmlog_error(exr);
         return -1;
     }
 
+    return 0;
 }
