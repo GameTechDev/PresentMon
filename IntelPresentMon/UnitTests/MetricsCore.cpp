@@ -1,7 +1,7 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include <CppUnitTest.h>
-#include <CommonUtilities/mc/QpcCalculator.h>
+#include <CommonUtilities/qpc.h>
 #include <CommonUtilities/mc/MetricsTypes.h>
 #include <CommonUtilities/mc/MetricsCalculator.h>
 #include <CommonUtilities/mc/SwapChainCoreState.h>
@@ -10,6 +10,7 @@
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace pmon::util::metrics;
+using namespace pmon::util;
 
 namespace MetricsCoreTests
 {
@@ -17,68 +18,68 @@ namespace MetricsCoreTests
     // SECTION 1: Core Types & Foundation
     // ============================================================================
 
-    TEST_CLASS(QpcCalculatorTests)
+    TEST_CLASS(QpcConverterTests)
     {
     public:
         TEST_METHOD(TimestampDeltaToMilliSeconds_BasicConversion)
         {
             // 10MHz QPC frequency (10,000,000 ticks per second)
-            QpcCalculator qpc(10'000'000, 0);
+            QpcConverter qpc(10'000'000, 0);
 
             // 10,000 ticks = 1 millisecond at 10MHz
-            double result = qpc.TimestampDeltaToMilliSeconds(10'000);
+            double result = qpc.DurationMilliSeconds(10'000);
             Assert::AreEqual(1.0, result, 0.0001);
         }
 
         TEST_METHOD(TimestampDeltaToMilliSeconds_ZeroDuration)
         {
-            QpcCalculator qpc(10'000'000, 0);
-            double result = qpc.TimestampDeltaToMilliSeconds(0);
+            QpcConverter qpc(10'000'000, 0);
+            double result = qpc.DurationMilliSeconds(0);
             Assert::AreEqual(0.0, result);
         }
 
         TEST_METHOD(TimestampDeltaToMilliSeconds_LargeDuration)
         {
-            QpcCalculator qpc(10'000'000, 0);
+            QpcConverter qpc(10'000'000, 0);
 
             // 100,000,000 ticks = 10,000 milliseconds at 10MHz
-            double result = qpc.TimestampDeltaToMilliSeconds(100'000'000);
+            double result = qpc.DurationMilliSeconds(100'000'000);
             Assert::AreEqual(10'000.0, result, 0.01);
         }
 
         TEST_METHOD(TimestampDeltaToUnsignedMilliSeconds_ForwardTime)
         {
-            QpcCalculator qpc(10'000'000, 0);
+            QpcConverter qpc(10'000'000, 0);
 
             // Start at 1000, end at 11000 (10,000 ticks = 1ms)
-            double result = qpc.TimestampDeltaToUnsignedMilliSeconds(1000, 11'000);
+            double result = qpc.DeltaUnsignedMilliSeconds(1000, 11'000);
             Assert::AreEqual(1.0, result, 0.0001);
         }
 
         TEST_METHOD(TimestampDeltaToUnsignedMilliSeconds_ZeroDelta)
         {
-            QpcCalculator qpc(10'000'000, 0);
-            double result = qpc.TimestampDeltaToUnsignedMilliSeconds(5000, 5000);
+            QpcConverter qpc(10'000'000, 0);
+            double result = qpc.DeltaUnsignedMilliSeconds(5000, 5000);
             Assert::AreEqual(0.0, result);
         }
 
         TEST_METHOD(TimestampDeltaToUnsignedMilliSeconds_TypicalFrameTime)
         {
             // Typical QPC frequency: ~10MHz
-            QpcCalculator qpc(10'000'000, 0);
+            QpcConverter qpc(10'000'000, 0);
 
             // 16.666ms frame time at 60fps
             uint64_t frameTimeTicks = 166'660;
-            double result = qpc.TimestampDeltaToUnsignedMilliSeconds(0, frameTimeTicks);
+            double result = qpc.DurationMilliSeconds(frameTimeTicks);
             Assert::AreEqual(16.666, result, 0.001);
         }
 
         TEST_METHOD(GetStartTimestamp_ReturnsCorrectValue)
         {
             uint64_t startTime = 123'456'789;
-            QpcCalculator qpc(10'000'000, startTime);
+            QpcConverter qpc(10'000'000, startTime);
 
-            Assert::AreEqual(startTime, qpc.GetStartTimestamp());
+            Assert::AreEqual(startTime, qpc.GetSessionStartTimestamp());
         }
     };
 
@@ -716,7 +717,7 @@ namespace MetricsCoreTests
     public:
         TEST_METHOD(UsesCpuStartSource)
         {
-            QpcCalculator qpc{ 10000000, 0 };  // 10 MHz for easy math
+            QpcConverter qpc{ 10000000, 0 };  // 10 MHz for easy math
 
             SwapChainCoreState swapChain{};
             FrameData lastApp{};
@@ -735,7 +736,7 @@ namespace MetricsCoreTests
 
         TEST_METHOD(UsesAppProviderSource)
         {
-            QpcCalculator qpc{ 10000000, 0 };
+            QpcConverter qpc{ 10000000, 0 };
 
             SwapChainCoreState swapChain{};
             FrameData lastApp{};
@@ -754,7 +755,7 @@ namespace MetricsCoreTests
 
         TEST_METHOD(UsesPCLatencySource)
         {
-            QpcCalculator qpc{ 10000000, 0 };
+            QpcConverter qpc{ 10000000, 0 };
 
             SwapChainCoreState swapChain{};
             FrameData lastApp{};
@@ -773,7 +774,7 @@ namespace MetricsCoreTests
 
         TEST_METHOD(AppProviderFallsBackToCpuStartWhenZero)
         {
-            QpcCalculator qpc{ 10000000, 0 };
+            QpcConverter qpc{ 10000000, 0 };
 
             SwapChainCoreState swapChain{};
             FrameData lastApp{};
@@ -792,7 +793,7 @@ namespace MetricsCoreTests
 
         TEST_METHOD(PCLatencyFallsBackToCpuStartWhenZero)
         {
-            QpcCalculator qpc{ 10000000, 0 };
+            QpcConverter qpc{ 10000000, 0 };
 
             SwapChainCoreState swapChain{};
             FrameData lastApp{};
@@ -815,7 +816,7 @@ namespace MetricsCoreTests
     public:
         TEST_METHOD(ComputesRelativeTime)
         {
-            QpcCalculator qpc{ 10000000, 0 };  // 10 MHz QPC frequency
+            QpcConverter qpc{ 10000000, 0 };  // 10 MHz QPC frequency
 
             uint64_t firstSimStart = 1000;
             uint64_t currentSimStart = 1500;  // 500 ticks later
@@ -828,7 +829,7 @@ namespace MetricsCoreTests
 
         TEST_METHOD(HandlesZeroFirst)
         {
-            QpcCalculator qpc{ 10000000, 0 };
+            QpcConverter qpc{ 10000000, 0 };
 
             uint64_t firstSimStart = 0;  // Not initialized yet
             uint64_t currentSimStart = 1500;
@@ -841,7 +842,7 @@ namespace MetricsCoreTests
 
         TEST_METHOD(HandlesSameTimestamp)
         {
-            QpcCalculator qpc{ 10000000, 0 };
+            QpcConverter qpc{ 10000000, 0 };
 
             uint64_t firstSimStart = 1000;
             uint64_t currentSimStart = 1000;  // Same as first
@@ -854,7 +855,7 @@ namespace MetricsCoreTests
 
         TEST_METHOD(HandlesLargeTimespan)
         {
-            QpcCalculator qpc{ 10000000, 0 };  // 10 MHz
+            QpcConverter qpc{ 10000000, 0 };  // 10 MHz
 
             uint64_t firstSimStart = 1000;
             uint64_t currentSimStart = 1000 + (10000000 * 5);  // +5 seconds in ticks
@@ -867,7 +868,7 @@ namespace MetricsCoreTests
 
         TEST_METHOD(HandlesBackwardsTime)
         {
-            QpcCalculator qpc{ 10000000, 0 };
+            QpcConverter qpc{ 10000000, 0 };
 
             uint64_t firstSimStart = 2000;
             uint64_t currentSimStart = 1000;  // Earlier than first (unusual but possible)

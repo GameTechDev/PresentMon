@@ -3,7 +3,7 @@
 #pragma once
 #include <cstdint>
 #include <optional>
-#include "QpcCalculator.h"
+#include "../qpc.h"
 #include "MetricsTypes.h"
 #include "SwapChainCoreState.h"
 
@@ -41,7 +41,7 @@ namespace pmon::util::metrics
     // === Pure Calculation Functions ===
 
     ComputedMetrics ComputeFrameMetrics(
-        const QpcCalculator& qpc,
+        const QpcConverter& qpc,
         const FrameData& present,
         const FrameData* nextDisplayed,
         const SwapChainCoreState& chain);
@@ -59,7 +59,7 @@ namespace pmon::util::metrics
 
     // Helper: Calculate animation time
     double CalculateAnimationTime(
-        const QpcCalculator& qpc,
+        const QpcConverter& qpc,
         uint64_t firstAppSimStartTime,
         uint64_t currentSimTime);
 }

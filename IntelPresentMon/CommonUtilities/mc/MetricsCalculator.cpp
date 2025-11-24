@@ -62,7 +62,7 @@ namespace pmon::util::metrics
     }
 
     ComputedMetrics ComputeFrameMetrics(
-        const QpcCalculator& qpc,
+        const QpcConverter& qpc,
         const FrameData& present,
         const FrameData* nextDisplayed,
         const SwapChainCoreState& chain)
@@ -126,14 +126,14 @@ namespace pmon::util::metrics
 
     // Helper: Calculate animation time
     double CalculateAnimationTime(
-        const QpcCalculator& qpc,
+        const QpcConverter& qpc,
         uint64_t firstAppSimStartTime,
         uint64_t currentSimTime)
     {
         double animationTime = 0.0;
-        uint64_t firstSimStartTime = firstAppSimStartTime != 0 ? firstAppSimStartTime : qpc.GetStartTimestamp();
+        uint64_t firstSimStartTime = firstAppSimStartTime != 0 ? firstAppSimStartTime : qpc.GetSessionStartTimestamp();
         if (currentSimTime > firstSimStartTime) {
-            animationTime = qpc.TimestampDeltaToMilliSeconds(firstSimStartTime, currentSimTime);
+            animationTime = qpc.DeltaUnsignedMilliSeconds(firstSimStartTime, currentSimTime);
         }
         return animationTime;
     }
