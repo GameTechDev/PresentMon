@@ -8,21 +8,20 @@
 
 namespace pmon::util::metrics {
 
-template<typename PresentStorageT>
 struct SwapChainCoreState {
 
     // Pending and Historical Presents
     
     // Pending presents waiting for the next displayed present.
-    std::vector<PresentStorageT> pendingPresents;
+    std::vector<FrameData> pendingPresents;
 
     // The most recent present that has been processed (e.g., output into CSV and/or used for frame
     // statistics).
-    std::optional<PresentStorageT> lastPresent;
+    std::optional<FrameData> lastPresent;
 
     // The most recent app present that has been processed (e.g., output into CSV and/or used for frame
     // statistics).
-    std::optional<PresentStorageT> lastAppPresent;
+    std::optional<FrameData> lastAppPresent;
 
     // Timing State
 

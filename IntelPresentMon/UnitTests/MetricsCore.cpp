@@ -24,7 +24,7 @@ namespace MetricsCoreTests
         {
             // 10MHz QPC frequency (10,000,000 ticks per second)
             QpcCalculator qpc(10'000'000, 0);
-            
+
             // 10,000 ticks = 1 millisecond at 10MHz
             double result = qpc.TimestampDeltaToMilliSeconds(10'000);
             Assert::AreEqual(1.0, result, 0.0001);
@@ -40,7 +40,7 @@ namespace MetricsCoreTests
         TEST_METHOD(TimestampDeltaToMilliSeconds_LargeDuration)
         {
             QpcCalculator qpc(10'000'000, 0);
-            
+
             // 100,000,000 ticks = 10,000 milliseconds at 10MHz
             double result = qpc.TimestampDeltaToMilliSeconds(100'000'000);
             Assert::AreEqual(10'000.0, result, 0.01);
@@ -49,7 +49,7 @@ namespace MetricsCoreTests
         TEST_METHOD(TimestampDeltaToUnsignedMilliSeconds_ForwardTime)
         {
             QpcCalculator qpc(10'000'000, 0);
-            
+
             // Start at 1000, end at 11000 (10,000 ticks = 1ms)
             double result = qpc.TimestampDeltaToUnsignedMilliSeconds(1000, 11'000);
             Assert::AreEqual(1.0, result, 0.0001);
@@ -66,7 +66,7 @@ namespace MetricsCoreTests
         {
             // Typical QPC frequency: ~10MHz
             QpcCalculator qpc(10'000'000, 0);
-            
+
             // 16.666ms frame time at 60fps
             uint64_t frameTimeTicks = 166'660;
             double result = qpc.TimestampDeltaToUnsignedMilliSeconds(0, frameTimeTicks);
@@ -77,7 +77,7 @@ namespace MetricsCoreTests
         {
             uint64_t startTime = 123'456'789;
             QpcCalculator qpc(10'000'000, startTime);
-            
+
             Assert::AreEqual(startTime, qpc.GetStartTimestamp());
         }
     };
@@ -96,92 +96,92 @@ namespace MetricsCoreTests
             nsmEvent.GPUDuration = 800;
             nsmEvent.GPUVideoDuration = 300;
 
-            auto snap = PresentSnapshot::FromCircularBuffer(nsmEvent);
+            auto frame = FrameData::CopyFrameData(nsmEvent);
 
-            Assert::AreEqual(1000ull, snap.presentStartTime);
-            Assert::AreEqual(2000ull, snap.readyTime);
-            Assert::AreEqual(500ull, snap.timeInPresent);
-            Assert::AreEqual(1200ull, snap.gpuStartTime);
-            Assert::AreEqual(800ull, snap.gpuDuration);
-            Assert::AreEqual(300ull, snap.gpuVideoDuration);
+            Assert::AreEqual(1000ull, frame.presentStartTime);
+            Assert::AreEqual(2000ull, frame.readyTime);
+            Assert::AreEqual(500ull, frame.timeInPresent);
+            Assert::AreEqual(1200ull, frame.gpuStartTime);
+            Assert::AreEqual(800ull, frame.gpuDuration);
+            Assert::AreEqual(300ull, frame.gpuVideoDuration);
         }
 
         TEST_METHOD(FromCircularBuffer_CopiesAppPropagatedData)
         {
             PmNsmPresentEvent nsmEvent{};
-            nsmEvent.AppPropagatedPresentStartTime = 5000;
-            nsmEvent.AppPropagatedTimeInPresent = 600;
-            nsmEvent.AppPropagatedGPUStartTime = 5200;
-            nsmEvent.AppPropagatedReadyTime = 6000;
-            nsmEvent.AppPropagatedGPUDuration = 800;
-            nsmEvent.AppPropagatedGPUVideoDuration = 200;
+            nsmEvent.AppPropagatedPresentStartTime =5000;
+            nsmEvent.AppPropagatedTimeInPresent =600;
+            nsmEvent.AppPropagatedGPUStartTime =5200;
+            nsmEvent.AppPropagatedReadyTime =6000;
+            nsmEvent.AppPropagatedGPUDuration =800;
+            nsmEvent.AppPropagatedGPUVideoDuration =200;
 
-            auto snap = PresentSnapshot::FromCircularBuffer(nsmEvent);
+            auto frame = FrameData::CopyFrameData(nsmEvent);
 
-            Assert::AreEqual(5000ull, snap.appPropagatedPresentStartTime);
-            Assert::AreEqual(600ull, snap.appPropagatedTimeInPresent);
-            Assert::AreEqual(5200ull, snap.appPropagatedGPUStartTime);
-            Assert::AreEqual(6000ull, snap.appPropagatedReadyTime);
-            Assert::AreEqual(800ull, snap.appPropagatedGPUDuration);
-            Assert::AreEqual(200ull, snap.appPropagatedGPUVideoDuration);
+            Assert::AreEqual(5000ull, frame.appPropagatedPresentStartTime);
+            Assert::AreEqual(600ull, frame.appPropagatedTimeInPresent);
+            Assert::AreEqual(5200ull, frame.appPropagatedGPUStartTime);
+            Assert::AreEqual(6000ull, frame.appPropagatedReadyTime);
+            Assert::AreEqual(800ull, frame.appPropagatedGPUDuration);
+            Assert::AreEqual(200ull, frame.appPropagatedGPUVideoDuration);
         }
 
         TEST_METHOD(FromCircularBuffer_CopiesInstrumentedTimestamps)
         {
             PmNsmPresentEvent nsmEvent{};
-            nsmEvent.AppSimStartTime = 100;
-            nsmEvent.AppSleepStartTime = 200;
-            nsmEvent.AppSleepEndTime = 250;
-            nsmEvent.AppRenderSubmitStartTime = 300;
+            nsmEvent.AppSimStartTime =100;
+            nsmEvent.AppSleepStartTime =200;
+            nsmEvent.AppSleepEndTime =250;
+            nsmEvent.AppRenderSubmitStartTime =300;
 
-            auto snap = PresentSnapshot::FromCircularBuffer(nsmEvent);
+            auto frame = FrameData::CopyFrameData(nsmEvent);
 
-            Assert::AreEqual(100ull, snap.appSimStartTime);
-            Assert::AreEqual(200ull, snap.appSleepStartTime);
-            Assert::AreEqual(250ull, snap.appSleepEndTime);
-            Assert::AreEqual(300ull, snap.appRenderSubmitStartTime);
+            Assert::AreEqual(100ull, frame.appSimStartTime);
+            Assert::AreEqual(200ull, frame.appSleepStartTime);
+            Assert::AreEqual(250ull, frame.appSleepEndTime);
+            Assert::AreEqual(300ull, frame.appRenderSubmitStartTime);
         }
 
         TEST_METHOD(FromCircularBuffer_CopiesPcLatencyData)
         {
             PmNsmPresentEvent nsmEvent{};
-            nsmEvent.PclSimStartTime = 7000;
-            nsmEvent.PclInputPingTime = 6500;
+            nsmEvent.PclSimStartTime =7000;
+            nsmEvent.PclInputPingTime =6500;
 
-            auto snap = PresentSnapshot::FromCircularBuffer(nsmEvent);
+            auto frame = FrameData::CopyFrameData(nsmEvent);
 
-            Assert::AreEqual(7000ull, snap.pclSimStartTime);
-            Assert::AreEqual(6500ull, snap.pclInputPingTime);
+            Assert::AreEqual(7000ull, frame.pclSimStartTime);
+            Assert::AreEqual(6500ull, frame.pclInputPingTime);
         }
 
         TEST_METHOD(FromCircularBuffer_CopiesInputTimes)
         {
             PmNsmPresentEvent nsmEvent{};
-            nsmEvent.InputTime = 8000;
-            nsmEvent.MouseClickTime = 8050;
+            nsmEvent.InputTime =8000;
+            nsmEvent.MouseClickTime =8050;
 
-            auto snap = PresentSnapshot::FromCircularBuffer(nsmEvent);
+            auto frame = FrameData::CopyFrameData(nsmEvent);
 
-            Assert::AreEqual(8000ull, snap.inputTime);
-            Assert::AreEqual(8050ull, snap.mouseClickTime);
+            Assert::AreEqual(8000ull, frame.inputTime);
+            Assert::AreEqual(8050ull, frame.mouseClickTime);
         }
 
         TEST_METHOD(FromCircularBuffer_NormalizesDisplayArrays)
         {
             PmNsmPresentEvent nsmEvent{};
-            nsmEvent.DisplayedCount = 2;
+            nsmEvent.DisplayedCount =2;
             nsmEvent.Displayed_FrameType[0] = FrameType::Application;
-            nsmEvent.Displayed_ScreenTime[0] = 9000;
+            nsmEvent.Displayed_ScreenTime[0] =9000;
             nsmEvent.Displayed_FrameType[1] = FrameType::Repeated;
-            nsmEvent.Displayed_ScreenTime[1] = 9500;
+            nsmEvent.Displayed_ScreenTime[1] =9500;
 
-            auto snap = PresentSnapshot::FromCircularBuffer(nsmEvent);
+            auto frame = FrameData::CopyFrameData(nsmEvent);
 
-            Assert::AreEqual(size_t(2), snap.displayed.size());
-            Assert::IsTrue(snap.displayed[0].frameType == FrameType::Application);
-            Assert::AreEqual(9000ull, snap.displayed[0].screenTime);
-            Assert::IsTrue(snap.displayed[1].frameType == FrameType::Repeated);
-            Assert::AreEqual(9500ull, snap.displayed[1].screenTime);
+            Assert::AreEqual(size_t(2), frame.displayed.size());
+            Assert::IsTrue(frame.displayed[0].first == FrameType::Application);
+            Assert::AreEqual(9000ull, frame.displayed[0].second);
+            Assert::IsTrue(frame.displayed[1].first == FrameType::Repeated);
+            Assert::AreEqual(9500ull, frame.displayed[1].second);
         }
 
         TEST_METHOD(FromCircularBuffer_HandlesEmptyDisplayArray)
@@ -189,25 +189,25 @@ namespace MetricsCoreTests
             PmNsmPresentEvent nsmEvent{};
             nsmEvent.DisplayedCount = 0;
 
-            auto snap = PresentSnapshot::FromCircularBuffer(nsmEvent);
+            auto frame = FrameData::CopyFrameData(nsmEvent);
 
-            Assert::AreEqual(size_t(0), snap.displayed.size());
+            Assert::AreEqual(size_t(0), frame.displayed.size());
         }
 
         TEST_METHOD(FromCircularBuffer_CopiesMetadata)
         {
             PmNsmPresentEvent nsmEvent{};
-            nsmEvent.ProcessId = 1234;
-            nsmEvent.ThreadId = 5678;
-            nsmEvent.SwapChainAddress = 0xDEADBEEF;
-            nsmEvent.FrameId = 42;
+            nsmEvent.ProcessId =1234;
+            nsmEvent.ThreadId =5678;
+            nsmEvent.SwapChainAddress =0xDEADBEEF;
+            nsmEvent.FrameId =42;
 
-            auto snap = PresentSnapshot::FromCircularBuffer(nsmEvent);
+            auto frame = FrameData::CopyFrameData(nsmEvent);
 
-            Assert::AreEqual(uint32_t(1234), snap.processId);
-            Assert::AreEqual(uint32_t(5678), snap.threadId);
-            Assert::AreEqual(uint64_t(0xDEADBEEF), snap.swapChainAddress);
-            Assert::AreEqual(uint32_t(42), snap.frameId);
+            Assert::AreEqual(uint32_t(1234), frame.processId);
+            Assert::AreEqual(uint32_t(5678), frame.threadId);
+            Assert::AreEqual(uint64_t(0xDEADBEEF), frame.swapChainAddress);
+            Assert::AreEqual(uint32_t(42), frame.frameId);
         }
     };
 
@@ -362,122 +362,521 @@ namespace MetricsCoreTests
 
         TEST_METHOD(DefaultConstruction_InitializesTimestampsToZero)
         {
-            SwapChainCoreState<std::shared_ptr<MockPresent>> state;
+            SwapChainCoreState swapChain;
 
-            Assert::AreEqual(0ull, state.lastSimStartTime);
-            Assert::AreEqual(0ull, state.lastDisplayedSimStartTime);
-            Assert::AreEqual(0ull, state.lastDisplayedScreenTime);
-            Assert::AreEqual(0ull, state.firstAppSimStartTime);
+            Assert::AreEqual(0ull, swapChain.lastSimStartTime);
+            Assert::AreEqual(0ull, swapChain.lastDisplayedSimStartTime);
+            Assert::AreEqual(0ull, swapChain.lastDisplayedScreenTime);
+            Assert::AreEqual(0ull, swapChain.firstAppSimStartTime);
         }
 
         TEST_METHOD(DefaultConstruction_InitializesOptionalPresentToEmpty)
         {
-            SwapChainCoreState<std::shared_ptr<MockPresent>> state;
+            SwapChainCoreState swapChain;
 
-            Assert::IsFalse(state.lastPresent.has_value());
-            Assert::IsFalse(state.lastAppPresent.has_value());
+            Assert::IsFalse(swapChain.lastPresent.has_value());
+            Assert::IsFalse(swapChain.lastAppPresent.has_value());
         }
 
-        TEST_METHOD(PendingPresents_CanStoreMultipleSharedPtrs)
+        TEST_METHOD(PendingPresents_CanStoreMultiplePendingPresents)
         {
-            SwapChainCoreState<std::shared_ptr<MockPresent>> state;
+            SwapChainCoreState swapChain;
 
-            auto p1 = std::make_shared<MockPresent>();
-            auto p2 = std::make_shared<MockPresent>();
-            auto p3 = std::make_shared<MockPresent>();
+            FrameData p1{};
+            FrameData p2{};
+            FrameData p3{};
 
-            state.pendingPresents.push_back(p1);
-            state.pendingPresents.push_back(p2);
-            state.pendingPresents.push_back(p3);
+            swapChain.pendingPresents.push_back(p1);
+            swapChain.pendingPresents.push_back(p2);
+            swapChain.pendingPresents.push_back(p3);
 
-            Assert::AreEqual(size_t(3), state.pendingPresents.size());
+            Assert::AreEqual(size_t(3), swapChain.pendingPresents.size());
         }
 
         TEST_METHOD(LastPresent_CanBeAssigned)
         {
-            SwapChainCoreState<std::shared_ptr<MockPresent>> state;
-            auto event = std::make_shared<MockPresent>();
-            event->presentStartTime = 12345;
+            SwapChainCoreState swapChain;
+            FrameData p1{};
+            p1.presentStartTime = 12345;
+            swapChain.lastPresent = p1;
 
-            state.lastPresent = event;
-
-            Assert::IsTrue(state.lastPresent.has_value());
-            Assert::AreEqual(12345ull, (*state.lastPresent)->presentStartTime);
+            Assert::IsTrue(swapChain.lastPresent.has_value());
+            Assert::AreEqual(12345ull, swapChain.lastPresent.value().presentStartTime);
         }
 
         TEST_METHOD(DroppedInputTracking_InitializesToZero)
         {
-            SwapChainCoreState<std::shared_ptr<MockPresent>> state;
+            SwapChainCoreState swapChain;
 
-            Assert::AreEqual(0ull, state.lastReceivedNotDisplayedAllInputTime);
-            Assert::AreEqual(0ull, state.lastReceivedNotDisplayedMouseClickTime);
-            Assert::AreEqual(0ull, state.lastReceivedNotDisplayedAppProviderInputTime);
+            Assert::AreEqual(0ull, swapChain.lastReceivedNotDisplayedAllInputTime);
+            Assert::AreEqual(0ull, swapChain.lastReceivedNotDisplayedMouseClickTime);
+            Assert::AreEqual(0ull, swapChain.lastReceivedNotDisplayedAppProviderInputTime);
         }
 
         TEST_METHOD(DroppedInputTracking_CanBeUpdated)
         {
-            SwapChainCoreState<std::shared_ptr<MockPresent>> state;
+            SwapChainCoreState swapChain;
 
-            state.lastReceivedNotDisplayedAllInputTime = 1000;
-            state.lastReceivedNotDisplayedMouseClickTime = 2000;
-            state.lastReceivedNotDisplayedAppProviderInputTime = 3000;
+            swapChain.lastReceivedNotDisplayedAllInputTime = 1000;
+            swapChain.lastReceivedNotDisplayedMouseClickTime = 2000;
+            swapChain.lastReceivedNotDisplayedAppProviderInputTime = 3000;
 
-            Assert::AreEqual(1000ull, state.lastReceivedNotDisplayedAllInputTime);
-            Assert::AreEqual(2000ull, state.lastReceivedNotDisplayedMouseClickTime);
-            Assert::AreEqual(3000ull, state.lastReceivedNotDisplayedAppProviderInputTime);
+            Assert::AreEqual(1000ull, swapChain.lastReceivedNotDisplayedAllInputTime);
+            Assert::AreEqual(2000ull, swapChain.lastReceivedNotDisplayedMouseClickTime);
+            Assert::AreEqual(3000ull, swapChain.lastReceivedNotDisplayedAppProviderInputTime);
         }
 
         TEST_METHOD(PcLatencyAccumulation_InitializesToZero)
         {
-            SwapChainCoreState<std::shared_ptr<MockPresent>> state;
+            SwapChainCoreState swapChain;
 
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime);
+            Assert::AreEqual(0.0, swapChain.accumulatedInput2FrameStartTime);
         }
 
-        TEST_METHOD(PcLatencyAccumulation_CanAccumulateDroppedFrames)
+        TEST_METHOD(PcLatencyAccumulation_CanAccumulateTime)
         {
-            SwapChainCoreState<std::shared_ptr<MockPresent>> state;
+            SwapChainCoreState swapChain;
 
             // Simulate accumulating 3 dropped frames at 16.666ms each
-            state.accumulatedInput2FrameStartTime += 16.666;
-            state.accumulatedInput2FrameStartTime += 16.666;
-            state.accumulatedInput2FrameStartTime += 16.666;
+            swapChain.accumulatedInput2FrameStartTime += 16.666;
+            swapChain.accumulatedInput2FrameStartTime += 16.666;
+            swapChain.accumulatedInput2FrameStartTime += 16.666;
 
-            Assert::AreEqual(49.998, state.accumulatedInput2FrameStartTime, 0.001);
+            Assert::AreEqual(49.998, swapChain.accumulatedInput2FrameStartTime, 0.001);
         }
 
         TEST_METHOD(AnimationErrorSource_DefaultsToCpuStart)
         {
-            SwapChainCoreState<std::shared_ptr<MockPresent>> state;
+            SwapChainCoreState swapChain;
 
-            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::CpuStart);
+            Assert::IsTrue(swapChain.animationErrorSource == AnimationErrorSource::CpuStart);
         }
 
         TEST_METHOD(AnimationErrorSource_CanBeChanged)
         {
-            SwapChainCoreState<std::shared_ptr<MockPresent>> state;
+            SwapChainCoreState swapChain;
 
-            state.animationErrorSource = AnimationErrorSource::PCLatency;
-            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::PCLatency);
+            swapChain.animationErrorSource = AnimationErrorSource::PCLatency;
+            Assert::IsTrue(swapChain.animationErrorSource == AnimationErrorSource::PCLatency);
 
-            state.animationErrorSource = AnimationErrorSource::AppProvider;
-            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider);
+            swapChain.animationErrorSource = AnimationErrorSource::AppProvider;
+            Assert::IsTrue(swapChain.animationErrorSource == AnimationErrorSource::AppProvider);
+        }
+    };
+
+    // ============================================================================
+    // SECTION 2: DisplayIndexing Calculator
+    // ============================================================================
+
+    TEST_CLASS(DisplayIndexingTests)
+    {
+    public:
+        TEST_METHOD(Calculate_NoDisplayedFrames_ReturnsEmptyRange)
+        {
+            FrameData present{};
+            // No displayed frames
+            present.displayed.clear();
+
+            auto result = DisplayIndexing::Calculate(present, nullptr);
+
+            Assert::AreEqual(size_t(0), result.startIndex);
+            Assert::AreEqual(size_t(0), result.endIndex);
+            Assert::AreEqual(size_t(0), result.appIndex);  // No displays → appIndex = 0
+            Assert::IsFalse(result.hasNextDisplayed);
         }
 
-        TEST_METHOD(WorksWithPresentSnapshotType)
+        TEST_METHOD(Calculate_SingleDisplay_NoNext_Postponed)
         {
-            // Verify template instantiation works with PresentSnapshot too
-            SwapChainCoreState<PresentSnapshot> state;
+            FrameData present{};
+            present.displayed.push_back({ FrameType::Application, 1000 });
+            present.setFinalState(PresentResult::Presented);
 
-            PresentSnapshot snap{};
-            snap.presentStartTime = 5000;
+            auto result = DisplayIndexing::Calculate(present, nullptr);
 
-            state.pendingPresents.push_back(snap);
-            state.lastPresent = snap;
+            // Single display with no next = postponed (empty range)
+            Assert::AreEqual(size_t(0), result.startIndex);
+            Assert::AreEqual(size_t(0), result.endIndex);  // Empty! Postponed
+            Assert::AreEqual(size_t(0), result.appIndex);  // Would be 0 if processed
+            Assert::IsFalse(result.hasNextDisplayed);
+        }
 
-            Assert::AreEqual(size_t(1), state.pendingPresents.size());
-            Assert::IsTrue(state.lastPresent.has_value());
-            Assert::AreEqual(5000ull, state.lastPresent->presentStartTime);
+        TEST_METHOD(Calculate_MultipleDisplays_NoNext_PostponeLast)
+        {
+            FrameData present{};
+            present.displayed.push_back({ FrameType::Application, 1000 });
+            present.displayed.push_back({ FrameType::Repeated, 2000 });
+            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            present.setFinalState(PresentResult::Presented);
+
+            auto result = DisplayIndexing::Calculate(present, nullptr);
+
+            // Process [0..1], postpone [2]
+            Assert::AreEqual(size_t(0), result.startIndex);
+            Assert::AreEqual(size_t(2), result.endIndex);  // Excludes last!
+            Assert::AreEqual(size_t(0), result.appIndex);  // App frame at index 0
+            Assert::IsFalse(result.hasNextDisplayed);
+        }
+
+        TEST_METHOD(Calculate_MultipleDisplays_WithNext_ProcessPostponed)
+        {
+            FrameData present{};
+            present.displayed.push_back({ FrameType::Application, 1000 });
+            present.displayed.push_back({ FrameType::Repeated, 2000 });
+            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            present.setFinalState(PresentResult::Presented);
+
+            FrameData next{};
+            next.displayed.push_back({ FrameType::Application, 4000 });
+
+            auto result = DisplayIndexing::Calculate(present, &next);
+
+            // Process only postponed last display [2]
+            Assert::AreEqual(size_t(2), result.startIndex);
+            Assert::AreEqual(size_t(3), result.endIndex);
+            Assert::AreEqual(SIZE_MAX, result.appIndex);  // No app frame at [2], it's Repeated
+            Assert::IsTrue(result.hasNextDisplayed);
+        }
+
+        TEST_METHOD(Calculate_NotDisplayed_ReturnsEmptyRange)
+        {
+            FrameData present{};
+            present.displayed.push_back({ FrameType::Application, 1000 });
+            present.displayed.push_back({ FrameType::Repeated, 2000 });
+            // Don't set finalState = Presented, so displayed = false
+
+            auto result = DisplayIndexing::Calculate(present, nullptr);
+
+            // Not displayed → empty range
+            Assert::AreEqual(size_t(0), result.startIndex);
+            Assert::AreEqual(size_t(0), result.endIndex);
+            Assert::AreEqual(size_t(0), result.appIndex);  // Fallback when displayCount > 0 but not displayed
+            Assert::IsFalse(result.hasNextDisplayed);
+        }
+
+        TEST_METHOD(Calculate_FindsAppFrameIndex_Displayed)
+        {
+            FrameData present{};
+            present.displayed.push_back({ FrameType::Repeated, 1000 });
+            present.displayed.push_back({ FrameType::Application, 2000 });
+            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            present.setFinalState(PresentResult::Presented);
+
+            auto result = DisplayIndexing::Calculate(present, nullptr);
+
+            // Process [0..1], postpone [2]
+            Assert::AreEqual(size_t(0), result.startIndex);
+            Assert::AreEqual(size_t(2), result.endIndex);
+            Assert::AreEqual(size_t(1), result.appIndex);  // App at index 1
+        }
+
+        TEST_METHOD(Calculate_FindsAppFrameIndex_NotDisplayed)
+        {
+            FrameData present{};
+            present.displayed.push_back({ FrameType::Repeated, 1000 });
+            present.displayed.push_back({ FrameType::Application, 2000 });
+            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            // Not displayed
+
+            auto result = DisplayIndexing::Calculate(present, nullptr);
+
+            // Not displayed → empty range
+            Assert::AreEqual(size_t(0), result.startIndex);
+            Assert::AreEqual(size_t(0), result.endIndex);
+        }
+
+        TEST_METHOD(Calculate_AllRepeatedFrames_AppIndexInvalid)
+        {
+            FrameData present{};
+            present.displayed.push_back({ FrameType::Repeated, 1000 });
+            present.displayed.push_back({ FrameType::Repeated, 2000 });
+            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            present.setFinalState(PresentResult::Presented);
+
+            auto result = DisplayIndexing::Calculate(present, nullptr);
+
+            // Process [0..1], postpone [2]
+            Assert::AreEqual(size_t(0), result.startIndex);
+            Assert::AreEqual(size_t(2), result.endIndex);
+            Assert::AreEqual(SIZE_MAX, result.appIndex);  // No app frame found
+        }
+
+        TEST_METHOD(Calculate_MultipleAppFrames_FindsFirst)
+        {
+            FrameData present{};
+            present.displayed.push_back({ FrameType::Application, 1000 });
+            present.displayed.push_back({ FrameType::Application, 2000 });
+            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            present.setFinalState(PresentResult::Presented);
+
+            auto result = DisplayIndexing::Calculate(present, nullptr);
+
+            // Process [0..1], postpone [2]
+            Assert::AreEqual(size_t(0), result.startIndex);
+            Assert::AreEqual(size_t(2), result.endIndex);
+            Assert::AreEqual(size_t(0), result.appIndex);  // First app frame
+        }
+
+        TEST_METHOD(Calculate_WorksWithFrameData)
+        {
+            // Verify template works with FrameData
+            FrameData present{};
+            present.displayed.push_back({ FrameType::Application, 1000 });
+            present.setFinalState(PresentResult::Presented);
+
+            auto result = DisplayIndexing::Calculate(present, nullptr);
+
+            Assert::AreEqual(size_t(0), result.startIndex);
+            Assert::AreEqual(size_t(0), result.endIndex); // Postponed [0], nothing processed
+            Assert::IsTrue(result.appIndex == 0);
+        }
+    };
+
+    // ============================================================================
+    // SECTION 3: Helper Functions
+    // ============================================================================
+
+    TEST_CLASS(CalculateCPUStartTests)
+    {
+    public:
+        TEST_METHOD(UsesAppPropagatedWhenAvailable)
+        {
+            // Setup: swapchain with lastAppPresent that has AppPropagated data
+            SwapChainCoreState swapChain{};
+            FrameData lastApp{};
+            lastApp.appPropagatedPresentStartTime = 1000;
+            lastApp.appPropagatedTimeInPresent = 50;
+            swapChain.lastAppPresent = lastApp;  // std::optional assignment
+
+            FrameData current{};
+            current.presentStartTime = 2000;
+
+            auto result = CalculateCPUStart(swapChain, current);
+
+            // Should use appPropagated: 1000 + 50 = 1050
+            Assert::AreEqual(1050ull, result);
+        }
+
+        TEST_METHOD(FallsBackToRegularPresentStart)
+        {
+            // Setup: swapchain with lastAppPresent but NO appPropagated data
+            SwapChainCoreState swapChain{};
+            FrameData lastApp{};
+            lastApp.appPropagatedPresentStartTime = 0;  // No propagated data
+            lastApp.presentStartTime = 1000;
+            lastApp.timeInPresent = 50;
+            swapChain.lastAppPresent = lastApp;
+
+            FrameData current{};
+
+            auto result = CalculateCPUStart(swapChain, current);
+
+            // Should use regular: 1000 + 50 = 1050
+            Assert::AreEqual(1050ull, result);
+        }
+
+        TEST_METHOD(UsesLastPresentWhenNoAppPresent)
+        {
+            // Setup: swapchain with lastPresent but NO lastAppPresent
+            SwapChainCoreState swapChain{};
+            // lastAppPresent is std::nullopt by default
+
+            FrameData lastPresent{};
+            lastPresent.presentStartTime = 1000;
+            lastPresent.timeInPresent = 50;
+            swapChain.lastPresent = lastPresent;
+
+            FrameData current{};
+            current.timeInPresent = 30;
+
+            auto result = CalculateCPUStart(swapChain, current);
+
+            // Should use lastPresents values: 1000 + 50 (last presents start time and the 
+            // time it spent in that present). This would equal the last presents
+            // stop time which is the earliest the application can start the next frame.
+            Assert::AreEqual(1050ull, result);
+        }
+
+        TEST_METHOD(ReturnsZeroWhenNoHistory)
+        {
+            // Setup: empty chain (both optionals are std::nullopt)
+            SwapChainCoreState swapChain{};
+
+            FrameData current{};
+            current.presentStartTime = 2000;
+
+            auto result = CalculateCPUStart(swapChain, current);
+
+            // Should return 0 when no history
+            Assert::AreEqual(0ull, result);
+        }
+    };
+
+    TEST_CLASS(CalculateSimStartTimeTests)
+    {
+    public:
+        TEST_METHOD(UsesCpuStartSource)
+        {
+            QpcCalculator qpc{ 10000000, 0 };  // 10 MHz for easy math
+
+            SwapChainCoreState swapChain{};
+            FrameData lastApp{};
+            lastApp.presentStartTime = 1000;
+            lastApp.timeInPresent = 50;
+            swapChain.lastAppPresent = lastApp;
+
+            FrameData current{};
+            current.appSimStartTime = 5000;  // Has appSim, but source is CpuStart
+
+            auto result = CalculateSimStartTime(swapChain, current, AnimationErrorSource::CpuStart);
+
+            // Should use CPU start calculation: 1000 + 50 = 1050
+            Assert::AreEqual(1050ull, result);
+        }
+
+        TEST_METHOD(UsesAppProviderSource)
+        {
+            QpcCalculator qpc{ 10000000, 0 };
+
+            SwapChainCoreState swapChain{};
+            FrameData lastApp{};
+            lastApp.presentStartTime = 1000;
+            lastApp.timeInPresent = 50;
+            swapChain.lastAppPresent = lastApp;
+
+            FrameData current{};
+            current.appSimStartTime = 5000;
+
+            auto result = CalculateSimStartTime(swapChain, current, AnimationErrorSource::AppProvider);
+
+            // Should use appSimStartTime
+            Assert::AreEqual(5000ull, result);
+        }
+
+        TEST_METHOD(UsesPCLatencySource)
+        {
+            QpcCalculator qpc{ 10000000, 0 };
+
+            SwapChainCoreState swapChain{};
+            FrameData lastApp{};
+            lastApp.presentStartTime = 1000;
+            lastApp.timeInPresent = 50;
+            swapChain.lastAppPresent = lastApp;
+
+            FrameData current{};
+            current.pclSimStartTime = 6000;
+
+            auto result = CalculateSimStartTime(swapChain, current, AnimationErrorSource::PCLatency);
+
+            // Should use pclSimStartTime
+            Assert::AreEqual(6000ull, result);
+        }
+
+        TEST_METHOD(AppProviderFallsBackToCpuStartWhenZero)
+        {
+            QpcCalculator qpc{ 10000000, 0 };
+
+            SwapChainCoreState swapChain{};
+            FrameData lastApp{};
+            lastApp.presentStartTime = 1000;
+            lastApp.timeInPresent = 50;
+            swapChain.lastAppPresent = lastApp;
+
+            FrameData current{};
+            current.appSimStartTime = 0;  // Not available
+
+            auto result = CalculateSimStartTime(swapChain, current, AnimationErrorSource::AppProvider);
+
+            // Should fall back to CPU start: 1000 + 50 = 1050
+            Assert::AreEqual(1050ull, result);
+        }
+
+        TEST_METHOD(PCLatencyFallsBackToCpuStartWhenZero)
+        {
+            QpcCalculator qpc{ 10000000, 0 };
+
+            SwapChainCoreState swapChain{};
+            FrameData lastApp{};
+            lastApp.presentStartTime = 1000;
+            lastApp.timeInPresent = 50;
+            swapChain.lastAppPresent = lastApp;
+
+            FrameData current{};
+            current.pclSimStartTime = 0;  // Not available
+
+            auto result = CalculateSimStartTime(swapChain, current, AnimationErrorSource::PCLatency);
+
+            // Should fall back to CPU start: 1000 + 50 = 1050
+            Assert::AreEqual(1050ull, result);
+        }
+    };
+
+    TEST_CLASS(CalculateAnimationTimeTests)
+    {
+    public:
+        TEST_METHOD(ComputesRelativeTime)
+        {
+            QpcCalculator qpc{ 10000000, 0 };  // 10 MHz QPC frequency
+
+            uint64_t firstSimStart = 1000;
+            uint64_t currentSimStart = 1500;  // 500 ticks later
+
+            auto result = CalculateAnimationTime(qpc, firstSimStart, currentSimStart);
+
+            // 500 ticks at 10 MHz = 0.05 ms
+            Assert::AreEqual(0.05, result, 0.001);
+        }
+
+        TEST_METHOD(HandlesZeroFirst)
+        {
+            QpcCalculator qpc{ 10000000, 0 };
+
+            uint64_t firstSimStart = 0;  // Not initialized yet
+            uint64_t currentSimStart = 1500;
+
+            auto result = CalculateAnimationTime(qpc, firstSimStart, currentSimStart);
+
+            // When first is 0, should return 0
+            Assert::AreEqual(0.0, result, 0.001);
+        }
+
+        TEST_METHOD(HandlesSameTimestamp)
+        {
+            QpcCalculator qpc{ 10000000, 0 };
+
+            uint64_t firstSimStart = 1000;
+            uint64_t currentSimStart = 1000;  // Same as first
+
+            auto result = CalculateAnimationTime(qpc, firstSimStart, currentSimStart);
+
+            // Same timestamp = 0 ms elapsed
+            Assert::AreEqual(0.0, result, 0.001);
+        }
+
+        TEST_METHOD(HandlesLargeTimespan)
+        {
+            QpcCalculator qpc{ 10000000, 0 };  // 10 MHz
+
+            uint64_t firstSimStart = 1000;
+            uint64_t currentSimStart = 1000 + (10000000 * 5);  // +5 seconds in ticks
+
+            auto result = CalculateAnimationTime(qpc, firstSimStart, currentSimStart);
+
+            // 5 seconds = 5000 ms
+            Assert::AreEqual(5000.0, result, 0.1);
+        }
+
+        TEST_METHOD(HandlesBackwardsTime)
+        {
+            QpcCalculator qpc{ 10000000, 0 };
+
+            uint64_t firstSimStart = 2000;
+            uint64_t currentSimStart = 1000;  // Earlier than first (unusual but possible)
+
+            auto result = CalculateAnimationTime(qpc, firstSimStart, currentSimStart);
+
+            // Should handle gracefully - returns negative or 0 depending on implementation
+            // This tests error handling
+            Assert::IsTrue(result <= 0.0);
         }
     };
 }

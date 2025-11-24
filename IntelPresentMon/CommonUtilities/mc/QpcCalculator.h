@@ -23,6 +23,14 @@ namespace pmon::util::metrics
             return duration * 1000.0 / qpcFrequency_;
         }
 
+        // Convert time between two QPC timestamps to milliseconds (signed)
+        double TimestampDeltaToMilliSeconds(uint64_t start, uint64_t end) const
+        {
+            return start == 0 || end == 0 || start == end ? 0.0 :
+                end > start ? TimestampDeltaToMilliSeconds(end - start)
+                : -TimestampDeltaToMilliSeconds(start - end);
+        }
+
         // Convert time between two QPC timestamps to milliseconds
         double TimestampDeltaToUnsignedMilliSeconds(uint64_t start, uint64_t end) const {
             return (end - start) * 1000.0 / qpcFrequency_;

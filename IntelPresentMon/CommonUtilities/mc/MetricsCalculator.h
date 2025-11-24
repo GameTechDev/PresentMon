@@ -5,6 +5,7 @@
 #include <optional>
 #include "QpcCalculator.h"
 #include "MetricsTypes.h"
+#include "SwapChainCoreState.h"
 
 namespace pmon::util::metrics
 {
@@ -25,17 +26,6 @@ namespace pmon::util::metrics
         } stateDeltas;
     };
 
-    // Context for single display index computation
-    struct FrameComputationContext {
-        size_t displayIndex;
-        size_t appIndex;           // Index of application frame in display array
-        bool displayed;
-        uint64_t screenTime;
-        uint64_t nextScreenTime;
-        uint64_t cpuStart;
-        uint64_t simStartTime;
-    };
-
     // Index calculation helper
     struct DisplayIndexing {
         size_t startIndex;      // First display index to process
@@ -43,38 +33,28 @@ namespace pmon::util::metrics
         size_t appIndex;        // Index of app frame (or SIZE_MAX if none)
         bool hasNextDisplayed;
 
-        // Template version works with both ConsoleAdapter and PresentSnapshot
-        template<typename PresentT>
         static DisplayIndexing Calculate(
-            const PresentT& present,
-            const PresentT* nextDisplayed);
+            const FrameData& present,
+            const FrameData* nextDisplayed);
     };
 
     // === Pure Calculation Functions ===
 
-    // Main computation kernel (pure function)
-    // Template version - works with different input types
-    // PresentT: ConsoleAdapter (Strategy A) or PresentSnapshot (Strategy B for Console, always for GUI)
-    // ChainT: SwapChainData (Console) or fpsSwapChainData (GUI) - both stable references
-    template<typename PresentT, typename ChainT>
     ComputedMetrics ComputeFrameMetrics(
         const QpcCalculator& qpc,
-        const PresentT& present,
-        const PresentT* nextDisplayed,
-        const ChainT& chain,  // Direct reference to stable map entry
-        const FrameComputationContext& context);
+        const FrameData& present,
+        const FrameData* nextDisplayed,
+        const SwapChainCoreState& chain);
 
     // Helper: Calculate CPU start time
-    template<typename PresentT, typename ChainT>
     uint64_t CalculateCPUStart(
-        const ChainT& chainState,
-        const PresentT& present);
+        const SwapChainCoreState& chainState,
+        const FrameData& present);
 
     // Helper: Calculate simulation start time (for animation error)
-    template<typename PresentT, typename ChainT>
     uint64_t CalculateSimStartTime(
-        const ChainT& chainState,
-        const PresentT& present,
+        const SwapChainCoreState& chainState,
+        const FrameData& present,
         AnimationErrorSource source);
 
     // Helper: Calculate animation time

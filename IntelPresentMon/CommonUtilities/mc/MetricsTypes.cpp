@@ -7,57 +7,104 @@
 
 namespace pmon::util::metrics {
 
-    PresentSnapshot PresentSnapshot::FromCircularBuffer(const PmNsmPresentEvent& p) {
-        PresentSnapshot snap{};
+    FrameData FrameData::CopyFrameData(const PmNsmPresentEvent& p) {
+        FrameData frame{};
 
-        snap.presentStartTime = p.PresentStartTime;
-        snap.readyTime = p.ReadyTime;
-        snap.timeInPresent = p.TimeInPresent;
-        snap.gpuStartTime = p.GPUStartTime;
-        snap.gpuDuration = p.GPUDuration;
-        snap.gpuVideoDuration = p.GPUVideoDuration;
+        frame.presentStartTime = p.PresentStartTime;
+        frame.readyTime = p.ReadyTime;
+        frame.timeInPresent = p.TimeInPresent;
+        frame.gpuStartTime = p.GPUStartTime;
+        frame.gpuDuration = p.GPUDuration;
+        frame.gpuVideoDuration = p.GPUVideoDuration;
 
-        snap.appPropagatedPresentStartTime = p.AppPropagatedPresentStartTime;
-        snap.appPropagatedTimeInPresent = p.AppPropagatedTimeInPresent;
-        snap.appPropagatedGPUStartTime = p.AppPropagatedGPUStartTime;
-        snap.appPropagatedReadyTime = p.AppPropagatedReadyTime;
-        snap.appPropagatedGPUDuration = p.AppPropagatedGPUDuration;
-        snap.appPropagatedGPUVideoDuration = p.AppPropagatedGPUVideoDuration;
+        frame.appPropagatedPresentStartTime = p.AppPropagatedPresentStartTime;
+        frame.appPropagatedTimeInPresent = p.AppPropagatedTimeInPresent;
+        frame.appPropagatedGPUStartTime = p.AppPropagatedGPUStartTime;
+        frame.appPropagatedReadyTime = p.AppPropagatedReadyTime;
+        frame.appPropagatedGPUDuration = p.AppPropagatedGPUDuration;
+        frame.appPropagatedGPUVideoDuration = p.AppPropagatedGPUVideoDuration;
 
-        snap.appSleepStartTime = p.AppSleepStartTime;
-        snap.appSleepEndTime = p.AppSleepEndTime;
-        snap.appSimStartTime = p.AppSimStartTime;
-        snap.appSleepEndTime = p.AppSleepEndTime;
-        snap.appRenderSubmitStartTime = p.AppRenderSubmitStartTime;
-        snap.appRenderSubmitEndTime = p.AppRenderSubmitEndTime;
-        snap.appPresentStartTime = p.AppPresentStartTime;
-        snap.appPresentEndTime = p.AppPresentEndTime;
-        snap.appInputSample = { p.AppInputTime, p.AppInputType };
+        frame.appSleepStartTime = p.AppSleepStartTime;
+        frame.appSleepEndTime = p.AppSleepEndTime;
+        frame.appSimStartTime = p.AppSimStartTime;
+        frame.appSleepEndTime = p.AppSleepEndTime;
+        frame.appRenderSubmitStartTime = p.AppRenderSubmitStartTime;
+        frame.appRenderSubmitEndTime = p.AppRenderSubmitEndTime;
+        frame.appPresentStartTime = p.AppPresentStartTime;
+        frame.appPresentEndTime = p.AppPresentEndTime;
+        frame.appInputSample = { p.AppInputTime, p.AppInputType };
 
-        snap.inputTime = p.InputTime;
-        snap.mouseClickTime = p.MouseClickTime;
+        frame.inputTime = p.InputTime;
+        frame.mouseClickTime = p.MouseClickTime;
 
-        snap.pclSimStartTime = p.PclSimStartTime;
-        snap.pclInputPingTime = p.PclInputPingTime;
-        snap.flipDelay = p.FlipDelay;
-        snap.FlipToken = p.FlipToken;
+        frame.pclSimStartTime = p.PclSimStartTime;
+        frame.pclInputPingTime = p.PclInputPingTime;
+        frame.flipDelay = p.FlipDelay;
+        frame.FlipToken = p.FlipToken;
 
         // Normalize parallel arrays to vector<DisplayEntry>
-        snap.displayed.reserve(p.DisplayedCount);
+        frame.displayed.reserve(p.DisplayedCount);
         for (size_t i = 0; i < p.DisplayedCount; ++i) {
-            snap.displayed.push_back({
+            frame.displayed.push_back({
                 p.Displayed_FrameType[i],
                 p.Displayed_ScreenTime[i]
                 });
         }
 
-        snap.finalState = p.FinalState;
-        snap.swapChainAddress = p.SwapChainAddress;
-        snap.frameId = p.FrameId;
-        snap.processId = p.ProcessId;
-        snap.threadId = p.ThreadId;
-        snap.appFrameId = p.AppFrameId;
+        frame.finalState = p.FinalState;
+        frame.swapChainAddress = p.SwapChainAddress;
+        frame.frameId = p.FrameId;
+        frame.processId = p.ProcessId;
+        frame.threadId = p.ThreadId;
+        frame.appFrameId = p.AppFrameId;
 
-        return snap;
+        return frame;
+    }
+
+    FrameData FrameData::CopyFrameData(const std::shared_ptr<PresentEvent>& p) {
+        FrameData frame{};
+
+        frame.presentStartTime = p->PresentStartTime;
+        frame.readyTime = p->ReadyTime;
+        frame.timeInPresent = p->TimeInPresent;
+        frame.gpuStartTime = p->GPUStartTime;
+        frame.gpuDuration = p->GPUDuration;
+        frame.gpuVideoDuration = p->GPUVideoDuration;
+
+        frame.appPropagatedPresentStartTime = p->AppPropagatedPresentStartTime;
+        frame.appPropagatedTimeInPresent = p->AppPropagatedTimeInPresent;
+        frame.appPropagatedGPUStartTime = p->AppPropagatedGPUStartTime;
+        frame.appPropagatedReadyTime = p->AppPropagatedReadyTime;
+        frame.appPropagatedGPUDuration = p->AppPropagatedGPUDuration;
+        frame.appPropagatedGPUVideoDuration = p->AppPropagatedGPUVideoDuration;
+
+        frame.appSleepStartTime = p->AppSleepStartTime;
+        frame.appSleepEndTime = p->AppSleepEndTime;
+        frame.appSimStartTime = p->AppSimStartTime;
+        frame.appSleepEndTime = p->AppSleepEndTime;
+        frame.appRenderSubmitStartTime = p->AppRenderSubmitStartTime;
+        frame.appRenderSubmitEndTime = p->AppRenderSubmitEndTime;
+        frame.appPresentStartTime = p->AppPresentStartTime;
+        frame.appPresentEndTime = p->AppPresentEndTime;
+        frame.appInputSample = p->AppInputSample;
+
+        frame.inputTime = p->InputTime;
+        frame.mouseClickTime = p->MouseClickTime;
+
+        frame.pclSimStartTime = p->PclSimStartTime;
+        frame.pclInputPingTime = p->PclInputPingTime;
+        frame.flipDelay = p->FlipDelay;
+        frame.FlipToken = p->FlipToken;
+
+        frame.displayed = p->Displayed;
+
+        frame.finalState = p->FinalState;
+        frame.swapChainAddress = p->SwapChainAddress;
+        frame.frameId = p->FrameId;
+        frame.processId = p->ProcessId;
+        frame.threadId = p->ThreadId;
+        frame.appFrameId = p->AppFrameId;
+
+        return frame;
     }
 }

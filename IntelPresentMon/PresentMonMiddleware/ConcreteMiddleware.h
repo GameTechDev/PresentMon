@@ -78,9 +78,6 @@ namespace pmon::mid
     // - pending presents whose metrics cannot be computed until future presents are received,
     // - exponential averages of key metrics displayed in console output.
 	struct fpsSwapChainData {
-		// Shared swap chain core state
-		pmon::util::metrics::SwapChainCoreState<std::shared_ptr<PresentEvent>> core;
-
         // Pending presents waiting for the next displayed present.
         std::vector<PmNsmPresentEvent> mPendingPresents;
 
