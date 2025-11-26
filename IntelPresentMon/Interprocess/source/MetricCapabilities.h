@@ -13,6 +13,14 @@ namespace pmon::ipc
 		void Set(PM_METRIC metricId, size_t arraySize);
 		void Merge(const MetricCapabilities& capsToMerge);
 		size_t Check(PM_METRIC metricId) const;
+		auto begin() const
+		{
+			return caps_.begin();
+		}
+		auto end() const
+		{
+			return caps_.end();
+		}
 	private:
 		std::unordered_map<PM_METRIC, size_t> caps_;
 	};
