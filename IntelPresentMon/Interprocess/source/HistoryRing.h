@@ -74,6 +74,7 @@ namespace pmon::ipc
             return serial;
         }
         // Calls func(sample) for each sample whose timestamp is in [start, end].
+        // Intended use case is calculation of stats (avg, min, %)
         // Returns the number of samples visited.
         template<typename F>
         size_t ForEachInTimestampRange(uint64_t start, uint64_t end, F&& func) const

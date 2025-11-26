@@ -1,7 +1,8 @@
 #include "IntrospectionHelpers.h"
 #include "IntrospectionMetadata.h"
 #include "IntrospectionTransfer.h"
-#include "IntrospectionCapsLookup.h"
+#include "MetricCapabilities.h"
+#include "../../CommonUtilities/log/Log.h"
 #include <ranges>
 #include <optional>
 
@@ -71,81 +72,43 @@ namespace pmon::ipc::intro
 #undef X_REG_UNIT
 	}
 
-	template<PM_METRIC metric>
-	void RegisterGpuMetricDeviceInfo_(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root,
-		uint32_t deviceId, const GpuTelemetryBitset& gpuCaps)
+	static void PopulateDeviceMetrics_(IntrospectionRoot& root,
+		const MetricCapabilities& caps, uint32_t deviceId)
 	{
-		using Lookup = IntrospectionCapsLookup<metric>;
-		std::optional<IntrospectionDeviceMetricInfo> info;
-		if constexpr (IsUniversalMetric<Lookup>) {}
-		else if constexpr (IsGpuDeviceMetric<Lookup>) {
-			const auto availability = gpuCaps[size_t(Lookup::gpuCapBit)] ?
-				PM_METRIC_AVAILABILITY_AVAILABLE : PM_METRIC_AVAILABILITY_UNAVAILABLE;
-			info.emplace(deviceId, availability, 1);
-		}
-		else if constexpr (IsGpuDeviceMetricArray<Lookup>) {
-			const auto nAvailable = (uint32_t)rn::count_if(Lookup::gpuCapBitArray, [&](auto bit){ return gpuCaps[size_t(bit)]; });
-			const auto availability = nAvailable > 0 ?
-				PM_METRIC_AVAILABILITY_AVAILABLE : PM_METRIC_AVAILABILITY_UNAVAILABLE;
-			info.emplace(deviceId, availability, nAvailable);
-		}
-		else if constexpr (IsGpuDeviceStaticMetric<Lookup>) {
-			info.emplace(deviceId, PM_METRIC_AVAILABILITY_AVAILABLE, 1);
-		}
-		if (info) {
-			if (auto i = rn::find(root.GetMetrics(), metric, [](const ShmUniquePtr<IntrospectionMetric>& pMetric) {
+		for (auto&& [metric, count] : caps) {
+			auto i = rn::find(
+				root.GetMetrics(),
+				metric,
+				[](const ShmUniquePtr<IntrospectionMetric>& pMetric) {
 				return pMetric->GetId();
-			}); i != root.GetMetrics().end()) {
-				(*i)->AddDeviceMetricInfo(std::move(*info));
+			});
+			if (i != root.GetMetrics().end()) {
+				const auto availability = count ? PM_METRIC_AVAILABILITY_AVAILABLE :
+					PM_METRIC_AVAILABILITY_UNAVAILABLE;
+				(*i)->AddDeviceMetricInfo(IntrospectionDeviceMetricInfo{ deviceId, availability, count });
 			}
-			// TODO: log metric not found
+			else {
+				pmlog_error("Metric ID not found").pmwatch(metric);
+			}
 		}
 	}
 
 	void PopulateGpuDevice(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root, uint32_t deviceId,
-		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const GpuTelemetryBitset& gpuCaps)
+		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const MetricCapabilities& caps)
 	{
 		// add the device
 		auto charAlloc = pSegmentManager->get_allocator<char>();
 		root.AddDevice(ShmMakeUnique<IntrospectionDevice>(pSegmentManager, deviceId,
-			PM_DEVICE_TYPE_GRAPHICS_ADAPTER, vendor, ShmString{ deviceName.c_str(), charAlloc}));
+			PM_DEVICE_TYPE_GRAPHICS_ADAPTER, vendor, ShmString{ deviceName.c_str(), charAlloc }));
 
-		// populate device-metric info for this device
-#define X_WALK_METRIC(metric, metric_type, unit, data_type, enum_id, device_type, ...) \
-		RegisterGpuMetricDeviceInfo_<metric>(pSegmentManager, root, deviceId, gpuCaps);
-
-		METRIC_LIST(X_WALK_METRIC)
-
-#undef X_WALK_METRIC
-	}
-
-	template<PM_METRIC metric>
-	void RegisterCpuMetricDeviceInfo_(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root,
-		const CpuTelemetryBitset& cpuCaps)
-	{
-		using Lookup = IntrospectionCapsLookup<metric>;
-		if constexpr (IsCpuMetric<Lookup>) {
-			if (auto i = rn::find(root.GetMetrics(), metric, [](const ShmUniquePtr<IntrospectionMetric>& pMetric) {
-				return pMetric->GetId();
-			}); i != root.GetMetrics().end()) {
-				const auto availability = cpuCaps[size_t(Lookup::cpuCapBit)] ?
-					PM_METRIC_AVAILABILITY_AVAILABLE : PM_METRIC_AVAILABILITY_UNAVAILABLE;
-				(*i)->AddDeviceMetricInfo(IntrospectionDeviceMetricInfo{ 0, availability, 1 });
-			}
-		}
-
-		// TODO: log metric not found
+		// add the device metrics
+		PopulateDeviceMetrics_(root, caps, deviceId);
 	}
 
 	void PopulateCpu(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root,
-		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const CpuTelemetryBitset& cpuCaps)
+		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const MetricCapabilities& caps)
 	{
-		// populate device-metric info for the cpu
-#define X_WALK_METRIC(metric, metric_type, unit, data_type, enum_id, device_type, ...) \
-		RegisterCpuMetricDeviceInfo_<metric>(pSegmentManager, root, cpuCaps);
-
-		METRIC_LIST(X_WALK_METRIC)
-
-#undef X_WALK_METRIC
+		PopulateDeviceMetrics_(root, caps, 0);
 	}
+
 }

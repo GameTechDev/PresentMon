@@ -46,10 +46,11 @@ namespace pmon::ipc
 			{
 				return *pRoot_;
 			}
-			void RegisterGpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const GpuTelemetryBitset& gpuCaps) override
+			void RegisterGpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const MetricCapabilities& caps) override
 			{
+				// TODO: create data segment & rings
 				auto lck = LockIntrospectionMutexExclusive_();
-				intro::PopulateGpuDevice(shm_.get_segment_manager(), *pRoot_, nextDeviceIndex_++, vendor, deviceName, gpuCaps);
+				intro::PopulateGpuDevice(shm_.get_segment_manager(), *pRoot_, nextDeviceIndex_++, vendor, deviceName, caps);
 			}
 			void FinalizeGpuDevices() override
 			{
@@ -60,10 +61,11 @@ namespace pmon::ipc
 					FinalizeIntrospection_();
 				}
 			}
-			void RegisterCpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const CpuTelemetryBitset& cpuCaps) override
+			void RegisterCpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const MetricCapabilities& caps) override
 			{
+				// TODO: create data segment & rings
 				auto lck = LockIntrospectionMutexExclusive_();
-				intro::PopulateCpu(shm_.get_segment_manager(), *pRoot_, vendor, deviceName, cpuCaps);
+				intro::PopulateCpu(shm_.get_segment_manager(), *pRoot_, vendor, deviceName, caps);
 				introCpuComplete_ = true;
 				if (introGpuComplete_ && introCpuComplete_) {
 					lck.unlock();
