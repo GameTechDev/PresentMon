@@ -5,13 +5,14 @@
 
 namespace pmon::ipc
 {
+	// shared memory ring buffer for broadcast
 	template<typename T, size_t ReadBufferSize = 4>
 	class ShmRing
 	{
 	public:
-		ShmRing(size_t capacity, ShmSegmentManager* pSegmentManager)
+		ShmRing(size_t capacity, ShmVector<T>::allocator_type& alloc)
 			:
-			data_{ capacity, pSegmentManager->get_allocator<T>() }
+			data_{ capacity, alloc }
 		{
 			if (capacity < ReadBufferSize * 2) {
 				throw std::logic_error{ "The capacity of a ShmRing must be at least double its ReadBufferSize" };
@@ -48,6 +49,10 @@ namespace pmon::ipc
 				// to help avoid the client reading partially-updated data (data race)
 				return { nextWriteSerial_ - data_.size() + ReadBufferSize, nextWriteSerial_ };
 			}
+		}
+		bool Empty() const
+		{
+			return nextWriteSerial_ == 0;
 		}
 	private:
 		// functions
