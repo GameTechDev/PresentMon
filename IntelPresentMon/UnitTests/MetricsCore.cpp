@@ -1196,195 +1196,167 @@ namespace MetricsCoreTests
             Assert::AreEqual(uint64_t(1'500), chain.lastDisplayedScreenTime, L"Should remain unchanged.");
         }
     };
-
-    // ============================================================================
-    // ADDITIONAL TESTS: FrameType Intel_XEFG / AMD_AFMF and Displayed-Dropped-Displayed sequences
-    // ============================================================================
-
-    using namespace pmon::util::metrics;
-
-    namespace MetricsCoreTests
+    TEST_CLASS(FrameTypeXefgAfmfIndexingTests)
     {
-        // Small helper to build FrameData with displayed entries.
-        static FrameData BuildFrame(
-            PresentResult finalState,
-            uint64_t presentStart,
-            uint64_t timeInPresent,
-            const std::vector<std::pair<FrameType, uint64_t>>& displayed,
-            uint64_t flipDelay = 0)
+    public:
+        TEST_METHOD(DisplayIndexing_IntelXefg_Multi_NoNext_AppIndexIsLast)
         {
-            FrameData f{};
-            f.presentStartTime = presentStart;
-            f.timeInPresent = timeInPresent;
-            f.readyTime = presentStart + timeInPresent;
-            f.displayed = displayed;
-            f.flipDelay = flipDelay;
-            f.finalState = finalState;
-            return f;
+            // 3x Intel_XEFG then a single Application
+            FrameData present = MakeFrame(
+                PresentResult::Presented,
+                10'000, 500, 20'000,
+                {
+                    { FrameType::Intel_XEFG, 11'000 },
+                    { FrameType::Intel_XEFG, 11'500 },
+                    { FrameType::Intel_XEFG, 12'000 },
+                    { FrameType::Application, 12'500 },
+                });
+
+            auto idx = DisplayIndexing::Calculate(present, nullptr);
+
+            // No nextDisplayed: process [0..N-2] => [0..3)
+            Assert::AreEqual(size_t(0), idx.startIndex);
+            Assert::AreEqual(size_t(3), idx.endIndex);
+            // App frame is at index 3 (outside processing range, postponed)
+            Assert::AreEqual(size_t(3), idx.appIndex);
+            Assert::IsFalse(idx.hasNextDisplayed);
         }
 
-        TEST_CLASS(FrameTypeXefgAfmfIndexingTests)
+        TEST_METHOD(DisplayIndexing_AmdAfmf_Multi_WithNext_AppIndexProcessed)
         {
-        public:
-            TEST_METHOD(DisplayIndexing_IntelXefg_Multi_NoNext_AppIndexIsLast)
-            {
-                // 3x Intel_XEFG then a single Application
-                FrameData present = BuildFrame(
-                    PresentResult::Presented,
-                    10'000, 500,
-                    {
-                        { FrameType::Intel_XEFG, 11'000 },
-                        { FrameType::Intel_XEFG, 11'500 },
-                        { FrameType::Intel_XEFG, 12'000 },
-                        { FrameType::Application, 12'500 },
-                    });
+            // 3x AMD_AFMF then a single Application
+            FrameData present = MakeFrame(
+                PresentResult::Presented,
+                20'000, 600, 30'000,
+                {
+                    { FrameType::AMD_AFMF, 21'000 },
+                    { FrameType::AMD_AFMF, 21'500 },
+                    { FrameType::AMD_AFMF, 22'000 },
+                    { FrameType::Application, 22'500 },
+                });
 
-                auto idx = DisplayIndexing::Calculate(present, nullptr);
+            FrameData nextDisplayed = MakeFrame(
+                PresentResult::Presented,
+                23'000, 400, 30'500,
+                { { FrameType::Application, 24'000 } });
 
-                // No nextDisplayed: process [0..N-2] => [0..3)
-                Assert::AreEqual(size_t(0), idx.startIndex);
-                Assert::AreEqual(size_t(3), idx.endIndex);
-                // App frame is at index 3 (outside processing range, postponed)
-                Assert::AreEqual(size_t(3), idx.appIndex);
-                Assert::IsFalse(idx.hasNextDisplayed);
-            }
+            auto idx = DisplayIndexing::Calculate(present, &nextDisplayed);
 
-            TEST_METHOD(DisplayIndexing_AmdAfmf_Multi_WithNext_AppIndexProcessed)
-            {
-                // 3x AMD_AFMF then a single Application
-                FrameData present = BuildFrame(
-                    PresentResult::Presented,
-                    20'000, 600,
-                    {
-                        { FrameType::AMD_AFMF, 21'000 },
-                        { FrameType::AMD_AFMF, 21'500 },
-                        { FrameType::AMD_AFMF, 22'000 },
-                        { FrameType::Application, 22'500 },
-                    });
+            // With nextDisplayed: process postponed last only => [N-1, N) => [3, 4)
+            Assert::AreEqual(size_t(3), idx.startIndex);
+            Assert::AreEqual(size_t(4), idx.endIndex);
+            Assert::AreEqual(size_t(3), idx.appIndex);
+            Assert::IsTrue(idx.hasNextDisplayed);
+        }
+    };
 
-                FrameData nextDisplayed = BuildFrame(
-                    PresentResult::Presented,
-                    23'000, 400,
-                    { { FrameType::Application, 24'000 } });
-
-                auto idx = DisplayIndexing::Calculate(present, &nextDisplayed);
-
-                // With nextDisplayed: process postponed last only => [N-1, N) => [3, 4)
-                Assert::AreEqual(size_t(3), idx.startIndex);
-                Assert::AreEqual(size_t(4), idx.endIndex);
-                Assert::AreEqual(size_t(3), idx.appIndex);
-                Assert::IsTrue(idx.hasNextDisplayed);
-            }
-        };
-
-        TEST_CLASS(FrameTypeXefgAfmfMetricsTests)
+    TEST_CLASS(FrameTypeXefgAfmfMetricsTests)
+    {
+    public:
+        TEST_METHOD(ComputeMetricsForPresent_IntelXefg_NoNext_AppNotProcessed_ChainNotUpdated)
         {
-        public:
-            TEST_METHOD(ComputeMetricsForPresent_IntelXefg_NoNext_AppNotProcessed_ChainNotUpdated)
-            {
-                QpcConverter qpc(10'000'000, 0);
-                SwapChainCoreState chain{};
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
 
-                // 3x Intel_XEFG then 1 Application; no nextDisplayed
-                FrameData present = BuildFrame(
-                    PresentResult::Presented,
-                    30'000, 700,
-                    {
-                        { FrameType::Intel_XEFG, 31'000 },
-                        { FrameType::Intel_XEFG, 31'500 },
-                        { FrameType::Intel_XEFG, 32'000 },
-                        { FrameType::Application, 32'500 },
-                    });
+            // 3x Intel_XEFG then 1 Application; no nextDisplayed
+            FrameData present = MakeFrame(
+                PresentResult::Presented,
+                30'000, 700, 40'000,
+                {
+                    { FrameType::Intel_XEFG, 31'000 },
+                    { FrameType::Intel_XEFG, 31'500 },
+                    { FrameType::Intel_XEFG, 32'000 },
+                    { FrameType::Application, 32'500 },
+                });
 
-                auto metrics = ComputeMetricsForPresent(qpc, present, nullptr, chain);
+            auto metrics = ComputeMetricsForPresent(qpc, present, nullptr, chain);
 
-                // Should process all but last => 3 metrics
-                Assert::AreEqual(size_t(3), metrics.size());
-                // Chain update postponed until nextDisplayed
-                Assert::IsFalse(chain.lastPresent.has_value());
-                Assert::IsFalse(chain.lastAppPresent.has_value());
-                Assert::AreEqual(uint64_t(0), chain.lastDisplayedScreenTime);
-                Assert::AreEqual(uint64_t(0), chain.lastDisplayedFlipDelay);
-            }
+            // Should process all but last => 3 metrics
+            Assert::AreEqual(size_t(3), metrics.size());
+            // Chain update postponed until nextDisplayed
+            Assert::IsFalse(chain.lastPresent.has_value());
+            Assert::IsFalse(chain.lastAppPresent.has_value());
+            Assert::AreEqual(uint64_t(0), chain.lastDisplayedScreenTime);
+            Assert::AreEqual(uint64_t(0), chain.lastDisplayedFlipDelay);
+        }
 
-            TEST_METHOD(ComputeMetricsForPresent_AmdAfmf_WithNext_AppProcessedAndUpdatesChain)
-            {
-                QpcConverter qpc(10'000'000, 0);
-                SwapChainCoreState chain{};
-
-                // 3x AMD_AFMF then 1 Application; with nextDisplayed provided
-                FrameData present = BuildFrame(
-                    PresentResult::Presented,
-                    40'000, 650,
-                    {
-                        { FrameType::AMD_AFMF, 41'000 },
-                        { FrameType::AMD_AFMF, 41'400 },
-                        { FrameType::AMD_AFMF, 41'800 },
-                        { FrameType::Application, 42'200 },
-                    },
-                    999 /* flipDelay */);
-
-                FrameData nextDisplayed = BuildFrame(
-                    PresentResult::Presented,
-                    43'000, 500,
-                    { { FrameType::Application, 44'000 } });
-
-                auto metrics = ComputeMetricsForPresent(qpc, present, &nextDisplayed, chain);
-
-                // Should process only postponed last => 1 metrics
-                Assert::AreEqual(size_t(1), metrics.size());
-
-                // UpdateAfterPresent has run
-                Assert::IsTrue(chain.lastPresent.has_value());
-                Assert::IsTrue(chain.lastAppPresent.has_value(), L"Last displayed is Application; lastAppPresent should be updated.");
-                Assert::AreEqual(uint64_t(42'200), chain.lastDisplayedScreenTime);
-                Assert::AreEqual(uint64_t(999), chain.lastDisplayedFlipDelay);
-            }
-        };
-
-        TEST_CLASS(DisplayedDroppedDisplayedSequenceTests)
+        TEST_METHOD(ComputeMetricsForPresent_AmdAfmf_WithNext_AppProcessedAndUpdatesChain)
         {
-        public:
-            TEST_METHOD(Displayed_Dropped_Displayed_Sequence_IsHandledAcrossCalls)
-            {
-                QpcConverter qpc(10'000'000, 0);
-                SwapChainCoreState chain{};
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
 
-                // A: displayed once, but no nextDisplayed yet => postponed
-                FrameData A = BuildFrame(
-                    PresentResult::Presented,
-                    50'000, 400,
-                    { { FrameType::Application, 51'000 } });
+            // 3x AMD_AFMF then 1 Application; with nextDisplayed provided
+            FrameData present = MakeFrame(
+                PresentResult::Presented,
+                40'000, 650, 50'000,
+                {
+                    { FrameType::AMD_AFMF, 41'000 },
+                    { FrameType::AMD_AFMF, 41'400 },
+                    { FrameType::AMD_AFMF, 41'800 },
+                    { FrameType::Application, 42'200 },
+                },
+                39'500, /* appSimStartTime*/
+                0,      /* pclSimStartTime*/
+                999     /* flipDelay*/);
 
-                auto mA_pre = ComputeMetricsForPresent(qpc, A, nullptr, chain);
-                Assert::AreEqual(size_t(0), mA_pre.size(), L"Single display postponed.");
-                Assert::IsFalse(chain.lastPresent.has_value(), L"Chain is not updated without nextDisplayed.");
+            FrameData nextDisplayed = MakeFrame(
+                PresentResult::Presented,
+                43'000, 500, 50'500,
+                { { FrameType::Application, 44'000 } });
 
-                // B: dropped (not presented/displayed)
-                FrameData B = BuildFrame(
-                    PresentResult::Discarded,
-                    52'000, 300,
-                    {} /* no displayed */);
+            auto metrics = ComputeMetricsForPresent(qpc, present, &nextDisplayed, chain);
 
-                auto mB = ComputeMetricsForPresent(qpc, B, nullptr, chain);
-                Assert::AreEqual(size_t(1), mB.size(), L"Dropped frame goes through not-displayed path.");
-                Assert::IsTrue(chain.lastPresent.has_value(), L"Not-displayed path updates chain.");
-                Assert::IsTrue(chain.lastAppPresent.has_value(), L"Not-displayed frame becomes lastAppPresent.");
-                Assert::AreEqual(uint64_t(0), chain.lastDisplayedScreenTime, L"Not-displayed should leave lastDisplayedScreenTime at 0.");
+            // Should process only postponed last => 1 metrics
+            Assert::AreEqual(size_t(1), metrics.size());
 
-                // C: displayed next; use it to process A's postponed last
-                FrameData C = BuildFrame(
-                    PresentResult::Presented,
-                    53'000, 350,
-                    { { FrameType::Application, 54'000 } });
+            // UpdateAfterPresent has run
+            Assert::IsTrue(chain.lastPresent.has_value());
+            Assert::IsTrue(chain.lastAppPresent.has_value(), L"Last displayed is Application; lastAppPresent should be updated.");
+            Assert::AreEqual(uint64_t(42'200), chain.lastDisplayedScreenTime);
+            Assert::AreEqual(uint64_t(999), chain.lastDisplayedFlipDelay);
+        }
+    };        TEST_CLASS(DisplayedDroppedDisplayedSequenceTests)
+    {
+    public:
+        TEST_METHOD(Displayed_Dropped_Displayed_Sequence_IsHandledAcrossCalls)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
 
-                auto mA_post = ComputeMetricsForPresent(qpc, A, &C, chain);
-                Assert::AreEqual(size_t(1), mA_post.size(), L"Postponed last display of A processed with nextDisplayed.");
+            // A: displayed once, but no nextDisplayed yet => postponed
+            FrameData A = MakeFrame(
+                PresentResult::Presented,
+                50'000, 400, 50'500,
+                { { FrameType::Application, 51'000 } });
 
-                // Chain updated based on A (last display instance)
-                Assert::IsTrue(chain.lastPresent.has_value());
-                Assert::AreEqual(uint64_t(51'000), chain.lastDisplayedScreenTime);
-            }
-        };
-    }
+            auto mA_pre = ComputeMetricsForPresent(qpc, A, nullptr, chain);
+            Assert::AreEqual(size_t(0), mA_pre.size(), L"Single display postponed.");
+            Assert::IsFalse(chain.lastPresent.has_value(), L"Chain is not updated without nextDisplayed.");
+
+            // B: dropped (not presented/displayed)
+            FrameData B = MakeFrame(
+                PresentResult::Discarded,
+                52'000, 300, 52'400,
+                {} /* no displayed */);
+
+            auto mB = ComputeMetricsForPresent(qpc, B, nullptr, chain);
+            Assert::AreEqual(size_t(1), mB.size(), L"Dropped frame goes through not-displayed path.");
+            Assert::IsTrue(chain.lastPresent.has_value(), L"Not-displayed path updates chain.");
+            Assert::IsTrue(chain.lastAppPresent.has_value(), L"Not-displayed frame becomes lastAppPresent.");
+            Assert::AreEqual(uint64_t(0), chain.lastDisplayedScreenTime, L"Not-displayed should leave lastDisplayedScreenTime at 0.");
+
+            // C: displayed next; use it to process A's postponed last
+            FrameData C = MakeFrame(
+                PresentResult::Presented,
+                53'000, 350, 53'400,
+                { { FrameType::Application, 54'000 } });
+
+            auto mA_post = ComputeMetricsForPresent(qpc, A, &C, chain);
+            Assert::AreEqual(size_t(1), mA_post.size(), L"Postponed last display of A processed with nextDisplayed.");
+
+            // Chain updated based on A (last display instance)
+            Assert::IsTrue(chain.lastPresent.has_value());
+            Assert::AreEqual(uint64_t(51'000), chain.lastDisplayedScreenTime);
+        }
+    };
 }
