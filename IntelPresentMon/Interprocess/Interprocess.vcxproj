@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -27,6 +27,9 @@
     <ClInclude Include="source\act\SymmetricActionConnector.h" />
     <ClInclude Include="source\act\SymmetricActionServer.h" />
     <ClInclude Include="source\act\Transfer.h" />
+    <ClInclude Include="source\DataStores.h" />
+    <ClInclude Include="source\FrameDataPlaceholder.h" />
+    <ClInclude Include="source\MetricCapabilities.h" />
     <ClInclude Include="source\PmStatusError.h" />
     <ClInclude Include="source\IntrospectionCapsLookup.h" />
     <ClInclude Include="source\IntrospectionDataTypeMapping.h" />
@@ -55,6 +58,10 @@
     <ClInclude Include="source\metadata\StatsShortcuts.h" />
     <ClInclude Include="source\metadata\UnitList.h" />
     <ClInclude Include="source\SharedMemoryTypes.h" />
+    <ClInclude Include="source\HistoryRing.h" />
+    <ClInclude Include="source\ShmRing.h" />
+    <ClInclude Include="source\StreamedDataSegment.h" />
+    <ClInclude Include="source\TelemetryMap.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CommonUtilities\CommonUtilities.vcxproj">

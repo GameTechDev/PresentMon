@@ -3,6 +3,7 @@
 #include <array>
 #include "../../ControlLib/PresentMonPowerTelemetry.h"
 #include "../../ControlLib/CpuTelemetryInfo.h"
+#include "MetricCapabilities.h"
 
 
 
@@ -39,8 +40,6 @@ namespace pmon::ipc::intro
 		static constexpr auto gpuCapBitArray = std::array{ GpuTelemetryCapBits::max_fan_speed_0, GpuTelemetryCapBits::max_fan_speed_1,
 			GpuTelemetryCapBits::max_fan_speed_2, GpuTelemetryCapBits::max_fan_speed_3, GpuTelemetryCapBits::max_fan_speed_4, };
 	};
-	//template<> struct IntrospectionCapsLookup<PM_METRIC_PSU_METRIC_NAME_HERE> { static constexpr auto gpuCapBitArray = std::array{
-	//	GpuTelemetryCapBits::psu_info_0, GpuTelemetryCapBits::psu_info_1, GpuTelemetryCapBits::psu_info_2, GpuTelemetryCapBits::psu_info_3, GpuTelemetryCapBits::psu_info_4, }; };
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_SIZE> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_mem_size; };
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_USED> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_mem_used; };
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_UTILIZATION> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_mem_used; };
@@ -78,5 +77,13 @@ namespace pmon::ipc::intro
 	template<class T> concept IsCpuMetric = requires { T::cpuCapBit; };
 	template<class T> concept IsManualDisableMetric = requires { typename T::ManualDisable; };
 
-	// TODO: compile-time verify that all cap bits are covered (how?)
+	MetricCapabilities ConvertBitset(const GpuTelemetryCapBits& bits)
+	{
+		return {};
+	}
+
+	MetricCapabilities ConvertBitset(const CpuTelemetryCapBits& bits)
+	{
+		return {};
+	}
 }

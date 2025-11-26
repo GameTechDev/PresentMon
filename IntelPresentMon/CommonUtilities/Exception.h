@@ -3,7 +3,7 @@
 #include <exception>
 #include <memory>
 #include <optional>
-#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
+#include "../PresentMonAPI2/PresentMonAPI.h"
 
 namespace pmon::util
 {
