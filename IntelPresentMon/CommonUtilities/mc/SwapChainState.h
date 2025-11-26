@@ -67,6 +67,8 @@ struct SwapChainCoreState {
 
     // NVIDIA Specific Tracking
     uint64_t lastDisplayedFlipDelay = 0;
+
+    void UpdateAfterPresent(const FrameData& present);
 };
 
 }

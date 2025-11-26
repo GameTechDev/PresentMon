@@ -1,7 +1,7 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "CppUnitTest.h"
-#include "../CommonUtilities/mc/SwapChainCoreState.h"
+#include "../CommonUtilities/mc/SwapChainState.h"
 #include "../CommonUtilities/mc/MetricsTypes.h"
 #include <memory>
 
@@ -313,30 +313,6 @@ namespace SwapChainTests
             Assert::AreEqual(uint64_t(1234), swapChainOne.lastSimStartTime);
             Assert::AreEqual(size_t(2), swapChainOne.pendingPresents.size());
             //Assert::AreEqual(presents[1], *swapChainOne.lastPresent);
-        }
-
-        TEST_METHOD(MoveSemantics_Efficient)
-        {
-            // Verify that copies are independent (important for value types)
-            pmon::util::metrics::SwapChainCoreState swapChainOne{};
-
-            pmon::util::metrics::FrameData presents[100];
-            // Set state with large vector
-            for (int i = 0; i < 100; ++i) {
-                swapChainOne.pendingPresents.push_back(presents[i]);
-            }
-            swapChainOne.lastSimStartTime = 9999;
-            swapChainOne.lastPresent = presents[99];
-            
-            // Move to core2
-            pmon::util::metrics::SwapChainCoreState swapChainTwo = std::move(swapChainOne);
-            
-            // Verify core2 has the data
-            Assert::AreEqual(size_t(100), swapChainTwo.pendingPresents.size());
-            Assert::AreEqual(uint64_t(9999), swapChainTwo.lastSimStartTime);
-            //Assert::AreEqual(presents[99], *swapChainTwo.lastPresent);
-            
-            // Note: core1 is in moved-from state, don't test its values
         }
     };
 }

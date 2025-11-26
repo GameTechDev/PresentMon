@@ -29,7 +29,7 @@ which is controlled from MainThread based on user input or timer.
 
 #include "../PresentData/PresentMonTraceConsumer.hpp"
 #include "../PresentData/PresentMonTraceSession.hpp"
-#include "../IntelPresentMon/CommonUtilities/mc/SwapChainCoreState.h"
+#include "../IntelPresentMon/CommonUtilities/mc/SwapChainState.h"
 
 #include <unordered_map>
 #include <queue>

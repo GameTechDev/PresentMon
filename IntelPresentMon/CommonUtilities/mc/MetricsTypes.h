@@ -25,50 +25,50 @@ namespace pmon::util::metrics {
     // Immutable snapshot - safe for both ownership models
     struct FrameData {
         // Timing Data
-        uint64_t presentStartTime;
-        uint64_t readyTime;
-        uint64_t timeInPresent;
-        uint64_t gpuStartTime;
-        uint64_t gpuDuration;
-        uint64_t gpuVideoDuration;
+        uint64_t presentStartTime = 0;
+        uint64_t readyTime = 0;
+        uint64_t timeInPresent = 0;
+        uint64_t gpuStartTime = 0;
+        uint64_t gpuDuration = 0;
+        uint64_t gpuVideoDuration = 0;
 
         // Used to track the application work when Intel XeSS-FG is enabled
-        uint64_t appPropagatedPresentStartTime;
-        uint64_t appPropagatedTimeInPresent;
-        uint64_t appPropagatedGPUStartTime;
-        uint64_t appPropagatedReadyTime;
-        uint64_t appPropagatedGPUDuration;
-        uint64_t appPropagatedGPUVideoDuration;
+        uint64_t appPropagatedPresentStartTime = 0;
+        uint64_t appPropagatedTimeInPresent = 0;
+        uint64_t appPropagatedGPUStartTime = 0;
+        uint64_t appPropagatedReadyTime = 0;
+        uint64_t appPropagatedGPUDuration = 0;
+        uint64_t appPropagatedGPUVideoDuration = 0;
 
         // Instrumented Timestamps
-        uint64_t appSimStartTime;
-        uint64_t appSleepStartTime;
-        uint64_t appSleepEndTime;
-        uint64_t appRenderSubmitStartTime;
-        uint64_t appRenderSubmitEndTime;
-        uint64_t appPresentStartTime;
-        uint64_t appPresentEndTime;
+        uint64_t appSimStartTime = 0;
+        uint64_t appSleepStartTime = 0;
+        uint64_t appSleepEndTime = 0;
+        uint64_t appRenderSubmitStartTime = 0;
+        uint64_t appRenderSubmitEndTime = 0;
+        uint64_t appPresentStartTime = 0;
+        uint64_t appPresentEndTime = 0;
         std::pair<uint64_t, InputDeviceType> appInputSample;  // time, input type
 
         // Input Device Timestamps
-        uint64_t inputTime;           // All input devices
-        uint64_t mouseClickTime;      // Mouse click specific
+        uint64_t inputTime = 0;           // All input devices
+        uint64_t mouseClickTime = 0;      // Mouse click specific
 
         std::vector<std::pair<FrameType, uint64_t>> displayed;
 
         // PC Latency data
-        uint64_t pclSimStartTime;
-        uint64_t pclInputPingTime;
-        uint64_t flipDelay;
-        uint32_t FlipToken;
+        uint64_t pclSimStartTime = 0;
+        uint64_t pclInputPingTime = 0;
+        uint64_t flipDelay = 0;
+        uint32_t FlipToken = 0;
 
         // Metadata
         PresentResult finalState;
-        uint32_t processId;
-        uint32_t threadId;
-        uint64_t swapChainAddress;
-        uint32_t frameId;
-        uint32_t appFrameId;
+        uint32_t processId = 0;
+        uint32_t threadId = 0;
+        uint64_t swapChainAddress = 0;
+        uint32_t frameId = 0;
+        uint32_t appFrameId = 0;
 
         // Setters for test setup
         void setFinalState(PresentResult state) { finalState = state; }

@@ -61,14 +61,98 @@ namespace pmon::util::metrics
         return result;
     }
 
-    ComputedMetrics ComputeFrameMetrics(
+    std::vector<ComputedMetrics> ComputeMetricsForPresent(
         const QpcConverter& qpc,
         const FrameData& present,
         const FrameData* nextDisplayed,
+        SwapChainCoreState& chainState)
+    {
+        std::vector<ComputedMetrics> results;
+
+        const auto displayCount = present.getDisplayedCount();
+        const bool isDisplayed = present.getFinalState() == PresentResult::Presented && displayCount > 0;
+
+        // Case 1: not displayed, return single not-displayed metrics
+        if (!isDisplayed || displayCount == 0) {
+            const uint64_t screenTime = 0;
+            const uint64_t nextScreenTime = 0;
+            const bool isDisplayed = false;
+            const bool isAppFrame = false;
+
+            auto metrics = ComputeFrameMetrics(
+                qpc,
+                present,
+                screenTime,
+                nextScreenTime,
+                isDisplayed,
+                isAppFrame,
+                chainState);
+            results.push_back(std::move(metrics));
+            
+            // TODO - Check and remove this comment ->
+            // Matches old ReportMetricsHelper: UpdateChain is called for not-displayed frames.
+            chainState.UpdateAfterPresent(present);
+
+            return results;
+        }
+
+        // There is at least one displayed frame to process
+        const auto indexing = DisplayIndexing::Calculate(present, nextDisplayed);
+
+        // Determine if we should update the swap chain based on nextDisplayed
+        const bool shouldUpdateSwapChain = (nextDisplayed != nullptr);
+
+        for (size_t displayIndex = indexing.startIndex; displayIndex < indexing.endIndex; ++displayIndex) {
+            uint64_t screenTime = present.getDisplayedScreenTime(displayIndex);
+            uint64_t nextScreenTime = 0;
+
+            if (displayIndex + 1 < displayCount) {
+                // Next display instance of the same present
+                nextScreenTime = present.getDisplayedScreenTime(displayIndex + 1);
+            }
+            else if (nextDisplayed != nullptr && nextDisplayed->getDisplayedCount() > 0) {
+                // First display of the *next* presented frame
+                nextScreenTime = nextDisplayed->getDisplayedScreenTime(0);
+            }
+            else {
+                break;  // No next screen time available
+            }
+
+            const bool isAppFrame = (displayIndex == indexing.appIndex);
+
+            auto metrics = ComputeFrameMetrics(
+                qpc,
+                present,
+                screenTime,
+                nextScreenTime,
+                isDisplayed,
+                isAppFrame,
+                chainState);
+            results.push_back(std::move(metrics));
+        }
+
+        // Matches old ReportMetricsHelper:
+        // - Case 2 (no nextDisplayed): no UpdateChain yet.
+        // - Case 3 (has nextDisplayed): this is the call that finally updates the chain.
+        if (shouldUpdateSwapChain) {
+            chainState.UpdateAfterPresent(present);
+        }
+
+        return results;
+    }
+
+    ComputedMetrics ComputeFrameMetrics(
+        const QpcConverter& qpc,
+        const FrameData& present,
+        uint64_t screenTime,
+        uint64_t nextScreenTime,
+        bool isDisplayed,
+        bool isAppFrame,
         const SwapChainCoreState& chain)
     {
 
         ComputedMetrics result{};
+        FrameMetrics& metrics = result.metrics;
 
         return result;
     }

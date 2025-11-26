@@ -3,9 +3,10 @@
 #pragma once
 #include <cstdint>
 #include <optional>
+#include <vector>
 #include "../qpc.h"
 #include "MetricsTypes.h"
-#include "SwapChainCoreState.h"
+#include "SwapChainState.h"
 
 namespace pmon::util::metrics
 {
@@ -38,12 +39,21 @@ namespace pmon::util::metrics
             const FrameData* nextDisplayed);
     };
 
+    std::vector<ComputedMetrics> ComputeMetricsForPresent(
+        const QpcConverter& qpc,
+        const FrameData& present,
+        const FrameData* nextDisplayed,
+        SwapChainCoreState& chainState);
+
     // === Pure Calculation Functions ===
 
     ComputedMetrics ComputeFrameMetrics(
         const QpcConverter& qpc,
         const FrameData& present,
-        const FrameData* nextDisplayed,
+        uint64_t screenTime,
+        uint64_t nextScreenTime,
+        bool isDisplayed,
+        bool isAppFrame,
         const SwapChainCoreState& chain);
 
     // Helper: Calculate CPU start time

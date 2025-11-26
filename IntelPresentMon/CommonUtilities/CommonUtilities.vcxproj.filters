@@ -300,7 +300,7 @@
     <ClInclude Include="mc\MetricsTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="mc\SwapChainCoreState.h">
+    <ClInclude Include="mc\SwapChainState.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -483,6 +483,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="mc\MetricsCalculator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\SwapChainState.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
