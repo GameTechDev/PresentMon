@@ -548,6 +548,9 @@ bool ParseCommandLine(int argc, wchar_t** argv)
     //
     // Also ignore --multi_csv since it only applies to file output.
     if (csvOutputStdout) {
+        if (args->mConsoleOutput == ConsoleOutput::Simple) {
+            PrintWarning(L"warning: --no_console_stats has no effect when writing CSV to stdout.\n");
+        }
         args->mConsoleOutput = ConsoleOutput::None;
 
         if (args->mMultiCsv) {
