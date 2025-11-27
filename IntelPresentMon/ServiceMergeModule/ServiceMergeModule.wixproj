@@ -15,9 +15,6 @@
   <ItemGroup>
     <!-- The module authoring file -->
     <Compile Include="ServiceMergeModule.wxs" />
-    <!-- Link your existing wixlib so we get ComponentGroup Id='service_files' -->
-    <!-- Add extensions only if your wixlib uses them -->
-    <!-- <WixExtension Include="WixUtilExtension" /> -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PMInstallerLib\PMInstallerLib.wixproj">
