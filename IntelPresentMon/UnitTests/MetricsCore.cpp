@@ -1359,4 +1359,293 @@ namespace MetricsCoreTests
             Assert::AreEqual(uint64_t(51'000), chain.lastDisplayedScreenTime);
         }
     };
+
+    TEST_CLASS(MetricsValueTests)
+    {
+        TEST_METHOD(ComputeMetricsForPresent_NotDisplayed_msBetweenPresents_UsesLastPresentDelta)
+        {
+            // 10MHz QPC frequency
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            // First frame: not displayed path (Presented but no Displayed entries)
+            auto first = MakeFrame(
+                PresentResult::Presented,
+                /*presentStartTime*/ 1'000'000,
+                /*timeInPresent*/    10'000,
+                /*readyTime*/        1'020'000,
+                /*displayed*/{});  // no displayed frames => not-displayed path
+
+            auto firstMetrics = ComputeMetricsForPresent(qpc, first, nullptr, chain);
+
+            // We should get exactly one metrics entry
+            Assert::AreEqual(size_t(1), firstMetrics.size(), L"First not-displayed frame should produce one metrics entry.");
+
+            // With no prior lastPresent, msBetweenPresents should be zero
+            Assert::AreEqual(
+                0.0,
+                firstMetrics[0].metrics.msBetweenPresents,
+                0.0001,
+                L"First frame should have msBetweenPresents == 0.");
+
+            // Chain should now treat this as lastPresent / lastAppPresent
+            Assert::IsTrue(chain.lastPresent.has_value());
+            if (!chain.lastPresent.has_value())
+            {
+                Assert::Fail(L"lastPresent was unexpectedly empty.");
+                return;
+            }
+            const auto& last = chain.lastPresent.value();
+            Assert::AreEqual(uint64_t(1'000'000), last.presentStartTime);
+
+            // Second frame: also not displayed, later in time
+            auto second = MakeFrame(
+                PresentResult::Presented,
+                /*presentStartTime*/ 1'016'660,   // ~16.666 ms later at 10MHz
+                /*timeInPresent*/    10'000,
+                /*readyTime*/        1'036'660,
+                /*displayed*/{});
+
+            auto secondMetrics = ComputeMetricsForPresent(qpc, second, nullptr, chain);
+
+            Assert::AreEqual(
+                size_t(1),
+                secondMetrics.size(),
+                L"Second not-displayed frame should also produce one metrics entry.");
+
+            // Expected delta: use the same converter the implementation uses
+            double expectedDelta = qpc.DeltaUnsignedMilliSeconds(
+                first.presentStartTime,
+                second.presentStartTime);
+
+            Assert::AreEqual(
+                expectedDelta,
+                secondMetrics[0].metrics.msBetweenPresents,
+                0.0001,
+                L"msBetweenPresents should equal the unsigned delta between lastPresent and current presentStartTime.");
+        }
+        TEST_METHOD(ComputeMetricsForPresent_NotDisplayed_BaseTimingAndCpuStart_AreCorrect)
+        {
+            // 10 MHz QPC: 10,000,000 ticks per second
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            // First frame: not displayed, becomes the baseline lastPresent/lastAppPresent.
+            FrameData first = MakeFrame(
+                PresentResult::Presented,
+                /*presentStartTime*/ 1'000'000,   // 0.1s
+                /*timeInPresent*/    200'000,     // 0.02s
+                /*readyTime*/        1'500'000,   // 0.15s → 50 ms after start
+                /*displayed*/{}           // no displays => "not displayed" path
+            );
+
+            auto firstMetricsList = ComputeMetricsForPresent(qpc, first, nullptr, chain);
+            Assert::AreEqual(
+                size_t(1),
+                firstMetricsList.size(),
+                L"First not-displayed frame should produce one metrics entry.");
+
+            const auto& firstMetrics = firstMetricsList[0].metrics;
+
+            uint64_t expectedTimeInSecondsFirst = first.presentStartTime;
+            Assert::AreEqual(
+                expectedTimeInSecondsFirst,
+                firstMetrics.timeInSeconds,
+                L"timeInSeconds should come from QpcToSeconds(presentStartTime).");
+
+            // No prior lastPresent → msBetweenPresents should be 0
+            Assert::AreEqual(
+                0.0,
+                firstMetrics.msBetweenPresents,
+                0.0001,
+                L"First frame should have msBetweenPresents == 0.");
+
+            // msInPresentApi = delta for TimeInPresent
+            double expectedMsInPresentFirst = qpc.DurationMilliSeconds(first.timeInPresent);
+            Assert::AreEqual(
+                expectedMsInPresentFirst,
+                firstMetrics.msInPresentApi,
+                0.0001,
+                L"msInPresentApi should equal QpcDeltaToMilliSeconds(timeInPresent).");
+
+            // msUntilRenderComplete = delta between PresentStart and Ready
+            double expectedMsUntilRenderCompleteFirst =
+                qpc.DeltaUnsignedMilliSeconds(first.presentStartTime, first.readyTime);
+            Assert::AreEqual(
+                expectedMsUntilRenderCompleteFirst,
+                firstMetrics.msUntilRenderComplete,
+                0.0001,
+                L"msUntilRenderComplete should equal delta from PresentStartTime to ReadyTime.");
+
+            // With no prior present, CalculateCPUStart should return 0 → cpuStartQpc == 0
+            Assert::AreEqual(
+                uint64_t(0),
+                firstMetrics.cpuStartQpc,
+                L"First frame with no history should have cpuStartQpc == 0.");
+
+            // Chain must now have lastPresent/lastAppPresent set to 'first'
+            Assert::IsTrue(chain.lastPresent.has_value(), L"Expected lastPresent to be set.");
+            if (!chain.lastPresent.has_value()) {
+                Assert::Fail(L"lastPresent was unexpectedly empty.");
+                return;
+            }
+            const auto& lastAfterFirst = chain.lastPresent.value();
+            Assert::AreEqual(first.presentStartTime, lastAfterFirst.presentStartTime);
+
+            // -------------------------------------------------------------------------
+            // Second frame: also not displayed, later in time.
+            // This should:
+            //  - compute msBetweenPresents based on first→second start times
+            //  - keep msInPresentApi/msUntilRenderComplete consistent
+            //  - use CalculateCPUStart based on 'first' as lastAppPresent
+            // -------------------------------------------------------------------------
+
+            FrameData second = MakeFrame(
+                PresentResult::Presented,
+                /*presentStartTime*/ 1'016'000,   // slightly later than first
+                /*timeInPresent*/    300'000,     // 0.03s
+                /*readyTime*/        1'516'000,   // 0.5s after first start
+                /*displayed*/{}           // still "not displayed" path
+            );
+
+            auto secondMetricsList = ComputeMetricsForPresent(qpc, second, nullptr, chain);
+            Assert::AreEqual(
+                size_t(1),
+                secondMetricsList.size(),
+                L"Second not-displayed frame should produce one metrics entry.");
+
+            const auto& secondMetrics = secondMetricsList[0].metrics;
+
+            // msBetweenPresents should be based on lastPresent.start -> second.start
+            double expectedBetween =
+                qpc.DeltaUnsignedMilliSeconds(first.presentStartTime, second.presentStartTime);
+            Assert::AreEqual(
+                expectedBetween,
+                secondMetrics.msBetweenPresents,
+                0.0001,
+                L"msBetweenPresents should equal delta between lastPresent and current presentStart.");
+
+            // msInPresentApi / msUntilRenderComplete for second
+            double expectedMsInPresentSecond = qpc.DurationMilliSeconds(second.timeInPresent);
+            double expectedMsUntilRenderCompleteSecond =
+                qpc.DeltaUnsignedMilliSeconds(second.presentStartTime, second.readyTime);
+
+            Assert::AreEqual(
+                expectedMsInPresentSecond,
+                secondMetrics.msInPresentApi,
+                0.0001,
+                L"Second frame msInPresentApi should match timeInPresent.");
+            Assert::AreEqual(
+                expectedMsUntilRenderCompleteSecond,
+                secondMetrics.msUntilRenderComplete,
+                0.0001,
+                L"Second frame msUntilRenderComplete should match start→ready delta.");
+
+            // cpuStartQpc for second should come from CalculateCPUStart:
+            // lastAppPresent == first (no propagated times) → first.start + first.timeInPresent
+            uint64_t expectedCpuStartSecond = first.presentStartTime + first.timeInPresent;
+            Assert::AreEqual(
+                expectedCpuStartSecond,
+                secondMetrics.cpuStartQpc,
+                L"cpuStartQpc should match CalculateCPUStart from lastAppPresent.");
+        }
+        TEST_METHOD(ComputeMetricsForPresent_DisplayedWithNext_BaseTimingAndCpuStart_AreCorrect)
+        {
+            // 10 MHz QPC
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            // Baseline frame: Presented but not displayed → not-displayed path
+            FrameData first = MakeFrame(
+                PresentResult::Presented,
+                /*presentStartTime*/ 1'000'000,
+                /*timeInPresent*/    200'000,
+                /*readyTime*/        1'500'000,
+                /*displayed*/{});   // no displays
+
+            auto firstMetricsList = ComputeMetricsForPresent(qpc, first, nullptr, chain);
+            Assert::AreEqual(
+                size_t(1),
+                firstMetricsList.size(),
+                L"Baseline not-displayed frame should produce one metrics entry.");
+
+            // Chain should now have lastPresent/lastAppPresent == first
+            Assert::IsTrue(chain.lastPresent.has_value(), L"Expected lastPresent to be set after baseline frame.");
+            if (!chain.lastPresent.has_value()) {
+                Assert::Fail(L"lastPresent was unexpectedly empty after baseline frame.");
+                return;
+            }
+
+            // Second frame: Presented + one displayed instance, processed with a nextDisplayed
+            FrameData second = MakeFrame(
+                PresentResult::Presented,
+                /*presentStartTime*/ 1'016'000,      // slightly later than first
+                /*timeInPresent*/    300'000,
+                /*readyTime*/        1'616'000,
+                std::vector<std::pair<FrameType, uint64_t>>{
+                    { FrameType::Application, 2'000'000 }   // one displayed instance
+            });
+
+            // Dummy nextDisplayed with at least one display so the "with next" path is taken
+            FrameData nextDisplayed = MakeFrame(
+                PresentResult::Presented,
+                /*presentStartTime*/ 2'100'000,
+                /*timeInPresent*/    100'000,
+                /*readyTime*/        2'200'000,
+                std::vector<std::pair<FrameType, uint64_t>>{
+                    { FrameType::Application, 2'300'000 }
+            });
+
+            auto secondMetricsList = ComputeMetricsForPresent(qpc, second, &nextDisplayed, chain);
+
+            Assert::AreEqual(
+                size_t(1),
+                secondMetricsList.size(),
+                L"Displayed-with-next frame should produce one metrics entry (postponed last display).");
+
+            const auto& secondMetrics = secondMetricsList[0].metrics;
+
+            // timeInSeconds from presentStartTime
+            auto expectedTimeInSecondsSecond = second.presentStartTime;
+            Assert::AreEqual(
+                expectedTimeInSecondsSecond,
+                secondMetrics.timeInSeconds,
+                L"timeInSeconds should match QpcToSeconds(presentStartTime) for displayed frame.");
+
+            // msBetweenPresents: lastPresent.start (first) → second.start
+            double expectedBetween =
+                qpc.DeltaUnsignedMilliSeconds(first.presentStartTime, second.presentStartTime);
+            Assert::AreEqual(
+                expectedBetween,
+                secondMetrics.msBetweenPresents,
+                0.0001,
+                L"msBetweenPresents should match delta between lastPresent and current presentStart for displayed frame.");
+
+            // msInPresentApi from timeInPresent
+            double expectedMsInPresentSecond = qpc.DurationMilliSeconds(second.timeInPresent);
+            Assert::AreEqual(
+                expectedMsInPresentSecond,
+                secondMetrics.msInPresentApi,
+                0.0001,
+                L"msInPresentApi should match QpcDeltaToMilliSeconds(timeInPresent) for displayed frame.");
+
+            // msUntilRenderComplete from start → ready
+            double expectedMsUntilRenderCompleteSecond =
+                qpc.DeltaUnsignedMilliSeconds(second.presentStartTime, second.readyTime);
+            Assert::AreEqual(
+                expectedMsUntilRenderCompleteSecond,
+                secondMetrics.msUntilRenderComplete,
+                0.0001,
+                L"msUntilRenderComplete should match start→ready delta for displayed frame.");
+
+            // cpuStartQpc should come from CalculateCPUStart using baseline frame as lastAppPresent:
+            // (no propagated times) → first.start + first.timeInPresent
+            uint64_t expectedCpuStartSecond = first.presentStartTime + first.timeInPresent;
+            Assert::AreEqual(
+                expectedCpuStartSecond,
+                secondMetrics.cpuStartQpc,
+                L"cpuStartQpc for displayed frame should match CalculateCPUStart based on lastAppPresent.");
+        }
+
+    };
 }

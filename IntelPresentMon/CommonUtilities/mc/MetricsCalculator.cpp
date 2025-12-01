@@ -141,6 +141,30 @@ namespace pmon::util::metrics
         return results;
     }
 
+    void CalculateBasePresentMetrics(
+        const QpcConverter& qpc,
+        const FrameData& present,
+        const SwapChainCoreState& swapChain,
+        FrameMetrics& out)
+    {
+        out.timeInSeconds = present.presentStartTime;
+
+        // Calculate the delta from the previous present (if one exists)
+        // to the current present
+        if (swapChain.lastPresent.has_value()) {
+            out.msBetweenPresents = qpc.DeltaUnsignedMilliSeconds(
+                swapChain.lastPresent->getPresentStartTime(),
+                present.getPresentStartTime());
+        } else {
+            out.msBetweenPresents = 0.0;
+        }
+
+        out.msInPresentApi = qpc.DurationMilliSeconds(present.getTimeInPresent());
+        out.msUntilRenderComplete = qpc.DeltaSignedMilliSeconds(
+            present.getPresentStartTime(),
+            present.getReadyTime());
+    }
+
     ComputedMetrics ComputeFrameMetrics(
         const QpcConverter& qpc,
         const FrameData& present,
@@ -153,6 +177,14 @@ namespace pmon::util::metrics
 
         ComputedMetrics result{};
         FrameMetrics& metrics = result.metrics;
+
+        CalculateBasePresentMetrics(
+            qpc,
+            present,
+            chain,
+            metrics);
+
+        metrics.cpuStartQpc = CalculateCPUStart(chain, present);
 
         return result;
     }
