@@ -7,6 +7,63 @@
 
 namespace pmon::util::metrics
 {
+    namespace
+    {
+        // Helper dedicated to computing msUntilDisplayed, matching legacy ReportMetricsHelper behavior.
+        void ComputeMsUntilDisplayed(
+            const QpcConverter& qpc,
+            const FrameData& present,
+            bool isDisplayed,
+            uint64_t screenTime,
+            FrameMetrics& out)
+        {
+            if (isDisplayed) {
+                out.msUntilDisplayed = qpc.DeltaUnsignedMilliSeconds(
+                    present.getPresentStartTime(),
+                    screenTime);
+            }
+            else {
+                out.msUntilDisplayed = 0.0;
+            }
+        }
+
+        // Helper dedicated to computing msBetweenDisplayChange, matching legacy ReportMetricsHelper behavior.
+        void ComputeMsBetweenDisplayChange(
+            const QpcConverter& qpc,
+            const SwapChainCoreState& chain,
+            bool isDisplayed,
+            uint64_t screenTime,
+            FrameMetrics& out)
+        {
+            if (isDisplayed) {
+                out.msBetweenDisplayChange = qpc.DeltaUnsignedMilliSeconds(
+                    chain.lastDisplayedScreenTime,
+                    screenTime);
+            }
+            else {
+                out.msBetweenDisplayChange = 0.0;
+            }
+        }
+
+        // Helper dedicated to computing msDisplayedTime, matching legacy ReportMetricsHelper behavior.
+        void ComputeMsDisplayedTime(
+            const QpcConverter& qpc,
+            bool isDisplayed,
+            uint64_t screenTime,
+            uint64_t nextScreenTime,
+            FrameMetrics& out)
+        {
+            if (isDisplayed) {
+                out.msDisplayedTime = qpc.DeltaUnsignedMilliSeconds(
+                    screenTime,
+                    nextScreenTime);
+            }
+            else {
+                out.msDisplayedTime = 0.0;
+            }
+        }
+    }
+
     DisplayIndexing DisplayIndexing::Calculate(
         const FrameData& present,
         const FrameData* nextDisplayed)
@@ -165,6 +222,43 @@ namespace pmon::util::metrics
             present.getReadyTime());
     }
 
+    void CalculateDisplayMetrics(
+        const QpcConverter& qpc,
+        const FrameData& present,
+        const SwapChainCoreState& swapChain,
+        bool isDisplayed,
+        uint64_t screenTime,
+        uint64_t nextScreenTime,
+        FrameMetrics& metrics) {
+
+        // msUntilDisplayed depends only on whether this display instance is displayed and its screen time
+        ComputeMsUntilDisplayed(
+            qpc,
+            present,
+            isDisplayed,
+            screenTime,
+            metrics);
+
+        // msBetweenDisplayChange depends on previous displayed screen time and the current screen time
+        ComputeMsBetweenDisplayChange(
+            qpc,
+            swapChain,
+            isDisplayed,
+            screenTime,
+            metrics);
+
+        // msDisplayedTime depends on the current screen time and the next screen time
+        ComputeMsDisplayedTime(
+            qpc,
+            isDisplayed,
+            screenTime,
+            nextScreenTime,
+            metrics);
+
+        // screenTimeQpc is simply the current screen time
+        metrics.screenTimeQpc = screenTime;
+    }
+
     ComputedMetrics ComputeFrameMetrics(
         const QpcConverter& qpc,
         const FrameData& present,
@@ -182,6 +276,15 @@ namespace pmon::util::metrics
             qpc,
             present,
             chain,
+            metrics);
+
+        CalculateDisplayMetrics(
+            qpc,
+            present,
+            chain,
+            isDisplayed,
+            screenTime,
+            nextScreenTime,
             metrics);
 
         metrics.cpuStartQpc = CalculateCPUStart(chain, present);

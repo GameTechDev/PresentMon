@@ -1315,7 +1315,8 @@ namespace MetricsCoreTests
             Assert::AreEqual(uint64_t(42'200), chain.lastDisplayedScreenTime);
             Assert::AreEqual(uint64_t(999), chain.lastDisplayedFlipDelay);
         }
-    };        TEST_CLASS(DisplayedDroppedDisplayedSequenceTests)
+    };
+    TEST_CLASS(DisplayedDroppedDisplayedSequenceTests)
     {
     public:
         TEST_METHOD(Displayed_Dropped_Displayed_Sequence_IsHandledAcrossCalls)
@@ -1646,6 +1647,455 @@ namespace MetricsCoreTests
                 secondMetrics.cpuStartQpc,
                 L"cpuStartQpc for displayed frame should match CalculateCPUStart based on lastAppPresent.");
         }
+    };
+    TEST_CLASS(MsUntilDisplayedTests) {
+    public: 
+        TEST_METHOD(NotDisplayed_ReturnsZero)
+        {
+            QpcConverter qpc(10'000'000, 0); SwapChainCoreState chain{};
+            // Not displayed: Presented but no displayed entries
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 10'000;
+            frame.readyTime = 1'010'000;
+            frame.setFinalState(PresentResult::Presented);
+            // No displayed entries
 
+            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+            Assert::AreEqual(0.0, m.msUntilDisplayed, 0.0001);
+        }
+        TEST_METHOD(Displayed_ReturnsDeltaFromPresentStartToScreenTime)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 2'000'000; // start
+            frame.timeInPresent = 20'000;
+            frame.readyTime = 2'050'000;
+            frame.setFinalState(PresentResult::Presented);
+            // Single displayed; will be postponed unless nextDisplayed provided
+            frame.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            FrameData next{}; // provide nextDisplayed to process postponed
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 3'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+            double expected = qpc.DeltaUnsignedMilliSeconds(frame.getPresentStartTime(), frame.getDisplayedScreenTime(0));
+            Assert::AreEqual(expected, m.msUntilDisplayed, 0.0001);
+        }
+        TEST_METHOD(DisplayedGeneratedFrame_AlsoReturnsDelta)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 5'000'000;
+            frame.timeInPresent = 15'000;
+            frame.readyTime = 5'030'000;
+            frame.setFinalState(PresentResult::Presented);
+            // Displayed generated frame (e.g., Repeated/Composed/Desktop depending on enum)
+            frame.displayed.push_back({ FrameType::Intel_XEFG, 5'100'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 6'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+            double expected = qpc.DeltaUnsignedMilliSeconds(frame.getPresentStartTime(), frame.getDisplayedScreenTime(0));
+            Assert::AreEqual(expected, m.msUntilDisplayed, 0.0001);
+        }
+    };
+    TEST_CLASS(MsDisplayedTimeTests)
+    {
+    public:
+        TEST_METHOD(NotDisplayed_ReturnsZero)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 10'000;
+            frame.readyTime = 1'010'000;
+            frame.setFinalState(PresentResult::Presented);
+
+            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+            Assert::AreEqual(0.0, m.msDisplayedTime, 0.0001);
+        }
+
+        TEST_METHOD(DisplayedSingleDisplay_WithNextDisplay_ReturnsDeltaToNextScreenTime)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 2'000'000;
+            frame.timeInPresent = 20'000;
+            frame.readyTime = 2'050'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'800'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            double expected = qpc.DeltaUnsignedMilliSeconds(2'500'000, 2'800'000);
+            Assert::AreEqual(expected, m.msDisplayedTime, 0.0001);
+        }
+
+        TEST_METHOD(DisplayedMultipleDisplays_ProcessEachWithNextScreenTime)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 3'000'000;
+            frame.timeInPresent = 30'000;
+            frame.readyTime = 3'050'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 3'100'000 });
+            frame.displayed.push_back({ FrameType::Repeated, 3'400'000 });
+            frame.displayed.push_back({ FrameType::Repeated, 3'700'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 4'000'000 });
+
+            auto results1 = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            Assert::AreEqual(size_t(2), results1.size());
+
+            double expected0 = qpc.DeltaUnsignedMilliSeconds(3'100'000, 3'400'000);
+            Assert::AreEqual(expected0, results1[0].metrics.msDisplayedTime, 0.0001);
+
+            double expected1 = qpc.DeltaUnsignedMilliSeconds(3'400'000, 3'700'000);
+            Assert::AreEqual(expected1, results1[1].metrics.msDisplayedTime, 0.0001);
+
+            auto results2 = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results2.size());
+
+            double expected2 = qpc.DeltaUnsignedMilliSeconds(3'700'000, 4'000'000);
+            Assert::AreEqual(expected2, results2[0].metrics.msDisplayedTime, 0.0001);
+        }
+    };
+
+    TEST_CLASS(MsBetweenDisplayChangeTests)
+    {
+    public:
+        TEST_METHOD(FirstDisplayedFrame_NoChainHistory_ReturnsZero)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 5'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 5'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 6'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            Assert::AreEqual(0.0, m.msBetweenDisplayChange, 0.0001);
+        }
+
+        TEST_METHOD(SubsequentDisplayedFrame_UsesChainLastDisplayedScreenTime)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.lastDisplayedScreenTime = 4'000'000;
+
+            FrameData frame{};
+            frame.presentStartTime = 5'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 5'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 6'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            double expected = qpc.DeltaUnsignedMilliSeconds(4'000'000, 5'500'000);
+            Assert::AreEqual(expected, m.msBetweenDisplayChange, 0.0001);
+        }
+
+        TEST_METHOD(NotDisplayed_ReturnsZero)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.lastDisplayedScreenTime = 4'000'000;
+
+            FrameData frame{};
+            frame.presentStartTime = 5'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 5'100'000;
+            frame.setFinalState(PresentResult::Presented);
+
+            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            Assert::AreEqual(0.0, m.msBetweenDisplayChange, 0.0001);
+        }
+
+        TEST_METHOD(MultipleDisplays_EachComputesDeltaFromPrior)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.lastDisplayedScreenTime = 3'000'000;
+
+            FrameData frame{};
+            frame.presentStartTime = 5'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 5'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
+            frame.displayed.push_back({ FrameType::Repeated, 5'800'000 });
+            frame.displayed.push_back({ FrameType::Repeated, 6'100'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 6'400'000 });
+
+            auto results1 = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            Assert::AreEqual(size_t(2), results1.size());
+
+            double expected0 = qpc.DeltaUnsignedMilliSeconds(3'000'000, 5'500'000);
+            Assert::AreEqual(expected0, results1[0].metrics.msBetweenDisplayChange, 0.0001);
+
+            double expected1 = qpc.DeltaUnsignedMilliSeconds(3'000'000, 5'800'000);
+            Assert::AreEqual(expected1, results1[1].metrics.msBetweenDisplayChange, 0.0001);
+
+            auto results2 = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results2.size());
+
+            double expected2 = qpc.DeltaUnsignedMilliSeconds(3'000'000, 6'100'000);
+            Assert::AreEqual(expected2, results2[0].metrics.msBetweenDisplayChange, 0.0001);
+        }
+    };
+
+    TEST_CLASS(MsFlipDelayTests)
+    {
+    public:
+        TEST_METHOD(NotDisplayed_ReturnsZero)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 7'000'000;
+            frame.timeInPresent = 70'000;
+            frame.readyTime = 7'100'000;
+            frame.flipDelay = 5'000;
+            frame.setFinalState(PresentResult::Presented);
+
+            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            if (m.msFlipDelay.has_value()) {
+                Assert::AreEqual(0.0, m.msFlipDelay.value(), 0.0001);
+            }
+        }
+
+        TEST_METHOD(Displayed_WithFlipDelay_ReturnsFlipDelayInMs)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 7'000'000;
+            frame.timeInPresent = 70'000;
+            frame.readyTime = 7'100'000;
+            frame.flipDelay = 100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 7'500'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 8'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            if (m.msFlipDelay.has_value()) {
+                double expected = qpc.DurationMilliSeconds(100'000);
+                Assert::AreEqual(expected, m.msFlipDelay.value(), 0.0001);
+            }
+        }
+
+        TEST_METHOD(Displayed_WithoutFlipDelay_ReturnsZero)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 7'000'000;
+            frame.timeInPresent = 70'000;
+            frame.readyTime = 7'100'000;
+            frame.flipDelay = 0;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 7'500'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 8'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            if (m.msFlipDelay.has_value()) {
+                Assert::AreEqual(0.0, m.msFlipDelay.value(), 0.0001);
+            }
+        }
+
+        TEST_METHOD(DisplayedWithGeneratedFrame_AlsoIncludesFlipDelay)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 7'000'000;
+            frame.timeInPresent = 70'000;
+            frame.readyTime = 7'100'000;
+            frame.flipDelay = 50'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Repeated, 7'500'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 8'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            if (m.msFlipDelay.has_value()) {
+                double expected = qpc.DurationMilliSeconds(50'000);
+                Assert::AreEqual(expected, m.msFlipDelay.value(), 0.0001);
+            }
+        }
+    };
+
+    TEST_CLASS(ScreenTimeQpcTests)
+    {
+    public:
+        TEST_METHOD(NotDisplayed_ReturnsZero)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 9'000'000;
+            frame.timeInPresent = 90'000;
+            frame.readyTime = 9'100'000;
+            frame.setFinalState(PresentResult::Presented);
+
+            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            Assert::AreEqual(uint64_t(0), m.screenTimeQpc);
+        }
+
+        TEST_METHOD(DisplayedSingleFrame_EqualsScreenTime)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 9'000'000;
+            frame.timeInPresent = 90'000;
+            frame.readyTime = 9'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 9'500'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 10'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            Assert::AreEqual(uint64_t(9'500'000), m.screenTimeQpc);
+        }
+
+        TEST_METHOD(DisplayedMultipleFrames_EachHasOwnScreenTime)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 9'000'000;
+            frame.timeInPresent = 90'000;
+            frame.readyTime = 9'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 9'500'000 });
+            frame.displayed.push_back({ FrameType::Repeated, 9'800'000 });
+            frame.displayed.push_back({ FrameType::Repeated, 10'100'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 10'400'000 });
+
+            auto results1 = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            Assert::AreEqual(size_t(2), results1.size());
+            Assert::AreEqual(uint64_t(9'500'000), results1[0].metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(9'800'000), results1[1].metrics.screenTimeQpc);
+
+            auto results2 = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results2.size());
+            Assert::AreEqual(uint64_t(10'100'000), results2[0].metrics.screenTimeQpc);
+        }
+
+        TEST_METHOD(DisplayedGeneratedFrame_EqualsGeneratedFrameScreenTime)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 9'000'000;
+            frame.timeInPresent = 90'000;
+            frame.readyTime = 9'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Repeated, 9'700'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 10'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            Assert::AreEqual(uint64_t(9'700'000), m.screenTimeQpc);
+        }
     };
 }
