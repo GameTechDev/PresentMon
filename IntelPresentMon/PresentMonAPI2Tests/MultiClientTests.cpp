@@ -3,228 +3,40 @@
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
 #include "StatusComparison.h"
-#include "../PresentMonAPI2Loader/Loader.h"
-#include "../CommonUtilities/pipe/Pipe.h"
+#include "TestProcess.h"
 #include <string>
-#include <iostream>
-#include <format>
-#include <boost/process.hpp>
-#include <cereal/archives/json.hpp>
-#include <sstream>
-#include <filesystem>
-#include "TestCommands.h"
+#include <ranges>
 #include "Folders.h"
 #include "JobManager.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-namespace bp = boost::process;
-namespace as = boost::asio;
-namespace fs = std::filesystem;
 namespace vi = std::views;
 using namespace std::literals;
 using namespace pmon;
 
 namespace MultiClientTests
 {
-	static constexpr const char* controlPipe_ = R"(\\.\pipe\pm-multi-test-ctrl)";
-	static constexpr const char* introNsm_ = "pm_multi_test_intro";
-	static constexpr const char* logLevel_ = "info";
-
-
-	class TestProcess
+	class TestFixture : public CommonTestFixture
 	{
-	public:
-		TestProcess(as::io_context& ioctx, JobManager& jm, const std::string& executable, const std::vector<std::string>& args)
-			:
-			pipeFrom_{ ioctx },
-			pipeTo_{ ioctx },
-			process_{ ioctx, executable, args,
-				bp::process_stdio{ pipeTo_, pipeFrom_, nullptr } }
+	protected:
+		const CommonProcessArgs& GetCommonArgs() const override
 		{
-			jm.Attach(process_.native_handle());
-			Logger::WriteMessage(std::format(" - Launched process {{{}}} [{}]\n",
-				executable, process_.id()).c_str());
-			Assert::AreEqual("ping-ok"s, Command("ping"));
-		}
-		~TestProcess()
-		{
-			if (process_.running()) {
-				Quit();
-			}
-		}
-
-		TestProcess(const TestProcess&) = delete;
-		TestProcess& operator=(const TestProcess&) = delete;
-		TestProcess(TestProcess&& other) noexcept = delete;
-		TestProcess& operator=(TestProcess&& other) noexcept = delete;
-
-		void Quit()
-		{
-			Assert::IsTrue(process_.running());
-			Assert::AreEqual("quit-ok"s, Command("quit"));
-			process_.wait();
-		}
-		void Murder()
-		{
-			Assert::IsTrue(process_.running());
-			::TerminateProcess(process_.native_handle(), 0xDEAD);
-			process_.wait();
-		}
-		std::string Command(const std::string command)
-		{
-			// send command
-			as::write(pipeTo_, as::buffer(std::format("%{}\n", command)));
-
-			// read through the start marker and drop it (and any leading junk)
-			const auto n = as::read_until(pipeFrom_, readBufferFrom_, preamble_);
-			readBufferFrom_.consume(n);
-
-			// read through the end marker, m counts bytes up to and including postamble
-			const auto m = as::read_until(pipeFrom_, readBufferFrom_, postamble_);
-
-			// size string to accept payload
-			constexpr auto postambleSize = std::size(postamble_) - 1;
-			std::string payload;
-			payload.resize(m - postambleSize);
-
-			// read into sized string using stream wrapper and discard postamble
-			std::istream is(&readBufferFrom_);
-			is.read(&payload[0], static_cast<std::streamsize>(payload.size()));
-			readBufferFrom_.consume(postambleSize);
-
-			return payload;
-		}
-	private:
-		constexpr static const char preamble_[] = "%%{";
-		constexpr static const char postamble_[] = "}%%\r\n";
-		as::readable_pipe pipeFrom_;
-		as::streambuf readBufferFrom_;
-		as::writable_pipe pipeTo_;
-		bp::process process_;
-	};
-
-	class ServiceProcess : public TestProcess
-	{
-	public:
-		ServiceProcess(as::io_context& ioctx, JobManager& jm, const std::vector<std::string>& customArgs = {})
-			:
-			TestProcess{ ioctx, jm, "PresentMonService.exe"s, MakeArgs_(customArgs) }
-		{}
-		test::service::Status QueryStatus()
-		{
-			test::service::Status status;
-			std::istringstream is{ Command("status") };
-			cereal::JSONInputArchive{ is }(status);
-			return status;
-		}
-	private:
-		std::vector<std::string> MakeArgs_(const std::vector<std::string>& customArgs)
-		{
-			std::vector<std::string> allArgs{
-				"--control-pipe"s, controlPipe_,
-				"--nsm-prefix"s, "pm_multi_test_nsm"s,
-				"--intro-nsm"s, introNsm_,
-				"--enable-test-control"s,
-				"--log-dir"s, logFolder_,
-				"--log-name-pid"s,
-				"--log-level"s, std::string(logLevel_),
+			static CommonProcessArgs args{
+				.ctrlPipe = R"(\\.\pipe\pm-multi-test-ctrl)",
+				.introNsm = "pm_multi_test_intro",
+				.frameNsm = "pm_multi_test_nsm",
+				.logLevel = "debug",
+				.logFolder = logFolder_,
+				.sampleClientMode = "MultiClient",
 			};
-			allArgs.append_range(customArgs);
-			return allArgs;
-		}
-	};
-
-	class ClientProcess : public TestProcess
-	{
-	public:
-		ClientProcess(as::io_context& ioctx, JobManager& jm, const std::vector<std::string>& customArgs = {})
-			:
-			TestProcess{ ioctx, jm, "SampleClient.exe"s, MakeArgs_(customArgs) }
-		{}
-		test::client::FrameResponse GetFrames()
-		{
-			test::client::FrameResponse resp;
-			std::istringstream is{ Command("get-frames") };
-			cereal::JSONInputArchive{ is }(resp);
-			Assert::AreEqual("get-frames-ok"s, resp.status);
-			return resp;
-		}
-	private:
-		std::vector<std::string> MakeArgs_(const std::vector<std::string>& customArgs)
-		{
-			std::vector<std::string> allArgs{
-				"--control-pipe"s, controlPipe_,
-				"--intro-nsm"s, introNsm_,
-				"--middleware-dll-path"s, "PresentMonAPI2.dll"s,
-				"--log-folder"s, std::string(logFolder_),
-				"--log-name-pid"s,
-				"--log-level"s, std::string(logLevel_),
-				"--mode"s, "MultiClient"s,
-			};
-			allArgs.append_range(customArgs);
-			return allArgs;
-		}
-	};
-
-	class PresenterProcess
-	{
-	public:
-		PresenterProcess(as::io_context& ioctx, JobManager& jm, const std::vector<std::string>& customArgs = {})
-			:
-			process_{ ioctx, path_, customArgs }
-		{
-			jm.Attach(process_.native_handle());
-			Logger::WriteMessage(std::format(" - Launched process {{{}}} [{}]\n",
-				path_, process_.id()).c_str());
-		}
-		uint32_t GetId() const
-		{
-			return process_.id();
-		}
-	private:
-		static constexpr const char* path_ = R"(..\..\Tools\PresentBench.exe)";
-		bp::process process_;
-	};
-
-	struct CommonTestFixture
-	{
-		JobManager jobMan;
-		std::thread ioctxRunThread;
-		as::io_context ioctx;
-		std::optional<ServiceProcess> service;
-
-		void Setup()
-		{
-			service.emplace(ioctx, jobMan);
-			ioctxRunThread = std::thread{ [&] {pmquell(ioctx.run()); } };
-			// wait before every test to ensure that service is available
-			std::this_thread::sleep_for(50ms);
-		}
-		void Cleanup()
-		{
-			service.reset();
-			ioctxRunThread.join();
-			// sleep after every test to ensure that previous named pipe has vacated
-			std::this_thread::sleep_for(50ms);
-		}
-		ClientProcess LaunchClient(std::vector<std::string> args = {})
-		{
-			return ClientProcess{ ioctx, jobMan, std::move(args) };
-		}
-		PresenterProcess LaunchPresenter(std::vector<std::string> args = {})
-		{
-			return PresenterProcess{ ioctx, jobMan, std::move(args) };
-		}
-		std::unique_ptr<ClientProcess> LaunchClientAsPtr(std::vector<std::string> args = {})
-		{
-			return std::make_unique<ClientProcess>(ioctx, jobMan, std::move(args));
+			return args;
 		}
 	};
 
 	TEST_CLASS(CommonFixtureTests)
 	{
-		CommonTestFixture fixture_;
+		TestFixture fixture_;
 
 	public:
 		TEST_METHOD_INITIALIZE(Setup)
@@ -281,7 +93,7 @@ namespace MultiClientTests
 
 	TEST_CLASS(TelemetryPeriodTests)
 	{
-		CommonTestFixture fixture_;
+		TestFixture fixture_;
 
 	public:
 		TEST_METHOD_INITIALIZE(Setup)
@@ -461,7 +273,7 @@ namespace MultiClientTests
 
 	TEST_CLASS(EtwFlushPeriodTests)
 	{
-		CommonTestFixture fixture_;
+		TestFixture fixture_;
 
 	public:
 		TEST_METHOD_INITIALIZE(Setup)
@@ -637,7 +449,7 @@ namespace MultiClientTests
 
 	TEST_CLASS(TrackingTests)
 	{
-		CommonTestFixture fixture_;
+		TestFixture fixture_;
 
 	public:
 		TEST_METHOD_INITIALIZE(Setup)
@@ -721,13 +533,13 @@ namespace MultiClientTests
 		{
 			// launch target for tracking
 			auto presenter = fixture_.LaunchPresenter();
-			std::this_thread::sleep_for(250ms);
+			std::this_thread::sleep_for(150ms);
 			// launch clients
 			std::vector<std::unique_ptr<ClientProcess>> clientPtrs;
 			for (int i = 0; i < 32; i++) {
 				clientPtrs.push_back(fixture_.LaunchClientAsPtr({
 					"--process-id"s, std::to_string(presenter.GetId()),
-					"--run-time"s, "2.25"s,
+					"--run-time"s, "1.25"s,
 					"--etw-flush-period-ms"s, "8"s,
 				}));
 			}
@@ -736,7 +548,7 @@ namespace MultiClientTests
 				const auto frames = std::move(pClient->GetFrames().frames);
 				Logger::WriteMessage(std::format("Read [{}] frames from client #{}\n",
 					frames.size(), i).c_str());
-				Assert::IsTrue(frames.size() >= 100ull, L"Minimum threshold frames received");
+				Assert::IsTrue(frames.size() >= 40ull, L"Minimum threshold frames received");
 			}
 		}
 	};

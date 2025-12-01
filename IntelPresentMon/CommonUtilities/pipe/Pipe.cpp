@@ -73,8 +73,9 @@ namespace pmon::util::pipe
 	{
 		return writeBuf_.consume(GetWriteBufferPending());
 	}
-	bool DuplexPipe::WaitForAvailability(const std::string& name, uint32_t timeoutMs, uint32_t pollPeriodMs)
+	bool DuplexPipe::WaitForAvailability(const std::string& baseName, uint32_t timeoutMs, bool noSuffix, uint32_t pollPeriodMs)
 	{
+		const auto name = baseName + (noSuffix ? "" : "-in");
 		const auto start = std::chrono::high_resolution_clock::now();
 		while (std::chrono::high_resolution_clock::now() - start < 1ms * timeoutMs) {
 			if (WaitNamedPipeA(name.c_str(), 0)) {
@@ -86,6 +87,22 @@ namespace pmon::util::pipe
 		}
 		return false;
 	}
+	bool DuplexPipe::WaitForVacancy(const std::string& baseName, uint32_t timeoutMs, bool noSuffix, uint32_t pollPeriodMs)
+	{
+		const auto name = baseName + (noSuffix ? "" : "-out");
+		const auto start = std::chrono::high_resolution_clock::now();
+		while (std::chrono::high_resolution_clock::now() - start < 1ms * timeoutMs) {
+			if (!WaitNamedPipeA(name.c_str(), 0)) {
+				const DWORD err = GetLastError();
+				if (err == ERROR_FILE_NOT_FOUND) {
+					return true; // Vacant: no pipe instances exist.
+				}
+			}
+			std::this_thread::sleep_for(1ms * pollPeriodMs);
+		}
+		return false;
+	}
+
 	uint32_t DuplexPipe::GetId() const
 	{
 		return uid_;
