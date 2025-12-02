@@ -60,7 +60,7 @@ namespace pmon::util::metrics {
         uint64_t pclSimStartTime = 0;
         uint64_t pclInputPingTime = 0;
         uint64_t flipDelay = 0;
-        uint32_t FlipToken = 0;
+        uint32_t flipToken = 0;
 
         // Metadata
         PresentResult finalState;
@@ -114,7 +114,7 @@ namespace pmon::util::metrics {
 
         // Vendor-specific
         uint64_t getFlipDelay() const { return flipDelay; }
-        uint32_t getFlipToken() const { return FlipToken; }
+        uint32_t getFlipToken() const { return flipToken; }
 
         // Metadata
         PresentResult getFinalState() const { return finalState; }

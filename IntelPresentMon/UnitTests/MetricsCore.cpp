@@ -909,28 +909,6 @@ namespace MetricsCoreTests
         return f;
     }
 
-    // ----------------------------------------------------------------------------
-    // Proposed (GoogleTest style names) test case list (implemented with MSTest):
-    //
-    // ComputeMetricsForPresent_NotDisplayed_NoDisplays_ProducesSingleMetricsAndUpdatesChain
-    // ComputeMetricsForPresent_NotDisplayed_WithDisplaysButNotPresented_ProducesSingleMetricsAndUpdatesChain
-    // ComputeMetricsForPresent_DisplayedNoNext_SingleDisplay_PostponedChainNotUpdated
-    // ComputeMetricsForPresent_DisplayedNoNext_MultipleDisplays_ProcessesAllButLast
-    // ComputeMetricsForPresent_DisplayedWithNext_ProcessesPostponedLastAndUpdatesChain
-    // ComputeMetricsForPresent_DisplayedWithNext_LastDisplayIsRepeated_DoesNotUpdateLastAppPresent
-    // UpdateAfterPresent_AnimationSource_AppProvider_UpdatesSimStartAndFirstAppSim
-    // UpdateAfterPresent_AnimationSource_PCLatency_UpdatesSimStartAndFirstAppSim
-    // UpdateAfterPresent_AnimationSource_CpuStart_FallbackToPreviousAppPresent
-    // UpdateAfterPresent_AnimationSource_CpuStart_TransitionsToAppProvider
-    // UpdateAfterPresent_AnimationSource_CpuStart_TransitionsToPCLatency
-    // UpdateAfterPresent_FlipDelayTracking_PresentedWithDisplays_SetsFlipDelayAndScreenTime
-    // UpdateAfterPresent_FlipDelayTracking_PresentedNoDisplays_ZeroesFlipDelayAndScreenTime
-    // UpdateAfterPresent_NotPresented_DoesNotChangeLastDisplayedScreenTime
-    //
-    // (Pending future implementation)
-    // UpdateAfterPresent_InputAccumulation_DroppedFramesAccumulate (when logic added)
-    // ----------------------------------------------------------------------------
-
     TEST_CLASS(ComputeMetricsForPresentTests)
     {
     public:
@@ -2096,6 +2074,219 @@ namespace MetricsCoreTests
             const auto& m = results[0].metrics;
 
             Assert::AreEqual(uint64_t(9'700'000), m.screenTimeQpc);
+        }
+    };
+    TEST_CLASS(NvCollapsedPresentTests)
+    {
+    public:
+        TEST_METHOD(NvCollapsedPresent_CurrentFrame_AdjustsScreenTimeAndFlipDelayLikeNV1)
+        {
+            // Mirrors AdjustScreenTimeForCollapsedPresentNV1 behavior:
+            // When lastDisplayedScreenTime > currentScreenTime and lastDisplayedFlipDelay > 0,
+            // the current frame's screenTime and flipDelay are adjusted upward.
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            // Prior displayed frame had a screen time of 5'000'000 with flip delay of 100'000 ticks
+            chain.lastDisplayedScreenTime = 5'000'000;
+            chain.lastDisplayedFlipDelay = 100'000;
+
+            // Current frame (collapsed/runt) has an earlier raw screen time
+            FrameData current{};
+            current.presentStartTime = 4'000'000;
+            current.timeInPresent = 50'000;
+            current.readyTime = 4'100'000;
+            current.flipDelay = 50'000;  // Original flip delay for this frame
+            current.setFinalState(PresentResult::Presented);
+            // Raw screen time (3'500'000) is earlier than lastDisplayedScreenTime (5'000'000)
+            current.displayed.push_back({ FrameType::Application, 3'500'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 6'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, current, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& metrics = results[0].metrics;
+
+            // NV1 adjustment: screenTime should be raised to lastDisplayedScreenTime
+            Assert::AreEqual(uint64_t(5'000'000), metrics.screenTimeQpc,
+                L"NV1 should adjust screenTime to lastDisplayedScreenTime (5'000'000)");
+
+            // NV1 adjustment: flipDelay should be increased by the difference
+            // effectiveFlipDelay = 50'000 + (5'000'000 - 3'500'000) = 50'000 + 1'500'000 = 1'550'000
+            uint64_t expectedEffectiveFlipDelay = 50'000 + (5'000'000 - 3'500'000);
+            double expectedMsFlipDelay = qpc.DeltaUnsignedMilliSeconds(0, expectedEffectiveFlipDelay);
+
+            Assert::IsTrue(metrics.msFlipDelay.has_value(),
+                L"msFlipDelay should be set for displayed frame");
+            if (metrics.msFlipDelay.has_value()) {
+                Assert::AreEqual(expectedMsFlipDelay, metrics.msFlipDelay.value(), 0.0001,
+                    L"NV1 should adjust flipDelay to account for screenTime catch-up");
+            }
+        }
+
+        TEST_METHOD(NvCollapsedPresent_NextFrame_AdjustsNextScreenTimeAndFlipDelayLikeNV2)
+        {
+            // Mirrors AdjustScreenTimeForCollapsedPresentNV behavior:
+            // When current frame's screenTime > nextFrame's screenTime and current has flipDelay,
+            // the next frame's screenTime and flipDelay are adjusted upward.
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            // First frame: collapsed present with significant flipDelay
+            // Its adjusted screenTime will be later than the next frame's raw screenTime
+            FrameData first{};
+            first.presentStartTime = 4'000'000;
+            first.timeInPresent = 50'000;
+            first.readyTime = 4'100'000;
+            first.flipDelay = 200'000;  // 0.02ms at 10MHz
+            first.setFinalState(PresentResult::Presented);
+            // First's screen time is 5'500'000
+            first.displayed.push_back({ FrameType::Application, 5'500'000 });
+
+            // Second frame (next displayed)
+            FrameData second{};
+            second.presentStartTime = 5'000'000;
+            second.timeInPresent = 40'000;
+            second.readyTime = 5'100'000;
+            second.flipDelay = 100'000;  // Original flip delay for second frame
+            second.setFinalState(PresentResult::Presented);
+            // Second's raw screen time is 5'000'000, which is EARLIER than first's (5'500'000)
+            // This triggers NV2 adjustment
+            second.displayed.push_back({ FrameType::Application, 5'000'000 });
+
+            // Process first frame with second as nextDisplayed
+            auto resultsFirst = ComputeMetricsForPresent(qpc, first, &second, chain);
+            Assert::AreEqual(size_t(1), resultsFirst.size());
+
+            // Now process second frame (which should have been adjusted by NV2)
+            FrameData third{};
+            third.setFinalState(PresentResult::Presented);
+            third.displayed.push_back({ FrameType::Application, 6'000'000 });
+
+            auto resultsSecond = ComputeMetricsForPresent(qpc, second, &third, chain);
+            Assert::AreEqual(size_t(1), resultsSecond.size());
+            const auto& secondMetrics = resultsSecond[0].metrics;
+
+            // NV2 adjustment: second's screenTime should be raised to first's screenTime
+            // when first.screenTime (5'500'000) > second.screenTime (5'000'000)
+            Assert::AreEqual(uint64_t(5'500'000), secondMetrics.screenTimeQpc,
+                L"NV2 should adjust second's screenTime to first's screenTime (5'500'000)");
+
+            // NV2 adjustment: second's flipDelay should be increased by the difference
+            // effectiveSecondFlipDelay = 100'000 + (5'500'000 - 5'000'000) = 100'000 + 500'000 = 600'000
+            uint64_t expectedEffectiveFlipDelaySecond = 100'000 + (5'500'000 - 5'000'000);
+            double expectedMsFlipDelaySecond = qpc.DurationMilliSeconds(expectedEffectiveFlipDelaySecond);
+
+            Assert::IsTrue(secondMetrics.msFlipDelay.has_value(),
+                L"msFlipDelay should be set for displayed frame");
+            if (secondMetrics.msFlipDelay.has_value()) {
+                Assert::AreEqual(expectedMsFlipDelaySecond, secondMetrics.msFlipDelay.value(), 0.0001,
+                    L"NV2 should adjust second's flipDelay to account for screenTime catch-up");
+            }
+        }
+
+        TEST_METHOD(NvCollapsedPresent_NoCollapse_ScreenTimesAndFlipDelaysUnchanged)
+        {
+            // Sanity check: when there is NO collapsed present condition,
+            // screen times and flip delays should pass through unchanged.
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            // Prior displayed frame with screen time and flip delay
+            chain.lastDisplayedScreenTime = 3'000'000;
+            chain.lastDisplayedFlipDelay = 50'000;
+
+            // Current frame with LATER screen time (no collapse)
+            FrameData current{};
+            current.presentStartTime = 4'000'000;
+            current.timeInPresent = 50'000;
+            current.readyTime = 4'100'000;
+            current.flipDelay = 75'000;
+            current.setFinalState(PresentResult::Presented);
+            // Current screen time is LATER than lastDisplayedScreenTime, so no NV1 adjustment
+            current.displayed.push_back({ FrameType::Application, 4'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 5'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, current, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& metrics = results[0].metrics;
+
+            // No NV1 adjustment: screenTime should remain unchanged
+            Assert::AreEqual(uint64_t(4'000'000), metrics.screenTimeQpc,
+                L"No collapse: screenTime should remain at original value");
+
+            // No adjustment to flipDelay: should use original 75'000
+            double expectedMsFlipDelay = qpc.DurationMilliSeconds(75'000);
+
+            Assert::IsTrue(metrics.msFlipDelay.has_value(),
+                L"msFlipDelay should be set for displayed frame");
+            if (metrics.msFlipDelay.has_value()) {
+                Assert::AreEqual(expectedMsFlipDelay, metrics.msFlipDelay.value(), 0.0001,
+                    L"No collapse: flipDelay should remain at original value");
+            }
+        }
+
+        TEST_METHOD(NvCollapsedPresent_NV2_OnlyAdjustsWhenFirstScreenTimeGreaterThanSecond)
+        {
+            // NV2 should only adjust when first.screenTime > second.screenTime.
+            // This test verifies that when second.screenTime >= first.screenTime,
+            // no adjustment occurs.
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            // First frame with flip delay
+            FrameData first{};
+            first.presentStartTime = 4'000'000;
+            first.timeInPresent = 50'000;
+            first.readyTime = 4'100'000;
+            first.flipDelay = 100'000;
+            first.setFinalState(PresentResult::Presented);
+            // First screen time is 5'000'000
+            first.displayed.push_back({ FrameType::Application, 5'000'000 });
+
+            // Second frame with screen time >= first (no collapse condition)
+            FrameData second{};
+            second.presentStartTime = 5'000'000;
+            second.timeInPresent = 40'000;
+            second.readyTime = 5'100'000;
+            second.flipDelay = 50'000;
+            second.setFinalState(PresentResult::Presented);
+            // Second screen time is equal to first (5'000'000), so NV2 should NOT adjust
+            second.displayed.push_back({ FrameType::Application, 5'000'000 });
+
+            auto resultsFirst = ComputeMetricsForPresent(qpc, first, &second, chain);
+            Assert::AreEqual(size_t(1), resultsFirst.size());
+
+            FrameData third{};
+            third.setFinalState(PresentResult::Presented);
+            third.displayed.push_back({ FrameType::Application, 6'000'000 });
+
+            auto resultsSecond = ComputeMetricsForPresent(qpc, second, &third, chain);
+            Assert::AreEqual(size_t(1), resultsSecond.size());
+            const auto& secondMetrics = resultsSecond[0].metrics;
+
+            // NV2 should NOT adjust: second's screenTime should remain at 5'000'000
+            Assert::AreEqual(uint64_t(5'000'000), secondMetrics.screenTimeQpc,
+                L"NV2: when second.screenTime >= first.screenTime, no adjustment should occur");
+
+            // flipDelay should remain at original 50'000
+            double expectedMsFlipDelay = qpc.DurationMilliSeconds(50'000);
+
+            Assert::IsTrue(secondMetrics.msFlipDelay.has_value(),
+                L"msFlipDelay should be set for displayed frame");
+            if (secondMetrics.msFlipDelay.has_value()) {
+                Assert::AreEqual(expectedMsFlipDelay, secondMetrics.msFlipDelay.value(), 0.0001,
+                    L"NV2: when no collapse, flipDelay should remain unchanged");
+            }
         }
     };
 }

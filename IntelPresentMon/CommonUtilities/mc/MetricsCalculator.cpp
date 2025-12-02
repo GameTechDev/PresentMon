@@ -62,6 +62,40 @@ namespace pmon::util::metrics
                 out.msDisplayedTime = 0.0;
             }
         }
+        
+        void ComputeMsFlipDelay(
+            const QpcConverter& qpc,
+            const FrameData& present,
+            bool isDisplayed,
+            FrameMetrics& out)
+        {
+            if (isDisplayed || present.getFlipDelay() != 0) {
+                out.msFlipDelay =
+                    qpc.DurationMilliSeconds(present.getFlipDelay());
+            }
+            else {
+                out.msFlipDelay = 0.0;
+            }
+        }
+
+        void AdjustScreenTimeForCollapsedPresentNV(
+            const FrameData& present,
+            FrameData* nextDisplayedPresent,
+            uint64_t& screenTime,
+            uint64_t& nextScreenTime)
+        {
+            // nextDisplayedPresent should always be non-null for NV GPU.
+            if (present.flipDelay && screenTime > nextScreenTime && nextDisplayedPresent) {
+                // If screenTime that is adjusted by flipDelay is larger than nextScreenTime,
+                // it implies this present is a collapsed present, or a runt frame.
+                // So we adjust the screenTime and flipDelay of nextDisplayedPresent,
+                // effectively making nextScreenTime equals to screenTime.
+
+                nextDisplayedPresent->flipDelay += (screenTime - nextScreenTime);
+                nextScreenTime = screenTime;
+                nextDisplayedPresent->displayed[0].second = nextScreenTime;
+            }
+        }
     }
 
     DisplayIndexing DisplayIndexing::Calculate(
@@ -121,7 +155,7 @@ namespace pmon::util::metrics
     std::vector<ComputedMetrics> ComputeMetricsForPresent(
         const QpcConverter& qpc,
         const FrameData& present,
-        const FrameData* nextDisplayed,
+        FrameData* nextDisplayed,
         SwapChainCoreState& chainState)
     {
         std::vector<ComputedMetrics> results;
@@ -174,6 +208,8 @@ namespace pmon::util::metrics
             else {
                 break;  // No next screen time available
             }
+
+            AdjustScreenTimeForCollapsedPresentNV(present, nextDisplayed, screenTime, nextScreenTime);
 
             const bool isAppFrame = (displayIndex == indexing.appIndex);
 
@@ -253,6 +289,13 @@ namespace pmon::util::metrics
             isDisplayed,
             screenTime,
             nextScreenTime,
+            metrics);
+
+        // msFlipDelay depends if the current present has a flip delay
+        ComputeMsFlipDelay(
+            qpc,
+            present,
+            isDisplayed,
             metrics);
 
         // screenTimeQpc is simply the current screen time

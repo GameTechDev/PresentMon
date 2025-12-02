@@ -42,7 +42,7 @@ namespace pmon::util::metrics
     std::vector<ComputedMetrics> ComputeMetricsForPresent(
         const QpcConverter& qpc,
         const FrameData& present,
-        const FrameData* nextDisplayed,
+        FrameData* nextDisplayed,
         SwapChainCoreState& chainState);
 
     // === Pure Calculation Functions ===

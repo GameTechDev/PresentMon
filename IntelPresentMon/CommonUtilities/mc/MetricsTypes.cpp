@@ -40,7 +40,7 @@ namespace pmon::util::metrics {
         frame.pclSimStartTime = p.PclSimStartTime;
         frame.pclInputPingTime = p.PclInputPingTime;
         frame.flipDelay = p.FlipDelay;
-        frame.FlipToken = p.FlipToken;
+        frame.flipToken = p.FlipToken;
 
         // Normalize parallel arrays to vector<DisplayEntry>
         frame.displayed.reserve(p.DisplayedCount);
@@ -94,7 +94,7 @@ namespace pmon::util::metrics {
         frame.pclSimStartTime = p->PclSimStartTime;
         frame.pclInputPingTime = p->PclInputPingTime;
         frame.flipDelay = p->FlipDelay;
-        frame.FlipToken = p->FlipToken;
+        frame.flipToken = p->FlipToken;
 
         frame.displayed = p->Displayed;
 
