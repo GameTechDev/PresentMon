@@ -69,7 +69,7 @@ namespace pmon::util::metrics
             bool isDisplayed,
             FrameMetrics& out)
         {
-            if (isDisplayed || present.getFlipDelay() != 0) {
+            if (isDisplayed && present.getFlipDelay() != 0) {
                 out.msFlipDelay =
                     qpc.DurationMilliSeconds(present.getFlipDelay());
             }
