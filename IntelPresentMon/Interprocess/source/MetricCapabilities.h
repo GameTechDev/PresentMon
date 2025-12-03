@@ -12,12 +12,12 @@ namespace pmon::ipc
 	public:
 		void Set(PM_METRIC metricId, size_t arraySize);
 		void Merge(const MetricCapabilities& capsToMerge);
-		size_t Check(PM_METRIC metricId) const;
-		auto begin() const
+		size_t Check(PM_METRIC metricId) const noexcept;
+		auto begin() const noexcept
 		{
 			return caps_.begin();
 		}
-		auto end() const
+		auto end() const noexcept
 		{
 			return caps_.end();
 		}

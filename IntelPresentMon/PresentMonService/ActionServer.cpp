@@ -13,14 +13,16 @@ namespace pmon::svc
     using namespace util;
     using namespace ipc;
 
-    ActionServer::ActionServer(Service* pSvc, PresentMon* pPmon, std::optional<std::string> pipeName)
+    ActionServer::ActionServer(Service* pSvc, PresentMon* pPmon, std::string shmPrefix,
+        std::string shmSalt, std::optional<std::string> pipeName)
     {
         // if we have a pipe name override, that indicates we don't need special permissions
         auto sec = pipe::DuplexPipe::GetSecurityString(pipeName ?
             pipe::SecurityMode::Child : pipe::SecurityMode::Service);
         // construct (and start) the server
         pImpl_ = std::make_shared<act::SymmetricActionServer<acts::ActionExecutionContext>>(
-            acts::ActionExecutionContext{ .pSvc = pSvc, .pPmon = pPmon },
+            acts::ActionExecutionContext{ .pSvc = pSvc, .pPmon = pPmon,
+                .shmPrefix = std::move(shmPrefix), .shmSalt = std::move(shmSalt) },
             pipeName.value_or(gid::defaultControlPipeName),
             2, std::move(sec)
         );

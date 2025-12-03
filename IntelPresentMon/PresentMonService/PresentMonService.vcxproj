@@ -133,7 +133,6 @@
     <ClInclude Include="acts\EnumerateAdapters.h" />
     <ClInclude Include="acts\FinishEtlLogging.h" />
     <ClInclude Include="acts\GetStaticCpuMetrics.h" />
-    <ClInclude Include="acts\GetIntrospectionShmName.h" />
     <ClInclude Include="acts\OpenSession.h" />
     <ClInclude Include="acts\SelectAdapter.h" />
     <ClInclude Include="acts\SetEtwFlushPeriod.h" />

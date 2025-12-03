@@ -16,16 +16,28 @@ namespace pmon::ipc
 {
 	struct FrameDataStore
 	{
+        static constexpr size_t virtualSegmentSize = 50'000'000;
+        FrameDataStore(ShmSegmentManager& segMan, size_t cap)
+            :
+            frameData{ cap, segMan.get_allocator<PmFrameData>() },
+            statics{ .applicationName{ segMan.get_allocator<char>() } }
+        {}
 		struct Statics
 		{
 			uint32_t processId;
 			ShmString applicationName;
 		} statics;
-		ShmRing<PmFrameData> frameData;		
+		ShmRing<PmFrameData> frameData;
 	};
 
     struct GpuDataStore
     {
+        static constexpr size_t virtualSegmentSize = 2'000'000;
+        GpuDataStore(ShmSegmentManager& segMan)
+            :
+            telemetryData{ segMan.get_allocator<TelemetryMap::AllocatorType::value_type>() },
+            statics{ .name{ segMan.get_allocator<char>() } }
+        {}
         struct Statics
         {
             PM_DEVICE_VENDOR vendor;
@@ -39,6 +51,12 @@ namespace pmon::ipc
 
     struct SystemDataStore
     {
+        static constexpr size_t virtualSegmentSize = 1'000'000;
+        SystemDataStore(ShmSegmentManager& segMan)
+            :
+            telemetryData{ segMan.get_allocator<TelemetryMap::AllocatorType::value_type>() },
+            statics{ .cpuName{ segMan.get_allocator<char>() } }
+        {}
         struct Statics
         {
             PM_DEVICE_VENDOR cpuVendor;

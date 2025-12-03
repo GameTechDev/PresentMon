@@ -16,7 +16,7 @@ namespace pmon::ipc
             uint64_t timestamp;
         };
         // functions
-        HistoryRing(size_t capacity, ShmVector<Sample>::allocator_type& alloc)
+        HistoryRing(size_t capacity, ShmVector<Sample>::allocator_type alloc)
             :
             samples_{ capacity, alloc }
         {

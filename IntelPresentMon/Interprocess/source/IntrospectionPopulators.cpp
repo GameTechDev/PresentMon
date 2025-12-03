@@ -1,6 +1,7 @@
 #include "IntrospectionHelpers.h"
 #include "IntrospectionMetadata.h"
 #include "IntrospectionTransfer.h"
+#include "IntrospectionCapsLookup.h"
 #include "MetricCapabilities.h"
 #include "../../CommonUtilities/log/Log.h"
 #include <ranges>
@@ -45,7 +46,7 @@ namespace pmon::ipc::intro
 
 		PREFERRED_UNIT_LIST(X_PREF_UNIT)
 
-#undef X_REG_METRIC
+#undef X_PREF_UNIT
 
 #define X_REG_METRIC(metric, metric_type, unit, data_type_polled, data_type_frame, enum_id, device_type, ...) { \
 		auto pMetric = ShmMakeUnique<IntrospectionMetric>(pSegmentManager, pSegmentManager, \
@@ -85,10 +86,10 @@ namespace pmon::ipc::intro
 			if (i != root.GetMetrics().end()) {
 				const auto availability = count ? PM_METRIC_AVAILABILITY_AVAILABLE :
 					PM_METRIC_AVAILABILITY_UNAVAILABLE;
-				(*i)->AddDeviceMetricInfo(IntrospectionDeviceMetricInfo{ deviceId, availability, count });
+				(*i)->AddDeviceMetricInfo(IntrospectionDeviceMetricInfo{ deviceId, availability, (uint32_t)count });
 			}
 			else {
-				pmlog_error("Metric ID not found").pmwatch(metric);
+				pmlog_error("Metric ID not found").pmwatch((int)metric);
 			}
 		}
 	}

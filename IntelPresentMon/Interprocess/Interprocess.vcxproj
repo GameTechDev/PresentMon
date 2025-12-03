@@ -15,6 +15,9 @@
     <ClCompile Include="source\IntrospectionHelpers.cpp" />
     <ClCompile Include="source\IntrospectionPopulators.cpp" />
     <ClCompile Include="source\metadata\MetadataValidators.cpp" />
+    <ClCompile Include="source\MetricCapabilities.cpp" />
+    <ClCompile Include="source\MetricCapabilitiesShim.cpp" />
+    <ClCompile Include="source\ShmNamer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\act\ActionContext.h" />
@@ -30,6 +33,7 @@
     <ClInclude Include="source\DataStores.h" />
     <ClInclude Include="source\FrameDataPlaceholder.h" />
     <ClInclude Include="source\MetricCapabilities.h" />
+    <ClInclude Include="source\MetricCapabilitiesShim.h" />
     <ClInclude Include="source\PmStatusError.h" />
     <ClInclude Include="source\IntrospectionCapsLookup.h" />
     <ClInclude Include="source\IntrospectionDataTypeMapping.h" />
@@ -59,9 +63,11 @@
     <ClInclude Include="source\metadata\UnitList.h" />
     <ClInclude Include="source\SharedMemoryTypes.h" />
     <ClInclude Include="source\HistoryRing.h" />
+    <ClInclude Include="source\ShmNamer.h" />
     <ClInclude Include="source\ShmRing.h" />
-    <ClInclude Include="source\StreamedDataSegment.h" />
+    <ClInclude Include="source\OwnedDataSegment.h" />
     <ClInclude Include="source\TelemetryMap.h" />
+    <ClInclude Include="source\ViewedDataSegment.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CommonUtilities\CommonUtilities.vcxproj">

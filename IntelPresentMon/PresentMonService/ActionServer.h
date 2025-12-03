@@ -12,7 +12,8 @@ namespace pmon::svc
     class ActionServer
     {
     public:
-        ActionServer(Service* pSvc, PresentMon* pPmon, std::optional<std::string> pipeName);
+        ActionServer(Service* pSvc, PresentMon* pPmon, std::string shmPrefix,
+            std::string shmSalt, std::optional<std::string> pipeName);
         ~ActionServer() = default;
         ActionServer(const ActionServer&) = delete;
         ActionServer& operator=(const ActionServer&) = delete;

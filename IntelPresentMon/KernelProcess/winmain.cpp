@@ -213,8 +213,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			// compile fixed CLI options
 			auto args = std::vector<std::string>{
 				"--control-pipe"s, *opt.controlPipe,
-				"--nsm-prefix"s, "pm-frame-nsm"s,
-				"--intro-nsm"s, *opt.shmName,
+				"--shm-name-prefix"s, *opt.shmNamePrefix,
 				"--etw-session-name"s, *opt.etwSessionName,
 				"--log-level"s, util::log::GetLevelName(util::log::GlobalPolicy::Get().GetLogLevel()),
 				"--log-pipe-name"s, logSvcPipe,

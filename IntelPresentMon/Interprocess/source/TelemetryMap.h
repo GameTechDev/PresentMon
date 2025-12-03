@@ -1,6 +1,7 @@
 #pragma once
 #include "SharedMemoryTypes.h"
 #include "HistoryRing.h"
+#include "../../PresentMonAPI2/PresentMonAPI.h"
 #include <variant>
 
 namespace pmon::ipc
@@ -11,15 +12,30 @@ namespace pmon::ipc
         template<typename T>
         using HistoryRingVect = ShmVector<HistoryRing<T>>;
         using MapValueType = std::variant<HistoryRingVect<double>, HistoryRingVect<uint64_t>, HistoryRingVect<bool>>;
-        using MapType = ShmMap<int, MapValueType>;
+        using MapType = ShmMap<PM_METRIC, MapValueType>;
     public:
-        TelemetryMap(const MapType::allocator_type& alloc)
+        using AllocatorType = MapType::allocator_type;
+        TelemetryMap(AllocatorType alloc)
             :
             ringMap_{ alloc }
+        {}
+        void AddRing(PM_METRIC id, size_t size, size_t count, PM_DATA_TYPE type)
         {
+            switch (type) {
+            case PM_DATA_TYPE_DOUBLE:
+                AddRing<double>(id, size, count);
+                break;
+            case PM_DATA_TYPE_UINT64:
+                AddRing<uint64_t>(id, size, count);
+                break;
+            case PM_DATA_TYPE_BOOL:
+                AddRing<bool>(id, size, count);
+                break;
+            default: throw util::Except<>("Unsupported ring type for TelemetryMap");
+            }
         }
         template<typename T>
-        void AddRing(int id, size_t size, size_t count)
+        void AddRing(PM_METRIC id, size_t size, size_t count)
         {
             // extra guard of misuse at compile time
             static_assert(
@@ -29,11 +45,10 @@ namespace pmon::ipc
                 "Unsupported ring type for TelemetryMap"
             );
 
-            using RingType = HistoryRing<T>;
-            using RingAlloc = typename MapType::allocator_type::template rebind<RingType>::other;
+            using RingAlloc = typename MapType::allocator_type::template rebind<HistoryRing<T>>::other;
 
-            // Construct an allocator for ShmRing<T> from the map's allocator
-            HistoryRingVect ringAlloc(ringMap_.get_allocator());
+            // Construct an allocator for HistoryRing<T> from the map's allocator
+            RingAlloc ringAlloc(ringMap_.get_allocator());
 
             // Insert (or get existing) entry for this id, constructing the correct variant alternative
             auto [it, inserted] = ringMap_.emplace(
@@ -58,20 +73,20 @@ namespace pmon::ipc
             }
         }
         template<typename T>
-        HistoryRingVect<T>& FindRing(int id)
+        HistoryRingVect<T>& FindRing(PM_METRIC id)
         {
             return std::get<HistoryRingVect<T>>(FindRingVariant(id));
         }
         template<typename T>
-        const HistoryRingVect<T>& FindRing(int id) const
+        const HistoryRingVect<T>& FindRing(PM_METRIC id) const
         {
             return std::get<HistoryRingVect<T>>(FindRingVariant(id));
         }
-        MapValueType& FindRingVariant(int id)
+        MapValueType& FindRingVariant(PM_METRIC id)
         {
             return ringMap_.at(id);
         }
-        const MapValueType& FindRingVariant(int id) const
+        const MapValueType& FindRingVariant(PM_METRIC id) const
         {
             return ringMap_.at(id);
         }

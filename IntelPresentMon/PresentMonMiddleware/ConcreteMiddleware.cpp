@@ -46,7 +46,7 @@ namespace pmon::mid
         const auto pipeName = pipeNameOverride.transform(&std::string::c_str)
             .value_or(pmon::gid::defaultControlPipeName);
 
-        // Try to open a named pipe; wait for it, if necessary
+        // Try to open a named pipe to action server; wait for it, if necessary
         try {
             if (!pipe::DuplexPipe::WaitForAvailability(pipeName, 500)) {
                 throw std::runtime_error{ "Timeout waiting for service action pipe to become available" };
@@ -60,11 +60,8 @@ namespace pmon::mid
 
         clientProcessId = GetCurrentProcessId();
 
-        // discover introspection shm name
-        auto res = pActionClient->DispatchSync(GetIntrospectionShmName::Params{});
-
-        // connect to the introspection nsm
-        pComms = ipc::MakeMiddlewareComms(std::move(res.name));
+        // connect to the shm server
+        pComms = ipc::MakeMiddlewareComms(pActionClient->GetShmPrefix(), pActionClient->GetShmSalt());
 
         // Get the introspection data
         try {

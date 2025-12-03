@@ -33,7 +33,7 @@ Streamer::Streamer()
     mapfileNamePrefix_{ kGlobalPrefix }
 {
     if (clio::Options::IsInitialized()) {
-        mapfileNamePrefix_ = clio::Options::Get().nsmPrefix.AsOptional().value_or(mapfileNamePrefix_);
+        mapfileNamePrefix_ = clio::Options::Get().shmNamePrefix.AsOptional().value_or(mapfileNamePrefix_);
     }
 }
 

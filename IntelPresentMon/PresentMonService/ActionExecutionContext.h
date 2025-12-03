@@ -1,5 +1,6 @@
 #pragma once
 #include "../Interprocess/source/act/SymmetricActionConnector.h"
+#include "../Interprocess/source/ShmNamer.h"
 #include <memory>
 #include <set>
 #include <unordered_map>
@@ -39,6 +40,8 @@ namespace pmon::svc::acts
         Service* pSvc = nullptr;
         PresentMon* pPmon = nullptr;
         const std::unordered_map<uint32_t, SessionContextType>* pSessionMap = nullptr;
+        std::string shmPrefix;
+        std::string shmSalt;
         std::optional<uint32_t> responseWriteTimeoutMs;
 
         // functions

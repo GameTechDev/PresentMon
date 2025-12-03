@@ -10,7 +10,7 @@ namespace pmon::ipc
 	class ShmRing
 	{
 	public:
-		ShmRing(size_t capacity, ShmVector<T>::allocator_type& alloc)
+		ShmRing(size_t capacity, ShmVector<T>::allocator_type alloc)
 			:
 			data_{ capacity, alloc }
 		{
@@ -18,6 +18,28 @@ namespace pmon::ipc
 				throw std::logic_error{ "The capacity of a ShmRing must be at least double its ReadBufferSize" };
 			}
 		}
+
+
+		ShmRing(const ShmRing&) = delete;
+		ShmRing & operator=(const ShmRing&) = delete;
+		// we need to enable move for use inside vectors
+		// not enabled by default because of the atomic member
+		ShmRing(ShmRing&& other)
+			:
+			data_{ std::move(other.data_) },
+			nextWriteSerial_{ other.nextWriteSerial_.load() }
+		{}
+		ShmRing& operator=(ShmRing&& other)
+		{
+			if (this != &other) {
+				data_ = std::move(other.data_);
+				nextWriteSerial_ = other.nextWriteSerial_.load();
+			}
+			return *this;
+		}
+		~ShmRing() = default;
+
+
 		void Push(const T& val)
 		{
 			data_[IndexFromSerial_(nextWriteSerial_)] = val;

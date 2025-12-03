@@ -34,7 +34,7 @@ namespace pmon::util
 
 	void DoCapture_(Exception& e);
 
-	template<class E, typename...R>
+	template<class E = Exception, typename...R>
 	auto Except(R&&...args)
 	{
 		E exception{ std::forward<R>(args)... };

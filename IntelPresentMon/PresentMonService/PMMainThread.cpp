@@ -9,6 +9,8 @@
 #include "..\PresentMonUtils\StringUtils.h"
 #include <filesystem>
 #include "../Interprocess/source/Interprocess.h"
+#include "../Interprocess/source/ShmNamer.h"
+#include "../Interprocess/source/MetricCapabilitiesShim.h"
 #include "CliOptions.h"
 #include "GlobalIdentifiers.h"
 #include <ranges>
@@ -26,11 +28,6 @@ using namespace svc;
 using namespace util;
 using v = log::V;
 
-
-std::string GetIntrospectionShmName()
-{
-    return clio::Options::Get().introNsm.AsOptional().value_or(gid::defaultIntrospectionNsmName);
-}
 
 void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
 {
@@ -109,7 +106,8 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
             // sample 2x here as workaround/kludge because Intel provider misreports 1st sample
             adapter->Sample();
             adapter->Sample();
-            pComms->RegisterGpuDevice(adapter->GetVendor(), adapter->GetName(), adapter->GetPowerTelemetryCapBits());
+            pComms->RegisterGpuDevice(adapter->GetVendor(), adapter->GetName(),
+                ipc::intro::ConvertBitset(adapter->GetPowerTelemetryCapBits()));
         }
         pComms->FinalizeGpuDevices();
         pmlog_info(std::format("Finished populating GPU telemetry introspection, {} seconds elapsed", timer.Mark()));
@@ -239,12 +237,14 @@ void PresentMonMainThread(Service* const pSvc)
         PresentMon pm{ !opt.etlTestFile };
         PowerTelemetryContainer ptc;
 
+        // namer that coordinates naming convention of shared memory segments
         // create service-side comms object for transmitting introspection data to clients
         std::unique_ptr<ipc::ServiceComms> pComms;
         try {
-            const auto introNsmName = GetIntrospectionShmName();
-            LOG(INFO) << "Creating comms with NSM name: " << introNsmName;
-            pComms = ipc::MakeServiceComms(std::move(introNsmName));
+            ipc::ShmNamer shmNamer{ {}, opt.shmNamePrefix.AsOptional() };
+            pmlog_info("Creating comms with introspection shm name: ")
+                .pmwatch(shmNamer.MakeIntrospectionName());
+            pComms = ipc::MakeServiceComms(opt.shmNamePrefix.AsOptional());
         }
         catch (const std::exception& e) {
             LOG(ERROR) << "Failed making service comms> " << e.what() << std::endl;
@@ -256,7 +256,9 @@ void PresentMonMainThread(Service* const pSvc)
         pm.SetPowerTelemetryContainer(&ptc);
 
         // Start named pipe action RPC server (active threaded)
-        auto pActionServer = std::make_unique<ActionServer>(pSvc, &pm, opt.controlPipe.AsOptional());
+        auto pActionServer = std::make_unique<ActionServer>(pSvc, &pm,
+            pComms->GetNamer().GetPrefix(), pComms->GetNamer().GetSalt(), 
+            opt.controlPipe.AsOptional());
 
         try {
             gpuTelemetryThread = std::jthread{ PowerTelemetryThreadEntry_, pSvc, &pm, &ptc, pComms.get() };
@@ -298,12 +300,12 @@ void PresentMonMainThread(Service* const pSvc)
                 }
             }();
             // register cpu
-            pComms->RegisterCpuDevice(vendor, cpu->GetCpuName(), cpu->GetCpuTelemetryCapBits());
+            pComms->RegisterCpuDevice(vendor, cpu->GetCpuName(), 
+                ipc::intro::ConvertBitset(cpu->GetCpuTelemetryCapBits()));
         } else {
             // We were unable to determine the cpu.
-            std::bitset<static_cast<size_t>(CpuTelemetryCapBits::cpu_telemetry_count)>
-                cpuTelemetryCapBits_{};
-            pComms->RegisterCpuDevice(PM_DEVICE_VENDOR_UNKNOWN, "UNKNOWN_CPU", cpuTelemetryCapBits_);
+            pComms->RegisterCpuDevice(PM_DEVICE_VENDOR_UNKNOWN, "UNKNOWN_CPU",
+                ipc::intro::ConvertBitset(CpuTelemetryBitset{}));
         }
 
         // start thread for manual ETW event buffer flushing

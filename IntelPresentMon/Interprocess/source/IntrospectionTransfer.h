@@ -6,6 +6,7 @@
 #include <ranges>
 #include <cstring>
 #include "../../PresentMonAPI2/PresentMonAPI.h"
+#include "../../CommonUtilities/Exception.h"
 #include "SharedMemoryTypes.h"
 #include <span>
 #include <utility>
@@ -245,6 +246,10 @@ namespace pmon::ipc::intro
 		{
 			return id_ < rhs.id_;
 		}
+		uint32_t GetId() const
+		{
+			return id_;
+		}
 	private:
 		uint32_t id_;
 		PM_DEVICE_TYPE type_;
@@ -313,6 +318,10 @@ namespace pmon::ipc::intro
 				std::allocator_traits<A>::construct(alloc, pSelf, content);
 			}
 			return pSelf;
+		}
+		PM_DATA_TYPE GetFrameType() const
+		{
+			return frameType_;
 		}
 	private:
 		PM_DATA_TYPE polledType_;
@@ -447,6 +456,10 @@ namespace pmon::ipc::intro
 		{
 			return id_;
 		}
+		const IntrospectionDataTypeInfo& GetDataTypeInfo() const
+		{
+			return *pTypeInfo_;
+		}
 		bool operator<(const IntrospectionMetric& rhs) const
 		{
 			return id_ < rhs.id_;
@@ -491,6 +504,20 @@ namespace pmon::ipc::intro
 		{
 			return metrics_.GetElements();
 		}
+		std::span<ShmUniquePtr<IntrospectionDevice>> GetDevices()
+		{
+			return devices_.GetElements();
+		}
+		IntrospectionMetric& FindMetric(PM_METRIC metric)
+		{
+			for (auto& p : GetMetrics()) {
+				if (p->GetId() == metric) {
+					return *p;
+				}
+			}
+			throw util::Except<>("Metric ID not found in introspection");
+		}
+
 		using ApiType = PM_INTROSPECTION_ROOT;
 		template<class V>
 		const ApiType* ApiClone(V voidAlloc) const

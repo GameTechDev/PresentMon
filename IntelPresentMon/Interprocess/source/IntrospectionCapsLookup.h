@@ -3,8 +3,6 @@
 #include <array>
 #include "../../ControlLib/PresentMonPowerTelemetry.h"
 #include "../../ControlLib/CpuTelemetryInfo.h"
-#include "MetricCapabilities.h"
-
 
 
 namespace pmon::ipc::intro
@@ -76,14 +74,4 @@ namespace pmon::ipc::intro
 	template<class T> concept IsGpuDeviceStaticMetric = requires { typename T::GpuDeviceStatic; };
 	template<class T> concept IsCpuMetric = requires { T::cpuCapBit; };
 	template<class T> concept IsManualDisableMetric = requires { typename T::ManualDisable; };
-
-	MetricCapabilities ConvertBitset(const GpuTelemetryCapBits& bits)
-	{
-		return {};
-	}
-
-	MetricCapabilities ConvertBitset(const CpuTelemetryCapBits& bits)
-	{
-		return {};
-	}
 }
