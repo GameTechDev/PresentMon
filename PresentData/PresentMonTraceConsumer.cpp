@@ -987,9 +987,10 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
                         // this the present screen time.
                         if (FlipEntryStatusAfterFlip != (uint32_t) Microsoft_Windows_DxgKrnl::FlipEntryStatus::FlipWaitHSync) {
 
-                            SetScreenTime(present, hdr.TimeStamp.QuadPart + present->FlipDelay);
                             // Apply Nvidia FlipDelay, if any, to the presentEvent
                             mNvTraceConsumer.ApplyFlipDelay(present.get(), hdr.ThreadId);
+
+                            SetScreenTime(present, hdr.TimeStamp.QuadPart + present->FlipDelay);
 
                             if (present->PresentMode == PresentMode::Hardware_Legacy_Flip) {
                                 CompletePresent(present);
