@@ -33,4 +33,4 @@ test_case_9_10340,10340,F1_24.exe,test_case_9.etl,test_case_9.csv,10,1,TRUE,Expe
 test_case_10_9888,9888,NarakaBladepoint.exe,test_case_10.etl,test_case_10.csv,10,1,TRUE,Expected failure - Multiple SwapChain support needed,TRUE,FALSE,TRUE
 test_case_11_1524,1524,NarakaBladepoint.exe,test_case_11.etl,test_case_11.csv,10,1,TRUE,Expected failure - Multiple SwapChain support needed,TRUE,FALSE,TRUE
 test_case_12_10168,10168,F1_24.exe,test_case_12.etl,test_case_12.csv,20,5,FALSE,,TRUE,FALSE,TRUE
-test_case_13_11780,11780,Dingo.Main_Win64_retail.exe,test_case_13.etl,test_case_13.csv,10,1,FALSE,,TRUE,FALSE,TRUE
+test_case_13_11780,11780,Dingo.Main_Win64_retail.exe,test_case_13.etl,test_case_13.csv,10,5,FALSE,,TRUE,FALSE,TRUE
