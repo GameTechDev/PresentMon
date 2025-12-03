@@ -186,6 +186,15 @@ void WriteCsvHeader<FrameMetrics1>(FILE* fp)
     }
 }
 
+// This is a generic template that will be specialized for FrameMetrics1 and FrameMetrics.
+template<typename FrameMetricsT>
+void WriteCsvRow(FILE* fp, PMTraceSession const& pmSession, ProcessInfo const& processInfo, PresentEvent const& p, FrameMetricsT const& metrics)
+{
+    // This template should not be called directly.
+    // Specializations for FrameMetrics1 and FrameMetrics are provided below.
+    static_assert(sizeof(FrameMetricsT) == 0, "WriteCsvRow must be specialized for the given FrameMetricsT type.");
+}
+
 template<>
 void WriteCsvRow<FrameMetrics1>(
     FILE* fp,
