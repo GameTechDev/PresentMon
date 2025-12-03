@@ -70,11 +70,41 @@ namespace pmon::util::metrics
             FrameMetrics& out)
         {
             if (isDisplayed && present.getFlipDelay() != 0) {
-                out.msFlipDelay =
-                    qpc.DurationMilliSeconds(present.getFlipDelay());
+                out.msFlipDelay = qpc.DurationMilliSeconds(present.getFlipDelay());
             }
             else {
                 out.msFlipDelay = 0.0;
+            }
+        }
+
+        void ComputeMsDisplayLatency(
+            const QpcConverter& qpc,
+            const SwapChainCoreState& swapChain,
+            const FrameData& present,
+            bool isDisplayed,
+            uint64_t screenTime,
+            FrameMetrics& out)
+        {
+            const auto cpuStart = CalculateCPUStart(swapChain, present);
+            if (isDisplayed && cpuStart != 0) {
+                out.msDisplayLatency = qpc.DeltaUnsignedMilliSeconds(cpuStart, screenTime);
+            } else {
+                out.msDisplayLatency = 0.0;
+            }
+        }
+
+        void ComputeMsReadyTimeToDisplayLatency(
+            const QpcConverter& qpc,
+            const FrameData& present,
+            bool isDisplayed,
+            uint64_t screenTime,
+            FrameMetrics& out)
+        {
+            if (isDisplayed && present.getReadyTime() != 0) {
+                out.msReadyTimeToDisplayLatency = qpc.DeltaUnsignedMilliSeconds(present.getReadyTime(), screenTime);
+            }
+            else {
+                out.msReadyTimeToDisplayLatency = 0.0;
             }
         }
 
@@ -296,6 +326,23 @@ namespace pmon::util::metrics
             qpc,
             present,
             isDisplayed,
+            metrics);
+        
+        // msDisplayLatency is the cpu start time to the current screen time
+        ComputeMsDisplayLatency(
+            qpc,
+            swapChain,
+            present,
+            isDisplayed,
+            screenTime,
+            metrics);
+
+        // msReadyTimeToDisplayLatency is ready time to the current screen time
+        ComputeMsReadyTimeToDisplayLatency(
+            qpc,
+            present,
+            isDisplayed,
+            screenTime,
             metrics);
 
         // screenTimeQpc is simply the current screen time

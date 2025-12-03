@@ -2241,4 +2241,564 @@ namespace MetricsCoreTests
             }
         }
     };
+    TEST_CLASS(DisplayLatencyTests)
+    {
+    public:
+        TEST_METHOD(DisplayLatency_SimpleCase_PositiveDelta)
+        {
+            // Scenario: Single displayed frame with well-separated timestamps.
+            // cpuStart = 1'000'000, screenTime = 2'000'000
+            // QPC frequency 10 MHz → 1'000'000 ticks = 0.1 ms
+            // Expected: msDisplayLatency ≈ 0.1 ms
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            // Set up chain with prior app present to establish cpuStart
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            chain.lastAppPresent = priorApp;
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            // cpuStart = 800'000 + 200'000 = 1'000'000
+            // msDisplayLatency = screenTime - cpuStart = 2'000'000 - 1'000'000 = 1'000'000 ticks = 0.1 ms
+            double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000, 2'000'000);
+            Assert::AreEqual(expected, m.msDisplayLatency, 0.0001);
+        }
+
+        TEST_METHOD(DisplayLatency_CpuStartEqualsScreenTime)
+        {
+            // Scenario: CPU work finishes exactly when frame displays (degenerate case).
+            // cpuStart = screenTime = 2'000'000
+            // Expected: msDisplayLatency = 0.0 ms
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            FrameData priorApp{};
+            priorApp.presentStartTime = 1'700'000;
+            priorApp.timeInPresent = 300'000;
+            chain.lastAppPresent = priorApp;
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            // cpuStart = 1'700'000 + 300'000 = 2'000'000
+            // msDisplayLatency = 2'000'000 - 2'000'000 = 0
+            Assert::AreEqual(0.0, m.msDisplayLatency, 0.0001);
+        }
+
+        TEST_METHOD(DisplayLatency_NotDisplayed_ReturnsZero)
+        {
+            // Scenario: Frame with no displayed entries (not displayed).
+            // Expected: msDisplayLatency = 0.0 ms
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            // No displayed entries
+
+            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            Assert::AreEqual(0.0, m.msDisplayLatency, 0.0001);
+        }
+
+        TEST_METHOD(DisplayLatency_ZeroCpuStart)
+        {
+            // Scenario: No prior chain history; cpuStart defaults to 0.
+            // cpuStart = 0, screenTime = 3'000'000
+            // Expected: msDisplayLatency ≈ 0.3 ms
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            // No prior app present set
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 3'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 3'500'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            // cpuStart = 0 (no prior app present)
+            // msDisplayLatency = 3'000'000 - 0 = 3'000'000 ticks = 0.3 ms
+            double expected = qpc.DeltaUnsignedMilliSeconds(0, 3'000'000);
+            Assert::AreEqual(expected, m.msDisplayLatency, 0.0001);
+        }
+    };
+
+    TEST_CLASS(ReadyTimeToDisplayLatencyTests)
+    {
+    public:
+        TEST_METHOD(ReadyTimeToDisplay_SimpleCase_PositiveDelta)
+        {
+            // Scenario: Single displayed frame with GPU ready time before screen time.
+            // readyTime = 1'500'000, screenTime = 2'000'000
+            // QPC 10 MHz: 500'000 ticks = 0.05 ms
+            // Expected: msReadyTimeToDisplayLatency ≈ 0.05 ms
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'500'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            // msReadyTimeToDisplayLatency = screenTime - readyTime = 2'000'000 - 1'500'000 = 500'000 ticks = 0.05 ms
+            double expected = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'000'000);
+            Assert::IsTrue(m.msReadyTimeToDisplayLatency.has_value());
+            Assert::AreEqual(expected, m.msReadyTimeToDisplayLatency.value(), 0.0001);
+        }
+
+        TEST_METHOD(ReadyTimeToDisplay_ReadyTimeEqualsScreenTime)
+        {
+            // Scenario: GPU finishes exactly when frame displays.
+            // readyTime = screenTime = 2'000'000
+            // Expected: msReadyTimeToDisplayLatency = 0.0 ms
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 2'000'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            Assert::IsTrue(m.msReadyTimeToDisplayLatency.has_value());
+            Assert::AreEqual(0.0, m.msReadyTimeToDisplayLatency.value(), 0.0001);
+        }
+
+        TEST_METHOD(ReadyTimeToDisplay_NotDisplayed_ReturnsZero)
+        {
+            // Scenario: Frame with no displayed entries.
+            // Expected: msReadyTimeToDisplayLatency = 0.0 ms
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'500'000;
+            frame.setFinalState(PresentResult::Presented);
+            // No displayed entries
+
+            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            Assert::IsTrue(m.msReadyTimeToDisplayLatency.has_value());
+            Assert::AreEqual(0.0, m.msReadyTimeToDisplayLatency.value(), 0.0001);
+        }
+
+        TEST_METHOD(ReadyTimeToDisplay_ReadyTimeZero)
+        {
+            // Scenario: Ready time not set (edge case, readyTime = 0).
+            // readyTime = 0, screenTime = 2'000'000
+            // Expected: msReadyTimeToDisplayLatency ≈ 0.2 ms (2'000'000 ticks)
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 0;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            // msReadyTimeToDisplayLatency = 2'000'000 - 0 = 2'000'000 ticks = 0.2 ms
+            double expected = qpc.DeltaUnsignedMilliSeconds(0, 2'000'000);
+            Assert::IsTrue(m.msReadyTimeToDisplayLatency.has_value());
+            Assert::AreEqual(expected, m.msReadyTimeToDisplayLatency.value(), 0.0001);
+        }
+    };
+
+    TEST_CLASS(MultiDisplayLatencyTests)
+    {
+    public:
+        TEST_METHOD(DisplayLatency_MultipleDisplays_EachComputesIndependently)
+        {
+            // Scenario: Single FrameData with 3 displayed instances (e.g., frame interpolation).
+            // Display 0: screenTime = 2'000'000
+            // Display 1: screenTime = 2'100'000
+            // Display 2: screenTime = 2'200'000
+            // cpuStart = 1'000'000 (same for all)
+            // QPC 10 MHz
+            // Expected:
+            // Metrics[0].msDisplayLatency ≈ 0.1 ms
+            // Metrics[1].msDisplayLatency ≈ 0.11 ms
+            // Metrics[2].msDisplayLatency ≈ 0.12 ms
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame.displayed.push_back({ FrameType::Repeated, 2'100'000 });
+            frame.displayed.push_back({ FrameType::Repeated, 2'200'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            chain.lastAppPresent = priorApp;
+
+            // First call without next: process [0..1]
+            auto results1 = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            Assert::AreEqual(size_t(2), results1.size());
+
+            // First display: cpuStart = 1'000'000, screenTime = 2'000'000 → 0.1 ms
+            double expected0 = qpc.DeltaUnsignedMilliSeconds(1'000'000, 2'000'000);
+            Assert::AreEqual(expected0, results1[0].metrics.msDisplayLatency, 0.0001);
+
+            // Second display: cpuStart = 1'000'000, screenTime = 2'100'000 → 0.11 ms
+            double expected1 = qpc.DeltaUnsignedMilliSeconds(1'000'000, 2'100'000);
+            Assert::AreEqual(expected1, results1[1].metrics.msDisplayLatency, 0.0001);
+
+            // Second call with next: process [2]
+            auto results2 = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results2.size());
+
+            // Third display: cpuStart = 1'000'000, screenTime = 2'200'000 → 0.12 ms
+            double expected2 = qpc.DeltaUnsignedMilliSeconds(1'000'000, 2'200'000);
+            Assert::AreEqual(expected2, results2[0].metrics.msDisplayLatency, 0.0001);
+        }
+
+        TEST_METHOD(ReadyTimeToDisplay_MultipleDisplays_IndependentDeltas)
+        {
+            // Scenario: Multiple displays, each with different screenTime, but same readyTime.
+            // readyTime = 1'500'000 (single value for the frame)
+            // Display 0: screenTime = 2'000'000
+            // Display 1: screenTime = 2'100'000
+            // QPC 10 MHz
+            // Expected:
+            // Metrics[0].msReadyTimeToDisplayLatency ≈ 0.05 ms (500'000 ticks)
+            // Metrics[1].msReadyTimeToDisplayLatency ≈ 0.06 ms (600'000 ticks)
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'500'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame.displayed.push_back({ FrameType::Repeated, 2'100'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+
+            // Display 0: readyTime = 1'500'000, screenTime = 2'000'000 → 0.05 ms
+            double expected0 = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'000'000);
+            Assert::IsTrue(results[0].metrics.msReadyTimeToDisplayLatency.has_value());
+            Assert::AreEqual(expected0, results[0].metrics.msReadyTimeToDisplayLatency.value(), 0.0001);
+        }
+    };
+
+    TEST_CLASS(NvCollapsedPresentLatencyTests)
+    {
+    public:
+        TEST_METHOD(DisplayLatency_NvCollapsed_AdjustedScreenTime)
+        {
+            // Scenario: NV collapse adjustment modifies screenTime before metric computation.
+            // Raw screenTime = 3'000'000
+            // chain.lastDisplayedScreenTime = 4'000'000 (adjusted upward by NV1 logic)
+            // cpuStart = 1'000'000
+            // QPC 10 MHz
+            // Assume the unified code applies NV adjustment so effective screenTime = 4'000'000
+            // Expected: msDisplayLatency ≈ 0.3 ms (using adjusted screenTime 4'000'000 − 1'000'000)
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'100'000;
+            frame.flipDelay = 50'000;
+            frame.setFinalState(PresentResult::Presented);
+            // Raw screen time is 4'000'000, greater than next screen time
+            frame.displayed.push_back({ FrameType::Application, 4'000'000 });
+
+            FrameData next{};
+            next.presentStartTime = 2'000'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 2'100'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 3'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            // After NV adjustment: screenTime = 4'000'000
+            // msDisplayLatency = 4'000'000 - 1'100'000 = 3'000'000 ticks = 0.3 ms
+            double expected = qpc.DeltaUnsignedMilliSeconds(1'100'000, 4'000'000);
+            Assert::AreEqual(expected, m.msDisplayLatency, 0.0001);
+        }
+
+        TEST_METHOD(ReadyTimeToDisplay_NvCollapsed_UsesAdjustedScreenTime)
+        {
+            // Scenario: NV collapse adjustment affects ReadyTimeToDisplay metric.
+            // Adjusted screenTime = 4'000'000
+            // readyTime = 1'500'000
+            // QPC 10 MHz
+            // Expected: msReadyTimeToDisplayLatency ≈ 0.25 ms (4'000'000 − 1'500'000 = 2'500'000 ticks)
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.lastDisplayedScreenTime = 4'000'000;
+            chain.lastDisplayedFlipDelay = 100'000;
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'500'000;
+            frame.flipDelay = 50'000;
+            frame.setFinalState(PresentResult::Presented);
+            // Raw screen time is 3'000'000, earlier than lastDisplayedScreenTime
+            frame.displayed.push_back({ FrameType::Application, 3'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 4'500'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            // After NV1 adjustment: screenTime = 4'000'000
+            // msReadyTimeToDisplayLatency = 4'000'000 - 1'500'000 = 2'500'000 ticks = 0.25 ms
+            double expected = qpc.DeltaUnsignedMilliSeconds(1'500'000, 4'000'000);
+            Assert::IsTrue(m.msReadyTimeToDisplayLatency.has_value());
+            Assert::AreEqual(expected, m.msReadyTimeToDisplayLatency.value(), 0.0001);
+        }
+    };
+
+    TEST_CLASS(DisplayLatencyEdgeCasesTests)
+    {
+    public:
+        TEST_METHOD(DisplayLatency_ScreenTimeBeforeCpuStart)
+        {
+            // Scenario: Timestamps appear out-of-order (screen time earlier than CPU start).
+            // cpuStart = 3'000'000
+            // screenTime = 2'000'000 (earlier)
+            // This is unusual but should be handled gracefully (likely as 0 or negative value).
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            FrameData priorApp{};
+            priorApp.presentStartTime = 2'500'000;
+            priorApp.timeInPresent = 500'000;
+            chain.lastAppPresent = priorApp;
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            // cpuStart = 2'500'000 + 500'000 = 3'000'000
+            // screenTime = 2'000'000 (earlier than cpuStart)
+            // Result should be 0 or negative (implementation dependent)
+            Assert::IsTrue(m.msDisplayLatency <= 0.0 || m.msDisplayLatency == 0.0);
+        }
+
+        TEST_METHOD(ReadyTimeToDisplay_ScreenTimeBeforeReadyTime)
+        {
+            // Scenario: Frame displays before GPU finishes (should not happen in practice).
+            // readyTime = 3'000'000
+            // screenTime = 2'000'000 (earlier)
+            // Expected: 0 or negative value (defensive behavior)
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 3'000'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            // screenTime = 2'000'000, readyTime = 3'000'000
+            // Result should be 0 or negative
+            Assert::IsTrue(m.msReadyTimeToDisplayLatency <= 0.0 || m.msReadyTimeToDisplayLatency == 0.0);
+        }
+
+        TEST_METHOD(DisplayLatency_FirstFrame_NoPriorAppPresent)
+        {
+            // Scenario: First frame in swapchain; no prior lastAppPresent in chain state.
+            // cpuStart derived from lastPresent only (fallback).
+            // Single display with screenTime = 2'000'000
+            // Expected: msDisplayLatency computed correctly using fallback CPU start
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            // No lastAppPresent set
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            // No prior present, so cpuStart = 0
+            // msDisplayLatency = 2'000'000 - 0 = 2'000'000 ticks = 0.2 ms
+            double expected = qpc.DeltaUnsignedMilliSeconds(0, 2'000'000);
+            Assert::AreEqual(expected, m.msDisplayLatency, 0.0001);
+        }
+
+        TEST_METHOD(DisplayLatency_FrameWithAppPropagatedData)
+        {
+            // Scenario: lastAppPresent has appPropagatedPresentStartTime and appPropagatedTimeInPresent set.
+            // CPU start should use these.
+            // appPropagatedPresentStartTime = 800'000
+            // appPropagatedTimeInPresent = 150'000
+            // screenTime = 2'000'000
+            // Expected cpuStart = 800'000 + 150'000 = 950'000
+            // Expected msDisplayLatency ≈ 0.1055 ms (2'000'000 − 950'000 = 1'050'000 ticks)
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 50'000;
+            frame.readyTime = 1'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+
+            FrameData priorApp{};
+            priorApp.presentStartTime = 1'000'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.appPropagatedPresentStartTime = 800'000;
+            priorApp.appPropagatedTimeInPresent = 150'000;
+            chain.lastAppPresent = priorApp;
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            // cpuStart = 800'000 + 150'000 = 950'000
+            // msDisplayLatency = 2'000'000 - 950'000 = 1'050'000 ticks = 0.105 ms
+            double expected = qpc.DeltaUnsignedMilliSeconds(950'000, 2'000'000);
+            Assert::AreEqual(expected, m.msDisplayLatency, 0.0001);
+        }
+    };
 }
