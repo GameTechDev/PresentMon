@@ -266,7 +266,7 @@ namespace EtlTests
 				"--etl-test-file"s, etlFile,
 				bp::std_out > out, bp::std_in < in);
 
-			if (!pmon::util::pipe::DuplexPipe::WaitForAvailability(std::string(controlPipe_) + "-in", 500)) {
+			if (!pmon::util::pipe::DuplexPipe::WaitForAvailability(std::string(controlPipe_), 500)) {
 				Assert::Fail(L"Timeout waiting for service control pipe");
 				return false;
 			}
