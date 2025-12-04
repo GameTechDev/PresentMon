@@ -227,7 +227,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			// launch service child process
 			svcChild = bp2::windows::default_launcher{}(ioctx, "PresentMonService.exe"s, std::move(args));
 			// wait for pipe availability of service api
-			if (!::pmon::util::win::WaitForNamedPipe(*opt.controlPipe + "-in", 1500)) {
+			if (!::pmon::util::win::WaitForNamedPipe(*opt.controlPipe + "-in", 1500000)) {
 				pmlog_error("timeout waiting for child service control pipe to go online");
 				return -1;
 			}

@@ -460,6 +460,10 @@ namespace pmon::ipc::intro
 		{
 			return *pTypeInfo_;
 		}
+		PM_METRIC_TYPE GetMetricType() const
+		{
+			return type_;
+		}
 		bool operator<(const IntrospectionMetric& rhs) const
 		{
 			return id_ < rhs.id_;

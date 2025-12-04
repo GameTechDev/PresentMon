@@ -21,7 +21,7 @@ namespace p2c::cli
 
 	private: Group gd_{ this, "Debugging", "Aids in debugging this tool" }; public:
 		Option<std::string> controlPipe{ this, "--control-pipe", R"(\\.\pipe\pm-ctrl)", "Named pipe to connect to the service with" };
-		Option<std::string> shmNamePrefix{ this, "--shm-name-prefix", "pm-shm", "Shared memory to connect to the service with" };
+		Option<std::string> shmNamePrefix{ this, "--shm-name-prefix", "pm-child-shm", "Shared memory to connect to the service with" };
 		Option<std::string> etwSessionName{ this, "--etw-session-name", "pm-child-etw-session", "ETW session name when lauching service as child" };
 		Flag svcAsChild{ this, "--svc-as-child", "Launch service as child console app" };
 		Flag traceExceptions{ this, "--trace-exceptions", "Add stack trace to all thrown exceptions (including SEH exceptions)" };

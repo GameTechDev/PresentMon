@@ -9,7 +9,7 @@ namespace pmon::ipc
 	class ShmNamer
 	{
 	public:
-		ShmNamer(std::optional<std::string> salt = {}, std::optional<std::string> customPrefix = {});
+		ShmNamer(std::string customPrefix, std::optional<std::string> salt = {});
 		std::string MakeIntrospectionName() const;
 		std::string MakeSystemName() const;
 		std::string MakeGpuName(uint32_t deviceId) const;
@@ -17,7 +17,7 @@ namespace pmon::ipc
 		const std::string& GetSalt() const;
 		const std::string& GetPrefix() const;
 	private:
-		std::string salt_;
 		std::string prefix_;
+		std::string salt_;
 	};
 }

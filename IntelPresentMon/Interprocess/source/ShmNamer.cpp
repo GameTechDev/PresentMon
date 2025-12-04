@@ -5,10 +5,10 @@
 
 namespace pmon::ipc
 {
-	ShmNamer::ShmNamer(std::optional<std::string> salt, std::optional<std::string> customPrefix)
+	ShmNamer::ShmNamer(std::string customPrefix, std::optional<std::string> salt)
 		:
-		salt_{ salt.value_or(std::format("{:08x}", std::random_device{}())) },
-		prefix_{ customPrefix.value_or(R"(Global\pm2sh)") }
+		prefix_{ customPrefix },
+		salt_{ salt.value_or(std::format("{:08x}", std::random_device{}())) }
 	{}
 	std::string ShmNamer::MakeIntrospectionName() const
 	{

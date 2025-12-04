@@ -11,7 +11,9 @@ namespace pmon::ipc
     {
         template<typename T>
         using HistoryRingVect = ShmVector<HistoryRing<T>>;
-        using MapValueType = std::variant<HistoryRingVect<double>, HistoryRingVect<uint64_t>, HistoryRingVect<bool>>;
+        using MapValueType = std::variant<
+            HistoryRingVect<double>, HistoryRingVect<uint64_t>,
+            HistoryRingVect<bool>, HistoryRingVect<int>>;
         using MapType = ShmMap<PM_METRIC, MapValueType>;
     public:
         using AllocatorType = MapType::allocator_type;
@@ -31,6 +33,9 @@ namespace pmon::ipc
             case PM_DATA_TYPE_BOOL:
                 AddRing<bool>(id, size, count);
                 break;
+            case PM_DATA_TYPE_ENUM:
+                AddRing<int>(id, size, count);
+                break;
             default: throw util::Except<>("Unsupported ring type for TelemetryMap");
             }
         }
@@ -41,7 +46,8 @@ namespace pmon::ipc
             static_assert(
                 std::is_same_v<T, double> ||
                 std::is_same_v<T, uint64_t> ||
-                std::is_same_v<T, bool>,
+                std::is_same_v<T, bool> ||
+                std::is_same_v<T, int>,
                 "Unsupported ring type for TelemetryMap"
             );
 

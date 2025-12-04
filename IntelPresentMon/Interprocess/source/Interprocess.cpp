@@ -37,7 +37,7 @@ namespace pmon::ipc
         class ServiceComms_ : public ServiceComms, CommsBase_
         {
         public:
-            ServiceComms_(std::optional<std::string> prefix)
+            ServiceComms_(std::string prefix)
                 :
                 namer_{ std::move(prefix) },
                 shm_{ bip::create_only, namer_.MakeIntrospectionName().c_str(),
@@ -65,7 +65,7 @@ namespace pmon::ipc
                 const auto deviceId = nextDeviceIndex_++;
                 intro::PopulateGpuDevice(
                     shm_.get_segment_manager(), *pRoot_,
-                    nextDeviceIndex_++, vendor, deviceName, caps
+                    deviceId, vendor, deviceName, caps
                 );
                 // allocate map node and create shm segment
                 auto& gpuShm = gpuShms_.emplace(
@@ -74,11 +74,16 @@ namespace pmon::ipc
                     std::forward_as_tuple(namer_.MakeGpuName(deviceId))
                 ).first->second;
                 // populate rings based on caps
-                for (auto&& [metric, count] : caps) {
-                    const auto dataType =
-                        pRoot_->FindMetric(metric).GetDataTypeInfo().GetFrameType();
+                for (auto&& [m, count] : caps) {
+                    const auto& metric = pRoot_->FindMetric(m);
+                    const auto metricType = metric.GetMetricType();
+                    // static metrics don't get rings
+                    if (metricType == PM_METRIC_TYPE_STATIC) {
+                        continue;
+                    }
+                    const auto dataType = metric.GetDataTypeInfo().GetFrameType();
                     gpuShm.GetStore().telemetryData.AddRing(
-                        metric, telemetryRingSize_, count, dataType
+                        m, telemetryRingSize_, count, dataType
                     );
                 }
             }
@@ -100,11 +105,16 @@ namespace pmon::ipc
                     shm_.get_segment_manager(), *pRoot_, vendor, std::move(deviceName), caps
                 );
                 // populate rings based on caps
-                for (auto&& [metric, count] : caps) {
-                    const auto dataType =
-                        pRoot_->FindMetric(metric).GetDataTypeInfo().GetFrameType();
+                for (auto&& [m, count] : caps) {
+                    const auto& metric = pRoot_->FindMetric(m);
+                    const auto metricType = metric.GetMetricType();
+                    // static metrics don't get rings
+                    if (metricType == PM_METRIC_TYPE_STATIC) {
+                        continue;
+                    }
+                    const auto dataType = metric.GetDataTypeInfo().GetFrameType();
                     systemShm_.GetStore().telemetryData.AddRing(
-                        metric, telemetryRingSize_, count, dataType
+                        m, telemetryRingSize_, count, dataType
                     );
                 }
                 introCpuComplete_ = true;
@@ -233,7 +243,7 @@ namespace pmon::ipc
         class MiddlewareComms_ : public MiddlewareComms, CommsBase_
         {
         public:
-            MiddlewareComms_(std::optional<std::string> prefix, std::string salt)
+            MiddlewareComms_(std::string prefix, std::string salt)
                 :
                 namer_{ std::move(prefix), std::move(salt) },
                 shm_{ bip::open_only, namer_.MakeIntrospectionName().c_str() },
@@ -328,7 +338,10 @@ namespace pmon::ipc
                 }
                 std::vector<uint32_t> ids;
                 for (auto& p : result.first->GetDevices()) {
-                    ids.push_back(p->GetId());
+                    // skip the 0 id
+                    if (auto id = p->GetId()) {
+                        ids.push_back(id);
+                    }
                 }
                 return ids;
             }
@@ -374,7 +387,7 @@ namespace pmon::ipc
     }
 
     std::unique_ptr<ServiceComms>
-        MakeServiceComms(std::optional<std::string> prefix)
+        MakeServiceComms(std::string prefix)
     {
         return std::make_unique<ServiceComms_>(std::move(prefix));
     }

@@ -36,7 +36,6 @@ namespace clio
 		Option<int> submode{ this, "--submode", 0, "Which submode option to run for the given mode" };
 	private: Group gc_{ this, "Connection", "Control client connection" }; public:
 		Option<std::string> controlPipe{ this, "--control-pipe", "", "Name of the named pipe to use for the client-service control channel" };
-		Option<std::string> introNsm{ this, "--intro-nsm", "", "Name of the NSM used for introspection data" };
 		Option<std::string> middlewareDllPath{ this, "--middleware-dll-path", "", "Override middleware DLL path discovery with custom path" };
 	private: Group gs_{ this, "Sampling", "Control sampling / targeting behavior" }; public:
 		Option<double> metricOffset{ this, "--metric-offset", 1064., "Offset from top for frame data. Used in --dynamic-query-sample" };

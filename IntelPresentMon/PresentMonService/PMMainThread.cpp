@@ -241,10 +241,10 @@ void PresentMonMainThread(Service* const pSvc)
         // create service-side comms object for transmitting introspection data to clients
         std::unique_ptr<ipc::ServiceComms> pComms;
         try {
-            ipc::ShmNamer shmNamer{ {}, opt.shmNamePrefix.AsOptional() };
-            pmlog_info("Creating comms with introspection shm name: ")
-                .pmwatch(shmNamer.MakeIntrospectionName());
-            pComms = ipc::MakeServiceComms(opt.shmNamePrefix.AsOptional());
+            pmlog_dbg("Creating comms with shm prefix: ").pmwatch(*opt.shmNamePrefix);
+            pComms = ipc::MakeServiceComms(*opt.shmNamePrefix);
+            pmlog_info("Created comms with introspection shm name: ")
+                .pmwatch(pComms->GetNamer().MakeIntrospectionName());
         }
         catch (const std::exception& e) {
             LOG(ERROR) << "Failed making service comms> " << e.what() << std::endl;

@@ -46,6 +46,6 @@ namespace pmon::ipc
 		virtual void CloseFrameDataStore(uint32_t pid) = 0;
 	};
 
-	std::unique_ptr<ServiceComms> MakeServiceComms(std::optional<std::string> prefix = {});
+	std::unique_ptr<ServiceComms> MakeServiceComms(std::string prefix);
 	std::unique_ptr<MiddlewareComms> MakeMiddlewareComms(std::string prefix, std::string salt);
 }
