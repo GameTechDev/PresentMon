@@ -136,6 +136,13 @@ namespace pmon::util::metrics {
         double msInPresentApi;
         double msUntilRenderComplete;
 
+        // Display Metrics (displayed frames only)
+        double msDisplayLatency;
+        double msDisplayedTime;
+        double msUntilDisplayed;
+        double msBetweenDisplayChange;
+        uint64_t screenTimeQpc;
+
         // CPU Metrics (app frames only)
         uint64_t cpuStartQpc;
         double msCPUBusy;
@@ -146,13 +153,6 @@ namespace pmon::util::metrics {
         double msGPUBusy;
         double msVideoBusy;
         double msGPUWait;
-
-        // Display Metrics (displayed frames only)
-        double msDisplayLatency;
-        double msDisplayedTime;
-        double msUntilDisplayed;
-        double msBetweenDisplayChange;
-        uint64_t screenTimeQpc;
 
         // Input Latency (optional, app+displayed only)
         std::optional<double> msClickToPhotonLatency;

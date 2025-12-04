@@ -2876,34 +2876,38 @@ namespace MetricsCoreTests
         TEST_METHOD(CPUBusy_BasicCase_StandardPath)
         {
             // No propagated data in lastAppPresent
-           // cpuStart = 1'000'000 (prior frame start + timeInPresent)
-                // presentStartTime = 1'100'000
-                // QPC frequency: 10 MHz
+            // cpuStart = 1'000'000 (prior frame start + timeInPresent)
+            // presentStartTime = 1'100'000
+            // QPC frequency: 10 MHz
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData priorApp = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 800'000,
-                /*timeInPresent*/    200'000,
-                /*readyTime*/   1'000'000,
-                /*displayed*/{});
+            FrameData priorFrame{};
+            priorFrame.presentStartTime = 800'000;
+            priorFrame.timeInPresent = 200'000;
+            priorFrame.readyTime = 1'100'000;
+            priorFrame.setFinalState(PresentResult::Presented);
+            priorFrame.displayed.push_back({ FrameType::Application, 1'200'000 });
 
-            chain.lastAppPresent = priorApp;
+            chain.lastAppPresent = priorFrame;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'100'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});
+            FrameData frame{};
+            frame.presentStartTime = 1'100'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            FrameData next{};
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'400'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
             // cpuStart = 800'000 + 200'000 = 1'000'000
-       // msCPUBusy = 1'100'000 - 1'000'000 = 100'000 ticks = 10 ms
+            // msCPUBusy = 1'100'000 - 1'000'000 = 100'000 ticks = 10 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'100'000);
             Assert::AreEqual(expected, m.msCPUBusy, 0.0001);
         }
@@ -2911,36 +2915,44 @@ namespace MetricsCoreTests
         TEST_METHOD(CPUBusy_WithAppPropagatedData)
         {
             // lastAppPresent has appPropagatedPresentStartTime set
+            // We need to ensure the frame is displayed so CPU metrics are computed
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData priorApp = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/ 200'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{},
-                /*appSimStartTime*/ 0,
-                /*pclSimStartTime*/ 0,
-                /*flipDelay*/ 0);
-
+            // Prior app frame with propagated data
+            FrameData priorApp{};
+            priorApp.presentStartTime = 1'000'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'200'000;
             priorApp.appPropagatedPresentStartTime = 800'000;
             priorApp.appPropagatedTimeInPresent = 200'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'300'000 });
+
             chain.lastAppPresent = priorApp;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'500'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'600'000,
-                /*displayed*/{});
+            // Current frame (app frame, displayed)
+            FrameData frame{};
+            frame.presentStartTime = 1'500'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'600'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'700'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 2'000'000;
+            next.timeInPresent = 80'000;
+            next.readyTime = 2'100'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'200'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
-            // cpuStart = 800'000 + 200'000 = 1'000'000 (uses appPropagated)
-              // msCPUBusy = 1'500'000 - 1'000'000 = 500'000 ticks = 50 ms
+            // cpuStart = 800'000 + 200'000 = 1'000'000 (uses appPropagated from priorApp)
+            // msCPUBusy = 1'500'000 - 1'000'000 = 500'000 ticks = 50 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'500'000);
             Assert::AreEqual(expected, m.msCPUBusy, 0.0001);
         }
@@ -2948,23 +2960,35 @@ namespace MetricsCoreTests
         TEST_METHOD(CPUBusy_FirstFrameNoPriorAppPresent)
         {
             // No lastAppPresent in chain state
-               // cpuStart = 0 (default fallback)
+            // cpuStart = 0 (default fallback)
+            // presentStartTime = 5'000'000
+            // Expected msCPUBusy = 5'000'000 ticks = 500 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
+            // No prior app present set
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 5'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        5'200'000,
-                /*displayed*/{});
+            // Current frame (app frame, displayed)
+            FrameData frame{};
+            frame.presentStartTime = 5'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 5'200'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 6'000'000;
+            next.timeInPresent = 80'000;
+            next.readyTime = 6'100'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 6'300'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
-            // cpuStart = 0
-        // msCPUBusy = 5'000'000 - 0 = 5'000'000 ticks = 500 ms
+            // cpuStart = 0 (no prior app present)
+            // msCPUBusy = 5'000'000 - 0 = 5'000'000 ticks = 500 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(0, 5'000'000);
             Assert::AreEqual(expected, m.msCPUBusy, 0.0001);
         }
@@ -2972,47 +2996,82 @@ namespace MetricsCoreTests
         TEST_METHOD(CPUBusy_ZeroTimeInPresent)
         {
             // cpuStart = 1'000'000
-    // presentStartTime = 1'000'000 (same as cpuStart)
+            // presentStartTime = 1'000'000 (same as cpuStart)
+            // timeInPresent = 0 (zero present duration)
+            // Expected msCPUBusy = 0
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData priorApp = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 800'000,
-                /*timeInPresent*/    200'000,
-                /*readyTime*/    1'000'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorFrame{};
+            priorFrame.presentStartTime = 800'000;
+            priorFrame.timeInPresent = 200'000;
+            priorFrame.readyTime = 1'100'000;
+            priorFrame.setFinalState(PresentResult::Presented);
+            priorFrame.displayed.push_back({ FrameType::Application, 1'200'000 });
 
-            chain.lastAppPresent = priorApp;
+            chain.lastAppPresent = priorFrame;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,  // Same as cpuStart
-                /*timeInPresent*/ 0,           // Zero present duration
-                /*readyTime*/        1'000'000,
-                /*displayed*/{});
+            // Current frame with zero timeInPresent
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;  // Same as cpuStart
+            frame.timeInPresent = 0;             // Zero present duration
+            frame.readyTime = 1'000'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'100'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
+            // cpuStart = 800'000 + 200'000 = 1'000'000
+            // presentStartTime = 1'000'000 (same as cpuStart)
+            // msCPUBusy = 1'000'000 - 1'000'000 = 0 ticks = 0 ms
             Assert::AreEqual(0.0, m.msCPUBusy, 0.0001);
         }
 
         TEST_METHOD(CPUWait_BasicCase_StandardPath)
         {
             // timeInPresent = 200'000 ticks
+            // Expected msCPUWait = 200'000 / 10'000'000 = 0.02 ms = 20 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    200'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorFrame{};
+            priorFrame.presentStartTime = 800'000;
+            priorFrame.timeInPresent = 100'000;
+            priorFrame.readyTime = 1'100'000;
+            priorFrame.setFinalState(PresentResult::Presented);
+            priorFrame.displayed.push_back({ FrameType::Application, 1'200'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            chain.lastAppPresent = priorFrame;
+
+            // Current frame with timeInPresent = 200'000
+            FrameData frame{};
+            frame.presentStartTime = 1'100'000;
+            frame.timeInPresent = 200'000;  // 20 ms
+            frame.readyTime = 1'300'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
+
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'800'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'900'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3024,23 +3083,43 @@ namespace MetricsCoreTests
         TEST_METHOD(CPUWait_WithAppPropagatedTimeInPresent)
         {
             // appPropagatedTimeInPresent = 150'000 ticks
+            // Expected msCPUWait = 150'000 / 10'000'000 = 0.015 ms = 15 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    200'000,  // Regular time (not used when propagated available)
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorFrame{};
+            priorFrame.presentStartTime = 800'000;
+            priorFrame.timeInPresent = 100'000;
+            priorFrame.readyTime = 1'100'000;
+            priorFrame.setFinalState(PresentResult::Presented);
+            priorFrame.displayed.push_back({ FrameType::Application, 1'200'000 });
 
-            frame.appPropagatedTimeInPresent = 150'000;
+            chain.lastAppPresent = priorFrame;
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Current frame with appPropagatedTimeInPresent = 150'000
+            FrameData frame{};
+            frame.presentStartTime = 1'100'000;
+            frame.timeInPresent = 200'000;  // Regular time (not used when propagated available)
+            frame.readyTime = 1'300'000;
+            frame.appPropagatedTimeInPresent = 150'000;  // 15 ms (propagated value)
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
+
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'800'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'900'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
-            // When appPropagated is available, use it
+            // When appPropagated is available, use it instead of regular timeInPresent
+            // msCPUWait = 150'000 ticks = 15 ms
             double expected = qpc.DurationMilliSeconds(150'000);
             Assert::AreEqual(expected, m.msCPUWait, 0.0001);
         }
@@ -3048,20 +3127,41 @@ namespace MetricsCoreTests
         TEST_METHOD(CPUWait_ZeroDuration)
         {
             // timeInPresent = 0
+            // Expected msCPUWait = 0 / 10'000'000 = 0 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    0,
-                /*readyTime*/        1'000'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorFrame{};
+            priorFrame.presentStartTime = 800'000;
+            priorFrame.timeInPresent = 100'000;
+            priorFrame.readyTime = 1'100'000;
+            priorFrame.setFinalState(PresentResult::Presented);
+            priorFrame.displayed.push_back({ FrameType::Application, 1'200'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            chain.lastAppPresent = priorFrame;
+
+            // Current frame with zero timeInPresent
+            FrameData frame{};
+            frame.presentStartTime = 1'100'000;
+            frame.timeInPresent = 0;  // Zero CPU wait time
+            frame.readyTime = 1'100'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'200'000 });
+
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'600'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'700'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
+            // msCPUWait = 0 ticks = 0 ms
             Assert::AreEqual(0.0, m.msCPUWait, 0.0001);
         }
     };
@@ -3076,35 +3176,43 @@ namespace MetricsCoreTests
         TEST_METHOD(GPULatency_BasicCase_StandardPath)
         {
             // cpuStart = 1'000'000
-   // gpuStartTime = 1'050'000
+            // gpuStartTime = 1'050'000
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData priorApp = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 800'000,
-                /*timeInPresent*/    200'000,
-                /*readyTime*/        1'000'000,
-                /*displayed*/{});
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'200'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/    1'300'000,
-                /*displayed*/{});
-
+            // Current frame
+            FrameData frame{};
+            frame.presentStartTime = 1'200'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'300'000;
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 200'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'600'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'700'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
             // cpuStart = 800'000 + 200'000 = 1'000'000
-  // msGPULatency = 1'050'000 - 1'000'000 = 50'000 ticks = 5 ms
+            // msGPULatency = 1'050'000 - 1'000'000 = 50'000 ticks = 5 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'050'000);
             Assert::AreEqual(expected, m.msGPULatency, 0.0001);
         }
@@ -3115,32 +3223,41 @@ namespace MetricsCoreTests
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData priorApp = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 800'000,
-                /*timeInPresent*/    200'000,
-                /*readyTime*/        1'000'000,
-                /*displayed*/{});
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'200'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'300'000,
-                /*displayed*/{});
-
+            // Current frame with app propagated GPU start
+            FrameData frame{};
+            frame.presentStartTime = 1'200'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'300'000;
             frame.gpuStartTime = 1'050'000;  // Not used when propagated available
+            frame.gpuDuration = 200'000;
             frame.appPropagatedGPUStartTime = 1'080'000;
             frame.appPropagatedGPUDuration = 200'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'600'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'700'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
             // cpuStart = 1'000'000
-          // msGPULatency = 1'080'000 - 1'000'000 = 80'000 ticks = 8 ms
+            // msGPULatency = 1'080'000 - 1'000'000 = 80'000 ticks = 8 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'080'000);
             Assert::AreEqual(expected, m.msGPULatency, 0.0001);
         }
@@ -3148,30 +3265,38 @@ namespace MetricsCoreTests
         TEST_METHOD(GPULatency_GPUStartBeforeCpuStart)
         {
             // cpuStart = 2'000'000
-       // gpuStartTime = 1'900'000 (impossible but defensive)
+            // gpuStartTime = 1'900'000 (impossible but defensive)
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData priorApp = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'500'000,
-                /*timeInPresent*/    500'000,  // cpuStart = 2'000'000
-                /*readyTime*/        2'000'000,
-                /*displayed*/{});
+            FrameData priorApp{};
+            priorApp.presentStartTime = 1'500'000;
+            priorApp.timeInPresent = 500'000;  // cpuStart = 2'000'000
+            priorApp.readyTime = 2'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 2'100'000 });
 
             chain.lastAppPresent = priorApp;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 2'200'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/  2'300'000,
-                /*displayed*/{});
-
+            // Current frame with GPU start before CPU start
+            FrameData frame{};
+            frame.presentStartTime = 2'200'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 2'300'000;
             frame.gpuStartTime = 1'900'000;  // Earlier than cpuStart
             frame.gpuDuration = 300'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 2'400'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 2'600'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 2'700'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'800'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3182,20 +3307,39 @@ namespace MetricsCoreTests
         TEST_METHOD(GPUBusy_BasicCase_StandardPath)
         {
             // gpuDuration = 500'000 ticks
+            // Expected msGPUBusy = 500'000 / 10'000'000 = 0.05 ms = 50 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 500'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3206,169 +3350,286 @@ namespace MetricsCoreTests
 
         TEST_METHOD(GPUBusy_ZeroDuration)
         {
+            // gpuDuration = 0
+            // Expected msGPUBusy = 0 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame with zero GPU duration
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 0;  // No GPU work
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
+            // msGPUBusy = 0 ticks = 0 ms
             Assert::AreEqual(0.0, m.msGPUBusy, 0.0001);
         }
 
         TEST_METHOD(GPUBusy_WithAppPropagatedDuration)
         {
             // appPropagatedGPUDuration = 450'000 ticks
+            // Expected msGPUBusy = 450'000 / 10'000'000 = 0.045 ms = 45 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/   1'200'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame with app propagated GPU duration
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 500'000;  // Not used when propagated available
             frame.appPropagatedGPUStartTime = 1'050'000;
             frame.appPropagatedGPUDuration = 450'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
-            // Uses appPropagated
+            // Uses appPropagated: 450'000 ticks = 45 ms
             double expected = qpc.DurationMilliSeconds(450'000);
             Assert::AreEqual(expected, m.msGPUBusy, 0.0001);
         }
 
         TEST_METHOD(GPUWait_BasicCase_BusyLessThanTotal)
         {
-            // gpuStartTime = 1'000'000, readyTime = 1'600'000 ? total = 600'000
-   // gpuDuration (busy) = 500'000
-     // msGPUWait should be 100'000 ticks = 10 ms
+            // gpuStartTime = 1'000'000, readyTime = 1'600'000 → total = 600'000
+            // gpuDuration (busy) = 500'000
+            // msGPUWait should be 100'000 ticks = 10 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'600'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'600'000;
             frame.gpuStartTime = 1'000'000;
             frame.gpuDuration = 500'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'700'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'900'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 2'000'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'100'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
             // Total = 1'600'000 - 1'000'000 = 600'000
+            // msGPUBusy = 500'000 ticks = 50 ms
             // msGPUWait = 600'000 - 500'000 = 100'000 ticks = 10 ms
             double expectedTotal = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'600'000);
-            double expectedWait = max(0.0, expectedTotal - m.msGPUBusy);
+            double expectedBusy = qpc.DurationMilliSeconds(500'000);
+            double expectedWait = max(0.0, expectedTotal - expectedBusy);
             Assert::AreEqual(expectedWait, m.msGPUWait, 0.0001);
         }
 
         TEST_METHOD(GPUWait_BusyEqualsTotal)
         {
-            // gpuStartTime = 1'000'000, readyTime = 1'600'000 ? total = 600'000
-         // gpuDuration = 600'000 (fully busy)
-        // msGPUWait should be 0
+            // gpuStartTime = 1'000'000, readyTime = 1'600'000 → total = 600'000
+            // gpuDuration = 600'000 (fully busy)
+            // msGPUWait should be 0
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/     1'600'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame with GPU duration equal to total time
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'600'000;
             frame.gpuStartTime = 1'000'000;
             frame.gpuDuration = 600'000;  // Equal to total
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'700'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'900'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 2'000'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'100'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
+            // Total = 1'600'000 - 1'000'000 = 600'000
+            // msGPUBusy = 600'000 ticks = 60 ms (equal to total)
+            // msGPUWait = 600'000 - 600'000 = 0 ms
             Assert::AreEqual(0.0, m.msGPUWait, 0.0001);
         }
 
         TEST_METHOD(GPUWait_BusyGreaterThanTotal)
         {
-            // gpuStartTime = 1'000'000, readyTime = 1'600'000 ? total = 600'000
-             // gpuDuration = 700'000 (impossible, but defensive)
-                    // msGPUWait should clamp to 0
+            // gpuStartTime = 1'000'000, readyTime = 1'600'000 → total = 600'000
+            // gpuDuration = 700'000 (impossible, but defensive)
+            // msGPUWait should clamp to 0
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'600'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame with GPU duration greater than total (impossible case)
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'600'000;
             frame.gpuStartTime = 1'000'000;
             frame.gpuDuration = 700'000;  // Greater than total (impossible)
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'700'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'900'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 2'000'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'100'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
-            // Should clamp to 0
+            // Total = 1'600'000 - 1'000'000 = 600'000
+            // msGPUBusy = 700'000 ticks = 70 ms (greater than total)
+            // msGPUWait should clamp to 0
             Assert::AreEqual(0.0, m.msGPUWait, 0.0001);
         }
 
         TEST_METHOD(GPUWait_WithAppPropagatedData)
         {
-            // appPropagatedGPUStartTime = 1'000'000, appPropagatedReadyTime = 1'550'000 ? total = 550'000
-              // appPropagatedGPUDuration = 450'000
-             // msGPUWait should be 100'000 ticks = 10 ms
+            // appPropagatedGPUStartTime = 1'000'000, appPropagatedReadyTime = 1'550'000 → total = 550'000
+            // appPropagatedGPUDuration = 450'000
+            // msGPUWait should be 100'000 ticks = 10 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/  100'000,
-                /*readyTime*/   1'600'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame with app propagated GPU data
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'600'000;
             frame.gpuStartTime = 1'000'000;
             frame.gpuDuration = 600'000;
             frame.appPropagatedGPUStartTime = 1'000'000;
             frame.appPropagatedReadyTime = 1'550'000;
             frame.appPropagatedGPUDuration = 450'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'700'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'900'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 2'000'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 2'100'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
             // Total = 1'550'000 - 1'000'000 = 550'000
-          // msGPUWait = 550'000 - 450'000 = 100'000 ticks = 10 ms
+            // msGPUBusy = 450'000 ticks = 45 ms
+            // msGPUWait = 550'000 - 450'000 = 100'000 ticks = 10 ms
             double expectedTotal = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'550'000);
-            double expectedWait = max(0.0, expectedTotal - m.msGPUBusy);
+            double expectedBusy = qpc.DurationMilliSeconds(450'000);
+            double expectedWait = max(0.0, expectedTotal - expectedBusy);
             Assert::AreEqual(expectedWait, m.msGPUWait, 0.0001);
         }
     };
-
-    // ============================================================================
-    // GROUP C: VIDEO METRICS
-    // ============================================================================
 
     TEST_CLASS(GPUMetricsVideoTests)
     {
@@ -3376,21 +3637,40 @@ namespace MetricsCoreTests
         TEST_METHOD(VideoBusy_BasicCase_StandardPath)
         {
             // gpuVideoDuration = 200'000 ticks
+            // Expected msVideoBusy = 200'000 / 10'000'000 = 0.02 ms = 20 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/ 100'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 500'000;
             frame.gpuVideoDuration = 200'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3401,21 +3681,41 @@ namespace MetricsCoreTests
 
         TEST_METHOD(VideoBusy_ZeroDuration)
         {
+            // gpuVideoDuration = 0
+            // Expected msVideoBusy = 0 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/    1'200'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame with zero video duration
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 500'000;
             frame.gpuVideoDuration = 0;  // No video work
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3425,28 +3725,47 @@ namespace MetricsCoreTests
         TEST_METHOD(VideoBusy_WithAppPropagatedData)
         {
             // appPropagatedGPUVideoDuration = 180'000 ticks
+            // Expected msVideoBusy = 180'000 / 10'000'000 = 0.018 ms = 18 ms
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame with app propagated GPU video duration
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 500'000;
             frame.gpuVideoDuration = 200'000;  // Not used when propagated available
             frame.appPropagatedGPUStartTime = 1'050'000;
             frame.appPropagatedGPUDuration = 450'000;
             frame.appPropagatedGPUVideoDuration = 180'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
-            // Uses appPropagated
+            // Uses appPropagated: 180'000 ticks = 18 ms
             double expected = qpc.DurationMilliSeconds(180'000);
             Assert::AreEqual(expected, m.msVideoBusy, 0.0001);
         }
@@ -3454,23 +3773,41 @@ namespace MetricsCoreTests
         TEST_METHOD(VideoBusy_OverlapWithGPUBusy)
         {
             // msGPUBusy = 50 ms (500'000 ticks)
-     // msVideoBusy = 20 ms (200'000 ticks)
-     // Verify both are independently computed (no constraint)
+            // msVideoBusy = 20 ms (200'000 ticks)
+            // Verify both are independently computed (no constraint)
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 500'000;
             frame.gpuVideoDuration = 200'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3484,23 +3821,41 @@ namespace MetricsCoreTests
         TEST_METHOD(VideoBusy_LargerThanGPUBusy)
         {
             // msGPUBusy = 30 ms (computed from gpuDuration)
-   // msVideoBusy = 50 ms (computed from gpuVideoDuration)
-         // Verify independent computation (no implicit constraints)
+            // msVideoBusy = 50 ms (computed from gpuVideoDuration)
+            // Verify independent computation (no implicit constraints)
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
+            chain.lastAppPresent = priorApp;
+
+            // Current frame where video duration > GPU duration
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 300'000;  // 30 ms
             frame.gpuVideoDuration = 500'000;  // 50 ms (larger than gpuDuration)
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3508,6 +3863,7 @@ namespace MetricsCoreTests
             Assert::IsTrue(m.msVideoBusy > m.msGPUBusy);
         }
     };
+
     TEST_CLASS(EdgeCasesAndMissingData)
     {
     public:
@@ -3526,16 +3882,23 @@ namespace MetricsCoreTests
 
             chain.lastAppPresent = priorApp;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'100'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});
+            // Current frame with no GPU data
+            FrameData frame{};
+            frame.presentStartTime = 1'100'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
 
-            // No GPU data set (all zeros by default)
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3563,21 +3926,23 @@ namespace MetricsCoreTests
 
             chain.lastAppPresent = priorApp;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'100'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'200'000,
-                std::vector<std::pair<FrameType, uint64_t>>{
-                    { FrameType::Repeated, 1'300'000 }  // Not Application
-            });
-
+            // Current frame with only Repeated display (not Application)
+            FrameData frame{};
+            frame.presentStartTime = 1'100'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
             frame.gpuStartTime = 1'150'000;
             frame.gpuDuration = 200'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Repeated, 1'300'000 });
 
+            // Next displayed frame (required to process current frame's display)
             FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
             next.setFinalState(PresentResult::Presented);
-            next.displayed.push_back({ FrameType::Application, 1'500'000 });
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3597,24 +3962,24 @@ namespace MetricsCoreTests
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData priorApp = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 800'000,
-                /*timeInPresent*/    200'000,
-                /*readyTime*/        1'000'000,
-                /*displayed*/{});
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Discarded,  // Not displayed
-                /*presentStartTime*/ 1'100'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});  // No displayed entries
-
+            // Current frame is not displayed (Discarded)
+            FrameData frame{};
+            frame.presentStartTime = 1'100'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
             frame.gpuStartTime = 1'150'000;
             frame.gpuDuration = 200'000;
+            frame.setFinalState(PresentResult::Discarded);
+            // No displayed entries
 
             auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3625,6 +3990,7 @@ namespace MetricsCoreTests
             Assert::IsTrue(m.msGPUBusy > 0);
         }
     };
+
     TEST_CLASS(StateAndHistory)
     {
     public:
@@ -3634,23 +4000,32 @@ namespace MetricsCoreTests
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData lastApp = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 800'000,
-                /*timeInPresent*/    200'000,
-                /*readyTime*/        1'000'000,
-                /*displayed*/{});
+            FrameData lastApp{};
+            lastApp.presentStartTime = 800'000;
+            lastApp.timeInPresent = 200'000;
+            lastApp.readyTime = 1'000'000;
+            lastApp.setFinalState(PresentResult::Presented);
+            lastApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = lastApp;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'200'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'300'000,
-                /*displayed*/{});
+            // Current frame
+            FrameData frame{};
+            frame.presentStartTime = 1'200'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'300'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'600'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'700'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3665,24 +4040,33 @@ namespace MetricsCoreTests
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData lastPresent = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 800'000,
-                /*timeInPresent*/    200'000,
-                /*readyTime*/  1'000'000,
-                /*displayed*/{});
+            FrameData lastPresent{};
+            lastPresent.presentStartTime = 800'000;
+            lastPresent.timeInPresent = 200'000;
+            lastPresent.readyTime = 1'000'000;
+            lastPresent.setFinalState(PresentResult::Presented);
+            lastPresent.displayed.push_back({ FrameType::Application, 1'100'000 });
 
             chain.lastPresent = lastPresent;
             // lastAppPresent remains unset
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'200'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'300'000,
-                /*displayed*/{});
+            // Current frame
+            FrameData frame{};
+            frame.presentStartTime = 1'200'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'300'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'600'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'700'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3697,14 +4081,23 @@ namespace MetricsCoreTests
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};  // Empty chain
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 5'000'000,
-                /*timeInPresent*/  100'000,
-                /*readyTime*/        5'200'000,
-                /*displayed*/{});
+            // Current frame
+            FrameData frame{};
+            frame.presentStartTime = 5'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 5'200'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 6'000'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 6'100'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 6'300'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3718,21 +4111,22 @@ namespace MetricsCoreTests
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 5'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        5'200'000,
-                std::vector<std::pair<FrameType, uint64_t>>{
-                    { FrameType::Application, 5'500'000 }
-            },
-                /*appSimStartTime*/ 0,
-                /*pclSimStartTime*/ 0,
-                /*flipDelay*/ 777);
+            // Current frame
+            FrameData frame{};
+            frame.presentStartTime = 5'000'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 5'200'000;
+            frame.flipDelay = 777;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
 
+            // Next displayed frame (required to process current frame's display)
             FrameData next{};
+            next.presentStartTime = 6'000'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 6'100'000;
             next.setFinalState(PresentResult::Presented);
-            next.displayed.push_back({ FrameType::Application, 6'000'000 });
+            next.displayed.push_back({ FrameType::Application, 6'300'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3744,38 +4138,50 @@ namespace MetricsCoreTests
             Assert::AreEqual(uint64_t(777), chain.lastDisplayedFlipDelay);
         }
     };
+
     TEST_CLASS(NumericAndPrecision)
     {
     public:
         TEST_METHOD(CPUBusy_LargeValues_DoesNotOverflow)
         {
             // cpuStart = 1'000'000'000 (large QPC value)
-     // presentStartTime = 1'100'000'000
+            // presentStartTime = 1'100'000'000
+            // Expected msCPUBusy = 100'000'000 ticks = 10'000 ms (10 seconds)
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData priorApp = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 900'000'000,
-                /*timeInPresent*/ 100'000'000,
-                /*readyTime*/     1'000'000'000,
-                /*displayed*/{});
+            // Prior app frame with large values
+            FrameData priorApp{};
+            priorApp.presentStartTime = 900'000'000;
+            priorApp.timeInPresent = 100'000'000;
+            priorApp.readyTime = 1'000'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000'000 });
 
             chain.lastAppPresent = priorApp;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'100'000'000,
-                /*timeInPresent*/    100'000'000,
-                /*readyTime*/        1'200'000'000,
-                /*displayed*/{});
+            // Current frame with large values
+            FrameData frame{};
+            frame.presentStartTime = 1'100'000'000;
+            frame.timeInPresent = 100'000'000;
+            frame.readyTime = 1'200'000'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'600'000'000;
+            next.timeInPresent = 50'000'000;
+            next.readyTime = 1'700'000'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'800'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
             // cpuStart = 900'000'000 + 100'000'000 = 1'000'000'000
-  // msCPUBusy = 1'100'000'000 - 1'000'000'000 = 100'000'000 ticks = 10'000 ms (10 seconds)
+            // msCPUBusy = 1'100'000'000 - 1'000'000'000 = 100'000'000 ticks = 10'000 ms (10 seconds)
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000'000, 1'100'000'000);
             Assert::AreEqual(expected, m.msCPUBusy, 0.0001);
             // Verify large value is reasonable (10 seconds)
@@ -3785,30 +4191,38 @@ namespace MetricsCoreTests
         TEST_METHOD(GPULatency_SmallDelta_HighPrecision)
         {
             // cpuStart = 1'000'000
-   // gpuStartTime = 1'000'001 (1 tick delta; tiny latency)
+            // gpuStartTime = 1'000'001 (1 tick delta; tiny latency)
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            FrameData priorApp = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 800'000,
-                /*timeInPresent*/    200'000,
-                /*readyTime*/        1'000'000,
-                /*displayed*/{});
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'000'000;
+            priorApp.setFinalState(PresentResult::Presented);
+            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
-            FrameData frame = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'100'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'200'000,
-                /*displayed*/{});
-
+            // Current frame with small GPU latency
+            FrameData frame{};
+            frame.presentStartTime = 1'100'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'200'000;
             frame.gpuStartTime = 1'000'001;  // Only 1 tick later than cpuStart
             frame.gpuDuration = 200'000;
+            frame.setFinalState(PresentResult::Presented);
+            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 1'500'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'600'000;
+            next.setFinalState(PresentResult::Presented);
+            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
@@ -3821,49 +4235,49 @@ namespace MetricsCoreTests
         TEST_METHOD(VideoBusy_ZeroAndNonzeroInSequence)
         {
             // Frame A: no video work
-           // Frame B: with video work
+            // Frame B: with video work
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
             // Frame A: zero video
-            FrameData frameA = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 1'000'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        1'200'000,
-                std::vector<std::pair<FrameType, uint64_t>>{
-                    { FrameType::Application, 1'500'000 }
-            });
-
+            FrameData frameA{};
+            frameA.presentStartTime = 1'000'000;
+            frameA.timeInPresent = 100'000;
+            frameA.readyTime = 1'200'000;
             frameA.gpuStartTime = 1'050'000;
             frameA.gpuDuration = 400'000;
             frameA.gpuVideoDuration = 0;  // No video
+            frameA.setFinalState(PresentResult::Presented);
+            frameA.displayed.push_back({ FrameType::Application, 1'500'000 });
 
             FrameData nextA{};
+            nextA.presentStartTime = 2'000'000;
+            nextA.timeInPresent = 50'000;
+            nextA.readyTime = 2'100'000;
             nextA.setFinalState(PresentResult::Presented);
-            nextA.displayed.push_back({ FrameType::Application, 2'000'000 });
+            nextA.displayed.push_back({ FrameType::Application, 2'200'000 });
 
             auto resultsA = ComputeMetricsForPresent(qpc, frameA, &nextA, chain);
             Assert::AreEqual(size_t(1), resultsA.size());
             Assert::AreEqual(0.0, resultsA[0].metrics.msVideoBusy, 0.0001);
 
             // Frame B: with video
-            FrameData frameB = MakeFrame(
-                PresentResult::Presented,
-                /*presentStartTime*/ 2'100'000,
-                /*timeInPresent*/    100'000,
-                /*readyTime*/        2'300'000,
-                std::vector<std::pair<FrameType, uint64_t>>{
-                    { FrameType::Application, 2'600'000 }
-            });
-
+            FrameData frameB{};
+            frameB.presentStartTime = 2'100'000;
+            frameB.timeInPresent = 100'000;
+            frameB.readyTime = 2'300'000;
             frameB.gpuStartTime = 2'150'000;
             frameB.gpuDuration = 400'000;
             frameB.gpuVideoDuration = 300'000;  // 30 ms of video
+            frameB.setFinalState(PresentResult::Presented);
+            frameB.displayed.push_back({ FrameType::Application, 2'600'000 });
 
             FrameData nextB{};
+            nextB.presentStartTime = 3'000'000;
+            nextB.timeInPresent = 50'000;
+            nextB.readyTime = 3'100'000;
             nextB.setFinalState(PresentResult::Presented);
-            nextB.displayed.push_back({ FrameType::Application, 3'000'000 });
+            nextB.displayed.push_back({ FrameType::Application, 3'200'000 });
 
             auto resultsB = ComputeMetricsForPresent(qpc, frameB, &nextB, chain);
             Assert::AreEqual(size_t(1), resultsB.size());

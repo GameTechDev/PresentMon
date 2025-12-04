@@ -108,6 +108,130 @@ namespace pmon::util::metrics
             }
         }
 
+        void ComputeMsCpuBusy(
+            const QpcConverter& qpc,
+            const SwapChainCoreState& swapChain,
+            const FrameData& present,
+            bool isAppPresent,
+            FrameMetrics& out)
+        {
+            //out.msCPUBusy = std::nullopt;
+            out.msCPUBusy = 0.0;
+            if (isAppPresent) {
+                auto cpuStart = CalculateCPUStart(swapChain, present);
+                if (cpuStart != 0) {
+                    if (present.appPropagatedPresentStartTime != 0) {
+                        out.msCPUBusy = qpc.DeltaUnsignedMilliSeconds(cpuStart, present.appPropagatedPresentStartTime);
+                    } else if (present.presentStartTime != 0) {
+                        out.msCPUBusy = qpc.DeltaUnsignedMilliSeconds(cpuStart, present.presentStartTime);
+                    }
+                }
+            }
+        }
+
+        void ComputeMsCpuWait(
+            const QpcConverter& qpc,
+            const FrameData& present,
+            bool isAppPresent,
+            FrameMetrics& out)
+        {
+            //out.msCPUWait = std::nullopt;
+            out.msCPUWait = 0.0;
+            if (isAppPresent) {
+                if (present.appPropagatedTimeInPresent != 0) {
+                    out.msCPUWait = qpc.DurationMilliSeconds(present.appPropagatedTimeInPresent);
+                }
+                else if (present.timeInPresent != 0) {
+                    out.msCPUWait = qpc.DurationMilliSeconds(present.timeInPresent);
+                }
+            }
+        }
+
+        void ComputeMsGpuLatency(
+            const QpcConverter& qpc,
+            const SwapChainCoreState& swapChain,
+            const FrameData& present,
+            bool isAppPresent,
+            FrameMetrics& out)
+        {
+            //out.msGPULatency = std::nullopt;
+            out.msGPULatency = 0.0;
+            if (isAppPresent) {
+                auto cpuStart = CalculateCPUStart(swapChain, present);
+                if (cpuStart != 0) {
+                    if (present.appPropagatedGPUStartTime != 0) {
+                        out.msGPULatency = qpc.DeltaUnsignedMilliSeconds(cpuStart, present.appPropagatedGPUStartTime);
+                    }
+                    else if (present.gpuStartTime != 0) {
+                        out.msGPULatency = qpc.DeltaUnsignedMilliSeconds(cpuStart, present.gpuStartTime);
+                    }
+                }
+            }
+        }
+
+        double ComputeMsGpuBusy(
+            const QpcConverter& qpc,
+            const FrameData& present,
+            bool isAppPresent)
+        {
+            //out.msGPUBusy = std::nullopt;
+            double msGPUBusy = 0.0;
+            if (isAppPresent) {
+                if (present.appPropagatedGPUDuration != 0) {
+                    msGPUBusy = qpc.DurationMilliSeconds(present.appPropagatedGPUDuration);
+                }
+                else if (present.timeInPresent != 0) {
+                    msGPUBusy = qpc.DurationMilliSeconds(present.gpuDuration);
+                }
+            }
+            return msGPUBusy;
+        }
+
+        void ComputeMsVideoBusy(
+            const QpcConverter& qpc,
+            const FrameData& present,
+            bool isAppPresent,
+            FrameMetrics& out)
+        {
+            //out.msVideoBusy = std::nullopt;
+            out.msVideoBusy = 0.0;
+            if (isAppPresent) {
+                if (present.appPropagatedGPUVideoDuration != 0) {
+                    out.msVideoBusy = qpc.DurationMilliSeconds(present.appPropagatedGPUVideoDuration);
+                }
+                else if (present.timeInPresent != 0) {
+                    out.msVideoBusy = qpc.DurationMilliSeconds(present.gpuVideoDuration);
+                }
+            }
+        }
+
+        double ComputeMsGpuDuration (
+            const QpcConverter& qpc,
+            const FrameData& present,
+            bool isAppPresent)
+        {
+            //msGPUDuration = std::nullopt;
+            double msGPUDuration = 0.0;
+            if (isAppPresent) {
+                if (present.appPropagatedGPUStartTime != 0 || present.appPropagatedReadyTime != 0) {
+                    msGPUDuration = qpc.DeltaUnsignedMilliSeconds(present.appPropagatedGPUStartTime, present.appPropagatedReadyTime);
+                }
+                else if (present.gpuStartTime != 0 || present.readyTime != 0) {
+                    msGPUDuration = qpc.DeltaUnsignedMilliSeconds(present.gpuStartTime, present.readyTime);
+                }
+            }
+            return msGPUDuration;
+        }
+
+        void ComputeMsGpuWait(
+            const QpcConverter& qpc,
+            const FrameData& present,
+            bool isAppPresent,
+            FrameMetrics& out)
+        {
+            out.msGPUWait = std::max(0.0, ComputeMsGpuDuration(qpc, present, isAppPresent) - ComputeMsGpuBusy(qpc, present, isAppPresent));
+        }
+
         void AdjustScreenTimeForCollapsedPresentNV(
             const FrameData& present,
             FrameData* nextDisplayedPresent,
@@ -349,6 +473,51 @@ namespace pmon::util::metrics
         metrics.screenTimeQpc = screenTime;
     }
 
+    void CalculateCpuGpuMetrics(
+        const QpcConverter& qpc,
+        const SwapChainCoreState& chainState,
+        const FrameData& present,
+        bool isAppFrame,
+        FrameMetrics& metrics)
+    {
+        ComputeMsCpuBusy(
+            qpc,
+            chainState,
+            present,
+            isAppFrame,
+            metrics);
+
+        ComputeMsCpuWait(
+            qpc,
+            present,
+            isAppFrame,
+            metrics);
+
+        ComputeMsGpuLatency(
+            qpc,
+            chainState,
+            present,
+            isAppFrame,
+            metrics);
+
+        metrics.msGPUBusy = ComputeMsGpuBusy(
+            qpc, 
+            present, 
+            isAppFrame);
+
+        ComputeMsVideoBusy(
+            qpc,
+            present,
+            isAppFrame,
+            metrics);
+
+        ComputeMsGpuWait(
+            qpc,
+            present,
+            isAppFrame,
+            metrics);
+    }
+
     ComputedMetrics ComputeFrameMetrics(
         const QpcConverter& qpc,
         const FrameData& present,
@@ -375,6 +544,13 @@ namespace pmon::util::metrics
             isDisplayed,
             screenTime,
             nextScreenTime,
+            metrics);
+
+        CalculateCpuGpuMetrics(
+            qpc,
+            chain,
+            present, 
+            isAppFrame, 
             metrics);
 
         metrics.cpuStartQpc = CalculateCPUStart(chain, present);
