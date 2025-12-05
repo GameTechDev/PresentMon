@@ -9,13 +9,13 @@ namespace pmon::ipc
     // container for multiple history rings organized by PM_METRIC x index
     class TelemetryMap
     {
+    public:
         template<typename T>
         using HistoryRingVect = ShmVector<HistoryRing<T>>;
         using MapValueType = std::variant<
             HistoryRingVect<double>, HistoryRingVect<uint64_t>,
             HistoryRingVect<bool>, HistoryRingVect<int>>;
         using MapType = ShmMap<PM_METRIC, MapValueType>;
-    public:
         using AllocatorType = MapType::allocator_type;
         TelemetryMap(AllocatorType alloc)
             :
@@ -95,6 +95,14 @@ namespace pmon::ipc
         const MapValueType& FindRingVariant(PM_METRIC id) const
         {
             return ringMap_.at(id);
+        }
+        auto Rings()
+        {
+            return std::ranges::subrange{ ringMap_.begin(), ringMap_.end() };
+        }
+        auto Rings() const
+        {
+            return std::ranges::subrange{ ringMap_.begin(), ringMap_.end() };
         }
     private:
         MapType ringMap_;

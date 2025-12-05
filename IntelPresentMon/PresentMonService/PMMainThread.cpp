@@ -152,39 +152,77 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
     }
 }
 
-void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
-	pwr::cpu::CpuTelemetry* const cpu)
+void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::ServiceComms* pComms,
+	pwr::cpu::CpuTelemetry* const cpu) noexcept
 {
-    IntervalWaiter waiter{ 0.016 };
-	if (srv == nullptr || pm == nullptr) {
-		// TODO: log error on this condition
-		return;
-	}
+    // we don't expect any exceptions in this system during normal operation
+    // (maybe during initialization at most, not during polling)
+    // but if they do happen, it is a halting condition for the system telemetry
+    // don't let this thread crash the process, just exit with an error for later
+    // diagnosis
+    try {
+        IntervalWaiter waiter{ 0.016 };
+        if (srv == nullptr || pm == nullptr) {
+            // TODO: log error on this condition
+            return;
+        }
 
-    const HANDLE events[] {
-        pm->GetStreamingStartHandle(),
-        srv->GetServiceStopHandle(),
-    };
+        const HANDLE events[]{
+            pm->GetStreamingStartHandle(),
+            srv->GetServiceStopHandle(),
+        };
 
-	while (1) {
-		auto waitResult = WaitForMultipleObjects((DWORD)std::size(events), events, FALSE, INFINITE);
-		auto i = waitResult - WAIT_OBJECT_0;
-		if (i == 1) {
-			return;
-		}
-		while (WaitForSingleObject(srv->GetServiceStopHandle(), 0) != WAIT_OBJECT_0) {
-			cpu->Sample();
-            // Convert from the ms to seconds as GetTelemetryPeriod returns back
-            // ms and SetInterval expects seconds.
-            waiter.SetInterval(pm->GetGpuTelemetryPeriod() / 1000.);
-            waiter.Wait();
-			// Get the number of currently active streams
-			auto num_active_streams = pm->GetActiveStreams();
-			if (num_active_streams == 0) {
-				break;
-			}
-		}
-	}
+        while (1) {
+            auto waitResult = WaitForMultipleObjects((DWORD)std::size(events), events, FALSE, INFINITE);
+            auto i = waitResult - WAIT_OBJECT_0;
+            if (i == 1) {
+                return;
+            }
+            while (WaitForSingleObject(srv->GetServiceStopHandle(), 0) != WAIT_OBJECT_0) {
+                // TODO:streamer replace this flow with a call that populates rings of a store
+                cpu->Sample();
+                // placeholder routine shim to translate cpu tranfer struct into rings
+                // replace with a direct mapping on PM_METRIC that obviates the switch
+                auto& store = pComms->GetSystemDataStore();
+                auto& sample = cpu->GetNewest();
+                for (auto&& [metric, ringVariant] : store.telemetryData.Rings()) {
+                    // all cpu telemetry is double
+                    auto& ringVect = std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant);
+                    switch (metric) {
+                    case PM_METRIC_CPU_FREQUENCY:
+                        ringVect[0].Push(sample.cpu_frequency, sample.qpc);
+                        break;
+                    case PM_METRIC_CPU_UTILIZATION:
+                        ringVect[0].Push(sample.cpu_utilization, sample.qpc);
+                        break;
+                    case PM_METRIC_CPU_POWER:
+                        ringVect[0].Push(sample.cpu_power_w, sample.qpc);
+                        break;
+                    case PM_METRIC_CPU_POWER_LIMIT:
+                        ringVect[0].Push(sample.cpu_power_limit_w, sample.qpc);
+                        break;
+                    case PM_METRIC_CPU_TEMPERATURE:
+                        ringVect[0].Push(sample.cpu_temperature, sample.qpc);
+                        break;
+                    default:
+                        break;
+                    }
+                }
+                // Convert from the ms to seconds as GetTelemetryPeriod returns back
+                // ms and SetInterval expects seconds.
+                waiter.SetInterval(pm->GetGpuTelemetryPeriod() / 1000.);
+                waiter.Wait();
+                // Get the number of currently active streams
+                auto num_active_streams = pm->GetActiveStreams();
+                if (num_active_streams == 0) {
+                    break;
+                }
+            }
+        }
+    }
+    catch (...) {
+        pmlog_error(util::ReportException("Failure in telemetry loop"));
+    }
 }
 
 
@@ -281,7 +319,7 @@ void PresentMonMainThread(Service* const pSvc)
         }
 
         if (cpu) {
-            cpuTelemetryThread = std::jthread{ CpuTelemetryThreadEntry_, pSvc, &pm, cpu.get() };
+            cpuTelemetryThread = std::jthread{ CpuTelemetryThreadEntry_, pSvc, &pm, pComms.get(), cpu.get()};
             pm.SetCpu(cpu);
             // sample once to populate the cap bits
             cpu->Sample();

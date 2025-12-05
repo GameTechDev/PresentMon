@@ -19,6 +19,7 @@ class WmiCpu : public CpuTelemetry {
  public:
   WmiCpu();
   bool Sample() noexcept override;
+  const CpuTelemetryInfo& GetNewest() const noexcept override;
   std::optional<CpuTelemetryInfo> GetClosest(
       uint64_t qpc) const noexcept override;
   // types

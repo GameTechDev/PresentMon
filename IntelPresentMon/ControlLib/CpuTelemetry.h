@@ -17,6 +17,7 @@ class CpuTelemetry {
  public:
   virtual ~CpuTelemetry() = default;
   virtual bool Sample() noexcept = 0;
+  virtual const CpuTelemetryInfo& GetNewest() const noexcept = 0;
   virtual std::optional<CpuTelemetryInfo> GetClosest(
       uint64_t qpc) const noexcept = 0;
   void SetTelemetryCapBit(CpuTelemetryCapBits telemetryCapBit) noexcept
