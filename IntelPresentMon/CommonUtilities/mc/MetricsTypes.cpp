@@ -27,7 +27,7 @@ namespace pmon::util::metrics {
         frame.appSleepStartTime = p.AppSleepStartTime;
         frame.appSleepEndTime = p.AppSleepEndTime;
         frame.appSimStartTime = p.AppSimStartTime;
-        frame.appSleepEndTime = p.AppSleepEndTime;
+        frame.appSimEndTime = p.AppSimEndTime;
         frame.appRenderSubmitStartTime = p.AppRenderSubmitStartTime;
         frame.appRenderSubmitEndTime = p.AppRenderSubmitEndTime;
         frame.appPresentStartTime = p.AppPresentStartTime;

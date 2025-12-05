@@ -42,6 +42,7 @@ namespace pmon::util::metrics {
 
         // Instrumented Timestamps
         uint64_t appSimStartTime = 0;
+        uint64_t appSimEndTime = 0;
         uint64_t appSleepStartTime = 0;
         uint64_t appSleepEndTime = 0;
         uint64_t appRenderSubmitStartTime = 0;

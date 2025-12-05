@@ -40,20 +40,20 @@ namespace pmon::util::metrics {
                         }
                     }
                     else { // AnimationErrorSource::CpuStart
-                        // Check for app or PCL sim start and possibly change source.
-                        if (present.getAppSimStartTime() != 0) {
-                            animationErrorSource = AnimationErrorSource::AppProvider;
-                            lastDisplayedSimStartTime = present.getAppSimStartTime();
-                            if (firstAppSimStartTime == 0) {
-                                firstAppSimStartTime = present.getAppSimStartTime();
-                            }
-                            lastDisplayedAppScreenTime = lastScreenTime;
-                        }
-                        else if (present.getPclSimStartTime() != 0) {
+                        // Check for PCL or App sim start and possibly change source.
+                        if (present.getPclSimStartTime() != 0) {
                             animationErrorSource = AnimationErrorSource::PCLatency;
                             lastDisplayedSimStartTime = present.getPclSimStartTime();
                             if (firstAppSimStartTime == 0) {
                                 firstAppSimStartTime = present.getPclSimStartTime();
+                            }
+                            lastDisplayedAppScreenTime = lastScreenTime;
+                        }
+                        else if (present.getAppSimStartTime() != 0) {
+                            animationErrorSource = AnimationErrorSource::AppProvider;
+                            lastDisplayedSimStartTime = present.getAppSimStartTime();
+                            if (firstAppSimStartTime == 0) {
+                                firstAppSimStartTime = present.getAppSimStartTime();
                             }
                             lastDisplayedAppScreenTime = lastScreenTime;
                         }

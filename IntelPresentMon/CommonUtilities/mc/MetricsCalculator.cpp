@@ -180,7 +180,7 @@ namespace pmon::util::metrics
                 if (present.appPropagatedGPUDuration != 0) {
                     msGPUBusy = qpc.DurationMilliSeconds(present.appPropagatedGPUDuration);
                 }
-                else if (present.timeInPresent != 0) {
+                else if (present.gpuDuration != 0) {
                     msGPUBusy = qpc.DurationMilliSeconds(present.gpuDuration);
                 }
             }
@@ -199,7 +199,7 @@ namespace pmon::util::metrics
                 if (present.appPropagatedGPUVideoDuration != 0) {
                     out.msVideoBusy = qpc.DurationMilliSeconds(present.appPropagatedGPUVideoDuration);
                 }
-                else if (present.timeInPresent != 0) {
+                else if (present.gpuVideoDuration != 0) {
                     out.msVideoBusy = qpc.DurationMilliSeconds(present.gpuVideoDuration);
                 }
             }
@@ -230,6 +230,59 @@ namespace pmon::util::metrics
             FrameMetrics& out)
         {
             out.msGPUWait = std::max(0.0, ComputeMsGpuDuration(qpc, present, isAppPresent) - ComputeMsGpuBusy(qpc, present, isAppPresent));
+        }
+
+        void ComputeAnimationError(
+            const QpcConverter& qpc,
+            const SwapChainCoreState& chain,
+            const FrameData& present,
+            bool isDisplayed,
+            bool isAppFrame,
+            uint64_t screenTime,
+            FrameMetrics& out)
+        {
+            if (!isDisplayed || !isAppFrame) {
+                out.msAnimationError = std::nullopt;
+                return;
+            }
+
+            uint64_t currentSimStart = CalculateSimStartTime(chain, present, chain.animationErrorSource);
+
+            if (currentSimStart == 0 ||
+                chain.lastDisplayedSimStartTime == 0 ||
+                currentSimStart <= chain.lastDisplayedSimStartTime ||
+                chain.lastDisplayedAppScreenTime == 0) {
+                out.msAnimationError = std::nullopt;
+                return;
+            }
+
+            double simElapsed = qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedSimStartTime, currentSimStart);
+            double displayElapsed = qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedAppScreenTime, screenTime);
+
+            out.msAnimationError = simElapsed - displayElapsed;
+        }
+
+        void ComputeAnimationTime(
+            const QpcConverter& qpc,
+            const SwapChainCoreState& chain,
+            const FrameData& present,
+            bool isDisplayed,
+            bool isAppFrame,
+            FrameMetrics& out)
+        {
+            if (!isDisplayed || !isAppFrame || chain.firstAppSimStartTime == 0) {
+                out.msAnimationTime = std::nullopt;
+                return;
+            }
+
+            uint64_t currentSimStart = CalculateSimStartTime(chain, present, chain.animationErrorSource);
+
+            if (currentSimStart == 0) {
+                out.msAnimationTime = std::nullopt;
+                return;
+            }
+
+            out.msAnimationTime = CalculateAnimationTime(qpc, chain.firstAppSimStartTime, currentSimStart);
         }
 
         void AdjustScreenTimeForCollapsedPresentNV(
@@ -322,7 +375,7 @@ namespace pmon::util::metrics
             const uint64_t screenTime = 0;
             const uint64_t nextScreenTime = 0;
             const bool isDisplayed = false;
-            const bool isAppFrame = false;
+            const bool isAppFrame = true;
 
             auto metrics = ComputeFrameMetrics(
                 qpc,
@@ -518,6 +571,34 @@ namespace pmon::util::metrics
             metrics);
     }
 
+    
+    void CalculateAnimationMetrics(
+        const QpcConverter& qpc,
+        const SwapChainCoreState& swapChain,
+        const FrameData& present,
+        bool isDisplayed,
+        bool isAppFrame,
+        uint64_t screenTime,
+        FrameMetrics& metrics)
+    {
+        ComputeAnimationError(
+            qpc,
+            swapChain,
+            present,
+            isDisplayed,
+            isAppFrame,
+            screenTime,
+            metrics);
+
+        ComputeAnimationTime(
+            qpc,
+            swapChain,
+            present,
+            isDisplayed,
+            isAppFrame,
+            metrics);
+    }
+
     ComputedMetrics ComputeFrameMetrics(
         const QpcConverter& qpc,
         const FrameData& present,
@@ -551,6 +632,15 @@ namespace pmon::util::metrics
             chain,
             present, 
             isAppFrame, 
+            metrics);
+
+        CalculateAnimationMetrics(
+            qpc,
+            chain,
+            present,
+            isDisplayed,
+            isAppFrame,
+            screenTime,
             metrics);
 
         metrics.cpuStartQpc = CalculateCPUStart(chain, present);
@@ -594,17 +684,9 @@ namespace pmon::util::metrics
         }
         else if (source == AnimationErrorSource::AppProvider) {
             simStartTime = present.getAppSimStartTime();
-            if (simStartTime == 0) {
-                // Fallback to CPU start
-                simStartTime = CalculateCPUStart(chainState, present);
-            }
         }
         else if (source == AnimationErrorSource::PCLatency) {
             simStartTime = present.getPclSimStartTime();
-            if (simStartTime == 0) {
-                // Fallback to CPU start
-                simStartTime = CalculateCPUStart(chainState, present);
-            }
         }
         return simStartTime;
     }
