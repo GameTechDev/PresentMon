@@ -324,6 +324,8 @@ void PresentMonMainThread(Service* const pSvc)
             // sample once to populate the cap bits
             cpu->Sample();
             // determine vendor based on device name
+            // TODO: move this logic either into system (CPU) provider or
+            // into the ipc components
             const auto vendor = [&] {
                 const auto lowerNameRn = cpu->GetCpuName() | vi::transform(tolower);
                 const std::string lowerName{ lowerNameRn.begin(), lowerNameRn.end() };
@@ -340,6 +342,13 @@ void PresentMonMainThread(Service* const pSvc)
             // register cpu
             pComms->RegisterCpuDevice(vendor, cpu->GetCpuName(), 
                 ipc::intro::ConvertBitset(cpu->GetCpuTelemetryCapBits()));
+            // after registering, we know that at lest the store is available even
+            // if the introspection itself is not complete
+            auto& systemStore = pComms->GetSystemDataStore();
+            // TODO: replace this placeholder routine for populating statics
+            systemStore.statics.cpuName = cpu->GetCpuName().c_str();
+            systemStore.statics.cpuPowerLimit = cpu->GetCpuPowerLimit();
+            systemStore.statics.cpuVendor = vendor;
         } else {
             // We were unable to determine the cpu.
             pComms->RegisterCpuDevice(PM_DEVICE_VENDOR_UNKNOWN, "UNKNOWN_CPU",
