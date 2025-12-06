@@ -25,8 +25,7 @@ using namespace pmon;
 struct CommonProcessArgs
 {
 	std::string ctrlPipe;
-	std::string introNsm;
-	std::string frameNsm;
+	std::string shmNamePrefix;
 	std::string logLevel;
 	std::string logFolder;
 	std::string sampleClientMode;
@@ -163,8 +162,7 @@ private:
 	{
 		std::vector<std::string> allArgs{
 			"--control-pipe"s, common.ctrlPipe,
-			"--nsm-prefix"s, common.frameNsm,
-			"--intro-nsm"s, common.introNsm,
+			"--shm-name-prefix"s, common.shmNamePrefix,
 			"--enable-test-control"s,
 			"--log-dir"s, common.logFolder,
 			"--log-name-pid"s,
@@ -199,7 +197,6 @@ private:
 	{
 		std::vector<std::string> allArgs{
 			"--control-pipe"s, common.ctrlPipe,
-			"--intro-nsm"s, common.introNsm,
 			"--middleware-dll-path"s, "PresentMonAPI2.dll"s,
 			"--log-folder"s, common.logFolder,
 			"--log-name-pid"s,

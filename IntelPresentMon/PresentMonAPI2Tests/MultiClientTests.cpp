@@ -24,8 +24,7 @@ namespace MultiClientTests
 		{
 			static CommonProcessArgs args{
 				.ctrlPipe = R"(\\.\pipe\pm-multi-test-ctrl)",
-				.introNsm = "pm_multi_test_intro",
-				.frameNsm = "pm_multi_test_nsm",
+				.shmNamePrefix = "pm_multi_test_intro",
 				.logLevel = "debug",
 				.logFolder = logFolder_,
 				.sampleClientMode = "MultiClient",

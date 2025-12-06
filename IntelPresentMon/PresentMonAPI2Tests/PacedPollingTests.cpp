@@ -34,8 +34,7 @@ namespace PacedPolling
 		{
 			static CommonProcessArgs args{
 				.ctrlPipe = R"(\\.\pipe\pm-paced-polling-test-ctrl)",
-				.introNsm = "pm_paced_polling_test_intro",
-				.frameNsm = "pm_paced_polling_test_nsm",
+				.shmNamePrefix = "pm_paced_polling_test_intro",
 				.logLevel = "debug",
 				.logFolder = logFolder_,
 				.sampleClientMode = "PacedPlayback",
