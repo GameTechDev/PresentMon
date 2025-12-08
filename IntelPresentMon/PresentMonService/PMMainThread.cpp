@@ -329,10 +329,10 @@ void PresentMonMainThread(Service* const pSvc)
             const auto vendor = [&] {
                 const auto lowerNameRn = cpu->GetCpuName() | vi::transform(tolower);
                 const std::string lowerName{ lowerNameRn.begin(), lowerNameRn.end() };
-                if (rn::search(lowerName, "intel")) {
+                if (lowerName.contains("intel")) {
                     return PM_DEVICE_VENDOR_INTEL;
                 }
-                else if (rn::search(lowerName, "amd")) {
+                else if (lowerName.contains("amd")) {
                     return PM_DEVICE_VENDOR_AMD;
                 }
                 else {
@@ -346,6 +346,7 @@ void PresentMonMainThread(Service* const pSvc)
             // if the introspection itself is not complete
             auto& systemStore = pComms->GetSystemDataStore();
             // TODO: replace this placeholder routine for populating statics
+
             systemStore.statics.cpuName = cpu->GetCpuName().c_str();
             systemStore.statics.cpuPowerLimit = cpu->GetCpuPowerLimit();
             systemStore.statics.cpuVendor = vendor;

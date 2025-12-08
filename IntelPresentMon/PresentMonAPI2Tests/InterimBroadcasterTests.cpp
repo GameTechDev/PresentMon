@@ -15,6 +15,7 @@
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace vi = std::views;
+namespace rn = std::ranges;
 using namespace std::literals;
 using namespace pmon;
 
@@ -79,6 +80,40 @@ namespace InterimBroadcasterTests
 			Assert::AreEqual(2ull, pIntro->pDevices->size);
 			auto pDevice = static_cast<const PM_INTROSPECTION_DEVICE*>(pIntro->pDevices->pData[1]);
 			Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", pDevice->pName->pData);
+		}
+	};
+
+	TEST_CLASS(CpuStoreTests)
+	{
+		TestFixture fixture_;
+	public:
+		TEST_METHOD_INITIALIZE(Setup)
+		{
+			fixture_.Setup();
+		}
+		TEST_METHOD_CLEANUP(Cleanup)
+		{
+			fixture_.Cleanup();
+		}
+		// static store
+		TEST_METHOD(StaticData)
+		{
+			mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+			auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+			std::this_thread::sleep_for(100ms);
+			auto& sys = pComms->GetSystemDataStore();
+			Assert::AreEqual((int)PM_DEVICE_VENDOR_AMD, (int)sys.statics.cpuVendor);
+			Assert::AreEqual("AMD Ryzen 7 5800X 8-Core Processor", sys.statics.cpuName.c_str());
+			Assert::AreEqual(0., sys.statics.cpuPowerLimit);
+		}
+		// polled store
+		TEST_METHOD(PolledData)
+		{
+			mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+			auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+			std::this_thread::sleep_for(100ms);
+			auto& sys = pComms->GetSystemDataStore();
+			Assert::AreEqual(1ull, (size_t)rn::distance(sys.telemetryData.Rings()));
 		}
 	};
 }
