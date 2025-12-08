@@ -22,3 +22,9 @@ namespace InterimBroadcasterTests
 	static constexpr const char* logFolder_ = "TestLogs\\InterimBroadcaster";
 	static constexpr const char* outFolder_ = "TestOutput\\InterimBroadcaster";
 }
+
+namespace IpcComponentTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\IpcComponent";
+	static constexpr const char* outFolder_ = "TestOutput\\IpcComponent";
+}

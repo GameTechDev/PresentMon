@@ -1,6 +1,7 @@
 #pragma once
 #include "SharedMemoryTypes.h"
 #include "MetricCapabilities.h"
+#include "DataStores.h"
 #include <type_traits>
 
 namespace pmon::ipc

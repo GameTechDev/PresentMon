@@ -98,6 +98,7 @@
   <ItemGroup>
     <ClCompile Include="EtlLoggerTests.cpp" />
     <ClCompile Include="InterimBroadcasterTests.cpp" />
+    <ClCompile Include="IpcComponentTests.cpp" />
     <ClCompile Include="ModuleInit.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
     <ClCompile Include="PacedPollingTests.cpp" />

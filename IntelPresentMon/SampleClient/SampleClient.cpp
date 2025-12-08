@@ -33,6 +33,7 @@
 #include "MetricListSample.h"
 #include "MultiClient.h"
 #include "EtlLogger.h"
+#include "IpcComponentServer.h"
 #include "PacedPlayback.h"
 #include "LogDemo.h"
 #include "DiagnosticDemo.h"
@@ -378,6 +379,8 @@ int main(int argc, char* argv[])
             RunPlaybackFrameQuery(); break;
         case clio::Mode::IntrospectAllDynamicOptions:
             IntrospectAllDynamicOptions(); break;
+        case clio::Mode::IpcComponentServer:
+            IpcComponentServer(); break;
         default:
             throw std::runtime_error{ "unknown sample client mode" };
         }

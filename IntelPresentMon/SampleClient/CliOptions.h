@@ -24,6 +24,7 @@ namespace clio
 		MultiClient,
 		EtlLogger,
 		PacedPlayback,
+		IpcComponentServer,
 		Count,
 	};
 
