@@ -28,6 +28,11 @@ namespace pmon::ipc
         {
             samples_.Push({ value, timestamp });
         }
+        const Sample& Front() const
+        {
+            auto&&[first, last] = samples_.GetSerialRange();
+            return At(first);
+        }
         const Sample& At(size_t serial) const
         {
             return samples_.At(serial);

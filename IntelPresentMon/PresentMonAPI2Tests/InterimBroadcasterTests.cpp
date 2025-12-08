@@ -11,6 +11,8 @@
 
 #include "../PresentMonMiddleware/ActionClient.h"
 #include "../Interprocess/source/Interprocess.h"
+#include "../PresentMonAPIWrapperCommon/EnumMap.h"
+#include "../PresentMonService/AllActions.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -100,7 +102,7 @@ namespace InterimBroadcasterTests
 		{
 			mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
 			auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-			std::this_thread::sleep_for(100ms);
+			// get the store containing system-wide telemetry (cpu etc.)
 			auto& sys = pComms->GetSystemDataStore();
 			Assert::AreEqual((int)PM_DEVICE_VENDOR_AMD, (int)sys.statics.cpuVendor);
 			Assert::AreEqual("AMD Ryzen 7 5800X 8-Core Processor", sys.statics.cpuName.c_str());
@@ -111,9 +113,46 @@ namespace InterimBroadcasterTests
 		{
 			mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
 			auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-			std::this_thread::sleep_for(100ms);
+			// acquire introspection with enhanced wrapper interface
+			auto pIntro = pComms->GetIntrospectionRoot();
+			pmapi::intro::Root intro{ pIntro, [](auto* p){delete p;} };
+			pmapi::EnumMap::Refresh(intro);
+			auto pMetricMap = pmapi::EnumMap::GetKeyMap(PM_ENUM_METRIC);
+			// as a stopgap we target a process in order to trigger service-side telemetry collection
+			// TODO: remove this when we enable service-side query awareness of connected clients
+			auto pres = fixture_.LaunchPresenter();
+			client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+			// get the store containing system-wide telemetry (cpu etc.)
 			auto& sys = pComms->GetSystemDataStore();
-			Assert::AreEqual(1ull, (size_t)rn::distance(sys.telemetryData.Rings()));
+			for (auto&&[met, r] : sys.telemetryData.Rings()) {
+				Logger::WriteMessage(std::format(" TeleRing@{}\n", pMetricMap->at(met).narrowName).c_str());
+				// TODO: understand the disconnect between CPU Core Utility showing up here
+				// and now showing up in the UI
+			}
+			Assert::AreEqual(3ull, (size_t)rn::distance(sys.telemetryData.Rings()));
+			std::this_thread::sleep_for(1000ms);
+			// check that we have data for frequency and utilization
+			for (int i = 0; i < 50; i++) {
+				std::this_thread::sleep_for(100ms);
+				{
+					constexpr auto m = PM_METRIC_CPU_UTILIZATION;
+					auto& r = sys.telemetryData.FindRing<double>(m).at(0);
+					Assert::IsFalse(r.Empty());
+					auto sample = r.Front();
+					Logger::WriteMessage(std::format("({}) {}: {}\n",
+						i, pMetricMap->at(m).narrowName, sample.value).c_str());
+					Assert::IsTrue(sample.value > 1.);
+				}
+				{
+					constexpr auto m = PM_METRIC_CPU_FREQUENCY;
+					auto& r = sys.telemetryData.FindRing<double>(m).at(0);
+					Assert::IsFalse(r.Empty());
+					auto sample = r.Front();
+					Logger::WriteMessage(std::format("({}) {}: {}\n",
+						i, pMetricMap->at(m).narrowName, sample.value).c_str());
+					Assert::IsTrue(sample.value > 1500.);
+				}
+			}
 		}
 	};
 }
