@@ -10,6 +10,7 @@
 #include "JobManager.h"
 
 #include "../PresentMonMiddleware/ActionClient.h"
+#include "../Interprocess/source/Interprocess.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -69,16 +70,15 @@ namespace InterimBroadcasterTests
 			// effort on trying to rework this, just add a little wait for odd tests like this
 			std::this_thread::sleep_for(150ms);
 		}
-		// verify comms work with introspection
+		// verify comms work with introspection (no wrapper)
 		TEST_METHOD(IntrospectionConnect)
 		{
 			mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
-			Assert::IsFalse(client.GetShmPrefix().empty());
-			// there is a bit of a race condition on creating a service, immediately connecting
-			// and then immediately terminating it via the test control module
-			// not a concern for normal operation and is entirely synthetic; don't waste
-			// effort on trying to rework this, just add a little wait for odd tests like this
-			std::this_thread::sleep_for(150ms);
+			auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+			auto pIntro = pComms->GetIntrospectionRoot();
+			Assert::AreEqual(2ull, pIntro->pDevices->size);
+			auto pDevice = static_cast<const PM_INTROSPECTION_DEVICE*>(pIntro->pDevices->pData[1]);
+			Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", pDevice->pName->pData);
 		}
 	};
 }

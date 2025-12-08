@@ -110,6 +110,9 @@
     <ProjectReference Include="..\CommonUtilities\CommonUtilities.vcxproj">
       <Project>{08a704d8-ca1c-45e9-8ede-542a1a43b53e}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\Interprocess\Interprocess.vcxproj">
+      <Project>{ca23d648-daef-4f06-81d5-fe619bd31f0b}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\PresentMonAPI2Loader\PresentMonAPI2Loader.vcxproj">
       <Project>{8f86d067-2437-46fc-8f82-4d7155ceced7}</Project>
     </ProjectReference>
