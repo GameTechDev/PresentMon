@@ -16,3 +16,9 @@ namespace PacedPolling
 	static constexpr const char* logFolder_ = "TestLogs\\PacedPolling";
 	static constexpr const char* outFolder_ = "TestOutput\\PacedPolling";
 }
+
+namespace InterimBroadcasterTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\InterimBroadcaster";
+	static constexpr const char* outFolder_ = "TestOutput\\InterimBroadcaster";
+}
