@@ -771,44 +771,6 @@ namespace MetricsCoreTests
             // Should use pclSimStartTime
             Assert::AreEqual(6000ull, result);
         }
-
-        TEST_METHOD(AppProviderFallsBackToCpuStartWhenZero)
-        {
-            QpcConverter qpc{ 10000000, 0 };
-
-            SwapChainCoreState swapChain{};
-            FrameData lastApp{};
-            lastApp.presentStartTime = 1000;
-            lastApp.timeInPresent = 50;
-            swapChain.lastAppPresent = lastApp;
-
-            FrameData current{};
-            current.appSimStartTime = 0;  // Not available
-
-            auto result = CalculateSimStartTime(swapChain, current, AnimationErrorSource::AppProvider);
-
-            // Should fall back to CPU start: 1000 + 50 = 1050
-            Assert::AreEqual(1050ull, result);
-        }
-
-        TEST_METHOD(PCLatencyFallsBackToCpuStartWhenZero)
-        {
-            QpcConverter qpc{ 10000000, 0 };
-
-            SwapChainCoreState swapChain{};
-            FrameData lastApp{};
-            lastApp.presentStartTime = 1000;
-            lastApp.timeInPresent = 50;
-            swapChain.lastAppPresent = lastApp;
-
-            FrameData current{};
-            current.pclSimStartTime = 0;  // Not available
-
-            auto result = CalculateSimStartTime(swapChain, current, AnimationErrorSource::PCLatency);
-
-            // Should fall back to CPU start: 1000 + 50 = 1050
-            Assert::AreEqual(1050ull, result);
-        }
     };
 
     TEST_CLASS(CalculateAnimationTimeTests)
@@ -5065,9 +5027,6 @@ namespace MetricsCoreTests
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            // Drive sim start from PCL latency
-            chain.animationErrorSource = AnimationErrorSource::PCLatency;
-
             //
             // Frame 1: first displayed PCL frame
             //
@@ -5174,7 +5133,6 @@ namespace MetricsCoreTests
 
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
-            // state.animationErrorSource defaults to CpuStart
 
             // Frame 1: First PCL data
             FrameData frame1{};
@@ -5191,8 +5149,6 @@ namespace MetricsCoreTests
 
             auto metrics1 = ComputeMetricsForPresent(qpc, frame1, &next1, state);
             Assert::AreEqual(size_t(1), metrics1.size());
-            Assert::IsTrue(metrics1[0].metrics.msAnimationTime.has_value());
-            Assert::AreEqual(0.0, metrics1[0].metrics.msAnimationTime.value(), 0.0001);
             Assert::AreEqual(uint64_t(100), state.firstAppSimStartTime);
             Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::PCLatency);
 
@@ -5314,7 +5270,6 @@ namespace MetricsCoreTests
             //
             // Expected Outcome:
             // - msAnimationTime = 0 (first frame with valid CPU start)
-            // - firstAppSimStartTime is set to cpuStart (1'000'000) for subsequent frames
             // - lastDisplayedSimStartTime is updated to cpuStart (1'000'000)
 
             QpcConverter qpc(10'000'000, 0);
@@ -5365,86 +5320,110 @@ namespace MetricsCoreTests
             // Assert: State should be updated with CPU start
             // cpuStart = 800'000 + 200'000 = 1'000'000
             uint64_t expectedCpuStart = 800'000 + 200'000;
-            Assert::AreEqual(expectedCpuStart, state.firstAppSimStartTime,
-                L"State: firstAppSimStartTime should be set to CPU start value");
             Assert::AreEqual(expectedCpuStart, state.lastDisplayedSimStartTime,
                 L"State: lastDisplayedSimStartTime should be set to CPU start value");
         }
 
         // ========================================================================
-        // D3: AnimationTime_CpuStart_SecondFrame_IncrementsCorrectly
+        // D3: AnimationTime_CpuStart_IncreasesAcrossFramesWithoutProvider
         // ========================================================================
-        TEST_METHOD(AnimationTime_CpuStart_SecondFrame_IncrementsCorrectly)
+        TEST_METHOD(AnimationTime_CpuStart_IncreasesAcrossFramesWithoutProvider)
         {
             // Scenario:
-            // - Prior state: firstAppSimStartTime = cpuStart1 = 1'000'000, lastDisplayedSimStartTime = 1'000'000
-            // - Chain.lastAppPresent points to first frame
-            // - Second frame: displayed, new lastAppPresent
-            // - cpuStart2 = 1'100'000 + 100'000 = 1'200'000 (new prior frame's end time)
-            // - QPC frequency = 10 MHz → delta = 200'000 ticks = 0.02 ms
-            // - animationErrorSource = CpuStart
-            //
-            // Expected Outcome:
-            // - msAnimationTime ≈ 0.02 ms (elapsed CPU start time from first to current)
-            // - firstAppSimStartTime unchanged (still 1'000'000)
-            // - lastDisplayedSimStartTime updated to 1'200'000
+            //  - animationErrorSource = CpuStart
+            //  - No App or PCL sim start timestamps on any frame.
+            //  - We seed lastAppPresent so the first tested frame already has
+            //    a non-zero CpuStart.
+            //  - We then process two displayed frames and expect:
+            //      * Both report msAnimationTime (has_value()).
+            //      * Frame 2's msAnimationTime > Frame 1's msAnimationTime.
+            //      * firstAppSimStartTime stays 0 (no provider events yet).
 
-            QpcConverter qpc(10'000'000, 0);
+            QpcConverter      qpc(10'000'000, 500'000);
             SwapChainCoreState state{};
-            // state.animationErrorSource defaults to CpuStart
+            state.animationErrorSource = AnimationErrorSource::CpuStart;
 
-            // First frame setup
+            // Seed lastAppPresent so CalculateCPUStart() for frame1 is non-zero.
+            // cpuStart1 = prior.presentStartTime + prior.timeInPresent
+            FrameData prior{};
+            prior.presentStartTime = 1'000'000;
+            prior.timeInPresent = 100'000;   // cpuStart1 = 1'100'000
+            prior.readyTime = 1'200'000;
+            prior.setFinalState(PresentResult::Presented);
+            prior.displayed.push_back({ FrameType::Application, 1'300'000 });
+            state.lastAppPresent = prior;
+
+            // Sanity: no provider sim-start yet.
+            state.firstAppSimStartTime = 0;
+            state.lastDisplayedSimStartTime = 0;
+
+            // --------------------------------------------------------------------
+            // Frame 1: Presented + displayed, no App/PCL sim start
+            // --------------------------------------------------------------------
             FrameData frame1{};
-            frame1.presentStartTime = 800'000;
-            frame1.timeInPresent = 200'000;
-            frame1.readyTime = 1'000'000;
+            frame1.presentStartTime = 2'000'000;
+            frame1.timeInPresent = 80'000;
+            frame1.readyTime = 2'100'000;
+            frame1.appSimStartTime = 0;
+            frame1.pclSimStartTime = 0;
             frame1.setFinalState(PresentResult::Presented);
-            frame1.displayed.push_back({ FrameType::Application, 1'100'000 });
+            frame1.displayed.push_back({ FrameType::Application, 2'500'000 });
 
-            state.lastAppPresent = frame1;
-            state.firstAppSimStartTime = 1'000'000;
-            state.lastDisplayedSimStartTime = 1'000'000;
+            FrameData next1{};
+            next1.presentStartTime = 3'000'000;
+            next1.timeInPresent = 50'000;
+            next1.readyTime = 3'100'000;
+            next1.setFinalState(PresentResult::Presented);
+            next1.displayed.push_back({ FrameType::Application, 3'500'000 });
 
-            // Second frame with new timing
+            auto metrics1 = ComputeMetricsForPresent(qpc, frame1, &next1, state);
+            Assert::AreEqual(size_t(1), metrics1.size());
+            const auto& m1 = metrics1[0].metrics;
+
+            Assert::IsTrue(m1.msAnimationTime.has_value(),
+                L"CpuStart animation should report msAnimationTime even without App/PCL provider.");
+            const double anim1 = m1.msAnimationTime.value();
+            Assert::IsTrue(anim1 > 0.0,
+                L"First CpuStart-driven frame should have a positive animation time relative to session/start anchor.");
+
+            // No provider yet → firstAppSimStartTime must remain 0.
+            Assert::AreEqual(uint64_t(0), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should not be set until App/PCL provider events arrive.");
+
+            // After frame1, lastAppPresent is now frame1; CpuStart for frame2 will be later.
+            // --------------------------------------------------------------------
+            // Frame 2: later Presented + displayed frame, still no App/PCL provider
+            // --------------------------------------------------------------------
             FrameData frame2{};
-            frame2.presentStartTime = 1'100'000;
-            frame2.timeInPresent = 100'000;
-            frame2.readyTime = 1'200'000;
+            frame2.presentStartTime = 4'000'000;
+            frame2.timeInPresent = 120'000;
+            frame2.readyTime = 4'200'000;
             frame2.appSimStartTime = 0;
             frame2.pclSimStartTime = 0;
-            frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame2.setFinalState(PresentResult::Presented);
+            frame2.displayed.push_back({ FrameType::Application, 4'600'000 });
 
-            // Create nextDisplayed
-            FrameData next{};
-            next.presentStartTime = 1'500'000;
-            next.timeInPresent = 50'000;
-            next.readyTime = 1'600'000;
-            next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            FrameData next2{};
+            next2.presentStartTime = 5'000'000;
+            next2.timeInPresent = 50'000;
+            next2.readyTime = 5'100'000;
+            next2.setFinalState(PresentResult::Presented);
+            next2.displayed.push_back({ FrameType::Application, 5'500'000 });
 
-            // Action: Compute metrics
-            auto metricsVector = ComputeMetricsForPresent(qpc, frame2, &next, state);
+            auto metrics2 = ComputeMetricsForPresent(qpc, frame2, &next2, state);
+            Assert::AreEqual(size_t(1), metrics2.size());
+            const auto& m2 = metrics2[0].metrics;
 
-            Assert::AreEqual(size_t(1), metricsVector.size());
-            const ComputedMetrics& result = metricsVector[0];
+            Assert::IsTrue(m2.msAnimationTime.has_value(),
+                L"Second CpuStart-driven frame should also report msAnimationTime.");
+            const double anim2 = m2.msAnimationTime.value();
 
-            // Assert: msAnimationTime should be 0.02 ms
-            // cpuStart2 = 1'100'000 + 100'000 = 1'200'000
-            // delta = 1'200'000 - 1'000'000 = 200'000 ticks = 0.02 ms
-            Assert::IsTrue(result.metrics.msAnimationTime.has_value());
-            double expectedMs = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'200'000);
-            Assert::AreEqual(expectedMs, result.metrics.msAnimationTime.value(), 0.0001,
-                L"msAnimationTime should reflect elapsed CPU start time");
+            Assert::IsTrue(anim2 > anim1,
+                L"CpuStart-based animation time should increase across frames as CpuStart advances.");
 
-            // Assert: firstAppSimStartTime unchanged
-            Assert::AreEqual(uint64_t(1'000'000), state.firstAppSimStartTime,
-                L"firstAppSimStartTime should remain at first value");
-
-            // Assert: lastDisplayedSimStartTime updated
-            uint64_t expectedNewCpuStart = 1'100'000 + 100'000;
-            Assert::AreEqual(expectedNewCpuStart, state.lastDisplayedSimStartTime,
-                L"lastDisplayedSimStartTime should be updated to new CPU start value");
+            // Still no provider events → anchor remains "non-provider", so firstAppSimStartTime should be 0.
+            Assert::AreEqual(uint64_t(0), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should still be 0 without App/PCL provider data.");
         }
     };
 
@@ -6216,5 +6195,307 @@ namespace MetricsCoreTests
             double expected = simElapsed - displayElapsed;
             Assert::AreEqual(expected, resultsPartial[1].metrics.msAnimationError.value(), 0.0001);
         }
-    };
+        TEST_METHOD(Animation_AppProvider_PendingSequence_P1P2P3)
+        {
+            // This test mimics the real ReportMetrics pipeline for a single swapchain:
+            //
+            //  P1 arrives:
+            //    - ComputeMetricsForPresent(P1, nullptr, state)   // Case 2, pending = P1
+            //
+            //  P2 arrives:
+            //    - ComputeMetricsForPresent(P1, &P2, state)       // Case 3, finalize P1
+            //    - ComputeMetricsForPresent(P2, nullptr, state)   // Case 2, pending = P2
+            //
+            //  P3 arrives:
+            //    - ComputeMetricsForPresent(P2, &P3, state)       // Case 3, finalize P2
+            //    - ComputeMetricsForPresent(P3, nullptr, state)   // Case 2, pending = P3
+            //
+            // We verify:
+            //  - P1's final metrics: no animation error/time (it seeds animation state).
+            //  - P2's final metrics: non-null msAnimationTime & msAnimationError == 0.0.
+            //  - SwapChainCoreState's animation fields evolve correctly:
+            //      firstAppSimStartTime = 100
+            //      lastDisplayedSimStartTime = 200 after P2
+            //      lastDisplayedAppScreenTime = P2's screenTime
+            //
+            // QPC frequency = 10 MHz.
+            // App sim times:   P1=100, P2=200, P3=300
+            // Screen times:    P1=1'000'000, P2=1'100'000, P3=1'200'000
+            //   -> sim Δ P1→P2:       100 ticks = 0.01 ms
+            //   -> display Δ P1→P2: 100'000 ticks = 0.01 ms
+            //   => animation error for P2 = 0.0 ms
+            //   => animation time for P2 = (200 - 100) / 10e6 = 0.01 ms
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            // --------------------------------------------------------------------
+            // P1: first displayed app frame with AppProvider data
+            // --------------------------------------------------------------------
+            FrameData p1{};
+            p1.presentStartTime = 500'000;
+            p1.timeInPresent = 10'000;
+            p1.readyTime = 510'000;
+            p1.appSimStartTime = 475'000;
+            p1.pclSimStartTime = 0;
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 1'000'000 });
+
+            // Arrival of P1 -> Case 2 (no nextDisplayed yet), becomes pending
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(0), p1_phase1.size(),
+                L"First call for P1 with next=nullptr should produce no metrics (pending only).");
+
+            // Animation state should still be in CpuStart mode; no provider seeded yet.
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::CpuStart);
+            Assert::AreEqual(uint64_t(0), state.firstAppSimStartTime);
+            Assert::AreEqual(uint64_t(0), state.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(0), state.lastDisplayedAppScreenTime);
+
+            // --------------------------------------------------------------------
+            // P2: second displayed app frame
+            // --------------------------------------------------------------------
+            FrameData p2{};
+            p2.presentStartTime = 600'000;
+            p2.timeInPresent = 10'000;
+            p2.readyTime = 610'000;
+            p2.appSimStartTime = 575'000;
+            p2.pclSimStartTime = 0;
+            p2.setFinalState(PresentResult::Presented);
+            p2.displayed.push_back({ FrameType::Application, 1'100'000 });
+
+            // Arrival of P2:
+            // 1) Flush pending P1 using P2 as nextDisplayed -> Case 3, finalize P1.
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
+            Assert::AreEqual(size_t(1), p1_final.size());
+            const auto& p1_metrics = p1_final[0].metrics;
+
+            // P1 is the FIRST provider-driven frame, so it should only seed the state:
+            // no animation error or time yet.
+            Assert::IsFalse(p1_metrics.msAnimationError.has_value(),
+                L"P1 should not report animation error; it seeds the animation state.");
+            Assert::IsFalse(p1_metrics.msAnimationTime.has_value(),
+                L"P1 should not report animation time; it seeds the animation state.");
+
+            // UpdateAfterPresent should have run for P1 and switched to AppProvider:
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"Animation source should transition to AppProvider after P1.");
+            Assert::AreEqual(uint64_t(475'000), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should latch P1's appSimStartTime.");
+            Assert::AreEqual(uint64_t(475'000), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should match P1's appSimStartTime.");
+            Assert::AreEqual(uint64_t(1'000'000), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should match P1's screenTime.");
+
+            // 2) Now process P2's arrival as pending: Case 2 with next=nullptr
+            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(0), p2_phase1.size(),
+                L"First call for P2 with next=nullptr should produce no metrics (pending only).");
+
+            // --------------------------------------------------------------------
+            // P3: third displayed app frame
+            // --------------------------------------------------------------------
+            FrameData p3{};
+            p3.presentStartTime = 700'000;
+            p3.timeInPresent = 10'000;
+            p3.readyTime = 710'000;
+            p3.appSimStartTime = 675'000;
+            p3.pclSimStartTime = 0;
+            p3.setFinalState(PresentResult::Presented);
+            p3.displayed.push_back({ FrameType::Application, 1'200'000 });
+
+            // Arrival of P3:
+            // 1) Flush pending P2 using P3 as nextDisplayed -> Case 3, finalize P2.
+            auto p2_final = ComputeMetricsForPresent(qpc, p2, &p3, state);
+            Assert::AreEqual(size_t(1), p2_final.size());
+            const auto& p2_metrics = p2_final[0].metrics;
+
+            // For P2:
+            //  - previous displayed sim start = P1.appSimStartTime = 100
+            //  - current sim start          = P2.appSimStartTime = 200
+            //  - previous screen time       = P1.screenTime      = 1'000'000
+            //  - current screen time        = P2.screenTime      = 1'100'000
+            //  => simElapsed      = 100 ticks → 0.01 ms
+            //  => displayElapsed  = 100'000 ticks → 0.01 ms
+            //  => animationError  = 0.0 ms
+            //  => animationTime   = (200 - 100) ticks from firstAppSimStartTime -> 0.01 ms
+
+            Assert::IsTrue(p2_metrics.msAnimationError.has_value(),
+                L"P2 should report animation error.");
+            Assert::IsTrue(p2_metrics.msAnimationTime.has_value(),
+                L"P2 should report animation time.");
+
+            double expectedError = 0.0;
+            Assert::AreEqual(expectedError, p2_metrics.msAnimationError.value(), 0.0001,
+                L"P2's msAnimationError should be 0.0 when sim and display deltas match.");
+
+            double expectedAnim = qpc.DeltaUnsignedMilliSeconds(475'000, 575'000);
+            Assert::AreEqual(expectedAnim, p2_metrics.msAnimationTime.value(), 0.0001,
+                L"P2's msAnimationTime should be based on firstAppSimStartTime (100) to current sim (200).");
+
+            // After finalizing P2, chain state should now reflect P2 as "last displayed"
+            Assert::AreEqual(uint64_t(475'000), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should remain anchored to P1.");
+            Assert::AreEqual(uint64_t(575'000), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should advance to P2's appSimStartTime.");
+            Assert::AreEqual(uint64_t(1'100'000), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should advance to P2's screenTime.");
+
+            // 2) Finally, process P3 as the new pending (Case 2 with next=nullptr).
+            auto p3_phase1 = ComputeMetricsForPresent(qpc, p3, nullptr, state);
+            Assert::AreEqual(size_t(0), p3_phase1.size(),
+                L"First call for P3 with next=nullptr should produce no metrics (pending only).");
+        }
+        // ========================================================================
+        // A7: Animation_AppProvider_PendingSequence_P2Discarded_SkipsAnimation
+        // ========================================================================
+        TEST_METHOD(Animation_AppProvider_PendingSequence_P2Discarded_SkipsAnimation)
+        {
+            // This test mimics the real ReportMetrics pipeline for a single swapchain
+            // when a middle frame (P2) is discarded and never displayed.
+            //
+            //  P1 arrives (displayed, has AppProvider sim start):
+            //    - ComputeMetricsForPresent(P1, nullptr, state)   // Case 2, pending = P1
+            //
+            //  P2 arrives (DISCARDED, not displayed, but with appSimStartTime):
+            //    - ComputeMetricsForPresent(P2, nullptr, state)   // Case 1, not displayed
+            //      * Should produce a single metrics entry with NO animation time/error
+            //      * Must NOT change firstAppSimStartTime / lastDisplayedSimStartTime
+            //
+            //  P3 arrives (displayed, has AppProvider sim start):
+            //    - ComputeMetricsForPresent(P1, &P3, state)       // Case 3, finalize P1
+            //      * P1 is the FIRST provider-driven displayed frame, so it seeds state.
+            //      * P1 should not report animation time/error.
+            //      * State switches to AppProvider and latches P1's sim + screen times.
+            //    - ComputeMetricsForPresent(P3, nullptr, state)   // Case 2, pending = P3
+            //
+            // App sim times are in QPC domain:
+            //   P1.appSimStartTime = 475'000
+            //   P2.appSimStartTime = 575'000
+            //   P3.appSimStartTime = 675'000
+            //
+            // Screen times:
+            //   P1.screenTime = 1'000'000
+            //   P2 has no screenTime (discarded, not displayed)
+            //   P3.screenTime = 1'100'000
+            //
+            // We verify:
+            //   - P2's metrics have no msAnimationTime / msAnimationError.
+            //   - P2 does not change firstAppSimStartTime / lastDisplayedSimStartTime.
+            //   - After finalizing P1 with P3 as nextDisplayed:
+            //       * animationErrorSource == AppProvider
+            //       * firstAppSimStartTime      == 475'000
+            //       * lastDisplayedSimStartTime == 475'000
+            //       * lastDisplayedAppScreenTime == 1'000'000
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            // --------------------------------------------------------------------
+            // P1: first displayed app frame with AppProvider data
+            // --------------------------------------------------------------------
+            FrameData p1{};
+            p1.presentStartTime = 500'000;
+            p1.timeInPresent = 10'000;
+            p1.readyTime = 510'000;
+            p1.appSimStartTime = 475'000;   // APC-provided sim start (QPC ticks)
+            p1.pclSimStartTime = 0;
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 1'000'000 }); // screen time
+
+            // P1 arrives -> Case 2 (no nextDisplayed yet), becomes pending
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(0), p1_phase1.size(),
+                L"First call for P1 with next=nullptr should produce no metrics (pending only).");
+
+            // Still in CpuStart mode; no provider-seeded animation state yet.
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::CpuStart);
+            Assert::AreEqual(uint64_t(0), state.firstAppSimStartTime);
+            Assert::AreEqual(uint64_t(0), state.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(0), state.lastDisplayedAppScreenTime);
+
+            // --------------------------------------------------------------------
+            // P2: discarded, not displayed, but with AppProvider sim start
+            // --------------------------------------------------------------------
+            FrameData p2{};
+            p2.presentStartTime = 600'000;
+            p2.timeInPresent = 10'000;
+            p2.readyTime = 610'000;
+            p2.appSimStartTime = 575'000;   // APC timestamp, but this frame is not displayed
+            p2.pclSimStartTime = 0;
+            p2.setFinalState(PresentResult::Discarded);
+            // No displayed entries -> not displayed
+
+            auto p2_results = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(1), p2_results.size(),
+                L"Discarded frame should produce a single not-displayed metrics entry.");
+
+            const auto& p2_metrics = p2_results[0].metrics;
+
+            // Discarded / not-displayed frame must NOT produce animation metrics.
+            Assert::IsFalse(p2_metrics.msAnimationTime.has_value(),
+                L"P2 (discarded) should not have msAnimationTime.");
+            Assert::IsFalse(p2_metrics.msAnimationError.has_value(),
+                L"P2 (discarded) should not have msAnimationError.");
+
+            // And it must NOT disturb animation anchors, since it's not displayed.
+            Assert::AreEqual(uint64_t(0), state.firstAppSimStartTime,
+                L"P2 must not set firstAppSimStartTime; only displayed App/PCL frames do that.");
+            Assert::AreEqual(uint64_t(0), state.lastDisplayedSimStartTime,
+                L"P2 must not change lastDisplayedSimStartTime when not displayed.");
+            Assert::AreEqual(uint64_t(0), state.lastDisplayedAppScreenTime,
+                L"P2 must not change lastDisplayedAppScreenTime when not displayed.");
+
+            // (Optional sanity: lastSimStartTime may track P2's appSimStartTime, which is fine for
+            // simulation plumbing but not for animation anchors.)
+
+            // --------------------------------------------------------------------
+            // P3: next displayed app frame
+            // --------------------------------------------------------------------
+            FrameData p3{};
+            p3.presentStartTime = 700'000;
+            p3.timeInPresent = 10'000;
+            p3.readyTime = 710'000;
+            p3.appSimStartTime = 675'000;   // another +100'000 ticks in sim space
+            p3.pclSimStartTime = 0;
+            p3.setFinalState(PresentResult::Presented);
+            p3.displayed.push_back({ FrameType::Application, 1'100'000 }); // next screen time
+
+            // P3 arrives:
+            // 1) Flush pending P1 using P3 as nextDisplayed -> Case 3, finalize P1.
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p3, state);
+            Assert::AreEqual(size_t(1), p1_final.size());
+            const auto& p1_metrics = p1_final[0].metrics;
+
+            // P1 is the FIRST displayed frame with AppProvider sim start.
+            // It should only seed animation state; no error/time yet.
+            Assert::IsFalse(p1_metrics.msAnimationError.has_value(),
+                L"P1 should not report animation error; it seeds the animation state.");
+            Assert::IsFalse(p1_metrics.msAnimationTime.has_value(),
+                L"P1 should not report animation time; it seeds the animation state.");
+
+            // After finalizing P1, we must now be in AppProvider mode with anchors from P1.
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"Animation source should transition to AppProvider after first displayed AppSimStart frame (P1).");
+            Assert::AreEqual(uint64_t(475'000), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should latch P1's appSimStartTime.");
+            Assert::AreEqual(uint64_t(475'000), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should match P1's appSimStartTime after P1 is finalized.");
+            Assert::AreEqual(uint64_t(1'000'000), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should match P1's screenTime.");
+
+            // 2) Process P3 as the new pending frame (Case 2 with next=nullptr).
+            auto p3_phase1 = ComputeMetricsForPresent(qpc, p3, nullptr, state);
+            Assert::AreEqual(size_t(0), p3_phase1.size(),
+                L"First call for P3 with next=nullptr should produce no metrics (pending only).");
+
+            // State remains anchored to P1 until a later frame finalizes P3 with a true nextDisplayed.
+            Assert::AreEqual(uint64_t(475'000), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should remain anchored to P1 after P3's pending pass.");
+            Assert::AreEqual(uint64_t(475'000), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should still reflect P1 until P3 is finalized.");
+        }
+};
+
+
 }

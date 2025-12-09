@@ -270,13 +270,22 @@ namespace pmon::util::metrics
             bool isAppFrame,
             FrameMetrics& out)
         {
-            if (!isDisplayed || !isAppFrame || chain.firstAppSimStartTime == 0) {
+            if (!isDisplayed || !isAppFrame) {
+                out.msAnimationTime = std::nullopt;
+                return;
+            }
+
+            bool isFirstProviderSimTime =
+                chain.animationErrorSource == AnimationErrorSource::CpuStart &&
+                (present.getAppSimStartTime() != 0 || present.getPclSimStartTime() != 0);
+            if (isFirstProviderSimTime) {
+                // Seed only: no animation time yet. UpdateAfterPresent will flip us
+                // into AppProvider/PCL and latch firstAppSimStartTime.
                 out.msAnimationTime = std::nullopt;
                 return;
             }
 
             uint64_t currentSimStart = CalculateSimStartTime(chain, present, chain.animationErrorSource);
-
             if (currentSimStart == 0) {
                 out.msAnimationTime = std::nullopt;
                 return;
