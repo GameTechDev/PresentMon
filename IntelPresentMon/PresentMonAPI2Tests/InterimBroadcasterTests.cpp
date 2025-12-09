@@ -210,4 +210,94 @@ namespace InterimBroadcasterTests
             Assert::AreNotEqual(freqSamples.front().value, freqSamples.back().value);
         }
     };
+
+    TEST_CLASS(GpuStoreTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup();
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        // polled store
+        TEST_METHOD(PolledData)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            // acquire introspection with enhanced wrapper interface
+            auto pIntro = pComms->GetIntrospectionRoot();
+            pmapi::intro::Root intro{ pIntro, [](auto* p) { delete p; } };
+            pmapi::EnumMap::Refresh(intro);
+            auto pMetricMap = pmapi::EnumMap::GetKeyMap(PM_ENUM_METRIC);
+
+            // set telemetry period so we have a known baseline
+            client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 100 });
+
+            // as a stopgap we target a process in order to trigger service-side telemetry collection
+            // TODO: remove this when we enable service-side query awareness of connected clients
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            // get the store containing adapter telemetry
+            auto& gpu = pComms->GetGpuDataStore(1);
+
+            // allow a short warmup
+            std::this_thread::sleep_for(500ms);
+
+            std::vector<ipc::HistoryRing<double>::Sample> tempSamples;
+            std::vector<ipc::HistoryRing<double>::Sample> powerSamples;
+
+            for (int i = 0; i < 10; i++) {
+                std::this_thread::sleep_for(250ms);
+
+                {
+                    constexpr auto m = PM_METRIC_GPU_TEMPERATURE;
+                    auto& r = gpu.telemetryData.FindRing<double>(m).at(0);
+                    Assert::IsFalse(r.Empty());
+
+                    if (i == 0 || i == 9) {
+                        Logger::WriteMessage(DumpRing_(r).c_str());
+                    }
+
+                    auto sample = r.Newest();
+                    tempSamples.push_back(sample);
+
+                    Logger::WriteMessage(std::format("({}) {}: {}\n",
+                        i, pMetricMap->at(m).narrowName, sample.value).c_str());
+
+                    // loose sanity check to avoid flakiness
+                    Assert::IsTrue(sample.value > 10.);
+                }
+
+                {
+                    constexpr auto m = PM_METRIC_GPU_POWER;
+                    auto& r = gpu.telemetryData.FindRing<double>(m).at(0);
+                    Assert::IsFalse(r.Empty());
+
+                    if (i == 0 || i == 9) {
+                        Logger::WriteMessage(DumpRing_(r).c_str());
+                    }
+
+                    auto sample = r.Newest();
+                    powerSamples.push_back(sample);
+
+                    Logger::WriteMessage(std::format("({}) {}: {}\n",
+                        i, pMetricMap->at(m).narrowName, sample.value).c_str());
+
+                    // loose sanity check to avoid flakiness
+                    Assert::IsTrue(sample.value > 1.);
+                }
+            }
+
+            // make sure samples actually change over time
+            Assert::AreNotEqual(tempSamples.front().timestamp, tempSamples.back().timestamp);
+            Assert::AreNotEqual(powerSamples.front().timestamp, powerSamples.back().timestamp);
+            Assert::AreNotEqual(powerSamples.front().value, powerSamples.back().value);
+        }
+    };
 }

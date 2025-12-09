@@ -913,6 +913,12 @@ namespace pwr::intel
         return CTL_RESULT_SUCCESS;
     }
 
+
+    const PresentMonPowerTelemetryInfo& IntelPowerTelemetryAdapter::GetNewest() const noexcept
+    {
+        return *std::prev(history.end());
+    }
+
     ctl_result_t IntelPowerTelemetryAdapter::GetPowerTelemetryItemUsage(
         const ctl_oc_telemetry_item_t& current_telemetry_item,
         const ctl_oc_telemetry_item_t& previous_telemetry_item,

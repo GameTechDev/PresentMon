@@ -19,6 +19,7 @@ namespace pwr::intel
 		IntelPowerTelemetryAdapter(ctl_device_adapter_handle_t handle);
 		bool Sample() noexcept override;
 		std::optional<PresentMonPowerTelemetryInfo> GetClosest(uint64_t qpc) const noexcept override;
+		const PresentMonPowerTelemetryInfo& GetNewest() const noexcept override;
 		PM_DEVICE_VENDOR GetVendor() const noexcept override;
 		std::string GetName() const noexcept override;
         uint64_t GetDedicatedVideoMemory() const noexcept override;

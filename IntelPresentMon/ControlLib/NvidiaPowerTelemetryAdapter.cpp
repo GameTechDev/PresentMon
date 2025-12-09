@@ -27,6 +27,13 @@ namespace pwr::nv
         }
     }
 
+
+
+    const PresentMonPowerTelemetryInfo& NvidiaPowerTelemetryAdapter::GetNewest() const noexcept
+    {
+        return *std::prev(history.end());
+    }
+
     uint64_t NvidiaPowerTelemetryAdapter::GetDedicatedVideoMemory() const noexcept {
         uint64_t video_mem_size = 0;
         nvmlMemory_t mem{};

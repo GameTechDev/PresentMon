@@ -53,6 +53,12 @@ bool AmdPowerTelemetryAdapter::GetVideoMemoryInfo(uint64_t& gpu_mem_size, uint64
   return success;
 }
 
+
+const PresentMonPowerTelemetryInfo& AmdPowerTelemetryAdapter::GetNewest() const noexcept
+{
+    return *std::prev(history_.end());
+}
+
 bool AmdPowerTelemetryAdapter::GetSustainedPowerLimit(double& sustainedPowerLimit) const noexcept {
   sustainedPowerLimit = 0.f;
   if (overdrive_version_ == 5) {

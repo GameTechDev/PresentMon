@@ -77,6 +77,214 @@ void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
     }
 }
 
+// Translate a single power-telemetry sample into the rings for one GPU store.
+// This mirrors the CPU placeholder approach but handles double/uint64/bool rings.
+static void PopulateGpuTelemetryRings_(
+    ipc::GpuDataStore& store,
+    const PresentMonPowerTelemetryInfo& s) noexcept
+{
+    for (auto&& [metric, ringVariant] : store.telemetryData.Rings()) {
+        switch (metric) {
+
+            // -------- double metrics --------
+        case PM_METRIC_GPU_SUSTAINED_POWER_LIMIT:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_sustained_power_limit_w, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_POWER:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_power_w, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_VOLTAGE:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_voltage_v, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_FREQUENCY:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_frequency_mhz, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_EFFECTIVE_FREQUENCY:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_effective_frequency_mhz, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_TEMPERATURE:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_temperature_c, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_VOLTAGE_REGULATOR_TEMPERATURE:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_voltage_regulator_temperature_c, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_UTILIZATION:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_utilization, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_RENDER_COMPUTE_UTILIZATION:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_render_compute_utilization, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEDIA_UTILIZATION:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_media_utilization, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_EFFECTIVE_BANDWIDTH:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_mem_effective_bandwidth_gbps, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_OVERVOLTAGE_PERCENT:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_overvoltage_percent, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_TEMPERATURE_PERCENT:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_temperature_percent, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_POWER_PERCENT:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_power_percent, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_CARD_POWER:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_card_power_w, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_FAN_SPEED:
+        {
+            auto& ringVect =
+                std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant);
+
+            const size_t n = std::min(ringVect.size(), s.fan_speed_rpm.size());
+            for (size_t i = 0; i < n; ++i) {
+                ringVect[i].Push(s.fan_speed_rpm[i], s.qpc);
+            }
+            break;
+        }
+
+        // VRAM-related doubles
+        case PM_METRIC_GPU_MEM_POWER:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.vram_power_w, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_VOLTAGE:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.vram_voltage_v, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_FREQUENCY:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.vram_frequency_mhz, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_EFFECTIVE_FREQUENCY:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.vram_effective_frequency_gbps, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_TEMPERATURE:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.vram_temperature_c, s.qpc);
+            break;
+
+            // Memory bandwidth doubles
+        case PM_METRIC_GPU_MEM_WRITE_BANDWIDTH:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_mem_write_bandwidth_bps, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_READ_BANDWIDTH:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(s.gpu_mem_read_bandwidth_bps, s.qpc);
+            break;
+
+            // -------- uint64 metrics --------
+        case PM_METRIC_GPU_MEM_SIZE:
+            std::get<ipc::TelemetryMap::HistoryRingVect<uint64_t>>(ringVariant)[0]
+                .Push(s.gpu_mem_total_size_b, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_USED:
+            std::get<ipc::TelemetryMap::HistoryRingVect<uint64_t>>(ringVariant)[0]
+                .Push(s.gpu_mem_used_b, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_MAX_BANDWIDTH:
+            std::get<ipc::TelemetryMap::HistoryRingVect<uint64_t>>(ringVariant)[0]
+                .Push(s.gpu_mem_max_bandwidth_bps, s.qpc);
+            break;
+
+            // -------- bool metrics --------
+        case PM_METRIC_GPU_POWER_LIMITED:
+            std::get<ipc::TelemetryMap::HistoryRingVect<bool>>(ringVariant)[0]
+                .Push(s.gpu_power_limited, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_TEMPERATURE_LIMITED:
+            std::get<ipc::TelemetryMap::HistoryRingVect<bool>>(ringVariant)[0]
+                .Push(s.gpu_temperature_limited, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_CURRENT_LIMITED:
+            std::get<ipc::TelemetryMap::HistoryRingVect<bool>>(ringVariant)[0]
+                .Push(s.gpu_current_limited, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_VOLTAGE_LIMITED:
+            std::get<ipc::TelemetryMap::HistoryRingVect<bool>>(ringVariant)[0]
+                .Push(s.gpu_voltage_limited, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_UTILIZATION_LIMITED:
+            std::get<ipc::TelemetryMap::HistoryRingVect<bool>>(ringVariant)[0]
+                .Push(s.gpu_utilization_limited, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_POWER_LIMITED:
+            std::get<ipc::TelemetryMap::HistoryRingVect<bool>>(ringVariant)[0]
+                .Push(s.vram_power_limited, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_TEMPERATURE_LIMITED:
+            std::get<ipc::TelemetryMap::HistoryRingVect<bool>>(ringVariant)[0]
+                .Push(s.vram_temperature_limited, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_CURRENT_LIMITED:
+            std::get<ipc::TelemetryMap::HistoryRingVect<bool>>(ringVariant)[0]
+                .Push(s.vram_current_limited, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_VOLTAGE_LIMITED:
+            std::get<ipc::TelemetryMap::HistoryRingVect<bool>>(ringVariant)[0]
+                .Push(s.vram_voltage_limited, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_UTILIZATION_LIMITED:
+            std::get<ipc::TelemetryMap::HistoryRingVect<bool>>(ringVariant)[0]
+                .Push(s.vram_utilization_limited, s.qpc);
+            break;
+
+        default:
+            break;
+        }
+    }
+}
+
+
 void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
 	PowerTelemetryContainer* const ptc, ipc::ServiceComms* const pComms)
 {
@@ -135,8 +343,21 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                     // TODO: log error here or inside of repopulate
                     ptc->Repopulate();
                 }
-                for (auto& adapter : ptc->GetPowerTelemetryAdapters()) {
+                auto& adapters = ptc->GetPowerTelemetryAdapters();
+                for (size_t idx = 0; idx < adapters.size(); ++idx) {
+                    auto& adapter = adapters[idx];
                     adapter->Sample();
+
+                    // Get the newest sample from the provider
+                    const auto& sample = adapter->GetNewest();
+
+                    // Retrieve the matching GPU store.
+                    // Adjust this to your actual ServiceComms API.
+                    auto& store = pComms->GetGpuDataStore(uint32_t(idx + 1));
+                    // Alternative if your API is keyed differently:
+                    // auto& store = pComms->GetGpuDataStore(adapter->GetVendor(), adapter->GetName());
+
+                    PopulateGpuTelemetryRings_(store, sample);
                 }
                 // Convert from the ms to seconds as GetTelemetryPeriod returns back
                 // ms and SetInterval expects seconds.
@@ -205,6 +426,7 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
                         ringVect[0].Push(sample.cpu_temperature, sample.qpc);
                         break;
                     default:
+                        pmlog_warn("Unhandled metric ring").pmwatch((int)metric);
                         break;
                     }
                 }
