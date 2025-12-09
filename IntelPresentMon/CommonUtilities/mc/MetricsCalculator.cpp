@@ -312,6 +312,102 @@ namespace pmon::util::metrics
                 nextDisplayedPresent->displayed[0].second = nextScreenTime;
             }
         }
+
+        std::optional<double> ComputeClickToPhotonLatency(
+            const QpcConverter& qpc,
+            SwapChainCoreState& chain,
+            const FrameData& present,
+            bool isDisplayed,
+            bool isAppFrame,
+            uint64_t screenTime)
+        {
+            if (!isAppFrame) {
+                return std::nullopt;
+            }
+
+            if (isDisplayed) {
+                auto inputTime = chain.lastReceivedNotDisplayedMouseClickTime != 0 ?
+                    chain.lastReceivedNotDisplayedMouseClickTime :
+                    present.mouseClickTime;
+                if (inputTime != 0) {
+                    return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
+                }
+                // Reset all last received device time
+                chain.lastReceivedNotDisplayedMouseClickTime = 0;
+                return std::nullopt;
+            }
+            else {
+                // Update last received device time
+                if (present.mouseClickTime != 0) {
+                    chain.lastReceivedNotDisplayedMouseClickTime = present.mouseClickTime;
+                }
+                return std::nullopt;
+            }
+        }
+
+        std::optional<double> ComputeAllInputToPhotonLatency(
+            const QpcConverter& qpc,
+            SwapChainCoreState& chain,
+            const FrameData& present,
+            bool isDisplayed,
+            bool isAppFrame,
+            uint64_t screenTime)
+        {
+            if (!isAppFrame) {
+                return std::nullopt;
+            }
+
+            if (isDisplayed) {
+                auto inputTime = chain.lastReceivedNotDisplayedAllInputTime != 0 ?
+                    chain.lastReceivedNotDisplayedAllInputTime :
+                    present.inputTime;
+                if (inputTime != 0) {
+                    return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
+                }
+                // Reset all last received device time
+                chain.lastReceivedNotDisplayedMouseClickTime = 0;
+                return std::nullopt;
+            }
+            else {
+                // Update last received device time
+                if (present.inputTime != 0) {
+                    chain.lastReceivedNotDisplayedMouseClickTime = present.inputTime;
+                }
+                return std::nullopt;
+            }
+        }
+
+        std::optional<double> ComputeInstrumentedInputToPhotonLatency(
+            const QpcConverter& qpc,
+            SwapChainCoreState& chain,
+            const FrameData& present,
+            bool isDisplayed,
+            bool isAppFrame,
+            uint64_t screenTime)
+        {
+            if (!isAppFrame) {
+                return std::nullopt;
+            }
+
+            if (isDisplayed) {
+                auto inputTime = chain.lastReceivedNotDisplayedAppProviderInputTime != 0 ?
+                    chain.lastReceivedNotDisplayedAppProviderInputTime :
+                    present.appInputSample.first;
+                if (inputTime != 0) {
+                    return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
+                }
+                // Reset all last received device time
+                chain.lastReceivedNotDisplayedMouseClickTime = 0;
+                return std::nullopt;
+            }
+            else {
+                // Update last received device time
+                if (present.appInputSample.first != 0) {
+                    chain.lastReceivedNotDisplayedAppProviderInputTime = present.appInputSample.first;
+                }
+                return std::nullopt;
+            }
+        }
     }
 
     DisplayIndexing DisplayIndexing::Calculate(
@@ -606,6 +702,39 @@ namespace pmon::util::metrics
             isDisplayed,
             isAppFrame,
             metrics);
+    }
+
+    void CalculateInputLatencyMetrics(
+        const QpcConverter& qpc,
+        SwapChainCoreState& swapChain,
+        const FrameData& present,
+        bool isDisplayed,
+        bool isAppFrame,
+        FrameMetrics& metrics)
+    {
+        metrics.msClickToPhotonLatency = ComputeClickToPhotonLatency(
+            qpc,
+            swapChain,
+            present,
+            isDisplayed,
+            isAppFrame,
+            metrics.screenTimeQpc);
+
+        metrics.msAllInputPhotonLatency = ComputeAllInputToPhotonLatency(
+            qpc,
+            swapChain, 
+            present, 
+            isDisplayed, 
+            isAppFrame, 
+            metrics.screenTimeQpc);
+
+        metrics.msInstrumentedInputTime = ComputeInstrumentedInputToPhotonLatency(
+            qpc,
+            swapChain,
+            present,
+            isDisplayed,
+            isAppFrame,
+            metrics.screenTimeQpc);
     }
 
     ComputedMetrics ComputeFrameMetrics(
