@@ -25,6 +25,42 @@ using namespace pmon;
 
 namespace InterimBroadcasterTests
 {
+    static std::string DumpRing_(const ipc::HistoryRing<double>& ring, size_t maxSamples = 8)
+    {
+        std::ostringstream oss;
+        const auto [first, last] = ring.GetSerialRange();
+        const size_t count = last - first;
+
+        oss << "serial range [" << first << ", " << last << "), count=" << count << "\n";
+
+        if (count == 0) {
+            return oss.str();
+        }
+
+        const size_t n = (count < maxSamples) ? count : maxSamples;
+        for (size_t i = 0; i < n; ++i) {
+            const auto& s = ring.At(first + i);
+            oss << "  [" << (first + i) << "] ts=" << s.timestamp << " val=" << s.value << "\n";
+        }
+
+        if (count > n) {
+            oss << "  ...\n";
+            const auto& sLast = ring.At(last - 1);
+            oss << "  [" << (last - 1) << "] ts=" << sLast.timestamp << " val=" << sLast.value << "\n";
+        }
+
+        // Try to include Newest() summary for debugging
+        try {
+            const auto& newest = ring.Newest();
+            oss << "newest: ts=" << newest.timestamp << " val=" << newest.value << "\n";
+        }
+        catch (...) {
+            // If Newest() throws on empty in some impls, ignore here.
+        }
+
+        return oss.str();
+    }
+
     class TestFixture : public CommonTestFixture
     {
     public:
@@ -120,6 +156,8 @@ namespace InterimBroadcasterTests
             pmapi::intro::Root intro{ pIntro, [](auto* p) {delete p; } };
             pmapi::EnumMap::Refresh(intro);
             auto pMetricMap = pmapi::EnumMap::GetKeyMap(PM_ENUM_METRIC);
+            // set telemetry period so we have a known baseline
+            client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 100 });
             // as a stopgap we target a process in order to trigger service-side telemetry collection
             // TODO: remove this when we enable service-side query awareness of connected clients
             auto pres = fixture_.LaunchPresenter();
@@ -132,15 +170,21 @@ namespace InterimBroadcasterTests
                 // and now showing up in the UI
             }
             Assert::AreEqual(3ull, (size_t)rn::distance(sys.telemetryData.Rings()));
-            std::this_thread::sleep_for(1000ms);
+            std::this_thread::sleep_for(500ms);
             // check that we have data for frequency and utilization
-            for (int i = 0; i < 50; i++) {
-                std::this_thread::sleep_for(100ms);
+            std::vector<ipc::HistoryRing<double>::Sample> utilizSamples;
+            std::vector<ipc::HistoryRing<double>::Sample> freqSamples;
+            for (int i = 0; i < 10; i++) {
+                std::this_thread::sleep_for(250ms);
                 {
                     constexpr auto m = PM_METRIC_CPU_UTILIZATION;
                     auto& r = sys.telemetryData.FindRing<double>(m).at(0);
                     Assert::IsFalse(r.Empty());
+                    if (i == 0 || i == 9) {
+                        Logger::WriteMessage(DumpRing_(r).c_str());
+                    }
                     auto sample = r.Newest();
+                    utilizSamples.push_back(sample);
                     Logger::WriteMessage(std::format("({}) {}: {}\n",
                         i, pMetricMap->at(m).narrowName, sample.value).c_str());
                     Assert::IsTrue(sample.value > 1.);
@@ -149,12 +193,21 @@ namespace InterimBroadcasterTests
                     constexpr auto m = PM_METRIC_CPU_FREQUENCY;
                     auto& r = sys.telemetryData.FindRing<double>(m).at(0);
                     Assert::IsFalse(r.Empty());
+                    if (i == 0 || i == 9) {
+                        Logger::WriteMessage(DumpRing_(r).c_str());
+                    }
                     auto sample = r.Newest();
+                    freqSamples.push_back(sample);
                     Logger::WriteMessage(std::format("({}) {}: {}\n",
                         i, pMetricMap->at(m).narrowName, sample.value).c_str());
                     Assert::IsTrue(sample.value > 1500.);
                 }
             }
+            // make sure samples actually change over time
+            Assert::AreNotEqual(utilizSamples.front().timestamp, utilizSamples.back().timestamp);
+            Assert::AreNotEqual(utilizSamples.front().value, utilizSamples.back().value);
+            Assert::AreNotEqual(freqSamples.front().timestamp, freqSamples.back().timestamp);
+            Assert::AreNotEqual(freqSamples.front().value, freqSamples.back().value);
         }
     };
 }

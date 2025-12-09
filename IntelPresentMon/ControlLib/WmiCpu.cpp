@@ -75,7 +75,7 @@ WmiCpu::WmiCpu() {
 
 const CpuTelemetryInfo& WmiCpu::GetNewest() const noexcept
 {
-    return *history_.begin();
+    return *std::prev(history_.end());
 }
 
 bool WmiCpu::Sample() noexcept {
