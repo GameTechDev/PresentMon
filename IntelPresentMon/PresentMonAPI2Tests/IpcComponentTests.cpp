@@ -13,6 +13,7 @@
 #include "../PresentMonAPI2/PresentMonAPI.h"
 
 #include <chrono>
+#include <format>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -59,6 +60,10 @@ namespace IpcComponentTests
 
         oss << "serial range [" << first << ", " << last << "), count=" << count << "\n";
 
+        if (count == 0) {
+            return oss.str();
+        }
+
         const size_t n = (count < maxSamples) ? count : maxSamples;
         for (size_t i = 0; i < n; ++i) {
             const auto& s = ring.At(first + i);
@@ -69,6 +74,15 @@ namespace IpcComponentTests
             oss << "  ...\n";
             const auto& sLast = ring.At(last - 1);
             oss << "  [" << (last - 1) << "] ts=" << sLast.timestamp << " val=" << sLast.value << "\n";
+        }
+
+        // Try to include Newest() summary for debugging
+        try {
+            const auto& newest = ring.Newest();
+            oss << "newest: ts=" << newest.timestamp << " val=" << newest.value << "\n";
+        }
+        catch (...) {
+            // If Newest() throws on empty in some impls, ignore here.
         }
 
         return oss.str();
@@ -131,7 +145,7 @@ namespace IpcComponentTests
             Assert::AreEqual<size_t>(2, arrayVect.size(), L"Array metric should have 2 rings");
         }
 
-        TEST_METHOD(EmptyRangeAndFrontWorkForScalar)
+        TEST_METHOD(EmptyRangeAndNewestWorkForScalar)
         {
             auto server = fixture_.LaunchClient();
             std::this_thread::sleep_for(25ms);
@@ -141,7 +155,7 @@ namespace IpcComponentTests
 
             const auto& ring = store.telemetryData.FindRing<double>(kScalarMetric).at(0);
 
-            Logger::WriteMessage("Validating Empty/GetSerialRange/Front for scalar ring\n");
+            Logger::WriteMessage("Validating Empty/GetSerialRange/Newest for scalar ring\n");
             LogRing_("Scalar ring dump:", ring);
 
             Assert::IsFalse(ring.Empty(), L"Ring should not be empty after server push");
@@ -150,14 +164,16 @@ namespace IpcComponentTests
             Assert::IsTrue(last >= first, L"Serial range should be valid");
             Assert::IsTrue((last - first) >= kSampleCount, L"Expected at least 12 samples");
 
-            const auto& front = ring.Front();
-            const auto& atFirst = ring.At(first);
+            const uint64_t expectedNewestTs = kBaseTs + static_cast<uint64_t>(kSampleCount - 1);
 
-            Assert::AreEqual(front.timestamp, atFirst.timestamp);
-            Assert::AreEqual(front.value, atFirst.value, 1e-9);
+            const auto& newest = ring.Newest();
+            const auto& atLast = ring.At(last - 1);
 
-            Assert::AreEqual<uint64_t>(kBaseTs, front.timestamp);
-            Assert::AreEqual(3000.0, front.value, 1e-9);
+            Assert::AreEqual(atLast.timestamp, newest.timestamp);
+            Assert::AreEqual(atLast.value, newest.value, 1e-9);
+
+            Assert::AreEqual<uint64_t>(expectedNewestTs, newest.timestamp);
+            Assert::AreEqual(ExpectedScalarValue_(expectedNewestTs), newest.value, 1e-9);
         }
 
         TEST_METHOD(AtReadsExpectedValuesForArrayElements)

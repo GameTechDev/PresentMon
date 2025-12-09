@@ -14,6 +14,8 @@
 #include "../PresentMonAPIWrapperCommon/EnumMap.h"
 #include "../PresentMonService/AllActions.h"
 
+#include <format>
+#include <thread>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace vi = std::views;
@@ -23,136 +25,136 @@ using namespace pmon;
 
 namespace InterimBroadcasterTests
 {
-	class TestFixture : public CommonTestFixture
-	{
-	public:
-		const CommonProcessArgs& GetCommonArgs() const override
-		{
-			static CommonProcessArgs args{
-				.ctrlPipe = R"(\\.\pipe\pm-intbroad-test-ctrl)",
-				.shmNamePrefix = "pm_intborad_test_intro",
-				.logLevel = "debug",
-				.logFolder = logFolder_,
-				.sampleClientMode = "NONE",
-			};
-			return args;
-		}
-	};
+    class TestFixture : public CommonTestFixture
+    {
+    public:
+        const CommonProcessArgs& GetCommonArgs() const override
+        {
+            static CommonProcessArgs args{
+                .ctrlPipe = R"(\\.\pipe\pm-intbroad-test-ctrl)",
+                .shmNamePrefix = "pm_intborad_test_intro",
+                .logLevel = "debug",
+                .logFolder = logFolder_,
+                .sampleClientMode = "NONE",
+            };
+            return args;
+        }
+    };
 
-	TEST_CLASS(CommonFixtureTests)
-	{
-		TestFixture fixture_;
+    TEST_CLASS(CommonFixtureTests)
+    {
+        TestFixture fixture_;
 
-	public:
-		TEST_METHOD_INITIALIZE(Setup)
-		{
-			fixture_.Setup();
-		}
-		TEST_METHOD_CLEANUP(Cleanup)
-		{
-			fixture_.Cleanup();
-		}
-		// verify service lifetime and status command functionality
-		TEST_METHOD(ServiceStatusTest)
-		{
-			// verify initial status
-			const auto status = fixture_.service->QueryStatus();
-			Assert::AreEqual(0ull, status.nsmStreamedPids.size());
-			Assert::AreEqual(16u, status.telemetryPeriodMs);
-			Assert::IsTrue((bool)status.etwFlushPeriodMs);
-			Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
-		}
-		// verify action system can connect
-		TEST_METHOD(ActionConnect)
-		{
-			mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
-			Assert::IsFalse(client.GetShmPrefix().empty());
-			// there is a bit of a race condition on creating a service, immediately connecting
-			// and then immediately terminating it via the test control module
-			// not a concern for normal operation and is entirely synthetic; don't waste
-			// effort on trying to rework this, just add a little wait for odd tests like this
-			std::this_thread::sleep_for(150ms);
-		}
-		// verify comms work with introspection (no wrapper)
-		TEST_METHOD(IntrospectionConnect)
-		{
-			mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
-			auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-			auto pIntro = pComms->GetIntrospectionRoot();
-			Assert::AreEqual(2ull, pIntro->pDevices->size);
-			auto pDevice = static_cast<const PM_INTROSPECTION_DEVICE*>(pIntro->pDevices->pData[1]);
-			Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", pDevice->pName->pData);
-		}
-	};
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup();
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        // verify service lifetime and status command functionality
+        TEST_METHOD(ServiceStatusTest)
+        {
+            // verify initial status
+            const auto status = fixture_.service->QueryStatus();
+            Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+            Assert::AreEqual(16u, status.telemetryPeriodMs);
+            Assert::IsTrue((bool)status.etwFlushPeriodMs);
+            Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+        }
+        // verify action system can connect
+        TEST_METHOD(ActionConnect)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            Assert::IsFalse(client.GetShmPrefix().empty());
+            // there is a bit of a race condition on creating a service, immediately connecting
+            // and then immediately terminating it via the test control module
+            // not a concern for normal operation and is entirely synthetic; don't waste
+            // effort on trying to rework this, just add a little wait for odd tests like this
+            std::this_thread::sleep_for(150ms);
+        }
+        // verify comms work with introspection (no wrapper)
+        TEST_METHOD(IntrospectionConnect)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            auto pIntro = pComms->GetIntrospectionRoot();
+            Assert::AreEqual(2ull, pIntro->pDevices->size);
+            auto pDevice = static_cast<const PM_INTROSPECTION_DEVICE*>(pIntro->pDevices->pData[1]);
+            Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", pDevice->pName->pData);
+        }
+    };
 
-	TEST_CLASS(CpuStoreTests)
-	{
-		TestFixture fixture_;
-	public:
-		TEST_METHOD_INITIALIZE(Setup)
-		{
-			fixture_.Setup();
-		}
-		TEST_METHOD_CLEANUP(Cleanup)
-		{
-			fixture_.Cleanup();
-		}
-		// static store
-		TEST_METHOD(StaticData)
-		{
-			mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
-			auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-			// get the store containing system-wide telemetry (cpu etc.)
-			auto& sys = pComms->GetSystemDataStore();
-			Assert::AreEqual((int)PM_DEVICE_VENDOR_AMD, (int)sys.statics.cpuVendor);
-			Assert::AreEqual("AMD Ryzen 7 5800X 8-Core Processor", sys.statics.cpuName.c_str());
-			Assert::AreEqual(0., sys.statics.cpuPowerLimit);
-		}
-		// polled store
-		TEST_METHOD(PolledData)
-		{
-			mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
-			auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-			// acquire introspection with enhanced wrapper interface
-			auto pIntro = pComms->GetIntrospectionRoot();
-			pmapi::intro::Root intro{ pIntro, [](auto* p){delete p;} };
-			pmapi::EnumMap::Refresh(intro);
-			auto pMetricMap = pmapi::EnumMap::GetKeyMap(PM_ENUM_METRIC);
-			// as a stopgap we target a process in order to trigger service-side telemetry collection
-			// TODO: remove this when we enable service-side query awareness of connected clients
-			auto pres = fixture_.LaunchPresenter();
-			client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
-			// get the store containing system-wide telemetry (cpu etc.)
-			auto& sys = pComms->GetSystemDataStore();
-			for (auto&&[met, r] : sys.telemetryData.Rings()) {
-				Logger::WriteMessage(std::format(" TeleRing@{}\n", pMetricMap->at(met).narrowName).c_str());
-				// TODO: understand the disconnect between CPU Core Utility showing up here
-				// and now showing up in the UI
-			}
-			Assert::AreEqual(3ull, (size_t)rn::distance(sys.telemetryData.Rings()));
-			std::this_thread::sleep_for(1000ms);
-			// check that we have data for frequency and utilization
-			for (int i = 0; i < 50; i++) {
-				std::this_thread::sleep_for(100ms);
-				{
-					constexpr auto m = PM_METRIC_CPU_UTILIZATION;
-					auto& r = sys.telemetryData.FindRing<double>(m).at(0);
-					Assert::IsFalse(r.Empty());
-					auto sample = r.Front();
-					Logger::WriteMessage(std::format("({}) {}: {}\n",
-						i, pMetricMap->at(m).narrowName, sample.value).c_str());
-					Assert::IsTrue(sample.value > 1.);
-				}
-				{
-					constexpr auto m = PM_METRIC_CPU_FREQUENCY;
-					auto& r = sys.telemetryData.FindRing<double>(m).at(0);
-					Assert::IsFalse(r.Empty());
-					auto sample = r.Front();
-					Logger::WriteMessage(std::format("({}) {}: {}\n",
-						i, pMetricMap->at(m).narrowName, sample.value).c_str());
-					Assert::IsTrue(sample.value > 1500.);
-				}
-			}
-		}
-	};
+    TEST_CLASS(CpuStoreTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup();
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        // static store
+        TEST_METHOD(StaticData)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            // get the store containing system-wide telemetry (cpu etc.)
+            auto& sys = pComms->GetSystemDataStore();
+            Assert::AreEqual((int)PM_DEVICE_VENDOR_AMD, (int)sys.statics.cpuVendor);
+            Assert::AreEqual("AMD Ryzen 7 5800X 8-Core Processor", sys.statics.cpuName.c_str());
+            Assert::AreEqual(0., sys.statics.cpuPowerLimit);
+        }
+        // polled store
+        TEST_METHOD(PolledData)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            // acquire introspection with enhanced wrapper interface
+            auto pIntro = pComms->GetIntrospectionRoot();
+            pmapi::intro::Root intro{ pIntro, [](auto* p) {delete p; } };
+            pmapi::EnumMap::Refresh(intro);
+            auto pMetricMap = pmapi::EnumMap::GetKeyMap(PM_ENUM_METRIC);
+            // as a stopgap we target a process in order to trigger service-side telemetry collection
+            // TODO: remove this when we enable service-side query awareness of connected clients
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            // get the store containing system-wide telemetry (cpu etc.)
+            auto& sys = pComms->GetSystemDataStore();
+            for (auto&& [met, r] : sys.telemetryData.Rings()) {
+                Logger::WriteMessage(std::format(" TeleRing@{}\n", pMetricMap->at(met).narrowName).c_str());
+                // TODO: understand the disconnect between CPU Core Utility showing up here
+                // and now showing up in the UI
+            }
+            Assert::AreEqual(3ull, (size_t)rn::distance(sys.telemetryData.Rings()));
+            std::this_thread::sleep_for(1000ms);
+            // check that we have data for frequency and utilization
+            for (int i = 0; i < 50; i++) {
+                std::this_thread::sleep_for(100ms);
+                {
+                    constexpr auto m = PM_METRIC_CPU_UTILIZATION;
+                    auto& r = sys.telemetryData.FindRing<double>(m).at(0);
+                    Assert::IsFalse(r.Empty());
+                    auto sample = r.Newest();
+                    Logger::WriteMessage(std::format("({}) {}: {}\n",
+                        i, pMetricMap->at(m).narrowName, sample.value).c_str());
+                    Assert::IsTrue(sample.value > 1.);
+                }
+                {
+                    constexpr auto m = PM_METRIC_CPU_FREQUENCY;
+                    auto& r = sys.telemetryData.FindRing<double>(m).at(0);
+                    Assert::IsFalse(r.Empty());
+                    auto sample = r.Newest();
+                    Logger::WriteMessage(std::format("({}) {}: {}\n",
+                        i, pMetricMap->at(m).narrowName, sample.value).c_str());
+                    Assert::IsTrue(sample.value > 1500.);
+                }
+            }
+        }
+    };
 }
