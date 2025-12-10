@@ -27,6 +27,7 @@ using namespace pmon;
 using namespace svc;
 using namespace util;
 using v = log::V;
+namespace vi = std::views;
 
 
 void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
@@ -87,10 +88,6 @@ static void PopulateGpuTelemetryRings_(
         switch (metric) {
 
             // -------- double metrics --------
-        case PM_METRIC_GPU_SUSTAINED_POWER_LIMIT:
-            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
-                .Push(s.gpu_sustained_power_limit_w, s.qpc);
-            break;
 
         case PM_METRIC_GPU_POWER:
             std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
@@ -212,19 +209,9 @@ static void PopulateGpuTelemetryRings_(
             break;
 
             // -------- uint64 metrics --------
-        case PM_METRIC_GPU_MEM_SIZE:
-            std::get<ipc::TelemetryMap::HistoryRingVect<uint64_t>>(ringVariant)[0]
-                .Push(s.gpu_mem_total_size_b, s.qpc);
-            break;
-
         case PM_METRIC_GPU_MEM_USED:
             std::get<ipc::TelemetryMap::HistoryRingVect<uint64_t>>(ringVariant)[0]
                 .Push(s.gpu_mem_used_b, s.qpc);
-            break;
-
-        case PM_METRIC_GPU_MEM_MAX_BANDWIDTH:
-            std::get<ipc::TelemetryMap::HistoryRingVect<uint64_t>>(ringVariant)[0]
-                .Push(s.gpu_mem_max_bandwidth_bps, s.qpc);
             break;
 
             // -------- bool metrics --------
@@ -279,6 +266,7 @@ static void PopulateGpuTelemetryRings_(
             break;
 
         default:
+            pmlog_warn("Unhandled metric").pmwatch((int)metric);
             break;
         }
     }
@@ -310,12 +298,29 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
         }
         pmon::util::QpcTimer timer;
         ptc->Repopulate();
-        for (auto& adapter : ptc->GetPowerTelemetryAdapters()) {
+        for (auto&& [i, adapter] : ptc->GetPowerTelemetryAdapters() | vi::enumerate) {
             // sample 2x here as workaround/kludge because Intel provider misreports 1st sample
             adapter->Sample();
             adapter->Sample();
             pComms->RegisterGpuDevice(adapter->GetVendor(), adapter->GetName(),
                 ipc::intro::ConvertBitset(adapter->GetPowerTelemetryCapBits()));
+            // after registering, we know that at least the store is available even
+            // if the introspection itself is not complete
+            auto& gpuStore = pComms->GetGpuDataStore(uint32_t(i + 1));
+            // TODO: replace this placeholder routine for populating statics
+            gpuStore.statics.name = adapter->GetName().c_str();
+            gpuStore.statics.vendor = adapter->GetVendor();
+            gpuStore.statics.memSize = adapter->GetDedicatedVideoMemory();
+            gpuStore.statics.maxMemBandwidth = adapter->GetVideoMemoryMaxBandwidth();
+            gpuStore.statics.sustainedPowerLimit = adapter->GetSustainedPowerLimit();
+            // max fanspeed is polled in old system but static in new system, shim here
+            // TODO: make this fully static
+            // infer number of fans by the size of the telemetry ring array for fan speed
+            const auto nFans = gpuStore.telemetryData.ArraySize(PM_METRIC_GPU_FAN_SPEED);
+            auto& sample = adapter->GetNewest();
+            for (size_t i = 0; i < nFans; i++) {
+                gpuStore.statics.maxFanSpeedRpm.push_back(sample.max_fan_speed_rpm[i]);
+            }
         }
         pComms->FinalizeGpuDevices();
         pmlog_info(std::format("Finished populating GPU telemetry introspection, {} seconds elapsed", timer.Mark()));
@@ -352,10 +357,7 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                     const auto& sample = adapter->GetNewest();
 
                     // Retrieve the matching GPU store.
-                    // Adjust this to your actual ServiceComms API.
                     auto& store = pComms->GetGpuDataStore(uint32_t(idx + 1));
-                    // Alternative if your API is keyed differently:
-                    // auto& store = pComms->GetGpuDataStore(adapter->GetVendor(), adapter->GetName());
 
                     PopulateGpuTelemetryRings_(store, sample);
                 }
@@ -564,11 +566,10 @@ void PresentMonMainThread(Service* const pSvc)
             // register cpu
             pComms->RegisterCpuDevice(vendor, cpu->GetCpuName(), 
                 ipc::intro::ConvertBitset(cpu->GetCpuTelemetryCapBits()));
-            // after registering, we know that at lest the store is available even
+            // after registering, we know that at least the store is available even
             // if the introspection itself is not complete
             auto& systemStore = pComms->GetSystemDataStore();
             // TODO: replace this placeholder routine for populating statics
-
             systemStore.statics.cpuName = cpu->GetCpuName().c_str();
             systemStore.statics.cpuPowerLimit = cpu->GetCpuPowerLimit();
             systemStore.statics.cpuVendor = vendor;

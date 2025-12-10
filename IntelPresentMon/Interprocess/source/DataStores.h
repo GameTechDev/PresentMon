@@ -36,7 +36,9 @@ namespace pmon::ipc
         GpuDataStore(ShmSegmentManager& segMan)
             :
             telemetryData{ segMan.get_allocator<TelemetryMap::AllocatorType::value_type>() },
-            statics{ .name{ segMan.get_allocator<char>() } }
+            statics{
+                .name{ segMan.get_allocator<char>() },
+                .maxFanSpeedRpm{ segMan.get_allocator<int32_t>() } }
         {}
         struct Statics
         {
@@ -45,6 +47,7 @@ namespace pmon::ipc
             double sustainedPowerLimit;
             uint64_t memSize;
             uint64_t maxMemBandwidth;
+            ShmVector<int32_t> maxFanSpeedRpm;
         } statics;
         TelemetryMap telemetryData;
     };

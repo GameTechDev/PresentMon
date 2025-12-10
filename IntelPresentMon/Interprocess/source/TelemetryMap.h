@@ -96,6 +96,16 @@ namespace pmon::ipc
         {
             return ringMap_.at(id);
         }
+        size_t ArraySize(PM_METRIC id) const
+        {
+            auto it = ringMap_.find(id);
+            if (it == ringMap_.end()) {
+                return 0;
+            }
+            return std::visit([](auto const& rings) -> size_t {
+                return rings.size();
+            }, it->second);
+        }
         auto Rings()
         {
             return std::ranges::subrange{ ringMap_.begin(), ringMap_.end() };

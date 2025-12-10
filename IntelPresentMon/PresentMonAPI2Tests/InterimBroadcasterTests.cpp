@@ -223,6 +223,18 @@ namespace InterimBroadcasterTests
         {
             fixture_.Cleanup();
         }
+        // static store
+        TEST_METHOD(StaticData)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            // get the store containing gpu telemetry
+            auto& gpu = pComms->GetGpuDataStore(1);
+            Assert::AreEqual((int)PM_DEVICE_VENDOR_NVIDIA, (int)gpu.statics.vendor);
+            Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", gpu.statics.name.c_str());
+            Assert::AreEqual(260., gpu.statics.sustainedPowerLimit);
+            Assert::AreEqual(11811160064ull, gpu.statics.memSize);
+        }
         // polled store
         TEST_METHOD(PolledData)
         {
