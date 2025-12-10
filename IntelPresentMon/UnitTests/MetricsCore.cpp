@@ -6495,7 +6495,377 @@ namespace MetricsCoreTests
             Assert::AreEqual(uint64_t(475'000), state.lastDisplayedSimStartTime,
                 L"lastDisplayedSimStartTime should still reflect P1 until P3 is finalized.");
         }
-};
+    };
+    // ============================================================================
+    // SECTION: Input Latency Tests
+    // ============================================================================
 
+    TEST_CLASS(InputLatencyTests)
+    {
+    public:
+        // ========================================================================
+        // Test 1: ClickToPhoton - displayed frame uses its own click
+        // ========================================================================
+        TEST_METHOD(InputLatency_ClickToPhoton_DisplayedFrame_UsesOwnClickTime)
+        {
+            // Scenario:
+            // - P1 (displayed frame) has its own mouseClickTime = 400'000
+            // - P1 computes msClickToPhotonLatency from click to its own display time
+            // - No pending click should remain in the chain
+            //
+            // Expected:
+            // - P1's msClickToPhotonLatency uses P1's own click (400'000 -> 1'000'000)
+            // - state.lastReceivedNotDisplayedMouseClickTime == 0
 
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            // P1: displayed app frame with its own click
+            FrameData p1{};
+            p1.presentStartTime = 500'000;
+            p1.timeInPresent = 100'000;
+            p1.mouseClickTime = 400'000;
+            p1.inputTime = 0;
+            p1.appSimStartTime = 450'000;
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.push_back({ FrameType::Application, 1'000'000 });
+
+            // P2: next displayed frame
+            FrameData p2{};
+            p2.presentStartTime = 1'050'000;
+            p2.timeInPresent = 50'000;
+            p2.mouseClickTime = 0;
+            p2.inputTime = 0;
+            p2.finalState = PresentResult::Presented;
+            p2.displayed.push_back({ FrameType::Application, 1'100'000 });
+
+            // P1 arrives (pending)
+            auto p1_pending = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(0), p1_pending.size(), L"P1 pending should be empty");
+
+            // P2 arrives, finalizes P1
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
+            auto p2_pending = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+
+            // Assertions for P1
+            Assert::AreEqual(size_t(1), p1_final.size());
+            Assert::IsTrue(p1_final[0].metrics.msClickToPhotonLatency.has_value(),
+                L"P1 should have msClickToPhotonLatency");
+
+            double expected = qpc.DeltaUnsignedMilliSeconds(400'000, 1'000'000);
+            Assert::AreEqual(expected, p1_final[0].metrics.msClickToPhotonLatency.value(), 0.0001,
+                L"P1's click-to-photon should use its own click time");
+
+            // Verify no pending click remains
+            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedMouseClickTime,
+                L"No pending click should remain after P1 used its own click");
+        }
+
+        // ========================================================================
+        // Test 2: ClickToPhoton - dropped frame carries click to next displayed
+        // ========================================================================
+        TEST_METHOD(InputLatency_ClickToPhoton_DroppedFrame_CarriesClickToNextDisplayed)
+        {
+            // Scenario:
+            // - P1 (dropped, not displayed) has mouseClickTime = 400'000
+            // - P1 does not produce msClickToPhotonLatency
+            // - P1 stores click in lastReceivedNotDisplayedMouseClickTime
+            // - P2 (displayed, no own click) uses the stored click from P1
+            //
+            // Expected:
+            // - P1: msClickToPhotonLatency == nullopt
+            // - After P1: state.lastReceivedNotDisplayedMouseClickTime == 400'000
+            // - P2: msClickToPhotonLatency uses stored click (400'000 -> 1'000'000)
+            // - After P2: state.lastReceivedNotDisplayedMouseClickTime == 0 (consumed)
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            // P1: dropped frame with click
+            FrameData p1{};
+            p1.presentStartTime = 300'000;
+            p1.timeInPresent = 50'000;
+            p1.mouseClickTime = 400'000;
+            p1.inputTime = 0;
+            p1.finalState = PresentResult::Discarded;
+            // displayed is empty (not displayed)
+
+            // P2: first displayed frame (no own click)
+            FrameData p2{};
+            p2.presentStartTime = 900'000;
+            p2.timeInPresent = 100'000;
+            p2.mouseClickTime = 0;
+            p2.inputTime = 0;
+            p2.finalState = PresentResult::Presented;
+            p2.displayed.push_back({ FrameType::Application, 1'000'000 });
+
+            // P3: later frame to finalize P2
+            FrameData p3{};
+            p3.presentStartTime = 1'050'000;
+            p3.timeInPresent = 50'000;
+            p3.finalState = PresentResult::Presented;
+            p3.displayed.push_back({ FrameType::Application, 1'100'000 });
+
+            // P1 arrives (dropped)
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+
+            // Assertions for P1
+            Assert::AreEqual(size_t(1), p1_results.size());
+            Assert::IsFalse(p1_results[0].metrics.msClickToPhotonLatency.has_value(),
+                L"P1 (dropped) should not have msClickToPhotonLatency");
+            Assert::AreEqual(uint64_t(400'000), state.lastReceivedNotDisplayedMouseClickTime,
+                L"P1's click should be stored as pending");
+
+            // P2 arrives (pending)
+            auto p2_pending = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+
+            // P3 arrives, finalizes P2
+            auto p2_final = ComputeMetricsForPresent(qpc, p2, &p3, state);
+            auto p3_pending = ComputeMetricsForPresent(qpc, p3, nullptr, state);
+
+            // Assertions for P2
+            Assert::AreEqual(size_t(1), p2_final.size());
+            Assert::IsTrue(p2_final[0].metrics.msClickToPhotonLatency.has_value(),
+                L"P2 should have msClickToPhotonLatency using P1's stored click");
+
+            double expected = qpc.DeltaUnsignedMilliSeconds(400'000, 1'000'000);
+            Assert::AreEqual(expected, p2_final[0].metrics.msClickToPhotonLatency.value(), 0.0001,
+                L"P2's click-to-photon should use P1's stored click");
+
+            // Optional: verify pending click is consumed
+            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedMouseClickTime,
+                L"Pending click should be consumed after P2 uses it");
+        }
+
+        // ========================================================================
+        // Test 3: AllInputPhoton - multiple dropped frames, last input wins
+        // ========================================================================
+        TEST_METHOD(InputLatency_AllInputPhoton_MultipleDroppedFrames_LastInputWins)
+        {
+            // Scenario:
+            // - P1 (dropped) has inputTime = 300'000
+            // - P2 (dropped) has inputTime = 450'000 (should override P1)
+            // - P3 (displayed, no own input) uses the last stored input (450'000)
+            //
+            // Expected:
+            // - P1: msAllInputPhotonLatency == nullopt, state stores 300'000
+            // - P2: msAllInputPhotonLatency == nullopt, state updates to 450'000
+            // - P3: msAllInputPhotonLatency uses 450'000 (last wins)
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            // P1: dropped with first input
+            FrameData p1{};
+            p1.presentStartTime = 200'000;
+            p1.timeInPresent = 50'000;
+            p1.inputTime = 300'000;
+            p1.mouseClickTime = 0;
+            p1.finalState = PresentResult::Discarded;
+            // displayed empty
+
+            // P2: dropped with later input (overrides P1)
+            FrameData p2{};
+            p2.presentStartTime = 400'000;
+            p2.timeInPresent = 50'000;
+            p2.inputTime = 450'000;
+            p2.mouseClickTime = 0;
+            p2.finalState = PresentResult::Discarded;
+            // displayed empty
+
+            // P3: first displayed frame (no own input)
+            FrameData p3{};
+            p3.presentStartTime = 900'000;
+            p3.timeInPresent = 100'000;
+            p3.inputTime = 0;
+            p3.mouseClickTime = 0;
+            p3.finalState = PresentResult::Presented;
+            p3.displayed.push_back({ FrameType::Application, 1'000'000 });
+
+            // P4: later frame to finalize P3
+            FrameData p4{};
+            p4.presentStartTime = 1'050'000;
+            p4.timeInPresent = 50'000;
+            p4.finalState = PresentResult::Presented;
+            p4.displayed.push_back({ FrameType::Application, 1'100'000 });
+
+            // P1 arrives (dropped)
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(1), p1_results.size());
+            Assert::IsFalse(p1_results[0].metrics.msAllInputPhotonLatency.has_value(),
+                L"P1 (dropped) should not have msAllInputPhotonLatency");
+            Assert::AreEqual(uint64_t(300'000), state.lastReceivedNotDisplayedAllInputTime,
+                L"P1's input should be stored");
+
+            // P2 arrives (dropped, overrides P1)
+            auto p2_results = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(1), p2_results.size());
+            Assert::IsFalse(p2_results[0].metrics.msAllInputPhotonLatency.has_value(),
+                L"P2 (dropped) should not have msAllInputPhotonLatency");
+            Assert::AreEqual(uint64_t(450'000), state.lastReceivedNotDisplayedAllInputTime,
+                L"P2's input should override P1's stored input (last wins)");
+
+            // P3 arrives (pending)
+            auto p3_pending = ComputeMetricsForPresent(qpc, p3, nullptr, state);
+
+            // P4 arrives, finalizes P3
+            auto p3_final = ComputeMetricsForPresent(qpc, p3, &p4, state);
+            auto p4_pending = ComputeMetricsForPresent(qpc, p4, nullptr, state);
+
+            // Assertions for P3
+            Assert::AreEqual(size_t(1), p3_final.size());
+            Assert::IsTrue(p3_final[0].metrics.msAllInputPhotonLatency.has_value(),
+                L"P3 should have msAllInputPhotonLatency using last stored input");
+
+            double expected = qpc.DeltaUnsignedMilliSeconds(450'000, 1'000'000);
+            Assert::AreEqual(expected, p3_final[0].metrics.msAllInputPhotonLatency.value(), 0.0001,
+                L"P3's all-input-to-photon should use P2's input (last wins)");
+        }
+
+        // ========================================================================
+        // Test 4: AllInputPhoton - displayed frame with own input overrides pending
+        // ========================================================================
+        TEST_METHOD(InputLatency_AllInputPhoton_DisplayedFrame_WithOwnInput_OverridesPending)
+        {
+            // Scenario:
+            // - P0 (dropped) seeds pending input = 300'000
+            // - P1 (displayed) has its own inputTime = 500'000
+            // - P1's own input should override the pending 300'000
+            //
+            // Expected:
+            // - P0: state.lastReceivedNotDisplayedAllInputTime == 300'000
+            // - P1: msAllInputPhotonLatency uses P1's own input (500'000 -> 1'000'000)
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            // P0: dropped, seeds pending input
+            FrameData p0{};
+            p0.presentStartTime = 200'000;
+            p0.timeInPresent = 50'000;
+            p0.inputTime = 300'000;
+            p0.mouseClickTime = 0;
+            p0.finalState = PresentResult::Discarded;
+            // displayed empty
+
+            // P1: displayed with its own input
+            FrameData p1{};
+            p1.presentStartTime = 900'000;
+            p1.timeInPresent = 100'000;
+            p1.inputTime = 500'000;
+            p1.mouseClickTime = 0;
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.push_back({ FrameType::Application, 1'000'000 });
+
+            // P2: later frame to finalize P1
+            FrameData p2{};
+            p2.presentStartTime = 1'050'000;
+            p2.timeInPresent = 50'000;
+            p2.finalState = PresentResult::Presented;
+            p2.displayed.push_back({ FrameType::Application, 1'100'000 });
+
+            // P0 arrives (dropped)
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(uint64_t(300'000), state.lastReceivedNotDisplayedAllInputTime,
+                L"P0's input should be stored as pending");
+
+            // P1 arrives (pending)
+            auto p1_pending = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+
+            // P2 arrives, finalizes P1
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
+            auto p2_pending = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+
+            // Assertions for P1
+            Assert::AreEqual(size_t(1), p1_final.size());
+            Assert::IsTrue(p1_final[0].metrics.msAllInputPhotonLatency.has_value(),
+                L"P1 should have msAllInputPhotonLatency using its own input");
+
+            double expected = qpc.DeltaUnsignedMilliSeconds(500'000, 1'000'000);
+            Assert::AreEqual(expected, p1_final[0].metrics.msAllInputPhotonLatency.value(), 0.0001,
+                L"P1's all-input-to-photon should use its own input (500'000), not pending (300'000)");
+        }
+
+        // ========================================================================
+        // Test 5: InstrumentedInputTime - uses same sim start as animation source (AppProvider)
+        // ========================================================================
+        TEST_METHOD(InputLatency_InstrumentedInputTime_UsesAnimationSimStart_AppProvider)
+        {
+            // Scenario:
+            // - Frame 1: First AppProvider frame (appSimStartTime = 475'000) - seeds state
+            // - Frame 2: Has inputTime = 500'000, appSimStartTime = 575'000
+            // - msInstrumentedInputTime should use Frame 2's animation sim start (575'000)
+            //
+            // Expected:
+            // - After Frame 1: animationErrorSource == AppProvider
+            // - Frame 2: msInstrumentedInputTime = (575'000 - 500'000) in ms
+            // - msInstrumentedInputTime uses same sim start as animation
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            // state.animationErrorSource defaults to CpuStart
+
+            // P1: First AppProvider frame (no input)
+            FrameData p1{};
+            p1.presentStartTime = 500'000;
+            p1.timeInPresent = 100'000;
+            p1.appSimStartTime = 475'000;
+            p1.pclSimStartTime = 0;
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.push_back({ FrameType::Application, 1'000'000 });
+
+            // P2: Frame with input (we assert on this)
+            FrameData p2{};
+            p2.presentStartTime = 1'000'000;
+            p2.timeInPresent = 100'000;
+            p2.appSimStartTime = 575'000;
+            p2.pclSimStartTime = 0;
+            p2.inputTime = 500'000;
+            p2.mouseClickTime = 500'000;  // Using same value for simplicity
+            p2.finalState = PresentResult::Presented;
+            p2.displayed.push_back({ FrameType::Application, 1'100'000 });
+
+            // P3: Later frame to finalize P2
+            FrameData p3{};
+            p3.presentStartTime = 1'500'000;
+            p3.timeInPresent = 100'000;
+            p3.appSimStartTime = 675'000;
+            p3.finalState = PresentResult::Presented;
+            p3.displayed.push_back({ FrameType::Application, 1'200'000 });
+
+            // P1 arrives (pending)
+            auto p1_pending = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+
+            // P2 arrives, finalizes P1 (switches to AppProvider)
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
+            auto p2_pending = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+
+            // Verify state after P1
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"Animation source should switch to AppProvider after P1");
+            Assert::AreEqual(uint64_t(475'000), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should be set to P1's appSimStartTime");
+
+            // P3 arrives, finalizes P2
+            auto p2_final = ComputeMetricsForPresent(qpc, p2, &p3, state);
+            auto p3_pending = ComputeMetricsForPresent(qpc, p3, nullptr, state);
+
+            // Assertions for P2
+            Assert::AreEqual(size_t(1), p2_final.size());
+
+            // Verify P2 has animation time (sanity check we're in AppProvider mode)
+            Assert::IsTrue(p2_final[0].metrics.msAnimationTime.has_value(),
+                L"P2 should have msAnimationTime (AppProvider mode)");
+
+            // Verify msInstrumentedInputTime is present
+            Assert::IsTrue(p2_final[0].metrics.msInstrumentedInputTime.has_value(),
+                L"P2 should have msInstrumentedInputTime");
+
+            // Calculate expected: input -> current sim start (AppProvider)
+            // currentSimStart for P2 in AppProvider mode = p2.appSimStartTime = 575'000
+            double expectedInstr = qpc.DeltaUnsignedMilliSeconds(500'000, 575'000);
+            Assert::AreEqual(expectedInstr, p2_final[0].metrics.msInstrumentedInputTime.value(), 0.0001,
+                L"msInstrumentedInputTime should use same sim start as animation (AppProvider)");
+        }
+    };
 }
