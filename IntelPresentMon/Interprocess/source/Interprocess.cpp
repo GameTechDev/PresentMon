@@ -81,6 +81,11 @@ namespace pmon::ipc
                     if (metricType == PM_METRIC_TYPE_STATIC) {
                         continue;
                     }
+                    // TODO: systemize the labelling of metrics that are middleware-derived
+                    if (m == PM_METRIC_GPU_FAN_SPEED_PERCENT ||
+                        m == PM_METRIC_GPU_MEM_UTILIZATION) {
+                        continue;
+                    }
                     const auto dataType = metric.GetDataTypeInfo().GetFrameType();
                     gpuShm.GetStore().telemetryData.AddRing(
                         m, telemetryRingSize_, count, dataType
