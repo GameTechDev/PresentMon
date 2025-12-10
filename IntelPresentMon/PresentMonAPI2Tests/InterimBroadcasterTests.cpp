@@ -123,7 +123,7 @@ namespace InterimBroadcasterTests
         }
     };
 
-    TEST_CLASS(CpuStoreTests)
+    TEST_CLASS(SystemStoreTests)
     {
         TestFixture fixture_;
     public:
@@ -169,7 +169,7 @@ namespace InterimBroadcasterTests
                 // TODO: understand the disconnect between CPU Core Utility showing up here
                 // and now showing up in the UI
             }
-            Assert::AreEqual(3ull, (size_t)rn::distance(sys.telemetryData.Rings()));
+            Assert::AreEqual(2ull, (size_t)rn::distance(sys.telemetryData.Rings()));
             std::this_thread::sleep_for(500ms);
             // check that we have data for frequency and utilization
             std::vector<ipc::HistoryRing<double>::Sample> utilizSamples;
@@ -208,6 +208,79 @@ namespace InterimBroadcasterTests
             Assert::AreNotEqual(utilizSamples.front().value, utilizSamples.back().value);
             Assert::AreNotEqual(freqSamples.front().timestamp, freqSamples.back().timestamp);
             Assert::AreNotEqual(freqSamples.front().value, freqSamples.back().value);
+        }
+        // full 1:1 correspondence between ring creation, ring population, and introspection availability
+        TEST_METHOD(RingUtilization)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            // acquire introspection with enhanced wrapper interface
+            auto pIntro = pComms->GetIntrospectionRoot();
+            pmapi::intro::Root intro{ pIntro, [](auto* p) { delete p; } };
+            pmapi::EnumMap::Refresh(intro);
+            auto pMetricMap = pmapi::EnumMap::GetKeyMap(PM_ENUM_METRIC);
+
+            // set telemetry period so we have a known baseline
+            client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 40 });
+
+            // as a stopgap we target a process in order to trigger service-side telemetry collection
+            // TODO: remove this when we enable service-side query awareness of connected clients
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            // get the store containing adapter telemetry
+            auto& sys = pComms->GetSystemDataStore();
+
+            // allow a short warmup
+            std::this_thread::sleep_for(500ms);
+
+            // build the set of expected rings from introspection
+            Logger::WriteMessage("Introspection Metrics\n=====================\n");
+            std::map<PM_METRIC, size_t> introspectionAvailability;
+            const auto TryAddMetric = [&](PM_METRIC metric) {
+                auto&& m = intro.FindMetric(metric);
+                if (m.GetDeviceMetricInfo().empty()) {
+                    return;
+                }
+                auto&& dmi = m.GetDeviceMetricInfo().front();
+                if (dmi.IsAvailable()) {
+                    const auto arraySize = dmi.GetArraySize();
+                    introspectionAvailability[metric] = arraySize;
+                    // dump for review in output pane
+                    Logger::WriteMessage(std::format("[{}] {}\n", arraySize,
+                        pMetricMap->at(m.GetId()).narrowName).c_str());
+                }
+            };
+            // TODO: replace this with code that iterates over all metrics and automatically
+            // evaluates all cpu telemetry metrics
+            TryAddMetric(PM_METRIC_CPU_POWER);
+            TryAddMetric(PM_METRIC_CPU_TEMPERATURE);
+            TryAddMetric(PM_METRIC_CPU_UTILIZATION);
+            TryAddMetric(PM_METRIC_CPU_FREQUENCY);
+            TryAddMetric(PM_METRIC_CPU_CORE_UTILITY);
+            Logger::WriteMessage(std::format("Total: {}\n", introspectionAvailability.size()).c_str());
+
+            // validate that the expected number of rings sets are present in the store
+            Assert::AreEqual(introspectionAvailability.size(), (size_t)rn::distance(sys.telemetryData.Rings()));
+
+            // validate that exepected rings are present and are populated with samples
+            for (auto&& [met, size] : introspectionAvailability) {
+                // array sizes should match
+                Assert::AreEqual(size, sys.telemetryData.ArraySize(met),
+                    pMetricMap->at(met).wideName.c_str());
+                std::visit([&](auto const& rings) {
+                    // for each history ring in set, make sure it has at least one sample in it
+                    for (size_t i = 0; i < size; i++) {
+                        auto& name = pMetricMap->at(met).wideName;
+                        Assert::IsFalse(rings[i].Empty(),
+                            std::format(L"{}[{}]", name, i).c_str());
+                        auto& sample = rings[i].Newest();
+                        Logger::WriteMessage(std::format(L"{}[{}]: {}@{}\n", name, i,
+                            sample.value, sample.timestamp).c_str());
+                    }
+                }, sys.telemetryData.FindRingVariant(met));
+            }
         }
     };
 
@@ -373,7 +446,7 @@ namespace InterimBroadcasterTests
                         pMetricMap->at(m.GetId()).narrowName).c_str());
                 }
             }
-            Logger::WriteMessage(std::format("Total: {}", introspectionAvailability.size()).c_str());
+            Logger::WriteMessage(std::format("Total: {}\n", introspectionAvailability.size()).c_str());
 
             // validate that the expected number of rings sets are present in the store
             Assert::AreEqual(introspectionAvailability.size(), (size_t)rn::distance(gpu.telemetryData.Rings()));

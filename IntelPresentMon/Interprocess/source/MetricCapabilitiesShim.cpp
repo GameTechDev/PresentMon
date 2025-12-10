@@ -46,7 +46,7 @@ namespace pmon::ipc::intro
             }
 
             // Array GPU capability bits (fan speeds, etc.)
-            if constexpr (IsGpuDeviceMetricArray<Lookup>) {
+            if constexpr (IsGpuDeviceMetricArray<Lookup> && !IsManualDisableMetric<Lookup>) {
                 std::size_t count = 0;
                 for (auto flag : Lookup::gpuCapBitArray) {
                     if (HasCap(bits, flag)) {
@@ -73,15 +73,10 @@ namespace pmon::ipc::intro
             using Lookup = IntrospectionCapsLookup<metricEnum>;
 
             // CPU metrics gated by a capability bit
-            if constexpr (IsCpuMetric<Lookup>) {
+            if constexpr (IsCpuMetric<Lookup> && !IsManualDisableMetric<Lookup>) {
                 if (HasCap(bits, Lookup::cpuCapBit)) {
                     caps.Set(metricEnum, 1);
                 }
-            }
-
-            // Metrics that exist but are intended for manual disable by default
-            if constexpr (IsManualDisableMetric<Lookup>) {
-                caps.Set(metricEnum, 1);
             }
         }
 
