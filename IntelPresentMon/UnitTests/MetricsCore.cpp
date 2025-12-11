@@ -6789,17 +6789,17 @@ namespace MetricsCoreTests
         // ========================================================================
         // Test 5: InstrumentedInputTime - uses same sim start as animation source (AppProvider)
         // ========================================================================
-        TEST_METHOD(InputLatency_InstrumentedInputTime_UsesAnimationSimStart_AppProvider)
+        TEST_METHOD(InputLatency_InstrumentedInputTime_UsesAppInputSample)
         {
             // Scenario:
             // - Frame 1: First AppProvider frame (appSimStartTime = 475'000) - seeds state
-            // - Frame 2: Has inputTime = 500'000, appSimStartTime = 575'000
-            // - msInstrumentedInputTime should use Frame 2's animation sim start (575'000)
+            // - Frame 2: Has appInputSample = 500'000, appSimStartTime = 575'000
+            // - msInstrumentedInputTime should use Frame 2's appInputSample time = 500'000
+            // - Frame 2: Display time is 1'100'000
             //
             // Expected:
             // - After Frame 1: animationErrorSource == AppProvider
-            // - Frame 2: msInstrumentedInputTime = (575'000 - 500'000) in ms
-            // - msInstrumentedInputTime uses same sim start as animation
+            // - Frame 2: msInstrumentedInputTime = (1'100'000 - 500'000) in ms
 
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
@@ -6820,8 +6820,8 @@ namespace MetricsCoreTests
             p2.timeInPresent = 100'000;
             p2.appSimStartTime = 575'000;
             p2.pclSimStartTime = 0;
-            p2.inputTime = 500'000;
-            p2.mouseClickTime = 500'000;  // Using same value for simplicity
+            p2.appInputSample.first = 500'000; // Using same value for simplicity
+            p2.appInputSample.second = InputDeviceType::Mouse;
             p2.finalState = PresentResult::Presented;
             p2.displayed.push_back({ FrameType::Application, 1'100'000 });
 
@@ -6861,11 +6861,10 @@ namespace MetricsCoreTests
             Assert::IsTrue(p2_final[0].metrics.msInstrumentedInputTime.has_value(),
                 L"P2 should have msInstrumentedInputTime");
 
-            // Calculate expected: input -> current sim start (AppProvider)
-            // currentSimStart for P2 in AppProvider mode = p2.appSimStartTime = 575'000
-            double expectedInstr = qpc.DeltaUnsignedMilliSeconds(500'000, 575'000);
+            // Calculate expected: app input -> p2 screen
+            double expectedInstr = qpc.DeltaUnsignedMilliSeconds(500'000, 1'100'000);
             Assert::AreEqual(expectedInstr, p2_final[0].metrics.msInstrumentedInputTime.value(), 0.0001,
-                L"msInstrumentedInputTime should use same sim start as animation (AppProvider)");
+                L"msInstrumentedInputTime should be P2 app input time to P2 screen time");
         }
     };
 }

@@ -315,98 +315,187 @@ namespace pmon::util::metrics
 
         std::optional<double> ComputeClickToPhotonLatency(
             const QpcConverter& qpc,
-            SwapChainCoreState& chain,
+            const SwapChainCoreState& chain,
             const FrameData& present,
             bool isDisplayed,
             bool isAppFrame,
-            uint64_t screenTime)
+            uint64_t screenTime,
+            ComputedMetrics::StateDeltas& stateDeltas)
         {
+            // Only app frames participate in click-to-photon.
             if (!isAppFrame) {
                 return std::nullopt;
             }
 
-            if (isDisplayed) {
-                auto inputTime = chain.lastReceivedNotDisplayedMouseClickTime != 0 ?
-                    chain.lastReceivedNotDisplayedMouseClickTime :
-                    present.mouseClickTime;
-                if (inputTime != 0) {
-                    return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
+            uint64_t inputTime = 0;
+
+            // Case 1: This frame *has* a click.
+            if (present.mouseClickTime != 0) {
+                inputTime = present.mouseClickTime;
+
+                if (!isDisplayed) {
+                    // Not displayed: stash the click for a future displayed frame.
+                    stateDeltas.lastReceivedNotDisplayedMouseClickTime = inputTime;
+                    return std::nullopt;
                 }
-                // Reset all last received device time
-                chain.lastReceivedNotDisplayedMouseClickTime = 0;
+            }
+            // Case 2: No click on this frame, but frame is displayed: see if we can
+            // reuse a pending click from a previously dropped frame.
+            else if (isDisplayed && chain.lastReceivedNotDisplayedMouseClickTime != 0) {
+                inputTime = chain.lastReceivedNotDisplayedMouseClickTime;
+                stateDeltas.shouldResetInputTimes = true;
+            }
+
+            // If we still have no inputTime, nothing to compute.
+            if (inputTime == 0) {
                 return std::nullopt;
             }
-            else {
-                // Update last received device time
-                if (present.mouseClickTime != 0) {
-                    chain.lastReceivedNotDisplayedMouseClickTime = present.mouseClickTime;
-                }
-                return std::nullopt;
-            }
+
+            return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
         }
+
 
         std::optional<double> ComputeAllInputToPhotonLatency(
             const QpcConverter& qpc,
-            SwapChainCoreState& chain,
+            const SwapChainCoreState& chain,
             const FrameData& present,
             bool isDisplayed,
             bool isAppFrame,
-            uint64_t screenTime)
+            uint64_t screenTime,
+            ComputedMetrics::StateDeltas& stateDeltas)
         {
+            // Only app frames participate in click-to-photon.
             if (!isAppFrame) {
                 return std::nullopt;
             }
 
-            if (isDisplayed) {
-                auto inputTime = chain.lastReceivedNotDisplayedAllInputTime != 0 ?
-                    chain.lastReceivedNotDisplayedAllInputTime :
-                    present.inputTime;
-                if (inputTime != 0) {
-                    return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
+            uint64_t inputTime = 0;
+
+            // Case 1: This frame *has* a click.
+            if (present.inputTime != 0) {
+                inputTime = present.inputTime;
+
+                if (!isDisplayed) {
+                    // Not displayed: stash the click for a future displayed frame.
+                    stateDeltas.lastReceivedNotDisplayedAllInputTime = inputTime;
+                    return std::nullopt;
                 }
-                // Reset all last received device time
-                chain.lastReceivedNotDisplayedMouseClickTime = 0;
+            }
+            // Case 2: No click on this frame, but frame is displayed: see if we can
+            // reuse a pending click from a previously dropped frame.
+            else if (isDisplayed && chain.lastReceivedNotDisplayedAllInputTime != 0) {
+                inputTime = chain.lastReceivedNotDisplayedAllInputTime;
+                stateDeltas.shouldResetInputTimes = true;
+            }
+
+            // If we still have no inputTime, nothing to compute.
+            if (inputTime == 0) {
                 return std::nullopt;
             }
-            else {
-                // Update last received device time
-                if (present.inputTime != 0) {
-                    chain.lastReceivedNotDisplayedMouseClickTime = present.inputTime;
-                }
-                return std::nullopt;
-            }
+
+            return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
         }
 
         std::optional<double> ComputeInstrumentedInputToPhotonLatency(
             const QpcConverter& qpc,
-            SwapChainCoreState& chain,
+            const SwapChainCoreState& chain,
             const FrameData& present,
             bool isDisplayed,
             bool isAppFrame,
-            uint64_t screenTime)
+            uint64_t screenTime,
+            ComputedMetrics::StateDeltas& stateDeltas)
         {
+            // Only app frames participate in click-to-photon.
             if (!isAppFrame) {
                 return std::nullopt;
             }
 
-            if (isDisplayed) {
-                auto inputTime = chain.lastReceivedNotDisplayedAppProviderInputTime != 0 ?
-                    chain.lastReceivedNotDisplayedAppProviderInputTime :
-                    present.appInputSample.first;
-                if (inputTime != 0) {
-                    return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
+            uint64_t inputTime = 0;
+
+            // Case 1: This frame *has* a click.
+            if (present.appInputSample.first != 0) {
+                inputTime = present.appInputSample.first;
+
+                if (!isDisplayed) {
+                    // Not displayed: stash the click for a future displayed frame.
+                    stateDeltas.lastReceivedNotDisplayedAppProviderInputTime = inputTime;
+                    return std::nullopt;
                 }
-                // Reset all last received device time
-                chain.lastReceivedNotDisplayedMouseClickTime = 0;
+            }
+            // Case 2: No click on this frame, but frame is displayed: see if we can
+            // reuse a pending click from a previously dropped frame.
+            else if (isDisplayed && chain.lastReceivedNotDisplayedAppProviderInputTime != 0) {
+                inputTime = chain.lastReceivedNotDisplayedAppProviderInputTime;
+                stateDeltas.shouldResetInputTimes = true;
+            }
+
+            // If we still have no inputTime, nothing to compute.
+            if (inputTime == 0) {
                 return std::nullopt;
             }
-            else {
-                // Update last received device time
-                if (present.appInputSample.first != 0) {
-                    chain.lastReceivedNotDisplayedAppProviderInputTime = present.appInputSample.first;
-                }
-                return std::nullopt;
+
+            return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
+        }
+
+        void ApplyStateDeltas(
+            SwapChainCoreState& chainState,
+            const ComputedMetrics::StateDeltas& d)
+        {
+            // If we consumed pending input from a dropped frame, clear all
+            // "not displayed" input caches.
+            if (d.shouldResetInputTimes)
+            {
+                chainState.lastReceivedNotDisplayedAllInputTime = 0;
+                chainState.lastReceivedNotDisplayedMouseClickTime = 0;
+                chainState.lastReceivedNotDisplayedAppProviderInputTime = 0;
+                chainState.lastReceivedNotDisplayedPclSimStart = 0;
+                chainState.lastReceivedNotDisplayedPclInputTime = 0;
             }
+
+            // Dropped-frame input for all-input latency
+            if (d.lastReceivedNotDisplayedAllInputTime)
+            {
+                chainState.lastReceivedNotDisplayedAllInputTime =
+                    *d.lastReceivedNotDisplayedAllInputTime;
+            }
+
+            // Dropped-frame mouse click
+            if (d.lastReceivedNotDisplayedMouseClickTime)
+            {
+                chainState.lastReceivedNotDisplayedMouseClickTime =
+                    *d.lastReceivedNotDisplayedMouseClickTime;
+            }
+
+            // Dropped-frame app-provider input
+            if (d.lastReceivedNotDisplayedAppProviderInputTime)
+            {
+                chainState.lastReceivedNotDisplayedAppProviderInputTime =
+                    *d.lastReceivedNotDisplayedAppProviderInputTime;
+            }
+
+            // Dropped-frame PC Latency sim start/input
+            if (d.newLastReceivedPclSimStart)
+            {
+                chainState.lastReceivedNotDisplayedPclSimStart =
+                    *d.newLastReceivedPclSimStart;
+            }
+
+            if (d.newLastReceivedPclInputTime)
+            {
+                chainState.lastReceivedNotDisplayedPclInputTime =
+                    *d.newLastReceivedPclInputTime;
+            }
+
+            // Accumulated PC latency input→frame-start time
+            if (d.newAccumulatedInput2FrameStart)
+            {
+                chainState.accumulatedInput2FrameStartTime =
+                    *d.newAccumulatedInput2FrameStart;
+            }
+
+            // NOTE: d.newEmaInput2FrameStart is currently unused because
+            // SwapChainCoreState does not yet expose an EMA field. Once you
+            // add that, just wire it up here the same way.
         }
     }
 
@@ -490,10 +579,11 @@ namespace pmon::util::metrics
                 isDisplayed,
                 isAppFrame,
                 chainState);
+
+            ApplyStateDeltas(chainState, metrics.stateDeltas);
+
             results.push_back(std::move(metrics));
             
-            // TODO - Check and remove this comment ->
-            // Matches old ReportMetricsHelper: UpdateChain is called for not-displayed frames.
             chainState.UpdateAfterPresent(present);
 
             return results;
@@ -533,6 +623,9 @@ namespace pmon::util::metrics
                 isDisplayed,
                 isAppFrame,
                 chainState);
+
+            ApplyStateDeltas(chainState, metrics.stateDeltas);
+
             results.push_back(std::move(metrics));
         }
 
@@ -706,11 +799,12 @@ namespace pmon::util::metrics
 
     void CalculateInputLatencyMetrics(
         const QpcConverter& qpc,
-        SwapChainCoreState& swapChain,
+        const SwapChainCoreState& swapChain,
         const FrameData& present,
         bool isDisplayed,
         bool isAppFrame,
-        FrameMetrics& metrics)
+        FrameMetrics& metrics,
+        ComputedMetrics::StateDeltas& stateDeltas)
     {
         metrics.msClickToPhotonLatency = ComputeClickToPhotonLatency(
             qpc,
@@ -718,7 +812,8 @@ namespace pmon::util::metrics
             present,
             isDisplayed,
             isAppFrame,
-            metrics.screenTimeQpc);
+            metrics.screenTimeQpc,
+            stateDeltas);
 
         metrics.msAllInputPhotonLatency = ComputeAllInputToPhotonLatency(
             qpc,
@@ -726,7 +821,8 @@ namespace pmon::util::metrics
             present, 
             isDisplayed, 
             isAppFrame, 
-            metrics.screenTimeQpc);
+            metrics.screenTimeQpc,
+            stateDeltas);
 
         metrics.msInstrumentedInputTime = ComputeInstrumentedInputToPhotonLatency(
             qpc,
@@ -734,7 +830,8 @@ namespace pmon::util::metrics
             present,
             isDisplayed,
             isAppFrame,
-            metrics.screenTimeQpc);
+            metrics.screenTimeQpc,
+            stateDeltas);
     }
 
     ComputedMetrics ComputeFrameMetrics(
@@ -780,6 +877,15 @@ namespace pmon::util::metrics
             isAppFrame,
             screenTime,
             metrics);
+
+        CalculateInputLatencyMetrics(
+            qpc,
+            chain,
+            present,
+            isDisplayed,
+            isAppFrame,
+            metrics,
+            result.stateDeltas);
 
         metrics.cpuStartQpc = CalculateCPUStart(chain, present);
 
