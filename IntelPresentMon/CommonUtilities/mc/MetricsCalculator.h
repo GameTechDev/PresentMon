@@ -16,7 +16,7 @@ namespace pmon::util::metrics
 
         // State changes to apply to SwapChain
         struct StateDeltas {
-            std::optional<double> newEmaInput2FrameStart;
+            std::optional<double> newInput2FrameStartEma;
             std::optional<double> newAccumulatedInput2FrameStart;
             std::optional<uint64_t> newLastReceivedPclSimStart;
             std::optional<uint64_t> newLastReceivedPclInputTime;

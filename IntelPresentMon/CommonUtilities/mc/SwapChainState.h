@@ -65,6 +65,9 @@ struct SwapChainCoreState {
     // Accumulated PC latency input to frame start time due to dropped Present() calls
     double accumulatedInput2FrameStartTime = 0.0;
 
+    // Input to Frame Start EMA
+    double Input2FrameStartTimeEma = 0.0;
+
     // NVIDIA Specific Tracking
     uint64_t lastDisplayedFlipDelay = 0;
 

@@ -4,6 +4,7 @@
 
 #include "../PresentData/PresentMonTraceConsumer.hpp"
 #include "../IntelPresentMon/PresentMonUtils/StreamFormat.h"
+#include "../Math.h"
 
 namespace pmon::util::metrics
 {
@@ -493,9 +494,12 @@ namespace pmon::util::metrics
                     *d.newAccumulatedInput2FrameStart;
             }
 
-            // NOTE: d.newEmaInput2FrameStart is currently unused because
-            // SwapChainCoreState does not yet expose an EMA field. Once you
-            // add that, just wire it up here the same way.
+            // Running EMA of PC latency input to frame-start time
+            if (d.newInput2FrameStartEma)
+            {
+                chainState.Input2FrameStartTimeEma =
+                    *d.newInput2FrameStartEma;
+            }
         }
     }
 
@@ -834,6 +838,83 @@ namespace pmon::util::metrics
             stateDeltas);
     }
 
+    std::optional<double> CalculatePcLatency(
+        const QpcConverter& qpc,
+        const SwapChainCoreState& chain,
+        const FrameData& present,
+        bool isDisplayed,
+        uint64_t screenTime,
+        ComputedMetrics::StateDeltas& stateDeltas)
+    {
+        if (!isDisplayed) {
+            if (present.pclSimStartTime != 0) {
+                if (present.pclInputPingTime != 0) {
+                    // This frame was dropped but we have valid pc latency input and simulation start
+                    // times. Calculate the initial input to sim start time
+                    stateDeltas.newAccumulatedInput2FrameStart = qpc.DeltaUnsignedMilliSeconds(
+                        present.pclInputPingTime,
+                        present.pclSimStartTime);
+                }
+                else if (chain.accumulatedInput2FrameStartTime != 0.f) {
+                    // This frame was also dropped and there is no pc latency input time. However, since we have
+                    // accumulated time this means we have a pending input that has had multiple dropped frames
+                    // and has not yet hit the screen. Calculate the time between the last not displayed sim start and
+                    // this sim start and add it to our accumulated total
+                    stateDeltas.newAccumulatedInput2FrameStart = chain.accumulatedInput2FrameStartTime +
+                        qpc.DeltaUnsignedMilliSeconds(
+                            chain.lastReceivedNotDisplayedPclSimStart,
+                            present.pclSimStartTime);
+                }
+                stateDeltas.newLastReceivedPclSimStart = present.pclSimStartTime;
+            }
+            return std::nullopt;
+        }
+
+        // Check to see if we have a valid PC Latency sim start time
+        if (present.pclSimStartTime != 0) {
+            if (present.pclInputPingTime != 0) {
+                // Both the pclSimStartTime and pclInputPingTime are valid, use them to update
+                // the Input to Frame Start EMA. Store in state deltas for later application.
+
+                stateDeltas.newInput2FrameStartEma = pmon::util::CalculateEma(
+                    chain.accumulatedInput2FrameStartTime,
+                    qpc.DeltaUnsignedMilliSeconds(present.pclInputPingTime, present.pclSimStartTime),
+                    0.1);
+
+                // Defensively clear the tracking variables for when we have a dropped frame with a pc latency input
+                stateDeltas.newAccumulatedInput2FrameStart = 0.0;
+                stateDeltas.newLastReceivedPclSimStart = 0;
+            }
+            else {
+                // This frame was displayed but we don't have a pc latency input time. However, there is accumulated time
+                // so there is a pending input that will now hit the screen. Add in the time from the last not
+                // displayed pc simulation start to this frame's pc simulation start.
+                stateDeltas.newAccumulatedInput2FrameStart = chain.accumulatedInput2FrameStartTime +
+                    qpc.DeltaUnsignedMilliSeconds(
+                        chain.lastReceivedNotDisplayedPclSimStart,
+                        present.pclSimStartTime);
+
+                stateDeltas.newInput2FrameStartEma = pmon::util::CalculateEma(
+                    chain.Input2FrameStartTimeEma,
+                    *stateDeltas.newAccumulatedInput2FrameStart,
+                    0.1);
+
+                // Reset the tracking variables for when we have a dropped frame with a pc latency input
+                stateDeltas.newAccumulatedInput2FrameStart = 0.0;
+                stateDeltas.newLastReceivedPclSimStart = 0;
+            }
+        }
+
+        auto simStartTime = present.pclSimStartTime != 0 ? present.pclSimStartTime : chain.lastSimStartTime;
+
+        if (stateDeltas.newInput2FrameStartEma.has_value() && stateDeltas.newInput2FrameStartEma.value() != 0.0 && simStartTime != 0) {
+            return stateDeltas.newInput2FrameStartEma.value() + qpc.DeltaSignedMilliSeconds(simStartTime, screenTime);
+        }
+        else {
+            return std::nullopt;
+        }
+    }
+
     ComputedMetrics ComputeFrameMetrics(
         const QpcConverter& qpc,
         const FrameData& present,
@@ -885,6 +966,14 @@ namespace pmon::util::metrics
             isDisplayed,
             isAppFrame,
             metrics,
+            result.stateDeltas);
+
+        metrics.msPcLatency = CalculatePcLatency(
+            qpc,
+            chain,
+            present,
+            isDisplayed,
+            screenTime,
             result.stateDeltas);
 
         metrics.cpuStartQpc = CalculateCPUStart(chain, present);
