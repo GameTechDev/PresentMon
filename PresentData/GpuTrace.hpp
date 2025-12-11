@@ -75,6 +75,7 @@ class GpuTrace {
 
 public:
     explicit GpuTrace(PMTraceConsumer* pmConsumer);
+    ~GpuTrace();
 
     void RegisterDevice(uint64_t hDevice, uint64_t pDxgAdapter);
     void UnregisterDevice(uint64_t hDevice);
