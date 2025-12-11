@@ -6867,4 +6867,241 @@ namespace MetricsCoreTests
                 L"msInstrumentedInputTime should be P2 app input time to P2 screen time");
         }
     };
+    TEST_CLASS(PcLatencyTests)
+    {
+    public:
+
+        TEST_METHOD(PcLatency_PendingSequence_DroppedDroppedDisplayed_P0P1P2P3)
+        {
+            // This test mimics the real ReportMetrics pipeline for a single swapchain,
+            // focusing on the PC Latency accumulation across *dropped* frames, and its
+            // completion when the corresponding frame finally reaches the screen.
+            //
+            // We use four presents:
+            //
+            //  P0: DROPPED
+            //      - PclInputPingTime = 10'000
+            //      - PclSimStartTime  = 20'000
+            //      -> initializes accumulatedInput2FrameStartTime with Δ(PING0, SIM0).
+            //
+            //  P1: DROPPED
+            //      - PclInputPingTime = 0
+            //      - PclSimStartTime  = 30'000
+            //      -> extends accumulatedInput2FrameStartTime with Δ(SIM0, SIM1).
+            //
+            //  P2: DISPLAYED
+            //      - PclInputPingTime = 0
+            //      - PclSimStartTime  = 40'000
+            //      - ScreenTime       = 50'000
+            //
+            //  P3: DISPLAYED
+            //      - no PCL data; used only as "nextDisplayed" for P2 to mimic ReportMetrics.
+            //
+            // QPC frequency = 10 MHz.
+            //
+            // Timing (ticks):
+            //   PING0 = 10'000
+            //   SIM0  = 20'000
+            //   SIM1  = 30'000
+            //   SIM2  = 40'000
+            //   SCR2  = 50'000
+            //
+            //   Δ(PING0, SIM0) = 10'000 ticks = 1.0 ms
+            //   Δ(SIM0,  SIM1) = 10'000 ticks = 1.0 ms
+            //   Δ(SIM1,  SIM2) = 10'000 ticks = 1.0 ms
+            //   => full input→frame-start for this chain = 3.0 ms
+            //
+            //   Δ(SIM2,  SCR2) = 10'000 ticks = 1.0 ms
+            //
+            //   Legacy behavior:
+            //     - AccumulatedInput2FrameStartTime builds to 3.0 ms over P0/P1/P2.
+            //     - EMA seeds from that full 3.0 ms sample when P2 finally completes.
+            //     - PC Latency for P2 ≈ 3.0 ms (input→frame-start) + 1.0 ms (sim→screen).
+            //
+            // The pipeline calls we mimic:
+            //
+            //  P0 arrives (dropped):
+            //    - ComputeMetricsForPresent(P0, nullptr, state)   // Case 1, not displayed
+            //
+            //  P1 arrives (dropped):
+            //    - ComputeMetricsForPresent(P1, nullptr, state)   // Case 1, not displayed
+            //
+            //  P2 arrives (displayed):
+            //    - ComputeMetricsForPresent(P2, nullptr, state)   // Case 2, pending only (no metrics yet)
+            //
+            //  P3 arrives (displayed):
+            //    - ComputeMetricsForPresent(P2, &P3, state)       // Case 3, finalize P2
+            //    - ComputeMetricsForPresent(P3, nullptr, state)   // Case 2, pending = P3
+            //
+            // We verify:
+            //  - P0 & P1 produce no msPcLatency (dropped frames).
+            //  - accumulatedInput2FrameStartTime grows after P0 and P1.
+            //  - P2's first call (next=nullptr) produces no metrics and does NOT
+            //    disturb the accumulatedInput2FrameStartTime.
+            //  - The final P2 call (with next=P3) produces a non-null msPcLatency,
+            //    and resets accumulatedInput2FrameStartTime and lastReceivedNotDisplayedPclSimStart
+            //    to 0, matching the legacy PCL behavior.
+            //
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            const uint32_t PROCESS_ID = 1234;
+            const uint64_t SWAPCHAIN = 0xABC0;
+
+            // --------------------------------------------------------------------
+            // P0: DROPPED, first PCL frame with Ping+Sim
+            // --------------------------------------------------------------------
+            FrameData p0{};
+            p0.processId = PROCESS_ID;
+            p0.swapChainAddress = SWAPCHAIN;
+            p0.presentStartTime = 0;
+            p0.timeInPresent = 0;
+            p0.readyTime = 0;
+            p0.appSimStartTime = 0;
+
+            p0.pclInputPingTime = 10'000;  // PING0
+            p0.pclSimStartTime = 20'000;  // SIM0
+
+            p0.setFinalState(PresentResult::Discarded);
+            p0.displayed.clear();          // not displayed
+
+            // P0 arrival -> Case 1 (not displayed), process immediately.
+            auto p0_metrics_list = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_metrics_list.size(),
+                L"P0: not-displayed present should produce a single metrics record.");
+
+            const auto& p0_metrics = p0_metrics_list[0].metrics;
+
+            // Dropped frames never report PC latency directly.
+            Assert::IsFalse(p0_metrics.msPcLatency.has_value(),
+                L"P0: dropped frame should not report msPcLatency.");
+
+            // Accumulator should have been initialized from Ping0 -> Sim0.
+            Assert::IsTrue(state.accumulatedInput2FrameStartTime > 0.0,
+                L"P0: accumulatedInput2FrameStartTime should be initialized and > 0.");
+            Assert::AreEqual(uint64_t(20'000), state.lastReceivedNotDisplayedPclSimStart,
+                L"P0: lastReceivedNotDisplayedPclSimStart should match P0's pclSimStartTime (20'000).");
+
+            const double accumAfterP0 = state.accumulatedInput2FrameStartTime;
+
+            // --------------------------------------------------------------------
+            // P1: DROPPED, continuation of same PCL chain (Sim only)
+            // --------------------------------------------------------------------
+            FrameData p1{};
+            p1.processId = PROCESS_ID;
+            p1.swapChainAddress = SWAPCHAIN;
+            p1.presentStartTime = 0;
+            p1.timeInPresent = 0;
+            p1.readyTime = 0;
+            p1.appSimStartTime = 0;
+
+            p1.pclInputPingTime = 0;       // no new ping
+            p1.pclSimStartTime = 30'000;  // SIM1
+
+            p1.setFinalState(PresentResult::Discarded);
+            p1.displayed.clear();          // not displayed
+
+            auto p1_metrics_list = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(1), p1_metrics_list.size(),
+                L"P1: not-displayed present should produce a single metrics record.");
+
+            const auto& p1_metrics = p1_metrics_list[0].metrics;
+
+            Assert::IsFalse(p1_metrics.msPcLatency.has_value(),
+                L"P1: dropped frame should not report msPcLatency.");
+
+            // Accumulator should have grown: now includes SIM0->SIM1 as well.
+            Assert::IsTrue(state.accumulatedInput2FrameStartTime > accumAfterP0,
+                L"P1: accumulatedInput2FrameStartTime should be greater than after P0.");
+            Assert::AreEqual(uint64_t(30'000), state.lastReceivedNotDisplayedPclSimStart,
+                L"P1: lastReceivedNotDisplayedPclSimStart should match P1's pclSimStartTime (30'000).");
+
+            const double accumAfterP1 = state.accumulatedInput2FrameStartTime;
+
+            // --------------------------------------------------------------------
+            // P2: DISPLAYED, Sim only – this is the frame where the pending input
+            // will finally be visible on-screen. However, the metrics for P2 are
+            // only finalized when we know P3 (nextDisplayed), just like in the
+            // ReportMetrics pipeline.
+            // --------------------------------------------------------------------
+            FrameData p2{};
+            p2.processId = PROCESS_ID;
+            p2.swapChainAddress = SWAPCHAIN;
+            p2.presentStartTime = 0;
+            p2.timeInPresent = 0;
+            p2.readyTime = 0;
+            p2.appSimStartTime = 0;
+
+            p2.pclInputPingTime = 0;        // no new ping
+            p2.pclSimStartTime = 40'000;   // SIM2
+
+            p2.setFinalState(PresentResult::Presented);
+            p2.displayed.clear();
+            p2.displayed.push_back({ FrameType::Application, 50'000 });  // SCR2
+
+            // P2 arrival: Case 2 (displayed, no nextDisplayed), becomes pending.
+            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(0), p2_phase1.size(),
+                L"P2 (phase 1): first call with nextDisplayed=nullptr should produce no metrics (pending only).");
+
+            // The pending call MUST NOT disturb the accumulated PCL chain.
+            Assert::AreEqual(accumAfterP1, state.accumulatedInput2FrameStartTime, 1e-9,
+                L"P2 (phase 1): accumulatedInput2FrameStartTime should remain unchanged while pending.");
+            Assert::AreEqual(uint64_t(30'000), state.lastReceivedNotDisplayedPclSimStart,
+                L"P2 (phase 1): lastReceivedNotDisplayedPclSimStart should remain at P1's sim start (30'000).");
+
+            // --------------------------------------------------------------------
+            // P3: DISPLAYED, used only as nextDisplayed when finalizing P2.
+            // --------------------------------------------------------------------
+            FrameData p3{};
+            p3.processId = PROCESS_ID;
+            p3.swapChainAddress = SWAPCHAIN;
+            p3.presentStartTime = 0;
+            p3.timeInPresent = 0;
+            p3.readyTime = 0;
+            p3.appSimStartTime = 0;
+
+            p3.pclInputPingTime = 0;
+            p3.pclSimStartTime = 0; // no PCL for P3 itself
+
+            p3.setFinalState(PresentResult::Presented);
+            p3.displayed.clear();
+            p3.displayed.push_back({ FrameType::Application, 60'000 }); // some later screen time
+
+            // P3 arrival:
+            //  1) Flush pending P2 using P3 as nextDisplayed -> Case 3, finalize P2.
+            auto p2_final = ComputeMetricsForPresent(qpc, p2, &p3, state);
+            Assert::AreEqual(size_t(1), p2_final.size(),
+                L"P2 (final): expected exactly one metrics record when flushing with nextDisplayed=P3.");
+            const auto& p2_metrics = p2_final[0].metrics;
+
+            //  2) Now process P3's arrival as pending -> Case 2 with next=nullptr.
+            auto p3_phase1 = ComputeMetricsForPresent(qpc, p3, nullptr, state);
+            Assert::AreEqual(size_t(0), p3_phase1.size(),
+                L"P3 (phase 1): first call with nextDisplayed=nullptr should produce no metrics (pending only).");
+
+            // --------------------------------------------------------------------
+            // Assertions for the P2 finalization (this is where PC Latency must appear).
+            // --------------------------------------------------------------------
+
+            // Precondition: we had a non-zero accumulated input→frame-start before finalizing P2.
+            Assert::IsTrue(accumAfterP1 > 0.0,
+                L"Precondition: expected non-zero accumulatedInput2FrameStartTime before P2 finalization.");
+
+            // 1) PC Latency should be populated and positive for P2 when it finally
+            //    reaches the screen after the dropped chain.
+            Assert::IsTrue(p2_metrics.msPcLatency.has_value(),
+                L"P2 (final): msPcLatency should be populated for the displayed frame completing the dropped PCL chain.");
+            Assert::IsTrue(p2_metrics.msPcLatency.value() > 0.0,
+                L"P2 (final): msPcLatency should be positive.");
+
+            // 2) After completion, the accumulated input→frame-start time and the
+            //    last-not-displayed PCL sim start should be reset to zero, matching
+            //    the legacy PCL behavior.
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 1e-9,
+                L"P2 (final): accumulatedInput2FrameStartTime should be reset to 0 after completion.");
+            Assert::AreEqual(uint64_t{ 0 }, state.lastReceivedNotDisplayedPclSimStart,
+                L"P2 (final): lastReceivedNotDisplayedPclSimStart should be reset to 0 after completion.");
+        }
+    };
 }
