@@ -13,8 +13,8 @@ namespace pmon::svc::acts
                 etw.CancelLogSession(id);
             }
         }
-        for (auto& tracked : stx.trackedPids) {
-            pPmon->StopStreaming(stx.remotePid, tracked);
+        for (auto&&[pid, pSeg] : stx.trackedPids) {
+            pPmon->StopStreaming(stx.remotePid, pid);
         }
         stx.requestedTelemetryPeriodMs.reset();
         UpdateTelemetryPeriod();

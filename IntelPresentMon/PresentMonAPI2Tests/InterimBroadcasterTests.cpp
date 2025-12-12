@@ -470,4 +470,54 @@ namespace InterimBroadcasterTests
             }
         }
     };
+
+    TEST_CLASS(FrameStoreTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup();
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        // static store
+        TEST_METHOD(StaticData)
+        {
+            Assert::IsTrue(false);
+        }
+        TEST_METHOD(TrackUntrack)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            // launch target and track it
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            // verify the store exists
+            pComms->OpenFrameDataStore(pres.GetId());
+
+            // verify the service tracking, as expected
+            {
+                const auto sta = fixture_.service->QueryStatus();
+                Assert::AreEqual(1ull, sta.trackedPids.size());
+                Assert::IsTrue(sta.trackedPids.contains(pres.GetId()));
+            }
+
+            // stop tracking
+            client.DispatchSync(svc::acts::StopTracking::Params{ .targetPid = pres.GetId() });
+
+            // close the segment
+            pComms->CloseFrameDataStore(pres.GetId());
+
+            // verify the service not tracking, as expected
+            Assert::AreEqual(0ull, fixture_.service->QueryStatus().trackedPids.size());
+
+            // verify segment can no longer be opened
+            Assert::ExpectException<std::exception>([&] {pComms->OpenFrameDataStore(pres.GetId()); });
+        }
+    };
 }

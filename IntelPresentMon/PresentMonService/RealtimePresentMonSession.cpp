@@ -13,8 +13,9 @@ using namespace pmon;
 using namespace std::literals;
 using v = util::log::V;
 
-RealtimePresentMonSession::RealtimePresentMonSession()
+RealtimePresentMonSession::RealtimePresentMonSession(svc::FrameBroadcaster& broadcaster)
 {
+    pBroadcaster = &broadcaster;
     ResetEtwFlushPeriod();
 }
 

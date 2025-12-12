@@ -3,6 +3,7 @@
 #pragma once
 #include "PresentMonSession.h"
 #include "EtwLogger.h"
+#include "FrameBroadcaster.h"
 #include <memory>
 #include <span>
 
@@ -11,7 +12,7 @@ using namespace pmon;
 class PresentMon
 {
 public:
-	PresentMon(bool isRealtime);
+	PresentMon(svc::FrameBroadcaster& broadcaster, bool isRealtime);
 	~PresentMon();
 
 	// Check the status of both ETW logfile and real time trace sessions.
@@ -81,9 +82,14 @@ public:
 	{
 		return etwLogger_;
 	}
+	auto& GetBroadcaster()
+	{
+		return broadcaster_;
+	}
 	void StartPlayback();
 	void StopPlayback();
 private:
+	svc::FrameBroadcaster& broadcaster_;
 	svc::EtwLogger etwLogger_;
 	std::unique_ptr<PresentMonSession> pSession_;
 };

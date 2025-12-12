@@ -5,6 +5,7 @@
 #include "ActionServer.h"
 #include "PresentMon.h"
 #include "PowerTelemetryContainer.h"
+#include "FrameBroadcaster.h"
 #include "..\ControlLib\WmiCpu.h"
 #include "..\PresentMonUtils\StringUtils.h"
 #include <filesystem>
@@ -496,10 +497,6 @@ void PresentMonMainThread(Service* const pSvc)
             }
         }
 
-        PresentMon pm{ !opt.etlTestFile };
-        PowerTelemetryContainer ptc;
-
-        // namer that coordinates naming convention of shared memory segments
         // create service-side comms object for transmitting introspection data to clients
         std::unique_ptr<ipc::ServiceComms> pComms;
         try {
@@ -513,14 +510,19 @@ void PresentMonMainThread(Service* const pSvc)
             pSvc->SignalServiceStop(-1);
             return;
         }
+        // create comms wrapper for managing frame data segments
+        FrameBroadcaster frameBroadcaster{ *pComms };
+
+        // container for session object
+        PresentMon pm{ frameBroadcaster, !opt.etlTestFile };
+        // container for all GPU telemetry providers
+        PowerTelemetryContainer ptc;
 
         // Set the created power telemetry container 
         pm.SetPowerTelemetryContainer(&ptc);
 
         // Start named pipe action RPC server (active threaded)
-        auto pActionServer = std::make_unique<ActionServer>(pSvc, &pm,
-            pComms->GetNamer().GetPrefix(), pComms->GetNamer().GetSalt(), 
-            opt.controlPipe.AsOptional());
+        auto pActionServer = std::make_unique<ActionServer>(pSvc, &pm, opt.controlPipe.AsOptional());
 
         try {
             gpuTelemetryThread = std::jthread{ PowerTelemetryThreadEntry_, pSvc, &pm, &ptc, pComms.get() };

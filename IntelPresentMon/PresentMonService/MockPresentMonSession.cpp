@@ -9,8 +9,9 @@ static const std::wstring kMockEtwSessionName = L"MockETWSession";
 
 using namespace std::literals;
 
-MockPresentMonSession::MockPresentMonSession()
+MockPresentMonSession::MockPresentMonSession(svc::FrameBroadcaster& broadcaster)
 {
+    pBroadcaster = &broadcaster;
     ResetEtwFlushPeriod();
 }
 

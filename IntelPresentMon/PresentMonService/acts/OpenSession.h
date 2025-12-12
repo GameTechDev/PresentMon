@@ -51,8 +51,8 @@ namespace pmon::svc::acts
 				.servicePid = GetCurrentProcessId(),
 				.serviceBuildId = bid::BuildIdShortHash(),
 				.serviceBuildConfig = bid::BuildIdConfig(),
-				.shmPrefix = ctx.shmPrefix,
-				.shmSalt = ctx.shmSalt,
+				.shmPrefix = ctx.pPmon->GetBroadcaster().GetNamer().GetPrefix(),
+				.shmSalt = ctx.pPmon->GetBroadcaster().GetNamer().GetSalt(),
 			};
 		}
 	};

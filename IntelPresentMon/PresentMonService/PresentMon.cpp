@@ -12,15 +12,16 @@
 #include <span>
 #include "../CommonUtilities/win/Privileges.h"
 
-PresentMon::PresentMon(bool isRealtime)
+PresentMon::PresentMon(svc::FrameBroadcaster& broadcaster, bool isRealtime)
 	:
+	broadcaster_{ broadcaster },
 	etwLogger_{ util::win::WeAreElevated() }
 {
 	if (isRealtime) {
-		pSession_ = std::make_unique<RealtimePresentMonSession>();
+		pSession_ = std::make_unique<RealtimePresentMonSession>(broadcaster);
 	}
 	else {
-		pSession_ = std::make_unique<MockPresentMonSession>();
+		pSession_ = std::make_unique<MockPresentMonSession>(broadcaster);
 	}
 }
 

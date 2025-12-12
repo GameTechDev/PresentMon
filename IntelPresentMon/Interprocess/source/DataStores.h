@@ -19,7 +19,7 @@ namespace pmon::ipc
         static constexpr size_t virtualSegmentSize = 50'000'000;
         FrameDataStore(ShmSegmentManager& segMan, size_t cap)
             :
-            frameData{ cap, segMan.get_allocator<PmFrameData>() },
+            frameData{ cap, segMan.get_allocator<FrameData>() },
             statics{ .applicationName{ segMan.get_allocator<char>() } }
         {}
 		struct Statics
@@ -27,7 +27,7 @@ namespace pmon::ipc
 			uint32_t processId;
 			ShmString applicationName;
 		} statics;
-		ShmRing<PmFrameData> frameData;
+		ShmRing<FrameData> frameData;
 	};
 
     struct GpuDataStore

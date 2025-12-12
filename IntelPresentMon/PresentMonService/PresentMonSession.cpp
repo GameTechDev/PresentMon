@@ -6,6 +6,7 @@ pmon::test::service::Status PresentMonSession::GetTestingStatus() const
 {
     return pmon::test::service::Status{
         .nsmStreamedPids = streamer_.GetActiveStreamPids(),
+        .trackedPids = { std::from_range, pBroadcaster->GetPids() },
         .activeAdapterId = current_telemetry_adapter_id_,
         .telemetryPeriodMs = gpu_telemetry_period_ms_,
         .etwFlushPeriodMs = etw_flush_period_ms_,

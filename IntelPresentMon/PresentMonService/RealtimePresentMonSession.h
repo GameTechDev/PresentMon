@@ -8,7 +8,7 @@ class RealtimePresentMonSession : public PresentMonSession
 {
 public:
     // functions
-    RealtimePresentMonSession();
+    RealtimePresentMonSession(svc::FrameBroadcaster& broadcaster);
     RealtimePresentMonSession(const RealtimePresentMonSession& t) = delete;
     RealtimePresentMonSession& operator=(const RealtimePresentMonSession& t) = delete;
     ~RealtimePresentMonSession() override = default;

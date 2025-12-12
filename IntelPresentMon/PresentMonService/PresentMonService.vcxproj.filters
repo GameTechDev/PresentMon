@@ -49,6 +49,7 @@
     <ClInclude Include="EtwLogSession.h" />
     <ClInclude Include="acts\StartEtlLogging.h" />
     <ClInclude Include="acts\FinishEtlLogging.h" />
+    <ClInclude Include="FrameBroadcaster.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PresentMonService.rc" />

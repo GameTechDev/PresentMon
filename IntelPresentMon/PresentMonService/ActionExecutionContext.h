@@ -10,6 +10,7 @@
 #include <chrono>
 #include "PresentMon.h"
 #include "Service.h"
+#include "FrameBroadcaster.h"
 
 
 namespace pmon::svc::acts
@@ -23,7 +24,7 @@ namespace pmon::svc::acts
         uint32_t remotePid = 0;
         uint32_t nextCommandToken = 0;
         // custom items
-        std::set<uint32_t> trackedPids;
+        std::map<uint32_t, std::shared_ptr<FrameBroadcaster::Segment>> trackedPids;
         std::set<uint32_t> etwLogSessionIds;
         std::optional<uint32_t> requestedAdapterId;
         std::optional<uint32_t> requestedTelemetryPeriodMs;
@@ -40,8 +41,6 @@ namespace pmon::svc::acts
         Service* pSvc = nullptr;
         PresentMon* pPmon = nullptr;
         const std::unordered_map<uint32_t, SessionContextType>* pSessionMap = nullptr;
-        std::string shmPrefix;
-        std::string shmSalt;
         std::optional<uint32_t> responseWriteTimeoutMs;
 
         // functions

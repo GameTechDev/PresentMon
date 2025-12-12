@@ -145,6 +145,7 @@
     <ClInclude Include="CliOptions.h" />
     <ClInclude Include="EtwLogger.h" />
     <ClInclude Include="EtwLogSession.h" />
+    <ClInclude Include="FrameBroadcaster.h" />
     <ClInclude Include="GlobalIdentifiers.h" />
     <ClInclude Include="Logging.h" />
     <ClInclude Include="LogSetup.h" />
