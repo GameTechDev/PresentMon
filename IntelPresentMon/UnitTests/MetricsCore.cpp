@@ -6,6 +6,7 @@
 #include <CommonUtilities/mc/MetricsCalculator.h>
 #include <CommonUtilities/mc/SwapChainState.h>
 #include <IntelPresentMon/PresentMonUtils/StreamFormat.h>
+#include <CommonUtilities/Math.h>
 #include <memory>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -7102,6 +7103,585 @@ namespace MetricsCoreTests
                 L"P2 (final): accumulatedInput2FrameStartTime should be reset to 0 after completion.");
             Assert::AreEqual(uint64_t{ 0 }, state.lastReceivedNotDisplayedPclSimStart,
                 L"P2 (final): lastReceivedNotDisplayedPclSimStart should be reset to 0 after completion.");
+        }
+
+        TEST_METHOD(PcLatency_NoPclData_AllFrames_NoLatency)
+        {
+            // Scenario:
+            //  - P0 is dropped with no PC Latency timestamps.
+            //  - P1 and P2 are displayed app frames but likewise carry no pclSimStartTime/pclInputPingTime.
+            //  - We run the ReportMetrics-style scheduling: dropped frames are processed immediately,
+            //    displayed frames are first queued (Case 2) and then finalized by the arrival of the
+            //    next displayed present (Case 3).
+            // QPC plan (ticks at 10 MHz):
+            //  - Screen times: SCR1 = 100'000, SCR2 = 120'000, SCR3 = 140'000.
+            // Expectations:
+            //  - Every metrics record reports msPcLatency.has_value() == false.
+            //  - accumulatedInput2FrameStartTime remains 0.0 throughout the sequence.
+            //  - lastReceivedNotDisplayedPclSimStart never departs from 0 since no PCL timestamps exist.
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            const uint32_t PROCESS_ID = 77;
+            const uint64_t SWAPCHAIN = 0x11AAu;
+
+            // --------------------------------------------------------------------
+            // P0: dropped frame without any PCL data
+            // --------------------------------------------------------------------
+            FrameData p0{};
+            p0.processId = PROCESS_ID;
+            p0.swapChainAddress = SWAPCHAIN;
+            p0.pclInputPingTime = 0;
+            p0.pclSimStartTime = 0;
+            p0.setFinalState(PresentResult::Discarded);
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_results.size(),
+                L"P0 (dropped) should emit one metrics record.");
+            Assert::IsFalse(p0_results[0].metrics.msPcLatency.has_value(),
+                L"P0 should not report msPcLatency without PCL data.");
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"P0 should not modify accumulatedInput2FrameStartTime when there is no PCL data.");
+            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
+                L"P0 should leave lastReceivedNotDisplayedPclSimStart at 0.");
+
+            // --------------------------------------------------------------------
+            // P1: displayed frame without PCL data (pending, then finalized by P2)
+            // --------------------------------------------------------------------
+            FrameData p1{};
+            p1.processId = PROCESS_ID;
+            p1.swapChainAddress = SWAPCHAIN;
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 100'000 });
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(0), p1_phase1.size(),
+                L"P1 pending pass should not emit metrics.");
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"State.accumulatedInput2FrameStartTime must remain 0 after P1 pending pass.");
+            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
+                L"lastReceivedNotDisplayedPclSimStart should remain 0 after P1 pending pass.");
+
+            // --------------------------------------------------------------------
+            // P2: displayed frame without PCL data (finalizes P1, then becomes pending)
+            // --------------------------------------------------------------------
+            FrameData p2{};
+            p2.processId = PROCESS_ID;
+            p2.swapChainAddress = SWAPCHAIN;
+            p2.setFinalState(PresentResult::Presented);
+            p2.displayed.push_back({ FrameType::Application, 120'000 });
+
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
+            Assert::AreEqual(size_t(1), p1_final.size(),
+                L"Finalizing P1 should emit exactly one metrics record.");
+            Assert::IsFalse(p1_final[0].metrics.msPcLatency.has_value(),
+                L"P1 final metrics should not report msPcLatency without PCL data.");
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"Accumulated input-to-frame-start time must remain 0 after finalizing P1.");
+            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
+                L"lastReceivedNotDisplayedPclSimStart should remain 0 after finalizing P1.");
+
+            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(0), p2_phase1.size(),
+                L"P2 pending pass should not emit metrics.");
+
+            // --------------------------------------------------------------------
+            // P3: helper displayed frame to flush P2
+            // --------------------------------------------------------------------
+            FrameData p3{};
+            p3.processId = PROCESS_ID;
+            p3.swapChainAddress = SWAPCHAIN;
+            p3.setFinalState(PresentResult::Presented);
+            p3.displayed.push_back({ FrameType::Application, 140'000 });
+
+            auto p2_final = ComputeMetricsForPresent(qpc, p2, &p3, state);
+            Assert::AreEqual(size_t(1), p2_final.size(),
+                L"Finalizing P2 should emit exactly one metrics record.");
+            Assert::IsFalse(p2_final[0].metrics.msPcLatency.has_value(),
+                L"P2 final metrics should not report msPcLatency without PCL data.");
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"Accumulated input-to-frame-start time must still be 0 after P2.");
+            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
+                L"lastReceivedNotDisplayedPclSimStart should remain 0 through the entire sequence.");
+
+            auto p3_phase1 = ComputeMetricsForPresent(qpc, p3, nullptr, state);
+            Assert::AreEqual(size_t(0), p3_phase1.size(),
+                L"P3 pending pass is only for completeness and should not emit metrics.");
+        }
+
+        TEST_METHOD(PcLatency_SingleDisplayed_DirectSample_FirstEma)
+        {
+            // Scenario:
+            //  - Single displayed frame P0 provides both pclInputPingTime and pclSimStartTime.
+            //  - There is no subsequent present, so we exercise Case 2 (nextDisplayed == nullptr)
+            //    with two display samples on P0 to mirror the ReportMetrics behavior where the
+            //    last display instance is deferred.
+            //  - The first metrics record must report msPcLatency immediately and seed the EMA.
+            // Timing (ticks at 10 MHz):
+            //  - Ping0 = 10'000, Sim0 = 20'000 (Δ = 1.0 ms)
+            //  - Display samples: SCR0 = 50'000, SCR0b = 60'000 (provides nextScreenTime).
+            // Expectations:
+            //  - msPcLatency.has_value() == true and > 0.
+            //  - accumulatedInput2FrameStartTime remains 0 (no dropped chain).
+            //  - Input2FrameStartTimeEma equals CalculateEma(0.0, Δ(PING0,SIM0), 0.1).
+            //  - msPcLatency equals EMA + Δ(SIM0, SCR0), proving pclSimStartTime was used.
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.push_back({ FrameType::Application, 50'000 });
+            p0.displayed.push_back({ FrameType::Application, 60'000 });
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_results.size(),
+                L"P0 should emit metrics immediately when nextDisplayed == nullptr and two display samples exist.");
+
+            const auto& p0_metrics = p0_results[0].metrics;
+            Assert::IsTrue(p0_metrics.msPcLatency.has_value(),
+                L"P0 should report msPcLatency for a direct PCL sample.");
+            Assert::IsTrue(p0_metrics.msPcLatency.value() > 0.0,
+                L"P0 msPcLatency should be positive.");
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"Direct PCL sample should not touch accumulatedInput2FrameStartTime.");
+            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
+                L"No dropped frames occurred, so there should be no pending pclSimStart.");
+
+            double deltaPingSim = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000);
+            double expectedEma = pmon::util::CalculateEma(0.0, deltaPingSim, 0.1);
+            Assert::AreEqual(expectedEma, state.Input2FrameStartTimeEma, 0.0001,
+                L"Input2FrameStartTimeEma should be seeded from the first Δ(PING,SIM).");
+
+            double expectedLatency = expectedEma + qpc.DeltaSignedMilliSeconds(20'000, 50'000);
+            Assert::AreEqual(expectedLatency, p0_metrics.msPcLatency.value(), 0.0001,
+                L"msPcLatency should use pclSimStartTime (not lastSimStartTime) plus the seeded EMA.");
+        }
+
+        TEST_METHOD(PcLatency_TwoDisplayed_DirectSamples_UpdateEma)
+        {
+            // Scenario:
+            //  - Two displayed frames (P0, P1) each provide direct PCL samples (Ping + Sim).
+            //  - We mimic the ReportMetrics scheduling:
+            //      P0 arrives  -> pending only (Case 2).
+            //      P1 arrives  -> finalize P0 with nextDisplayed = P1 (Case 3), then queue P1 (Case 2).
+            //      P2 helper   -> finalize P1 (Case 3) to observe the EMA update.
+            // Expectations:
+            //  - P0 final metrics report msPcLatency and seed the EMA.
+            //  - P1 pending call emits no metrics.
+            //  - After P1 is finalized, Input2FrameStartTimeEma changes (≠ value after P0) and stays > 0.
+            //  - accumulatedInput2FrameStartTime stays 0 because no dropped chain exists.
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            // --------------------------------------------------------------------
+            // P0: first displayed frame with direct PCL sample
+            // --------------------------------------------------------------------
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.push_back({ FrameType::Application, 50'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(0), p0_phase1.size(),
+                L"P0 pending pass should not emit metrics.");
+
+            // --------------------------------------------------------------------
+            // P1: second displayed frame with direct PCL sample
+            // --------------------------------------------------------------------
+            FrameData p1{};
+            p1.pclInputPingTime = 30'000;
+            p1.pclSimStartTime = 40'000;
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 70'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
+            Assert::AreEqual(size_t(1), p0_final.size(),
+                L"Finalizing P0 with nextDisplayed=P1 should emit exactly one metrics record.");
+            Assert::IsTrue(p0_final[0].metrics.msPcLatency.has_value(),
+                L"P0 should report msPcLatency when finalized.");
+            double emaAfterP0 = state.Input2FrameStartTimeEma;
+            Assert::IsTrue(emaAfterP0 > 0.0,
+                L"EMA after P0 should be positive.");
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"Accumulated input-to-frame-start time should remain zero after P0.");
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(0), p1_phase1.size(),
+                L"P1 pending pass should not emit metrics.");
+
+            // --------------------------------------------------------------------
+            // P2: helper displayed frame to flush P1
+            // --------------------------------------------------------------------
+            FrameData p2{};
+            p2.setFinalState(PresentResult::Presented);
+            p2.displayed.push_back({ FrameType::Application, 90'000 });
+
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
+            Assert::AreEqual(size_t(1), p1_final.size(),
+                L"Finalizing P1 should emit exactly one metrics record.");
+            Assert::IsTrue(p1_final[0].metrics.msPcLatency.has_value(),
+                L"P1 should report msPcLatency when finalized.");
+            double emaAfterP1 = state.Input2FrameStartTimeEma;
+            Assert::IsTrue(emaAfterP1 > 0.0,
+                L"EMA after P1 should stay positive.");
+            Assert::IsTrue(emaAfterP1 != emaAfterP0,
+                L"EMA after P1 must differ from the first-sample EMA after P0.");
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"No dropped chain should mean accumulatedInput2FrameStartTime stays at 0.");
+
+            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(0), p2_phase1.size(),
+                L"P2 pending pass is only to mirror the pipeline; it should emit no metrics.");
+        }
+
+        TEST_METHOD(PcLatency_Dropped_DirectPcl_InitializesAccum)
+        {
+            // Scenario:
+            //  - A dropped frame P0 carries both pclInputPingTime and pclSimStartTime.
+            //  - Without any displayed frame to consume it, the PC Latency accumulator should
+            //    be initialized to Δ(PING0, SIM0) while msPcLatency remains absent.
+            // Expectations:
+            //  - P0's metrics do not expose msPcLatency (it was dropped).
+            //  - accumulatedInput2FrameStartTime equals Δ(PING0, SIM0) and > 0.
+            //  - lastReceivedNotDisplayedPclSimStart latches SIM0.
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.setFinalState(PresentResult::Discarded);
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_results.size(),
+                L"Dropped frames should emit one metrics record immediately.");
+            Assert::IsFalse(p0_results[0].metrics.msPcLatency.has_value(),
+                L"Dropped frames must not report msPcLatency.");
+
+            double expectedAccum = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000);
+            Assert::IsTrue(state.accumulatedInput2FrameStartTime > 0.0,
+                L"Accumulated input-to-frame-start time should be initialized.");
+            Assert::AreEqual(expectedAccum, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"Accumulator should equal Δ(PING0, SIM0).");
+            Assert::AreEqual(uint64_t(20'000), state.lastReceivedNotDisplayedPclSimStart,
+                L"lastReceivedNotDisplayedPclSimStart should track P0's pclSimStartTime.");
+        }
+
+        TEST_METHOD(PcLatency_DroppedChain_SimOnly_ExtendsAccum)
+        {
+            // Scenario:
+            //  - P0 (dropped) has both Ping and Sim, seeding the accumulator.
+            //  - P1 (dropped) has only pclSimStartTime and should extend the accumulator by the
+            //    delta between SIM0 and SIM1.
+            // Expectations:
+            //  - P1 still reports no msPcLatency.
+            //  - accumulatedInput2FrameStartTime after P1 > accumulated time after P0.
+            //  - lastReceivedNotDisplayedPclSimStart equals SIM1.
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.setFinalState(PresentResult::Discarded);
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            Assert::IsFalse(p0_results[0].metrics.msPcLatency.has_value());
+            double accumAfterP0 = state.accumulatedInput2FrameStartTime;
+
+            FrameData p1{};
+            p1.pclInputPingTime = 0;
+            p1.pclSimStartTime = 30'000;
+            p1.setFinalState(PresentResult::Discarded);
+
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(1), p1_results.size(),
+                L"Second dropped frame should emit one metrics record.");
+            Assert::IsFalse(p1_results[0].metrics.msPcLatency.has_value(),
+                L"Dropped frames never report msPcLatency.");
+            Assert::IsTrue(state.accumulatedInput2FrameStartTime > accumAfterP0,
+                L"Accumulator should grow when a sim-only dropped frame follows an existing chain.");
+            Assert::AreEqual(uint64_t(30'000), state.lastReceivedNotDisplayedPclSimStart,
+                L"Sim-only dropped frames still update lastReceivedNotDisplayedPclSimStart.");
+        }
+
+        TEST_METHOD(PcLatency_Dropped_SimOnly_NoAccum_NoEffect)
+        {
+            // Scenario:
+            //  - A single dropped frame P0 only provides pclSimStartTime (no ping) and there is
+            //    no existing accumulator.
+            // Expectations:
+            //  - msPcLatency remains absent.
+            //  - accumulatedInput2FrameStartTime stays at 0 (chain not started).
+            //  - lastReceivedNotDisplayedPclSimStart updates to SIM0 for possible future chaining.
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            FrameData p0{};
+            p0.pclInputPingTime = 0;
+            p0.pclSimStartTime = 25'000;
+            p0.setFinalState(PresentResult::Discarded);
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            Assert::IsFalse(p0_results[0].metrics.msPcLatency.has_value());
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"Accumulator should remain 0 when a sim-only drop has no pending chain.");
+            Assert::AreEqual(uint64_t(25'000), state.lastReceivedNotDisplayedPclSimStart,
+                L"Sim-only drop should remember its pclSimStartTime even if no accumulator exists yet.");
+        }
+
+        TEST_METHOD(PcLatency_Displayed_SimOnly_NoAccum_UsesExistingEma)
+        {
+            // Scenario:
+            //  - P0 is displayed with a direct PCL sample, seeding the EMA.
+            //  - P1 is displayed with only pclSimStartTime (no ping) and there is no accumulated chain.
+            //  - We follow the full pipeline:
+            //      P0 pending, then finalized by P1 (Case 3).
+            //      P1 pending, then finalized by helper P2.
+            // Expectations:
+            //  - P1 final metrics report msPcLatency despite having no new ping.
+            //  - accumulatedInput2FrameStartTime stays at 0 (no dropped chain was active).
+            //  - Input2FrameStartTimeEma remains positive (not reset to 0).
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.push_back({ FrameType::Application, 50'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(0), p0_phase1.size());
+
+            FrameData p1{};
+            p1.pclInputPingTime = 0;
+            p1.pclSimStartTime = 35'000;
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 70'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
+            Assert::AreEqual(size_t(1), p0_final.size());
+            Assert::IsTrue(p0_final[0].metrics.msPcLatency.has_value());
+            double emaAfterP0 = state.Input2FrameStartTimeEma;
+            Assert::IsTrue(emaAfterP0 > 0.0);
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
+
+            FrameData p2{};
+            p2.setFinalState(PresentResult::Presented);
+            p2.displayed.push_back({ FrameType::Application, 90'000 });
+
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
+            Assert::AreEqual(size_t(1), p1_final.size());
+            const auto& p1_metrics = p1_final[0].metrics;
+            Assert::IsTrue(p1_metrics.msPcLatency.has_value(),
+                L"P1 should report msPcLatency despite missing pclInputPingTime.");
+            Assert::IsTrue(p1_metrics.msPcLatency.value() > 0.0,
+                L"P1 msPcLatency should stay positive.");
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"No dropped chain means the accumulator must stay zero.");
+            Assert::IsTrue(state.Input2FrameStartTimeEma > 0.0,
+                L"EMA should not be reset when a sim-only displayed frame uses existing history.");
+
+            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(0), p2_phase1.size());
+        }
+
+        TEST_METHOD(PcLatency_Displayed_NoPclSim_UsesLastSimStart)
+        {
+            // Scenario:
+            //  - P0 is displayed with a full PCL sample to seed both the EMA and lastSimStartTime.
+            //  - P1 is displayed without any PCL timestamps (pclSimStartTime == 0, pclInputPingTime == 0).
+            //  - P1 should still produce msPcLatency by combining the existing EMA with the fallback
+            //    state.lastSimStartTime recorded after P0.
+            // Call schedule mirrors ReportMetrics: P0 pending, finalized by P1; P1 pending, finalized by P2.
+            // Expectations:
+            //  - P1 final metrics report msPcLatency.has_value() == true.
+            //  - Input2FrameStartTimeEma is unchanged from the P0 sample (no new data).
+            //  - msPcLatency equals EMA_after_P0 + Δ(lastSimStartTime_after_P0, SCR1), proving the fallback path.
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 30'000;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.push_back({ FrameType::Application, 70'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(0), p0_phase1.size());
+
+            FrameData p1{};
+            p1.pclInputPingTime = 0;
+            p1.pclSimStartTime = 0;
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 90'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
+            Assert::AreEqual(size_t(1), p0_final.size());
+            Assert::IsTrue(p0_final[0].metrics.msPcLatency.has_value());
+            double emaAfterP0 = state.Input2FrameStartTimeEma;
+            uint64_t fallbackSimStart = state.lastSimStartTime;
+            Assert::IsTrue(emaAfterP0 > 0.0,
+                L"EMA must be initialized after the first direct sample.");
+            Assert::AreEqual(uint64_t(30'000), fallbackSimStart,
+                L"lastSimStartTime should latch P0's pclSimStartTime when it is displayed.");
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
+
+            FrameData p2{};
+            p2.setFinalState(PresentResult::Presented);
+            p2.displayed.push_back({ FrameType::Application, 110'000 });
+
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
+            Assert::AreEqual(size_t(1), p1_final.size());
+            const auto& p1_metrics = p1_final[0].metrics;
+            Assert::IsTrue(p1_metrics.msPcLatency.has_value(),
+                L"P1 should still report msPcLatency using the fallback lastSimStartTime.");
+            Assert::AreEqual(emaAfterP0, state.Input2FrameStartTimeEma, 0.0001,
+                L"EMA should remain unchanged when no new PCL sample exists.");
+            double expectedLatency = emaAfterP0 + qpc.DeltaSignedMilliSeconds(fallbackSimStart, 90'000);
+            Assert::AreEqual(expectedLatency, p1_metrics.msPcLatency.value(), 0.0001,
+                L"msPcLatency should use the stored EMA plus the delta from lastSimStartTime to screen time.");
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"Accumulator should remain zero in this scenario.");
+
+            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(0), p2_phase1.size());
+        }
+
+        TEST_METHOD(PcLatency_Dropped_DirectPcl_OverwritesOldAccum)
+        {
+            // Scenario:
+            //  - Dropped frames P0 (Ping+Sim) and P1 (Sim only) create an accumulated chain A_old.
+            //  - A new dropped frame P2 arrives with its own Ping+Sim and should overwrite (not extend)
+            //    the accumulator, effectively starting a brand new chain.
+            // Expectations:
+            //  - Accumulator after P2 equals Δ(PING2, SIM2) exactly (no residue from A_old).
+            //  - lastReceivedNotDisplayedPclSimStart equals SIM2.
+            //  - P2 still reports no msPcLatency.
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.setFinalState(PresentResult::Discarded);
+            ComputeMetricsForPresent(qpc, p0, nullptr, state);
+
+            FrameData p1{};
+            p1.pclInputPingTime = 0;
+            p1.pclSimStartTime = 30'000;
+            p1.setFinalState(PresentResult::Discarded);
+            ComputeMetricsForPresent(qpc, p1, nullptr, state);
+
+            double accumBeforeP2 = state.accumulatedInput2FrameStartTime;
+            Assert::IsTrue(accumBeforeP2 > 0.0,
+                L"Precondition: accumulator should already be non-zero before introducing P2.");
+
+            FrameData p2{};
+            p2.pclInputPingTime = 100'000;
+            p2.pclSimStartTime = 120'000;
+            p2.setFinalState(PresentResult::Discarded);
+
+            auto p2_results = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(1), p2_results.size());
+            Assert::IsFalse(p2_results[0].metrics.msPcLatency.has_value());
+
+            double expectedAccum = qpc.DeltaUnsignedMilliSeconds(100'000, 120'000);
+            Assert::AreEqual(expectedAccum, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"New dropped frame with Ping+Sim should overwrite the accumulator with its own delta.");
+            Assert::AreEqual(uint64_t(120'000), state.lastReceivedNotDisplayedPclSimStart,
+                L"lastReceivedNotDisplayedPclSimStart should latch the newest sim start.");
+        }
+
+        TEST_METHOD(PcLatency_IncompleteDroppedChain_DoesNotAffectDirectSample)
+        {
+            // Scenario:
+            //  - D0 (dropped, Ping+Sim) followed by D1 (dropped, Sim-only) builds an incomplete chain.
+            //  - No displayed frame consumes it before a new direct-sample present P0 arrives.
+            //  - P0 should be treated as a fresh direct measurement: EMA behaves like a first sample
+            //    from P0 alone and the stale accumulator is cleared.
+            // Expectations:
+            //  - D0/D1 never report msPcLatency.
+            //  - P0 final metrics report msPcLatency.has_value() == true.
+            //  - Input2FrameStartTimeEma after P0 equals CalculateEma(0.0, Δ(P0.Ping, P0.Sim), 0.1).
+            //  - accumulatedInput2FrameStartTime resets to 0 after the displayed frame completes.
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            // Dropped chain D0 -> D1 (incomplete)
+            FrameData d0{};
+            d0.pclInputPingTime = 10'000;
+            d0.pclSimStartTime = 20'000;
+            d0.setFinalState(PresentResult::Discarded);
+            auto d0_results = ComputeMetricsForPresent(qpc, d0, nullptr, state);
+            Assert::AreEqual(size_t(1), d0_results.size());
+            Assert::IsFalse(d0_results[0].metrics.msPcLatency.has_value());
+
+            FrameData d1{};
+            d1.pclInputPingTime = 0;
+            d1.pclSimStartTime = 30'000;
+            d1.setFinalState(PresentResult::Discarded);
+            auto d1_results = ComputeMetricsForPresent(qpc, d1, nullptr, state);
+            Assert::AreEqual(size_t(1), d1_results.size());
+            Assert::IsFalse(d1_results[0].metrics.msPcLatency.has_value());
+            double accumBeforeDisplayed = state.accumulatedInput2FrameStartTime;
+            Assert::IsTrue(accumBeforeDisplayed > 0.0,
+                L"Incomplete chain should leave a non-zero accumulator.");
+
+            // Displayed P0 with a brand-new direct sample
+            FrameData p0{};
+            p0.pclInputPingTime = 100'000;
+            p0.pclSimStartTime = 120'000;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.push_back({ FrameType::Application, 150'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(0), p0_phase1.size());
+
+            FrameData p1{};
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 180'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
+            Assert::AreEqual(size_t(1), p0_final.size());
+            const auto& p0_metrics = p0_final[0].metrics;
+            Assert::IsTrue(p0_metrics.msPcLatency.has_value(),
+                L"Displayed frame with direct PCL data must report msPcLatency.");
+            Assert::IsTrue(p0_metrics.msPcLatency.value() > 0.0,
+                L"msPcLatency should be positive for P0.");
+
+            double expectedFirstEma = pmon::util::CalculateEma(0.0,
+                qpc.DeltaUnsignedMilliSeconds(100'000, 120'000),
+                0.1);
+            Assert::AreEqual(expectedFirstEma, state.Input2FrameStartTimeEma, 0.0001,
+                L"EMA after P0 should match a first-sample EMA that ignores stale accumulation.");
+            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+                L"Accumulator must be cleared once the displayed frame consumes the chain.");
+            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
+                L"Pending pclSimStart markers should be cleared once the chain completes.");
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
         }
     };
 }
