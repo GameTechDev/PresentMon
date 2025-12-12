@@ -533,5 +533,34 @@ namespace InterimBroadcasterTests
             // verify segment can no longer be opened
             Assert::ExpectException<std::exception>([&] {pComms->OpenFrameDataStore(pres.GetId()); });
         }
+        TEST_METHOD(ReadFrames)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            // launch target and track it
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
+
+            // open the store
+            pComms->OpenFrameDataStore(pres.GetId());
+            auto& frames = pComms->GetFrameDataStore(pres.GetId()).frameData;
+
+            // verify that frames are added over time
+            // TODO: determine what is causing latency at service side necessitating 1000ms wait
+            std::this_thread::sleep_for(1000ms);
+            const auto range1 = frames.GetSerialRange();
+            Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
+            std::this_thread::sleep_for(100ms);
+            const auto range2 = frames.GetSerialRange();
+            Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
+            std::this_thread::sleep_for(100ms);
+            const auto range3 = frames.GetSerialRange();
+            Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
+
+            Assert::IsTrue(range1.second - range1.first < range2.second - range2.first);
+            Assert::IsTrue(range2.second - range2.first < range3.second - range3.first);
+        }
     };
 }

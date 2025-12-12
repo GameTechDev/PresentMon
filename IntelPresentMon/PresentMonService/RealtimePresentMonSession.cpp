@@ -258,6 +258,7 @@ void RealtimePresentMonSession::AddPresents(
 
         // Ignore failed and lost presents.
         if (presentEvent->IsLost || presentEvent->PresentFailed) {
+            // TODO: log these
             continue;
         }
 
@@ -332,6 +333,8 @@ void RealtimePresentMonSession::AddPresents(
             chain->mLastPresentQPC, chain->mLastDisplayedPresentQPC,
             processInfo->mModuleName, gpu_telemetry_cap_bits,
             cpu_telemetry_cap_bits);
+
+        pBroadcaster->Broadcast(*presentEvent);
 
         chain->mLastPresentQPC = presentEvent->PresentStartTime;
         if (presentEvent->FinalState == PresentResult::Presented) {
