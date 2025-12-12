@@ -438,6 +438,91 @@ namespace pmon::util::metrics
             return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
         }
 
+        std::optional<double> ComputeInstrumentedLatency(
+            const QpcConverter& qpc,
+            const FrameData& present,
+            bool isDisplayed,
+            bool isAppFrame,
+            uint64_t screenTime)
+        {
+            if (!isDisplayed || !isAppFrame) {
+                return std::nullopt;
+            }
+
+            auto instrumentedStartTime = present.appSleepEndTime != 0 ?
+                present.appSleepEndTime : present.appSimStartTime;
+
+            if (instrumentedStartTime == 0) {
+                // No instrumented start time: nothing to compute.
+                return std::nullopt;
+            }
+
+            return qpc.DeltaUnsignedMilliSeconds(instrumentedStartTime, screenTime);
+        }
+
+        std::optional<double> ComputeInstrumentedRenderLatency(
+            const QpcConverter& qpc,
+            const FrameData& present,
+            bool isDisplayed,
+            bool isAppFrame,
+            uint64_t screenTime)
+        {
+            if (!isDisplayed || !isAppFrame) {
+                return std::nullopt;
+            }
+
+            if (present.appRenderSubmitStartTime == 0) {
+                // No app provided render submit start time: nothing to compute.
+                return std::nullopt;
+            }
+
+            return qpc.DeltaUnsignedMilliSeconds(present.appRenderSubmitStartTime, screenTime);
+        }
+
+        std::optional<double> ComputeInstrumentedSleep(const QpcConverter& qpc,
+            const FrameData& present,
+            bool isDisplayed,
+            bool isAppFrame,
+            uint64_t screenTime)
+        {
+            if (!isDisplayed || !isAppFrame) {
+                return std::nullopt;
+            }
+
+            if (present.appSleepStartTime == 0 || present.appSleepEndTime == 0) {
+                // No app provided sleep times: nothing to compute.
+                return std::nullopt;
+            }
+
+            return qpc.DeltaUnsignedMilliSeconds(present.appSleepStartTime, present.appSleepEndTime);
+        }
+
+        std::optional<double> ComputeInstrumentedGpuLatency(
+            const QpcConverter& qpc,
+            const FrameData& present,
+            bool isDisplayed,
+            bool isAppFrame)
+        {
+            if (!isDisplayed || !isAppFrame) {
+                return std::nullopt;
+            }
+
+            auto instrumentedStartTime = present.appSleepEndTime != 0 ?
+                present.appSleepEndTime : present.appSimStartTime;
+
+            if (instrumentedStartTime == 0) {
+                // No provider sleep end or sim start time: nothing to compute.
+                return std::nullopt;
+            }
+
+            if (present.gpuStartTime == 0) {
+                // No GPU start time: nothing to compute.
+                return std::nullopt;
+            }
+
+            return qpc.DeltaUnsignedMilliSeconds(instrumentedStartTime, present.gpuStartTime);
+        }
+
         void ApplyStateDeltas(
             SwapChainCoreState& chainState,
             const ComputedMetrics::StateDeltas& d)
@@ -912,6 +997,43 @@ namespace pmon::util::metrics
         }
     }
 
+    void CalculateInstrumentedMetrics(
+        const QpcConverter& qpc,
+        const SwapChainCoreState& chain,
+        const FrameData& present,
+        bool isDisplayed,
+        bool isAppFrame,
+        uint64_t screenTime,
+        FrameMetrics& metrics) {
+
+        metrics.msInstrumentedLatency = ComputeInstrumentedLatency(
+            qpc,
+            present,
+            isDisplayed,
+            isAppFrame,
+            screenTime);
+
+        metrics.msInstrumentedRenderLatency = ComputeInstrumentedRenderLatency(
+            qpc,
+            present,
+            isDisplayed,
+            isAppFrame,
+            screenTime);
+
+        metrics.msInstrumentedSleep = ComputeInstrumentedSleep(
+            qpc,
+            present,
+            isDisplayed,
+            isAppFrame,
+            screenTime);
+
+        metrics.msInstrumentedGpuLatency = ComputeInstrumentedGpuLatency(
+            qpc,
+            present,
+            isDisplayed,
+            isAppFrame);
+    }
+
     ComputedMetrics ComputeFrameMetrics(
         const QpcConverter& qpc,
         const FrameData& present,
@@ -972,6 +1094,15 @@ namespace pmon::util::metrics
             isDisplayed,
             screenTime,
             result.stateDeltas);
+
+        CalculateInstrumentedMetrics(
+            qpc,
+            chain,
+            present,
+            isDisplayed,
+            isAppFrame,
+            screenTime,
+            metrics);
 
         metrics.cpuStartQpc = CalculateCPUStart(chain, present);
 
