@@ -481,12 +481,6 @@ namespace pmon::util::metrics
                     *d.newLastReceivedPclSimStart;
             }
 
-            if (d.newLastReceivedPclInputTime)
-            {
-                chainState.lastReceivedNotDisplayedPclInputTime =
-                    *d.newLastReceivedPclInputTime;
-            }
-
             // Accumulated PC latency input→frame-start time
             if (d.newAccumulatedInput2FrameStart)
             {
@@ -877,7 +871,7 @@ namespace pmon::util::metrics
                 // the Input to Frame Start EMA. Store in state deltas for later application.
 
                 stateDeltas.newInput2FrameStartEma = pmon::util::CalculateEma(
-                    chain.accumulatedInput2FrameStartTime,
+                    chain.Input2FrameStartTimeEma,
                     qpc.DeltaUnsignedMilliSeconds(present.pclInputPingTime, present.pclSimStartTime),
                     0.1);
 
@@ -886,29 +880,32 @@ namespace pmon::util::metrics
                 stateDeltas.newLastReceivedPclSimStart = 0;
             }
             else {
-                // This frame was displayed but we don't have a pc latency input time. However, there is accumulated time
-                // so there is a pending input that will now hit the screen. Add in the time from the last not
-                // displayed pc simulation start to this frame's pc simulation start.
-                stateDeltas.newAccumulatedInput2FrameStart = chain.accumulatedInput2FrameStartTime +
-                    qpc.DeltaUnsignedMilliSeconds(
-                        chain.lastReceivedNotDisplayedPclSimStart,
-                        present.pclSimStartTime);
+                if (chain.accumulatedInput2FrameStartTime != 0.0) {
+                    // This frame was displayed but we don't have a pc latency input time. However, there is accumulated time
+                    // so there is a pending input that will now hit the screen. Add in the time from the last not
+                    // displayed pc simulation start to this frame's pc simulation start.
+                    stateDeltas.newAccumulatedInput2FrameStart = chain.accumulatedInput2FrameStartTime +
+                        qpc.DeltaUnsignedMilliSeconds(
+                            chain.lastReceivedNotDisplayedPclSimStart,
+                            present.pclSimStartTime);
 
-                stateDeltas.newInput2FrameStartEma = pmon::util::CalculateEma(
-                    chain.Input2FrameStartTimeEma,
-                    *stateDeltas.newAccumulatedInput2FrameStart,
-                    0.1);
+                    stateDeltas.newInput2FrameStartEma = pmon::util::CalculateEma(
+                        chain.Input2FrameStartTimeEma,
+                        *stateDeltas.newAccumulatedInput2FrameStart,
+                        0.1);
 
-                // Reset the tracking variables for when we have a dropped frame with a pc latency input
-                stateDeltas.newAccumulatedInput2FrameStart = 0.0;
-                stateDeltas.newLastReceivedPclSimStart = 0;
+                    // Reset the tracking variables for when we have a dropped frame with a pc latency input
+                    stateDeltas.newAccumulatedInput2FrameStart = 0.0;
+                    stateDeltas.newLastReceivedPclSimStart = 0;
+                }
             }
         }
 
         auto simStartTime = present.pclSimStartTime != 0 ? present.pclSimStartTime : chain.lastSimStartTime;
-
-        if (stateDeltas.newInput2FrameStartEma.has_value() && stateDeltas.newInput2FrameStartEma.value() != 0.0 && simStartTime != 0) {
-            return stateDeltas.newInput2FrameStartEma.value() + qpc.DeltaSignedMilliSeconds(simStartTime, screenTime);
+        double input2FrameStartEma = stateDeltas.newInput2FrameStartEma.has_value() ?
+            stateDeltas.newInput2FrameStartEma.value() : chain.Input2FrameStartTimeEma;
+        if (input2FrameStartEma != 0.0 && simStartTime != 0) {
+            return input2FrameStartEma + qpc.DeltaSignedMilliSeconds(simStartTime, screenTime);
         }
         else {
             return std::nullopt;

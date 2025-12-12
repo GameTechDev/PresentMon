@@ -19,7 +19,6 @@ namespace pmon::util::metrics
             std::optional<double> newInput2FrameStartEma;
             std::optional<double> newAccumulatedInput2FrameStart;
             std::optional<uint64_t> newLastReceivedPclSimStart;
-            std::optional<uint64_t> newLastReceivedPclInputTime;
             std::optional<uint64_t> lastReceivedNotDisplayedAllInputTime;
             std::optional<uint64_t> lastReceivedNotDisplayedMouseClickTime;
             std::optional<uint64_t> lastReceivedNotDisplayedAppProviderInputTime;
