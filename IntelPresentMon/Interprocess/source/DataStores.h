@@ -27,6 +27,11 @@ namespace pmon::ipc
 			uint32_t processId;
 			ShmString applicationName;
 		} statics;
+        struct Bookkeeping
+        {
+            bool staticInitComplete = false;
+            bool targetExited = false;
+        } bookkeeping{};
 		ShmRing<FrameData> frameData;
 	};
 

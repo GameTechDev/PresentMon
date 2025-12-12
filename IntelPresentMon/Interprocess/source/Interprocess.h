@@ -26,8 +26,9 @@ namespace pmon::ipc
 		virtual const ShmNamer& GetNamer() const = 0;
 		
 		// data store access
-		virtual std::shared_ptr<OwnedDataSegment<FrameDataStore>> MakeFrameDataSegment(uint32_t pid) = 0;
+		virtual std::shared_ptr<OwnedDataSegment<FrameDataStore>> CreateOrGetFrameDataSegment(uint32_t pid) = 0;
 		virtual std::shared_ptr<OwnedDataSegment<FrameDataStore>> GetFrameDataSegment(uint32_t pid) = 0;
+		virtual std::vector<uint32_t> GetFramePids() const = 0;
 		virtual GpuDataStore& GetGpuDataStore(uint32_t deviceId) = 0;
 		virtual SystemDataStore& GetSystemDataStore() = 0;
 	};

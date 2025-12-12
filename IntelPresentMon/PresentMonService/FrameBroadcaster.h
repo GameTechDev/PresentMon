@@ -1,6 +1,7 @@
 #pragma once
 #include "../Interprocess/source/Interprocess.h"
 #include "../../PresentData/PresentMonTraceConsumer.hpp"
+#include "../CommonUtilities/win/Utilities.h"
 #include <unordered_map>
 #include <ranges>
 
@@ -79,32 +80,37 @@ namespace pmon::svc
 		std::shared_ptr<Segment> RegisterTarget(uint32_t pid)
 		{
             std::lock_guard lk{ mtx_ };
-			// collect garbage first so it doesn't accumulate in the map
-			std::erase_if(segments_, [](auto&&pr){return pr.second.expired();});
-
-			// ipc makes the segment hosting the store, track weakly here (strongly in client session ctx)
-			auto pSegment = comms_.MakeFrameDataSegment(pid);
-			segments_[pid] = pSegment;
-			return pSegment;
+            auto pSegment = comms_.CreateOrGetFrameDataSegment(pid);
+            auto& store = pSegment->GetStore();
+            // initialize name/pid statics on new store segment creation
+            if (!store.bookkeeping.staticInitComplete) {
+                store.bookkeeping.staticInitComplete = true;
+                store.statics.processId = pid;
+                try {
+                    store.statics.applicationName = util::win::GetExecutableModulePath(
+                        util::win::OpenProcess(pid)
+                    ).filename().string().c_str();
+                }
+                catch (...) {
+                    // if we reach here a race condition has occurred where the target has exited
+                    // so we will mark this in the bookkeeping
+                    pmlog_warn("Process exited right as it was being initialized").pmwatch(pid);
+                    store.bookkeeping.targetExited = true;
+                }
+            }
+            return pSegment;
 		}
 		void Broadcast(const PresentEvent& present)
 		{
             std::lock_guard lk{ mtx_ };
-			if (auto i = segments_.find(present.ProcessId); i != segments_.end()) {
-				if (auto pSegment = i->second.lock()) {
-					pSegment->GetStore().frameData.Push(FrameDataFromPresentEvent(present));
-				}
-				else {
-					// segment expired, clean it up
-					segments_.erase(i);
-				}
+			if (auto pSegment = comms_.GetFrameDataSegment(present.ProcessId)) {
+                pSegment->GetStore().frameData.Push(FrameDataFromPresentEvent(present));
 			}
 		}
 		std::vector<uint32_t> GetPids() const
 		{
             std::lock_guard lk{ mtx_ };
-            return segments_ | vi::filter([](auto&& p) {return !p.second.expired(); }) |
-                vi::keys | rn::to<std::vector>();
+            return comms_.GetFramePids();
 		}
         const ipc::ShmNamer& GetNamer() const
         {
@@ -113,7 +119,6 @@ namespace pmon::svc
 	private:
 		// data
 		ipc::ServiceComms& comms_;
-		std::unordered_map<uint32_t, std::weak_ptr<Segment>> segments_;
         mutable std::mutex mtx_;
 	};
 }

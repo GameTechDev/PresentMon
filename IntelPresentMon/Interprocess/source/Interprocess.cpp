@@ -20,6 +20,8 @@
 namespace pmon::ipc
 {
     namespace bip = boost::interprocess;
+    namespace vi = std::views;
+    namespace rn = std::ranges;
 
     namespace
     {
@@ -134,13 +136,13 @@ namespace pmon::ipc
             }
             // data store access
             std::shared_ptr<OwnedDataSegment<FrameDataStore>>
-                MakeFrameDataSegment(uint32_t pid) override
+                CreateOrGetFrameDataSegment(uint32_t pid) override
             {
                 // resolve out existing or new weak ptr, try and lock
                 auto& pWeak = frameShmWeaks_[pid];
                 auto pFrameData = frameShmWeaks_[pid].lock();
-                // if weak ptr was new (or expired), lock will not work and we need to construct
                 if (!pFrameData) {
+                    // if weak ptr was new (or expired), lock will not work and we need to construct
                     // make a frame data store as shared ptr
                     pFrameData = std::make_shared<OwnedDataSegment<FrameDataStore>>(
                         namer_.MakeFrameName(pid), 
@@ -151,18 +153,26 @@ namespace pmon::ipc
                     pWeak = pFrameData;
                 }
                 // remove stale elements to keep map lean
-                std::erase_if(frameShmWeaks_,
-                    [](const auto& kv) { return kv.second.expired(); });
+                std::erase_if(frameShmWeaks_, [](auto&&kv){return kv.second.expired();});
 
                 return pFrameData;
             }
-            std::shared_ptr<OwnedDataSegment<FrameDataStore>> GetFrameDataSegment(uint32_t pid) override
+            std::shared_ptr<OwnedDataSegment<FrameDataStore>>
+                GetFrameDataSegment(uint32_t pid) override
             {
-                const auto it = frameShmWeaks_.find(pid);
-                if (it == frameShmWeaks_.end()) {
-                    pmlog_error("No frame segment found").pmwatch(pid).raise<util::Exception>();
+                if (auto i = frameShmWeaks_.find(pid); i != frameShmWeaks_.end()) {
+                    if (auto pSegment = i->second.lock()) {
+                        return pSegment;
+                    }
+                    // if weak ptr has expired, garbage collect from the map
+                    frameShmWeaks_.erase(i);
                 }
-                return it->second.lock();
+                return {};
+            }
+            std::vector<uint32_t> GetFramePids() const override
+            {
+                return frameShmWeaks_ | vi::filter([](auto&& p) {return !p.second.expired(); }) |
+                    vi::keys | rn::to<std::vector>();
             }
             GpuDataStore& GetGpuDataStore(uint32_t deviceId) override
             {

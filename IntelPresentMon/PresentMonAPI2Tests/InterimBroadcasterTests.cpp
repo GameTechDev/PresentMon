@@ -486,7 +486,21 @@ namespace InterimBroadcasterTests
         // static store
         TEST_METHOD(StaticData)
         {
-            Assert::IsTrue(false);
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            // launch target and track it
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            // open the store
+            pComms->OpenFrameDataStore(pres.GetId());
+
+            // verify static data
+            auto& store = pComms->GetFrameDataStore(pres.GetId());
+            Assert::AreEqual(pres.GetId(), store.statics.processId);
+            const std::string staticAppName = store.statics.applicationName.c_str();
+            Assert::AreEqual("PresentBench.exe"s, staticAppName);
         }
         TEST_METHOD(TrackUntrack)
         {
