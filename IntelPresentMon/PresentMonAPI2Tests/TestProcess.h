@@ -167,6 +167,7 @@ private:
 			"--log-dir"s, common.logFolder,
 			"--log-name-pid"s,
 			"--log-level"s, common.logLevel,
+			"--enable-debugger-log"s,
 		};
 		allArgs.append_range(customArgs);
 		return allArgs;

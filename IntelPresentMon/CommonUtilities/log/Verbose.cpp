@@ -15,7 +15,8 @@ namespace pmon::util::log
 		std::map<std::string, V> map;
 		for (int n = 0; n <= (int)V::Count; n++) {
 			const auto lvl = V(n);
-			auto key = ToLower(GetVerboseModuleName(lvl));
+			auto name = ToLower(GetVerboseModuleName(lvl));
+			map[name] = lvl;
 		}
 		return map;
 	}

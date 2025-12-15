@@ -41,9 +41,8 @@ void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
     // this is the interval to wait when manual flush is disabled
     // we still want to run the inner loop to poll in case it gets enabled
     const uint32_t disabledIntervalMs = 250u;
-    double currentInterval = (double)pm->GetEtwFlushPeriod().value_or(disabledIntervalMs) / 1000.;
-    IntervalWaiter waiter{ currentInterval };
-
+    // waiter interval will be set later before it is actually used; set 0 placeholder
+    IntervalWaiter waiter{ 0. };
     // outer dormant loop waits for either start of process tracking or service exit
     while (true) {
         pmlog_verb(v::etwq)("Begin idle ETW flush wait");
@@ -53,9 +52,12 @@ void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
             return;
         }
         pmlog_verb(v::etwq)("Entering ETW flush inner active loop");
+        // read flush period here right before first wait
+        auto currentInterval = (double)pm->GetEtwFlushPeriod().value_or(disabledIntervalMs) / 1000.;
         // otherwise we assume streaming has started and we begin the flushing loop, checking for stop signal
         while (!win::WaitAnyEventFor(0s, srv->GetServiceStopHandle())) {
             // use interval wait to time flushes as a fixed cadence
+            pmlog_verb(v::etwq)("Wait on ETW flush interval (period)").pmwatch(currentInterval);
             waiter.SetInterval(currentInterval);
             waiter.Wait();
             // go dormant if there are no active streams left
@@ -64,15 +66,16 @@ void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
                 pmlog_dbg("ETW flush loop entering dormancy due to 0 active streams");
                 break;
             }
-            // check to see if manual flush is enabled
             if (auto flushPeriodMs = pm->GetEtwFlushPeriod()) {
                 // flush events manually to reduce latency
                 pmlog_verb(v::etwq)("Manual ETW flush").pmwatch(*flushPeriodMs);
                 pm->FlushEvents();
-                currentInterval = double(*flushPeriodMs) / 1000.;
+                // update flush period
+                currentInterval = *flushPeriodMs / 1000.;
             }
             else {
                 pmlog_verb(v::etwq)("Detected disabled ETW flush, using idle poll period");
+                // set a period here (low rate) to check for changes to the etw flush setting
                 currentInterval = disabledIntervalMs / 1000.;
             }
         }

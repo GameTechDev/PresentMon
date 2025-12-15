@@ -540,16 +540,19 @@ namespace InterimBroadcasterTests
 
             // launch target and track it
             auto pres = fixture_.LaunchPresenter();
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
             client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
+            // make sure the flush period propagates to the flusher thread
+            std::this_thread::sleep_for(1ms);
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
             // open the store
             pComms->OpenFrameDataStore(pres.GetId());
             auto& frames = pComms->GetFrameDataStore(pres.GetId()).frameData;
 
+            // sleep here to let the presenter init, etw system warm up, and frames propagate
+            std::this_thread::sleep_for(550ms);
+
             // verify that frames are added over time
-            // TODO: determine what is causing latency at service side necessitating 1000ms wait
-            std::this_thread::sleep_for(1000ms);
             const auto range1 = frames.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
             std::this_thread::sleep_for(100ms);
