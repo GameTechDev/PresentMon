@@ -2413,14 +2413,13 @@ namespace MetricsCoreTests
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
 
-            Assert::IsTrue(m.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(0.0, m.msReadyTimeToDisplayLatency.value(), 0.0001);
+            Assert::IsFalse(m.msReadyTimeToDisplayLatency.has_value());
         }
 
         TEST_METHOD(ReadyTimeToDisplay_ReadyTimeZero)
         {
             // Scenario: Ready time not set (edge case, readyTime = 0).
-            // readyTime = 0, screenTime = 2'000'000
+            // readyTime = 70'000, screenTime = 2'000'000
             // Expected: msReadyTimeToDisplayLatency ≈ 0.2 ms (2'000'000 ticks)
 
             QpcConverter qpc(10'000'000, 0);
@@ -2429,7 +2428,7 @@ namespace MetricsCoreTests
             FrameData frame{};
             frame.presentStartTime = 1'000'000;
             frame.timeInPresent = 50'000;
-            frame.readyTime = 0;
+            frame.readyTime = 70'000;
             frame.setFinalState(PresentResult::Presented);
             frame.displayed.push_back({ FrameType::Application, 2'000'000 });
 
@@ -2441,8 +2440,8 @@ namespace MetricsCoreTests
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
 
-            // msReadyTimeToDisplayLatency = 2'000'000 - 0 = 2'000'000 ticks = 0.2 ms
-            double expected = qpc.DeltaUnsignedMilliSeconds(0, 2'000'000);
+            // msReadyTimeToDisplayLatency = 2'000'000 - 70'000 = 1'930'000 ticks = 0.193 ms
+            double expected = qpc.DeltaUnsignedMilliSeconds(70'000, 2'000'000);
             Assert::IsTrue(m.msReadyTimeToDisplayLatency.has_value());
             Assert::AreEqual(expected, m.msReadyTimeToDisplayLatency.value(), 0.0001);
         }
@@ -7952,6 +7951,670 @@ namespace MetricsCoreTests
                 L"P0: msInstrumentedLatency should have a value when there is a valid instrumented start time.");
             Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency.value(), 1e-6,
                 L"P0: msInstrumentedLatency did not match expected Δ(AppSleepEndTime, screenTime).");
+        }
+
+        TEST_METHOD(InstrumentedCpuGpu_AppFrame_NoSleep_UsesAppSimStart)
+        {
+            // Scenario:
+            //   - Validate the instrumented CPU/GPU metrics when the application never enters an
+            //     instrumented sleep, forcing GPU latency to fall back to appSimStart.
+            //   - Also ensure msBetweenSimStarts uses the stored lastSimStartTime → appSimStart delta
+            //     when no PCL sim timestamp is present.
+            //
+            // QPC frequency: 10 MHz.
+            //
+            // Pre-state:
+            //   chain.lastSimStartTime = 40'000 (represents the previous frame's sim start).
+            //
+            // P0 (displayed Application frame):
+            //   appSleepStartTime = 0
+            //   appSleepEndTime   = 0
+            //   appSimStartTime   = 70'000   (used for GPU latency + between-sim-starts)
+            //   pclSimStartTime   = 0        (forces AppSim fallback)
+            //   gpuStartTime      = 90'000
+            //   screenTime        = 120'000  (Application entry)
+            //   Δ(sim start vs last) = 30'000 ticks, Δ(sim start → gpu) = 20'000 ticks.
+            //
+            // Call pattern (Case 2/3):
+            //   P0 pending → Compute(..., nullptr)
+            //   P1 arrives → Compute(P0, &P1) to finalize P0, then Compute(P1, nullptr) to seed next pending.
+            //
+            // Expectations on P0 final metrics:
+            //   - msInstrumentedSleep has no value (no sleep interval).
+            //   - msInstrumentedGpuLatency uses appSimStartTime (70'000 → 90'000).
+            //   - msBetweenSimStarts computes 40'000 → 70'000.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.lastSimStartTime = 40'000;
+            chain.animationErrorSource = AnimationErrorSource::AppProvider;
+
+            const uint32_t PROCESS_ID = 4321;
+            const uint64_t SWAPCHAIN = 0x2222;
+
+            // P0: displayed Application frame with no sleep range but valid appSimStart
+            FrameData p0{};
+            p0.processId = PROCESS_ID;
+            p0.swapChainAddress = SWAPCHAIN;
+            p0.appSimStartTime = 70'000;
+            p0.gpuStartTime = 90'000;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.clear();
+            p0.displayed.push_back({ FrameType::Application, 120'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(0), p0_phase1.size(),
+                L"P0 (phase 1) should stay pending when nextDisplayed is unavailable.");
+
+            // P1: minimal next displayed application frame
+            FrameData p1{};
+            p1.processId = PROCESS_ID;
+            p1.swapChainAddress = SWAPCHAIN;
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.clear();
+            p1.displayed.push_back({ FrameType::Application, 150'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
+            Assert::AreEqual(size_t(1), p0_final.size(),
+                L"P0 (final) should emit exactly one metrics record once nextDisplayed is provided.");
+
+            const auto& m0 = p0_final[0].metrics;
+            Assert::IsFalse(m0.msInstrumentedSleep.has_value(),
+                L"P0: Instrumented sleep must be absent when the app never emitted sleep markers.");
+            Assert::IsTrue(m0.msInstrumentedGpuLatency.has_value(),
+                L"P0: GPU latency should fall back to AppSimStart when no sleep end exists.");
+            Assert::IsTrue(m0.msBetweenSimStarts.has_value(),
+                L"P0: Between-sim-starts should use the stored lastSimStartTime when AppSimStart is valid.");
+
+            double expectedGpuMs = qpc.DeltaUnsignedMilliSeconds(70'000, 90'000);
+            double expectedBetweenMs = qpc.DeltaUnsignedMilliSeconds(40'000, 70'000);
+
+            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency.value(), 1e-6,
+                L"P0: msInstrumentedGpuLatency should measure Δ(AppSimStartTime, gpuStartTime).");
+            Assert::AreEqual(expectedBetweenMs, m0.msBetweenSimStarts.value(), 1e-6,
+                L"P0: msBetweenSimStarts should use AppSimStart when no PCL sim exists.");
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(0), p1_phase1.size(),
+                L"P1 (phase 1) remains pending for completeness.");
+        }
+
+        TEST_METHOD(InstrumentedCpuGpu_AppFrame_NoSleepNoSim_NoInstrumentedCpuGpu)
+        {
+            // Scenario:
+            //   - Displayed Application frame with no instrumented sleep markers and neither appSimStartTime
+            //     nor pclSimStartTime populated. GPU start exists, but there is no instrumented start anchor.
+            //
+            // QPC frequency: 10 MHz.
+            //   Pre-state: chain.lastSimStartTime = 55'000.
+            //   P0 fields: appSleepStart=0, appSleepEnd=0, appSimStart=0, pclSimStart=0, gpuStart=80'000,
+            //              screenTime=100'000 (Application display).
+            //   Derived deltas: none are valid because the start markers are zero.
+            //
+            // Call pattern (Case 2/3):
+            //   P0 pending → Compute(..., nullptr)
+            //   P1 arrives → Compute(P0, &P1) to flush, then Compute(P1, nullptr) for completeness.
+            //
+            // Expectations: all three instrumented CPU metrics stay std::nullopt for P0.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.lastSimStartTime = 55'000;
+
+            const uint32_t PROCESS_ID = 9876;
+            const uint64_t SWAPCHAIN = 0xEF00;
+
+            FrameData p0{};
+            p0.processId = PROCESS_ID;
+            p0.swapChainAddress = SWAPCHAIN;
+            p0.gpuStartTime = 80'000;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.clear();
+            p0.displayed.push_back({ FrameType::Application, 100'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(0), p0_phase1.size());
+
+            FrameData p1{};
+            p1.processId = PROCESS_ID;
+            p1.swapChainAddress = SWAPCHAIN;
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 120'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
+            Assert::AreEqual(size_t(1), p0_final.size());
+
+            const auto& m0 = p0_final[0].metrics;
+            Assert::IsFalse(m0.msInstrumentedSleep.has_value(),
+                L"P0: sleep metrics require both start and end markers.");
+            Assert::IsFalse(m0.msInstrumentedGpuLatency.has_value(),
+                L"P0: GPU latency must remain off without an instrumented start time.");
+            Assert::IsFalse(m0.msBetweenSimStarts.has_value(),
+                L"P0: between-sim-starts cannot be computed without a new sim start.");
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
+        }
+
+        TEST_METHOD(InstrumentedCpuGpu_AppFrame_NotDisplayed_StillComputed)
+        {
+            // Scenario:
+            //   - Dropped (not displayed) Application frame with full instrumented CPU/GPU markers, including PCL sim.
+            //   - Validates that CPU/GPU metrics still compute even when the frame never displays, while
+            //     display-only metrics remain unset.
+            //
+            // QPC frequency: 10 MHz.
+            //   Pre-state: chain.lastSimStartTime = 5'000.
+            //   P0 fields: appSleepStart=10'000, appSleepEnd=25'000, appSimStart=30'000,
+            //              gpuStart=45'000, no displayed entries (finalState = Discarded).
+            //   Derived deltas: sleep Δ = 15'000 ticks, GPU latency Δ = 20'000 ticks,
+            //                  between-sim-starts Δ = 30'000 ticks.
+            //
+            // Call pattern: Case 1 (pure dropped) → single ComputeMetricsForPresent call with nextDisplayed == nullptr.
+            //
+            // Expectations: instrumented sleep/GPU/betweenSimStarts all have values with the deltas above,
+            //               and display instrumented metrics remain std::nullopt.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.lastSimStartTime = 5'000;
+            chain.animationErrorSource = AnimationErrorSource::AppProvider;
+
+            FrameData p0{};
+            p0.appSleepStartTime = 10'000;
+            p0.appSleepEndTime = 25'000;
+            p0.appSimStartTime = 30'000;
+            p0.gpuStartTime = 45'000;
+            p0.setFinalState(PresentResult::Discarded);
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size(),
+                L"Dropped frames should emit their metrics immediately (Case 1).");
+
+            const auto& m0 = p0_results[0].metrics;
+            double expectedSleepMs = qpc.DeltaUnsignedMilliSeconds(10'000, 25'000);
+            double expectedGpuMs = qpc.DeltaUnsignedMilliSeconds(25'000, 45'000);
+            double expectedBetweenMs = qpc.DeltaUnsignedMilliSeconds(5'000, 30'000);
+
+            Assert::IsTrue(m0.msInstrumentedSleep.has_value());
+            Assert::AreEqual(expectedSleepMs, m0.msInstrumentedSleep.value(), 1e-6);
+
+            Assert::IsTrue(m0.msInstrumentedGpuLatency.has_value());
+            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency.value(), 1e-6);
+
+            Assert::IsTrue(m0.msBetweenSimStarts.has_value());
+            Assert::AreEqual(expectedBetweenMs, m0.msBetweenSimStarts.value(), 1e-6);
+
+            Assert::IsFalse(m0.msInstrumentedRenderLatency.has_value(),
+                L"Display-dependent metrics must stay off for non-displayed frames.");
+            Assert::IsFalse(m0.msReadyTimeToDisplayLatency.has_value());
+            Assert::IsFalse(m0.msInstrumentedLatency.has_value());
+        }
+
+        TEST_METHOD(InstrumentedCpuGpu_NonAppFrame_Ignored)
+        {
+            // Scenario:
+            //   - Displayed frame whose sole display entry is FrameType::Repeated, so DisplayIndexing never
+            //     marks an Application display.
+            //   - Even with instrumented CPU/GPU markers present, msInstrumentedSleep/GpuLatency/BetweenSimStarts
+            //     must remain unset because the display instance is not an app frame.
+            //
+            // QPC frequency: 10 MHz.
+            //   Pre-state: chain.lastSimStartTime = 60'000.
+            //   P0 fields: appSleepStart=11'000, appSleepEnd=21'000, appSimStart=70'000, pclSimStart=72'000,
+            //              gpuStart=90'000, displayed[0] = (Repeated, 120'000).
+            //   Derived deltas (that should be ignored): sleep Δ = 10'000 ticks, GPU Δ = 69'000 ticks,
+            //              between-sim-starts Δ = 10'000 ticks.
+            //
+            // Call pattern: Case 2/3 (P0 pending, finalized by a synthetic P1, then P1 pending).
+            //
+            // Expectations: all instrumented CPU metrics remain std::nullopt for P0.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.lastSimStartTime = 60'000;
+
+            const uint32_t PROCESS_ID = 5555;
+            const uint64_t SWAPCHAIN = 0xDEADBEEF;
+
+            FrameData p0{};
+            p0.processId = PROCESS_ID;
+            p0.swapChainAddress = SWAPCHAIN;
+            p0.appSleepStartTime = 11'000;
+            p0.appSleepEndTime = 21'000;
+            p0.appSimStartTime = 70'000;
+            p0.pclSimStartTime = 72'000;
+            p0.gpuStartTime = 90'000;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.clear();
+            p0.displayed.push_back({ FrameType::Repeated, 120'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(0), p0_phase1.size());
+
+            FrameData p1{};
+            p1.processId = PROCESS_ID;
+            p1.swapChainAddress = SWAPCHAIN;
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 150'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
+            Assert::AreEqual(size_t(1), p0_final.size());
+            const auto& m0 = p0_final[0].metrics;
+
+            Assert::IsFalse(m0.msInstrumentedSleep.has_value(),
+                L"Non-app displays must not emit instrumented CPU metrics.");
+            Assert::IsFalse(m0.msInstrumentedGpuLatency.has_value());
+            Assert::IsFalse(m0.msBetweenSimStarts.has_value());
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
+        }
+
+        TEST_METHOD(InstrumentedDisplay_AppFrame_NoRenderSubmit_RenderLatencyOff)
+        {
+            // Scenario:
+            //   - Displayed Application frame missing appRenderSubmitStartTime but with readyTime + sleep end.
+            //
+            // QPC frequency: 10 MHz.
+            //   P0 fields: readyTime = 80'000, appSleepEndTime = 50'000, no render submit, screenTime = 100'000.
+            //   Derived deltas: ready→display Δ = 20'000 ticks, total latency Δ = 50'000 ticks.
+            //
+            // Call pattern: Case 2/3 (P0 pending, finalized by P1, then P1 pending).
+            //
+            // Expectations: msInstrumentedRenderLatency = nullopt, while msReadyTimeToDisplayLatency and
+            //               msInstrumentedLatency match the deltas above.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData p0{};
+            p0.readyTime = 80'000;
+            p0.appSleepEndTime = 50'000;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.push_back({ FrameType::Application, 100'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(0), p0_phase1.size());
+
+            FrameData p1{};
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 130'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
+            Assert::AreEqual(size_t(1), p0_final.size());
+            const auto& m0 = p0_final[0].metrics;
+
+            double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(80'000, 100'000);
+            double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(50'000, 100'000);
+
+            Assert::IsFalse(m0.msInstrumentedRenderLatency.has_value(),
+                L"Render latency must remain off without appRenderSubmitStartTime.");
+            Assert::IsTrue(m0.msReadyTimeToDisplayLatency.has_value());
+            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency.value(), 1e-6);
+
+            Assert::IsTrue(m0.msInstrumentedLatency.has_value());
+            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency.value(), 1e-6);
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
+        }
+
+        TEST_METHOD(InstrumentedDisplay_AppFrame_NoSleep_UsesAppSimStart)
+        {
+            // Scenario:
+            //   - Displayed Application frame lacks appSleepEndTime but provides appSimStartTime.
+            //
+            // QPC timeline (10 MHz):
+            //   P0.appRenderSubmitStartTime = 10'000
+            //   P0.appSimStartTime         =  5'000
+            //   P0.readyTime               = 30'000
+            //   P0.screenTime              = 60'000
+            //   Derived deltas:
+            //     - Render latency: 50'000 ticks
+            //     - Ready→display: 30'000 ticks
+            //     - Total instrumented latency (AppSim→screen): 55'000 ticks
+            //
+            // Call pattern: Case 2/3.
+            //
+            // Expectations: render + ready latencies computed normally; msInstrumentedLatency should fall back
+            //               to AppSimStartTime since sleep end is missing.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData p0{};
+            p0.appRenderSubmitStartTime = 10'000;
+            p0.appSimStartTime = 5'000;
+            p0.readyTime = 30'000;
+            p0.appSleepEndTime = 0;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.push_back({ FrameType::Application, 60'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(0), p0_phase1.size());
+
+            FrameData p1{};
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 90'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
+            Assert::AreEqual(size_t(1), p0_final.size());
+            const auto& m0 = p0_final[0].metrics;
+
+            double expectedRenderMs = qpc.DeltaUnsignedMilliSeconds(10'000, 60'000);
+            double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(30'000, 60'000);
+            double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(5'000, 60'000);
+
+            Assert::IsTrue(m0.msInstrumentedRenderLatency.has_value());
+            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency.value(), 1e-6);
+            Assert::IsTrue(m0.msReadyTimeToDisplayLatency.has_value());
+            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency.value(), 1e-6);
+            Assert::IsTrue(m0.msInstrumentedLatency.has_value());
+            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency.value(), 1e-6,
+                L"Total latency should fall back to AppSimStartTime when sleep end is missing.");
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
+        }
+
+        TEST_METHOD(InstrumentedDisplay_AppFrame_NoSleepNoSim_NoTotalLatency)
+        {
+            // Scenario:
+            //   - Displayed Application frame has render submit + ready markers but neither appSleepEndTime
+            //     nor appSimStartTime, so the total instrumented latency should be disabled.
+            //
+            // QPC values (10 MHz): appRenderSubmitStartTime = 12'000, readyTime = 32'000, screenTime = 70'000.
+            //   Derived deltas:
+            //     - Render latency Δ = 58'000 ticks
+            //     - Ready→display Δ = 38'000 ticks
+            //
+            // Call pattern: Case 2/3.
+            //
+            // Expectations: render + ready metrics populated with the deltas above; msInstrumentedLatency is nullopt.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData p0{};
+            p0.appRenderSubmitStartTime = 12'000;
+            p0.readyTime = 32'000;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.push_back({ FrameType::Application, 70'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(0), p0_phase1.size());
+
+            FrameData p1{};
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 90'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
+            Assert::AreEqual(size_t(1), p0_final.size());
+            const auto& m0 = p0_final[0].metrics;
+
+            double expectedRenderMs = qpc.DeltaUnsignedMilliSeconds(12'000, 70'000);
+            double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(32'000, 70'000);
+
+            Assert::IsTrue(m0.msInstrumentedRenderLatency.has_value());
+            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency.value(), 1e-6);
+            Assert::IsTrue(m0.msReadyTimeToDisplayLatency.has_value());
+            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency.value(), 1e-6);
+            Assert::IsFalse(m0.msInstrumentedLatency.has_value(),
+                L"Total instrumented latency must stay off without an instrumented start.");
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
+        }
+
+        TEST_METHOD(InstrumentedDisplay_NonAppFrame_Ignored)
+        {
+            // Scenario:
+            //   - Displayed frame whose first (and only) display entry is FrameType::Repeated, so the
+            //     DisplayIndexing logic never flags an application frame for this present.
+            //
+            // QPC values (10 MHz): appRenderSubmitStartTime = 10'000, readyTime = 30'000, appSleepEndTime = 5'000,
+            //                      screenTime = 60'000. These deltas should all be ignored.
+            //
+            // Call pattern: Case 2/3.
+            //
+            // Expectations: all instrumented display metrics remain std::nullopt for P0.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData p0{};
+            p0.appRenderSubmitStartTime = 10'000;
+            p0.readyTime = 30'000;
+            p0.appSleepEndTime = 5'000;
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.push_back({ FrameType::Repeated, 60'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(0), p0_phase1.size());
+
+            FrameData p1{};
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 90'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
+            Assert::AreEqual(size_t(1), p0_final.size());
+            const auto& m0 = p0_final[0].metrics;
+
+            Assert::IsFalse(m0.msInstrumentedRenderLatency.has_value());
+            Assert::IsFalse(m0.msInstrumentedLatency.has_value());
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
+        }
+
+        TEST_METHOD(InstrumentedDisplay_AppFrame_NotDisplayed_NoDisplayMetrics)
+        {
+            // Scenario:
+            //   - Application frame with appRenderSubmit/ready/sleep/appSim markers that gets discarded (not displayed).
+            //   - Ensures display-only instrumented metrics stay unset when there is no screen time.
+            //
+            // QPC values: appRenderSubmitStart = 9'000, readyTime = 19'000, appSleepEnd = 4'000,
+            //             appSimStart = 2'000. No displayed entries, so screenTime is undefined.
+            //
+            // Call pattern: Case 1 (single call, nextDisplayed == nullptr).
+            //
+            // Expectations: msInstrumentedRenderLatency / msReadyTimeToDisplayLatency / msInstrumentedLatency are nullopt.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData p0{};
+            p0.appRenderSubmitStartTime = 9'000;
+            p0.readyTime = 19'000;
+            p0.appSleepEndTime = 4'000;
+            p0.appSimStartTime = 2'000;
+            p0.setFinalState(PresentResult::Discarded);
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            const auto& m0 = p0_results[0].metrics;
+
+            Assert::IsFalse(m0.msInstrumentedRenderLatency.has_value());
+            Assert::IsFalse(m0.msReadyTimeToDisplayLatency.has_value());
+            Assert::IsFalse(m0.msInstrumentedLatency.has_value());
+        }
+
+        TEST_METHOD(InstrumentedInput_DroppedAppFrame_PendingProviderInput_ConsumedOnDisplay)
+        {
+            // Scenario:
+            //   - P0 is a dropped Application frame that carries an App provider input sample at 20'000 ticks.
+            //   - P1 is the next displayed Application frame (screenTime = 70'000) without its own sample.
+            //   - P2 is a synthetic follower to flush P1, mirroring the ReportMetrics Case 2/3 pattern.
+            //
+            // QPC-derived delta: 70'000 - 20'000 = 50'000 ticks = 5 ms (with 10 MHz QPC).
+            //
+            // Call pattern:
+            //   - P0 (Case 1) → Compute(..., nullptr) populates lastReceivedNotDisplayedAppProviderInputTime.
+            //   - P1 pending → Compute(P1, nullptr).
+            //   - P1 final → Compute(P1, &P2) produces metrics.
+            //
+            // Expectations:
+            //   - Cached provider input equals 20'000 after P0.
+            //   - P1 reports msInstrumentedInputTime = 5 ms and clears all pending caches afterward.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            const uint64_t pendingInputTime = 20'000;
+
+            // P0: Dropped Application frame with provider input.
+            FrameData p0{};
+            p0.appInputSample = { pendingInputTime, InputDeviceType::Mouse };
+            p0.setFinalState(PresentResult::Discarded);
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            Assert::AreEqual(pendingInputTime, chain.lastReceivedNotDisplayedAppProviderInputTime,
+                L"Dropped provider input should be cached until a displayed frame consumes it.");
+
+            // P1: Displayed Application frame without its own AppInputSample.
+            FrameData p1{};
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 70'000 });
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
+
+            // P2: Simple next displayed frame to flush P1.
+            FrameData p2{};
+            p2.setFinalState(PresentResult::Presented);
+            p2.displayed.push_back({ FrameType::Application, 90'000 });
+
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, chain);
+            Assert::AreEqual(size_t(1), p1_final.size());
+            const auto& m1 = p1_final[0].metrics;
+
+            Assert::IsTrue(m1.msInstrumentedInputTime.has_value(),
+                L"P1 should consume the cached provider input time once it is displayed.");
+            double expectedInputMs = qpc.DeltaUnsignedMilliSeconds(pendingInputTime, 70'000);
+            Assert::AreEqual(expectedInputMs, m1.msInstrumentedInputTime.value(), 1e-6);
+
+            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime,
+                L"Pending provider input cache must be cleared after consumption.");
+            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAllInputTime);
+            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedMouseClickTime);
+
+            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, chain);
+            Assert::AreEqual(size_t(0), p2_phase1.size());
+        }
+
+        TEST_METHOD(InstrumentedInput_DisplayedAppFrame_WithOwnSample_IgnoresPending)
+        {
+            // Scenario:
+            //   - P0 (dropped) seeds pending provider input at 10'000 ticks.
+            //   - P1 (displayed Application) carries its own sample at 15'000 ticks and displays at 60'000.
+            //   - P2 finalizes P1.
+            //
+            // QPC-derived deltas:
+            //   - Pending path would have produced 50'000 ticks, but we expect 45'000 ticks from P1's own sample.
+            //
+            // Call pattern: identical to Test 10 (Case 1 for P0, Case 2/3 for P1).
+            //
+            // Expectations:
+            //   - Cached pending input updated after P0.
+            //   - P1 final metrics use Δ(15'000, 60'000) only and clear the pending cache.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            const uint64_t pendingInputTime = 10'000;
+            const uint64_t directInputTime = 15'000;
+
+            FrameData p0{};
+            p0.appInputSample = { pendingInputTime, InputDeviceType::Keyboard };
+            p0.setFinalState(PresentResult::Discarded);
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            Assert::AreEqual(pendingInputTime, chain.lastReceivedNotDisplayedAppProviderInputTime);
+
+            FrameData p1{};
+            p1.appInputSample = { directInputTime, InputDeviceType::Mouse };
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 60'000 });
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
+
+            FrameData p2{};
+            p2.setFinalState(PresentResult::Presented);
+            p2.displayed.push_back({ FrameType::Application, 80'000 });
+
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, chain);
+            Assert::AreEqual(size_t(1), p1_final.size());
+            const auto& m1 = p1_final[0].metrics;
+
+            double expectedInputMs = qpc.DeltaUnsignedMilliSeconds(directInputTime, 60'000);
+            Assert::IsTrue(m1.msInstrumentedInputTime.has_value());
+            Assert::AreEqual(expectedInputMs, m1.msInstrumentedInputTime.value(), 1e-6,
+                L"P1 must prefer its own input marker over pending values.");
+
+            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime);
+
+            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, chain);
+            Assert::AreEqual(size_t(0), p2_phase1.size());
+        }
+
+        TEST_METHOD(InstrumentedInput_NonAppFrame_DoesNotAffectInstrumentedInputTime)
+        {
+            // Scenario:
+            //   - P0 is a displayed frame with FrameType::Repeated at screenTime = 50'000 and a provider
+            //     input sample at 25'000 ticks. Because it is not an Application frame, it must NOT seed the
+            //     pending provider cache.
+            //   - P1 is the next displayed Application frame (screenTime = 80'000) without its own sample.
+            //   - P2 finalizes P1.
+            //
+            // QPC expectation: since no pending sample exists, msInstrumentedInputTime for P1 must be nullopt.
+            //
+            // Call pattern: Case 2/3 for both P0 and P1 (since both are displayed frames).
+            //
+            // Expectations:
+            //   - After P0 finalization, chain.lastReceivedNotDisplayedAppProviderInputTime remains 0.
+            //   - P1 final metrics leave msInstrumentedInputTime unset.
+
+            QpcConverter       qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            const uint64_t ignoredInputTime = 25'000;
+
+            FrameData p0{};
+            p0.appInputSample = { ignoredInputTime, InputDeviceType::Mouse };
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.push_back({ FrameType::Repeated, 50'000 });
+
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(0), p0_phase1.size());
+
+            FrameData p1{};
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.push_back({ FrameType::Application, 80'000 });
+
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
+            Assert::AreEqual(size_t(1), p0_final.size());
+            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime,
+                L"Non-app frames should not seed the pending provider input cache.");
+
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(0), p1_phase1.size());
+
+            FrameData p2{};
+            p2.setFinalState(PresentResult::Presented);
+            p2.displayed.push_back({ FrameType::Application, 100'000 });
+
+            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, chain);
+            Assert::AreEqual(size_t(1), p1_final.size());
+            const auto& m1 = p1_final[0].metrics;
+            Assert::IsFalse(m1.msInstrumentedInputTime.has_value(),
+                L"P1 should not report instrumented input latency because no app-frame pending sample existed.");
+
+            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, chain);
+            Assert::AreEqual(size_t(0), p2_phase1.size());
         }
     };
 }

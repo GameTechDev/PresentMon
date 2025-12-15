@@ -143,6 +143,7 @@ namespace pmon::util::metrics {
         double msUntilDisplayed;
         double msBetweenDisplayChange;
         uint64_t screenTimeQpc;
+        std::optional<double> msReadyTimeToDisplayLatency;
 
         // CPU Metrics (app frames only)
         uint64_t cpuStartQpc;
@@ -170,7 +171,6 @@ namespace pmon::util::metrics {
         std::optional<double> msInstrumentedRenderLatency;
         std::optional<double> msInstrumentedSleep;
         std::optional<double> msInstrumentedGpuLatency;
-        std::optional<double> msReadyTimeToDisplayLatency;
         std::optional<double> msBetweenSimStarts;
 
         // PCLatency (optional)

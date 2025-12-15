@@ -105,7 +105,7 @@ namespace pmon::util::metrics
                 out.msReadyTimeToDisplayLatency = qpc.DeltaUnsignedMilliSeconds(present.getReadyTime(), screenTime);
             }
             else {
-                out.msReadyTimeToDisplayLatency = 0.0;
+                out.msReadyTimeToDisplayLatency = std::nullopt;
             }
         }
 
@@ -338,6 +338,8 @@ namespace pmon::util::metrics
                     // Not displayed: stash the click for a future displayed frame.
                     stateDeltas.lastReceivedNotDisplayedMouseClickTime = inputTime;
                     return std::nullopt;
+                } else {
+                    stateDeltas.shouldResetInputTimes = true;
                 }
             }
             // Case 2: No click on this frame, but frame is displayed: see if we can
@@ -380,6 +382,8 @@ namespace pmon::util::metrics
                     // Not displayed: stash the click for a future displayed frame.
                     stateDeltas.lastReceivedNotDisplayedAllInputTime = inputTime;
                     return std::nullopt;
+                } else {
+                    stateDeltas.shouldResetInputTimes = true;
                 }
             }
             // Case 2: No click on this frame, but frame is displayed: see if we can
@@ -421,6 +425,8 @@ namespace pmon::util::metrics
                     // Not displayed: stash the click for a future displayed frame.
                     stateDeltas.lastReceivedNotDisplayedAppProviderInputTime = inputTime;
                     return std::nullopt;
+                } else {
+                    stateDeltas.shouldResetInputTimes = true;
                 }
             }
             // Case 2: No click on this frame, but frame is displayed: see if we can
@@ -485,7 +491,7 @@ namespace pmon::util::metrics
             bool isAppFrame,
             uint64_t screenTime)
         {
-            if (!isDisplayed || !isAppFrame) {
+            if (!isAppFrame) {
                 return std::nullopt;
             }
 
@@ -503,7 +509,7 @@ namespace pmon::util::metrics
             bool isDisplayed,
             bool isAppFrame)
         {
-            if (!isDisplayed || !isAppFrame) {
+            if (!isAppFrame) {
                 return std::nullopt;
             }
 
@@ -526,8 +532,13 @@ namespace pmon::util::metrics
         std::optional<double> ComputeMsBetweenSimulationStarts(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
-            const FrameData& present)
+            const FrameData& present,
+            bool isAppFrame)
         {
+            if (!isAppFrame) {
+                return std::nullopt;
+            }
+
             auto currentSimStartTime = CalculateSimStartTime(chain, present, chain.animationErrorSource);
             if (chain.lastSimStartTime != 0 && currentSimStartTime != 0) {
                 return qpc.DeltaUnsignedMilliSeconds(
@@ -1052,7 +1063,8 @@ namespace pmon::util::metrics
         metrics.msBetweenSimStarts = ComputeMsBetweenSimulationStarts(
             qpc,
             chain,
-            present);
+            present,
+            isAppFrame);
     }
 
     ComputedMetrics ComputeFrameMetrics(
