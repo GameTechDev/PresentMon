@@ -105,7 +105,7 @@ void RealtimePresentMonSession::ResetEtwFlushPeriod()
 }
 
 PM_STATUS RealtimePresentMonSession::StartTraceSession() {
-    std::lock_guard<std::mutex> lock(session_mutex_);
+    std::lock_guard lock(session_mutex_);
 
     if (pm_consumer_) {
         return PM_STATUS::PM_STATUS_SERVICE_ERROR;
@@ -182,26 +182,28 @@ PM_STATUS RealtimePresentMonSession::StartTraceSession() {
 
 void RealtimePresentMonSession::StopTraceSession() {
     // PHASE 1: Signal shutdown and wait for threads to observe it
-    session_active_.store(false, std::memory_order_release);
-    
-    // Stop the trace session to stop new events from coming in
-    trace_session_.Stop();
-    
-    // Wait for threads to exit their critical sections and finish
-    WaitForConsumerThreadToExit();
-    StopOutputThread();
-    
-    // PHASE 2: Safe cleanup after threads have finished
-    std::lock_guard<std::mutex> lock(session_mutex_);
-    
-    // Stop all streams
-    streamer_.StopAllStreams();
-    if (evtStreamingStarted_) {
-        evtStreamingStarted_.Reset();
-    }
+    // this also enforces "only_once" semantics for multiple stop callers
+    if (session_active_.exchange(false, std::memory_order_acq_rel)) {
 
-    if (pm_consumer_) {
-        pm_consumer_.reset();
+        // Stop the trace session to stop new events from coming in
+        trace_session_.Stop();
+
+        // Wait for threads to exit their critical sections and finish
+        WaitForConsumerThreadToExit();
+        StopOutputThread();
+
+        // PHASE 2: Safe cleanup after threads have finished
+        std::lock_guard<std::mutex> lock(session_mutex_);
+
+        // Stop all streams
+        streamer_.StopAllStreams();
+        if (evtStreamingStarted_) {
+            evtStreamingStarted_.Reset();
+        }
+
+        if (pm_consumer_) {
+            pm_consumer_.reset();
+        }
     }
 }
 
