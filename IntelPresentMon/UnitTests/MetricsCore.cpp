@@ -7684,4 +7684,274 @@ namespace MetricsCoreTests
             Assert::AreEqual(size_t(0), p1_phase1.size());
         }
     };
+    TEST_CLASS(InstrumentedMetricsTests)
+    {
+    public:
+
+        TEST_METHOD(InstrumentedCpuGpu_AppFrame_FullData_UsesPclSimStart)
+        {
+            // This test verifies the "instrumented CPU/GPU" metrics on an application frame:
+            //
+            //   - msInstrumentedSleep
+            //   - msInstrumentedGpuLatency
+            //   - msBetweenSimStarts (PCL sim preferred over App sim)
+            //
+            // We construct:
+            //
+            //   QPC frequency = 10 MHz
+            //
+            //   Pre-state in swapChain:
+            //     lastSimStartTime = 10'000 (this represents the previous frame's sim start)
+            //
+            //   P0 (the frame under test) – APP FRAME:
+            //     appSleepStartTime =  1'000
+            //     appSleepEndTime   = 11'000    // Δsleep = 10'000 ticks
+            //     appSimStartTime   =100'000    // should NOT be used for between-sim-starts
+            //     pclSimStartTime   = 20'000    // PCL sim should win for between-sim-starts
+            //     gpuStartTime      = 21'000    // GPU start time used for GPU latency
+            //     displayed         = one Application entry at screenTime = 50'000
+            //
+            //   Derived deltas:
+            //     sleep Δ:        11'000 -  1'000 = 10'000 ticks
+            //     PCL sim Δ:     20'000 - 10'000 = 10'000 ticks
+            //     GPU latency Δ: 21'000 - 11'000 = 10'000 ticks
+            //
+            // With QPC = 10 MHz, 10'000 ticks = 0.001 ms.
+            //
+            // Call pattern (ReportMetrics-style for a single displayed app frame):
+            //
+            //   P0 arrives:
+            //       ComputeMetricsForPresent(P0, nullptr, chain)   // Case 2, pending only
+            //
+            //   P1 arrives later:
+            //       ComputeMetricsForPresent(P0, &P1, chain)       // Case 3, finalize P0
+            //       ComputeMetricsForPresent(P1, nullptr, chain)   // pending P1 (ignored in this test)
+            //
+            // We verify on P0's final metrics:
+            //   - msInstrumentedSleep has a value and matches Δ(appSleepStart, appSleepEnd).
+            //   - msInstrumentedGpuLatency has a value and matches Δ(appSleepEnd, gpuStartTime).
+            //   - msBetweenSimStarts has a value and matches Δ(lastSimStartTime, P0.pclSimStartTime),
+            //     proving PCL sim is preferred over App sim for between-sim-starts.
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            // Seed lastSimStartTime to simulate a previous frame.
+            chain.lastSimStartTime = 10'000;
+            chain.animationErrorSource = AnimationErrorSource::PCLatency;
+
+            const uint32_t PROCESS_ID = 1234;
+            const uint64_t SWAPCHAIN = 0xABC0;
+
+            // --------------------------------------------------------------------
+            // P0: Application frame with full instrumented CPU/GPU data
+            // --------------------------------------------------------------------
+            FrameData p0{};
+            p0.processId = PROCESS_ID;
+            p0.swapChainAddress = SWAPCHAIN;
+
+            p0.presentStartTime = 0;
+            p0.timeInPresent = 0;
+            p0.readyTime = 0;
+
+            // Instrumented CPU / sim:
+            p0.appSleepStartTime = 1'000;
+            p0.appSleepEndTime = 11'000;
+            p0.appSimStartTime = 100'000;   // should NOT be used for between-sim-starts
+            p0.pclSimStartTime = 20'000;   // should be used instead
+
+            // GPU start time for GPU latency:
+            p0.gpuStartTime = 21'000;
+
+            // Mark as displayed Application frame
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.clear();
+            p0.displayed.push_back({ FrameType::Application, 50'000 }); // screenTime = 50'000
+
+            // First call: P0 arrives, becomes pending (no metrics yet).
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(0), p0_phase1.size(),
+                L"P0 (phase 1): pending-only call with nextDisplayed=nullptr should produce no metrics.");
+
+            // --------------------------------------------------------------------
+            // P1: simple next displayed app frame (used only as nextDisplayed for P0)
+            // --------------------------------------------------------------------
+            FrameData p1{};
+            p1.processId = PROCESS_ID;
+            p1.swapChainAddress = SWAPCHAIN;
+
+            p1.presentStartTime = 0;
+            p1.timeInPresent = 0;
+            p1.readyTime = 0;
+
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.clear();
+            p1.displayed.push_back({ FrameType::Application, 60'000 }); // later display, not important
+
+            // Second call: P1 arrives, finalize P0 using P1 as nextDisplayed (Case 3).
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
+            Assert::AreEqual(size_t(1), p0_final.size(),
+                L"P0 (final): expected exactly one metrics record when flushed with nextDisplayed=P1.");
+
+            const auto& m0 = p0_final[0].metrics;
+
+            // --------------------------------------------------------------------
+            // Assertions for P0's instrumented CPU/GPU metrics
+            // --------------------------------------------------------------------
+            // Expected values based on our chosen QPC times:
+            double expectedSleepMs = qpc.DeltaUnsignedMilliSeconds(1'000, 11'000);  // 10'000 ticks
+            double expectedGpuMs = qpc.DeltaUnsignedMilliSeconds(11'000, 21'000);   // 10'000 ticks
+            double expectedBetween = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000); // 10'000 ticks
+
+            // 1) Instrumented sleep
+            Assert::IsTrue(m0.msInstrumentedSleep.has_value(),
+                L"P0: msInstrumentedSleep should have a value for valid AppSleepStart/End.");
+            Assert::AreEqual(expectedSleepMs, m0.msInstrumentedSleep.value(), 1e-6,
+                L"P0: msInstrumentedSleep did not match expected Δ(AppSleepStart, AppSleepEnd).");
+
+            // 2) Instrumented GPU latency (start = AppSleepEndTime since it is non-zero)
+            Assert::IsTrue(m0.msInstrumentedGpuLatency.has_value(),
+                L"P0: msInstrumentedGpuLatency should have a value when InstrumentedStartTime and gpuStartTime are valid.");
+            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency.value(), 1e-6,
+                L"P0: msInstrumentedGpuLatency did not match expected Δ(AppSleepEndTime, gpuStartTime).");
+
+            // 3) Between sim starts: PCL sim (20'000) must win over App sim (100'000)
+            Assert::IsTrue(m0.msBetweenSimStarts.has_value(),
+                L"P0: msBetweenSimStarts should have a value when lastSimStartTime and PclSimStartTime are non-zero.");
+            Assert::AreEqual(expectedBetween, m0.msBetweenSimStarts.value(), 1e-6,
+                L"P0: msBetweenSimStarts should be based on PCL sim start, not App sim start.");
+        }
+        TEST_METHOD(InstrumentedDisplay_AppFrame_FullData_ComputesAll)
+        {
+            // This test verifies the "instrumented display" metrics on a displayed
+            // application frame:
+            //
+            //   - msInstrumentedRenderLatency
+            //   - msReadyTimeToDisplayLatency
+            //   - msInstrumentedLatency (total app-instrumented latency)
+            //
+            // New invariant (unified metrics):
+            //   These metrics are only computed when:
+            //     - the frame is an Application frame (isAppFrame == true), AND
+            //     - the frame is displayed (isDisplayed == true).
+            //
+            // We construct:
+            //
+            //   QPC frequency = 10 MHz
+            //
+            //   P0 (the frame under test) – DISPLAYED APP FRAME:
+            //     appRenderSubmitStartTime = 10'000
+            //     readyTime                = 20'000
+            //     appSleepEndTime          =  5'000   // used as InstrumentedStartTime
+            //     screenTime               = 30'000 (Application entry in displayed)
+            //
+            //   Derived deltas:
+            //     render latency:      30'000 - 10'000 = 20'000 ticks
+            //     ready→display:       30'000 - 20'000 = 10'000 ticks
+            //     total inst. latency: 30'000 -  5'000 = 25'000 ticks
+            //
+            // With QPC = 10 MHz:
+            //   10'000 ticks = 0.001 ms
+            //   20'000 ticks = 0.002 ms
+            //   25'000 ticks = 0.0025 ms
+            //
+            // Call pattern (mirroring ReportMetrics for a displayed app frame):
+            //
+            //   P0 arrives:
+            //       ComputeMetricsForPresent(P0, nullptr, chain)   // Case 2, pending only
+            //
+            //   P1 arrives:
+            //       ComputeMetricsForPresent(P0, &P1, chain)       // Case 3, finalize P0
+            //       ComputeMetricsForPresent(P1, nullptr, chain)   // pending P1 (ignored)
+            //
+            // We verify on P0's final metrics:
+            //   - msInstrumentedRenderLatency has a value and matches Δ(appRenderSubmitStartTime, screenTime).
+            //   - msReadyTimeToDisplayLatency has a value and matches Δ(readyTime, screenTime).
+            //   - msInstrumentedLatency has a value and matches Δ(appSleepEndTime, screenTime).
+
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            const uint32_t PROCESS_ID = 1234;
+            const uint64_t SWAPCHAIN = 0xABC0;
+
+            // --------------------------------------------------------------------
+            // P0: Displayed Application frame with full instrumented display data
+            // --------------------------------------------------------------------
+            FrameData p0{};
+            p0.processId = PROCESS_ID;
+            p0.swapChainAddress = SWAPCHAIN;
+
+            p0.presentStartTime = 0;
+            p0.timeInPresent = 0;
+            p0.readyTime = 20'000; // ReadyTime
+
+            // Instrumented markers
+            p0.appRenderSubmitStartTime = 10'000;
+            p0.appSleepEndTime = 5'000;
+            p0.appSimStartTime = 0;     // not needed in this test
+
+            // Mark as displayed Application frame with a single screen time.
+            p0.setFinalState(PresentResult::Presented);
+            p0.displayed.clear();
+            p0.displayed.push_back({ FrameType::Application, 30'000 }); // screenTime = 30'000
+
+            // First call: P0 arrives, becomes pending.
+            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(0), p0_phase1.size(),
+                L"P0 (phase 1): pending-only call with nextDisplayed=nullptr should produce no metrics.");
+
+            // --------------------------------------------------------------------
+            // P1: Next displayed app frame (used only as nextDisplayed for P0)
+            // --------------------------------------------------------------------
+            FrameData p1{};
+            p1.processId = PROCESS_ID;
+            p1.swapChainAddress = SWAPCHAIN;
+
+            p1.presentStartTime = 0;
+            p1.timeInPresent = 0;
+            p1.readyTime = 0;
+
+            p1.setFinalState(PresentResult::Presented);
+            p1.displayed.clear();
+            p1.displayed.push_back({ FrameType::Application, 40'000 }); // later display
+
+            // Second call: finalize P0 with nextDisplayed=P1
+            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
+            Assert::AreEqual(size_t(1), p0_final.size(),
+                L"P0 (final): expected exactly one metrics record when flushed with nextDisplayed=P1.");
+
+            const auto& m0 = p0_final[0].metrics;
+
+            // For completeness, process P1 as pending (not used in this test).
+            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(0), p1_phase1.size(),
+                L"P1 (phase 1): first call with nextDisplayed=nullptr should produce no metrics (pending only).");
+
+            // --------------------------------------------------------------------
+            // Assertions for P0's instrumented display metrics
+            // --------------------------------------------------------------------
+            double expectedRenderMs = qpc.DeltaUnsignedMilliSeconds(10'000, 30'000); // 20'000 ticks
+            double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(20'000, 30'000); // 10'000 ticks
+            double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(5'000, 30'000); // 25'000 ticks
+
+            // Render latency
+            Assert::IsTrue(m0.msInstrumentedRenderLatency.has_value(),
+                L"P0: msInstrumentedRenderLatency should have a value for a displayed app frame with AppRenderSubmitStartTime.");
+            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency.value(), 1e-6,
+                L"P0: msInstrumentedRenderLatency did not match expected Δ(AppRenderSubmitStartTime, screenTime).");
+
+            // Ready-to-display latency
+            Assert::IsTrue(m0.msReadyTimeToDisplayLatency.has_value(),
+                L"P0: msReadyTimeToDisplayLatency should have a value when ReadyTime and screenTime are valid.");
+            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency.value(), 1e-6,
+                L"P0: msReadyTimeToDisplayLatency did not match expected Δ(ReadyTime, screenTime).");
+
+            // Total instrumented latency: from appSleepEndTime to screenTime
+            Assert::IsTrue(m0.msInstrumentedLatency.has_value(),
+                L"P0: msInstrumentedLatency should have a value when there is a valid instrumented start time.");
+            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency.value(), 1e-6,
+                L"P0: msInstrumentedLatency did not match expected Δ(AppSleepEndTime, screenTime).");
+        }
+    };
 }

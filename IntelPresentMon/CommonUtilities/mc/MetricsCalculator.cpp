@@ -523,6 +523,22 @@ namespace pmon::util::metrics
             return qpc.DeltaUnsignedMilliSeconds(instrumentedStartTime, present.gpuStartTime);
         }
 
+        std::optional<double> ComputeMsBetweenSimulationStarts(
+            const QpcConverter& qpc,
+            const SwapChainCoreState& chain,
+            const FrameData& present)
+        {
+            auto currentSimStartTime = CalculateSimStartTime(chain, present, chain.animationErrorSource);
+            if (chain.lastSimStartTime != 0 && currentSimStartTime != 0) {
+                return qpc.DeltaUnsignedMilliSeconds(
+                    chain.lastSimStartTime,
+                    currentSimStartTime);
+            }
+            else {
+                return std::nullopt;
+            }
+        }
+
         void ApplyStateDeltas(
             SwapChainCoreState& chainState,
             const ComputedMetrics::StateDeltas& d)
@@ -1032,6 +1048,11 @@ namespace pmon::util::metrics
             present,
             isDisplayed,
             isAppFrame);
+
+        metrics.msBetweenSimStarts = ComputeMsBetweenSimulationStarts(
+            qpc,
+            chain,
+            present);
     }
 
     ComputedMetrics ComputeFrameMetrics(
