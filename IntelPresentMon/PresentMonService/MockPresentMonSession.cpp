@@ -184,24 +184,26 @@ PM_STATUS MockPresentMonSession::StartTraceSession(uint32_t processId, const std
 
 void MockPresentMonSession::StopTraceSession() {
     // PHASE 1: Signal shutdown and wait for threads to observe it
-    session_active_.store(false, std::memory_order_release);
+    // also enforce only_once semantics with atomic flag
+    if (session_active_.exchange(false, std::memory_order_acq_rel)) {
 
-    // Stop the trace session.
-    trace_session_.Stop();
+        // Stop the trace session.
+        trace_session_.Stop();
 
-    // Wait for the consumer and output threads to end (which are using the
-    // consumers).
-    WaitForConsumerThreadToExit();
-    StopOutputThread();
+        // Wait for the consumer and output threads to end (which are using the
+        // consumers).
+        WaitForConsumerThreadToExit();
+        StopOutputThread();
 
-    // PHASE 2: Safe cleanup after threads have finished
-    std::lock_guard<std::mutex> lock(session_mutex_);
+        // PHASE 2: Safe cleanup after threads have finished
+        std::lock_guard<std::mutex> lock(session_mutex_);
 
-    // Stop all streams
-    streamer_.StopAllStreams();
+        // Stop all streams
+        streamer_.StopAllStreams();
 
-    if (pm_consumer_) {
-        pm_consumer_.reset();
+        if (pm_consumer_) {
+            pm_consumer_.reset();
+        }
     }
 }
 
@@ -322,6 +324,7 @@ void MockPresentMonSession::AddPresents(
             processInfo->mModuleName, gpu_telemetry_cap_bits,
             cpu_telemetry_cap_bits);
 
+        pBroadcaster->Broadcast(*presentEvent);
 
         chain->mLastPresentQPC = presentEvent->PresentStartTime;
         if (presentEvent->FinalState == PresentResult::Presented) {

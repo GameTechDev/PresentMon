@@ -471,7 +471,7 @@ namespace InterimBroadcasterTests
         }
     };
 
-    TEST_CLASS(FrameStoreTests)
+    TEST_CLASS(FrameStoreRealtimeTests)
     {
         TestFixture fixture_;
     public:
@@ -551,6 +551,57 @@ namespace InterimBroadcasterTests
 
             // sleep here to let the presenter init, etw system warm up, and frames propagate
             std::this_thread::sleep_for(550ms);
+
+            // verify that frames are added over time
+            const auto range1 = frames.GetSerialRange();
+            Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
+            std::this_thread::sleep_for(100ms);
+            const auto range2 = frames.GetSerialRange();
+            Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
+            std::this_thread::sleep_for(100ms);
+            const auto range3 = frames.GetSerialRange();
+            Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
+
+            Assert::IsTrue(range1.second - range1.first < range2.second - range2.first);
+            Assert::IsTrue(range2.second - range2.first < range3.second - range3.first);
+        }
+    };
+
+
+    TEST_CLASS(FrameStorePlaybackTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup({
+                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P00HeaWin2080.etl)",
+                "--pace-playback"s,
+            });
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        TEST_METHOD(ReadFrames)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            // set up a fast flush
+            client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
+            // make sure the flush period propagates to the flusher thread
+            std::this_thread::sleep_for(1ms);
+            // we know the pid of interest in this etl file, track it
+            const uint32_t pid = 12820;
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid });
+
+            // open the store
+            pComms->OpenFrameDataStore(pid);
+            auto& frames = pComms->GetFrameDataStore(pid).frameData;
+
+            // sleep here to let the etw system warm up, and frames propagate
+            std::this_thread::sleep_for(450ms);
 
             // verify that frames are added over time
             const auto range1 = frames.GetSerialRange();
