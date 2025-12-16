@@ -39,28 +39,17 @@ namespace pmon::ipc
     private:
         static constexpr const char* name_ = "seg-dat";
 
-        // Helper to enforce a single size_t-like argument for FrameDataStore
-        template<typename Arg>
-        static size_t GetFrameCapacity_(Arg&& arg)
-        {
-            static_assert(std::is_convertible_v<Arg, size_t>,
-                "FrameDataStore capacity must be convertible to size_t");
-            return static_cast<size_t>(std::forward<Arg>(arg));
-        }
-
         // Factory that constructs the store in shared memory with the right allocator
         template<class... StoreArgs>
         ShmUniquePtr<T> MakeStore_(StoreArgs&&... storeArgs)
         {
             // FrameDataStore: expects (ShmAllocator<PmFrameData>&, size_t cap)
             if constexpr (std::is_same_v<T, FrameDataStore>) {
-                static_assert(sizeof...(StoreArgs) == 1,
-                    "OwnedStreamedSegment<FrameDataStore> requires a single ring capacity argument");
                 return ShmMakeNamedUnique<FrameDataStore>(
                     name_,
                     shm_.get_segment_manager(),
                     *shm_.get_segment_manager(),
-                    GetFrameCapacity_(std::forward<StoreArgs>(storeArgs)...)
+                    std::forward<StoreArgs>(storeArgs)...
                 );
             }
             // Telemetry stores: expect TelemetryMap::AllocatorType& only

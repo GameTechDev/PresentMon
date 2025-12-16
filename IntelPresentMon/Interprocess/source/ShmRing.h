@@ -2,16 +2,22 @@
 #include "SharedMemoryTypes.h"
 #include "../../CommonUtilities/Exception.h"
 #include "../../CommonUtilities/log/Log.h"
+#include <chrono>
+#include <thread>
+#include <optional>
 
 namespace pmon::ipc
 {
+	using namespace std::literals;
+
 	// shared memory ring buffer for broadcast
 	template<typename T, size_t ReadBufferSize = 4>
 	class ShmRing
 	{
 	public:
-		ShmRing(size_t capacity, ShmVector<T>::allocator_type alloc)
+		ShmRing(size_t capacity, ShmVector<T>::allocator_type alloc, bool backpressured = false)
 			:
+			backpressured_{ backpressured },
 			data_{ capacity, alloc }
 		{
 			if (capacity < ReadBufferSize * 2) {
@@ -21,14 +27,16 @@ namespace pmon::ipc
 
 
 		ShmRing(const ShmRing&) = delete;
-		ShmRing & operator=(const ShmRing&) = delete;
+		ShmRing& operator=(const ShmRing&) = delete;
 		// we need to enable move for use inside vectors
 		// not enabled by default because of the atomic member
 		ShmRing(ShmRing&& other)
 			:
+			backpressured_{ other.backpressured_ },
 			data_{ std::move(other.data_) },
 			nextWriteSerial_{ other.nextWriteSerial_.load() }
-		{}
+		{
+		}
 		ShmRing& operator=(ShmRing&& other)
 		{
 			if (this != &other) {
@@ -40,10 +48,22 @@ namespace pmon::ipc
 		~ShmRing() = default;
 
 
-		void Push(const T& val)
+		bool Push(const T& val, std::optional<uint32_t> timeoutMs = {})
 		{
+			using clock = std::chrono::high_resolution_clock;
+			if (backpressured_) {
+				const auto start = timeoutMs ? clock::now() : decltype(clock::now()){};
+				while (nextWriteSerial_ >= nextReadSerial_ + data_.size() - ReadBufferSize) {
+					// bail with false to signal timeout without writing the pushed value
+					if (timeoutMs && (clock::now() - start >= *timeoutMs * 1ms)) {
+						return false;
+					}
+					std::this_thread::sleep_for(10ms);
+				}
+			}
 			data_[IndexFromSerial_(nextWriteSerial_)] = val;
 			nextWriteSerial_++;
+			return true;
 		}
 		const T& At(size_t serial) const
 		{
@@ -72,6 +92,12 @@ namespace pmon::ipc
 				return { nextWriteSerial_ - data_.size() + ReadBufferSize, nextWriteSerial_ };
 			}
 		}
+		void MarkNextRead(size_t serial) const
+		{
+			if (serial > nextReadSerial_) {
+				nextReadSerial_ = serial;
+			}
+		}
 		bool Empty() const
 		{
 			return nextWriteSerial_ == 0;
@@ -83,7 +109,9 @@ namespace pmon::ipc
 			return serial % data_.size();
 		}
 		// data
+		const bool backpressured_;
 		std::atomic<size_t> nextWriteSerial_ = 0;
+		mutable std::atomic<size_t> nextReadSerial_ = 0;
 		ShmVector<T> data_;
 	};
 }

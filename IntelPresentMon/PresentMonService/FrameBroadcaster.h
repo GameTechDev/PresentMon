@@ -11,6 +11,7 @@ namespace pmon::svc
     namespace vi = std::views;
     namespace rn = std::ranges;
 	using ipc::FrameData;
+    using namespace std::literals;
 
 	namespace
 	{
@@ -78,10 +79,10 @@ namespace pmon::svc
 	public:
         using Segment = ipc::OwnedDataSegment<ipc::FrameDataStore>;
         FrameBroadcaster(ipc::ServiceComms& comms) : comms_{ comms } {}
-		std::shared_ptr<Segment> RegisterTarget(uint32_t pid, bool isPlayback)
+		std::shared_ptr<Segment> RegisterTarget(uint32_t pid, bool isPlayback, bool isBackpressured)
 		{
             std::lock_guard lk{ mtx_ };
-            auto pSegment = comms_.CreateOrGetFrameDataSegment(pid);
+            auto pSegment = comms_.CreateOrGetFrameDataSegment(pid, isBackpressured);
             auto& store = pSegment->GetStore();
             // just overwrite these every time Register is called, it will always be the same
             store.statics.processId = pid;
@@ -103,7 +104,7 @@ namespace pmon::svc
             }
             return pSegment;
 		}
-		void Broadcast(const PresentEvent& present)
+        void Broadcast(const PresentEvent& present, std::optional<uint32_t> timeoutMs = {})
 		{
             std::lock_guard lk{ mtx_ };
 			if (auto pSegment = comms_.GetFrameDataSegment(present.ProcessId)) {

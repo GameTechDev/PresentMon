@@ -17,9 +17,9 @@ namespace pmon::ipc
 	struct FrameDataStore
 	{
         static constexpr size_t virtualSegmentSize = 50'000'000;
-        FrameDataStore(ShmSegmentManager& segMan, size_t cap)
+        FrameDataStore(ShmSegmentManager& segMan, size_t cap, bool backpressured)
             :
-            frameData{ cap, segMan.get_allocator<FrameData>() },
+            frameData{ cap, segMan.get_allocator<FrameData>(), backpressured },
             statics{ .applicationName{ segMan.get_allocator<char>() } }
         {}
 		struct Statics

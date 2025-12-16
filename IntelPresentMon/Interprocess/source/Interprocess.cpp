@@ -28,8 +28,8 @@ namespace pmon::ipc
         class CommsBase_
         {
         protected:
-            static constexpr size_t frameRingSize_ = 5'000;
-            static constexpr size_t telemetryRingSize_ = 5'000;
+            static constexpr size_t frameRingSize_ = 1'000;
+            static constexpr size_t telemetryRingSize_ = 1'000;
             static constexpr size_t introShmSize_ = 0x10'0000;
             static constexpr const char* introspectionRootName_ = "in-root";
             static constexpr const char* introspectionMutexName_ = "in-mtx";
@@ -136,7 +136,7 @@ namespace pmon::ipc
             }
             // data store access
             std::shared_ptr<OwnedDataSegment<FrameDataStore>>
-                CreateOrGetFrameDataSegment(uint32_t pid) override
+                CreateOrGetFrameDataSegment(uint32_t pid, bool backpressured) override
             {
                 // resolve out existing or new weak ptr, try and lock
                 auto& pWeak = frameShmWeaks_[pid];
@@ -147,7 +147,8 @@ namespace pmon::ipc
                     pFrameData = std::make_shared<OwnedDataSegment<FrameDataStore>>(
                         namer_.MakeFrameName(pid), 
                         static_cast<const bip::permissions&>(Permissions_{}),
-                        frameRingSize_
+                        frameRingSize_,
+                        backpressured
                     );
                     // store a weak reference
                     pWeak = pFrameData;

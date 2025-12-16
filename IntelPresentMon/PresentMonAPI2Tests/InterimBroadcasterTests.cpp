@@ -568,8 +568,7 @@ namespace InterimBroadcasterTests
         }
     };
 
-
-    TEST_CLASS(FrameStorePlaybackTests)
+    TEST_CLASS(FrameStorePacedPlaybackTests)
     {
         TestFixture fixture_;
     public:
@@ -639,6 +638,84 @@ namespace InterimBroadcasterTests
 
             Assert::IsTrue(range1.second - range1.first < range2.second - range2.first);
             Assert::IsTrue(range2.second - range2.first < range3.second - range3.first);
+        }
+    };
+    
+    TEST_CLASS(FrameStoreBackpressuredPlaybackTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup({
+                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P00HeaWin2080.etl)",
+            });
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        // static store
+        TEST_METHOD(StaticData)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            // track known target
+            const uint32_t pid = 12820;
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
+
+            // open the store
+            pComms->OpenFrameDataStore(pid);
+
+            // wait for population of frame data-initialized statics
+            std::this_thread::sleep_for(500ms);
+
+            // verify static data
+            auto& store = pComms->GetFrameDataStore(pid);
+            Assert::AreEqual(pid, store.statics.processId);
+            const std::string staticAppName = store.statics.applicationName.c_str();
+            Assert::AreEqual("Heaven.exe"s, staticAppName);
+        }
+        // make sure we get frames over time
+        TEST_METHOD(ReadFrames)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            // set up a fast flush
+            client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
+            // make sure the flush period propagates to the flusher thread
+            std::this_thread::sleep_for(1ms);
+            // we know the pid of interest in this etl file, track it
+            const uint32_t pid = 12820;
+            client.DispatchSync(svc::acts::StartTracking::Params{
+                .targetPid = pid, .isPlayback = true, .isBackpressured = true });
+
+            // open the store
+            pComms->OpenFrameDataStore(pid);
+            auto& frames = pComms->GetFrameDataStore(pid).frameData;
+
+            // sleep here to let the etw system warm up, and frames propagate
+            std::this_thread::sleep_for(300ms);
+
+            // verify that backpressure works correctly to ensure no frames are lost
+            const auto range1 = frames.GetSerialRange();
+            frames.MarkNextRead(range1.second);
+            Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
+            std::this_thread::sleep_for(300ms);
+            const auto range2 = frames.GetSerialRange();
+            frames.MarkNextRead(range2.second);
+            Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
+            std::this_thread::sleep_for(500ms);
+            const auto range3 = frames.GetSerialRange();
+            frames.MarkNextRead(range3.second);
+            Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
+
+            Assert::AreEqual(0ull, range1.first);
+            Assert::IsTrue(range2.first <= range1.second);
+            Assert::IsTrue(range3.first <= range2.second);
+            Assert::AreEqual(1905ull, range3.second);
         }
     };
 }

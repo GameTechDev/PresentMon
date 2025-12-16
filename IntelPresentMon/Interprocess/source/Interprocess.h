@@ -26,7 +26,7 @@ namespace pmon::ipc
 		virtual const ShmNamer& GetNamer() const = 0;
 		
 		// data store access
-		virtual std::shared_ptr<OwnedDataSegment<FrameDataStore>> CreateOrGetFrameDataSegment(uint32_t pid) = 0;
+		virtual std::shared_ptr<OwnedDataSegment<FrameDataStore>> CreateOrGetFrameDataSegment(uint32_t pid, bool backpressured) = 0;
 		virtual std::shared_ptr<OwnedDataSegment<FrameDataStore>> GetFrameDataSegment(uint32_t pid) = 0;
 		virtual std::vector<uint32_t> GetFramePids() const = 0;
 		virtual GpuDataStore& GetGpuDataStore(uint32_t deviceId) = 0;
@@ -40,6 +40,8 @@ namespace pmon::ipc
 		virtual const PM_INTROSPECTION_ROOT* GetIntrospectionRoot(uint32_t timeoutMs = 2000) = 0;
 
 		// data store access
+		// not const because of the backpressure case
+		// TODO: consider more separation of backpressure and broadcast cases
 		virtual const FrameDataStore& GetFrameDataStore(uint32_t pid) const = 0;
 		virtual const GpuDataStore& GetGpuDataStore(uint32_t deviceId) const = 0;
 		virtual const SystemDataStore& GetSystemDataStore() const = 0;
