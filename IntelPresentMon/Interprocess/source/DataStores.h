@@ -30,7 +30,7 @@ namespace pmon::ipc
         struct Bookkeeping
         {
             bool staticInitComplete = false;
-            bool targetExited = false;
+            bool isPlayback = false;
         } bookkeeping{};
 		ShmRing<FrameData> frameData;
 	};

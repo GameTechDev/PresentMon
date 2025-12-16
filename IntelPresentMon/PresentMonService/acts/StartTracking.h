@@ -18,9 +18,10 @@ namespace pmon::svc::acts
 		struct Params
 		{
 			uint32_t targetPid;
+			bool isPlayback = false;
 
 			template<class A> void serialize(A& ar) {
-				ar(targetPid);
+				ar(targetPid, isPlayback);
 			}
 		};
 		struct Response
@@ -39,7 +40,7 @@ namespace pmon::svc::acts
 			std::string nsmFileName;
 			// TODO: replace PresentMon container system and directly return the segment
 			// from a single "StartStreaming" replacement call
-			auto pSegment = ctx.pPmon->GetBroadcaster().RegisterTarget(in.targetPid);
+			auto pSegment = ctx.pPmon->GetBroadcaster().RegisterTarget(in.targetPid, in.isPlayback);
 			if (auto sta = ctx.pPmon->StartStreaming(stx.remotePid, in.targetPid, nsmFileName); sta != PM_STATUS_SUCCESS) {
 				pmlog_error("Start stream failed").code(sta);
 				throw util::Except<ActionExecutionError>(sta);

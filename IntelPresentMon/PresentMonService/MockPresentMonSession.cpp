@@ -509,6 +509,7 @@ void MockPresentMonSession::UpdateProcesses(
             if (newProcess) {
                 InitProcessInfo(processInfo, processEvent.ProcessId, NULL,
                     processEvent.ImageFileName);
+                pBroadcaster->HandleTargetProcessEvent(processEvent);
             }
         }
     }

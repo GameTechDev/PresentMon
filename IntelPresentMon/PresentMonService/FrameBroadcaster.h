@@ -2,6 +2,7 @@
 #include "../Interprocess/source/Interprocess.h"
 #include "../../PresentData/PresentMonTraceConsumer.hpp"
 #include "../CommonUtilities/win/Utilities.h"
+#include "../CommonUtilities/str/String.h"
 #include <unordered_map>
 #include <ranges>
 
@@ -77,15 +78,18 @@ namespace pmon::svc
 	public:
         using Segment = ipc::OwnedDataSegment<ipc::FrameDataStore>;
         FrameBroadcaster(ipc::ServiceComms& comms) : comms_{ comms } {}
-		std::shared_ptr<Segment> RegisterTarget(uint32_t pid)
+		std::shared_ptr<Segment> RegisterTarget(uint32_t pid, bool isPlayback)
 		{
             std::lock_guard lk{ mtx_ };
             auto pSegment = comms_.CreateOrGetFrameDataSegment(pid);
             auto& store = pSegment->GetStore();
+            // just overwrite these every time Register is called, it will always be the same
+            store.statics.processId = pid;
+            store.bookkeeping.isPlayback = isPlayback;
             // initialize name/pid statics on new store segment creation
-            if (!store.bookkeeping.staticInitComplete) {
+            // for playback, this needs to be done when processing 1st process event
+            if (!store.bookkeeping.staticInitComplete && !isPlayback) {
                 store.bookkeeping.staticInitComplete = true;
-                store.statics.processId = pid;
                 try {
                     store.statics.applicationName = util::win::GetExecutableModulePath(
                         util::win::OpenProcess(pid)
@@ -95,7 +99,6 @@ namespace pmon::svc
                     // if we reach here a race condition has occurred where the target has exited
                     // so we will mark this in the bookkeeping
                     pmlog_warn("Process exited right as it was being initialized").pmwatch(pid);
-                    store.bookkeeping.targetExited = true;
                 }
             }
             return pSegment;
@@ -107,6 +110,18 @@ namespace pmon::svc
                 pSegment->GetStore().frameData.Push(FrameDataFromPresentEvent(present));
 			}
 		}
+        void HandleTargetProcessEvent(const ProcessEvent& targetProcessEvent)
+        {
+            std::lock_guard lk{ mtx_ };
+            if (auto pSegment = comms_.GetFrameDataSegment(targetProcessEvent.ProcessId)) {
+                auto& store = pSegment->GetStore();
+                if (!store.bookkeeping.staticInitComplete && store.bookkeeping.isPlayback) {
+                    store.bookkeeping.staticInitComplete = true;
+                    store.statics.applicationName =
+                        util::str::ToNarrow(targetProcessEvent.ImageFileName).c_str();
+                }
+            }
+        }
 		std::vector<uint32_t> GetPids() const
 		{
             std::lock_guard lk{ mtx_ };

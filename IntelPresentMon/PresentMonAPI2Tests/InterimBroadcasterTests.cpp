@@ -533,6 +533,7 @@ namespace InterimBroadcasterTests
             // verify segment can no longer be opened
             Assert::ExpectException<std::exception>([&] {pComms->OpenFrameDataStore(pres.GetId()); });
         }
+        // make sure we get frames over time
         TEST_METHOD(ReadFrames)
         {
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
@@ -583,6 +584,29 @@ namespace InterimBroadcasterTests
         {
             fixture_.Cleanup();
         }
+        // static store
+        TEST_METHOD(StaticData)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            // track known target
+            const uint32_t pid = 12820;
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
+
+            // open the store
+            pComms->OpenFrameDataStore(pid);
+
+            // wait for population of frame data-initialized statics
+            std::this_thread::sleep_for(500ms);
+
+            // verify static data
+            auto& store = pComms->GetFrameDataStore(pid);
+            Assert::AreEqual(pid, store.statics.processId);
+            const std::string staticAppName = store.statics.applicationName.c_str();
+            Assert::AreEqual("Heaven.exe"s, staticAppName);
+        }
+        // make sure we get frames over time
         TEST_METHOD(ReadFrames)
         {
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
@@ -594,7 +618,7 @@ namespace InterimBroadcasterTests
             std::this_thread::sleep_for(1ms);
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid });
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
 
             // open the store
             pComms->OpenFrameDataStore(pid);
