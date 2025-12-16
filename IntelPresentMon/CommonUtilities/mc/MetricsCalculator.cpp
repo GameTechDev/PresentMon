@@ -74,7 +74,7 @@ namespace pmon::util::metrics
                 out.msFlipDelay = qpc.DurationMilliSeconds(present.getFlipDelay());
             }
             else {
-                out.msFlipDelay = 0.0;
+                out.msFlipDelay = std::nullopt;
             }
         }
 

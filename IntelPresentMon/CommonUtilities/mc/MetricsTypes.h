@@ -128,55 +128,56 @@ namespace pmon::util::metrics {
         // Factory Methods
         static FrameData CopyFrameData(const PmNsmPresentEvent& p);
         static FrameData CopyFrameData(const std::shared_ptr<PresentEvent>& p);
+        static FrameData CopyFrameData(const PresentEvent& p);
     };
 
     struct FrameMetrics {
         // Core Timing (always computed)
-        uint64_t timeInSeconds;              // QPC timestamp
-        double msBetweenPresents;
-        double msInPresentApi;
-        double msUntilRenderComplete;
+        uint64_t timeInSeconds = 0;
+        double msBetweenPresents = 0;
+        double msInPresentApi = 0;
+        double msUntilRenderComplete = 0;
 
         // Display Metrics (displayed frames only)
-        double msDisplayLatency;
-        double msDisplayedTime;
-        double msUntilDisplayed;
-        double msBetweenDisplayChange;
-        uint64_t screenTimeQpc;
+        double msDisplayLatency = 0;
+        double msDisplayedTime = 0;
+        double msUntilDisplayed = 0;
+        double msBetweenDisplayChange = 0;
+        uint64_t screenTimeQpc = 0;
         std::optional<double> msReadyTimeToDisplayLatency;
 
         // CPU Metrics (app frames only)
-        uint64_t cpuStartQpc;
-        double msCPUBusy;
-        double msCPUWait;
+        uint64_t cpuStartQpc = 0;
+        double msCPUBusy = 0;
+        double msCPUWait = 0;
 
         // GPU Metrics (app frames only)
-        double msGPULatency;
-        double msGPUBusy;
-        double msVideoBusy;
-        double msGPUWait;
+        double msGPULatency = 0;
+        double msGPUBusy = 0;
+        double msVideoBusy = 0;
+        double msGPUWait = 0;
 
         // Input Latency (optional, app+displayed only)
-        std::optional<double> msClickToPhotonLatency;
-        std::optional<double> msAllInputPhotonLatency;
+        std::optional<double> msClickToPhotonLatency = {};
+        std::optional<double> msAllInputPhotonLatency = {};
         std::optional<double> msInstrumentedInputTime;
-        std::optional<double> msPcLatency;
 
         // Animation (optional, app+displayed only)
-        std::optional<double> msAnimationError;
-        std::optional<double> msAnimationTime;
+        std::optional<double> msAnimationError = {};
+        std::optional<double> msAnimationTime = {};
 
         // Instrumented Metrics (optional)
-        std::optional<double> msInstrumentedLatency;
-        std::optional<double> msInstrumentedRenderLatency;
-        std::optional<double> msInstrumentedSleep;
-        std::optional<double> msInstrumentedGpuLatency;
-        std::optional<double> msBetweenSimStarts;
+        std::optional<double> msInstrumentedLatency = {};
+        std::optional<double> msInstrumentedRenderLatency = {};
+        std::optional<double> msInstrumentedSleep = {};
+        std::optional<double> msInstrumentedGpuLatency = {};
+        std::optional<double> msPcLatency = {};
+        std::optional<double> msBetweenSimStarts = {};
 
         // PCLatency (optional)
-        std::optional<double> msFlipDelay;  // NVIDIA
+        std::optional<double> msFlipDelay = {};  // NVIDIA
 
         // Frame Classification
-        FrameType frameType;
+        FrameType frameType = {};
     };
 }
