@@ -12,6 +12,8 @@
 #include "../PresentMonMiddleware/ActionClient.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../PresentMonAPIWrapperCommon/EnumMap.h"
+#include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
+#include "../PresentMonAPIWrapper/FixedQuery.h"
 #include "../PresentMonService/AllActions.h"
 
 #include <format>
@@ -648,7 +650,8 @@ namespace InterimBroadcasterTests
         TEST_METHOD_INITIALIZE(Setup)
         {
             fixture_.Setup({
-                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P00HeaWin2080.etl)",
+                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P00HeaWin2080.etl)"s,
+                "--disable-legacy-backpressure"s
             });
         }
         TEST_METHOD_CLEANUP(Cleanup)
@@ -716,6 +719,59 @@ namespace InterimBroadcasterTests
             Assert::IsTrue(range2.first <= range1.second);
             Assert::IsTrue(range3.first <= range2.second);
             Assert::AreEqual(1905ull, range3.second);
+        }
+    };
+    
+    TEST_CLASS(LegacyBackpressuredPlaybackTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup({
+                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P00HeaWin2080.etl)"s,
+            });
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        // make sure we get frames over time
+        TEST_METHOD(ReadFrames)
+        {
+            pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
+
+            // set up a fast flush
+            session.SetEtwFlushPeriod(8);
+            // make sure the flush period propagates to the flusher thread
+            std::this_thread::sleep_for(1ms);
+            
+            // setup query
+            PM_BEGIN_FIXED_FRAME_QUERY(FQ)
+                pmapi::FixedQueryElement frameTime{ this, PM_METRIC_DISPLAYED_FRAME_TIME };
+            PM_END_FIXED_QUERY query{ session, 1'000 };
+                        
+            // we know the pid of interest in this etl file, track it
+            const uint32_t pid = 12820;
+            auto tracker = session.TrackProcess(pid);
+
+            // sleep here to let the etw system warm up, and frames propagate
+            std::this_thread::sleep_for(300ms);
+
+            // verify that backpressure works correctly to ensure no frames are lost
+            query.Consume(tracker);
+            const auto count1 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            Logger::WriteMessage(std::format("count [{}]\n", count1).c_str());
+            std::this_thread::sleep_for(300ms);
+            query.Consume(tracker);
+            const auto count2 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            Logger::WriteMessage(std::format("count [{}]\n", count2).c_str());
+            std::this_thread::sleep_for(500ms);
+            query.Consume(tracker);
+            const auto count3 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            Logger::WriteMessage(std::format("count [{}]\n", count3).c_str());
+
+            Assert::AreEqual(1903u, count1 + count2 + count3);
         }
     };
 }

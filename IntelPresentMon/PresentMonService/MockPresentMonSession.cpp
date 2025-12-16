@@ -34,7 +34,8 @@ PM_STATUS MockPresentMonSession::StartStreaming(uint32_t client_process_id,
 
     // TODO: hook up all cli options
     PM_STATUS status = streamer_.StartStreaming(client_process_id,
-        target_process_id, nsmFileName, true, opt.pacePlayback, opt.pacePlayback, !opt.pacePlayback, true);
+        target_process_id, nsmFileName, true, opt.pacePlayback, opt.pacePlayback,
+        !opt.pacePlayback && !opt.disableLegacyBackpressure, true);
     if (status != PM_STATUS::PM_STATUS_SUCCESS) {
         return status;
     }
@@ -324,7 +325,8 @@ void MockPresentMonSession::AddPresents(
             processInfo->mModuleName, gpu_telemetry_cap_bits,
             cpu_telemetry_cap_bits);
 
-        pBroadcaster->Broadcast(*presentEvent);
+        // timeout set for 1000 ms
+        pBroadcaster->Broadcast(*presentEvent, 1000);
 
         chain->mLastPresentQPC = presentEvent->PresentStartTime;
         if (presentEvent->FinalState == PresentResult::Presented) {
