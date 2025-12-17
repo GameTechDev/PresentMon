@@ -282,7 +282,7 @@ namespace pmon::util::metrics
             if (isFirstProviderSimTime) {
                 // Seed only: no animation time yet. UpdateAfterPresent will flip us
                 // into AppProvider/PCL and latch firstAppSimStartTime.
-                out.msAnimationTime = std::nullopt;
+                out.msAnimationTime = 0.0;
                 return;
             }
 

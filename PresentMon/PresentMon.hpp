@@ -30,10 +30,19 @@ which is controlled from MainThread based on user input or timer.
 #include "../PresentData/PresentMonTraceConsumer.hpp"
 #include "../PresentData/PresentMonTraceSession.hpp"
 #include "../IntelPresentMon/CommonUtilities/mc/UnifiedSwapChain.h"
+#include "../IntelPresentMon/CommonUtilities/mc/SwapChainState.h"
+#include "../IntelPresentMon/CommonUtilities/Qpc.h"
 
 #include <unordered_map>
 #include <queue>
 #include <optional>
+#include <deque>
+
+#if defined(_MSC_VER)
+#define PM_UNUSED_FN __pragma(warning(suppress : 4505)) // unreferenced local function removed
+#else
+#define PM_UNUSED_FN
+#endif
 
 // Verbosity of console output for normal operation:
 enum class ConsoleOutput {
@@ -233,6 +242,27 @@ struct SwapChainData {
     pmon::util::metrics::SwapChainCoreState metricsState;
     // Unified swap chain for unfied metrics calculations
     pmon::util::metrics::UnifiedSwapChain mUnifiedSwapChain;
+
+    struct UnifiedConsoleSwapChain
+    {
+        // Unified swapchain state (single source of truth for both V1 and V2).
+        pmon::util::metrics::SwapChainCoreState core;
+
+        // Console sequencing rule: once a displayed present arrives, subsequent presents are queued
+        // until the next displayed present arrives.
+        std::deque<std::shared_ptr<PresentEvent>> pending;
+
+        struct ReadyItem
+        {
+            std::shared_ptr<PresentEvent> present;
+            std::shared_ptr<PresentEvent> nextDisplayed; // null unless flushing pending
+        };
+
+        void SeedFromFirstPresent(std::shared_ptr<PresentEvent> const& p);
+        std::vector<ReadyItem> Enqueue(std::shared_ptr<PresentEvent> const& p);
+    };
+    UnifiedConsoleSwapChain mUnified;
+
 };
 
 struct ProcessInfo {
