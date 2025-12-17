@@ -704,48 +704,50 @@ namespace InterimBroadcasterTests
             // sleep here to let the etw system warm up, and frames propagate
             std::this_thread::sleep_for(300ms);
 
-            std::vector<uint64_t> frames;
+            struct Row { uint64_t timestamp; uint64_t timeInPresent; };
+            std::vector<Row> frames;
             uint64_t lastProcessed = 0;
+
+            const auto appendRange = [&](std::pair<uint64_t, uint64_t> range) {
+                for (uint64_t s = (std::max)(lastProcessed, range.first); s < range.second; ++s) {
+                    auto& p = ring.At(s);
+                    frames.push_back(Row{
+                        .timestamp = p.presentStartTime + p.timeInPresent,
+                        .timeInPresent = p.timeInPresent,
+                        });
+                }
+                lastProcessed = range.second;
+            };
 
             const auto range1 = ring.GetSerialRange();
             ring.MarkNextRead(range1.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
-            for (uint64_t s = (std::max)(lastProcessed, range1.first); s < range1.second; ++s) {
-                auto& p = ring.At(s);
-                frames.push_back(p.presentStartTime + p.timeInPresent);
-            }
-            lastProcessed = range1.second;
+            appendRange(range1);
 
             std::this_thread::sleep_for(300ms);
 
             const auto range2 = ring.GetSerialRange();
             ring.MarkNextRead(range2.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
-            for (uint64_t s = (std::max)(lastProcessed, range2.first); s < range2.second; ++s) {
-                auto& p = ring.At(s);
-                frames.push_back(p.presentStartTime + p.timeInPresent);
-            }
-            lastProcessed = range2.second;
+            appendRange(range2);
 
             std::this_thread::sleep_for(500ms);
 
             const auto range3 = ring.GetSerialRange();
             ring.MarkNextRead(range3.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
-            for (uint64_t s = (std::max)(lastProcessed, range3.first); s < range3.second; ++s) {
-                auto& p = ring.At(s);
-                frames.push_back(p.presentStartTime + p.timeInPresent);
-            }
-            lastProcessed = range3.second;
+            appendRange(range3);
 
             // output timestamp of each frame
             const auto outpath = fs::path{ outFolder_ } /
                 std::format("broadcaster-frames-{:%Y%m%d-%H%M%S}.csv", std::chrono::system_clock::now());
             Logger::WriteMessage(std::format("Writing output to: {}\n",
                 fs::absolute(outpath).string()).c_str());
+
             std::ofstream frameFile{ outpath };
-            for (auto f : frames) {
-                frameFile << f << "\n";
+            frameFile << "timestamp,timeInPresent\n";
+            for (const auto& r : frames) {
+                frameFile << r.timestamp << ',' << r.timeInPresent << "\n";
             }
 
             Assert::AreEqual(0ull, range1.first);
@@ -753,6 +755,7 @@ namespace InterimBroadcasterTests
             Assert::IsTrue(range3.first <= range2.second);
             Assert::AreEqual(1905ull, range3.second);
         }
+
     };
     
     TEST_CLASS(LegacyBackpressuredPlaybackTests)
@@ -763,7 +766,7 @@ namespace InterimBroadcasterTests
         {
             fixture_.Setup({
                 "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P00HeaWin2080.etl)"s,
-            });
+                });
         }
         TEST_METHOD_CLEANUP(Cleanup)
         {
@@ -778,13 +781,16 @@ namespace InterimBroadcasterTests
             session.SetEtwFlushPeriod(8);
             // make sure the flush period propagates to the flusher thread
             std::this_thread::sleep_for(1ms);
-            
+
             // setup query
             PM_BEGIN_FIXED_FRAME_QUERY(FQ)
                 pmapi::FixedQueryElement timestamp{ this, PM_METRIC_CPU_START_QPC };
+                pmapi::FixedQueryElement timeInPres{ this, PM_METRIC_IN_PRESENT_API };
             PM_END_FIXED_QUERY query{ session, 1'000 };
-            std::vector<uint64_t> frames;
-                        
+
+            struct Row { uint64_t timestamp; double timeInPresent; };
+            std::vector<Row> frames;
+
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
             auto tracker = session.TrackProcess(pid);
@@ -792,16 +798,29 @@ namespace InterimBroadcasterTests
             // sleep here to let the etw system warm up, and frames propagate
             std::this_thread::sleep_for(300ms);
 
+            const auto consume = [&] {
+                query.ForEachConsume(tracker, [&] {
+                    frames.push_back(Row{
+                        .timestamp = query.timestamp,
+                        .timeInPresent = query.timeInPres,
+                        });
+                });
+            };
+
             // verify that backpressure works correctly to ensure no frames are lost
-            query.ForEachConsume(tracker, [&] { frames.push_back(query.timestamp); });
+            consume();
             const auto count1 = query.PeekBlobContainer().GetNumBlobsPopulated();
             Logger::WriteMessage(std::format("count [{}]\n", count1).c_str());
+
             std::this_thread::sleep_for(300ms);
-            query.ForEachConsume(tracker, [&] { frames.push_back(query.timestamp); });
+
+            consume();
             const auto count2 = query.PeekBlobContainer().GetNumBlobsPopulated();
             Logger::WriteMessage(std::format("count [{}]\n", count2).c_str());
+
             std::this_thread::sleep_for(500ms);
-            query.ForEachConsume(tracker, [&] { frames.push_back(query.timestamp); });
+
+            consume();
             const auto count3 = query.PeekBlobContainer().GetNumBlobsPopulated();
             Logger::WriteMessage(std::format("count [{}]\n", count3).c_str());
 
@@ -809,10 +828,12 @@ namespace InterimBroadcasterTests
             const auto outpath = fs::path{ outFolder_ } /
                 std::format("legacy-frames-{:%Y%m%d-%H%M%S}.csv", std::chrono::system_clock::now());
             Logger::WriteMessage(std::format("Writing output to: {}\n",
-               fs::absolute(outpath).string()).c_str());
+                fs::absolute(outpath).string()).c_str());
+
             std::ofstream frameFile{ outpath };
-            for (auto& f : frames) {
-                frameFile << f << std::endl;
+            frameFile << "timestamp,timeInPresent\n";
+            for (const auto& r : frames) {
+                frameFile << r.timestamp << ',' << r.timeInPresent << "\n";
             }
 
             Assert::AreEqual(1903u, count1 + count2 + count3);
