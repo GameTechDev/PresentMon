@@ -34,4 +34,6 @@ TEST_MODULE_INITIALIZE(Api2TestModuleInit)
 	WipeAndRecreate(EtlLoggerTests::outFolder_);
 	WipeAndRecreate(PacedPolling::logFolder_);
 	WipeAndRecreate(PacedPolling::outFolder_);
+	WipeAndRecreate(InterimBroadcasterTests::logFolder_);
+	WipeAndRecreate(InterimBroadcasterTests::outFolder_);
 }

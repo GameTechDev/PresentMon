@@ -6,6 +6,7 @@
 #include "TestProcess.h"
 #include <string>
 #include <ranges>
+#include <fstream>
 #include "Folders.h"
 #include "JobManager.h"
 
@@ -748,8 +749,9 @@ namespace InterimBroadcasterTests
             
             // setup query
             PM_BEGIN_FIXED_FRAME_QUERY(FQ)
-                pmapi::FixedQueryElement frameTime{ this, PM_METRIC_DISPLAYED_FRAME_TIME };
+                pmapi::FixedQueryElement timestamp{ this, PM_METRIC_CPU_START_QPC };
             PM_END_FIXED_QUERY query{ session, 1'000 };
+            std::vector<uint64_t> frames;
                         
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
@@ -759,17 +761,27 @@ namespace InterimBroadcasterTests
             std::this_thread::sleep_for(300ms);
 
             // verify that backpressure works correctly to ensure no frames are lost
-            query.Consume(tracker);
+            query.ForEachConsume(tracker, [&] { frames.push_back(query.timestamp); });
             const auto count1 = query.PeekBlobContainer().GetNumBlobsPopulated();
             Logger::WriteMessage(std::format("count [{}]\n", count1).c_str());
             std::this_thread::sleep_for(300ms);
-            query.Consume(tracker);
+            query.ForEachConsume(tracker, [&] { frames.push_back(query.timestamp); });
             const auto count2 = query.PeekBlobContainer().GetNumBlobsPopulated();
             Logger::WriteMessage(std::format("count [{}]\n", count2).c_str());
             std::this_thread::sleep_for(500ms);
-            query.Consume(tracker);
+            query.ForEachConsume(tracker, [&] { frames.push_back(query.timestamp); });
             const auto count3 = query.PeekBlobContainer().GetNumBlobsPopulated();
             Logger::WriteMessage(std::format("count [{}]\n", count3).c_str());
+
+            // output timestamp of each frame
+            const auto outpath = fs::path{ outFolder_ } /
+                std::format("legacy-frames-{:%Y%m%d-%H%M%S}.csv", std::chrono::system_clock::now());
+            Logger::WriteMessage(std::format("Writing output to: {}\n",
+               fs::absolute(outpath).string()).c_str());
+            std::ofstream frameFile{ outpath };
+            for (auto& f : frames) {
+                frameFile << f << std::endl;
+            }
 
             Assert::AreEqual(1903u, count1 + count2 + count3);
         }
