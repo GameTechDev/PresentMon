@@ -29,7 +29,7 @@ which is controlled from MainThread based on user input or timer.
 
 #include "../PresentData/PresentMonTraceConsumer.hpp"
 #include "../PresentData/PresentMonTraceSession.hpp"
-#include "../IntelPresentMon/CommonUtilities/mc/SwapChainState.h"
+#include "../IntelPresentMon/CommonUtilities/mc/UnifiedSwapChain.h"
 
 #include <unordered_map>
 #include <queue>
@@ -228,6 +228,11 @@ struct SwapChainData {
 
     // Internal NVIDIA Metrics
     uint64_t mLastDisplayedFlipDelay = 0;
+
+    // Unified metrics state for computing metrics
+    pmon::util::metrics::SwapChainCoreState metricsState;
+    // Unified swap chain for unfied metrics calculations
+    pmon::util::metrics::UnifiedSwapChain mUnifiedSwapChain;
 };
 
 struct ProcessInfo {
@@ -267,6 +272,7 @@ const char* PresentModeToString(PresentMode mode);
 const char* RuntimeToString(Runtime rt);
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics const& metrics);
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics1 const& metrics);
+void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, pmon::util::metrics::FrameMetrics const& metrics);
 
 // MainThread.cpp:
 void ExitMainThread();

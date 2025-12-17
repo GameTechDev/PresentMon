@@ -926,6 +926,12 @@ static bool GetPresentProcessInfo(
 
     auto chain = &processInfo->mSwapChain[presentEvent->SwapChainAddress];
     if (chain->mLastPresent == nullptr) {
+        // Step 1: seed unified swapchain too (GetPresentProcessInfo() early-returns before metrics).
+        {
+            using namespace pmon::util::metrics;
+            FrameData fd = FrameData::CopyFrameData(presentEvent);
+            chain->mUnifiedSwapChain.Seed(std::move(fd));
+        }
         UpdateChain(chain, presentEvent);
         return true;
     }
@@ -978,6 +984,10 @@ static void ProcessEvents(
     size_t processEventIndex = 0;
     size_t processEventCount = processEvents->size();
     bool   checkProcessTime  = processEventCount > 0;
+
+    const uint64_t qpcFrequency = static_cast<uint64_t>(pmSession.mTimestampFrequency.QuadPart);
+    const uint64_t qpcStart = static_cast<uint64_t>(pmSession.mStartTimestamp.QuadPart);
+    pmon::util::QpcConverter qpc(qpcFrequency, qpcStart);
 
     // Iterate through the processEvents, handling process events and recording toggles along the
     // way.
@@ -1033,6 +1043,14 @@ static void ProcessEvents(
         // If we didn't get process info, try again (this time querying realtime data if needed).
         if (processInfo == nullptr && GetPresentProcessInfo(presentEvent, true, &processInfo, &chain, &presentTime)) {
             continue;
+        }
+
+        // Step 1: always advance unified swapchain (parallel state machine), regardless of recording/stats.
+        // Ignore output here; this step is only to keep unified state warm.
+        {
+            using namespace pmon::util::metrics;
+            FrameData fd = FrameData::CopyFrameData(presentEvent);
+            chain->mUnifiedSwapChain.OnPresent(qpc, std::move(fd));
         }
 
         // If we are recording or presenting metrics to console then update the metrics and pending

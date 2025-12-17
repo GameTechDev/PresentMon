@@ -71,6 +71,7 @@
     <ClInclude Include="mc\MetricsCalculator.h" />
     <ClInclude Include="mc\MetricsTypes.h" />
     <ClInclude Include="mc\SwapChainState.h" />
+    <ClInclude Include="mc\UnifiedSwapChain.h" />
     <ClInclude Include="Memory.h" />
     <ClInclude Include="Hash.h" />
     <ClInclude Include="Meta.h" />
@@ -156,6 +157,7 @@
     <ClCompile Include="mc\MetricsCalculator.cpp" />
     <ClCompile Include="mc\MetricsTypes.cpp" />
     <ClCompile Include="mc\SwapChainState.cpp" />
+    <ClCompile Include="mc\UnifiedSwapChain.cpp" />
     <ClCompile Include="mt\Thread.cpp" />
     <ClCompile Include="pipe\CoroMutex.cpp" />
     <ClCompile Include="pipe\Pipe.cpp" />
