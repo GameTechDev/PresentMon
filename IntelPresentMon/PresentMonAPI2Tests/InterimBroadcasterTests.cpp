@@ -691,6 +691,7 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
             // make sure the flush period propagates to the flusher thread
             std::this_thread::sleep_for(1ms);
+
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
             client.DispatchSync(svc::acts::StartTracking::Params{
@@ -698,23 +699,54 @@ namespace InterimBroadcasterTests
 
             // open the store
             pComms->OpenFrameDataStore(pid);
-            auto& frames = pComms->GetFrameDataStore(pid).frameData;
+            auto& ring = pComms->GetFrameDataStore(pid).frameData;
 
             // sleep here to let the etw system warm up, and frames propagate
             std::this_thread::sleep_for(300ms);
 
-            // verify that backpressure works correctly to ensure no frames are lost
-            const auto range1 = frames.GetSerialRange();
-            frames.MarkNextRead(range1.second);
+            std::vector<uint64_t> frames;
+            uint64_t lastProcessed = 0;
+
+            const auto range1 = ring.GetSerialRange();
+            ring.MarkNextRead(range1.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
+            for (uint64_t s = (std::max)(lastProcessed, range1.first); s < range1.second; ++s) {
+                auto& p = ring.At(s);
+                frames.push_back(p.presentStartTime + p.timeInPresent);
+            }
+            lastProcessed = range1.second;
+
             std::this_thread::sleep_for(300ms);
-            const auto range2 = frames.GetSerialRange();
-            frames.MarkNextRead(range2.second);
+
+            const auto range2 = ring.GetSerialRange();
+            ring.MarkNextRead(range2.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
+            for (uint64_t s = (std::max)(lastProcessed, range2.first); s < range2.second; ++s) {
+                auto& p = ring.At(s);
+                frames.push_back(p.presentStartTime + p.timeInPresent);
+            }
+            lastProcessed = range2.second;
+
             std::this_thread::sleep_for(500ms);
-            const auto range3 = frames.GetSerialRange();
-            frames.MarkNextRead(range3.second);
+
+            const auto range3 = ring.GetSerialRange();
+            ring.MarkNextRead(range3.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
+            for (uint64_t s = (std::max)(lastProcessed, range3.first); s < range3.second; ++s) {
+                auto& p = ring.At(s);
+                frames.push_back(p.presentStartTime + p.timeInPresent);
+            }
+            lastProcessed = range3.second;
+
+            // output timestamp of each frame
+            const auto outpath = fs::path{ outFolder_ } /
+                std::format("broadcaster-frames-{:%Y%m%d-%H%M%S}.csv", std::chrono::system_clock::now());
+            Logger::WriteMessage(std::format("Writing output to: {}\n",
+                fs::absolute(outpath).string()).c_str());
+            std::ofstream frameFile{ outpath };
+            for (auto f : frames) {
+                frameFile << f << "\n";
+            }
 
             Assert::AreEqual(0ull, range1.first);
             Assert::IsTrue(range2.first <= range1.second);
