@@ -755,7 +755,88 @@ namespace InterimBroadcasterTests
             Assert::IsTrue(range3.first <= range2.second);
             Assert::AreEqual(1905ull, range3.second);
         }
+    };
 
+    TEST_CLASS(FrameStoreBackpressuredPlayback3DMTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup({
+                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P01TimeSpyDemoFS2080.etl)"s,
+                "--disable-legacy-backpressure"s
+                });
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        TEST_METHOD(ReadFrames)
+        {
+            pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
+
+            // set up a fast flush
+            session.SetEtwFlushPeriod(8);
+            // make sure the flush period propagates to the flusher thread
+            std::this_thread::sleep_for(1ms);
+
+            // setup query
+            PM_BEGIN_FIXED_FRAME_QUERY(FQ)
+                pmapi::FixedQueryElement timestamp{ this, PM_METRIC_CPU_START_QPC };
+            pmapi::FixedQueryElement timeInPres{ this, PM_METRIC_IN_PRESENT_API };
+            PM_END_FIXED_QUERY query{ session, 1'000 };
+
+            struct Row { uint64_t timestamp; double timeInPresent; };
+            std::vector<Row> frames;
+
+            // we know the pid of interest in this etl file, track it
+            const uint32_t pid = 19736;
+            auto tracker = session.TrackProcess(pid);
+
+            // sleep here to let the etw system warm up, and frames propagate
+            std::this_thread::sleep_for(300ms);
+
+            const auto consume = [&] {
+                query.ForEachConsume(tracker, [&] {
+                    frames.push_back(Row{
+                        .timestamp = query.timestamp,
+                        .timeInPresent = query.timeInPres,
+                        });
+                });
+            };
+
+            // verify that backpressure works correctly to ensure no frames are lost
+            consume();
+            const auto count1 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            Logger::WriteMessage(std::format("count [{}]\n", count1).c_str());
+
+            std::this_thread::sleep_for(300ms);
+
+            consume();
+            const auto count2 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            Logger::WriteMessage(std::format("count [{}]\n", count2).c_str());
+
+            std::this_thread::sleep_for(500ms);
+
+            consume();
+            const auto count3 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            Logger::WriteMessage(std::format("count [{}]\n", count3).c_str());
+
+            // output timestamp of each frame
+            const auto outpath = fs::path{ outFolder_ } /
+                std::format("legacy-frames-32m-{:%Y%m%d-%H%M%S}.csv", std::chrono::system_clock::now());
+            Logger::WriteMessage(std::format("Writing output to: {}\n",
+                fs::absolute(outpath).string()).c_str());
+
+            std::ofstream frameFile{ outpath };
+            frameFile << "timestamp,timeInPresent\n";
+            for (const auto& r : frames) {
+                frameFile << r.timestamp << ',' << r.timeInPresent << "\n";
+            }
+
+            Assert::AreEqual(2037u, count1 + count2 + count3);
+        }
     };
     
     TEST_CLASS(LegacyBackpressuredPlaybackTests)
