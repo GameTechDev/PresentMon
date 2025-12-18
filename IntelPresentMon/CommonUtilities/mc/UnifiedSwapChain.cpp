@@ -7,7 +7,7 @@
 
 namespace pmon::util::metrics
 {
-    void UnifiedSwapChain::SanitizeDisplayedRepeats(FrameData& present)
+    void UnifiedSwapChain::SanitizeDisplayedRepeatedPresents(FrameData& present)
     {
         // Port of OutputThread.cpp::ReportMetrics() “Remove Repeated flips” pre-pass,
         // but applied to FrameData (so we don’t mutate PresentEvent).
@@ -31,63 +31,59 @@ namespace pmon::util::metrics
         }
     }
 
-    void UnifiedSwapChain::Seed(FrameData present)
+    void UnifiedSwapChain::SeedFromFirstPresent(FrameData present)
     {
-        SanitizeDisplayedRepeats(present);
 
         // Mirror console baseline behavior:
         // first present just seeds history (no pending pipeline).
-        core.pendingPresents.clear();
-        core.UpdateAfterPresent(present);
+        swapChain.pendingPresents.clear();
+        swapChain.UpdateAfterPresent(present);
     }
 
-    void UnifiedSwapChain::OnPresent(const QpcConverter& qpc, FrameData present)
+    // UnifiedSwapChain.cpp
+    std::vector<UnifiedSwapChain::ReadyItem>
+        UnifiedSwapChain::Enqueue(FrameData present)
     {
-        SanitizeDisplayedRepeats(present);
+        SanitizeDisplayedRepeatedPresents(present);
 
-        // If unseeded, seed immediately and return.
-        // (Must not require qpc for the seed path.)
-        if (!core.lastPresent.has_value()) {
-            core.pendingPresents.clear();
-            core.UpdateAfterPresent(present);
-            return;
+        std::vector<ReadyItem> out;
+
+        // Seed baseline
+        if (!swapChain.lastPresent.has_value()) {
+            SeedFromFirstPresent(std::move(present));
+            return out;
         }
 
         const bool isDisplayed =
             (present.getFinalState() == PresentResult::Presented) &&
             (present.getDisplayedCount() > 0);
 
-        // Match the console “pending until next displayed” rule:
-        // - a displayed present blocks subsequent not-displayed presents until the next displayed arrives.
         if (isDisplayed) {
-            // 1) Flush pending frames using this displayed present as nextDisplayed.
-            //    (This finalizes the previously postponed last-display instance.)
-            if (!core.pendingPresents.empty()) {
-                FrameData nextDisplayed = present; // ComputeMetricsForPresent needs a non-const pointer
-                for (const auto& blocked : core.pendingPresents) {
-                    (void)ComputeMetricsForPresent(qpc, blocked, &nextDisplayed, core);
-                }
+            // 1) Finalize previously waiting displayed
+            if (waitingDisplayed_.has_value()) {
+                out.push_back(ReadyItem{ std::move(*waitingDisplayed_), present /* nextDisplayed */ });
+                waitingDisplayed_.reset();
+            }
+            
+            // 2) Release blocked not-displayed frames
+            while (!blocked_.empty()) {
+                out.push_back(ReadyItem{ std::move(blocked_.front()), std::nullopt });
+                blocked_.pop_front();
             }
 
-            // 2) Process this present with nextDisplayed=nullptr:
-            //    - applies state deltas for all display instances it can resolve
-            //    - DOES NOT call UpdateAfterPresent() yet (by design)
-            (void)ComputeMetricsForPresent(qpc, present, nullptr, core);
-
-            // 3) This present becomes the new “waiting for next displayed”
-            core.pendingPresents.clear();
-            core.pendingPresents.push_back(present);
-            return;
+            // 3) Current displayed is ready (all-but-last); becomes the new waitingDisplayed
+            out.push_back(ReadyItem{ present /* copy */, std::nullopt });
+            waitingDisplayed_ = std::move(present);
+            return out;
         }
 
-        // Not displayed:
-        // - If nothing is waiting, process immediately (this path calls UpdateAfterPresent()).
-        // - Otherwise, queue behind the waiting displayed present.
-        if (core.pendingPresents.empty()) {
-            (void)ComputeMetricsForPresent(qpc, present, nullptr, core);
+        // Not displayed
+        if (waitingDisplayed_.has_value()) {
+            blocked_.push_back(std::move(present));
+            return out; // nothing ready yet
         }
-        else {
-            core.pendingPresents.push_back(present);
-        }
+
+        out.push_back(ReadyItem{ std::move(present), std::nullopt });
+        return out;
     }
 }
