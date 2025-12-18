@@ -238,31 +238,8 @@ struct SwapChainData {
     // Internal NVIDIA Metrics
     uint64_t mLastDisplayedFlipDelay = 0;
 
-    // Unified metrics state for computing metrics
-    pmon::util::metrics::SwapChainCoreState metricsState;
     // Unified swap chain for unfied metrics calculations
     pmon::util::metrics::UnifiedSwapChain mUnifiedSwapChain;
-
-    struct UnifiedConsoleSwapChain
-    {
-        // Unified swapchain state (single source of truth for both V1 and V2).
-        pmon::util::metrics::SwapChainCoreState core;
-
-        // Console sequencing rule: once a displayed present arrives, subsequent presents are queued
-        // until the next displayed present arrives.
-        std::deque<std::shared_ptr<PresentEvent>> pending;
-
-        struct ReadyItem
-        {
-            std::shared_ptr<PresentEvent> present;
-            std::shared_ptr<PresentEvent> nextDisplayed; // null unless flushing pending
-        };
-
-        void SeedFromFirstPresent(std::shared_ptr<PresentEvent> const& p);
-        std::vector<ReadyItem> Enqueue(std::shared_ptr<PresentEvent> const& p);
-    };
-    UnifiedConsoleSwapChain mUnified;
-
 };
 
 struct ProcessInfo {
@@ -302,7 +279,9 @@ const char* PresentModeToString(PresentMode mode);
 const char* RuntimeToString(Runtime rt);
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics const& metrics);
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics1 const& metrics);
+void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, pmon::util::metrics::FrameData const& p, FrameMetrics1 const& metrics);
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, pmon::util::metrics::FrameMetrics const& metrics);
+void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, pmon::util::metrics::FrameData const& p, pmon::util::metrics::FrameMetrics const& metrics);
 
 // MainThread.cpp:
 void ExitMainThread();

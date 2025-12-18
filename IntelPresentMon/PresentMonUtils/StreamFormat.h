@@ -130,6 +130,7 @@ struct PmNsmPresentEvent
 
 	uint32_t FrameId;           // ID for the logical frame that this Present is associated with.
     uint32_t AppFrameId;        // Application provided frame ID
+    uint32_t PclFrameId;        // PC Latency provided frame ID
 
 	Runtime Runtime;
 	PresentMode PresentMode;

@@ -931,7 +931,8 @@ static bool GetPresentProcessInfo(
     auto chain = &processInfo->mSwapChain[presentEvent->SwapChainAddress];
     if (chain->mLastPresent == nullptr) {
         UpdateChain(chain, presentEvent);
-        chain->mUnified.SeedFromFirstPresent(presentEvent);
+        using namespace pmon::util::metrics;
+        chain->mUnifiedSwapChain.SeedFromFirstPresent(FrameData::CopyFrameData(presentEvent));
         return true;
     }
 
@@ -963,48 +964,29 @@ static void ProcessRecordingToggle(
     }
 }
 
-static void SanitizeRepeatedFlips(std::shared_ptr<PresentEvent> const& p)
-{
-    // Exact legacy behavior: remove Application<->Repeated flip pairs.
-    for (size_t i = 0; i + 1 < p->Displayed.size(); ) {
-        auto a = p->Displayed[i].first;
-        auto b = p->Displayed[i + 1].first;
-
-        if (a == FrameType::Application && b == FrameType::Repeated) {
-            p->Displayed.erase(p->Displayed.begin() + i + 1);
-        }
-        else if (a == FrameType::Repeated && b == FrameType::Application) {
-            p->Displayed.erase(p->Displayed.begin() + i);
-        }
-        else {
-            ++i;
-        }
-    }
-}
-
 static bool ShouldUpdateLegacyChain(
-    std::shared_ptr<PresentEvent> const& p,
-    std::shared_ptr<PresentEvent> const& nextDisplayed)
+    pmon::util::metrics::FrameData const& p,
+    std::optional<pmon::util::metrics::FrameData> const& nextDisplayed)
 {
     // Mirrors legacy UpdateChain timing and the unified calculator’s update rules:
     // - Not presented: update immediately
     // - Presented + has nextDisplayed: update (Case 3 finalizes)
     // - Presented + no nextDisplayed: update only if DisplayedCount > 1 (Case 2 processed an instance)
-    if (p->FinalState != PresentResult::Presented) return true;
-    if (nextDisplayed != nullptr) return true;
-    return p->Displayed.size() > 1;
+    if (p.finalState != PresentResult::Presented) return true;
+    if (nextDisplayed.has_value()) return true;
+    return p.displayed.size() > 1;
 }
 
 static void AdjustScreenTimeForCollapsedPresentNV1_Unified(
     pmon::util::metrics::SwapChainCoreState const& s,
-    std::shared_ptr<PresentEvent> const& p,
+    pmon::util::metrics::FrameData const& p,
     uint64_t& screenTime,
     uint64_t& flipDelayQpc)
 {
     // Port of AdjustScreenTimeForCollapsedPresentNV1(), but without mutating PresentEvent.
     // Uses unified state instead of legacy chain fields.
     if (s.lastDisplayedFlipDelay > 0 && (s.lastDisplayedScreenTime > screenTime)) {
-        if (!p->Displayed.empty()) {
+        if (!p.displayed.empty()) {
             flipDelayQpc += (s.lastDisplayedScreenTime - screenTime);
             screenTime = s.lastDisplayedScreenTime;
         }
@@ -1015,16 +997,16 @@ static void ReportMetrics1Unified(
     PMTraceSession const& pmSession,
     ProcessInfo* processInfo,
     SwapChainData* chain,
-    std::shared_ptr<PresentEvent> const& p,
+    pmon::util::metrics::FrameData const& p,
     bool isRecording,
     bool computeAvg)
 {
-    auto const& s = chain->mUnified.core;
+    auto const& s = chain->mUnifiedSwapChain.swapChain;
+    
+    const bool displayed = (p.finalState == PresentResult::Presented);
+    uint64_t screenTime = p.displayed.empty() ? 0 : p.displayed[0].second;
 
-    const bool displayed = (p->FinalState == PresentResult::Presented);
-    uint64_t screenTime = p->Displayed.empty() ? 0 : p->Displayed[0].second;
-
-    uint64_t flipDelayQpc = p->FlipDelay;
+    uint64_t flipDelayQpc = p.flipDelay;
     AdjustScreenTimeForCollapsedPresentNV1_Unified(s, p, screenTime, flipDelayQpc);
 
     FrameMetrics1 metrics{};
@@ -1033,30 +1015,30 @@ static void ReportMetrics1Unified(
     if (s.lastPresent.has_value()) {
         metrics.msBetweenPresents = pmSession.TimestampDeltaToUnsignedMilliSeconds(
             s.lastPresent->presentStartTime,
-            p->PresentStartTime);
+            p.presentStartTime);
     }
     else {
         metrics.msBetweenPresents = 0;
     }
 
-    metrics.msInPresentApi = pmSession.TimestampDeltaToMilliSeconds(p->TimeInPresent);
-    metrics.msUntilRenderComplete = pmSession.TimestampDeltaToMilliSeconds(p->PresentStartTime, p->ReadyTime);
+    metrics.msInPresentApi = pmSession.TimestampDeltaToMilliSeconds(p.timeInPresent);
+    metrics.msUntilRenderComplete = pmSession.TimestampDeltaToMilliSeconds(p.presentStartTime, p.readyTime);
 
     metrics.msUntilDisplayed = (!displayed || screenTime == 0)
         ? 0
-        : pmSession.TimestampDeltaToUnsignedMilliSeconds(p->PresentStartTime, screenTime);
+        : pmSession.TimestampDeltaToUnsignedMilliSeconds(p.presentStartTime, screenTime);
 
     metrics.msBetweenDisplayChange = (!displayed || s.lastDisplayedScreenTime == 0 || screenTime == 0)
         ? 0
         : pmSession.TimestampDeltaToUnsignedMilliSeconds(s.lastDisplayedScreenTime, screenTime);
 
-    metrics.msUntilRenderStart = pmSession.TimestampDeltaToMilliSeconds(p->PresentStartTime, p->GPUStartTime);
-    metrics.msGPUDuration = pmSession.TimestampDeltaToMilliSeconds(p->GPUDuration);
-    metrics.msVideoDuration = pmSession.TimestampDeltaToMilliSeconds(p->GPUVideoDuration);
+    metrics.msUntilRenderStart = pmSession.TimestampDeltaToMilliSeconds(p.presentStartTime, p.gpuStartTime);
+    metrics.msGPUDuration = pmSession.TimestampDeltaToMilliSeconds(p.gpuDuration);
+    metrics.msVideoDuration = pmSession.TimestampDeltaToMilliSeconds(p.gpuVideoDuration);
 
-    metrics.msSinceInput = (p->InputTime == 0)
+    metrics.msSinceInput = (p.inputTime == 0)
         ? 0
-        : pmSession.TimestampDeltaToMilliSeconds(p->PresentStartTime - p->InputTime);
+        : pmSession.TimestampDeltaToMilliSeconds(p.presentStartTime - p.inputTime);
 
     metrics.qpcScreenTime = screenTime;
 
@@ -1065,7 +1047,7 @@ static void ReportMetrics1Unified(
         : 0;
 
     if (isRecording) {
-        UpdateCsv(pmSession, processInfo, *p, metrics);
+        UpdateCsv(pmSession, processInfo, p, metrics);
     }
 
     if (computeAvg) {
@@ -1162,57 +1144,43 @@ static void ProcessEvents(
             continue;
         }
 
-        // Step 1: always advance unified swapchain (parallel state machine), regardless of recording/stats.
-        // Ignore output here; this step is only to keep unified state warm.
-        {
-            using namespace pmon::util::metrics;
-            FrameData fd = FrameData::CopyFrameData(presentEvent);
-            chain->mUnifiedSwapChain.OnPresent(qpc, std::move(fd));
-        }
+        auto ready = chain->mUnifiedSwapChain.Enqueue(pmon::util::metrics::FrameData::CopyFrameData(presentEvent));
 
-        // If we are recording or presenting metrics to console then update the metrics and pending
-        // presents.  Otherwise, just update the latest present details in the chain.
-        //
-        // If there are more than one pending PresentEvents, then the first one is displayed and the
-        // rest aren't.  Otherwise, there will only be one (or zero) pending presents.
-        // Always feed the unified sequencer first.
-        auto ready = chain->mUnified.Enqueue(presentEvent);
-
-        // If we are not outputting anything, we still must advance unified state.
+        // Do we need to emit metrics for this present?
         const bool emit = (isRecording || computeAvg);
 
         for (auto const& it : ready) {
             // Build FrameData copies for the unified calculator state-advance (and V2 metrics).
             using namespace pmon::util::metrics;
 
-            FrameData frame = FrameData::CopyFrameData(it.present);
+            FrameData frame = std::move(it.present);
 
             FrameData nextFrame{};
             FrameData* nextPtr = nullptr;
-            if (it.nextDisplayed != nullptr) {
-                nextFrame = FrameData::CopyFrameData(it.nextDisplayed);
+            if (it.nextDisplayed.has_value()) {
+                nextFrame = std::move(*it.nextDisplayed);
                 nextPtr = &nextFrame;
             }
 
             if (args.mUseV1Metrics) {
                 // V1 emitter reads unified state BEFORE it advances.
                 if (emit) {
-                    ReportMetrics1Unified(pmSession, processInfo, chain, it.present, isRecording, computeAvg);
+                    ReportMetrics1Unified(pmSession, processInfo, chain, frame, isRecording, computeAvg);
                 }
 
                 // Advance unified swapchain state using the canonical unified calculator.
-                (void)ComputeMetricsForPresent(qpc, frame, nextPtr, chain->mUnified.core);
+                (void)ComputeMetricsForPresent(qpc, frame, nextPtr, chain->mUnifiedSwapChain.swapChain);
             }
             else {
                 // V2 unified metrics: compute + advance together
-                auto computed = ComputeMetricsForPresent(qpc, frame, nextPtr, chain->mUnified.core);
+                auto computed = ComputeMetricsForPresent(qpc, frame, nextPtr, chain->mUnifiedSwapChain.swapChain);
 
                 if (emit) {
                     for (auto const& cm : computed) {
                         auto const& m = cm.metrics;
 
                         if (isRecording) {
-                            UpdateCsv(pmSession, processInfo, *it.present, m);
+                            UpdateCsv(pmSession, processInfo, frame, m);
                         }
 
                         if (computeAvg) {
@@ -1230,7 +1198,7 @@ static void ProcessEvents(
 
             // Temporary compatibility shim: keep legacy swapchain fields in sync enough for pruning/etc.
             if (ShouldUpdateLegacyChain(it.present, it.nextDisplayed)) {
-                UpdateChain(chain, it.present);
+                UpdateChain(chain, presentEvent);
             }
         }
 
@@ -1357,58 +1325,4 @@ void StopOutputThread()
 
         DeleteCriticalSection(&gRecordingToggleCS);
     }
-}
-
-void SwapChainData::UnifiedConsoleSwapChain::SeedFromFirstPresent(std::shared_ptr<PresentEvent> const& p)
-{
-    using namespace pmon::util::metrics;
-
-    pending.clear();
-
-    FrameData fd = FrameData::CopyFrameData(p);
-    core.pendingPresents.clear();
-    core.UpdateAfterPresent(fd);
-}
-
-std::vector<SwapChainData::UnifiedConsoleSwapChain::ReadyItem>
-SwapChainData::UnifiedConsoleSwapChain::Enqueue(std::shared_ptr<PresentEvent> const& p)
-{
-    std::vector<ReadyItem> out;
-
-    // Keep legacy displayed[] normalization centralized
-    SanitizeRepeatedFlips(p);
-
-    // Seed baseline if needed (matches legacy early-init behavior)
-    if (!core.lastPresent.has_value()) {
-        SeedFromFirstPresent(p);
-        return out;
-    }
-
-    const bool isDisplayed = (p->FinalState == PresentResult::Presented) && !p->Displayed.empty();
-
-    if (isDisplayed) {
-        // Flush everything pending using this displayed present as nextDisplayed
-        for (auto const& pe : pending) {
-            out.push_back(ReadyItem{ pe, p });
-        }
-
-        // Current displayed present is ready too (but with no nextDisplayed yet)
-        out.push_back(ReadyItem{ p, nullptr });
-
-        // Reset pending: now waiting on the *next* displayed present
-        pending.clear();
-        pending.push_back(p);
-        return out;
-    }
-
-    // Not displayed:
-    // If nothing is waiting, it is ready now. Otherwise queue behind the displayed present.
-    if (pending.empty()) {
-        out.push_back(ReadyItem{ p, nullptr });
-    }
-    else {
-        pending.push_back(p);
-    }
-
-    return out;
 }

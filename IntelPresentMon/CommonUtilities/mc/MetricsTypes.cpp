@@ -10,6 +10,9 @@ namespace pmon::util::metrics {
     FrameData FrameData::CopyFrameData(const PmNsmPresentEvent& p) {
         FrameData frame{};
 
+        frame.runtime = p.Runtime;
+        frame.presentMode = p.PresentMode;
+
         frame.presentStartTime = p.PresentStartTime;
         frame.readyTime = p.ReadyTime;
         frame.timeInPresent = p.TimeInPresent;
@@ -51,12 +54,17 @@ namespace pmon::util::metrics {
                 });
         }
 
-        frame.finalState = p.FinalState;
         frame.swapChainAddress = p.SwapChainAddress;
+        frame.syncInterval = p.SyncInterval;
+        frame.presentFlags = p.PresentFlags;
+
+        frame.finalState = p.FinalState;
+        frame.supportsTearing = p.SupportsTearing;
         frame.frameId = p.FrameId;
         frame.processId = p.ProcessId;
         frame.threadId = p.ThreadId;
         frame.appFrameId = p.AppFrameId;
+        frame.pclFrameId = p.PclFrameId;
 
         return frame;
     }
@@ -64,6 +72,8 @@ namespace pmon::util::metrics {
     FrameData FrameData::CopyFrameData(const std::shared_ptr<PresentEvent>& p) {
         FrameData frame{};
 
+        frame.runtime = p->Runtime;
+        frame.presentMode = p->PresentMode;
         frame.presentStartTime = p->PresentStartTime;
         frame.readyTime = p->ReadyTime;
         frame.timeInPresent = p->TimeInPresent;
@@ -98,12 +108,17 @@ namespace pmon::util::metrics {
 
         frame.displayed = p->Displayed;
 
-        frame.finalState = p->FinalState;
         frame.swapChainAddress = p->SwapChainAddress;
+        frame.syncInterval = p->SyncInterval;
+        frame.presentFlags = p->PresentFlags;
+
+        frame.finalState = p->FinalState;
+        frame.supportsTearing = p->SupportsTearing;
         frame.frameId = p->FrameId;
         frame.processId = p->ProcessId;
         frame.threadId = p->ThreadId;
         frame.appFrameId = p->AppFrameId;
+        frame.pclFrameId = p->PclFrameId;
 
         return frame;
     }
@@ -111,6 +126,8 @@ namespace pmon::util::metrics {
     FrameData FrameData::CopyFrameData(const PresentEvent& p) {
         FrameData frame{};
 
+        frame.runtime = p.Runtime;
+        frame.presentMode = p.PresentMode;
         frame.presentStartTime = p.PresentStartTime;
         frame.readyTime = p.ReadyTime;
         frame.timeInPresent = p.TimeInPresent;
@@ -145,12 +162,17 @@ namespace pmon::util::metrics {
 
         frame.displayed = p.Displayed;
 
-        frame.finalState = p.FinalState;
         frame.swapChainAddress = p.SwapChainAddress;
+        frame.syncInterval = p.SyncInterval;
+        frame.presentFlags = p.PresentFlags;
+
+        frame.finalState = p.FinalState;
+        frame.supportsTearing = p.SupportsTearing;
         frame.frameId = p.FrameId;
         frame.processId = p.ProcessId;
         frame.threadId = p.ThreadId;
         frame.appFrameId = p.AppFrameId;
+        frame.pclFrameId = p.PclFrameId;
 
         return frame;
     }

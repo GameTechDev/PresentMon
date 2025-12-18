@@ -7,6 +7,8 @@
 #include <optional>
 
 // Forward declarations for external types
+enum class Runtime;
+enum class PresentMode;
 enum class FrameType;       // From PresentData
 enum class PresentResult;   // From PresentData
 enum class InputDeviceType; // From PresentData
@@ -24,6 +26,9 @@ namespace pmon::util::metrics {
 
     // Immutable snapshot - safe for both ownership models
     struct FrameData {
+        Runtime runtime = {};
+        PresentMode presentMode = {};
+
         // Timing Data
         uint64_t presentStartTime = 0;
         uint64_t readyTime = 0;
@@ -63,13 +68,20 @@ namespace pmon::util::metrics {
         uint64_t flipDelay = 0;
         uint32_t flipToken = 0;
 
+        // Extra present parameters obtained through DXGI or D3D9 present
+        uint64_t swapChainAddress = 0;
+        int32_t syncInterval = 0;
+        uint32_t presentFlags = 0;
+
         // Metadata
-        PresentResult finalState;
+        PresentResult finalState = {};
+        bool supportsTearing = 0;
+        bool isHybridPresent = false;
         uint32_t processId = 0;
         uint32_t threadId = 0;
-        uint64_t swapChainAddress = 0;
         uint32_t frameId = 0;
         uint32_t appFrameId = 0;
+        uint32_t pclFrameId = 0;
 
         // Setters for test setup
         void setFinalState(PresentResult state) { finalState = state; }
