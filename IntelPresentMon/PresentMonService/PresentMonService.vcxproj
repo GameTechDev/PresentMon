@@ -134,6 +134,7 @@
     <ClInclude Include="acts\FinishEtlLogging.h" />
     <ClInclude Include="acts\GetStaticCpuMetrics.h" />
     <ClInclude Include="acts\OpenSession.h" />
+    <ClInclude Include="acts\ReportMetricUse.h" />
     <ClInclude Include="acts\SelectAdapter.h" />
     <ClInclude Include="acts\SetEtwFlushPeriod.h" />
     <ClInclude Include="acts\SetTelemetryPeriod.h" />

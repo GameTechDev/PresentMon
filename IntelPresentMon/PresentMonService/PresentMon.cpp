@@ -12,7 +12,8 @@
 #include <span>
 #include "../CommonUtilities/win/Privileges.h"
 
-PresentMon::PresentMon(svc::FrameBroadcaster& broadcaster, bool isRealtime)
+PresentMon::PresentMon(svc::FrameBroadcaster& broadcaster,
+	bool isRealtime)
 	:
 	broadcaster_{ broadcaster },
 	etwLogger_{ util::win::WeAreElevated() }

@@ -6,6 +6,8 @@
 #include "FrameBroadcaster.h"
 #include <memory>
 #include <span>
+#include <unordered_set>
+#include <shared_mutex>
 
 using namespace pmon;
 
@@ -86,10 +88,22 @@ public:
 	{
 		return broadcaster_;
 	}
+	bool CheckDeviceMetricUsage(uint32_t deviceId) const
+	{
+		std::shared_lock lk{ metricDeviceUsageMtx_ };
+		return metricDeviceUsage_.contains(deviceId);
+	}
+	void SetDeviceMetricUsage(std::unordered_set<uint32_t> usage)
+	{
+		std::lock_guard lk{ metricDeviceUsageMtx_ };
+		metricDeviceUsage_ = std::move(usage);
+	}
 	void StartPlayback();
 	void StopPlayback();
 private:
 	svc::FrameBroadcaster& broadcaster_;
 	svc::EtwLogger etwLogger_;
 	std::unique_ptr<PresentMonSession> pSession_;
+	mutable std::shared_mutex metricDeviceUsageMtx_;
+	std::unordered_set<uint32_t> metricDeviceUsage_;
 };

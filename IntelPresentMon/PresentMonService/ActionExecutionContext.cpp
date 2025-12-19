@@ -20,6 +20,8 @@ namespace pmon::svc::acts
         UpdateTelemetryPeriod();
         stx.requestedEtwFlushPeriodMs.reset();
         UpdateEtwFlushPeriod();
+        stx.metricUsage.clear();
+        UpdateMetricUsage();
     }
     void ActionExecutionContext::UpdateTelemetryPeriod() const
     {
@@ -44,5 +46,16 @@ namespace pmon::svc::acts
             pmlog_error("Set telemetry period failed").code(sta);
             throw util::Except<ipc::act::ActionExecutionError>(sta);
         }
+    }
+    void ActionExecutionContext::UpdateMetricUsage() const
+    {
+        std::unordered_set<uint32_t> deviceMetricUsage;
+        auto&& allUsageSets = util::rng::MemberSlice(*pSessionMap, &SessionContextType::metricUsage);
+        for (auto&& clientUsageSet : allUsageSets) {
+            for (auto&& usage : clientUsageSet) {
+                deviceMetricUsage.insert(usage.deviceId);
+            }
+        }
+        pPmon->SetDeviceMetricUsage(std::move(deviceMetricUsage));
     }
 }
