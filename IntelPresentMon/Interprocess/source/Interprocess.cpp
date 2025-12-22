@@ -73,7 +73,8 @@ namespace pmon::ipc
                 auto& gpuShm = gpuShms_.emplace(
                     std::piecewise_construct,
                     std::forward_as_tuple(deviceId),
-                    std::forward_as_tuple(namer_.MakeGpuName(deviceId))
+                    std::forward_as_tuple(namer_.MakeGpuName(deviceId),
+                        static_cast<const bip::permissions&>(Permissions_{}))
                 ).first->second;
                 // populate rings based on caps
                 for (auto&& [m, count] : caps) {
