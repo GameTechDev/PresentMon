@@ -235,8 +235,8 @@ namespace pmon::mid
 
         uint64_t offset = 0u;
         for (auto& qe : queryElements) {
-            // A device of zero is NOT a graphics adapter.
-            if (qe.deviceId != 0) {
+            // A device of zero is NOT a graphics adapter; 65536 is sys and not gpu either
+            if (qe.deviceId != 0 && qe.deviceId != 65536) {
                 // If we have already set a device id in this query, check to
                 // see if it's the same device id as previously set. Currently
                 // we don't support querying multiple gpu devices in the one
