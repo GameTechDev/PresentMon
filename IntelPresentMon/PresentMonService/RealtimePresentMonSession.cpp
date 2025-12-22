@@ -493,7 +493,7 @@ void RealtimePresentMonSession::Output() {
             // wait for either events to process or periodic polling timer
             while (auto idx = util::win::WaitAnyEvent(pm_consumer_->hEventsReadyEvent, hTimer)) {
                 // events are ready so we should process them
-                if (*idx == 0) {
+                if (idx == 0) {
                     pmlog_verb(v::etwq)("Event(s) ready");
                     break;
                 }

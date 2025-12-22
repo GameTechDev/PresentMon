@@ -4,6 +4,7 @@
 #include "PresentMonSession.h"
 #include "EtwLogger.h"
 #include "FrameBroadcaster.h"
+#include "../CommonUtilities/win/Event.h"
 #include <memory>
 #include <span>
 #include <unordered_set>
@@ -95,8 +96,15 @@ public:
 	}
 	void SetDeviceMetricUsage(std::unordered_set<uint32_t> usage)
 	{
-		std::lock_guard lk{ metricDeviceUsageMtx_ };
-		metricDeviceUsage_ = std::move(usage);
+		{
+			std::lock_guard lk{ metricDeviceUsageMtx_ };
+			metricDeviceUsage_ = std::move(usage);
+		}
+		deviceUsageEvt_.Set();
+	}
+	HANDLE GetDeviceUsageEvent() const
+	{
+		return deviceUsageEvt_.Get();
 	}
 	void StartPlayback();
 	void StopPlayback();
@@ -106,4 +114,5 @@ private:
 	std::unique_ptr<PresentMonSession> pSession_;
 	mutable std::shared_mutex metricDeviceUsageMtx_;
 	std::unordered_set<uint32_t> metricDeviceUsage_;
+	util::win::Event deviceUsageEvt_{ false };
 };

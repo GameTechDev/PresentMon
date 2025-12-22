@@ -1,6 +1,7 @@
 #include "../CommonUtilities/win/WinAPI.h"
 #include "../Core/source/kernel/Kernel.h"
 #include "../Core/source/infra/util/FolderResolver.h"
+#include "../CommonUtilities/log/IdentificationTable.h"
 #include "../Interprocess/source/act/SymmetricActionServer.h"
 #include "kact/KernelExecutionContext.h"
 #include "../AppCef/source/util/cact/TargetLostAction.h"
@@ -124,6 +125,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 #endif
 
 	try {
+		util::log::IdentificationTable::AddThisProcess("kproc");
+		util::log::IdentificationTable::AddThisThread("main");
 		// if we were run from a parent with a console (terminal?), try to attach there
 		const bool fromTerminal = TryAttachToParentConsole_();
 		// parse the command line arguments and make them globally available
@@ -482,10 +485,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				}
 			}
 			else { // wait indefinitely until %q command received or kernel signal
-				auto res = util::win::WaitAnyEvent(
+				if (util::win::WaitAnyEvent(
 					dynamic_cast<HeadlessKernelHandler*>(pKernelHandler.get())->stopEvent_,
-					stopCommandEvent);
-				if (res && *res == 1) {
+					stopCommandEvent) == 1) {
 					std::cerr << "Capture terminated by %q command." << std::endl;
 				}
 				else {

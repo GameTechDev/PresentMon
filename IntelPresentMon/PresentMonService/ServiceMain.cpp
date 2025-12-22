@@ -10,6 +10,7 @@
 #include "Registry.h"
 #include "../Versioning/BuildId.h"
 #include "../CommonUtilities/log/GlobalPolicy.h"
+#include "../CommonUtilities/log/IdentificationTable.h"
 
 TCHAR serviceName[MaxBufferLength] = TEXT("Intel PresentMon Service");
 using namespace pmon;
@@ -17,6 +18,8 @@ using namespace pmon;
 // common entry point whether invoked as service or as app
 int CommonEntry(DWORD argc, LPTSTR* argv, bool asApp)
 {
+	util::log::IdentificationTable::AddThisProcess("service");
+	util::log::IdentificationTable::AddThisThread("main");
 	logsetup::LogChannelManager logMan_;
 	// parse command line, return with error code from CLI11 if running as app
 	if (auto e = clio::Options::Init(argc, argv); e && asApp) {

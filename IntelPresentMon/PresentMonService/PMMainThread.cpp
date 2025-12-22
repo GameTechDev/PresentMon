@@ -18,6 +18,7 @@
 #include "../CommonUtilities/IntervalWaiter.h"
 #include "../CommonUtilities/PrecisionWaiter.h"
 #include "../CommonUtilities/win/Event.h"
+#include "../CommonUtilities/log/IdentificationTable.h"
 
 #include "../CommonUtilities/log/GlogShim.h"
 #include "testing/TestControl.h"
@@ -47,7 +48,7 @@ void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
     while (true) {
         pmlog_verb(v::etwq)("Begin idle ETW flush wait");
         // if event index 0 is signalled that means we are stopping
-        if (*win::WaitAnyEvent(srv->GetServiceStopHandle(), pm->GetStreamingStartHandle()) == 0) {
+        if (win::WaitAnyEvent(srv->GetServiceStopHandle(), pm->GetStreamingStartHandle()) == 0) {
             pmlog_dbg("exiting ETW flush thread due to stop handle");
             return;
         }
@@ -278,109 +279,142 @@ static void PopulateGpuTelemetryRings_(
 
 
 void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
-	PowerTelemetryContainer* const ptc, ipc::ServiceComms* const pComms)
+	PowerTelemetryContainer* const ptc, ipc::ServiceComms* const pComms, bool newActivation)
 {
-	if (srv == nullptr || pm == nullptr || ptc == nullptr) {
-		// TODO: log error here
-		return;
-	}
-
-    // we first wait for a client control connection before populating telemetry container
-    // after populating, we sample each adapter to gather availability information
-    // this is deferred until client connection in order to increase the probability that
-    // telemetry metric availability is accurately assessed
-    {
-        const HANDLE events[]{
-              srv->GetClientSessionHandle(),
-              srv->GetServiceStopHandle(),
-        };
-        const auto waitResult = WaitForMultipleObjects((DWORD)std::size(events), events, FALSE, INFINITE);
-        // TODO: check for wait result error
-        // if events[1] was signalled, that means service is stopping so exit thread
-        if ((waitResult - WAIT_OBJECT_0) == 1) {
+    using util::win::WaitAnyEvent;
+    using util::win::WaitAnyEventFor;
+    try {
+        util::log::IdentificationTable::AddThisThread("tele-gpu");
+        pmlog_dbg("Starting gpu telemetry thread");
+        if (srv == nullptr || pm == nullptr || ptc == nullptr) {
+            pmlog_error("Required parameter was null");
             return;
         }
-        pmon::util::QpcTimer timer;
-        ptc->Repopulate();
-        for (auto&& [i, adapter] : ptc->GetPowerTelemetryAdapters() | vi::enumerate) {
-            // sample 2x here as workaround/kludge because Intel provider misreports 1st sample
-            adapter->Sample();
-            adapter->Sample();
-            pComms->RegisterGpuDevice(adapter->GetVendor(), adapter->GetName(),
-                ipc::intro::ConvertBitset(adapter->GetPowerTelemetryCapBits()));
-            // after registering, we know that at least the store is available even
-            // if the introspection itself is not complete
-            auto& gpuStore = pComms->GetGpuDataStore(uint32_t(i + 1));
-            // TODO: replace this placeholder routine for populating statics
-            gpuStore.statics.name = adapter->GetName().c_str();
-            gpuStore.statics.vendor = adapter->GetVendor();
-            gpuStore.statics.memSize = adapter->GetDedicatedVideoMemory();
-            gpuStore.statics.maxMemBandwidth = adapter->GetVideoMemoryMaxBandwidth();
-            gpuStore.statics.sustainedPowerLimit = adapter->GetSustainedPowerLimit();
-            // max fanspeed is polled in old system but static in new system, shim here
-            // TODO: make this fully static
-            // infer number of fans by the size of the telemetry ring array for fan speed
-            const auto nFans = gpuStore.telemetryData.ArraySize(PM_METRIC_GPU_FAN_SPEED);
-            auto& sample = adapter->GetNewest();
-            for (size_t i = 0; i < nFans; i++) {
-                gpuStore.statics.maxFanSpeedRpm.push_back(sample.max_fan_speed_rpm[i]);
-            }
-        }
-        pComms->FinalizeGpuDevices();
-        pmlog_info(std::format("Finished populating GPU telemetry introspection, {} seconds elapsed", timer.Mark()));
-    }
 
-	// only start periodic polling when streaming starts
-    // exit polling loop and this thread when service is stopping
-    {
-        IntervalWaiter waiter{ 0.016 };
-        const HANDLE events[]{
-          pm->GetStreamingStartHandle(),
-          srv->GetServiceStopHandle(),
-        };
-        while (1) {
-            auto waitResult = WaitForMultipleObjects((DWORD)std::size(events), events, FALSE, INFINITE);
-            // TODO: check for wait result error
-            // if events[1] was signalled, that means service is stopping so exit thread
-            if ((waitResult - WAIT_OBJECT_0) == 1) {
+        // we first wait for a client control connection before populating telemetry container
+        // after populating, we sample each adapter to gather availability information
+        // this is deferred until client connection in order to increase the probability that
+        // telemetry metric availability is accurately assessed
+        {
+            if (WaitAnyEvent(srv->GetClientSessionHandle(), srv->GetServiceStopHandle()) == 1) {
+                // if events[1] was signalled, that means service is stopping so exit thread
+                pmlog_dbg("Exiting gpu telemetry thread before initialization");
                 return;
             }
-            // otherwise we assume streaming has started and we begin the polling loop
-            while (WaitForSingleObject(srv->GetServiceStopHandle(), 0) != WAIT_OBJECT_0) {
-                // if device was reset (driver installed etc.) we need to repopulate telemetry
-                if (WaitForSingleObject(srv->GetResetPowerTelemetryHandle(), 0) == WAIT_OBJECT_0) {
-                    // TODO: log error here or inside of repopulate
-                    ptc->Repopulate();
+            pmon::util::QpcTimer timer;
+            ptc->Repopulate();
+            for (auto&& [i, adapter] : ptc->GetPowerTelemetryAdapters() | vi::enumerate) {
+                // sample 2x here as workaround/kludge because Intel provider misreports 1st sample
+                adapter->Sample();
+                adapter->Sample();
+                pComms->RegisterGpuDevice(adapter->GetVendor(), adapter->GetName(),
+                    ipc::intro::ConvertBitset(adapter->GetPowerTelemetryCapBits()));
+                // after registering, we know that at least the store is available even
+                // if the introspection itself is not complete
+                auto& gpuStore = pComms->GetGpuDataStore(uint32_t(i + 1));
+                // TODO: replace this placeholder routine for populating statics
+                gpuStore.statics.name = adapter->GetName().c_str();
+                gpuStore.statics.vendor = adapter->GetVendor();
+                gpuStore.statics.memSize = adapter->GetDedicatedVideoMemory();
+                gpuStore.statics.maxMemBandwidth = adapter->GetVideoMemoryMaxBandwidth();
+                gpuStore.statics.sustainedPowerLimit = adapter->GetSustainedPowerLimit();
+                // max fanspeed is polled in old system but static in new system, shim here
+                // TODO: make this fully static
+                // infer number of fans by the size of the telemetry ring array for fan speed
+                const auto nFans = gpuStore.telemetryData.ArraySize(PM_METRIC_GPU_FAN_SPEED);
+                auto& sample = adapter->GetNewest();
+                for (size_t i = 0; i < nFans; i++) {
+                    gpuStore.statics.maxFanSpeedRpm.push_back(sample.max_fan_speed_rpm[i]);
                 }
-                auto& adapters = ptc->GetPowerTelemetryAdapters();
-                for (size_t idx = 0; idx < adapters.size(); ++idx) {
-                    auto& adapter = adapters[idx];
-                    adapter->Sample();
+            }
+            pComms->FinalizeGpuDevices();
+            pmlog_info(std::format("Finished populating GPU telemetry introspection, {} seconds elapsed", timer.Mark()));
+        }
 
-                    // Get the newest sample from the provider
-                    const auto& sample = adapter->GetNewest();
-
-                    // Retrieve the matching GPU store.
-                    auto& store = pComms->GetGpuDataStore(uint32_t(idx + 1));
-
-                    PopulateGpuTelemetryRings_(store, sample);
+        // only start periodic polling when streaming starts
+        // exit polling loop and this thread when service is stopping
+        {
+            IntervalWaiter waiter{ 0.016 };
+            while (true) {
+                if (newActivation) {
+                    pmlog_dbg("(re)starting gpu idle wait (new)");
+                    if (WaitAnyEvent(pm->GetDeviceUsageEvent(), srv->GetServiceStopHandle()) == 1) {
+                        pmlog_dbg("gpu telemetry received exit code, thread exiting");
+                        return;
+                    }
+                    else {
+                        // if any of our gpu telemetry devices are active enter polling loop
+                        bool hasActive = false;
+                        for (auto&& [i, ad] : ptc->GetPowerTelemetryAdapters() | vi::enumerate) {
+                            const auto deviceId = uint32_t(i) + 1;
+                            if (pm->CheckDeviceMetricUsage(deviceId)) {
+                                pmlog_dbg("detected gpu active").pmwatch(deviceId);
+                                hasActive = true;
+                                break;
+                            }
+                        }
+                        if (!hasActive) {
+                            pmlog_dbg("received device usage event, but no gpu tele device was active");
+                            continue;
+                        }
+                    }
                 }
-                // Convert from the ms to seconds as GetTelemetryPeriod returns back
-                // ms and SetInterval expects seconds.
-                waiter.SetInterval(pm->GetGpuTelemetryPeriod()/1000.);
-                waiter.Wait();
-                // go dormant if there are no active streams left
-                // TODO: consider race condition here if client stops and starts streams rapidly
-                if (pm->GetActiveStreams() == 0) {
-                    break;
+                else {
+                    pmlog_dbg("(re)starting gpu idle wait (legacy)");
+                    const HANDLE events[]{
+                      pm->GetStreamingStartHandle(),
+                      srv->GetServiceStopHandle(),
+                    };
+                    auto waitResult = WaitForMultipleObjects((DWORD)std::size(events), events, FALSE, INFINITE);
+                    // TODO: check for wait result error
+                    // if events[1] was signalled, that means service is stopping so exit thread
+                    if ((waitResult - WAIT_OBJECT_0) == 1) {
+                        return;
+                    }
+                }
+                // otherwise we assume streaming has started and we begin the polling loop
+                pmlog_dbg("entering gpu tele active poll loop");
+                while (!WaitAnyEventFor(0ms, srv->GetServiceStopHandle())) {
+                    // if device was reset (driver installed etc.) we need to repopulate telemetry
+                    if (WaitAnyEventFor(0ms, srv->GetResetPowerTelemetryHandle())) {
+                        // TODO: log error here or inside of repopulate
+                        ptc->Repopulate();
+                    }
+                    // poll all gpu adapter devices
+                    // TODO: only poll devices that are actually active
+                    auto& adapters = ptc->GetPowerTelemetryAdapters();
+                    for (size_t idx = 0; idx < adapters.size(); ++idx) {
+                        auto& adapter = adapters[idx];
+                        adapter->Sample();
+
+                        // Get the newest sample from the provider
+                        const auto& sample = adapter->GetNewest();
+
+                        // Retrieve the matching GPU store.
+                        auto& store = pComms->GetGpuDataStore(uint32_t(idx + 1));
+
+                        PopulateGpuTelemetryRings_(store, sample);
+                    }
+                    // Convert from the ms to seconds as GetTelemetryPeriod returns back
+                    // ms and SetInterval expects seconds.
+                    waiter.SetInterval(pm->GetGpuTelemetryPeriod() / 1000.);
+                    waiter.Wait();
+                    // go dormant if there are no active streams left
+                    // TODO: consider race condition here if client stops and starts streams rapidly
+                    if (pm->GetActiveStreams() == 0) {
+                        break;
+                    }
                 }
             }
         }
+    }
+    catch (...) {
+        pmlog_error(util::ReportException("Exception leaked to top level of gpu telemetry thread"));
     }
 }
 
 void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::ServiceComms* pComms,
-	pwr::cpu::CpuTelemetry* const cpu) noexcept
+	pwr::cpu::CpuTelemetry* const cpu, bool newActivation) noexcept
 {
     // we don't expect any exceptions in this system during normal operation
     // (maybe during initialization at most, not during polling)
@@ -388,6 +422,7 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
     // don't let this thread crash the process, just exit with an error for later
     // diagnosis
     try {
+        util::log::IdentificationTable::AddThisThread("tele-sys");
         IntervalWaiter waiter{ 0.016 };
         if (srv == nullptr || pm == nullptr) {
             // TODO: log error on this condition
@@ -528,7 +563,8 @@ void PresentMonMainThread(Service* const pSvc)
         auto pActionServer = std::make_unique<ActionServer>(pSvc, &pm, opt.controlPipe.AsOptional());
 
         try {
-            gpuTelemetryThread = std::jthread{ PowerTelemetryThreadEntry_, pSvc, &pm, &ptc, pComms.get() };
+            gpuTelemetryThread = std::jthread{ PowerTelemetryThreadEntry_, pSvc, &pm, &ptc,
+                pComms.get(), opt.newTelemetryActivation };
         }
         catch (...) {
             LOG(ERROR) << "failed creating gpu(power) telemetry thread" << std::endl;
@@ -548,7 +584,8 @@ void PresentMonMainThread(Service* const pSvc)
         }
 
         if (cpu) {
-            cpuTelemetryThread = std::jthread{ CpuTelemetryThreadEntry_, pSvc, &pm, pComms.get(), cpu.get()};
+            cpuTelemetryThread = std::jthread{ CpuTelemetryThreadEntry_, pSvc, &pm, pComms.get(),
+                cpu.get(), opt.newTelemetryActivation };
             pm.SetCpu(cpu);
             // sample once to populate the cap bits
             cpu->Sample();
