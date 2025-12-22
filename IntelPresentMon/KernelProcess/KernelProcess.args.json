@@ -117,6 +117,10 @@
       "Command": "--ui-flag enable-chromium-debug"
     },
     {
+      "Id": "f4a7ccc2-978f-4bd0-af05-a70ce115b1eb",
+      "Command": "list --devices"
+    },
+    {
       "Id": "a82f2a21-c9de-460e-8f38-b10026e23809",
       "Command": "capture",
       "Items": [

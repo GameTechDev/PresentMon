@@ -310,10 +310,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			}
 			// list adapter devices
 			if (opt.listDevices) {
-				std::cout << "List of graphics adapters:\n";
+				std::cout << "List of queryable devices:\n";
 				for (auto&& d : pIntro->GetDevices()) {
-					if (!d.GetId()) continue;
-					std::cout << d.GetName() << " [" << d.GetId() << "] (" << d.IntrospectVendor().GetName() << ")\n";
+					std::cout << d.GetName() << " [" << d.GetId() << "] "
+						<< d.IntrospectVendor().GetName()
+						<< " (" << d.IntrospectType().GetName() << ")\n";
 				}
 			}
 			return 0;
@@ -409,6 +410,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			// don't exit this process until the CEF control panel exits
 			cefChild.wait();
 		}
+		// TODO: organize headless CLI code into own source modules
 		else if (opt.subcCapture.Active()) {
 			DWORD pid;
 			if (opt.capTargetPid) {

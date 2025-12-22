@@ -91,10 +91,10 @@ namespace p2c::pmon
             Element{.metricId = PM_METRIC_GPU_MEM_VOLTAGE_LIMITED, .deviceId = activeDeviceId },
             Element{.metricId = PM_METRIC_GPU_MEM_UTILIZATION_LIMITED, .deviceId = activeDeviceId },
 
-            Element{.metricId = PM_METRIC_CPU_UTILIZATION },
-            Element{.metricId = PM_METRIC_CPU_POWER },
-            Element{.metricId = PM_METRIC_CPU_TEMPERATURE },
-            Element{.metricId = PM_METRIC_CPU_FREQUENCY },
+            Element{.metricId = PM_METRIC_CPU_UTILIZATION, .deviceId = 65536 },
+            Element{.metricId = PM_METRIC_CPU_POWER, .deviceId = 65536 },
+            Element{.metricId = PM_METRIC_CPU_TEMPERATURE, .deviceId = 65536 },
+            Element{.metricId = PM_METRIC_CPU_FREQUENCY, .deviceId = 65536 },
         };
 
         if (enableTimestamp) {

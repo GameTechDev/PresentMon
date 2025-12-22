@@ -6,7 +6,7 @@ namespace pmon::util::log
 {
 	std::string GetVerboseModuleName(V mod) noexcept
 	{
-		return std::string{ reflect::enum_name<V, "Unknown">(mod) };
+		return std::string{ reflect::enum_name(mod) };
 	}
 
 	std::map<std::string, V> GetVerboseModuleMapNarrow() noexcept

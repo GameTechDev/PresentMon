@@ -60,7 +60,7 @@ namespace p2c::cli
 	private: Group glists_{ this, "Standard", "Standard options for the list subcommand" }; public:
 		Flag listMetrics{ this, "--metrics,-m", "Output a list of available metrics" };
 		Flag listMetricsStats{ this, "--stats,-s", "Output a list of available stats for each metric" };
-		Flag listDevices{ this, "--devices,-d", "Output a list of available graphics adapters" };
+		Flag listDevices{ this, "--devices,-d", "Output a list of available devices" };
 		Flag listFilterFrame{ this, "--filter-frame,-f", "Filter to only metrics available for use with frame event capture" };
 		Flag listFilterDynamic{ this, "--filter-dynamic,-y", "Filter to only metrics available for use with dynamic polling" };
 		Option<std::string> listSearch{ this, "--search", {}, "Substring to filter metric results on (case-insensitive)" };

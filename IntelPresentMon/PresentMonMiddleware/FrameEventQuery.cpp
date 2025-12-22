@@ -1309,7 +1309,8 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements)
 	// current release: only 1 gpu device maybe be polled at a time
 	for (auto& q : queryElements) {
 		// validate that maximum 1 device (gpu) id is specified throughout the query
-		if (q.deviceId != 0) {
+		// universal (0) and system (65536) device metrics are exempt from this limit
+		if (q.deviceId != 0 && q.deviceId != 65536) {
 			if (!referencedDevice_) {
 				referencedDevice_ = q.deviceId;
 			}
