@@ -14,6 +14,7 @@ import { useLoadoutStore } from './loadout';
 import { useIntrospectionStore } from './introspection';
 import { deepToRaw } from '@/core/vue-utils';
 import { useNotificationsStore } from './notifications';
+import { SYSTEM_DEVICE_ID } from '@/core/metric';
 
 export const usePreferencesStore = defineStore('preferences', () => {
   // === Dependent Stores ===
@@ -128,13 +129,19 @@ export const usePreferencesStore = defineStore('preferences', () => {
         widgetMetric.metric.deviceId = 0; // establish universal device id
         // Check whether metric is a gpu metric, then we need non-universal device id
         if (!metric.availableDeviceIds.includes(0)) {
-          // if no specific adapter id set, assume adapter id = 1 is active
-          const adapterId = preferences.value.adapterId !== null ? preferences.value.adapterId : 1;
-          // Set adapter id for this query element to the active one if available
-          if (metric.availableDeviceIds.includes(adapterId)) {
-            widgetMetric.metric.deviceId = adapterId;
-          } else { // if active adapter id is not available drop this widgetMetric
-            return false;
+          // if this is a system metric, deviceId needs to be set to fixed id
+          if (metric.availableDeviceIds.includes(SYSTEM_DEVICE_ID)) {
+            widgetMetric.metric.deviceId = SYSTEM_DEVICE_ID;
+          }
+          else {
+            // if no specific adapter id set, assume adapter id = 1 is active
+            const adapterId = preferences.value.adapterId !== null ? preferences.value.adapterId : 1;
+            // Set adapter id for this query element to the active one if available
+            if (metric.availableDeviceIds.includes(adapterId)) {
+              widgetMetric.metric.deviceId = adapterId;
+            } else { // if active adapter id is not available drop this widgetMetric
+              return false;
+            }
           }
         }
         // Fill out the unit

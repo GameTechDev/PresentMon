@@ -34,7 +34,7 @@
     },
     {
       "Id": "49b6fc1f-b969-4280-b0d8-17a213e80f16",
-      "Command": "--log-verbose-modules core_window v8async etwq"
+      "Command": "--log-verbose-modules v8async core_metric kact"
     },
     {
       "Id": "bab48d6d-3a48-4b3b-9ed9-903e381824c6",

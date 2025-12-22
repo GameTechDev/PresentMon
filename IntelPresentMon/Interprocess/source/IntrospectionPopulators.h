@@ -7,6 +7,7 @@
 
 namespace pmon::ipc::intro
 {
+	constexpr uint32_t kSystemDeviceId = 0x1'0000;
 	void PopulateEnums(ShmSegmentManager* pSegmentManager, struct IntrospectionRoot& root);
 	void PopulateMetrics(ShmSegmentManager* pSegmentManager, struct IntrospectionRoot& root);
 	void PopulateUnits(ShmSegmentManager* pSegmentManager, struct IntrospectionRoot& root);

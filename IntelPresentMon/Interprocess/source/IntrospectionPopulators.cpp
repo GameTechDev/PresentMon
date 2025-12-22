@@ -3,6 +3,7 @@
 #include "IntrospectionTransfer.h"
 #include "IntrospectionCapsLookup.h"
 #include "MetricCapabilities.h"
+#include "IntrospectionPopulators.h"
 #include "../../CommonUtilities/log/Log.h"
 #include <ranges>
 #include <optional>
@@ -109,7 +110,11 @@ namespace pmon::ipc::intro
 	void PopulateCpu(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root,
 		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const MetricCapabilities& caps)
 	{
-		PopulateDeviceMetrics_(root, caps, 0);
+		// add the device
+		auto charAlloc = pSegmentManager->get_allocator<char>();
+		root.AddDevice(ShmMakeUnique<IntrospectionDevice>(pSegmentManager, kSystemDeviceId,
+			PM_DEVICE_TYPE_SYSTEM, vendor, ShmString{ "System", charAlloc}));
+		PopulateDeviceMetrics_(root, caps, kSystemDeviceId);
 	}
 
 }
