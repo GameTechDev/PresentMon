@@ -293,7 +293,7 @@ namespace InterimBroadcasterTests
     public:
         TEST_METHOD_INITIALIZE(Setup)
         {
-            fixture_.Setup();
+            fixture_.Setup({"--new-telemetry-activation"s});
         }
         TEST_METHOD_CLEANUP(Cleanup)
         {
@@ -326,16 +326,18 @@ namespace InterimBroadcasterTests
             // set telemetry period so we have a known baseline
             client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 100 });
 
-            // as a stopgap we target a process in order to trigger service-side telemetry collection
-            // TODO: remove this when we enable service-side query awareness of connected clients
-            auto pres = fixture_.LaunchPresenter();
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            // update server with metric/device usage information
+            // this will trigger gpu telemetry collection
+            client.DispatchSync(svc::acts::ReportMetricUse::Params{ {
+                { PM_METRIC_GPU_TEMPERATURE, 1, 0 },
+                { PM_METRIC_GPU_POWER, 1, 0 },
+            } });
 
             // get the store containing adapter telemetry
             auto& gpu = pComms->GetGpuDataStore(1);
 
             // allow a short warmup
-            std::this_thread::sleep_for(500ms);
+            std::this_thread::sleep_for(150ms);
 
             std::vector<ipc::HistoryRing<double>::Sample> tempSamples;
             std::vector<ipc::HistoryRing<double>::Sample> powerSamples;
@@ -402,16 +404,11 @@ namespace InterimBroadcasterTests
             // set telemetry period so we have a known baseline
             client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 40 });
 
-            // as a stopgap we target a process in order to trigger service-side telemetry collection
-            // TODO: remove this when we enable service-side query awareness of connected clients
-            auto pres = fixture_.LaunchPresenter();
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            // target gpu device 1 (hardcoded for test)
+            const uint32_t TargetDeviceID = 1;
 
             // get the store containing adapter telemetry
-            auto& gpu = pComms->GetGpuDataStore(1);
-
-            // allow a short warmup
-            std::this_thread::sleep_for(500ms);
+            auto& gpu = pComms->GetGpuDataStore(TargetDeviceID);
 
             // build the set of expected rings from introspection
             Logger::WriteMessage("Introspection Metrics\n=====================\n");
@@ -430,7 +427,7 @@ namespace InterimBroadcasterTests
                 // check availability for target gpu
                 size_t arraySize = 0;
                 for (auto&& di : m.GetDeviceMetricInfo()) {
-                    if (di.GetDevice().GetId() != 1) {
+                    if (di.GetDevice().GetId() != TargetDeviceID) {
                         // skip over non-matching devices
                         continue;
                     }
@@ -453,17 +450,33 @@ namespace InterimBroadcasterTests
 
             // validate that the expected number of rings sets are present in the store
             Assert::AreEqual(introspectionAvailability.size(), (size_t)rn::distance(gpu.telemetryData.Rings()));
+                        
+            {
+                // build metric use set from above introspection results
+                std::unordered_set<svc::acts::MetricUse> uses;
+                for (auto&& [met, siz] : introspectionAvailability) {
+                    if (siz > 0) {
+                        uses.insert({ met, TargetDeviceID, 0 });
+                    }
+                }
+                // update server with metric/device usage information
+                // this will trigger gpu telemetry collection
+                client.DispatchSync(svc::acts::ReportMetricUse::Params{ std::move(uses) });
+            }
 
-            // validate that exepected rings are present and are populated with samples
+            // allow a short warmup
+            std::this_thread::sleep_for(150ms);
+
+            // validate that exepected rings are populated with samples and have correct dimensions
             for (auto&& [met, size] : introspectionAvailability) {
                 // array sizes should match
                 Assert::AreEqual(size, gpu.telemetryData.ArraySize(met),
                     pMetricMap->at(met).wideName.c_str());
                 std::visit([&](auto const& rings) {
-                    // for each history ring in set, make sure it has at least one sample in it
+                    // for each history ring in set, make sure it has at least more than one sample in it
                     for (size_t i = 0; i < size; i++) {
                         auto& name = pMetricMap->at(met).wideName;
-                        Assert::IsFalse(rings[i].Empty(),
+                        Assert::IsTrue(rings[i].Size() > 1,
                             std::format(L"{}[{}]", name, i).c_str());
                         auto& sample = rings[i].Newest();
                         Logger::WriteMessage(std::format(L"{}[{}]: {}@{}\n", name, i,

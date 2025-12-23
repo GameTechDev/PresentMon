@@ -29,6 +29,7 @@ PresentMon::PresentMon(svc::FrameBroadcaster& broadcaster,
 PresentMon::~PresentMon()
 {
 	pSession_->CheckTraceSessions(true);
+	pmlog_dbg("PresentMon object destructor finishing");
 }
 
 PM_STATUS PresentMon::StartStreaming(uint32_t client_process_id, uint32_t target_process_id,

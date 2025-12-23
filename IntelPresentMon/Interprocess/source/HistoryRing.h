@@ -45,6 +45,11 @@ namespace pmon::ipc
         {
             return samples_.Empty();
         }
+        size_t Size() const
+        {
+            const auto range = GetSerialRange();
+            return range.second - range.first;
+        }
         // First serial with timestamp >= given timestamp.
         // If all samples have timestamp < given timestamp, returns last (one past end).
         size_t LowerBoundSerial(uint64_t timestamp) const

@@ -360,6 +360,7 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                     }
                 }
                 else {
+                    // TODO: remove legacy branch here
                     pmlog_dbg("(re)starting gpu idle wait (legacy)");
                     const HANDLE events[]{
                       pm->GetStreamingStartHandle(),
@@ -373,6 +374,7 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                     }
                 }
                 // otherwise we assume streaming has started and we begin the polling loop
+                // TODO: consider poll loop per device architecture instead of loop all
                 pmlog_dbg("entering gpu tele active poll loop");
                 while (!WaitAnyEventFor(0ms, srv->GetServiceStopHandle())) {
                     // if device was reset (driver installed etc.) we need to repopulate telemetry
@@ -399,10 +401,26 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                     // ms and SetInterval expects seconds.
                     waiter.SetInterval(pm->GetGpuTelemetryPeriod() / 1000.);
                     waiter.Wait();
-                    // go dormant if there are no active streams left
-                    // TODO: consider race condition here if client stops and starts streams rapidly
-                    if (pm->GetActiveStreams() == 0) {
-                        break;
+                    if (newActivation) {
+                        // go dormant if no gpu devices are in use
+                        bool anyUsed = false;
+                        for (size_t idx = 0; idx < adapters.size(); ++idx) {
+                            if (pm->CheckDeviceMetricUsage(uint32_t(idx + 1))) {
+                                anyUsed = true;
+                                break;
+                            }
+                        }
+                        if (!anyUsed) {
+                            break;
+                        }
+                    }
+                    else {
+                        // go dormant if there are no active streams left
+                        // TODO: consider race condition here if client stops and starts streams rapidly
+                        // TODO: remove this legacy branch
+                        if (pm->GetActiveStreams() == 0) {
+                            break;
+                        }
                     }
                 }
             }
@@ -636,7 +654,14 @@ void PresentMonMainThread(Service* const pSvc)
         }
 
         // Stop the PresentMon sessions
-         pm.StopTraceSessions();
+        pm.StopTraceSessions();
+        // wait for the telemetry threads to exit
+        if (gpuTelemetryThread.joinable()) {
+            gpuTelemetryThread.join();
+        }
+        if (cpuTelemetryThread.joinable()) {
+            cpuTelemetryThread.join();
+        }
     }
     catch (...) {
         LOG(ERROR) << "Exception in PMMainThread, bailing" << std::endl;
