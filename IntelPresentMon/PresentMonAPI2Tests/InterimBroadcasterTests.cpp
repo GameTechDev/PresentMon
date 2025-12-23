@@ -132,7 +132,7 @@ namespace InterimBroadcasterTests
     public:
         TEST_METHOD_INITIALIZE(Setup)
         {
-            fixture_.Setup();
+            fixture_.Setup({ "--new-telemetry-activation"s });
         }
         TEST_METHOD_CLEANUP(Cleanup)
         {
@@ -154,26 +154,38 @@ namespace InterimBroadcasterTests
         {
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
             // acquire introspection with enhanced wrapper interface
             auto pIntro = pComms->GetIntrospectionRoot();
             pmapi::intro::Root intro{ pIntro, [](auto* p) {delete p; } };
             pmapi::EnumMap::Refresh(intro);
             auto pMetricMap = pmapi::EnumMap::GetKeyMap(PM_ENUM_METRIC);
+
             // set telemetry period so we have a known baseline
             client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 100 });
-            // as a stopgap we target a process in order to trigger service-side telemetry collection
-            // TODO: remove this when we enable service-side query awareness of connected clients
-            auto pres = fixture_.LaunchPresenter();
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
             // get the store containing system-wide telemetry (cpu etc.)
             auto& sys = pComms->GetSystemDataStore();
             for (auto&& [met, r] : sys.telemetryData.Rings()) {
                 Logger::WriteMessage(std::format(" TeleRing@{}\n", pMetricMap->at(met).narrowName).c_str());
                 // TODO: understand the disconnect between CPU Core Utility showing up here
-                // and now showing up in the UI
+                // and not showing up in the UI (update: it is blacklisted manually in UI introspection)
             }
             Assert::AreEqual(2ull, (size_t)rn::distance(sys.telemetryData.Rings()));
-            std::this_thread::sleep_for(500ms);
+
+            // system device id constant
+            const uint32_t SystemDeviceID = 65536;
+
+            // update server with metric/device usage information
+            // this will trigger system telemetry collection
+            client.DispatchSync(svc::acts::ReportMetricUse::Params{ {
+                { PM_METRIC_CPU_UTILIZATION, SystemDeviceID, 0 },
+                { PM_METRIC_CPU_FREQUENCY, SystemDeviceID, 0 },
+            } });
+
+            // allow warm-up period
+            std::this_thread::sleep_for(150ms);
+
             // check that we have data for frequency and utilization
             std::vector<ipc::HistoryRing<double>::Sample> utilizSamples;
             std::vector<ipc::HistoryRing<double>::Sample> freqSamples;
@@ -206,6 +218,7 @@ namespace InterimBroadcasterTests
                     Assert::IsTrue(sample.value > 1500.);
                 }
             }
+
             // make sure samples actually change over time
             Assert::AreNotEqual(utilizSamples.front().timestamp, utilizSamples.back().timestamp);
             Assert::AreNotEqual(utilizSamples.front().value, utilizSamples.back().value);
@@ -226,11 +239,6 @@ namespace InterimBroadcasterTests
 
             // set telemetry period so we have a known baseline
             client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 40 });
-
-            // as a stopgap we target a process in order to trigger service-side telemetry collection
-            // TODO: remove this when we enable service-side query awareness of connected clients
-            auto pres = fixture_.LaunchPresenter();
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
             // get the store containing adapter telemetry
             auto& sys = pComms->GetSystemDataStore();
@@ -326,15 +334,18 @@ namespace InterimBroadcasterTests
             // set telemetry period so we have a known baseline
             client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 100 });
 
+            // target gpu device 1 (hardcoded for test)
+            const uint32_t TargetDeviceID = 1;
+
             // update server with metric/device usage information
             // this will trigger gpu telemetry collection
             client.DispatchSync(svc::acts::ReportMetricUse::Params{ {
-                { PM_METRIC_GPU_TEMPERATURE, 1, 0 },
-                { PM_METRIC_GPU_POWER, 1, 0 },
+                { PM_METRIC_GPU_TEMPERATURE, TargetDeviceID, 0 },
+                { PM_METRIC_GPU_POWER, TargetDeviceID, 0 },
             } });
 
             // get the store containing adapter telemetry
-            auto& gpu = pComms->GetGpuDataStore(1);
+            auto& gpu = pComms->GetGpuDataStore(TargetDeviceID);
 
             // allow a short warmup
             std::this_thread::sleep_for(150ms);

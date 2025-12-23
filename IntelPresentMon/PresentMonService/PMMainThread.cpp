@@ -286,7 +286,7 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
     try {
         util::log::IdentificationTable::AddThisThread("tele-gpu");
         pmlog_dbg("Starting gpu telemetry thread");
-        if (srv == nullptr || pm == nullptr || ptc == nullptr) {
+        if (srv == nullptr || pm == nullptr || ptc == nullptr || pComms == nullptr) {
             pmlog_error("Required parameter was null");
             return;
         }
@@ -401,6 +401,7 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                     // ms and SetInterval expects seconds.
                     waiter.SetInterval(pm->GetGpuTelemetryPeriod() / 1000.);
                     waiter.Wait();
+                    // conditions for ending active poll and returning to idle state
                     if (newActivation) {
                         // go dormant if no gpu devices are in use
                         bool anyUsed = false;
@@ -434,6 +435,8 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
 void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::ServiceComms* pComms,
 	pwr::cpu::CpuTelemetry* const cpu, bool newActivation) noexcept
 {
+    using util::win::WaitAnyEvent;
+    using util::win::WaitAnyEventFor;
     // we don't expect any exceptions in this system during normal operation
     // (maybe during initialization at most, not during polling)
     // but if they do happen, it is a halting condition for the system telemetry
@@ -441,24 +444,46 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
     // diagnosis
     try {
         util::log::IdentificationTable::AddThisThread("tele-sys");
-        IntervalWaiter waiter{ 0.016 };
-        if (srv == nullptr || pm == nullptr) {
-            // TODO: log error on this condition
+        pmlog_dbg("Starting system telemetry thread");
+        if (srv == nullptr || pm == nullptr || pComms == nullptr || cpu == nullptr) {
+            pmlog_error("Required parameter was null");
             return;
         }
 
-        const HANDLE events[]{
-            pm->GetStreamingStartHandle(),
-            srv->GetServiceStopHandle(),
-        };
-
-        while (1) {
-            auto waitResult = WaitForMultipleObjects((DWORD)std::size(events), events, FALSE, INFINITE);
-            auto i = waitResult - WAIT_OBJECT_0;
-            if (i == 1) {
-                return;
+        IntervalWaiter waiter{ 0.016 };
+        while (true) {
+            if (newActivation) {
+                pmlog_dbg("(re)starting system idle wait (new)");
+                if (WaitAnyEvent(pm->GetDeviceUsageEvent(), srv->GetServiceStopHandle()) == 1) {
+                    pmlog_dbg("system telemetry received exit code, thread exiting");
+                    return;
+                }
+                else {
+                    // if system telemetry metrics active enter active polling loop
+                    if (pm->CheckDeviceMetricUsage(65536)) {
+                        pmlog_dbg("detected system active");
+                    }
+                    else {
+                        pmlog_dbg("received device usage event, but system tele device was not active");
+                        continue;
+                    }
+                }
             }
-            while (WaitForSingleObject(srv->GetServiceStopHandle(), 0) != WAIT_OBJECT_0) {
+            else {
+                // TODO: remove legacy branch here
+                pmlog_dbg("(re)starting system idle wait (legacy)");
+                const HANDLE events[]{
+                  pm->GetStreamingStartHandle(),
+                  srv->GetServiceStopHandle(),
+                };
+                auto waitResult = WaitForMultipleObjects((DWORD)std::size(events), events, FALSE, INFINITE);
+                // TODO: check for wait result error
+                // if events[1] was signalled, that means service is stopping so exit thread
+                if ((waitResult - WAIT_OBJECT_0) == 1) {
+                    return;
+                }
+            }
+            while (!WaitAnyEventFor(0ms, srv->GetServiceStopHandle())) {
                 // TODO:streamer replace this flow with a call that populates rings of a store
                 cpu->Sample();
                 // placeholder routine shim to translate cpu tranfer struct into rings
@@ -493,10 +518,19 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
                 // ms and SetInterval expects seconds.
                 waiter.SetInterval(pm->GetGpuTelemetryPeriod() / 1000.);
                 waiter.Wait();
-                // Get the number of currently active streams
-                auto num_active_streams = pm->GetActiveStreams();
-                if (num_active_streams == 0) {
-                    break;
+                // conditions for ending active poll and returning to idle state
+                if (newActivation) {
+                    if (!pm->CheckDeviceMetricUsage(65536)) {
+                        break;
+                    }
+                }
+                else {
+                    // go dormant if there are no active streams left
+                    // TODO: consider race condition here if client stops and starts streams rapidly
+                    // TODO: remove this legacy branch
+                    if (pm->GetActiveStreams() == 0) {
+                        break;
+                    }
                 }
             }
         }
