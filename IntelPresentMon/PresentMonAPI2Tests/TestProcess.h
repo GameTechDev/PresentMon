@@ -4,6 +4,7 @@
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
 #include "JobManager.h"
+#include "Logging.h"
 #include "TestCommands.h"
 #include "../CommonUtilities/file/FileUtils.h"
 #include "../CommonUtilities/pipe/Pipe.h"
@@ -257,6 +258,7 @@ public:
 
 	void Setup(std::vector<std::string> args = {})
 	{
+		pmon::test::SetupTestLogging(GetCommonArgs().logFolder, GetCommonArgs().logLevel);
 		StartService_(args, GetCommonArgs());
 		svcArgs_ = std::move(args);
 	}
