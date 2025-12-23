@@ -38,10 +38,8 @@ which is controlled from MainThread based on user input or timer.
 #include <optional>
 #include <deque>
 
-#if defined(_MSC_VER)
-#define PM_UNUSED_FN __pragma(warning(suppress : 4505)) // unreferenced local function removed
-#else
-#define PM_UNUSED_FN
+#ifndef PM_KEEP_LEGACY_SWAPCHAIN_DATA
+#define PM_KEEP_LEGACY_SWAPCHAIN_DATA 0
 #endif
 
 // Verbosity of console output for normal operation:
@@ -193,6 +191,7 @@ struct FrameMetrics2 {
 // - pending presents whose metrics cannot be computed until future presents are received,
 // - exponential averages of key metrics displayed in console output.
 struct SwapChainData {
+#if PM_KEEP_LEGACY_SWAPCHAIN_DATA
     // Pending presents waiting for the next displayed present.
     std::vector<std::shared_ptr<PresentEvent>> mPendingPresents;
 
@@ -237,6 +236,7 @@ struct SwapChainData {
 
     // Internal NVIDIA Metrics
     uint64_t mLastDisplayedFlipDelay = 0;
+#endif
 
     // Unified swap chain for unfied metrics calculations
     pmon::util::metrics::UnifiedSwapChain mUnifiedSwapChain;

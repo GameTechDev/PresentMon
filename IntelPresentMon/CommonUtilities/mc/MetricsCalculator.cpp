@@ -247,7 +247,7 @@ namespace pmon::util::metrics
                 return;
             }
 
-            uint64_t currentSimStart = CalculateSimStartTime(chain, present, chain.animationErrorSource);
+            uint64_t currentSimStart = CalculateAnimationErrorSimStartTime(chain, present, chain.animationErrorSource);
 
             if (currentSimStart == 0 ||
                 chain.lastDisplayedSimStartTime == 0 ||
@@ -282,13 +282,18 @@ namespace pmon::util::metrics
             if (isFirstProviderSimTime) {
                 // Seed only: no animation time yet. UpdateAfterPresent will flip us
                 // into AppProvider/PCL and latch firstAppSimStartTime.
+                // TODO: Once ETL tests are passing, change to std::nullopt.
+                // out.msAnimationTime = std::nullopt;
                 out.msAnimationTime = 0.0;
                 return;
             }
 
-            uint64_t currentSimStart = CalculateSimStartTime(chain, present, chain.animationErrorSource);
+            uint64_t currentSimStart = CalculateAnimationErrorSimStartTime(chain, present, chain.animationErrorSource);
             if (currentSimStart == 0) {
+                // TODO: Once ETL tests are passing, change to std::nullopt.
                 out.msAnimationTime = std::nullopt;
+                //out.msAnimationTime = 0.0;
+                
                 return;
             }
 
@@ -539,7 +544,15 @@ namespace pmon::util::metrics
                 return std::nullopt;
             }
 
-            auto currentSimStartTime = CalculateSimStartTime(chain, present, chain.animationErrorSource);
+            // The current sim start time is only dependent on the current frame's simulation start times.
+            // Preference is PCL, then App.
+            uint64_t currentSimStartTime = 0;
+            if (present.pclSimStartTime != 0) {
+                currentSimStartTime = present.pclSimStartTime;
+            }
+            else if (present.appSimStartTime != 0) {
+                currentSimStartTime = present.appSimStartTime;
+            }
             if (chain.lastSimStartTime != 0 && currentSimStartTime != 0) {
                 return qpc.DeltaUnsignedMilliSeconds(
                     chain.lastSimStartTime,
@@ -680,6 +693,7 @@ namespace pmon::util::metrics
             const uint64_t nextScreenTime = 0;
             const bool isDisplayed = false;
             const bool isAppFrame = true;
+            const FrameType frameType = FrameType::NotSet;
 
             auto metrics = ComputeFrameMetrics(
                 qpc,
@@ -688,6 +702,7 @@ namespace pmon::util::metrics
                 nextScreenTime,
                 isDisplayed,
                 isAppFrame,
+                frameType,
                 chainState);
 
             ApplyStateDeltas(chainState, metrics.stateDeltas);
@@ -724,14 +739,17 @@ namespace pmon::util::metrics
             AdjustScreenTimeForCollapsedPresentNV(present, nextDisplayed, screenTime, nextScreenTime);
 
             const bool isAppFrame = (displayIndex == indexing.appIndex);
+            const bool isDisplayedInstance = isDisplayed && screenTime != 0 && nextScreenTime != 0;
+            const FrameType frameType = isDisplayedInstance ? present.getDisplayedFrameType(displayIndex) : FrameType::NotSet;
 
             auto metrics = ComputeFrameMetrics(
                 qpc,
                 present,
                 screenTime,
                 nextScreenTime,
-                isDisplayed,
+                isDisplayedInstance,
                 isAppFrame,
+                frameType,
                 chainState);
 
             ApplyStateDeltas(chainState, metrics.stateDeltas);
@@ -1074,11 +1092,14 @@ namespace pmon::util::metrics
         uint64_t nextScreenTime,
         bool isDisplayed,
         bool isAppFrame,
+        FrameType frameType,
         const SwapChainCoreState& chain)
     {
 
         ComputedMetrics result{};
         FrameMetrics& metrics = result.metrics;
+
+        metrics.frameType = frameType;
 
         CalculateBasePresentMetrics(
             qpc,
@@ -1167,7 +1188,7 @@ namespace pmon::util::metrics
     }
 
     // Helper: Calculate simulation start time (for animation error)
-    uint64_t CalculateSimStartTime(
+    uint64_t CalculateAnimationErrorSimStartTime(
         const SwapChainCoreState& chainState,
         const FrameData& present,
         AnimationErrorSource source)

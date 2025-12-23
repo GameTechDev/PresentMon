@@ -4,13 +4,26 @@
 #include "UnifiedSwapChain.h"
 #include "../PresentData/PresentMonTraceConsumer.hpp"
 
+#include <algorithm>
+
 
 namespace pmon::util::metrics
 {
+    uint64_t UnifiedSwapChain::GetLastPresentQpc() const
+    {
+        return swapChain.lastPresent.has_value() ? swapChain.lastPresent->presentStartTime : 0;
+    }
+
+    bool UnifiedSwapChain::IsPrunableBefore(uint64_t minTimestampQpc) const
+    {
+        auto const last = GetLastPresentQpc();
+        return last != 0 && last < minTimestampQpc;
+    }
+
     void UnifiedSwapChain::SanitizeDisplayedRepeatedPresents(FrameData& present)
     {
-        // Port of OutputThread.cpp::ReportMetrics() “Remove Repeated flips” pre-pass,
-        // but applied to FrameData (so we don’t mutate PresentEvent).
+        // Port of OutputThread.cpp::ReportMetrics() ï¿½Remove Repeated flipsï¿½ pre-pass,
+        // but applied to FrameData (so we donï¿½t mutate PresentEvent).
         auto& d = present.displayed;
         for (size_t i = 0; i + 1 < d.size(); ) {
             const auto a = d[i].first;

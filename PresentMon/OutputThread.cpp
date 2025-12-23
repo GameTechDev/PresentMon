@@ -244,592 +244,6 @@ static void UpdateAverage(float* avg, double value)
     }
 }
 
-static void UpdateChain(
-    SwapChainData* chain,
-    std::shared_ptr<PresentEvent> const& p)
-{
-    if (p->FinalState == PresentResult::Presented) {
-        if (p->Displayed.empty() == false) {
-            if (p->Displayed.back().first == FrameType::NotSet ||
-                p->Displayed.back().first == FrameType::Application) {
-                
-                // If the chain animation error source has been set to either
-                // app provider or PCL latency then set the last displayed simulation start time and the
-                // first app simulation start time based on the animation error source type.
-                if (chain->mAnimationErrorSource == AnimationErrorSource::AppProvider) {
-                    chain->mLastDisplayedSimStartTime = p->AppSimStartTime;
-                    if (chain->mFirstAppSimStartTime == 0) {
-                        // Received the first app sim start time.
-                        chain->mFirstAppSimStartTime = p->AppSimStartTime;
-                    }
-                    chain->mLastDisplayedAppScreenTime = p->Displayed.back().second;
-                } else if (chain->mAnimationErrorSource == AnimationErrorSource::PCLatency) {
-                    // In the case of PCLatency only set values if pcl sim start time is not zero.
-                    if (p->PclSimStartTime != 0) {
-                        chain->mLastDisplayedSimStartTime = p->PclSimStartTime;
-                        if (chain->mFirstAppSimStartTime == 0) {
-                            // Received the first app sim start time.
-                            chain->mFirstAppSimStartTime = p->PclSimStartTime;
-                        }
-                        chain->mLastDisplayedAppScreenTime = p->Displayed.back().second;
-                    }
-                } else {
-                    // Currently sourcing animation error from CPU start time, however check
-                    // to see if we have a valid app provider or PCL sim start time and set the
-                    // new animation source and set the first app sim start time
-                    if (p->AppSimStartTime != 0) {
-                        chain->mAnimationErrorSource = AnimationErrorSource::AppProvider;
-                        chain->mLastDisplayedSimStartTime = p->AppSimStartTime;
-                        if (chain->mFirstAppSimStartTime == 0) {
-                            // Received the first app sim start time.
-                            chain->mFirstAppSimStartTime = p->AppSimStartTime;
-                        }
-                        chain->mLastDisplayedAppScreenTime = p->Displayed.back().second;
-                    } else if (p->PclSimStartTime != 0) {
-                        chain->mAnimationErrorSource = AnimationErrorSource::PCLatency;
-                        chain->mLastDisplayedSimStartTime = p->PclSimStartTime;
-                        if (chain->mFirstAppSimStartTime == 0) {
-                            // Received the first app sim start time.
-                            chain->mFirstAppSimStartTime = p->PclSimStartTime;
-                        }
-                        chain->mLastDisplayedAppScreenTime = p->Displayed.back().second;
-                    } else {
-                        if (chain->mLastAppPresent != nullptr) {
-                            chain->mLastDisplayedSimStartTime = chain->mLastAppPresent->PresentStartTime +
-                                chain->mLastAppPresent->TimeInPresent;
-                        }
-                        chain->mLastDisplayedAppScreenTime = p->Displayed.back().second;
-                    }
-                }
-            }
-        }
-        // Want this to always be updated with the last displayed screen time regardless if the
-        // frame was generated or not
-        chain->mLastDisplayedScreenTime = p->Displayed.empty() ? 0 : p->Displayed.back().second;
-        // Update last flipDelay. For NV GPU, size of p->Displayed can only be empty or 1
-        chain->mLastDisplayedFlipDelay = p->Displayed.empty() ? 0 : p->FlipDelay;
-    }
-
-    if (p->Displayed.empty() == false) {
-        if (p->Displayed.back().first == FrameType::NotSet ||
-            p->Displayed.back().first == FrameType::Application) {
-            chain->mLastAppPresent = p;
-        }
-    } else {
-        // If the last present was not displayed, we need to set the last app present to the last
-        // present.
-        chain->mLastAppPresent = p;
-    }
-
-    // Set chain->mLastSimStartTime to either p->PclSimStartTime or p->AppSimStartTime depending on
-    // if either are not zero. If both are zero, do not set.
-    if (p->PclSimStartTime != 0) {
-        chain->mLastSimStartTime = p->PclSimStartTime;
-    } else if (p->AppSimStartTime != 0) {
-        chain->mLastSimStartTime = p->AppSimStartTime;
-    }
-
-    // Want this to always be updated with the last present regardless if the
-    // frame was generated or not
-    chain->mLastPresent = p;
-}
-
-static void AdjustScreenTimeForCollapsedPresentNV1(
-    SwapChainData* chain,
-    std::shared_ptr<PresentEvent> const& p,
-    uint64_t& screenTime)
-{
-    if (chain->mLastDisplayedFlipDelay > 0 && (chain->mLastDisplayedScreenTime > screenTime)) {
-        // If chain->mLastDisplayedScreenTime that is adjusted by flipDelay is larger than screenTime,
-        // it implies the last displayed present is a collapsed present, or a runt frame.
-        // So we adjust the screenTime and flipDelay of screenTime,
-        // effectively making screenTime equals to chain->mLastDisplayedScreenTime.
-
-        // Cast away constness of p to adjust the screenTime and flipDelay.
-        PresentEvent* pp = const_cast<PresentEvent*>(p.get());
-        if (!pp->Displayed.empty()) {
-            pp->FlipDelay += chain->mLastDisplayedScreenTime - screenTime;
-            pp->Displayed[0].second = chain->mLastDisplayedScreenTime;
-            screenTime = pp->Displayed[0].second;
-        }
-    }
-}
-
-PM_UNUSED_FN
-static void ReportMetrics1(
-    PMTraceSession const& pmSession,
-    ProcessInfo* processInfo,
-    SwapChainData* chain,
-    std::shared_ptr<PresentEvent> const& p,
-    bool isRecording,
-    bool computeAvg)
-{
-    bool displayed = p->FinalState == PresentResult::Presented;
-
-    uint64_t screenTime = p->Displayed.empty() ? 0 : p->Displayed[0].second;
-
-    // Special handling for NV flipDelay
-    AdjustScreenTimeForCollapsedPresentNV1(chain, p, screenTime);
-
-    FrameMetrics1 metrics;
-    metrics.msBetweenPresents      = chain->mLastPresent == nullptr ? 0 : pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastPresent->PresentStartTime, p->PresentStartTime);
-    metrics.msInPresentApi         = pmSession.TimestampDeltaToMilliSeconds(p->TimeInPresent);
-    metrics.msUntilRenderComplete  = pmSession.TimestampDeltaToMilliSeconds(p->PresentStartTime, p->ReadyTime);
-    metrics.msUntilDisplayed       = !displayed ? 0 : pmSession.TimestampDeltaToUnsignedMilliSeconds(p->PresentStartTime, screenTime);
-    metrics.msBetweenDisplayChange = !displayed || chain->mLastDisplayedScreenTime == 0 ? 0 : pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastDisplayedScreenTime, screenTime);
-    metrics.msUntilRenderStart     = pmSession.TimestampDeltaToMilliSeconds(p->PresentStartTime, p->GPUStartTime);
-    metrics.msGPUDuration          = pmSession.TimestampDeltaToMilliSeconds(p->GPUDuration);
-    metrics.msVideoDuration        = pmSession.TimestampDeltaToMilliSeconds(p->GPUVideoDuration);
-    metrics.msSinceInput           = p->InputTime == 0 ? 0 : pmSession.TimestampDeltaToMilliSeconds(p->PresentStartTime - p->InputTime);
-    metrics.qpcScreenTime          = screenTime;
-    metrics.msFlipDelay            = p->FlipDelay ? pmSession.TimestampDeltaToMilliSeconds(p->FlipDelay) : 0;
-
-    if (isRecording) {
-        UpdateCsv(pmSession, processInfo, *p, metrics);
-    }
-
-    if (computeAvg) {
-        UpdateAverage(&chain->mAvgCPUDuration, metrics.msBetweenPresents);
-        UpdateAverage(&chain->mAvgGPUDuration, metrics.msGPUDuration);
-        if (metrics.msUntilDisplayed > 0) {
-            UpdateAverage(&chain->mAvgDisplayLatency, metrics.msUntilDisplayed);
-            if (metrics.msBetweenDisplayChange > 0) {
-                UpdateAverage(&chain->mAvgDisplayedTime, metrics.msBetweenDisplayChange);
-            }
-        }
-    }
-
-    UpdateChain(chain, p);
-}
-
-static void CalculateAnimationTime(
-    PMTraceSession const& pmSession,
-    const uint64_t& firstAppSimStartTime,
-    const uint64_t& currentSimTime,
-    double& animationTime) {
-
-    auto firstSimStartTime = firstAppSimStartTime != 0 ? firstAppSimStartTime : pmSession.mStartTimestamp.QuadPart;
-    if (currentSimTime > firstSimStartTime) {
-        animationTime = pmSession.TimestampDeltaToMilliSeconds(firstSimStartTime, currentSimTime);
-    } else {
-        animationTime = 0.;
-    }
-}
-
-
-static void AdjustScreenTimeForCollapsedPresentNV(
-    std::shared_ptr<PresentEvent> const& p,
-    PresentEvent const* nextDisplayedPresent,
-    uint64_t& screenTime,
-    uint64_t& nextScreenTime)
-{
-    // nextDisplayedPresent should always be non-null for NV GPU.
-    if (p->FlipDelay && screenTime > nextScreenTime && nextDisplayedPresent) {
-        // If screenTime that is adjusted by flipDelay is larger than nextScreenTime,
-        // it implies this present is a collapsed present, or a runt frame.
-        // So we adjust the screenTime and flipDelay of nextDisplayedPresent,
-        // effectively making nextScreenTime equals to screenTime.
-
-        // Cast away constness of nextDisplayedPresent to adjust the screenTime and flipDelay.
-        PresentEvent* nextDispPresent = const_cast<PresentEvent*>(nextDisplayedPresent);
-        nextDispPresent->FlipDelay += (screenTime - nextScreenTime);
-        nextScreenTime = screenTime;
-        nextDispPresent->Displayed[0].second = nextScreenTime;
-    }
-}
-
-static void ReportMetricsHelper(
-    PMTraceSession const& pmSession,
-    ProcessInfo* processInfo,
-    SwapChainData* chain,
-    std::shared_ptr<PresentEvent> const& p,
-    PresentEvent const* nextDisplayedPresent,
-    bool isRecording,
-    bool computeAvg)
-{
-    // Figure out what display index to start processing.
-    //
-    // The following cases are expected:
-    // p.Displayed empty and nextDisplayedPresent == nullptr:       process p as not displayed
-    // p.Displayed with size N and nextDisplayedPresent == nullptr: process p.Displayed[0..N-2] as displayed, postponing N-1
-    // p.Displayed with size N and nextDisplayedPresent != nullptr: process p.Displayed[N-1]    as displayed
-    auto displayCount = p->Displayed.size();
-    bool displayed = p->FinalState == PresentResult::Presented && displayCount > 0;
-    size_t displayIndex = displayed && nextDisplayedPresent != nullptr ? displayCount - 1 : 0;
-
-    // Figure out what display index to attribute cpu work, gpu work, animation error, and input
-    // latency to. Start looking from the current display index.
-    size_t appIndex = std::numeric_limits<size_t>::max();
-    if (displayCount > 0) {
-        for (size_t i = displayIndex; i < displayCount; ++i) {
-            if (p->Displayed[i].first == FrameType::NotSet ||
-                p->Displayed[i].first == FrameType::Application) {
-                appIndex = i;
-                break;
-            }
-        }
-    } else {
-        // If there are no displayed frames
-        appIndex = 0;
-    }
-
-    do {
-        // PB = PresentStartTime
-        // PE = PresentEndTime
-        // D  = ScreenTime
-        //
-        // chain->mLastPresent:    PB--PE----D
-        // p:                          |        PB--PE----D
-        // ...                         |        |   |     |     PB--PE
-        // nextDisplayedPresent:       |        |   |     |             PB--PE----D
-        //                             |        |   |     |                       |
-        // mCPUStart/mCPUBusy:         |------->|   |     |                       |
-        // mCPUWait:                            |-->|     |                       |
-        // mDisplayLatency:            |----------------->|                       |
-        // mDisplayedTime:                                |---------------------->|
-
-        // Lookup the ScreenTime and next ScreenTime
-        uint64_t screenTime = 0;
-        uint64_t nextScreenTime = 0;
-        if (displayed) {
-            screenTime = p->Displayed[displayIndex].second;
-
-            if (displayIndex + 1 < displayCount) {
-                nextScreenTime = p->Displayed[displayIndex + 1].second;
-            } else if (nextDisplayedPresent != nullptr) {
-                nextScreenTime = nextDisplayedPresent->Displayed[0].second;
-            } else {
-                return;
-            }
-        }
-
-        double msGPUDuration = 0.0;
-
-        FrameMetrics metrics{};
-        metrics.mCPUStart = 0;
-
-        // Calculate these metrics for every present
-        metrics.mTimeInSeconds = p->PresentStartTime;
-        metrics.mMsBetweenPresents = chain->mLastPresent == nullptr ? 0 : 
-            pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastPresent->PresentStartTime, p->PresentStartTime);
-        metrics.mMsInPresentApi = pmSession.TimestampDeltaToMilliSeconds(p->TimeInPresent);
-        metrics.mMsUntilRenderComplete = pmSession.TimestampDeltaToMilliSeconds(p->PresentStartTime, p->ReadyTime);
-
-        if (chain->mLastAppPresent) {
-            if (chain->mLastAppPresent->AppPropagatedPresentStartTime != 0) {
-                metrics.mCPUStart = chain->mLastAppPresent->AppPropagatedPresentStartTime + chain->mLastAppPresent->AppPropagatedTimeInPresent;
-            }
-            else {
-                metrics.mCPUStart = chain->mLastAppPresent->PresentStartTime + chain->mLastAppPresent->TimeInPresent;
-            }
-        } else {
-            metrics.mCPUStart = chain->mLastPresent == nullptr ? 0 :
-                chain->mLastPresent->PresentStartTime + chain->mLastPresent->TimeInPresent;
-        }
-
-        if (displayIndex == appIndex) {
-            uint64_t gpuStartTime = 0;
-            if (p->AppPropagatedPresentStartTime != 0) {
-                msGPUDuration = pmSession.TimestampDeltaToUnsignedMilliSeconds(p->AppPropagatedGPUStartTime, p->AppPropagatedReadyTime);
-                gpuStartTime = p->AppPropagatedGPUStartTime;
-                metrics.mMsCPUBusy = pmSession.TimestampDeltaToUnsignedMilliSeconds(metrics.mCPUStart, p->AppPropagatedPresentStartTime);
-                metrics.mMsCPUWait = pmSession.TimestampDeltaToMilliSeconds(p->AppPropagatedTimeInPresent);
-                metrics.mMsGPULatency = pmSession.TimestampDeltaToUnsignedMilliSeconds(metrics.mCPUStart, gpuStartTime);
-                metrics.mMsGPUBusy = pmSession.TimestampDeltaToMilliSeconds(p->AppPropagatedGPUDuration);
-                metrics.mMsVideoBusy = pmSession.TimestampDeltaToMilliSeconds(p->AppPropagatedGPUVideoDuration);
-                metrics.mMsGPUWait = std::max(0.0, msGPUDuration - metrics.mMsGPUBusy);
-            } else {
-                msGPUDuration = pmSession.TimestampDeltaToUnsignedMilliSeconds(p->GPUStartTime, p->ReadyTime);
-                gpuStartTime = p->GPUStartTime;
-                metrics.mMsCPUBusy = pmSession.TimestampDeltaToUnsignedMilliSeconds(metrics.mCPUStart, p->PresentStartTime);
-                metrics.mMsCPUWait = pmSession.TimestampDeltaToMilliSeconds(p->TimeInPresent);
-                metrics.mMsGPULatency = pmSession.TimestampDeltaToUnsignedMilliSeconds(metrics.mCPUStart, gpuStartTime);
-                metrics.mMsGPUBusy = pmSession.TimestampDeltaToMilliSeconds(p->GPUDuration);
-                metrics.mMsVideoBusy = pmSession.TimestampDeltaToMilliSeconds(p->GPUVideoDuration);
-                metrics.mMsGPUWait = std::max(0.0, msGPUDuration - metrics.mMsGPUBusy);
-            }
-
-            // Need both AppSleepStart and AppSleepEnd to calculate XellSleep
-            metrics.mMsInstrumentedSleep      = (p->AppSleepEndTime == 0 || p->AppSleepStartTime == 0) ? 0 :
-                                                pmSession.TimestampDeltaToUnsignedMilliSeconds(p->AppSleepStartTime, p->AppSleepEndTime);
-            // If there isn't a valid sleep end time use the sim start time
-            auto InstrumentedStartTime      = p->AppSleepEndTime != 0 ? p->AppSleepEndTime : p->AppSimStartTime;
-            // If neither the sleep end time or sim start time is valid, there is no
-            // way to calculate the Xell Gpu latency
-            metrics.mMsInstrumentedGpuLatency = InstrumentedStartTime == 0 ? 0 :
-                                                pmSession.TimestampDeltaToUnsignedMilliSeconds(InstrumentedStartTime, gpuStartTime);
-
-            // If we have both a valid pcl sim start time and a valid app sim start time, we use the pcl sim start time.
-            if (p->PclSimStartTime != 0) {
-                metrics.mMsBetweenSimStarts = pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastSimStartTime, p->PclSimStartTime);
-            } else if (p->AppSimStartTime != 0) {
-                metrics.mMsBetweenSimStarts = pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastSimStartTime, p->AppSimStartTime);
-            }
-        } else {
-            metrics.mMsCPUBusy                = 0;
-            metrics.mMsCPUWait                = 0;
-            metrics.mMsGPULatency             = 0;
-            metrics.mMsGPUBusy                = 0;
-            metrics.mMsVideoBusy              = 0;
-            metrics.mMsGPUWait                = 0;
-            metrics.mMsInstrumentedSleep      = 0;
-            metrics.mMsInstrumentedGpuLatency = 0;
-            metrics.mMsBetweenSimStarts       = 0;
-        }
-
-        // If the frame was displayed regardless of how it was produced, calculate the following
-        // metrics
-        if (displayed) {
-            // Special handling for NV flipDelay
-            AdjustScreenTimeForCollapsedPresentNV(p, nextDisplayedPresent, screenTime, nextScreenTime);
-
-            // Calculate the various display metrics
-            metrics.mMsFlipDelay            = p->FlipDelay ? pmSession.TimestampDeltaToMilliSeconds(p->FlipDelay) : 0;
-            metrics.mMsDisplayLatency       = pmSession.TimestampDeltaToUnsignedMilliSeconds(metrics.mCPUStart, screenTime);
-            metrics.mMsDisplayedTime        = pmSession.TimestampDeltaToUnsignedMilliSeconds(screenTime, nextScreenTime);
-            metrics.mMsUntilDisplayed       = pmSession.TimestampDeltaToUnsignedMilliSeconds(p->PresentStartTime, screenTime);
-            metrics.mMsBetweenDisplayChange = chain->mLastDisplayedScreenTime == 0 ? 0 :
-                                              pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastDisplayedScreenTime, screenTime);
-            metrics.mScreenTime             = screenTime;
-
-            // If we have AppRenderSubmitStart calculate the render latency
-            metrics.mMsInstrumentedRenderLatency  = p->AppRenderSubmitStartTime == 0 ? 0 : 
-                                                    pmSession.TimestampDeltaToUnsignedMilliSeconds(p->AppRenderSubmitStartTime, screenTime);
-            metrics.mMsReadyTimeToDisplayLatency  = pmSession.TimestampDeltaToUnsignedMilliSeconds(p->ReadyTime, screenTime);
-            // If there isn't a valid sleep end time use the sim start time
-            auto InstrumentedStartTime = p->AppSleepEndTime != 0 ? p->AppSleepEndTime : p->AppSimStartTime;
-            // If neither the sleep end time or sim start time is valid, there is no
-            // way to calculate the Xell Gpu latency
-            metrics.mMsInstrumentedLatency = InstrumentedStartTime == 0 ? 0 : 
-                pmSession.TimestampDeltaToUnsignedMilliSeconds(InstrumentedStartTime, screenTime);
-
-            metrics.mMsPcLatency = 0.f;
-            // Check to see if we have a valid pc latency sim start time.
-            if (p->PclSimStartTime != 0) {
-                if (p->PclInputPingTime == 0) {
-                    if (chain->mAccumulatedInput2FrameStartTime != 0) {
-                        // This frame was displayed but we don't have a pc latency input time. However, there is accumulated time
-                        // so there is a pending input that will now hit the screen. Add in the time from the last not
-                        // displayed pc simulation start to this frame's pc simulation start.
-                        chain->mAccumulatedInput2FrameStartTime +=
-                            pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastReceivedNotDisplayedPclSimStart, p->PclSimStartTime);
-                        // Add all of the accumlated time to the average input to frame start time.
-                        chain->mEmaInput2FrameStartTime = pmon::util::CalculateEma(
-                            chain->mEmaInput2FrameStartTime,
-                            chain->mAccumulatedInput2FrameStartTime,
-                            0.1);
-                        // Reset the tracking variables for when we have a dropped frame with a pc latency input
-                        chain->mAccumulatedInput2FrameStartTime = 0.f;
-                        chain->mLastReceivedNotDisplayedPclSimStart = 0;
-                    }
-                } else {
-                    chain->mEmaInput2FrameStartTime = pmon::util::CalculateEma(
-                        chain->mEmaInput2FrameStartTime,
-                        pmSession.TimestampDeltaToUnsignedMilliSeconds(p->PclInputPingTime, p->PclSimStartTime),
-                        0.1);
-                }
-            }
-            // If we have a non-zero average input to frame start time and a PC Latency simulation
-            // start time calculate the PC Latency
-            auto simStartTime = p->PclSimStartTime != 0 ? p->PclSimStartTime : chain->mLastSimStartTime;
-            if (chain->mEmaInput2FrameStartTime != 0.f && simStartTime != 0) {
-                metrics.mMsPcLatency = chain->mEmaInput2FrameStartTime +
-                    pmSession.TimestampDeltaToMilliSeconds(simStartTime, screenTime);
-            }
-        } else {
-            metrics.mMsDisplayLatency               = 0;
-            metrics.mMsDisplayedTime                = 0;
-            metrics.mMsUntilDisplayed               = 0;
-            metrics.mMsBetweenDisplayChange         = 0;
-            metrics.mScreenTime                     = 0;
-            metrics.mMsInstrumentedLatency          = 0;
-            metrics.mMsInstrumentedRenderLatency    = 0;
-            metrics.mMsReadyTimeToDisplayLatency    = 0;
-            metrics.mMsPcLatency                    = 0;
-            if (p->PclSimStartTime != 0) {
-                if (p->PclInputPingTime != 0) {
-                    // This frame was dropped but we have valid pc latency input and simulation start
-                    // times. Calculate the initial input to sim start time.
-                    chain->mAccumulatedInput2FrameStartTime =
-                        pmSession.TimestampDeltaToUnsignedMilliSeconds(p->PclInputPingTime, p->PclSimStartTime);
-                } else if (chain->mAccumulatedInput2FrameStartTime != 0.f) {
-                    // This frame was also dropped and there is no pc latency input time. However, since we have
-                    // accumulated time this means we have a pending input that has had multiple dropped frames
-                    // and has not yet hit the screen. Calculate the time between the last not displayed sim start and
-                    // this sim start and add it to our accumulated total
-                    chain->mAccumulatedInput2FrameStartTime +=
-                        pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastReceivedNotDisplayedPclSimStart, p->PclSimStartTime);
-                }
-                chain->mLastReceivedNotDisplayedPclSimStart = p->PclSimStartTime;
-            }
-        }
-
-        // The following metrics use both the frame's displayed and origin information.
-        metrics.mMsClickToPhotonLatency   = 0;
-        metrics.mMsAllInputPhotonLatency  = 0;
-        metrics.mMsInstrumentedInputTime  = 0;
-        metrics.mMsAnimationError         = std::nullopt;
-        metrics.mAnimationTime            = std::nullopt;
-
-        if (displayIndex == appIndex) {
-            if (displayed) {
-                // For all input device metrics check to see if there were any previous device input times 
-                // that were attached to a dropped frame and if so use the last received times for the
-                // metric calculations
-                auto updatedInputTime = chain->mLastReceivedNotDisplayedAllInputTime == 0 ? 0 :
-                    pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastReceivedNotDisplayedAllInputTime, screenTime);
-                metrics.mMsAllInputPhotonLatency = p->InputTime == 0 ? updatedInputTime : 
-                    pmSession.TimestampDeltaToUnsignedMilliSeconds(p->InputTime, screenTime);
-
-                updatedInputTime = chain->mLastReceivedNotDisplayedMouseClickTime == 0 ? 0 :
-                    pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastReceivedNotDisplayedMouseClickTime, screenTime);
-                metrics.mMsClickToPhotonLatency = p->MouseClickTime == 0 ? updatedInputTime :
-                    pmSession.TimestampDeltaToUnsignedMilliSeconds(p->MouseClickTime, screenTime);
-
-                updatedInputTime = chain->mLastReceivedNotDisplayedAppProviderInputTime == 0 ? 0 :
-                    pmSession.TimestampDeltaToUnsignedMilliSeconds(chain->mLastReceivedNotDisplayedAppProviderInputTime, screenTime);
-                metrics.mMsInstrumentedInputTime = p->AppInputSample.first == 0 ? updatedInputTime :
-                    pmSession.TimestampDeltaToUnsignedMilliSeconds(p->AppInputSample.first, screenTime);
-
-                // Reset all last received device times
-                chain->mLastReceivedNotDisplayedAllInputTime = 0;
-                chain->mLastReceivedNotDisplayedMouseClickTime = 0;
-                chain->mLastReceivedNotDisplayedAppProviderInputTime = 0;
-
-                // Next calculate the animation error and animation time. First calculate the simulation
-                // start time. Simulation start can be either an app provided sim start time via the provider or
-                // PCL stats or, if not present,the cpu start.
-                uint64_t simStartTime = 0;
-                if (chain->mAnimationErrorSource == AnimationErrorSource::PCLatency) {
-                    // If the pcl latency is the source of the animation error then use the pcl sim start time.
-                    simStartTime = p->PclSimStartTime;
-                } else if (chain->mAnimationErrorSource == AnimationErrorSource::AppProvider) {
-                    // If the app provider is the source of the animation error then use the app sim start time.
-                    simStartTime = p->AppSimStartTime;
-                } else if (chain->mAnimationErrorSource == AnimationErrorSource::CpuStart) {
-                    // If the cpu start time is the source of the animation error then use the cpu start time.
-                    simStartTime = metrics.mCPUStart;
-                }
-
-                if (chain->mLastDisplayedSimStartTime != 0) {
-                    // If the simulation start time is less than the last displayed simulation start time it means
-                    // we are transitioning to app provider events.
-                    if (simStartTime > chain->mLastDisplayedSimStartTime) {
-                        metrics.mMsAnimationError = pmSession.TimestampDeltaToMilliSeconds(screenTime - chain->mLastDisplayedAppScreenTime,
-                            simStartTime - chain->mLastDisplayedSimStartTime);
-                    }
-                }
-                // If we have a value in app sim start or pcl sim start and we haven't set the first
-                // sim start time then we are transitioning from using cpu start to
-                // an application provided timestamp. Set the animation time to zero
-                // for the first frame.
-                if ((p->AppSimStartTime != 0 || p->PclSimStartTime != 0) && chain->mFirstAppSimStartTime == 0) {
-                    metrics.mAnimationTime = 0.;
-                }
-                else {
-                    double animationTime = 0.;
-                    CalculateAnimationTime(pmSession, chain->mFirstAppSimStartTime, simStartTime, animationTime);
-                    metrics.mAnimationTime = animationTime;
-                }
-            } else {
-                if (p->InputTime != 0) {
-                    chain->mLastReceivedNotDisplayedAllInputTime = p->InputTime;
-                }
-                if (p->MouseClickTime != 0) {
-                    chain->mLastReceivedNotDisplayedMouseClickTime = p->MouseClickTime;
-                }
-                if (p->AppInputSample.first != 0) {
-                    chain->mLastReceivedNotDisplayedAppProviderInputTime = p->AppInputSample.first;
-                }
-            }
-        }
-
-
-        if (p->Displayed.empty()) {
-            metrics.mFrameType = FrameType::NotSet;
-        } else {
-            metrics.mFrameType = p->Displayed[displayIndex].first;
-        }
-
-        if (isRecording) {
-            UpdateCsv(pmSession, processInfo, *p, metrics);
-        }
-
-        if (computeAvg) {
-            if (displayIndex == appIndex) {
-                UpdateAverage(&chain->mAvgCPUDuration, metrics.mMsCPUBusy + metrics.mMsCPUWait);
-                UpdateAverage(&chain->mAvgGPUDuration, msGPUDuration);
-            }
-            if (displayed) {
-                UpdateAverage(&chain->mAvgDisplayLatency, metrics.mMsDisplayLatency);
-                UpdateAverage(&chain->mAvgDisplayedTime, metrics.mMsDisplayedTime);
-                UpdateAverage(&chain->mAvgMsUntilDisplayed, metrics.mMsUntilDisplayed);
-                UpdateAverage(&chain->mAvgMsBetweenDisplayChange, metrics.mMsBetweenDisplayChange);
-            }
-        }
-
-        displayIndex += 1;
-    } while (displayIndex < displayCount);
-
-    UpdateChain(chain, p);
-}
-
-PM_UNUSED_FN
-static void ReportMetrics(
-    PMTraceSession const& pmSession,
-    ProcessInfo* processInfo,
-    SwapChainData* chain,
-    std::shared_ptr<PresentEvent> const& p,
-    bool isRecording,
-    bool computeAvg)
-{
-    // Remove Repeated flips if they are in Application->Repeated or Repeated->Application sequences.
-    for (size_t i = 0, n = p->Displayed.size(); i + 1 < n; ) {
-        if (p->Displayed[i].first == FrameType::Application && p->Displayed[i + 1].first == FrameType::Repeated) {
-            p->Displayed.erase(p->Displayed.begin() + i + 1);
-            n -= 1;
-        } else if (p->Displayed[i].first == FrameType::Repeated && p->Displayed[i + 1].first == FrameType::Application) {
-            p->Displayed.erase(p->Displayed.begin() + i);
-            n -= 1;
-        } else {
-            i += 1;
-        }
-    }
-
-    // For the chain's first present, we just initialize mLastPresent to give a baseline for the
-    // first frame.
-    if (chain->mLastPresent == nullptr) {
-        UpdateChain(chain, p);
-        return;
-    }
-
-    // If chain->mPendingPresents is non-empty, then it contains a displayed present followed by
-    // some number of discarded presents.  If the displayed present has multiple Displayed entries,
-    // all but the last have already been handled.
-    //
-    // If p is displayed, then we can complete all pending presents, and complete any flips in p
-    // except for the last one, but then we have to add p to the pending list to wait for the next
-    // displayed frame.
-    //
-    // If p is not displayed, we can process it now unless it is blocked behind an earlier present
-    // waiting for the next displayed one, in which case we need to add it to the pending list as
-    // well.
-    if (p->FinalState == PresentResult::Presented) {
-        for (auto const& p2 : chain->mPendingPresents) {
-            ReportMetricsHelper(pmSession, processInfo, chain, p2, p.get(), isRecording, computeAvg);
-        }
-        ReportMetricsHelper(pmSession, processInfo, chain, p, nullptr, isRecording, computeAvg);
-        chain->mPendingPresents.clear();
-        chain->mPendingPresents.push_back(p);
-    } else {
-        if (chain->mPendingPresents.empty()) {
-            ReportMetricsHelper(pmSession, processInfo, chain, p, nullptr, isRecording, computeAvg);
-        } else {
-            chain->mPendingPresents.push_back(p);
-        }
-    }
-}
-
 static void PruneOldSwapChainData(
     PMTraceSession const& pmSession,
     uint64_t latestTimestamp)
@@ -847,8 +261,8 @@ static void PruneOldSwapChainData(
         auto processInfo = &pair.second;
 
         // Check if this is DWM process
-        const bool isDwmProcess =
-            util::str::ToLower(processInfo->mModuleName).contains(L"dwm.exe");
+        const auto processNameLower = util::str::ToLower(processInfo->mModuleName);
+        const bool isDwmProcess = (processNameLower.find(L"dwm.exe") != std::wstring::npos);
 
         for (auto ii = processInfo->mSwapChain.begin(), ie = processInfo->mSwapChain.end(); ii != ie; ) {
             auto swapChainAddress = ii->first;
@@ -857,7 +271,14 @@ static void PruneOldSwapChainData(
             // Don't prune DWM swap chains with address 0x0
             bool shouldSkipPruning = isDwmProcess && swapChainAddress == 0x0;
 
-            if (!shouldSkipPruning && chain->mLastPresent && chain->mLastPresent->PresentStartTime < minTimestamp) {
+            // Unified pruning: never prune while the unified swapchain still has
+            // buffered work (e.g., waiting for nextDisplayed).
+            bool shouldPrune = false;
+            if (!shouldSkipPruning) {
+                shouldPrune = chain->mUnifiedSwapChain.IsPrunableBefore(minTimestamp);
+            }
+
+            if (shouldPrune) {
                 ii = processInfo->mSwapChain.erase(ii);
             }
             else {
@@ -929,8 +350,7 @@ static bool GetPresentProcessInfo(
     }
 
     auto chain = &processInfo->mSwapChain[presentEvent->SwapChainAddress];
-    if (chain->mLastPresent == nullptr) {
-        UpdateChain(chain, presentEvent);
+    if (!chain->mUnifiedSwapChain.swapChain.lastPresent.has_value()) {
         using namespace pmon::util::metrics;
         chain->mUnifiedSwapChain.SeedFromFirstPresent(FrameData::CopyFrameData(presentEvent));
         return true;
@@ -938,7 +358,7 @@ static bool GetPresentProcessInfo(
 
     *outProcessInfo = processInfo;
     *outChain       = chain;
-    *outPresentTime = chain->mLastPresent->PresentStartTime;
+    *outPresentTime = chain->mUnifiedSwapChain.GetLastPresentQpc();
     return false;
 }
 
@@ -962,19 +382,6 @@ static void ProcessRecordingToggle(
     } else {
         *isRecording = true;
     }
-}
-
-static bool ShouldUpdateLegacyChain(
-    pmon::util::metrics::FrameData const& p,
-    std::optional<pmon::util::metrics::FrameData> const& nextDisplayed)
-{
-    // Mirrors legacy UpdateChain timing and the unified calculator’s update rules:
-    // - Not presented: update immediately
-    // - Presented + has nextDisplayed: update (Case 3 finalizes)
-    // - Presented + no nextDisplayed: update only if DisplayedCount > 1 (Case 2 processed an instance)
-    if (p.finalState != PresentResult::Presented) return true;
-    if (nextDisplayed.has_value()) return true;
-    return p.displayed.size() > 1;
 }
 
 static void AdjustScreenTimeForCollapsedPresentNV1_Unified(
@@ -1051,13 +458,13 @@ static void ReportMetrics1Unified(
     }
 
     if (computeAvg) {
-        UpdateAverage(&chain->mAvgCPUDuration, metrics.msBetweenPresents);
-        UpdateAverage(&chain->mAvgGPUDuration, metrics.msGPUDuration);
+        UpdateAverage(&chain->mUnifiedSwapChain.avgCPUDuration, metrics.msBetweenPresents);
+        UpdateAverage(&chain->mUnifiedSwapChain.avgGPUDuration, metrics.msGPUDuration);
 
         if (metrics.msUntilDisplayed > 0) {
-            UpdateAverage(&chain->mAvgDisplayLatency, metrics.msUntilDisplayed);
+            UpdateAverage(&chain->mUnifiedSwapChain.avgDisplayLatency, metrics.msUntilDisplayed);
             if (metrics.msBetweenDisplayChange > 0) {
-                UpdateAverage(&chain->mAvgDisplayedTime, metrics.msBetweenDisplayChange);
+                UpdateAverage(&chain->mUnifiedSwapChain.avgDisplayedTime, metrics.msBetweenDisplayChange);
             }
         }
     }
@@ -1149,7 +556,7 @@ static void ProcessEvents(
         // Do we need to emit metrics for this present?
         const bool emit = (isRecording || computeAvg);
 
-        for (auto const& it : ready) {
+        for (auto& it : ready) {
             // Build FrameData copies for the unified calculator state-advance (and V2 metrics).
             using namespace pmon::util::metrics;
 
@@ -1184,28 +591,17 @@ static void ProcessEvents(
                         }
 
                         if (computeAvg) {
-                            UpdateAverage(&chain->mAvgCPUDuration, m.msCPUBusy + m.msCPUWait);
+                            UpdateAverage(&chain->mUnifiedSwapChain.avgCPUDuration, m.msCPUBusy + m.msCPUWait);
                             if (m.msUntilDisplayed > 0) {
-                                UpdateAverage(&chain->mAvgDisplayLatency, m.msDisplayLatency);
-                                UpdateAverage(&chain->mAvgDisplayedTime, m.msDisplayedTime);
-                                UpdateAverage(&chain->mAvgMsUntilDisplayed, m.msUntilDisplayed);
-                                UpdateAverage(&chain->mAvgMsBetweenDisplayChange, m.msBetweenDisplayChange);
+                                UpdateAverage(&chain->mUnifiedSwapChain.avgDisplayLatency, m.msDisplayLatency);
+                                UpdateAverage(&chain->mUnifiedSwapChain.avgDisplayedTime, m.msDisplayedTime);
+                                UpdateAverage(&chain->mUnifiedSwapChain.avgMsUntilDisplayed, m.msUntilDisplayed);
+                                UpdateAverage(&chain->mUnifiedSwapChain.avgMsBetweenDisplayChange, m.msBetweenDisplayChange);
                             }
                         }
                     }
                 }
             }
-
-            // Temporary compatibility shim: keep legacy swapchain fields in sync enough for pruning/etc.
-            if (ShouldUpdateLegacyChain(it.present, it.nextDisplayed)) {
-                UpdateChain(chain, presentEvent);
-            }
-        }
-
-        // If not emitting and nothing became “ready” (e.g., queued behind displayed), legacy behavior still
-        // updated the chain with the raw present. Keep that until Step 3 removes legacy dependencies.
-        if (!emit && ready.empty()) {
-            UpdateChain(chain, presentEvent);
         }
     }
 

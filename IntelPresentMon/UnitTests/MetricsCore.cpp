@@ -713,7 +713,7 @@ namespace MetricsCoreTests
         }
     };
 
-    TEST_CLASS(CalculateSimStartTimeTests)
+    TEST_CLASS(CalculateAnimationErrorSimStartTimeTests)
     {
     public:
         TEST_METHOD(UsesCpuStartSource)
@@ -729,7 +729,7 @@ namespace MetricsCoreTests
             FrameData current{};
             current.appSimStartTime = 5000;  // Has appSim, but source is CpuStart
 
-            auto result = CalculateSimStartTime(swapChain, current, AnimationErrorSource::CpuStart);
+            auto result = CalculateAnimationErrorSimStartTime(swapChain, current, AnimationErrorSource::CpuStart);
 
             // Should use CPU start calculation: 1000 + 50 = 1050
             Assert::AreEqual(1050ull, result);
@@ -748,7 +748,7 @@ namespace MetricsCoreTests
             FrameData current{};
             current.appSimStartTime = 5000;
 
-            auto result = CalculateSimStartTime(swapChain, current, AnimationErrorSource::AppProvider);
+            auto result = CalculateAnimationErrorSimStartTime(swapChain, current, AnimationErrorSource::AppProvider);
 
             // Should use appSimStartTime
             Assert::AreEqual(5000ull, result);
@@ -767,7 +767,7 @@ namespace MetricsCoreTests
             FrameData current{};
             current.pclSimStartTime = 6000;
 
-            auto result = CalculateSimStartTime(swapChain, current, AnimationErrorSource::PCLatency);
+            auto result = CalculateAnimationErrorSimStartTime(swapChain, current, AnimationErrorSource::PCLatency);
 
             // Should use pclSimStartTime
             Assert::AreEqual(6000ull, result);
@@ -1220,7 +1220,30 @@ namespace MetricsCoreTests
             Assert::AreEqual(uint64_t(0), chain.lastDisplayedScreenTime);
             Assert::AreEqual(uint64_t(0), chain.lastDisplayedFlipDelay);
         }
+        
+        TEST_METHOD(ComputeMetricsForPresent_IntelXefg_Discarded_NoNext_ChainNotUpdated)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
 
+            // 3x Intel_XEFG then 1 Application; no nextDisplayed
+            FrameData present = MakeFrame(
+                PresentResult::Discarded,
+                30'000, 700, 40'000,
+                {
+                    { FrameType::Intel_XEFG, 0 },
+                });
+
+            auto metrics = ComputeMetricsForPresent(qpc, present, nullptr, chain);
+
+            // Should process 1 
+            Assert::AreEqual(size_t(1), metrics.size());
+            // Chain update postponed until nextDisplayed
+            Assert::IsFalse(chain.lastPresent.has_value());
+            Assert::IsFalse(chain.lastAppPresent.has_value());
+            Assert::AreEqual(uint64_t(0), chain.lastDisplayedScreenTime);
+            Assert::AreEqual(uint64_t(0), chain.lastDisplayedFlipDelay);
+        }
         TEST_METHOD(ComputeMetricsForPresent_AmdAfmf_WithNext_AppProcessedAndUpdatesChain)
         {
             QpcConverter qpc(10'000'000, 0);

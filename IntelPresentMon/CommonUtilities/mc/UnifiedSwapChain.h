@@ -27,6 +27,19 @@ namespace pmon::util::metrics
 
         std::vector<ReadyItem> Enqueue(FrameData present);
 
+        uint64_t GetLastPresentQpc() const;
+        bool IsPrunableBefore(uint64_t minTimestampQpc) const;
+
+        // Frame statistics
+        float avgCPUDuration = 0.f;
+        float avgGPUDuration = 0.f;
+        float avgDisplayLatency = 0.f;
+        float avgDisplayedTime = 0.f;
+        float avgMsUntilDisplayed = 0.f;
+        float avgMsBetweenDisplayChange = 0.f;
+        double emaInput2FrameStartTime = 0.f;
+        double accumulatedInput2FrameStartTime = 0.f;
+
     private:
         static void SanitizeDisplayedRepeatedPresents(FrameData& present);
         std::optional<FrameData> waitingDisplayed_;

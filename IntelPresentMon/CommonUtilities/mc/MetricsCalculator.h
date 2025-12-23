@@ -53,6 +53,7 @@ namespace pmon::util::metrics
         uint64_t nextScreenTime,
         bool isDisplayed,
         bool isAppFrame,
+        FrameType frameType,
         const SwapChainCoreState& chain);
 
     // Helper: Calculate CPU start time
@@ -61,7 +62,7 @@ namespace pmon::util::metrics
         const FrameData& present);
 
     // Helper: Calculate simulation start time (for animation error)
-    uint64_t CalculateSimStartTime(
+    uint64_t CalculateAnimationErrorSimStartTime(
         const SwapChainCoreState& chainState,
         const FrameData& present,
         AnimationErrorSource source);
