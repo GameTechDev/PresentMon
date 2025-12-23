@@ -120,7 +120,7 @@ namespace InterimBroadcasterTests
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
             auto pIntro = pComms->GetIntrospectionRoot();
-            Assert::AreEqual(2ull, pIntro->pDevices->size);
+            Assert::AreEqual(3ull, pIntro->pDevices->size);
             auto pDevice = static_cast<const PM_INTROSPECTION_DEVICE*>(pIntro->pDevices->pData[1]);
             Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", pDevice->pName->pData);
         }
@@ -246,45 +246,70 @@ namespace InterimBroadcasterTests
             // allow a short warmup
             std::this_thread::sleep_for(500ms);
 
-            // build the set of expected rings from introspection
-            Logger::WriteMessage("Introspection Metrics\n=====================\n");
-            std::map<PM_METRIC, size_t> introspectionAvailability;
-            const auto TryAddMetric = [&](PM_METRIC metric) {
-                auto&& m = intro.FindMetric(metric);
-                if (m.GetDeviceMetricInfo().empty()) {
-                    return;
+            // system device id constant
+            const uint32_t SystemDeviceID = 65536;
+
+            // build the set of expected rings from the store, and cross-check against introspection
+            Logger::WriteMessage("Store Metrics\n=============\n");
+            std::map<PM_METRIC, size_t> storeRings;
+            for (auto&& [met, r] : sys.telemetryData.Rings()) {
+                const auto storeArraySize = sys.telemetryData.ArraySize(met);
+                storeRings[met] = storeArraySize;
+
+                // dump for review in output pane
+                Logger::WriteMessage(std::format("[{}] {}\n", storeArraySize,
+                    pMetricMap->at(met).narrowName).c_str());
+
+                // validate introspection says the metric is available for the system device
+                auto&& m = intro.FindMetric(met);
+                bool matchedDevice = false;
+                size_t introArraySize = 0;
+                for (auto&& di : m.GetDeviceMetricInfo()) {
+                    if (di.GetDevice().GetId() != SystemDeviceID) {
+                        // skip over non-matching devices
+                        continue;
+                    }
+                    matchedDevice = true;
+                    if (di.GetAvailability() == PM_METRIC_AVAILABILITY_AVAILABLE) {
+                        introArraySize = di.GetArraySize();
+                    }
+                    // either way, if we get here, device matched so no need to continue
+                    break;
                 }
-                auto&& dmi = m.GetDeviceMetricInfo().front();
-                if (dmi.IsAvailable()) {
-                    const auto arraySize = dmi.GetArraySize();
-                    introspectionAvailability[metric] = arraySize;
-                    // dump for review in output pane
-                    Logger::WriteMessage(std::format("[{}] {}\n", arraySize,
-                        pMetricMap->at(m.GetId()).narrowName).c_str());
-                }
-            };
-            // TODO: replace this with code that iterates over all metrics and automatically
-            // evaluates all cpu telemetry metrics
-            TryAddMetric(PM_METRIC_CPU_POWER);
-            TryAddMetric(PM_METRIC_CPU_TEMPERATURE);
-            TryAddMetric(PM_METRIC_CPU_UTILIZATION);
-            TryAddMetric(PM_METRIC_CPU_FREQUENCY);
-            TryAddMetric(PM_METRIC_CPU_CORE_UTILITY);
-            Logger::WriteMessage(std::format("Total: {}\n", introspectionAvailability.size()).c_str());
+                Assert::IsTrue(matchedDevice, pMetricMap->at(met).wideName.c_str());
+                Assert::AreEqual(storeArraySize, introArraySize, pMetricMap->at(met).wideName.c_str());
+            }
+            Logger::WriteMessage(std::format("Total: {}\n", storeRings.size()).c_str());
 
             // validate that the expected number of rings sets are present in the store
-            Assert::AreEqual(introspectionAvailability.size(), (size_t)rn::distance(sys.telemetryData.Rings()));
+            Assert::AreEqual(storeRings.size(), (size_t)rn::distance(sys.telemetryData.Rings()));
 
-            // validate that exepected rings are present and are populated with samples
-            for (auto&& [met, size] : introspectionAvailability) {
+            {
+                // build metric use set from above store results
+                std::unordered_set<svc::acts::MetricUse> uses;
+                for (auto&& [met, siz] : storeRings) {
+                    if (siz > 0) {
+                        uses.insert({ met, SystemDeviceID, 0 });
+                    }
+                }
+                // update server with metric/device usage information
+                // this will trigger system telemetry collection
+                client.DispatchSync(svc::acts::ReportMetricUse::Params{ std::move(uses) });
+            }
+
+            // allow a short warmup
+            std::this_thread::sleep_for(150ms);
+
+            // validate that exepected rings are populated with samples and have correct dimensions
+            for (auto&& [met, size] : storeRings) {
                 // array sizes should match
                 Assert::AreEqual(size, sys.telemetryData.ArraySize(met),
                     pMetricMap->at(met).wideName.c_str());
                 std::visit([&](auto const& rings) {
-                    // for each history ring in set, make sure it has at least one sample in it
+                    // for each history ring in set, make sure it has at least more than one sample in it
                     for (size_t i = 0; i < size; i++) {
                         auto& name = pMetricMap->at(met).wideName;
-                        Assert::IsFalse(rings[i].Empty(),
+                        Assert::IsTrue(rings[i].Size() > 1,
                             std::format(L"{}[{}]", name, i).c_str());
                         auto& sample = rings[i].Newest();
                         Logger::WriteMessage(std::format(L"{}[{}]: {}@{}\n", name, i,
