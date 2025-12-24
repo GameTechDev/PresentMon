@@ -22,14 +22,20 @@ namespace pmon::ipc
             frameData{ cap, segMan.get_allocator<FrameData>(), backpressured },
             statics{ .applicationName{ segMan.get_allocator<char>() } }
         {}
+        // values that never change over the life of a target, available for use with metric queries
+        // often lazy initialized upon receipt of the first present/frame
 		struct Statics
 		{
-			uint32_t processId;
 			ShmString applicationName;
 		} statics;
+        // values used for internal bookkeeping, often static (but not necessarily), typically not derived from frame data
+        // and typically initialized once on first aquisition of target; may also feed into metric queries
         struct Bookkeeping
         {
+            uint32_t processId;
+            int64_t startQpc;
             bool staticInitComplete = false;
+            bool bookkeepingInitComplete = false;
             bool isPlayback = false;
         } bookkeeping{};
 		ShmRing<FrameData> frameData;

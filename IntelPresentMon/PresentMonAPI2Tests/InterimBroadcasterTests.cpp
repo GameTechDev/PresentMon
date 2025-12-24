@@ -550,7 +550,7 @@ namespace InterimBroadcasterTests
 
             // verify static data
             auto& store = pComms->GetFrameDataStore(pres.GetId());
-            Assert::AreEqual(pres.GetId(), store.statics.processId);
+            Assert::AreEqual(pres.GetId(), store.bookkeeping.processId);
             const std::string staticAppName = store.statics.applicationName.c_str();
             Assert::AreEqual("PresentBench.exe"s, staticAppName);
         }
@@ -653,7 +653,7 @@ namespace InterimBroadcasterTests
 
             // verify static data
             auto& store = pComms->GetFrameDataStore(pid);
-            Assert::AreEqual(pid, store.statics.processId);
+            Assert::AreEqual(pid, store.bookkeeping.processId);
             const std::string staticAppName = store.statics.applicationName.c_str();
             Assert::AreEqual("Heaven.exe"s, staticAppName);
         }
@@ -726,7 +726,7 @@ namespace InterimBroadcasterTests
 
             // verify static data
             auto& store = pComms->GetFrameDataStore(pid);
-            Assert::AreEqual(pid, store.statics.processId);
+            Assert::AreEqual(pid, store.bookkeeping.processId);
             const std::string staticAppName = store.statics.applicationName.c_str();
             Assert::AreEqual("Heaven.exe"s, staticAppName);
         }

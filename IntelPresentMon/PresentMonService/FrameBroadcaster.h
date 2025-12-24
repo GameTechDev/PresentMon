@@ -82,23 +82,36 @@ namespace pmon::svc
 		std::shared_ptr<Segment> RegisterTarget(uint32_t pid, bool isPlayback, bool isBackpressured)
 		{
             std::lock_guard lk{ mtx_ };
+            const auto startQpc = util::GetCurrentTimestamp();
             auto pSegment = comms_.CreateOrGetFrameDataSegment(pid, isBackpressured);
             auto& store = pSegment->GetStore();
-            // just overwrite these every time Register is called, it will always be the same
-            store.statics.processId = pid;
-            store.bookkeeping.isPlayback = isPlayback;
+            auto& book = store.bookkeeping;
+            // init bookkeeping only once and only here
+            if (!book.bookkeepingInitComplete) {
+                book.processId = pid; // we can also init this static here
+                book.isPlayback = isPlayback;
+                book.startQpc = startQpc;
+                book.bookkeepingInitComplete = true;
+            }
+            else { // sanity checks for subsequent opens
+                if (book.processId != pid || book.isPlayback != isPlayback ||
+                    book.startQpc >= startQpc) {
+                    pmlog_error("Mismatch in bookkeeping data")
+                        .pmwatch(book.processId).pmwatch(pid)
+                        .pmwatch(book.isPlayback).pmwatch(isPlayback)
+                        .pmwatch(book.startQpc).pmwatch(startQpc);
+                }
+            }
             // initialize name/pid statics on new store segment creation
-            // for playback, this needs to be done when processing 1st process event
-            if (!store.bookkeeping.staticInitComplete && !isPlayback) {
-                store.bookkeeping.staticInitComplete = true;
+            // for playback, this needs to be deferred to when processing 1st process event
+            if (!book.staticInitComplete && !isPlayback) {
+                book.staticInitComplete = true;
                 try {
                     store.statics.applicationName = util::win::GetExecutableModulePath(
                         util::win::OpenProcess(pid)
                     ).filename().string().c_str();
                 }
                 catch (...) {
-                    // if we reach here a race condition has occurred where the target has exited
-                    // so we will mark this in the bookkeeping
                     pmlog_warn("Process exited right as it was being initialized").pmwatch(pid);
                 }
             }
