@@ -258,6 +258,9 @@ public:
 
 	void Setup(std::vector<std::string> args = {})
 	{
+		if (!logManager_) {
+			logManager_.emplace();
+		}
 		pmon::test::SetupTestLogging(GetCommonArgs().logFolder, GetCommonArgs().logLevel);
 		StartService_(args, GetCommonArgs());
 		svcArgs_ = std::move(args);
@@ -266,6 +269,7 @@ public:
 	{
 		StopService_(GetCommonArgs());
 		ioctxRunThread_.join();
+		logManager_.reset();
 	}
 	void RebootService(std::optional<std::vector<std::string>> newArgs = {})
 	{
@@ -325,4 +329,5 @@ private:
 	JobManager jobMan_;
 	std::thread ioctxRunThread_;
 	as::io_context ioctx_;
+	std::optional<pmon::test::LogChannelManager> logManager_;
 };

@@ -117,6 +117,9 @@
     <ProjectReference Include="..\PresentMonAPI2Loader\PresentMonAPI2Loader.vcxproj">
       <Project>{8f86d067-2437-46fc-8f82-4d7155ceced7}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\PresentMonAPI2\PresentMonAPI2.vcxproj">
+      <Project>{5ddba061-53a0-4835-8aaf-943f403f924f}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\PresentMonAPIWrapper\PresentMonAPIWrapper.vcxproj">
       <Project>{cee032ed-b0d3-47f8-bdae-d46757b0061b}</Project>
     </ProjectReference>

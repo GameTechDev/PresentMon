@@ -138,6 +138,39 @@ namespace InterimBroadcasterTests
         {
             fixture_.Cleanup();
         }
+        // trying to use a store without reporting use
+        TEST_METHOD(NoReport)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            // acquire introspection with enhanced wrapper interface
+            auto pIntro = pComms->GetIntrospectionRoot();
+            pmapi::intro::Root intro{ pIntro, [](auto* p) {delete p; } };
+            pmapi::EnumMap::Refresh(intro);
+            auto pMetricMap = pmapi::EnumMap::GetKeyMap(PM_ENUM_METRIC);
+
+            // set telemetry period so we have a known baseline
+            client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 100 });
+
+            // get the store containing system-wide telemetry (cpu etc.)
+            auto& sys = pComms->GetSystemDataStore();
+            for (auto&& [met, r] : sys.telemetryData.Rings()) {
+                Logger::WriteMessage(std::format(" TeleRing@{}\n", pMetricMap->at(met).narrowName).c_str());
+                // TODO: understand the disconnect between CPU Core Utility showing up here
+                // and not showing up in the UI (update: it is blacklisted manually in UI introspection)
+            }
+            Assert::AreEqual(2ull, (size_t)rn::distance(sys.telemetryData.Rings()));
+
+            // system device id constant
+            const uint32_t SystemDeviceID = 65536;
+
+            // allow warm-up period
+            std::this_thread::sleep_for(650ms);
+
+            // we expect 0 data point in the rings for the system since it does not populate on init
+            Assert::AreEqual(0ull, sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION).at(0).Size());
+        }
         // static store
         TEST_METHOD(StaticData)
         {
@@ -331,6 +364,37 @@ namespace InterimBroadcasterTests
         TEST_METHOD_CLEANUP(Cleanup)
         {
             fixture_.Cleanup();
+        }
+        // trying to use a store without reporting use
+        TEST_METHOD(NoReport)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            // acquire introspection with enhanced wrapper interface
+            auto pIntro = pComms->GetIntrospectionRoot();
+            pmapi::intro::Root intro{ pIntro, [](auto* p) { delete p; } };
+            pmapi::EnumMap::Refresh(intro);
+            auto pMetricMap = pmapi::EnumMap::GetKeyMap(PM_ENUM_METRIC);
+
+            // set telemetry period so we have a known baseline
+            client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 100 });
+
+            // target gpu device 1 (hardcoded for test)
+            const uint32_t TargetDeviceID = 1;
+
+            // get the store containing adapter telemetry
+            auto& gpu = pComms->GetGpuDataStore(TargetDeviceID);
+            for (auto&& [met, r] : gpu.telemetryData.Rings()) {
+                Logger::WriteMessage(std::format(" TeleRing@{}\n", pMetricMap->at(met).narrowName).c_str());
+            }
+            Assert::IsTrue((size_t)rn::distance(gpu.telemetryData.Rings()) > 0);
+
+            // allow warm-up period
+            std::this_thread::sleep_for(650ms);
+
+            // we expect 0 data points in the rings for the gpu since it does not populate on init
+            Assert::AreEqual(0ull, gpu.telemetryData.FindRing<double>(PM_METRIC_GPU_TEMPERATURE).at(0).Size());
         }
         // static store
         TEST_METHOD(StaticData)

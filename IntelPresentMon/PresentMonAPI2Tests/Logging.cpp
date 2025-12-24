@@ -13,6 +13,7 @@
 #include "../CommonUtilities/str/String.h"
 #include "../CommonUtilities/win/HrErrorCodeProvider.h"
 #include "../CommonUtilities/win/WinAPI.h"
+#include "../CommonUtilities/Exception.h"
 #include "../PresentMonAPIWrapperCommon/PmErrorCodeProvider.h"
 #include "../PresentMonAPI2/Internal.h"
 
@@ -137,5 +138,17 @@ namespace pmon::test
 		}
 		catch (...) {
 		}
+	}
+
+	LogChannelManager::LogChannelManager() noexcept
+	{
+		util::InstallSehTranslator();
+		util::log::BootDefaultChannelEager();
+	}
+
+	LogChannelManager::~LogChannelManager()
+	{
+		pmFlushEntryPoint_();
+		util::log::FlushEntryPoint();
 	}
 }
