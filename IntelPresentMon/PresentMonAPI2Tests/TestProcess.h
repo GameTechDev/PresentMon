@@ -10,8 +10,10 @@
 #include "../CommonUtilities/pipe/Pipe.h"
 #include <boost/process.hpp>
 #include <cereal/archives/json.hpp>
+#include <cctype>
 #include <iostream>
 #include <format>
+#include <optional>
 #include <sstream>
 #include <filesystem>
 
@@ -28,9 +30,45 @@ struct CommonProcessArgs
 	std::string ctrlPipe;
 	std::string shmNamePrefix;
 	std::string logLevel;
+	std::optional<std::string> logVerboseModules;
 	std::string logFolder;
 	std::string sampleClientMode;
 };
+
+inline std::vector<std::string> SplitVerboseModulesArgs_(const std::string& raw)
+{
+	std::vector<std::string> modules;
+	std::string token;
+	for (unsigned char ch : raw) {
+		if (ch == ',' || std::isspace(ch)) {
+			if (!token.empty()) {
+				modules.push_back(token);
+				token.clear();
+			}
+			continue;
+		}
+		token.push_back(static_cast<char>(ch));
+	}
+	if (!token.empty()) {
+		modules.push_back(token);
+	}
+	return modules;
+}
+
+inline void AppendVerboseModulesArgs_(std::vector<std::string>& args,
+	const std::optional<std::string>& modules,
+	const char* flag)
+{
+	if (!modules || modules->empty()) {
+		return;
+	}
+	const auto values = SplitVerboseModulesArgs_(*modules);
+	if (values.empty()) {
+		return;
+	}
+	args.push_back(flag);
+	args.insert(args.end(), values.begin(), values.end());
+}
 
 // base class to represent child processes launched by test cases
 class TestProcess
@@ -170,6 +208,7 @@ private:
 			"--log-level"s, common.logLevel,
 			"--enable-debugger-log"s,
 		};
+		AppendVerboseModulesArgs_(allArgs, common.logVerboseModules, "--log-verbose-modules");
 		allArgs.append_range(customArgs);
 		return allArgs;
 	}
@@ -205,6 +244,7 @@ private:
 			"--log-level"s, common.logLevel,
 			"--mode"s, common.sampleClientMode,
 		};
+		AppendVerboseModulesArgs_(allArgs, common.logVerboseModules, "--log-verbose-modules");
 		allArgs.append_range(customArgs);
 		return allArgs;
 	}
@@ -261,7 +301,8 @@ public:
 		if (!logManager_) {
 			logManager_.emplace();
 		}
-		pmon::test::SetupTestLogging(GetCommonArgs().logFolder, GetCommonArgs().logLevel);
+		pmon::test::SetupTestLogging(GetCommonArgs().logFolder, GetCommonArgs().logLevel,
+			GetCommonArgs().logVerboseModules);
 		StartService_(args, GetCommonArgs());
 		svcArgs_ = std::move(args);
 	}

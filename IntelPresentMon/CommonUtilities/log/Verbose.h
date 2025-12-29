@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <map>
 
@@ -14,6 +14,7 @@ namespace pmon::util::log
 		core_window,
 		etwq,
 		kact,
+		ipc_sto,
 		Count
 	};
 

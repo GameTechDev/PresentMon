@@ -2,6 +2,7 @@
 #include "SharedMemoryTypes.h"
 #include "DataStores.h"
 #include "../../CommonUtilities/log/Log.h"
+#include <type_traits>
 
 namespace pmon::ipc
 {
@@ -19,10 +20,21 @@ namespace pmon::ipc
                 ResolveSegmentBytes_(segmentName, sizing),
                 nullptr, perms },
             pData_{ MakeStore_(sizing) }
-        {}
+        {
+            if constexpr (std::is_same_v<T, FrameDataStore>) {
+                pmlog_dbg("Shm segment populated (Frame)")
+                    .pmwatch(segmentName)
+                    .pmwatch(GetBytesTotal())
+                    .pmwatch(GetBytesUsed())
+                    .pmwatch(GetBytesFree());
+            }
+        }
 
         T& GetStore() { return *pData_; }
         const T& GetStore() const { return *pData_; }
+        size_t GetBytesUsed() const { return shm_.get_size() - shm_.get_free_memory(); }
+        size_t GetBytesFree() const { return shm_.get_free_memory(); }
+        size_t GetBytesTotal() const { return shm_.get_size(); }
 
     private:
         static constexpr const char* name_ = "seg-dat";

@@ -71,8 +71,9 @@ namespace InterimBroadcasterTests
         {
             static CommonProcessArgs args{
                 .ctrlPipe = R"(\\.\pipe\pm-intbroad-test-ctrl)",
-                .shmNamePrefix = "pm_intborad_test_intro",
-                .logLevel = "debug",
+                .shmNamePrefix = "pm_intbroad_test",
+                .logLevel = "verbose",
+                .logVerboseModules = "ipc_sto",
                 .logFolder = logFolder_,
                 .sampleClientMode = "NONE",
             };

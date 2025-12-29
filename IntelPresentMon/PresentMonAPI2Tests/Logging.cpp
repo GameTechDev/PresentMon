@@ -10,6 +10,7 @@
 #include "../CommonUtilities/log/ErrorCodeResolvePolicy.h"
 #include "../CommonUtilities/log/ErrorCodeResolver.h"
 #include "../CommonUtilities/log/IdentificationTable.h"
+#include "../CommonUtilities/log/Verbose.h"
 #include "../CommonUtilities/str/String.h"
 #include "../CommonUtilities/win/HrErrorCodeProvider.h"
 #include "../CommonUtilities/win/WinAPI.h"
@@ -17,6 +18,7 @@
 #include "../PresentMonAPIWrapperCommon/PmErrorCodeProvider.h"
 #include "../PresentMonAPI2/Internal.h"
 
+#include <cctype>
 #include <filesystem>
 #include <format>
 #include <memory>
@@ -88,11 +90,54 @@ namespace pmon::test
 		{
 			return std::format("test-harness-{}.txt", GetCurrentProcessId());
 		}
+
+		std::vector<std::string> SplitVerboseModules_(const std::string& raw)
+		{
+			std::vector<std::string> tokens;
+			std::string token;
+			for (unsigned char ch : raw) {
+				if (ch == ',' || std::isspace(ch)) {
+					if (!token.empty()) {
+						tokens.push_back(token);
+						token.clear();
+					}
+					continue;
+				}
+				token.push_back(static_cast<char>(ch));
+			}
+			if (!token.empty()) {
+				tokens.push_back(token);
+			}
+			return tokens;
+		}
+
+		std::vector<util::log::V> ParseVerboseModules_(const std::string& raw)
+		{
+			std::vector<util::log::V> modules;
+			if (raw.empty()) {
+				return modules;
+			}
+			const auto map = util::log::GetVerboseModuleMapNarrow();
+			for (const auto& token : SplitVerboseModules_(raw)) {
+				const auto key = util::str::ToLower(token);
+				if (auto it = map.find(key); it != map.end()) {
+					modules.push_back(it->second);
+				}
+			}
+			return modules;
+		}
 	}
 
-	void SetupTestLogging(const std::string& logFolder, const std::string& logLevel) noexcept
+	void SetupTestLogging(const std::string& logFolder,
+		const std::string& logLevel,
+		const std::optional<std::string>& logVerboseModules) noexcept
 	{
 		try {
+			util::log::IdentificationTable::AddThisProcess("ms-test");
+			util::log::IdentificationTable::AddThisThread("exec");
+
+			const auto verboseModules =
+				logVerboseModules ? ParseVerboseModules_(*logVerboseModules) : std::vector<util::log::V>{};
 			auto pChannel = util::log::GetDefaultChannel();
 			if (!pChannel) {
 				return;
@@ -103,6 +148,9 @@ namespace pmon::test
 			policy.SetLogLevel(level);
 			policy.SetTraceLevel(util::log::Level::Error);
 			policy.SetExceptionTrace(false);
+			for (auto mod : verboseModules) {
+				policy.ActivateVerboseModule(mod);
+			}
 
 			if (!logFolder.empty()) {
 				std::filesystem::path folderPath{ logFolder };
@@ -134,6 +182,9 @@ namespace pmon::test
 				dllPolicy.SetLogLevel(level);
 				dllPolicy.SetTraceLevel(util::log::Level::Error);
 				dllPolicy.SetExceptionTrace(false);
+				for (auto mod : verboseModules) {
+					dllPolicy.ActivateVerboseModule(mod);
+				}
 			}
 		}
 		catch (...) {

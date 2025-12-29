@@ -3,7 +3,9 @@
 #include "IntrospectionTransfer.h"
 #include "IntrospectionDataTypeMapping.h"
 #include "../../CommonUtilities/Memory.h"
+#include "../../CommonUtilities/log/Verbose.h"
 #include <cstdint>
+#include <format>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -11,19 +13,21 @@ namespace pmon::ipc
 {
     namespace
     {
-        constexpr size_t kSegmentAlignmentBytes = 64 * 1024;
-        constexpr size_t kFrameLeewayPerRingBytes = 2 * 1024 * 1024;
-        constexpr size_t kFrameLeewayBaseBytes = 8 * 1024 * 1024;
-        constexpr size_t kTelemetryLeewayPerRingBytes = 64 * 1024;
-        constexpr size_t kTelemetryLeewayBaseBytes = 2 * 1024 * 1024;
+        constexpr size_t kSegmentAlignmentBytes_ = 64 * 1024;
+        constexpr size_t kFrameScaleMul_ = 3;
+        constexpr size_t kFrameScaleDiv_ = 2;
+        constexpr size_t kTelemetryScaleGpuMul_ = 3;
+        constexpr size_t kTelemetryScaleSystemMul_ = 2;
+        constexpr size_t kTelemetryScaleDiv_ = 1;
+        constexpr size_t kFixedLeewayBytes_ = 4 * 1024;
 
-        size_t PadToAlignment(size_t bytes, size_t alignment)
+        size_t ScaleBytes_(size_t bytes, size_t numerator, size_t denominator)
         {
-            return bytes + util::GetPadding(bytes, alignment);
+            return (bytes * numerator + denominator - 1) / denominator;
         }
 
         template<PM_DATA_TYPE T>
-        struct DataTypeSizeBridger
+        struct DataTypeSizeBridger_
         {
             static size_t Invoke()
             {
@@ -35,15 +39,15 @@ namespace pmon::ipc
             }
         };
 
-        size_t EstimateSampleBytes(PM_DATA_TYPE type)
+        size_t EstimateSampleBytes_(PM_DATA_TYPE type)
         {
-            const size_t valueBytes = intro::BridgeDataType<DataTypeSizeBridger>(type);
+            const size_t valueBytes = intro::BridgeDataType<DataTypeSizeBridger_>(type);
             const size_t safeValueBytes = valueBytes > 0 ? valueBytes : sizeof(uint32_t);
             const size_t pad = util::GetPadding(safeValueBytes, alignof(uint64_t));
             return safeValueBytes + pad + sizeof(uint64_t);
         }
 
-        bool ShouldAllocateTelemetryRing(PM_METRIC metricId,
+        bool ShouldAllocateTelemetryRing_(PM_METRIC metricId,
             const intro::IntrospectionMetric& metric)
         {
             if (metric.GetMetricType() == PM_METRIC_TYPE_STATIC) {
@@ -57,7 +61,7 @@ namespace pmon::ipc
         }
 
         template<typename Func>
-        void ForEachTelemetryRing(const DataStoreSizingInfo& sizing,
+        void ForEachTelemetryRing_(const DataStoreSizingInfo& sizing,
             PM_DEVICE_TYPE deviceType,
             Func&& func)
         {
@@ -84,7 +88,7 @@ namespace pmon::ipc
                     throw std::logic_error(
                         "DataStoreSizingInfo caps contain a metric outside the expected device type");
                 }
-                if (!ShouldAllocateTelemetryRing(metricId, metric)) {
+                if (!ShouldAllocateTelemetryRing_(metricId, metric)) {
                     continue;
                 }
                 const auto dataType = metric.GetDataTypeInfo().GetFrameType();
@@ -92,7 +96,7 @@ namespace pmon::ipc
             }
         }
 
-        size_t TelemetrySegmentBytes(const DataStoreSizingInfo& sizing, PM_DEVICE_TYPE deviceType)
+        size_t TelemetrySegmentBytes_(const DataStoreSizingInfo& sizing, PM_DEVICE_TYPE deviceType)
         {
             if (sizing.overrideBytes) {
                 return *sizing.overrideBytes;
@@ -100,31 +104,56 @@ namespace pmon::ipc
 
             size_t ringCount = 0;
             size_t payloadBytes = 0;
-            ForEachTelemetryRing(sizing, deviceType,
-                [&](PM_METRIC, size_t count, PM_DATA_TYPE dataType) {
-                    payloadBytes += count * sizing.ringSamples *
-                        EstimateSampleBytes(dataType);
+            ForEachTelemetryRing_(sizing, deviceType,
+                [&](PM_METRIC metricId, size_t count, PM_DATA_TYPE dataType) {
+                    const size_t sampleBytes = EstimateSampleBytes_(dataType);
+                    const size_t metricBytes = count * sizing.ringSamples * sampleBytes;
+                    payloadBytes += metricBytes;
                     ringCount += count;
+                    pmlog_verb(util::log::V::ipc_sto)(std::format(
+                        "ipc telem metric sizing | metric:{} count:{} ring_samples:{} sample_bytes:{} payload_bytes:{}",
+                        static_cast<int>(metricId), count, sizing.ringSamples, sampleBytes, metricBytes));
                 });
 
-            const size_t leewayBytes =
-                ringCount * kTelemetryLeewayPerRingBytes + kTelemetryLeewayBaseBytes;
-            return PadToAlignment(payloadBytes + leewayBytes, kSegmentAlignmentBytes);
+            const size_t scaleMul = (deviceType == PM_DEVICE_TYPE_SYSTEM) ?
+                kTelemetryScaleSystemMul_ : kTelemetryScaleGpuMul_;
+            size_t scaledBytes =
+                ScaleBytes_(payloadBytes, scaleMul, kTelemetryScaleDiv_);
+            if (scaledBytes < payloadBytes + kFixedLeewayBytes_) {
+                scaledBytes = payloadBytes + kFixedLeewayBytes_;
+            }
+            const size_t leewayBytes = scaledBytes - payloadBytes;
+            const size_t totalBytes = util::PadToAlignment(scaledBytes, kSegmentAlignmentBytes_);
+            pmlog_verb(util::log::V::ipc_sto)(std::format(
+                "ipc telem sizing | ring_samples:{} ring_count:{} payload_bytes:{} scaled_bytes:{} fixed_leeway_bytes:{} leeway_bytes:{} alignment:{} total_bytes:{}",
+                sizing.ringSamples, ringCount, payloadBytes, scaledBytes, kFixedLeewayBytes_,
+                leewayBytes, kSegmentAlignmentBytes_, totalBytes));
+            return totalBytes;
         }
     }
 
     size_t FrameDataStore::CalculateSegmentBytes(const DataStoreSizingInfo& sizing)
     {
         const size_t payloadBytes = sizing.ringSamples * sizeof(FrameData);
-        const size_t leewayBytes = kFrameLeewayPerRingBytes + kFrameLeewayBaseBytes;
-        return PadToAlignment(payloadBytes + leewayBytes, kSegmentAlignmentBytes);
+        size_t scaledBytes =
+            ScaleBytes_(payloadBytes, kFrameScaleMul_, kFrameScaleDiv_);
+        if (scaledBytes < payloadBytes + kFixedLeewayBytes_) {
+            scaledBytes = payloadBytes + kFixedLeewayBytes_;
+        }
+        const size_t leewayBytes = scaledBytes - payloadBytes;
+        const size_t totalBytes = util::PadToAlignment(scaledBytes, kSegmentAlignmentBytes_);
+        pmlog_verb(util::log::V::ipc_sto)(std::format(
+            "ipc frame sizing | ring_samples:{} payload_bytes:{} scaled_bytes:{} fixed_leeway_bytes:{} leeway_bytes:{} alignment:{} total_bytes:{}",
+            sizing.ringSamples, payloadBytes, scaledBytes, kFixedLeewayBytes_,
+            leewayBytes, kSegmentAlignmentBytes_, totalBytes));
+        return totalBytes;
     }
 
     void PopulateTelemetryRings(TelemetryMap& telemetryData,
         const DataStoreSizingInfo& sizing,
         PM_DEVICE_TYPE deviceType)
     {
-        ForEachTelemetryRing(sizing, deviceType,
+        ForEachTelemetryRing_(sizing, deviceType,
             [&](PM_METRIC metricId, size_t count, PM_DATA_TYPE dataType) {
                 telemetryData.AddRing(metricId, sizing.ringSamples, count, dataType);
             });
@@ -132,12 +161,12 @@ namespace pmon::ipc
 
     size_t GpuDataStore::CalculateSegmentBytes(const DataStoreSizingInfo& sizing)
     {
-        return TelemetrySegmentBytes(sizing, PM_DEVICE_TYPE_GRAPHICS_ADAPTER);
+        return TelemetrySegmentBytes_(sizing, PM_DEVICE_TYPE_GRAPHICS_ADAPTER);
     }
 
     size_t SystemDataStore::CalculateSegmentBytes(const DataStoreSizingInfo& sizing)
     {
-        return TelemetrySegmentBytes(sizing, PM_DEVICE_TYPE_SYSTEM);
+        return TelemetrySegmentBytes_(sizing, PM_DEVICE_TYPE_SYSTEM);
     }
 }
 

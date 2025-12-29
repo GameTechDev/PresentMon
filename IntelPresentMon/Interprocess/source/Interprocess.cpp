@@ -71,11 +71,12 @@ namespace pmon::ipc
                     deviceId, vendor, deviceName, caps
                 );
                 const DataStoreSizingInfo sizing{ pRoot_.get().get(), &caps, telemetryRingSamples_ };
+                const auto segmentName = namer_.MakeGpuName(deviceId);
                 // allocate map node and create shm segment
                 auto& gpuShm = gpuShms_.emplace(
                     std::piecewise_construct,
                     std::forward_as_tuple(deviceId),
-                    std::forward_as_tuple(namer_.MakeGpuName(deviceId),
+                    std::forward_as_tuple(segmentName,
                         sizing,
                         static_cast<const bip::permissions&>(Permissions_{}))
                 ).first->second;
@@ -83,6 +84,12 @@ namespace pmon::ipc
                 PopulateTelemetryRings(gpuShm.GetStore().telemetryData,
                     sizing,
                     PM_DEVICE_TYPE_GRAPHICS_ADAPTER);
+                pmlog_dbg("Shm segment populated (GPU)")
+                    .pmwatch(segmentName)
+                    .pmwatch(deviceId)
+                    .pmwatch(gpuShm.GetBytesTotal())
+                    .pmwatch(gpuShm.GetBytesUsed())
+                    .pmwatch(gpuShm.GetBytesFree());
             }
             void FinalizeGpuDevices() override
             {
@@ -102,8 +109,9 @@ namespace pmon::ipc
                     shm_.get_segment_manager(), *pRoot_, vendor, std::move(deviceName), caps
                 );
                 const DataStoreSizingInfo sizing{ pRoot_.get().get(), &caps, telemetryRingSamples_ };
+                const auto segmentName = namer_.MakeSystemName();
                 if (!systemShm_) {
-                    systemShm_.emplace(namer_.MakeSystemName(),
+                    systemShm_.emplace(segmentName,
                         sizing,
                         static_cast<const bip::permissions&>(Permissions_{}));
                 }
@@ -111,6 +119,11 @@ namespace pmon::ipc
                 PopulateTelemetryRings(systemShm_->GetStore().telemetryData,
                     sizing,
                     PM_DEVICE_TYPE_SYSTEM);
+                pmlog_dbg("Shm segment populated (System)")
+                    .pmwatch(segmentName)
+                    .pmwatch(systemShm_->GetBytesTotal())
+                    .pmwatch(systemShm_->GetBytesUsed())
+                    .pmwatch(systemShm_->GetBytesFree());
                 introCpuComplete_ = true;
                 if (introGpuComplete_ && introCpuComplete_) {
                     lck.unlock();

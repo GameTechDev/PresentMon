@@ -1,6 +1,7 @@
-#pragma once
+﻿#pragma once
 #include "../CommonUtilities/cli/CliFramework.h"
 #include "../CommonUtilities/log/Level.h"
+#include "../CommonUtilities/log/Verbose.h"
 #include "../CommonUtilities/ref/StaticReflection.h"
 #include <format>
 
@@ -58,6 +59,7 @@ namespace clio
 		Option<std::string> logAllowList{ this, "--log-allow-list", "", "Path to log allow list (with trace overrides)", CLI::ExistingFile };
 		Option<std::string> logFolder{ this, "--log-folder", "", "Folder to create log file(s) in" };
 		Flag logNamePid{ this, "--log-name-pid", "Append PID to the log file name" };
+		Option<std::vector<log::V>> logVerboseModules{ this, "--log-verbose-modules", {}, "Verbose logging modules to enable", CLI::CheckedTransformer{ log::GetVerboseModuleMapNarrow(), CLI::ignore_case } };
 	private: Group gv_{ this, "Service", "Control service options" }; public:
 		Flag servicePacePlayback{ this, "--service-pace-playback", "Pace ETL playback on the service" };
 		Option<std::string> serviceEtlPath{ this, "--service-etl-path", "", "Path of the ETL file to pass to the service for playback" };
