@@ -20,17 +20,15 @@ namespace pmon::util::metrics {
                 if (lastIsAppFrm) {
                     const uint64_t lastScreenTime = present.getDisplayedScreenTime(lastIdx);
 
-                    // This block is the port of the big "if (p->Displayed.back().first ...)" from UpdateChain
                     if (animationErrorSource == AnimationErrorSource::AppProvider) {
-                        if (present.getAppSimStartTime() != 0) {
-                            lastDisplayedSimStartTime = present.getAppSimStartTime();
-                            if (firstAppSimStartTime == 0) {
-                                firstAppSimStartTime = present.getAppSimStartTime();
-                            }
-                            lastDisplayedAppScreenTime = lastScreenTime;
+                        lastDisplayedSimStartTime = present.getAppSimStartTime();
+                        if (firstAppSimStartTime == 0) {
+                            firstAppSimStartTime = present.getAppSimStartTime();
                         }
+                        lastDisplayedAppScreenTime = lastScreenTime;
                     }
                     else if (animationErrorSource == AnimationErrorSource::PCLatency) {
+                        // In the case of PCLatency only set values if PCL sim start time is non-zero
                         if (present.getPclSimStartTime() != 0) {
                             lastDisplayedSimStartTime = present.getPclSimStartTime();
                             if (firstAppSimStartTime == 0) {

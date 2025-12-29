@@ -1210,7 +1210,12 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
             fwprintf(fp, L",%.4lf", metrics.msAnimationTime.value());
         }
         else {
-            fwprintf(fp, L",NA");
+            if (metrics.msDisplayedTime == 0.0 || (metrics.frameType != FrameType::Application && metrics.frameType != FrameType::NotSet)) {
+                fwprintf(fp, L",NA");
+            }
+            else {
+                fwprintf(fp, L",%.4lf", 0.0);
+            }
         }
         if (metrics.msFlipDelay.has_value()) {
             fwprintf(fp, L",%.4lf", metrics.msFlipDelay.value());

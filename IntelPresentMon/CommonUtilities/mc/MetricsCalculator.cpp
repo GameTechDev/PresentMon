@@ -260,6 +260,11 @@ namespace pmon::util::metrics
             double simElapsed = qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedSimStartTime, currentSimStart);
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedAppScreenTime, screenTime);
 
+            if(simElapsed == 0.0 || displayElapsed == 0.0) {
+                out.msAnimationError = std::nullopt;
+                return;
+            }
+
             out.msAnimationError = simElapsed - displayElapsed;
         }
 
@@ -282,18 +287,13 @@ namespace pmon::util::metrics
             if (isFirstProviderSimTime) {
                 // Seed only: no animation time yet. UpdateAfterPresent will flip us
                 // into AppProvider/PCL and latch firstAppSimStartTime.
-                // TODO: Once ETL tests are passing, change to std::nullopt.
-                // out.msAnimationTime = std::nullopt;
-                out.msAnimationTime = 0.0;
+                out.msAnimationTime = std::nullopt;
                 return;
             }
 
             uint64_t currentSimStart = CalculateAnimationErrorSimStartTime(chain, present, chain.animationErrorSource);
             if (currentSimStart == 0) {
-                // TODO: Once ETL tests are passing, change to std::nullopt.
                 out.msAnimationTime = std::nullopt;
-                //out.msAnimationTime = 0.0;
-                
                 return;
             }
 
@@ -553,7 +553,8 @@ namespace pmon::util::metrics
             else if (present.appSimStartTime != 0) {
                 currentSimStartTime = present.appSimStartTime;
             }
-            if (chain.lastSimStartTime != 0 && currentSimStartTime != 0) {
+            if (chain.lastSimStartTime != 0 && currentSimStartTime != 0 &&
+                currentSimStartTime > chain.lastSimStartTime) {
                 return qpc.DeltaUnsignedMilliSeconds(
                     chain.lastSimStartTime,
                     currentSimStartTime);
@@ -692,8 +693,16 @@ namespace pmon::util::metrics
             const uint64_t screenTime = 0;
             const uint64_t nextScreenTime = 0;
             const bool isDisplayed = false;
-            const bool isAppFrame = true;
-            const FrameType frameType = FrameType::NotSet;
+
+            // Legacy-equivalent attribution: compute displayIndex/appIndex and derive isAppFrame.
+            const auto indexing = DisplayIndexing::Calculate(present, nextDisplayed);
+            const size_t displayIndex = indexing.startIndex; // Case 1 => 0
+            const size_t appIndex = indexing.appIndex;
+
+            const bool isAppFrame = (displayIndex == appIndex);
+            const FrameType frameType = (displayCount > 0)
+                ? present.getDisplayedFrameType(displayIndex)
+                : FrameType::NotSet;
 
             auto metrics = ComputeFrameMetrics(
                 qpc,
@@ -708,7 +717,7 @@ namespace pmon::util::metrics
             ApplyStateDeltas(chainState, metrics.stateDeltas);
 
             results.push_back(std::move(metrics));
-            
+
             chainState.UpdateAfterPresent(present);
 
             return results;
@@ -766,6 +775,7 @@ namespace pmon::util::metrics
 
         return results;
     }
+
 
     void CalculateBasePresentMetrics(
         const QpcConverter& qpc,
