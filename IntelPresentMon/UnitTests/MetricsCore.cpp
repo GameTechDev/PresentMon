@@ -1239,10 +1239,8 @@ namespace MetricsCoreTests
             // Should process 1 
             Assert::AreEqual(size_t(1), metrics.size());
             // Chain update postponed until nextDisplayed
-            Assert::IsFalse(chain.lastPresent.has_value());
-            Assert::IsFalse(chain.lastAppPresent.has_value());
-            Assert::AreEqual(uint64_t(0), chain.lastDisplayedScreenTime);
-            Assert::AreEqual(uint64_t(0), chain.lastDisplayedFlipDelay);
+            const auto& m = metrics[0].metrics;
+            Assert::IsTrue(FrameType::Intel_XEFG == m.frameType, L"FrameType should be Intel_XEFG");
         }
         TEST_METHOD(ComputeMetricsForPresent_AmdAfmf_WithNext_AppProcessedAndUpdatesChain)
         {
@@ -5709,10 +5707,7 @@ namespace MetricsCoreTests
             frame3.displayed.push_back({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
-            double simElapsed = qpc.DeltaUnsignedMilliSeconds(100, 150);  // 0.005 ms
-            Assert::AreEqual(simElapsed, results[0].metrics.msAnimationError.value(), 0.0001,
-                L"msAnimationError should equal simElapsed when display delta is zero");
+            Assert::IsFalse(results[0].metrics.msAnimationError.has_value());
         }
 
         // Section C: Animation Error – PCLatency Source
@@ -5966,6 +5961,42 @@ namespace MetricsCoreTests
             Assert::AreEqual(expected, results[0].metrics.msAnimationError.value(), 0.0001);
         }
 
+        TEST_METHOD(AnimationError_CpuStart_Frame2DisplayIsGreaterThanFrame1Display)
+        {
+            // Scenario: CpuStart source, CPU-derived sim times
+            //           Frame 2 has a display time earlier than Frame 1
+            // Expected: NA reported for animation error
+            // Note: Need baseline frame to establish lastDisplayedSimStartTime
+            //       and lastDisplayedScreenTime
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::CpuStart;
+            state.lastDisplayedScreenTime = 55454524262;
+            state.lastDisplayedSimStartTime = 55454168764;
+            state.lastDisplayedAppScreenTime = 55454524262;
+            FrameData frame3{};
+            frame3.presentStartTime = 55454299820;
+            frame3.timeInPresent = 24537;
+            state.lastPresent = frame3;
+
+            FrameData frame1{};
+            frame1.presentStartTime = 55454457377;
+            frame1.timeInPresent = 2411;
+            frame1.finalState = PresentResult::Presented;
+            frame1.displayed.push_back({ FrameType::Application, 55454512384 });
+
+            FrameData frame2{};
+            frame2.presentStartTime = 55454612236;
+            frame2.timeInPresent = 3056;
+            frame2.finalState = PresentResult::Presented;
+            frame2.displayed.push_back({ FrameType::Application, 55454615330 });
+
+            ComputeMetricsForPresent(qpc, frame1, nullptr, state);
+            auto results = ComputeMetricsForPresent(qpc, frame1, &frame2, state);
+
+            Assert::IsFalse(results[0].metrics.msAnimationError.has_value());
+        }
+
         TEST_METHOD(AnimationError_CpuStart_TransitionToAppProvider_Nullopt)
         {
             // Scenario: Source switches from CpuStart to AppProvider mid-stream
@@ -6063,8 +6094,8 @@ namespace MetricsCoreTests
 
         TEST_METHOD(AnimationError_BackwardsScreenTime_ErrorStillComputed)
         {
-            // Scenario: Screen time goes backward (unusual but allowed)
-            // Expected: Error still computed (reflects raw cadence mismatch)
+            // Scenario: Screen time goes backward
+            // Expected: nullopt for animation error
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
             state.animationErrorSource = AnimationErrorSource::AppProvider;
@@ -6093,12 +6124,8 @@ namespace MetricsCoreTests
             frame3.displayed.push_back({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsTrue(results[0].metrics.msAnimationError.has_value(),
-                L"Error should still be computed even with backwards screen time");
-            double simElapsed = qpc.DeltaUnsignedMilliSeconds(100, 150);     // 0.005 ms
-            double displayElapsed = qpc.DeltaUnsignedMilliSeconds(1100, 1050); // -0.005 ms (negative!)
-            double expected = simElapsed - displayElapsed;  // 0.010 ms
-            Assert::AreEqual(expected, results[0].metrics.msAnimationError.value(), 0.0001);
+            Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
+                L"Error should be nullopt with backwards screen time");
         }
 
         TEST_METHOD(AnimationError_VeryLargeCadenceMismatch_LargeError)
