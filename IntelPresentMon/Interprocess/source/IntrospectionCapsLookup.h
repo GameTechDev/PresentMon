@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "IntrospectionMetadata.h"
 #include <array>
 #include "../../ControlLib/PresentMonPowerTelemetry.h"
@@ -34,11 +34,15 @@ namespace pmon::ipc::intro
 			GpuTelemetryCapBits::fan_speed_2, GpuTelemetryCapBits::fan_speed_3, GpuTelemetryCapBits::fan_speed_4, };
 	};
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_FAN_SPEED_PERCENT> {
+		using MiddlewareDerived = std::true_type;
 		static constexpr auto gpuCapBitArray = std::array{ GpuTelemetryCapBits::max_fan_speed_0, GpuTelemetryCapBits::max_fan_speed_1,
 			GpuTelemetryCapBits::max_fan_speed_2, GpuTelemetryCapBits::max_fan_speed_3, GpuTelemetryCapBits::max_fan_speed_4, };
 	};
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_USED> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_mem_used; };
-	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_UTILIZATION> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_mem_used; };
+	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_UTILIZATION> {
+		using MiddlewareDerived = std::true_type;
+		static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_mem_used;
+	};
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_WRITE_BANDWIDTH> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_mem_write_bandwidth; };
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_MEM_READ_BANDWIDTH> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_mem_read_bandwidth; };
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_POWER_LIMITED> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_power_limited; };
@@ -78,4 +82,5 @@ namespace pmon::ipc::intro
 	template<class T> concept IsGpuDeviceStaticMetric = requires { typename T::GpuDeviceStatic; };
 	template<class T> concept IsCpuMetric = requires { T::cpuCapBit; };
 	template<class T> concept IsManualDisableMetric = requires { typename T::ManualDisable; };
+	template<class T> concept IsMiddlewareDerivedMetric = requires { typename T::MiddlewareDerived; };
 }

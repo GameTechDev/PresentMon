@@ -2,6 +2,8 @@
 #include "MetricCapabilities.h"
 #include "IntrospectionTransfer.h"
 #include "IntrospectionDataTypeMapping.h"
+#include "IntrospectionCapsLookup.h"
+#include "../../CommonUtilities/Meta.h"
 #include "../../CommonUtilities/Memory.h"
 #include "../../CommonUtilities/log/Verbose.h"
 #include <cstdint>
@@ -47,14 +49,28 @@ namespace pmon::ipc
             return safeValueBytes + pad + sizeof(uint64_t);
         }
 
+        using MetricEnum_ = PM_METRIC;
+        using MetricUnderlying_ = std::underlying_type_t<MetricEnum_>;
+        constexpr MetricUnderlying_ kMaxMetricUnderlying_ = 256;
+
+        struct MiddlewareDerivedLookup_
+        {
+            template<MetricEnum_ Metric>
+            constexpr bool operator()() const
+            {
+                using Lookup = intro::IntrospectionCapsLookup<Metric>;
+                return intro::IsMiddlewareDerivedMetric<Lookup>;
+            }
+        };
+
         bool ShouldAllocateTelemetryRing_(PM_METRIC metricId,
             const intro::IntrospectionMetric& metric)
         {
             if (metric.GetMetricType() == PM_METRIC_TYPE_STATIC) {
                 return false;
             }
-            if (metricId == PM_METRIC_GPU_FAN_SPEED_PERCENT ||
-                metricId == PM_METRIC_GPU_MEM_UTILIZATION) {
+            if (util::DispatchEnumValue<MetricEnum_, kMaxMetricUnderlying_>(
+                metricId, MiddlewareDerivedLookup_{}, false)) {
                 return false;
             }
             return true;
