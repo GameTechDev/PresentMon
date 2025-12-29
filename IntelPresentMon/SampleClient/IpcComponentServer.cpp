@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2025 Intel Corporation
+﻿// Copyright (C) 2022-2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include "../Interprocess/source/OwnedDataSegment.h"
@@ -28,16 +28,16 @@ static constexpr const char* kSystemSegName = "pm_ipc_system_store_test_seg";
 // The test goal is ring push/read plumbing, not capability validation.
 static constexpr PM_METRIC kScalarMetric = PM_METRIC_CPU_FREQUENCY;
 static constexpr PM_METRIC kArrayMetric = PM_METRIC_CPU_UTILIZATION;
+static constexpr size_t kSystemRingCapacity = 32;
+static constexpr size_t kSystemSegmentBytes = 512 * 1024;
 
 static void BuildRings_(ipc::SystemDataStore& store)
 {
-    constexpr size_t ringCapacity = 32;
-
     // Scalar metric
-    store.telemetryData.AddRing(kScalarMetric, ringCapacity, 1, PM_DATA_TYPE_DOUBLE);
+    store.telemetryData.AddRing(kScalarMetric, kSystemRingCapacity, 1, PM_DATA_TYPE_DOUBLE);
 
     // Array metric with 2 elements
-    store.telemetryData.AddRing(kArrayMetric, ringCapacity, 2, PM_DATA_TYPE_DOUBLE);
+    store.telemetryData.AddRing(kArrayMetric, kSystemRingCapacity, 2, PM_DATA_TYPE_DOUBLE);
 }
 
 static void PushDeterministicSamples_(ipc::SystemDataStore& store)
@@ -77,8 +77,14 @@ static void PushDeterministicSamples_(ipc::SystemDataStore& store)
 // Submode entry point.
 int IpcComponentServer()
 {
+    ipc::DataStoreSizingInfo sizing{};
+    sizing.overrideBytes = kSystemSegmentBytes;
+
     // Create the shared memory segment hosting SystemDataStore.
-    ipc::OwnedDataSegment<ipc::SystemDataStore> seg{ kSystemSegName };
+    ipc::OwnedDataSegment<ipc::SystemDataStore> seg{
+        kSystemSegName,
+        sizing
+    };
     auto& store = seg.GetStore();
 
     // Only build the two test rings.
@@ -114,3 +120,4 @@ int IpcComponentServer()
 
     return -1;
 }
+

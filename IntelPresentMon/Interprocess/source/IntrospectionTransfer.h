@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <vector>
 #include <memory>
@@ -103,6 +103,10 @@ namespace pmon::ipc::intro
 			return pSelf;
 		}
 		std::span<ShmUniquePtr<T>> GetElements()
+		{
+			return { buffer_ };
+		}
+		std::span<const ShmUniquePtr<T>> GetElements() const
 		{
 			return { buffer_ };
 		}
@@ -250,6 +254,10 @@ namespace pmon::ipc::intro
 		{
 			return id_;
 		}
+		PM_DEVICE_TYPE GetType() const
+		{
+			return type_;
+		}
 	private:
 		uint32_t id_;
 		PM_DEVICE_TYPE type_;
@@ -284,6 +292,10 @@ namespace pmon::ipc::intro
 				std::allocator_traits<A>::construct(alloc, pSelf, content);
 			}
 			return pSelf;
+		}
+		uint32_t GetDeviceId() const
+		{
+			return deviceId_;
 		}
 	private:
 		uint32_t deviceId_;
@@ -460,6 +472,10 @@ namespace pmon::ipc::intro
 		{
 			return *pTypeInfo_;
 		}
+		std::span<const ShmUniquePtr<IntrospectionDeviceMetricInfo>> GetDeviceMetricInfo() const
+		{
+			return deviceMetricInfo_.GetElements();
+		}
 		PM_METRIC_TYPE GetMetricType() const
 		{
 			return type_;
@@ -508,13 +524,30 @@ namespace pmon::ipc::intro
 		{
 			return metrics_.GetElements();
 		}
+		std::span<const ShmUniquePtr<IntrospectionMetric>> GetMetrics() const
+		{
+			return metrics_.GetElements();
+		}
 		std::span<ShmUniquePtr<IntrospectionDevice>> GetDevices()
+		{
+			return devices_.GetElements();
+		}
+		std::span<const ShmUniquePtr<IntrospectionDevice>> GetDevices() const
 		{
 			return devices_.GetElements();
 		}
 		IntrospectionMetric& FindMetric(PM_METRIC metric)
 		{
 			for (auto& p : GetMetrics()) {
+				if (p->GetId() == metric) {
+					return *p;
+				}
+			}
+			throw util::Except<>("Metric ID not found in introspection");
+		}
+		const IntrospectionMetric& FindMetric(PM_METRIC metric) const
+		{
+			for (const auto& p : GetMetrics()) {
 				if (p->GetId() == metric) {
 					return *p;
 				}

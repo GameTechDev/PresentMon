@@ -1,4 +1,4 @@
-#include "../../CommonUtilities/win/WinAPI.h"
+﻿#include "../../CommonUtilities/win/WinAPI.h"
 #include "Interprocess.h"
 #include "IntrospectionTransfer.h"
 #include "IntrospectionPopulators.h"
@@ -10,6 +10,7 @@
 #include <boost/interprocess/sync/interprocess_sharable_mutex.hpp>
 #include <boost/interprocess/sync/interprocess_semaphore.hpp>
 #include <boost/interprocess/sync/sharable_lock.hpp>
+#include <algorithm>
 #include <chrono>
 #include "../../PresentMonService/GlobalIdentifiers.h"
 #include <windows.h>
@@ -28,8 +29,6 @@ namespace pmon::ipc
         class CommsBase_
         {
         protected:
-            static constexpr size_t frameRingSize_ = 1'000;
-            static constexpr size_t telemetryRingSize_ = 1'000;
             static constexpr size_t introShmSize_ = 0x10'0000;
             static constexpr const char* introspectionRootName_ = "in-root";
             static constexpr const char* introspectionMutexName_ = "in-mtx";
@@ -39,9 +38,13 @@ namespace pmon::ipc
         class ServiceComms_ : public ServiceComms, CommsBase_
         {
         public:
-            ServiceComms_(std::string prefix)
+            ServiceComms_(std::string prefix,
+                size_t frameRingSamples,
+                size_t telemetryRingSamples)
                 :
                 namer_{ std::move(prefix) },
+                frameRingSamples_{ std::max(frameRingSamples, kMinRingSamples_) },
+                telemetryRingSamples_{ std::max(telemetryRingSamples, kMinRingSamples_) },
                 shm_{ bip::create_only, namer_.MakeIntrospectionName().c_str(),
                     introShmSize_, nullptr, Permissions_{} },
                 pIntroMutex_{ ShmMakeNamedUnique<bip::interprocess_sharable_mutex>(
@@ -49,9 +52,7 @@ namespace pmon::ipc
                 pIntroSemaphore_{ ShmMakeNamedUnique<bip::interprocess_semaphore>(
                     introspectionSemaphoreName_, shm_.get_segment_manager(), 0) },
                 pRoot_{ ShmMakeNamedUnique<intro::IntrospectionRoot>(introspectionRootName_,
-                    shm_.get_segment_manager(), shm_.get_segment_manager()) },
-                systemShm_{ namer_.MakeSystemName(),
-                    static_cast<const bip::permissions&>(Permissions_{}) }
+                    shm_.get_segment_manager(), shm_.get_segment_manager()) }
             {
                 PreInitializeIntrospection_();
             }
@@ -74,6 +75,7 @@ namespace pmon::ipc
                     std::piecewise_construct,
                     std::forward_as_tuple(deviceId),
                     std::forward_as_tuple(namer_.MakeGpuName(deviceId),
+                        DataStoreSizingInfo{ pRoot_.get().get(), &caps, telemetryRingSamples_ },
                         static_cast<const bip::permissions&>(Permissions_{}))
                 ).first->second;
                 // populate rings based on caps
@@ -91,7 +93,7 @@ namespace pmon::ipc
                     }
                     const auto dataType = metric.GetDataTypeInfo().GetFrameType();
                     gpuShm.GetStore().telemetryData.AddRing(
-                        m, telemetryRingSize_, count, dataType
+                        m, telemetryRingSamples_, count, dataType
                     );
                 }
             }
@@ -112,6 +114,11 @@ namespace pmon::ipc
                 intro::PopulateCpu(
                     shm_.get_segment_manager(), *pRoot_, vendor, std::move(deviceName), caps
                 );
+                if (!systemShm_) {
+                    systemShm_.emplace(namer_.MakeSystemName(),
+                        DataStoreSizingInfo{ pRoot_.get().get(), &caps, telemetryRingSamples_ },
+                        static_cast<const bip::permissions&>(Permissions_{}));
+                }
                 // populate rings based on caps
                 for (auto&& [m, count] : caps) {
                     const auto& metric = pRoot_->FindMetric(m);
@@ -121,8 +128,8 @@ namespace pmon::ipc
                         continue;
                     }
                     const auto dataType = metric.GetDataTypeInfo().GetFrameType();
-                    systemShm_.GetStore().telemetryData.AddRing(
-                        m, telemetryRingSize_, count, dataType
+                    systemShm_->GetStore().telemetryData.AddRing(
+                        m, telemetryRingSamples_, count, dataType
                     );
                 }
                 introCpuComplete_ = true;
@@ -147,10 +154,11 @@ namespace pmon::ipc
                     // make a frame data store as shared ptr
                     pFrameData = std::make_shared<OwnedDataSegment<FrameDataStore>>(
                         namer_.MakeFrameName(pid), 
-                        static_cast<const bip::permissions&>(Permissions_{}),
-                        frameRingSize_,
-                        backpressured
-                    );
+                        DataStoreSizingInfo{
+                            .ringSamples = frameRingSamples_,
+                            .backpressured = backpressured,
+                        },
+                        static_cast<const bip::permissions&>(Permissions_{}));
                     // store a weak reference
                     pWeak = pFrameData;
                 }
@@ -186,7 +194,10 @@ namespace pmon::ipc
             }
             SystemDataStore& GetSystemDataStore() override
             {
-                return systemShm_.GetStore();
+                if (!systemShm_) {
+                    throw std::runtime_error("System data segment not initialized");
+                }
+                return systemShm_->GetStore();
             }
 
         private:
@@ -243,7 +254,10 @@ namespace pmon::ipc
             }
 
             // data
+            static constexpr size_t kMinRingSamples_ = 8;
             ShmNamer namer_;
+            size_t frameRingSamples_;
+            size_t telemetryRingSamples_;
             ShmSegment shm_;
             ShmUniquePtr<bip::interprocess_sharable_mutex> pIntroMutex_;
             ShmUniquePtr<bip::interprocess_semaphore> pIntroSemaphore_;
@@ -252,7 +266,7 @@ namespace pmon::ipc
             bool introGpuComplete_ = false;
             bool introCpuComplete_ = false;
 
-            OwnedDataSegment<SystemDataStore> systemShm_;
+            std::optional<OwnedDataSegment<SystemDataStore>> systemShm_;
             std::unordered_map<uint32_t, std::weak_ptr<OwnedDataSegment<FrameDataStore>>> frameShmWeaks_;
             std::unordered_map<uint32_t, OwnedDataSegment<GpuDataStore>> gpuShms_;
         };
@@ -263,9 +277,10 @@ namespace pmon::ipc
             MiddlewareComms_(std::string prefix, std::string salt)
                 :
                 namer_{ std::move(prefix), std::move(salt) },
-                shm_{ bip::open_only, namer_.MakeIntrospectionName().c_str() },
-                systemShm_{ namer_.MakeSystemName() } // eager-load system segment
+                shm_{ bip::open_only, namer_.MakeIntrospectionName().c_str() }
             {
+                WaitOnIntrospectionHoldoff_(1500);
+                systemShm_.emplace(namer_.MakeSystemName());
                 // Eager-load all GPU segments based on introspection
                 auto ids = GetGpuDeviceIds_();
                 for (auto id : ids) {
@@ -337,7 +352,10 @@ namespace pmon::ipc
             }
             const SystemDataStore& GetSystemDataStore() const override
             {
-                return systemShm_.GetStore();
+                if (!systemShm_) {
+                    throw std::runtime_error{ "System data segment not open" };
+                }
+                return systemShm_->GetStore();
             }
 
         private:
@@ -397,16 +415,21 @@ namespace pmon::ipc
             ShmNamer namer_;
             ShmSegment shm_; // introspection shm
 
-            ViewedDataSegment<SystemDataStore> systemShm_;
+            std::optional<ViewedDataSegment<SystemDataStore>> systemShm_;
             std::unordered_map<uint32_t, ViewedDataSegment<GpuDataStore>> gpuShms_;
             std::unordered_map<uint32_t, ViewedDataSegment<FrameDataStore>> frameShms_;
         };
     }
 
     std::unique_ptr<ServiceComms>
-        MakeServiceComms(std::string prefix)
+        MakeServiceComms(std::string prefix,
+            size_t frameRingSamples,
+            size_t telemetryRingSamples)
     {
-        return std::make_unique<ServiceComms_>(std::move(prefix));
+        return std::make_unique<ServiceComms_>(
+            std::move(prefix),
+            frameRingSamples,
+            telemetryRingSamples);
     }
 
     std::unique_ptr<MiddlewareComms>
@@ -415,3 +438,4 @@ namespace pmon::ipc
         return std::make_unique<MiddlewareComms_>(std::move(prefix), std::move(salt));
     }
 }
+

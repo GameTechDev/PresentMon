@@ -1,8 +1,7 @@
-#pragma once
+﻿#pragma once
 #include "SharedMemoryTypes.h"
-#include "MetricCapabilities.h"
 #include "DataStores.h"
-#include <type_traits>
+#include "../../CommonUtilities/log/Log.h"
 
 namespace pmon::ipc
 {
@@ -11,26 +10,15 @@ namespace pmon::ipc
     class OwnedDataSegment
     {
     public:
-        // No ACL version
-        // For FrameDataStore: pass (ringCapacity)
-        // For GpuDataStore/SystemDataStore: pass no extra args
-        template<class... StoreArgs>
+        // Uses DataStoreSizingInfo for sizing across all stores; permissions are optional.
         OwnedDataSegment(const std::string& segmentName,
-            StoreArgs&&... storeArgs)
+            const DataStoreSizingInfo& sizing,
+            const bip::permissions& perms = {})
             :
-            shm_{ bip::create_only, segmentName.c_str(), T::virtualSegmentSize },
-            pData_{ MakeStore_(std::forward<StoreArgs>(storeArgs)...) }
-        {}
-
-        // ACL version
-        template<class... StoreArgs>
-        OwnedDataSegment(const std::string& segmentName,
-            const bip::permissions& perms,
-            StoreArgs&&... storeArgs)
-            :
-            shm_{ bip::create_only, segmentName.c_str(), T::virtualSegmentSize,
-                  nullptr, perms },
-            pData_{ MakeStore_(std::forward<StoreArgs>(storeArgs)...) }
+            shm_{ bip::create_only, segmentName.c_str(),
+                ResolveSegmentBytes_(segmentName, sizing),
+                nullptr, perms },
+            pData_{ MakeStore_(sizing) }
         {}
 
         T& GetStore() { return *pData_; }
@@ -39,34 +27,32 @@ namespace pmon::ipc
     private:
         static constexpr const char* name_ = "seg-dat";
 
-        // Factory that constructs the store in shared memory with the right allocator
-        template<class... StoreArgs>
-        ShmUniquePtr<T> MakeStore_(StoreArgs&&... storeArgs)
+        static size_t ResolveSegmentBytes_(const std::string& segmentName,
+            const DataStoreSizingInfo& sizing)
         {
-            // FrameDataStore: expects (ShmAllocator<PmFrameData>&, size_t cap)
-            if constexpr (std::is_same_v<T, FrameDataStore>) {
-                return ShmMakeNamedUnique<FrameDataStore>(
-                    name_,
-                    shm_.get_segment_manager(),
-                    *shm_.get_segment_manager(),
-                    std::forward<StoreArgs>(storeArgs)...
-                );
-            }
-            // Telemetry stores: expect TelemetryMap::AllocatorType& only
-            else if constexpr (std::is_same_v<T, GpuDataStore> ||
-                std::is_same_v<T, SystemDataStore>) {
-                static_assert(sizeof...(StoreArgs) == 0,
-                    "OwnedStreamedSegment<GpuDataStore/SystemDataStore> "
-                    "does not take extra ctor args");
-                return ShmMakeNamedUnique<T>(
-                    name_,
-                    shm_.get_segment_manager(),
-                    *shm_.get_segment_manager()
-                );
-            }
+            const auto calculatedSize = sizing.overrideBytes ? *sizing.overrideBytes :
+                T::CalculateSegmentBytes(sizing);
+            pmlog_dbg("Creating shm segment")
+                .pmwatch(segmentName)
+                .pmwatch(calculatedSize)
+                .pmwatch(sizing.ringSamples)
+                .pmwatch(sizing.overrideBytes.has_value())
+                .pmwatch(sizing.backpressured);
+            return calculatedSize;
+        }
+
+        ShmUniquePtr<T> MakeStore_(const DataStoreSizingInfo& sizing)
+        {
+            return ShmMakeNamedUnique<T>(
+                name_,
+                shm_.get_segment_manager(),
+                *shm_.get_segment_manager(),
+                sizing
+            );
         }
 
         ShmSegment shm_;
         ShmUniquePtr<T> pData_;
     };
 }
+

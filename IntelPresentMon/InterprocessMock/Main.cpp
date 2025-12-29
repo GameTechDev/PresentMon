@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include "../Interprocess/source/ExperimentalInterprocess.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "Options.h"
@@ -269,7 +269,9 @@ int main(int argc, char** argv)
 		else if (opts.basicIntro) {
 			std::string buffer;
 
-			auto pServiceComms = pmon::ipc::MakeServiceComms(*opts.introNsm);
+			auto pServiceComms = pmon::ipc::MakeServiceComms(*opts.introNsm,
+				1000,
+				1500);
 			pmon::ipc::intro::RegisterMockIntrospectionDevices(*pServiceComms);
 
 			// signal to client that shm has been created

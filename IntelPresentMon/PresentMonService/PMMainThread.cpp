@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Logging.h"
 #include "Service.h"
@@ -13,6 +13,7 @@
 #include "../Interprocess/source/ShmNamer.h"
 #include "../Interprocess/source/MetricCapabilitiesShim.h"
 #include "CliOptions.h"
+#include "Registry.h"
 #include "GlobalIdentifiers.h"
 #include <ranges>
 #include "../CommonUtilities/IntervalWaiter.h"
@@ -557,6 +558,15 @@ void PresentMonMainThread(Service* const pSvc)
     try {
         // alias for options
         auto& opt = clio::Options::Get();
+        const auto& reg = Reg::Get();
+        const auto frameRingSamples = opt.frameRingSamples.AsOptional().value_or(
+            reg.frameRingSamples.AsOptional()
+                .transform([](auto val) { return static_cast<size_t>(val); })
+                .value_or(*opt.frameRingSamples));
+        const auto telemetryRingSamples = opt.telemetryRingSamples.AsOptional().value_or(
+            reg.telemetryRingSamples.AsOptional()
+                .transform([](auto val) { return static_cast<size_t>(val); })
+                .value_or(*opt.telemetryRingSamples));
 
         // spin here waiting for debugger to attach, after which debugger should set
         // debug_service to false in order to proceed
@@ -591,7 +601,9 @@ void PresentMonMainThread(Service* const pSvc)
         std::unique_ptr<ipc::ServiceComms> pComms;
         try {
             pmlog_dbg("Creating comms with shm prefix: ").pmwatch(*opt.shmNamePrefix);
-            pComms = ipc::MakeServiceComms(*opt.shmNamePrefix);
+            pComms = ipc::MakeServiceComms(*opt.shmNamePrefix,
+                frameRingSamples,
+                telemetryRingSamples);
             pmlog_info("Created comms with introspection shm name: ")
                 .pmwatch(pComms->GetNamer().MakeIntrospectionName());
         }
@@ -636,8 +648,6 @@ void PresentMonMainThread(Service* const pSvc)
         }
 
         if (cpu) {
-            cpuTelemetryThread = std::jthread{ CpuTelemetryThreadEntry_, pSvc, &pm, pComms.get(),
-                cpu.get(), opt.newTelemetryActivation };
             pm.SetCpu(cpu);
             // sample once to populate the cap bits
             cpu->Sample();
@@ -667,6 +677,8 @@ void PresentMonMainThread(Service* const pSvc)
             systemStore.statics.cpuName = cpu->GetCpuName().c_str();
             systemStore.statics.cpuPowerLimit = cpu->GetCpuPowerLimit();
             systemStore.statics.cpuVendor = vendor;
+            cpuTelemetryThread = std::jthread{ CpuTelemetryThreadEntry_, pSvc, &pm, pComms.get(),
+                cpu.get(), opt.newTelemetryActivation };
         } else {
             // We were unable to determine the cpu.
             pComms->RegisterCpuDevice(PM_DEVICE_VENDOR_UNKNOWN, "UNKNOWN_CPU",

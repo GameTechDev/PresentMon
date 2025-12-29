@@ -11,6 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="source\DataStores.cpp" />
     <ClCompile Include="source\Interprocess.cpp" />
     <ClCompile Include="source\IntrospectionHelpers.cpp" />
     <ClCompile Include="source\IntrospectionPopulators.cpp" />

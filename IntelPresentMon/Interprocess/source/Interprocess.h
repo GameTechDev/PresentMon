@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <optional>
 #include <string>
 #include <memory>
@@ -49,6 +49,8 @@ namespace pmon::ipc
 		virtual void CloseFrameDataStore(uint32_t pid) = 0;
 	};
 
-	std::unique_ptr<ServiceComms> MakeServiceComms(std::string prefix);
+	std::unique_ptr<ServiceComms> MakeServiceComms(std::string prefix,
+		size_t frameRingSamples,
+		size_t telemetryRingSamples);
 	std::unique_ptr<MiddlewareComms> MakeMiddlewareComms(std::string prefix, std::string salt);
 }

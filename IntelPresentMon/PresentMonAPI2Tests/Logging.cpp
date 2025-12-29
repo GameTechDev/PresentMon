@@ -1,4 +1,4 @@
-#include "Logging.h"
+﻿#include "Logging.h"
 
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/log/Channel.h"
