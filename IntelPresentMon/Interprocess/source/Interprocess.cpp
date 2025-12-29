@@ -70,32 +70,19 @@ namespace pmon::ipc
                     shm_.get_segment_manager(), *pRoot_,
                     deviceId, vendor, deviceName, caps
                 );
+                const DataStoreSizingInfo sizing{ pRoot_.get().get(), &caps, telemetryRingSamples_ };
                 // allocate map node and create shm segment
                 auto& gpuShm = gpuShms_.emplace(
                     std::piecewise_construct,
                     std::forward_as_tuple(deviceId),
                     std::forward_as_tuple(namer_.MakeGpuName(deviceId),
-                        DataStoreSizingInfo{ pRoot_.get().get(), &caps, telemetryRingSamples_ },
+                        sizing,
                         static_cast<const bip::permissions&>(Permissions_{}))
                 ).first->second;
                 // populate rings based on caps
-                for (auto&& [m, count] : caps) {
-                    const auto& metric = pRoot_->FindMetric(m);
-                    const auto metricType = metric.GetMetricType();
-                    // static metrics don't get rings
-                    if (metricType == PM_METRIC_TYPE_STATIC) {
-                        continue;
-                    }
-                    // TODO: systemize the labelling of metrics that are middleware-derived
-                    if (m == PM_METRIC_GPU_FAN_SPEED_PERCENT ||
-                        m == PM_METRIC_GPU_MEM_UTILIZATION) {
-                        continue;
-                    }
-                    const auto dataType = metric.GetDataTypeInfo().GetFrameType();
-                    gpuShm.GetStore().telemetryData.AddRing(
-                        m, telemetryRingSamples_, count, dataType
-                    );
-                }
+                PopulateTelemetryRings(gpuShm.GetStore().telemetryData,
+                    sizing,
+                    PM_DEVICE_TYPE_GRAPHICS_ADAPTER);
             }
             void FinalizeGpuDevices() override
             {
@@ -114,24 +101,16 @@ namespace pmon::ipc
                 intro::PopulateCpu(
                     shm_.get_segment_manager(), *pRoot_, vendor, std::move(deviceName), caps
                 );
+                const DataStoreSizingInfo sizing{ pRoot_.get().get(), &caps, telemetryRingSamples_ };
                 if (!systemShm_) {
                     systemShm_.emplace(namer_.MakeSystemName(),
-                        DataStoreSizingInfo{ pRoot_.get().get(), &caps, telemetryRingSamples_ },
+                        sizing,
                         static_cast<const bip::permissions&>(Permissions_{}));
                 }
                 // populate rings based on caps
-                for (auto&& [m, count] : caps) {
-                    const auto& metric = pRoot_->FindMetric(m);
-                    const auto metricType = metric.GetMetricType();
-                    // static metrics don't get rings
-                    if (metricType == PM_METRIC_TYPE_STATIC) {
-                        continue;
-                    }
-                    const auto dataType = metric.GetDataTypeInfo().GetFrameType();
-                    systemShm_->GetStore().telemetryData.AddRing(
-                        m, telemetryRingSamples_, count, dataType
-                    );
-                }
+                PopulateTelemetryRings(systemShm_->GetStore().telemetryData,
+                    sizing,
+                    PM_DEVICE_TYPE_SYSTEM);
                 introCpuComplete_ = true;
                 if (introGpuComplete_ && introCpuComplete_) {
                     lck.unlock();

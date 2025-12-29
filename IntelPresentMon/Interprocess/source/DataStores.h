@@ -110,5 +110,9 @@ namespace pmon::ipc
 
         static size_t CalculateSegmentBytes(const DataStoreSizingInfo& sizing);
     };
+
+    void PopulateTelemetryRings(TelemetryMap& telemetryData,
+        const DataStoreSizingInfo& sizing,
+        PM_DEVICE_TYPE deviceType);
 }
 

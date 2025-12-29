@@ -56,11 +56,11 @@ namespace pmon::ipc
             return true;
         }
 
-        size_t TelemetrySegmentBytes(const DataStoreSizingInfo& sizing, PM_DEVICE_TYPE deviceType)
+        template<typename Func>
+        void ForEachTelemetryRing(const DataStoreSizingInfo& sizing,
+            PM_DEVICE_TYPE deviceType,
+            Func&& func)
         {
-            if (sizing.overrideBytes) {
-                return *sizing.overrideBytes;
-            }
             if (!sizing.pRoot || !sizing.pCaps) {
                 throw std::logic_error("DataStoreSizingInfo requires introspection root and caps");
             }
@@ -70,8 +70,6 @@ namespace pmon::ipc
                 deviceTypeById.emplace(pDevice->GetId(), pDevice->GetType());
             }
 
-            size_t ringCount = 0;
-            size_t payloadBytes = 0;
             for (auto&& [metricId, count] : *sizing.pCaps) {
                 const auto& metric = sizing.pRoot->FindMetric(metricId);
                 bool matchesDeviceType = false;
@@ -89,10 +87,25 @@ namespace pmon::ipc
                 if (!ShouldAllocateTelemetryRing(metricId, metric)) {
                     continue;
                 }
-                payloadBytes += count * sizing.ringSamples *
-                    EstimateSampleBytes(metric.GetDataTypeInfo().GetFrameType());
-                ringCount += count;
+                const auto dataType = metric.GetDataTypeInfo().GetFrameType();
+                func(metricId, count, dataType);
             }
+        }
+
+        size_t TelemetrySegmentBytes(const DataStoreSizingInfo& sizing, PM_DEVICE_TYPE deviceType)
+        {
+            if (sizing.overrideBytes) {
+                return *sizing.overrideBytes;
+            }
+
+            size_t ringCount = 0;
+            size_t payloadBytes = 0;
+            ForEachTelemetryRing(sizing, deviceType,
+                [&](PM_METRIC, size_t count, PM_DATA_TYPE dataType) {
+                    payloadBytes += count * sizing.ringSamples *
+                        EstimateSampleBytes(dataType);
+                    ringCount += count;
+                });
 
             const size_t leewayBytes =
                 ringCount * kTelemetryLeewayPerRingBytes + kTelemetryLeewayBaseBytes;
@@ -105,6 +118,16 @@ namespace pmon::ipc
         const size_t payloadBytes = sizing.ringSamples * sizeof(FrameData);
         const size_t leewayBytes = kFrameLeewayPerRingBytes + kFrameLeewayBaseBytes;
         return PadToAlignment(payloadBytes + leewayBytes, kSegmentAlignmentBytes);
+    }
+
+    void PopulateTelemetryRings(TelemetryMap& telemetryData,
+        const DataStoreSizingInfo& sizing,
+        PM_DEVICE_TYPE deviceType)
+    {
+        ForEachTelemetryRing(sizing, deviceType,
+            [&](PM_METRIC metricId, size_t count, PM_DATA_TYPE dataType) {
+                telemetryData.AddRing(metricId, sizing.ringSamples, count, dataType);
+            });
     }
 
     size_t GpuDataStore::CalculateSegmentBytes(const DataStoreSizingInfo& sizing)
