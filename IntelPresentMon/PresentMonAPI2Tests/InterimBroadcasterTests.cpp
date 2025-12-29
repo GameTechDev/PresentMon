@@ -685,6 +685,96 @@ namespace InterimBroadcasterTests
         }
     };
 
+    TEST_CLASS(FrameStoreRealtimeWrapTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup({
+                "--frame-ring-samples"s, "16"s,
+            });
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        TEST_METHOD(WrapNoMissingFrames)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
+            std::this_thread::sleep_for(1ms);
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            pComms->OpenFrameDataStore(pres.GetId());
+            auto& ring = pComms->GetFrameDataStore(pres.GetId()).frameData;
+
+            std::this_thread::sleep_for(200ms);
+
+            size_t lastProcessed = 0;
+            bool missed = false;
+            bool sawWrap = false;
+            bool hasTimestamp = false;
+            uint64_t lastTimestamp = 0;
+
+            for (size_t i = 0; i < 60; ++i) {
+                std::this_thread::sleep_for(25ms);
+                const auto range = ring.GetSerialRange();
+                Logger::WriteMessage(std::format(
+                    "rt-wrap-no-miss: range [{}, {}), lastProcessed={}\n",
+                    range.first, range.second, lastProcessed).c_str());
+                if (range.first > 0) {
+                    sawWrap = true;
+                }
+                if (range.first > lastProcessed) {
+                    missed = true;
+                }
+                const size_t start = (std::max)(lastProcessed, range.first);
+                for (size_t s = start; s < range.second; ++s) {
+                    const auto& frame = ring.At(s);
+                    const uint64_t stamp = frame.presentStartTime + frame.timeInPresent;
+                    if (hasTimestamp) {
+                        Assert::IsTrue(stamp >= lastTimestamp);
+                    }
+                    lastTimestamp = stamp;
+                    hasTimestamp = true;
+                }
+                lastProcessed = range.second;
+            }
+
+            Assert::IsTrue(sawWrap, L"Expected ring to wrap");
+            Assert::IsFalse(missed, L"Expected no missing frames with frequent reads");
+            Assert::IsTrue(lastProcessed > 0);
+        }
+        TEST_METHOD(WrapMissingFrames)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
+            std::this_thread::sleep_for(1ms);
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            pComms->OpenFrameDataStore(pres.GetId());
+            auto& ring = pComms->GetFrameDataStore(pres.GetId()).frameData;
+
+            auto range = ring.GetSerialRange();
+            for (size_t i = 0; i < 20 && range.first == 0; ++i) {
+                std::this_thread::sleep_for(100ms);
+                range = ring.GetSerialRange();
+            }
+            Logger::WriteMessage(std::format(
+                "rt-wrap-miss: range [{}, {})\n", range.first, range.second).c_str());
+
+            Assert::IsTrue(range.first > 0, L"Expected missing frames after delay");
+            Assert::IsTrue(range.second > range.first);
+        }
+    };
+
     TEST_CLASS(FrameStorePacedPlaybackTests)
     {
         TestFixture fixture_;
@@ -871,6 +961,67 @@ namespace InterimBroadcasterTests
             // known issue with PresentData is that it sometimes outputs 24 rogue frames at
             // the end for P00; we can ignore these for the time being, issue added to board
             Assert::IsTrue(range3.second == 1905ull || range3.second == 1929ull);
+        }
+    };
+
+    TEST_CLASS(FrameStorePlaybackBackpressureWrapTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup({
+                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P01TimeSpyDemoFS2080.etl)"s,
+                "--disable-legacy-backpressure"s,
+                "--frame-ring-samples"s, "32"s,
+            });
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        TEST_METHOD(BackpressurePreventsMissingFrames)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
+            std::this_thread::sleep_for(1ms);
+
+            const uint32_t pid = 19736;
+            client.DispatchSync(svc::acts::StartTracking::Params{
+                .targetPid = pid, .isPlayback = true, .isBackpressured = true });
+
+            pComms->OpenFrameDataStore(pid);
+            auto& ring = pComms->GetFrameDataStore(pid).frameData;
+
+            size_t lastProcessed = 0;
+            bool missed = false;
+            bool sawWrap = false;
+
+            for (size_t i = 0; i < 10; ++i) {
+                std::this_thread::sleep_for(300ms);
+                const auto range = ring.GetSerialRange();
+                Logger::WriteMessage(std::format(
+                    "pb-wrap-backpressure: range [{}, {}), lastProcessed={}\n",
+                    range.first, range.second, lastProcessed).c_str());
+                if (range.first > 0) {
+                    sawWrap = true;
+                }
+                if (range.first > lastProcessed) {
+                    missed = true;
+                }
+                const size_t start = (std::max)(lastProcessed, range.first);
+                for (size_t s = start; s < range.second; ++s) {
+                    (void)ring.At(s);
+                }
+                ring.MarkNextRead(range.second);
+                lastProcessed = range.second;
+            }
+
+            Assert::IsTrue(sawWrap, L"Expected ring to wrap during playback");
+            Assert::IsFalse(missed, L"Expected backpressure to prevent missing frames");
+            Assert::IsTrue(lastProcessed > 0);
         }
     };
 
