@@ -33,6 +33,7 @@ struct CommonProcessArgs
 	std::optional<std::string> logVerboseModules;
 	std::string logFolder;
 	std::string sampleClientMode;
+	bool suppressService = false;
 };
 
 inline std::vector<std::string> SplitVerboseModulesArgs_(const std::string& raw)
@@ -303,22 +304,37 @@ public:
 		}
 		pmon::test::SetupTestLogging(GetCommonArgs().logFolder, GetCommonArgs().logLevel,
 			GetCommonArgs().logVerboseModules);
-		StartService_(args, GetCommonArgs());
 		svcArgs_ = std::move(args);
+		if (!GetCommonArgs().suppressService) {
+			StartService_(svcArgs_, GetCommonArgs());
+			serviceStarted_ = true;
+		}
+		else {
+			serviceStarted_ = false;
+		}
 	}
 	void Cleanup()
 	{
-		StopService_(GetCommonArgs());
-		ioctxRunThread_.join();
+		if (serviceStarted_) {
+			StopService_(GetCommonArgs());
+			serviceStarted_ = false;
+		}
+		if (ioctxRunThread_.joinable()) {
+			ioctxRunThread_.join();
+		}
 		logManager_.reset();
 	}
 	void RebootService(std::optional<std::vector<std::string>> newArgs = {})
 	{
 		auto& common = GetCommonArgs();
+		if (common.suppressService) {
+			return;
+		}
 		auto& svcArgs = newArgs ? *newArgs : svcArgs_;
 		StopService_(common);
 		StartService_(svcArgs, common);
 		svcArgs_ = std::move(svcArgs);
+		serviceStarted_ = true;
 	}
 	ClientProcess LaunchClient(const std::vector<std::string>& args = {})
 	{
@@ -368,6 +384,7 @@ private:
 	static constexpr int svcPipeTimeout_ = 250;
 	std::vector<std::string> svcArgs_;
 	JobManager jobMan_;
+	bool serviceStarted_ = false;
 	std::thread ioctxRunThread_;
 	as::io_context ioctx_;
 	std::optional<pmon::test::LogChannelManager> logManager_;

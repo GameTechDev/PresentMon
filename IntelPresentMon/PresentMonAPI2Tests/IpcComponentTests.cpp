@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2025 Intel Corporation
+﻿// Copyright (C) 2022-2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include "../CommonUtilities/win/WinAPI.h"
@@ -8,10 +8,12 @@
 #include "JobManager.h"
 
 #include "../Interprocess/source/ViewedDataSegment.h"
+#include "../Interprocess/source/OwnedDataSegment.h"
 #include "../Interprocess/source/DataStores.h"
 
 #include "../PresentMonAPI2/PresentMonAPI.h"
 
+#include <algorithm>
 #include <chrono>
 #include <format>
 #include <sstream>
@@ -47,6 +49,7 @@ namespace IpcComponentTests
                 .logLevel = "debug",
                 .logFolder = logFolder_,
                 .sampleClientMode = "IpcComponentServer",
+                .suppressService = true,
             };
             return args;
         }
@@ -113,7 +116,15 @@ namespace IpcComponentTests
         return 50.0 + 2.0 * static_cast<double>(i);
     }
 
-    TEST_CLASS(SystemDataStoreHistoryRingInterfaceTests)
+    static void AssertScalarSampleMatches_(const ipc::HistoryRing<double>& ring, size_t serial)
+    {
+        const auto& sample = ring.At(serial);
+        const uint64_t expectedTs = kBaseTs + static_cast<uint64_t>(serial);
+        Assert::AreEqual(expectedTs, sample.timestamp);
+        Assert::AreEqual(ExpectedScalarValue_(expectedTs), sample.value, 1e-9);
+    }
+
+    TEST_CLASS(HistoryRingStoreBasicAccessTests)
     {
         TestFixture fixture_;
 
@@ -365,6 +376,150 @@ namespace IpcComponentTests
             Logger::WriteMessage(std::format("ForEach visited={}, sum={}\n", visited, sum).c_str());
 
             Assert::AreEqual(expectedSum, sum, 1e-9);
+        }
+    };
+
+    TEST_CLASS(HistoryRingStoreWrappingTests)
+    {
+        TestFixture fixture_;
+
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup();
+        }
+
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+
+        TEST_METHOD(RingWrapNoMissingFrames)
+        {
+            constexpr size_t ringCapacity = 16;
+            constexpr size_t samplesPerPush = 10;
+            auto server = fixture_.LaunchClient({
+                "--ipc-system-ring-capacity", std::to_string(ringCapacity),
+                "--ipc-system-samples-per-push", std::to_string(samplesPerPush),
+            });
+            std::this_thread::sleep_for(25ms);
+
+            ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            const auto& store = view.GetStore();
+            const auto& ring = store.telemetryData.FindRing<double>(kScalarMetric).at(0);
+
+            size_t lastProcessed = 0;
+            size_t totalPushed = samplesPerPush;
+
+            const auto consumeRange = [&](const std::pair<size_t, size_t>& range) {
+                const size_t start = (std::max)(lastProcessed, range.first);
+                for (size_t serial = start; serial < range.second; ++serial) {
+                    AssertScalarSampleMatches_(ring, serial);
+                }
+                lastProcessed = range.second;
+            };
+
+            const auto range1 = ring.GetSerialRange();
+            Logger::WriteMessage(std::format("wrap-no-miss: range1 [{}, {})\n",
+                range1.first, range1.second).c_str());
+            consumeRange(range1);
+            Assert::AreEqual<size_t>(0, range1.first);
+            Assert::AreEqual<size_t>(samplesPerPush, range1.second);
+
+            Assert::AreEqual("push-more-ok"s, server.Command("push-more"));
+            totalPushed += samplesPerPush;
+
+            const auto range2 = ring.GetSerialRange();
+            Logger::WriteMessage(std::format("wrap-no-miss: range2 [{}, {}), lastProcessed={}\n",
+                range2.first, range2.second, lastProcessed).c_str());
+            Assert::IsTrue(range2.first > 0);
+            Assert::IsTrue(range2.first <= lastProcessed);
+            consumeRange(range2);
+
+            Logger::WriteMessage(std::format("wrap-no-miss: processed={}, newest-ts={}\n",
+                lastProcessed, ring.Newest().timestamp).c_str());
+            Assert::AreEqual<size_t>(totalPushed, lastProcessed);
+            const auto& newest = ring.Newest();
+            Assert::AreEqual<uint64_t>(kBaseTs + static_cast<uint64_t>(totalPushed - 1),
+                newest.timestamp);
+        }
+
+        TEST_METHOD(RingWrapMissingFrames)
+        {
+            constexpr size_t ringCapacity = 16;
+            constexpr size_t samplesPerPush = 10;
+            auto server = fixture_.LaunchClient({
+                "--ipc-system-ring-capacity", std::to_string(ringCapacity),
+                "--ipc-system-samples-per-push", std::to_string(samplesPerPush),
+            });
+            std::this_thread::sleep_for(25ms);
+
+            ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            const auto& store = view.GetStore();
+            const auto& ring = store.telemetryData.FindRing<double>(kScalarMetric).at(0);
+
+            Assert::AreEqual("push-more-ok"s, server.Command("push-more"));
+            const size_t totalPushed = samplesPerPush * 2;
+
+            const auto range = ring.GetSerialRange();
+            Logger::WriteMessage(std::format("wrap-miss: range [{}, {}), totalPushed={}\n",
+                range.first, range.second, totalPushed).c_str());
+            Assert::AreEqual<size_t>(totalPushed, range.second);
+            Assert::IsTrue(range.first > 0);
+
+            const size_t missed = range.first;
+            Logger::WriteMessage(std::format("wrap-miss: missed={} samples\n", missed).c_str());
+            Assert::IsTrue(missed > 0);
+
+            const auto& firstSample = ring.At(range.first);
+            Assert::AreEqual<uint64_t>(kBaseTs + static_cast<uint64_t>(range.first),
+                firstSample.timestamp);
+
+            for (size_t serial = range.first; serial < range.second; ++serial) {
+                AssertScalarSampleMatches_(ring, serial);
+            }
+
+            Logger::WriteMessage(std::format("wrap-miss: newest-ts={}\n",
+                ring.Newest().timestamp).c_str());
+            const auto& newest = ring.Newest();
+            Assert::AreEqual<uint64_t>(kBaseTs + static_cast<uint64_t>(totalPushed - 1),
+                newest.timestamp);
+        }
+
+        TEST_METHOD(RingBackpressureBlocksAndResumes)
+        {
+            constexpr size_t ringSamples = 8;
+            ipc::DataStoreSizingInfo sizing{};
+            sizing.ringSamples = ringSamples;
+            sizing.backpressured = true;
+            sizing.overrideBytes = 256 * 1024;
+
+            const auto segName = std::format("pm_ipc_backpressure_test_seg_{}",
+                static_cast<unsigned int>(::GetCurrentProcessId()));
+            ipc::OwnedDataSegment<ipc::FrameDataStore> seg{ segName, sizing };
+            auto& ring = seg.GetStore().frameData;
+
+            ipc::FrameData sample{};
+            size_t pushed = 0;
+            bool sawTimeout = false;
+            for (size_t i = 0; i < ringSamples + 4; ++i) {
+                if (!ring.Push(sample, 30)) {
+                    sawTimeout = true;
+                    break;
+                }
+                ++pushed;
+            }
+
+            Assert::IsTrue(sawTimeout, L"Expected backpressure to block writes when full");
+            const auto rangeBefore = ring.GetSerialRange();
+            Assert::AreEqual<size_t>(pushed, rangeBefore.second);
+            Assert::AreEqual<size_t>(0, rangeBefore.first);
+
+            ring.MarkNextRead(rangeBefore.second);
+
+            Assert::IsTrue(ring.Push(sample, 30), L"Expected push after MarkNextRead");
+            const auto rangeAfter = ring.GetSerialRange();
+            Assert::AreEqual<size_t>(pushed + 1, rangeAfter.second);
         }
     };
 }

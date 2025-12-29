@@ -3,6 +3,7 @@
 #include "../CommonUtilities/log/Level.h"
 #include "../CommonUtilities/log/Verbose.h"
 #include "../CommonUtilities/ref/StaticReflection.h"
+#include <cstddef>
 #include <format>
 
 namespace clio
@@ -65,6 +66,10 @@ namespace clio
 		Option<std::string> serviceEtlPath{ this, "--service-etl-path", "", "Path of the ETL file to pass to the service for playback" };
 	private: Group gt_{ this, "Testing", "Control testing support options" }; public:
 		Flag testExpectError{ this, "--test-expect-error", "Indicates to test modes that fail state is being tested" };
+		Option<size_t> ipcSystemRingCapacity{ this, "--ipc-system-ring-capacity", 32,
+			"System telemetry ring capacity for the IPC component server" };
+		Option<size_t> ipcSystemSamplesPerPush{ this, "--ipc-system-samples-per-push", 12,
+			"Samples per push batch for the IPC component server" };
 
 		static constexpr const char* description = "Minimal Sample Client for Intel PresentMon service";
 		static constexpr const char* name = "SampleClient.exe";
