@@ -148,7 +148,11 @@ namespace pmon::util::metrics {
         uint64_t timeInSeconds = 0;
         double msBetweenPresents = 0;
         double msInPresentApi = 0;
+        double msUntilRenderStart = 0;
         double msUntilRenderComplete = 0;
+        double msGpuDuration = 0;
+        double msVideoDuration = 0;
+        double msSinceInput = 0;
 
         // Display Metrics (displayed frames only)
         double msDisplayLatency = 0;

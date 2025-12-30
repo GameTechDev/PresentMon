@@ -270,9 +270,6 @@ static void PruneOldSwapChainData(
 
             // Don't prune DWM swap chains with address 0x0
             bool shouldSkipPruning = isDwmProcess && swapChainAddress == 0x0;
-
-            // Unified pruning: never prune while the unified swapchain still has
-            // buffered work (e.g., waiting for nextDisplayed).
             bool shouldPrune = false;
             if (!shouldSkipPruning) {
                 shouldPrune = chain->mUnifiedSwapChain.IsPrunableBefore(minTimestamp);
@@ -571,7 +568,7 @@ static void ProcessEvents(
 
             if (args.mUseV1Metrics) {
                 // V1 emitter reads unified state BEFORE it advances.
-                if (emit) {
+                if (emit && it.nextDisplayed.has_value()) {
                     ReportMetrics1Unified(pmSession, processInfo, chain, frame, isRecording, computeAvg);
                 }
 

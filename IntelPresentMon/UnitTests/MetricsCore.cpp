@@ -1401,6 +1401,7 @@ namespace MetricsCoreTests
                 /*readyTime*/        1'500'000,   // 0.15s → 50 ms after start
                 /*displayed*/{}           // no displays => "not displayed" path
             );
+            first.gpuStartTime = 1'200'000; // 0.12s
 
             auto firstMetricsList = ComputeMetricsForPresent(qpc, first, nullptr, chain);
             Assert::AreEqual(
@@ -1440,6 +1441,15 @@ namespace MetricsCoreTests
                 0.0001,
                 L"msUntilRenderComplete should equal delta from PresentStartTime to ReadyTime.");
 
+            // msUntilRenderStart = delta between PresentStart and GPU start
+            double expectedMsUntilRenderStart =
+                qpc.DeltaUnsignedMilliSeconds(first.presentStartTime, first.gpuStartTime);
+            Assert::AreEqual(
+                expectedMsUntilRenderStart,
+                firstMetrics.msUntilRenderStart,
+                0.0001,
+                L"msUntilRenderStart should equal delta from PresentStartTime to GPUStartTime.");
+
             // With no prior present, CalculateCPUStart should return 0 → cpuStartQpc == 0
             Assert::AreEqual(
                 uint64_t(0),
@@ -1470,6 +1480,7 @@ namespace MetricsCoreTests
                 /*readyTime*/        1'516'000,   // 0.5s after first start
                 /*displayed*/{}           // still "not displayed" path
             );
+            second.gpuStartTime = 1'220'000; // 0.122s
 
             auto secondMetricsList = ComputeMetricsForPresent(qpc, second, nullptr, chain);
             Assert::AreEqual(
@@ -1488,10 +1499,12 @@ namespace MetricsCoreTests
                 0.0001,
                 L"msBetweenPresents should equal delta between lastPresent and current presentStart.");
 
-            // msInPresentApi / msUntilRenderComplete for second
+            // msInPresentApi / msUntilRenderComplete / msUntilRenderStart for second
             double expectedMsInPresentSecond = qpc.DurationMilliSeconds(second.timeInPresent);
             double expectedMsUntilRenderCompleteSecond =
                 qpc.DeltaUnsignedMilliSeconds(second.presentStartTime, second.readyTime);
+            double expectedMsUntilRenderStartSecond =
+                qpc.DeltaUnsignedMilliSeconds(second.presentStartTime, second.gpuStartTime);
 
             Assert::AreEqual(
                 expectedMsInPresentSecond,
@@ -1503,6 +1516,11 @@ namespace MetricsCoreTests
                 secondMetrics.msUntilRenderComplete,
                 0.0001,
                 L"Second frame msUntilRenderComplete should match start→ready delta.");
+            Assert::AreEqual(
+                expectedMsUntilRenderStartSecond,
+                secondMetrics.msUntilRenderStart,
+                0.0001,
+                L"Second frame msUntilRenderStart should match start→GPU start delta.");
 
             // cpuStartQpc for second should come from CalculateCPUStart:
             // lastAppPresent == first (no propagated times) → first.start + first.timeInPresent
@@ -1525,7 +1543,7 @@ namespace MetricsCoreTests
                 /*timeInPresent*/    200'000,
                 /*readyTime*/        1'500'000,
                 /*displayed*/{});   // no displays
-
+            
             auto firstMetricsList = ComputeMetricsForPresent(qpc, first, nullptr, chain);
             Assert::AreEqual(
                 size_t(1),
@@ -1548,6 +1566,7 @@ namespace MetricsCoreTests
                 std::vector<std::pair<FrameType, uint64_t>>{
                     { FrameType::Application, 2'000'000 }   // one displayed instance
             });
+            second.gpuStartTime = 1'200'000;
 
             // Dummy nextDisplayed with at least one display so the "with next" path is taken
             FrameData nextDisplayed = MakeFrame(
@@ -1601,6 +1620,15 @@ namespace MetricsCoreTests
                 0.0001,
                 L"msUntilRenderComplete should match start→ready delta for displayed frame.");
 
+            // msUntilRenderStart from start → GPU start
+            double expectedMsUntilRenderStartSecond =
+                qpc.DeltaUnsignedMilliSeconds(second.presentStartTime, second.gpuStartTime);
+            Assert::AreEqual(
+                expectedMsUntilRenderStartSecond,
+                secondMetrics.msUntilRenderStart,
+                0.0001,
+                L"msUntilRenderStart should match start→GPU start delta for displayed frame.");
+            
             // cpuStartQpc should come from CalculateCPUStart using baseline frame as lastAppPresent:
             // (no propagated times) → first.start + first.timeInPresent
             uint64_t expectedCpuStartSecond = first.presentStartTime + first.timeInPresent;

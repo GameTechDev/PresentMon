@@ -796,9 +796,17 @@ namespace pmon::util::metrics
         }
 
         out.msInPresentApi = qpc.DurationMilliSeconds(present.getTimeInPresent());
+        out.msUntilRenderStart = qpc.DeltaSignedMilliSeconds(
+            present.getPresentStartTime(),
+            present.gpuStartTime);
         out.msUntilRenderComplete = qpc.DeltaSignedMilliSeconds(
             present.getPresentStartTime(),
             present.getReadyTime());
+        out.msGpuDuration = qpc.DurationMilliSeconds(present.gpuDuration);
+        out.msVideoDuration = qpc.DurationMilliSeconds(present.gpuVideoDuration);
+        out.msSinceInput = (present.inputTime == 0)
+            ? 0.0
+            : qpc.DurationMilliSeconds(present.presentStartTime - present.inputTime);
     }
 
     void CalculateDisplayMetrics(
