@@ -588,6 +588,152 @@ namespace InterimBroadcasterTests
         }
     };
 
+    TEST_CLASS(NewActivationIsolationTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup({ "--new-telemetry-activation"s });
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        TEST_METHOD(SystemOnlyLeavesGpuEmpty)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 350 });
+            Logger::WriteMessage("SystemOnlyLeavesGpuEmpty: telemetry period set to 350ms\n");
+
+            const uint32_t SystemDeviceID = 65536;
+            const uint32_t TargetDeviceID = 1;
+
+            client.DispatchSync(svc::acts::ReportMetricUse::Params{ {
+                { PM_METRIC_CPU_UTILIZATION, SystemDeviceID, 0 },
+                { PM_METRIC_CPU_FREQUENCY, SystemDeviceID, 0 },
+            } });
+            Logger::WriteMessage("SystemOnlyLeavesGpuEmpty: reported CPU utilization/frequency usage\n");
+
+            auto& sys = pComms->GetSystemDataStore();
+            auto& gpu = pComms->GetGpuDataStore(TargetDeviceID);
+
+            auto& sysRing = sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION).at(0);
+            auto& sysFreqRing = sys.telemetryData.FindRing<double>(PM_METRIC_CPU_FREQUENCY).at(0);
+            auto& gpuRing = gpu.telemetryData.FindRing<double>(PM_METRIC_GPU_TEMPERATURE).at(0);
+            std::this_thread::sleep_for(1500ms);
+            const auto logRing = [](const char* label, const ipc::HistoryRing<double>& ring) {
+                const auto range = ring.GetSerialRange();
+                Logger::WriteMessage(std::format(
+                    "{}: serial [{}, {}) count={}\n",
+                    label, range.first, range.second, range.second - range.first).c_str());
+                for (size_t s = range.first; s < range.second; ++s) {
+                    const auto& sample = ring.At(s);
+                    Logger::WriteMessage(std::format(
+                        "{}[{}]: val={} ts={}\n",
+                        label, s, sample.value, sample.timestamp).c_str());
+                }
+            };
+            Logger::WriteMessage(std::format(
+                "SystemOnlyLeavesGpuEmpty: sizes cpu_util={} cpu_freq={} gpu_temp={}\n",
+                sysRing.Size(), sysFreqRing.Size(), gpuRing.Size()).c_str());
+            logRing("cpu_util", sysRing);
+            logRing("cpu_freq", sysFreqRing);
+            logRing("gpu_temp", gpuRing);
+            Assert::IsTrue(sysRing.Size() >= 3,
+                std::format(L"Expected cpu utilization ring to have >= 3 samples, got {}",
+                    sysRing.Size()).c_str());
+            Assert::IsTrue(sysFreqRing.Size() >= 3,
+                std::format(L"Expected cpu frequency ring to have >= 3 samples, got {}",
+                    sysFreqRing.Size()).c_str());
+            const auto sysRange = sysRing.GetSerialRange();
+            const auto sysFreqRange = sysFreqRing.GetSerialRange();
+            const auto sysSample = sysRing.At(sysRange.second - 1);
+            const auto sysFreqSample = sysFreqRing.At(sysFreqRange.second - 1);
+            Logger::WriteMessage(std::format(
+                "SystemOnlyLeavesGpuEmpty: cpu_util val={} ts={} cpu_freq val={} ts={}\n",
+                sysSample.value, sysSample.timestamp, sysFreqSample.value, sysFreqSample.timestamp).c_str());
+            Assert::IsTrue(sysSample.value > 1.,
+                std::format(L"Expected cpu utilization > 1, got {}", sysSample.value).c_str());
+            Assert::IsTrue(sysSample.value < 100.,
+                std::format(L"Expected cpu utilization < 100, got {}", sysSample.value).c_str());
+            Assert::IsTrue(sysFreqSample.value > 1500.,
+                std::format(L"Expected cpu frequency > 1500, got {}", sysFreqSample.value).c_str());
+            Assert::IsTrue(sysFreqSample.value < 6000.,
+                std::format(L"Expected cpu frequency < 6000, got {}", sysFreqSample.value).c_str());
+            Assert::AreEqual(0ull, gpuRing.Size(),
+                std::format(L"Expected gpu temperature ring size == 0, got {}", gpuRing.Size()).c_str());
+        }
+        TEST_METHOD(GpuOnlyLeavesSystemEmpty)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 350 });
+            Logger::WriteMessage("GpuOnlyLeavesSystemEmpty: telemetry period set to 350ms\n");
+
+            const uint32_t SystemDeviceID = 65536;
+            const uint32_t TargetDeviceID = 1;
+
+            client.DispatchSync(svc::acts::ReportMetricUse::Params{ {
+                { PM_METRIC_GPU_TEMPERATURE, TargetDeviceID, 0 },
+                { PM_METRIC_GPU_POWER, TargetDeviceID, 0 },
+            } });
+            Logger::WriteMessage("GpuOnlyLeavesSystemEmpty: reported GPU temperature/power usage\n");
+
+            auto& sys = pComms->GetSystemDataStore();
+            auto& gpu = pComms->GetGpuDataStore(TargetDeviceID);
+
+            auto& gpuRing = gpu.telemetryData.FindRing<double>(PM_METRIC_GPU_TEMPERATURE).at(0);
+            auto& gpuPowerRing = gpu.telemetryData.FindRing<double>(PM_METRIC_GPU_POWER).at(0);
+            auto& sysRing = sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION).at(0);
+            std::this_thread::sleep_for(1500ms);
+            const auto logRing = [](const char* label, const ipc::HistoryRing<double>& ring) {
+                const auto range = ring.GetSerialRange();
+                Logger::WriteMessage(std::format(
+                    "{}: serial [{}, {}) count={}\n",
+                    label, range.first, range.second, range.second - range.first).c_str());
+                for (size_t s = range.first; s < range.second; ++s) {
+                    const auto& sample = ring.At(s);
+                    Logger::WriteMessage(std::format(
+                        "{}[{}]: val={} ts={}\n",
+                        label, s, sample.value, sample.timestamp).c_str());
+                }
+            };
+            Logger::WriteMessage(std::format(
+                "GpuOnlyLeavesSystemEmpty: sizes gpu_temp={} gpu_power={} cpu_util={}\n",
+                gpuRing.Size(), gpuPowerRing.Size(), sysRing.Size()).c_str());
+            logRing("gpu_temp", gpuRing);
+            logRing("gpu_power", gpuPowerRing);
+            logRing("cpu_util", sysRing);
+            Assert::IsTrue(gpuRing.Size() >= 3,
+                std::format(L"Expected gpu temperature ring to have >= 3 samples, got {}",
+                    gpuRing.Size()).c_str());
+            Assert::IsTrue(gpuPowerRing.Size() >= 3,
+                std::format(L"Expected gpu power ring to have >= 3 samples, got {}",
+                    gpuPowerRing.Size()).c_str());
+            const auto gpuRange = gpuRing.GetSerialRange();
+            const auto gpuPowerRange = gpuPowerRing.GetSerialRange();
+            const auto gpuSample = gpuRing.At(gpuRange.second - 1);
+            const auto gpuPowerSample = gpuPowerRing.At(gpuPowerRange.second - 1);
+            Logger::WriteMessage(std::format(
+                "GpuOnlyLeavesSystemEmpty: gpu_temp val={} ts={} gpu_power val={} ts={}\n",
+                gpuSample.value, gpuSample.timestamp, gpuPowerSample.value, gpuPowerSample.timestamp).c_str());
+            Assert::IsTrue(gpuSample.value > 10.,
+                std::format(L"Expected gpu temperature > 10, got {}", gpuSample.value).c_str());
+            Assert::IsTrue(gpuSample.value < 120.,
+                std::format(L"Expected gpu temperature < 120, got {}", gpuSample.value).c_str());
+            Assert::IsTrue(gpuPowerSample.value > 1.,
+                std::format(L"Expected gpu power > 1, got {}", gpuPowerSample.value).c_str());
+            Assert::IsTrue(gpuPowerSample.value < 600.,
+                std::format(L"Expected gpu power < 600, got {}", gpuPowerSample.value).c_str());
+            Assert::AreEqual(0ull, sysRing.Size(),
+                std::format(L"Expected cpu utilization ring size == 0, got {}", sysRing.Size()).c_str());
+        }
+    };
+
     TEST_CLASS(FrameStoreRealtimeTests)
     {
         TestFixture fixture_;
