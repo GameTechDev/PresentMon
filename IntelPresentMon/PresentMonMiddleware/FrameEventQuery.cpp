@@ -1,9 +1,10 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #define NOMINMAX
 #include "../PresentMonUtils/StreamFormat.h"
 #include "FrameEventQuery.h"
 #include "../PresentMonAPIWrapperCommon/Introspection.h"
+#include "../Interprocess/source/SystemDeviceId.h"
 #include "../CommonUtilities/Memory.h"
 #include "../CommonUtilities/Meta.h"
 #include "../CommonUtilities/log/Log.h"
@@ -1309,8 +1310,8 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements)
 	// current release: only 1 gpu device maybe be polled at a time
 	for (auto& q : queryElements) {
 		// validate that maximum 1 device (gpu) id is specified throughout the query
-		// universal (0) and system (65536) device metrics are exempt from this limit
-		if (q.deviceId != 0 && q.deviceId != 65536) {
+		// universal (0) and system (kSystemDeviceId) device metrics are exempt from this limit
+		if (q.deviceId != 0 && q.deviceId != ipc::kSystemDeviceId) {
 			if (!referencedDevice_) {
 				referencedDevice_ = q.deviceId;
 			}

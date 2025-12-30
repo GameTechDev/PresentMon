@@ -366,7 +366,7 @@ namespace pmon::ipc
                 std::vector<uint32_t> ids;
                 for (auto& p : result.first->GetDevices()) {
                     // GPU device IDs live in the range (0, kSystemDeviceId)
-                    if (auto id = p->GetId(); id > 0 && id < intro::kSystemDeviceId) {
+                    if (auto id = p->GetId(); id > 0 && id < kSystemDeviceId) {
                         ids.push_back(id);
                     }
                 }

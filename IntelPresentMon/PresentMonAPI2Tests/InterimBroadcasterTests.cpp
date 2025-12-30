@@ -12,6 +12,7 @@
 
 #include "../PresentMonMiddleware/ActionClient.h"
 #include "../Interprocess/source/Interprocess.h"
+#include "../Interprocess/source/SystemDeviceId.h"
 #include "../PresentMonAPIWrapperCommon/EnumMap.h"
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include "../PresentMonAPIWrapper/FixedQuery.h"
@@ -163,9 +164,6 @@ namespace InterimBroadcasterTests
             }
             Assert::AreEqual(2ull, (size_t)rn::distance(sys.telemetryData.Rings()));
 
-            // system device id constant
-            const uint32_t SystemDeviceID = 65536;
-
             // allow warm-up period
             std::this_thread::sleep_for(650ms);
 
@@ -207,14 +205,11 @@ namespace InterimBroadcasterTests
             }
             Assert::AreEqual(2ull, (size_t)rn::distance(sys.telemetryData.Rings()));
 
-            // system device id constant
-            const uint32_t SystemDeviceID = 65536;
-
             // update server with metric/device usage information
             // this will trigger system telemetry collection
             client.DispatchSync(svc::acts::ReportMetricUse::Params{ {
-                { PM_METRIC_CPU_UTILIZATION, SystemDeviceID, 0 },
-                { PM_METRIC_CPU_FREQUENCY, SystemDeviceID, 0 },
+                { PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId, 0 },
+                { PM_METRIC_CPU_FREQUENCY, ipc::kSystemDeviceId, 0 },
             } });
 
             // allow warm-up period
@@ -280,9 +275,6 @@ namespace InterimBroadcasterTests
             // allow a short warmup
             std::this_thread::sleep_for(500ms);
 
-            // system device id constant
-            const uint32_t SystemDeviceID = 65536;
-
             // build the set of expected rings from the store, and cross-check against introspection
             Logger::WriteMessage("Store Metrics\n=============\n");
             std::map<PM_METRIC, size_t> storeRings;
@@ -299,7 +291,7 @@ namespace InterimBroadcasterTests
                 bool matchedDevice = false;
                 size_t introArraySize = 0;
                 for (auto&& di : m.GetDeviceMetricInfo()) {
-                    if (di.GetDevice().GetId() != SystemDeviceID) {
+                    if (di.GetDevice().GetId() != ipc::kSystemDeviceId) {
                         // skip over non-matching devices
                         continue;
                     }
@@ -323,7 +315,7 @@ namespace InterimBroadcasterTests
                 std::unordered_set<svc::acts::MetricUse> uses;
                 for (auto&& [met, siz] : storeRings) {
                     if (siz > 0) {
-                        uses.insert({ met, SystemDeviceID, 0 });
+                        uses.insert({ met, ipc::kSystemDeviceId, 0 });
                     }
                 }
                 // update server with metric/device usage information
@@ -608,12 +600,11 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 350 });
             Logger::WriteMessage("SystemOnlyLeavesGpuEmpty: telemetry period set to 350ms\n");
 
-            const uint32_t SystemDeviceID = 65536;
             const uint32_t TargetDeviceID = 1;
 
             client.DispatchSync(svc::acts::ReportMetricUse::Params{ {
-                { PM_METRIC_CPU_UTILIZATION, SystemDeviceID, 0 },
-                { PM_METRIC_CPU_FREQUENCY, SystemDeviceID, 0 },
+                { PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId, 0 },
+                { PM_METRIC_CPU_FREQUENCY, ipc::kSystemDeviceId, 0 },
             } });
             Logger::WriteMessage("SystemOnlyLeavesGpuEmpty: reported CPU utilization/frequency usage\n");
 
@@ -674,7 +665,6 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 350 });
             Logger::WriteMessage("GpuOnlyLeavesSystemEmpty: telemetry period set to 350ms\n");
 
-            const uint32_t SystemDeviceID = 65536;
             const uint32_t TargetDeviceID = 1;
 
             client.DispatchSync(svc::acts::ReportMetricUse::Params{ {

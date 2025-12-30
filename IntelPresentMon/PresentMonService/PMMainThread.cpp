@@ -12,6 +12,7 @@
 #include "../Interprocess/source/Interprocess.h"
 #include "../Interprocess/source/ShmNamer.h"
 #include "../Interprocess/source/MetricCapabilitiesShim.h"
+#include "../Interprocess/source/SystemDeviceId.h"
 #include "CliOptions.h"
 #include "Registry.h"
 #include "GlobalIdentifiers.h"
@@ -461,7 +462,7 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
                 }
                 else {
                     // if system telemetry metrics active enter active polling loop
-                    if (pm->CheckDeviceMetricUsage(65536)) {
+                    if (pm->CheckDeviceMetricUsage(ipc::kSystemDeviceId)) {
                         pmlog_dbg("detected system active");
                     }
                     else {
@@ -521,7 +522,7 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
                 waiter.Wait();
                 // conditions for ending active poll and returning to idle state
                 if (newActivation) {
-                    if (!pm->CheckDeviceMetricUsage(65536)) {
+                    if (!pm->CheckDeviceMetricUsage(ipc::kSystemDeviceId)) {
                         break;
                     }
                 }

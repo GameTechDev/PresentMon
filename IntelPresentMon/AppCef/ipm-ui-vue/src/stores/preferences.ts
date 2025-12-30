@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
@@ -14,7 +14,6 @@ import { useLoadoutStore } from './loadout';
 import { useIntrospectionStore } from './introspection';
 import { deepToRaw } from '@/core/vue-utils';
 import { useNotificationsStore } from './notifications';
-import { SYSTEM_DEVICE_ID } from '@/core/metric';
 
 export const usePreferencesStore = defineStore('preferences', () => {
   // === Dependent Stores ===
@@ -115,8 +114,10 @@ export const usePreferencesStore = defineStore('preferences', () => {
   }
   
   async function pushSpecification() {
+    await intro.load();
     // we need to get a non-proxy object for the  call
     const widgets = deepToRaw(loadout.widgets);
+    const systemDeviceId = intro.systemDeviceId;
     for (const widget of widgets) {
       // Filter out the widgetMetrics that do not meet the condition, modify those that do
       widget.metrics = widget.metrics.filter(widgetMetric => {
@@ -130,8 +131,8 @@ export const usePreferencesStore = defineStore('preferences', () => {
         // Check whether metric is a gpu metric, then we need non-universal device id
         if (!metric.availableDeviceIds.includes(0)) {
           // if this is a system metric, deviceId needs to be set to fixed id
-          if (metric.availableDeviceIds.includes(SYSTEM_DEVICE_ID)) {
-            widgetMetric.metric.deviceId = SYSTEM_DEVICE_ID;
+          if (metric.availableDeviceIds.includes(systemDeviceId)) {
+            widgetMetric.metric.deviceId = systemDeviceId;
           }
           else {
             // if no specific adapter id set, assume adapter id = 1 is active

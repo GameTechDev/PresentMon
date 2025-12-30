@@ -1,9 +1,10 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
 #include "KernelExecutionContext.h"
 #include <format>
 #include "../../Core/source/kernel/Kernel.h"
 #include "../../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
+#include "../../Interprocess/source/SystemDeviceId.h"
 #include <ranges>
 #include <array>
 
@@ -84,11 +85,13 @@ namespace ACT_NS
             std::vector<Metric> metrics;
             std::vector<Stat> stats;
             std::vector<Unit> units;
+            uint32_t systemDeviceId;
 
             template<class A> void serialize(A& ar) {
                 ar(CEREAL_NVP(metrics),
                     CEREAL_NVP(stats),
-                    CEREAL_NVP(units));
+                    CEREAL_NVP(units),
+                    CEREAL_NVP(systemDeviceId));
             }
         };
 
@@ -123,6 +126,7 @@ namespace ACT_NS
 
             // generate the response
             Response res;
+            res.systemDeviceId = ::pmon::ipc::kSystemDeviceId;
 
             // reserve space for the actual number of metrics
             res.metrics.reserve(rn::distance(intro.GetMetrics() | vi::filter(filterPred)));

@@ -1,7 +1,5 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
-export const SYSTEM_DEVICE_ID = 65536;
-
 export interface Metric {
     id: number,
     name: string,

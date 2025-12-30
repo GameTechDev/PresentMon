@@ -1,4 +1,4 @@
-#include "IntrospectionHelpers.h"
+﻿#include "IntrospectionHelpers.h"
 #include "IntrospectionMetadata.h"
 #include "IntrospectionTransfer.h"
 #include "IntrospectionCapsLookup.h"
@@ -112,9 +112,9 @@ namespace pmon::ipc::intro
 	{
 		// add the device
 		auto charAlloc = pSegmentManager->get_allocator<char>();
-		root.AddDevice(ShmMakeUnique<IntrospectionDevice>(pSegmentManager, kSystemDeviceId,
+		root.AddDevice(ShmMakeUnique<IntrospectionDevice>(pSegmentManager, ::pmon::ipc::kSystemDeviceId,
 			PM_DEVICE_TYPE_SYSTEM, vendor, ShmString{ "System", charAlloc}));
-		PopulateDeviceMetrics_(root, caps, kSystemDeviceId);
+		PopulateDeviceMetrics_(root, caps, ::pmon::ipc::kSystemDeviceId);
 	}
 
 }
