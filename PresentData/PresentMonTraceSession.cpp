@@ -659,6 +659,41 @@ void PMTraceSession::TimestampToLocalSystemTime(uint64_t timestamp, SYSTEMTIME* 
     *ns = (timestamp % 10000000) * 100;
 }
 
+bool PMTraceSession::QueryEtwStatus(EtwStatus* status) const
+{
+    if (mSessionHandle == 0) {
+        return false;
+    }
+
+    TraceProperties sessionProps = {};
+    sessionProps.Wnode.BufferSize = (ULONG) sizeof(TraceProperties);
+    sessionProps.LoggerNameOffset = offsetof(TraceProperties, mSessionName);
+
+    auto queryStatus = ControlTraceW(mSessionHandle, nullptr, &sessionProps, EVENT_TRACE_CONTROL_QUERY);
+    if (queryStatus != ERROR_SUCCESS) {
+        return false;
+    }
+
+    // Update cached status
+    mCachedEtwStatus.mEtwBuffersInUse = sessionProps.NumberOfBuffers - sessionProps.FreeBuffers;
+    mCachedEtwStatus.mEtwTotalBuffers = sessionProps.NumberOfBuffers;
+    mCachedEtwStatus.mEtwEventsLost = sessionProps.EventsLost;
+    mCachedEtwStatus.mEtwBuffersLost = sessionProps.LogBuffersLost + sessionProps.RealTimeBuffersLost;
+
+    if (sessionProps.NumberOfBuffers > 0) {
+        mCachedEtwStatus.mEtwBufferFillPct = 100.0 * mCachedEtwStatus.mEtwBuffersInUse / sessionProps.NumberOfBuffers;
+    } else {
+        mCachedEtwStatus.mEtwBufferFillPct = 0.0;
+    }
+
+    // Copy to output if provided
+    if (status != nullptr) {
+        *status = mCachedEtwStatus;
+    }
+
+    return true;
+}
+
 ULONG EnableProvidersListing(
     TRACEHANDLE sessionHandle,
     const GUID* pSessionGuid,

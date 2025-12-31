@@ -411,6 +411,7 @@ bool ParseCommandLine(int argc, wchar_t** argv)
     args->mWriteFrameId = false;
     args->mWriteDisplayTime = false;
     args->mDisableOfflineBackpressure = false;
+    args->mTrackEtwStatus = false;
 
     bool sessionNameSet  = false;
     bool csvOutputStdout = false;
@@ -479,6 +480,7 @@ bool ParseCommandLine(int argc, wchar_t** argv)
         else if (ParseArg(argv[i], L"write_frame_id")) { args->mWriteFrameId = true; continue; }
         else if (ParseArg(argv[i], L"write_display_time")) { args->mWriteDisplayTime = true; continue; }
         else if (ParseArg(argv[i], L"disable_offline_backpressure")) { args->mDisableOfflineBackpressure = true; continue; }
+        else if (ParseArg(argv[i], L"track_etw_status")) { args->mTrackEtwStatus = true; continue; }
 
         // Provided argument wasn't recognized
         else if (!(ParseArg(argv[i], L"?") || ParseArg(argv[i], L"h") || ParseArg(argv[i], L"help"))) {

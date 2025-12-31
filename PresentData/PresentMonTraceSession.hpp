@@ -6,6 +6,14 @@
 
 struct PMTraceConsumer;
 
+struct EtwStatus {
+    double mEtwBufferFillPct;
+    ULONG mEtwBuffersInUse;
+    ULONG mEtwTotalBuffers;
+    ULONG mEtwEventsLost;
+    ULONG mEtwBuffersLost;
+};
+
 struct PMTraceSession {
     enum TimestampType {
         TIMESTAMP_TYPE_QPC = 1,
@@ -38,6 +46,9 @@ struct PMTraceSession {
 
     bool mIsRealtimeSession = false;
 
+    // Cached ETW status for CSV output (updated periodically via QueryEtwStatus)
+    mutable EtwStatus mCachedEtwStatus = {};
+
     ULONG Start(wchar_t const* etlPath,      // If nullptr, start a live/realtime tracing session
                 wchar_t const* sessionName); // Required session name
     void Stop();
@@ -48,6 +59,8 @@ struct PMTraceSession {
     double TimestampToMilliSeconds(uint64_t timestamp) const;
     void TimestampToLocalSystemTime(uint64_t timestamp, SYSTEMTIME* st, uint64_t* ns) const;
     uint64_t MilliSecondsDeltaToTimestamp(double millisecondsDelta) const;
+
+    bool QueryEtwStatus(EtwStatus* status) const;
 };
 
 ULONG StopNamedTraceSession(wchar_t const* sessionName);
