@@ -477,6 +477,9 @@ ULONG PMTraceSession::Start(
         sessionProps.Wnode.Flags = WNODE_FLAG_TRACED_GUID;
         sessionProps.LogFileMode = EVENT_TRACE_REAL_TIME_MODE;      // We have a realtime consumer, not writing to a log file
         sessionProps.LoggerNameOffset = offsetof(TraceProperties, mSessionName);  // Location of session name; will be written by StartTrace()
+        sessionProps.BufferSize = 64;                                // Buffer size in KB
+        sessionProps.MinimumBuffers = 256;                           // Minimum number of buffers allocated for the session's buffer pool
+        sessionProps.MaximumBuffers = 1024;                             // Maximum number of buffers (0 = no limit)
 
         auto status = StartTraceW(&mSessionHandle, sessionName, &sessionProps);
         if (status != ERROR_SUCCESS) {
