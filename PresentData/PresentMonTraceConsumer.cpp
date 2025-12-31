@@ -2365,8 +2365,8 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
             static_cast<int32_t>(appFrameId - it->second.FrameId) >= 10) {
             // Remove the app frame data if the app frame id is too old
             it = mAppTimingDataByAppFrameId.erase(it); // Erase and move to the next element
-        } else if (appFrameId == 0 && it->second.ProcessId == processId && 
-            it->second.AssignedToPresent == false && it->second.AppPresentStartTime != 0 && 
+        } else if (appFrameId == 0 && it->second.ProcessId == processId &&
+            it->second.AssignedToPresent == false && it->second.AppPresentStartTime != 0 &&
             presentStartTime >= it->second.AppPresentStartTime &&
             presentStartTime - it->second.AppPresentStartTime >= mDeferralTimeLimit) {
             // Remove app frame data if the app present start time is too old
@@ -2374,6 +2374,47 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
         }
         else {
             ++it; // Move to the next element
+        }
+    }
+
+    // Prune out old PC Latency timing data to prevent memory leaks.
+    // This is critical because PCL data accumulates for every frame and the
+    // PCLStatsShutdown event (the only other cleanup mechanism) is app-controlled.
+    if (mTrackPcLatency) {
+        auto pclFrameId = present->PclFrameId;
+        for (auto it = mPclTimingDataByPclFrameId.begin(); it != mPclTimingDataByPclFrameId.end();) {
+            if (it->first.second == processId) {
+                // For entries from this process:
+                // 1. Remove if assigned and frame ID is too old (10+ frames behind)
+                // 2. Remove if timestamp is too old (stale data - assigned or not)
+                bool shouldRemove = false;
+
+                // Get the best available timestamp for this entry
+                uint64_t timingValue = mUsingOutOfBoundPresentStart
+                    ? it->second.PclOutOfBandPresentStartTime
+                    : it->second.PclPresentStartTime;
+                if (timingValue == 0) {
+                    timingValue = it->second.PclSimStartTime;
+                }
+
+                if (pclFrameId != 0 && it->second.AssignedToPresent &&
+                    static_cast<int32_t>(pclFrameId - it->second.FrameId) >= 10) {
+                    // Remove assigned PCL data if frame id is too old
+                    shouldRemove = true;
+                } else if (timingValue != 0 && presentStartTime >= timingValue &&
+                    presentStartTime - timingValue >= mDeferralTimeLimit) {
+                    // Remove PCL data (assigned or not) if timestamp is too old
+                    shouldRemove = true;
+                }
+
+                if (shouldRemove) {
+                    it = mPclTimingDataByPclFrameId.erase(it);
+                } else {
+                    ++it;
+                }
+            } else {
+                ++it;
+            }
         }
     }
 }
@@ -2708,6 +2749,16 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             event.ProcessId    = desc[0].GetData<uint32_t>();
             event.IsStartEvent = false;
 
+            // Clean up PC Latency tracking data for this process to prevent memory leaks.
+            // This is necessary because PCLStatsShutdown events are application-controlled
+            // and may not be sent if the app crashes or terminates abnormally.
+            if (mTrackPcLatency) {
+                std::erase_if(mPclTimingDataByPclFrameId, [&event](const auto& p) {
+                    return p.first.second == event.ProcessId;
+                });
+                mLatestPingTimestampByProcessId.erase(event.ProcessId);
+            }
+
             break;
         }
         default:
@@ -2734,6 +2785,14 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             mMetadata.GetEventData(pEventRecord, desc, _countof(desc));
             event.ProcessId    = desc[0].GetData<uint32_t>();
             event.IsStartEvent = false;
+
+            // Clean up PC Latency tracking data for this process to prevent memory leaks.
+            if (mTrackPcLatency) {
+                std::erase_if(mPclTimingDataByPclFrameId, [&event](const auto& p) {
+                    return p.first.second == event.ProcessId;
+                });
+                mLatestPingTimestampByProcessId.erase(event.ProcessId);
+            }
         } else {
             return;
         }
