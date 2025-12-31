@@ -3,6 +3,13 @@
 
 # Build results
 /build/
+PresentMon/build/
+
+# Claude Code
+.claude/
+
+# Accidental nul file from Windows commands
+PresentMon/nul
 
 # vcpkg dependencies
 /vcpkg_installed/
