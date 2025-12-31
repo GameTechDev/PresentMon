@@ -381,90 +381,21 @@ static void ProcessRecordingToggle(
     }
 }
 
-static void AdjustScreenTimeForCollapsedPresentNV1_Unified(
-    pmon::util::metrics::SwapChainCoreState const& s,
-    pmon::util::metrics::FrameData const& p,
-    uint64_t& screenTime,
-    uint64_t& flipDelayQpc)
+static FrameMetrics1 ToFrameMetrics1(pmon::util::metrics::FrameMetrics const& m)
 {
-    // Port of AdjustScreenTimeForCollapsedPresentNV1(), but without mutating PresentEvent.
-    // Uses unified state instead of legacy chain fields.
-    if (s.lastDisplayedFlipDelay > 0 && (s.lastDisplayedScreenTime > screenTime)) {
-        if (!p.displayed.empty()) {
-            flipDelayQpc += (s.lastDisplayedScreenTime - screenTime);
-            screenTime = s.lastDisplayedScreenTime;
-        }
-    }
-}
-
-static void ReportMetrics1Unified(
-    PMTraceSession const& pmSession,
-    ProcessInfo* processInfo,
-    SwapChainData* chain,
-    pmon::util::metrics::FrameData const& p,
-    bool isRecording,
-    bool computeAvg)
-{
-    auto const& s = chain->mUnifiedSwapChain.swapChain;
-    
-    const bool displayed = (p.finalState == PresentResult::Presented);
-    uint64_t screenTime = p.displayed.empty() ? 0 : p.displayed[0].second;
-
-    uint64_t flipDelayQpc = p.flipDelay;
-    AdjustScreenTimeForCollapsedPresentNV1_Unified(s, p, screenTime, flipDelayQpc);
-
-    FrameMetrics1 metrics{};
-
-    // Between presents (use unified lastPresent)
-    if (s.lastPresent.has_value()) {
-        metrics.msBetweenPresents = pmSession.TimestampDeltaToUnsignedMilliSeconds(
-            s.lastPresent->presentStartTime,
-            p.presentStartTime);
-    }
-    else {
-        metrics.msBetweenPresents = 0;
-    }
-
-    metrics.msInPresentApi = pmSession.TimestampDeltaToMilliSeconds(p.timeInPresent);
-    metrics.msUntilRenderComplete = pmSession.TimestampDeltaToMilliSeconds(p.presentStartTime, p.readyTime);
-
-    metrics.msUntilDisplayed = (!displayed || screenTime == 0)
-        ? 0
-        : pmSession.TimestampDeltaToUnsignedMilliSeconds(p.presentStartTime, screenTime);
-
-    metrics.msBetweenDisplayChange = (!displayed || s.lastDisplayedScreenTime == 0 || screenTime == 0)
-        ? 0
-        : pmSession.TimestampDeltaToUnsignedMilliSeconds(s.lastDisplayedScreenTime, screenTime);
-
-    metrics.msUntilRenderStart = pmSession.TimestampDeltaToMilliSeconds(p.presentStartTime, p.gpuStartTime);
-    metrics.msGPUDuration = pmSession.TimestampDeltaToMilliSeconds(p.gpuDuration);
-    metrics.msVideoDuration = pmSession.TimestampDeltaToMilliSeconds(p.gpuVideoDuration);
-
-    metrics.msSinceInput = (p.inputTime == 0)
-        ? 0
-        : pmSession.TimestampDeltaToMilliSeconds(p.presentStartTime - p.inputTime);
-
-    metrics.qpcScreenTime = screenTime;
-
-    metrics.msFlipDelay = (flipDelayQpc != 0)
-        ? pmSession.TimestampDeltaToMilliSeconds(flipDelayQpc)
-        : 0;
-
-    if (isRecording) {
-        UpdateCsv(pmSession, processInfo, p, metrics);
-    }
-
-    if (computeAvg) {
-        UpdateAverage(&chain->mUnifiedSwapChain.avgCPUDuration, metrics.msBetweenPresents);
-        UpdateAverage(&chain->mUnifiedSwapChain.avgGPUDuration, metrics.msGPUDuration);
-
-        if (metrics.msUntilDisplayed > 0) {
-            UpdateAverage(&chain->mUnifiedSwapChain.avgDisplayLatency, metrics.msUntilDisplayed);
-            if (metrics.msBetweenDisplayChange > 0) {
-                UpdateAverage(&chain->mUnifiedSwapChain.avgDisplayedTime, metrics.msBetweenDisplayChange);
-            }
-        }
-    }
+    FrameMetrics1 out{};
+    out.msBetweenPresents = m.msBetweenPresents;
+    out.msInPresentApi = m.msInPresentApi;
+    out.msUntilRenderComplete = m.msUntilRenderComplete;
+    out.msUntilDisplayed = m.msUntilDisplayed;
+    out.msBetweenDisplayChange = m.msBetweenDisplayChange;
+    out.msUntilRenderStart = m.msUntilRenderStart;
+    out.msGPUDuration = m.msGpuDuration;
+    out.msVideoDuration = m.msVideoDuration;
+    out.msSinceInput = m.msSinceInput;
+    out.qpcScreenTime = m.screenTimeQpc;
+    out.msFlipDelay = m.msFlipDelay.has_value() ? m.msFlipDelay.value() : 0.0;
+    return out;
 }
 
 static void ProcessEvents(
@@ -548,7 +479,8 @@ static void ProcessEvents(
             continue;
         }
 
-        auto ready = chain->mUnifiedSwapChain.Enqueue(pmon::util::metrics::FrameData::CopyFrameData(presentEvent));
+        auto ready = chain->mUnifiedSwapChain.Enqueue(pmon::util::metrics::FrameData::CopyFrameData(presentEvent),
+            args.mUseV1Metrics ? pmon::util::metrics::MetricsVersion::V1 : pmon::util::metrics::MetricsVersion::V2);
 
         // Do we need to emit metrics for this present?
         const bool emit = (isRecording || computeAvg);
@@ -567,17 +499,34 @@ static void ProcessEvents(
             }
 
             if (args.mUseV1Metrics) {
-                // V1 emitter reads unified state BEFORE it advances.
-                if (emit && it.nextDisplayed.has_value()) {
-                    ReportMetrics1Unified(pmSession, processInfo, chain, frame, isRecording, computeAvg);
-                }
+                // V1: compute immediately (no look-ahead) and emit legacy V1 CSV.
+                auto computed = ComputeMetricsForPresent(qpc, frame, nullptr, chain->mUnifiedSwapChain.swapChain, MetricsVersion::V1);
 
-                // Advance unified swapchain state using the canonical unified calculator.
-                (void)ComputeMetricsForPresent(qpc, frame, nextPtr, chain->mUnifiedSwapChain.swapChain);
+                if (emit) {
+                    for (auto const& cm : computed) {
+                        auto const m1 = ToFrameMetrics1(cm.metrics);
+
+                        if (isRecording) {
+                            UpdateCsv(pmSession, processInfo, frame, m1);
+                        }
+
+                        if (computeAvg) {
+                            UpdateAverage(&chain->mUnifiedSwapChain.avgCPUDuration, m1.msBetweenPresents);
+                            UpdateAverage(&chain->mUnifiedSwapChain.avgGPUDuration, m1.msGPUDuration);
+
+                            if (m1.msUntilDisplayed > 0) {
+                                UpdateAverage(&chain->mUnifiedSwapChain.avgDisplayLatency, m1.msUntilDisplayed);
+                                if (m1.msBetweenDisplayChange > 0) {
+                                    UpdateAverage(&chain->mUnifiedSwapChain.avgDisplayedTime, m1.msBetweenDisplayChange);
+                                }
+                            }
+                        }
+                    }
+                }
             }
             else {
                 // V2 unified metrics: compute + advance together
-                auto computed = ComputeMetricsForPresent(qpc, frame, nextPtr, chain->mUnifiedSwapChain.swapChain);
+                auto computed = ComputeMetricsForPresent(qpc, frame, nextPtr, chain->mUnifiedSwapChain.swapChain, MetricsVersion::V2);
 
                 if (emit) {
                     for (auto const& cm : computed) {

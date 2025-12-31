@@ -55,11 +55,19 @@ namespace pmon::util::metrics
 
     // UnifiedSwapChain.cpp
     std::vector<UnifiedSwapChain::ReadyItem>
-        UnifiedSwapChain::Enqueue(FrameData present)
+        UnifiedSwapChain::Enqueue(FrameData present, MetricsVersion version)
     {
         SanitizeDisplayedRepeatedPresents(present);
 
         std::vector<ReadyItem> out;
+
+        // V1: FIFO (no buffering / no look-ahead). Every present is ready immediately.
+        if (version == MetricsVersion::V1) {
+            waitingDisplayed_.reset();
+            blocked_.clear();
+            out.push_back(ReadyItem{ std::move(present), std::nullopt });
+            return out;
+        }
 
         // Seed baseline
         if (!swapChain.lastPresent.has_value()) {

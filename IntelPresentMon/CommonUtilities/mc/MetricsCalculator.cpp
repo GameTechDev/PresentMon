@@ -681,7 +681,8 @@ namespace pmon::util::metrics
         const QpcConverter& qpc,
         const FrameData& present,
         FrameData* nextDisplayed,
-        SwapChainCoreState& chainState)
+        SwapChainCoreState& chainState,
+        MetricsVersion version)
     {
         std::vector<ComputedMetrics> results;
 
@@ -720,6 +721,35 @@ namespace pmon::util::metrics
 
             chainState.UpdateAfterPresent(present);
 
+            return results;
+        }
+
+        // V1: displayed presents are computed immediately (no look-ahead / no postponing).
+        // Emit exactly one row per present (legacy V1 behavior).
+        if (version == MetricsVersion::V1) {
+            const size_t displayIndex = 0;
+            uint64_t screenTime = present.getDisplayedScreenTime(displayIndex);
+            const bool isDisplayedInstance = (screenTime != 0);
+            uint64_t nextScreenTime = isDisplayedInstance ? screenTime : 0; // avoids bogus msDisplayedTime without requiring next present
+
+            const auto indexing = DisplayIndexing::Calculate(present, nullptr);
+            const bool isAppFrame = (displayIndex == indexing.appIndex);
+            const FrameType frameType = isDisplayedInstance ? present.getDisplayedFrameType(displayIndex) : FrameType::NotSet;
+
+            auto metrics = ComputeFrameMetrics(
+                qpc,
+                present,
+                screenTime,
+                nextScreenTime,
+                isDisplayedInstance,
+                isAppFrame,
+                frameType,
+                chainState);
+
+            ApplyStateDeltas(chainState, metrics.stateDeltas);
+            results.push_back(std::move(metrics));
+
+            chainState.UpdateAfterPresent(present);
             return results;
         }
 

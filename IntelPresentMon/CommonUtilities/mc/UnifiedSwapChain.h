@@ -25,7 +25,7 @@ namespace pmon::util::metrics
         // Seed without needing a QPC converter (needed for console GetPresentProcessInfo() early-return).
         void SeedFromFirstPresent(FrameData present);
 
-        std::vector<ReadyItem> Enqueue(FrameData present);
+        std::vector<ReadyItem> Enqueue(FrameData present, MetricsVersion version);
 
         uint64_t GetLastPresentQpc() const;
         bool IsPrunableBefore(uint64_t minTimestampQpc) const;

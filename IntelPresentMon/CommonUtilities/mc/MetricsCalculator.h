@@ -42,7 +42,8 @@ namespace pmon::util::metrics
         const QpcConverter& qpc,
         const FrameData& present,
         FrameData* nextDisplayed,
-        SwapChainCoreState& chainState);
+        SwapChainCoreState& chainState,
+        MetricsVersion version = MetricsVersion::V2);
 
     // === Pure Calculation Functions ===
 

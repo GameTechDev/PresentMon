@@ -17,6 +17,12 @@ struct PresentEvent;        // From PresentMonTraceConsumer
 
 namespace pmon::util::metrics {
 
+    // Metrics pipeline mode
+    enum class MetricsVersion {
+        V1,
+        V2,
+    };
+
     // What the animation error calculation is based on
     enum class AnimationErrorSource {
         CpuStart,
