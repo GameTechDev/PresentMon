@@ -5,6 +5,7 @@
 #include <CommonUtilities/mc/MetricsTypes.h>
 #include <CommonUtilities/mc/MetricsCalculator.h>
 #include <CommonUtilities/mc/SwapChainState.h>
+#include <CommonUtilities/mc/UnifiedSwapChain.h>
 #include <IntelPresentMon/PresentMonUtils/StreamFormat.h>
 #include <CommonUtilities/Math.h>
 #include <memory>
@@ -872,7 +873,293 @@ namespace MetricsCoreTests
         return f;
     }
 
-    TEST_CLASS(ComputeMetricsForPresentTests)
+    
+TEST_CLASS(UnifiedSwapChainTests)
+{
+public:
+    TEST_METHOD(Enqueue_V2_SeedsFirstPresent_ReturnsNoReady)
+    {
+        UnifiedSwapChain u{};
+
+        // First present seeds baseline (no pipeline output).
+        auto seed = MakeFrame(PresentResult::Presented, 1'000'000, 10, 1'000'010, {});
+        auto out = u.Enqueue(std::move(seed), MetricsVersion::V2);
+
+        Assert::AreEqual(size_t(0), out.size());
+        Assert::IsTrue(u.swapChain.lastPresent.has_value());
+        Assert::AreEqual(uint64_t(1'000'000), u.GetLastPresentQpc());
+    }
+
+    TEST_METHOD(Enqueue_V2_NotDisplayed_NoWaiting_ReturnsSingleOwnedItem)
+    {
+        UnifiedSwapChain u{};
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 1'000'000, 10, 1'000'010, {}), MetricsVersion::V2); // seed
+
+        auto p = MakeFrame(static_cast<PresentResult>(9999), 2'000'000, 10, 2'000'010, {}); // not displayed
+        auto out = u.Enqueue(std::move(p), MetricsVersion::V2);
+
+        Assert::AreEqual(size_t(1), out.size());
+        Assert::IsNull(out[0].presentPtr);
+        Assert::IsNull(out[0].nextDisplayedPtr);
+        Assert::AreEqual(uint64_t(2'000'000), out[0].present.presentStartTime);
+    }
+
+    TEST_METHOD(Enqueue_V2_Displayed_FirstDisplayed_ReturnsCurrentDisplayedPtrItemOnly)
+    {
+        UnifiedSwapChain u{};
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 1'000'000, 10, 1'000'010, {}), MetricsVersion::V2); // seed
+
+        auto displayed = MakeFrame(PresentResult::Presented, 2'000'000, 10, 2'000'010,
+                                  { { FrameType::Application, 2'500'000 } });
+
+        auto out = u.Enqueue(std::move(displayed), MetricsVersion::V2);
+
+        Assert::AreEqual(size_t(1), out.size());
+        Assert::IsNotNull(out[0].presentPtr);
+        Assert::IsNull(out[0].nextDisplayedPtr);
+        Assert::AreEqual(uint64_t(2'000'000), out[0].presentPtr->presentStartTime);
+    }
+
+    TEST_METHOD(Enqueue_V2_NotDisplayed_WithWaiting_IsBufferedUntilNextDisplayed)
+    {
+        UnifiedSwapChain u{};
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 1'000'000, 10, 1'000'010, {}), MetricsVersion::V2); // seed
+
+        // First displayed => enters waitingDisplayed, produces current item (but may postpone metrics).
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 2'000'000, 10, 2'000'010,
+                                 { { FrameType::Application, 2'500'000 } }), MetricsVersion::V2);
+
+        // Not displayed while waiting => no ready work.
+        auto out1 = u.Enqueue(MakeFrame(static_cast<PresentResult>(9999), 2'200'000, 10, 2'200'010, {}), MetricsVersion::V2);
+        Assert::AreEqual(size_t(0), out1.size());
+
+        // Next displayed => releases blocked.
+        auto out2 = u.Enqueue(MakeFrame(PresentResult::Presented, 3'000'000, 10, 3'000'010,
+                                       { { FrameType::Application, 3'500'000 } }), MetricsVersion::V2);
+
+        // finalize previous + blocked + current
+        Assert::AreEqual(size_t(3), out2.size());
+        Assert::AreEqual(uint64_t(2'000'000), out2[0].present.presentStartTime); // finalize previous
+        Assert::AreEqual(uint64_t(2'200'000), out2[1].present.presentStartTime); // released blocked
+        Assert::IsNotNull(out2[2].presentPtr);                                   // current displayed
+        Assert::AreEqual(uint64_t(3'000'000), out2[2].presentPtr->presentStartTime);
+    }
+
+    TEST_METHOD(Enqueue_V2_Displayed_WithWaiting_OrdersFinalizeThenBlockedThenCurrent)
+    {
+        UnifiedSwapChain u{};
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 1'000'000, 10, 1'000'010, {}), MetricsVersion::V2); // seed
+
+        // Displayed A enters waiting
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 2'000'000, 10, 2'000'010,
+                                 { { FrameType::Application, 2'500'000 } }), MetricsVersion::V2);
+
+        // Buffer B and C
+        (void)u.Enqueue(MakeFrame(static_cast<PresentResult>(9999), 2'100'000, 10, 2'100'010, {}), MetricsVersion::V2);
+        (void)u.Enqueue(MakeFrame(static_cast<PresentResult>(9999), 2'200'000, 10, 2'200'010, {}), MetricsVersion::V2);
+
+        // Next displayed D triggers: finalize A, then B,C, then current D
+        auto out = u.Enqueue(MakeFrame(PresentResult::Presented, 3'000'000, 10, 3'000'010,
+                                      { { FrameType::Application, 3'500'000 } }), MetricsVersion::V2);
+
+        Assert::AreEqual(size_t(4), out.size());
+        Assert::AreEqual(uint64_t(2'000'000), out[0].present.presentStartTime);
+        Assert::IsNotNull(out[0].nextDisplayedPtr);
+        Assert::AreEqual(uint64_t(3'000'000), out[0].nextDisplayedPtr->presentStartTime);
+
+        Assert::AreEqual(uint64_t(2'100'000), out[1].present.presentStartTime);
+        Assert::AreEqual(uint64_t(2'200'000), out[2].present.presentStartTime);
+
+        Assert::IsNotNull(out[3].presentPtr);
+        Assert::AreEqual(uint64_t(3'000'000), out[3].presentPtr->presentStartTime);
+    }
+
+    TEST_METHOD(Enqueue_V2_SanitizeDisplayed_RemovesAppThenRepeated)
+    {
+        UnifiedSwapChain u{};
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 1'000'000, 10, 1'000'010, {}), MetricsVersion::V2); // seed
+
+        auto p = MakeFrame(PresentResult::Presented, 2'000'000, 10, 2'000'010,
+                           { { FrameType::Application, 2'500'000 },
+                             { FrameType::Repeated,    2'700'000 } });
+
+        auto out = u.Enqueue(std::move(p), MetricsVersion::V2);
+
+        Assert::AreEqual(size_t(1), out.size());
+        Assert::IsNotNull(out[0].presentPtr);
+
+        Assert::AreEqual(size_t(1), out[0].presentPtr->displayed.size());
+        Assert::AreEqual((int)FrameType::Application, (int)out[0].presentPtr->displayed[0].first);
+    }
+
+    TEST_METHOD(Enqueue_V2_SanitizeDisplayed_RemovesRepeatedThenApp)
+    {
+        UnifiedSwapChain u{};
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 1'000'000, 10, 1'000'010, {}), MetricsVersion::V2); // seed
+
+        auto p = MakeFrame(PresentResult::Presented, 2'000'000, 10, 2'000'010,
+                           { { FrameType::Repeated,    2'400'000 },
+                             { FrameType::Application, 2'500'000 } });
+
+        auto out = u.Enqueue(std::move(p), MetricsVersion::V2);
+
+        Assert::AreEqual(size_t(1), out.size());
+        Assert::IsNotNull(out[0].presentPtr);
+
+        Assert::AreEqual(size_t(1), out[0].presentPtr->displayed.size());
+        Assert::AreEqual((int)FrameType::Application, (int)out[0].presentPtr->displayed[0].first);
+    }
+
+    TEST_METHOD(Pipeline_V2_PostponedLastDisplayInstance_EmittedOnFinalize)
+    {
+        QpcConverter qpc(10'000'000, 0);
+        UnifiedSwapChain u{};
+
+        // Seed history
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 1'000'000, 10, 1'000'010, {}), MetricsVersion::V2);
+
+        // First displayed has two instances: app then repeated.
+        auto outA = u.Enqueue(MakeFrame(PresentResult::Presented, 2'000'000, 10, 2'000'010,
+                                       { { FrameType::Intel_XEFG,   2'500'000 },
+                                         { FrameType::Application,  2'700'000 } }),
+                             MetricsVersion::V2);
+
+        Assert::AreEqual(size_t(1), outA.size());
+        Assert::IsNotNull(outA[0].presentPtr);
+
+        // Processing current displayed without next: should produce all-but-last => one result at 2'500'000.
+        auto resA = ComputeMetricsForPresent(qpc, *outA[0].presentPtr, nullptr, u.swapChain, MetricsVersion::V2);
+        Assert::AreEqual(size_t(1), resA.size());
+        Assert::AreEqual(uint64_t(2'500'000), resA[0].metrics.screenTimeQpc);
+
+        // Next displayed triggers finalize of the previous displayed (postponed last instance at 2'700'000).
+        auto outB = u.Enqueue(MakeFrame(PresentResult::Presented, 3'000'000, 10, 3'000'010,
+                                       { { FrameType::Application, 3'500'000 } }),
+                             MetricsVersion::V2);
+
+        Assert::AreEqual(size_t(2), outB.size());
+        Assert::IsNotNull(outB[0].nextDisplayedPtr);
+
+        auto resFinalize = ComputeMetricsForPresent(qpc, outB[0].present, outB[0].nextDisplayedPtr, u.swapChain, MetricsVersion::V2);
+        Assert::AreEqual(size_t(1), resFinalize.size());
+        Assert::AreEqual(uint64_t(2'700'000), resFinalize[0].metrics.screenTimeQpc);
+    }
+
+    TEST_METHOD(Pipeline_V2_NvCollapsed_AdjustmentPersistsViaNextDisplayedPtr)
+    {
+        QpcConverter qpc(10'000'000, 0);
+        UnifiedSwapChain u{};
+
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 1'000'000, 10, 1'000'010, {}), MetricsVersion::V2);
+
+        // First displayed: collapsed/runt-style (flipDelay set), screenTime is later than next's raw screenTime.
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 4'000'000, 50'000, 4'100'000,
+                                 { { FrameType::Application, 5'500'000 } },
+                                 0, 0, 200'000),
+                        MetricsVersion::V2);
+
+        // Second displayed: raw screenTime earlier -> should be adjusted upward by NV2 when finalizing first.
+        auto out = u.Enqueue(MakeFrame(PresentResult::Presented, 5'000'000, 40'000, 5'100'000,
+                                      { { FrameType::Application, 5'000'000 } },
+                                      0, 0, 100'000),
+                             MetricsVersion::V2);
+
+        // Expect: finalize previous + current displayed
+        Assert::AreEqual(size_t(2), out.size());
+        Assert::IsNotNull(out[0].nextDisplayedPtr);
+        Assert::IsNotNull(out[1].presentPtr);
+
+        // Finalize first with look-ahead to second => mutates second via pointer.
+        (void)ComputeMetricsForPresent(qpc, out[0].present, out[0].nextDisplayedPtr, u.swapChain, MetricsVersion::V2);
+
+        // Mutation must persist on swapchain-owned second frame.
+        Assert::AreEqual(uint64_t(5'500'000), out[1].presentPtr->displayed[0].second);
+        Assert::AreEqual(uint64_t(100'000 + (5'500'000 - 5'000'000)), out[1].presentPtr->flipDelay);
+    }
+
+    TEST_METHOD(Pipeline_V1_NvCollapsed_AdjustsCurrentPresent)
+    {
+        QpcConverter qpc(10'000'000, 0);
+        UnifiedSwapChain u{};
+
+        // Establish previous displayed state (lastDisplayedScreenTime/flipDelay) via first displayed.
+        auto out1 = u.Enqueue(MakeFrame(PresentResult::Presented, 4'000'000, 50'000, 4'100'000,
+                                       { { FrameType::Application, 5'500'000 } },
+                                       0, 0, 200'000),
+                             MetricsVersion::V1);
+
+        Assert::AreEqual(size_t(1), out1.size());
+
+        (void)ComputeMetricsForPresent(qpc, out1[0].present, nullptr, u.swapChain, MetricsVersion::V1);
+
+        // Second present has earlier raw screenTime; NV1 should adjust *current* present to lastDisplayedScreenTime.
+        auto out2 = u.Enqueue(MakeFrame(PresentResult::Presented, 5'000'000, 40'000, 5'100'000,
+                                       { { FrameType::Application, 5'000'000 } },
+                                       0, 0, 100'000),
+                             MetricsVersion::V1);
+
+        Assert::AreEqual(size_t(1), out2.size());
+
+        (void)ComputeMetricsForPresent(qpc, out2[0].present, nullptr, u.swapChain, MetricsVersion::V1);
+
+        Assert::AreEqual(uint64_t(5'500'000), out2[0].present.displayed[0].second);
+        Assert::AreEqual(uint64_t(100'000 + (5'500'000 - 5'000'000)), out2[0].present.flipDelay);
+    }
+
+    TEST_METHOD(Pipeline_V1_NoNvCollapse_DoesNotModifyCurrentPresent)
+    {
+        QpcConverter qpc(10'000'000, 0);
+        UnifiedSwapChain u{};
+
+        // Prior displayed state via first displayed.
+        auto out1 = u.Enqueue(MakeFrame(PresentResult::Presented, 4'000'000, 50'000, 4'100'000,
+                                       { { FrameType::Application, 5'000'000 } },
+                                       0, 0, 200'000),
+                             MetricsVersion::V1);
+        (void)ComputeMetricsForPresent(qpc, out1[0].present, nullptr, u.swapChain, MetricsVersion::V1);
+
+        // Current has later screenTime => no collapse.
+        auto out2 = u.Enqueue(MakeFrame(PresentResult::Presented, 5'000'000, 40'000, 5'100'000,
+                                       { { FrameType::Application, 6'000'000 } },
+                                       0, 0, 100'000),
+                             MetricsVersion::V1);
+
+        // Preserve originals for comparison.
+        const uint64_t origScreen = out2[0].present.displayed[0].second;
+        const uint64_t origFlipDelay = out2[0].present.flipDelay;
+
+        (void)ComputeMetricsForPresent(qpc, out2[0].present, nullptr, u.swapChain, MetricsVersion::V1);
+
+        Assert::AreEqual(origScreen, out2[0].present.displayed[0].second);
+        Assert::AreEqual(origFlipDelay, out2[0].present.flipDelay);
+    }
+
+    TEST_METHOD(Enqueue_V1_ClearsV2Buffers_AndIsAlwaysReady)
+    {
+        UnifiedSwapChain u{};
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 1'000'000, 10, 1'000'010, {}), MetricsVersion::V2); // seed
+
+        // Create V2 waitingDisplayed + blocked.
+        (void)u.Enqueue(MakeFrame(PresentResult::Presented, 2'000'000, 10, 2'000'010,
+                                 { { FrameType::Application, 2'500'000 } }), MetricsVersion::V2);
+        (void)u.Enqueue(MakeFrame(static_cast<PresentResult>(9999), 2'200'000, 10, 2'200'010, {}), MetricsVersion::V2);
+
+        // V1 enqueue must clear V2 buffers and return one ready item.
+        auto outV1 = u.Enqueue(MakeFrame(static_cast<PresentResult>(9999), 2'300'000, 10, 2'300'010, {}), MetricsVersion::V1);
+        Assert::AreEqual(size_t(1), outV1.size());
+
+        // Next V2 displayed should behave as "no waiting/no blocked": returns only current displayed item.
+        auto outV2 = u.Enqueue(MakeFrame(PresentResult::Presented, 3'000'000, 10, 3'000'010,
+                                        { { FrameType::Application, 3'500'000 } }), MetricsVersion::V2);
+
+        Assert::AreEqual(size_t(1), outV2.size());
+        Assert::IsNotNull(outV2[0].presentPtr);
+        Assert::IsNull(outV2[0].nextDisplayedPtr);
+    }
+};
+
+
+TEST_CLASS(ComputeMetricsForPresentTests)
     {
     public:
         TEST_METHOD(ComputeMetricsForPresent_NotDisplayed_NoDisplays_ProducesSingleMetricsAndUpdatesChain)
