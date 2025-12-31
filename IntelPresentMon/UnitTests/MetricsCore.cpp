@@ -2252,6 +2252,51 @@ namespace MetricsCoreTests
                     L"NV2: when no collapse, flipDelay should remain unchanged");
             }
         }
+
+
+        TEST_METHOD(NvCollapsedPresent_V1_AdjustsCurrentScreenTimeAndFlipDelay)
+        {
+            // Legacy PresentMon V1 behavior: when the previous displayed screen time (adjusted by flipDelay)
+            // is greater than the current present's screen time, treat the current as a collapsed/runt frame
+            // and adjust *this* present's screen time + flipDelay.
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            chain.lastDisplayedScreenTime = 5'500'000;
+            chain.lastDisplayedFlipDelay = 50'000;
+
+            FrameData current{};
+            current.presentStartTime = 4'000'000;
+            current.timeInPresent = 50'000;
+            current.readyTime = 4'100'000;
+            current.flipDelay = 100'000;
+            current.setFinalState(PresentResult::Presented);
+            current.displayed.push_back({ FrameType::Application, 5'000'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, current, nullptr, chain, MetricsVersion::V1);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+
+            Assert::AreEqual(uint64_t(5'500'000), m.screenTimeQpc,
+                L"NV1 should adjust current screenTime to lastDisplayedScreenTime");
+
+            const uint64_t expectedFlipDelay = 100'000 + (5'500'000 - 5'000'000);
+            Assert::IsTrue(m.msFlipDelay.has_value(), L"msFlipDelay should be set for displayed frame");
+            if (m.msFlipDelay.has_value()) {
+                Assert::AreEqual(qpc.DurationMilliSeconds(expectedFlipDelay), m.msFlipDelay.value(), 0.0001,
+                    L"NV1 should adjust current flipDelay to account for screenTime catch-up");
+            }
+
+            // Validate the legacy-style mutation of the current present and that chain advanced using adjusted values.
+            Assert::AreEqual(uint64_t(5'500'000), current.displayed[0].second,
+                L"NV1 should update current.displayed[0].second");
+            Assert::AreEqual(expectedFlipDelay, current.flipDelay,
+                L"NV1 should update current.flipDelay");
+            Assert::AreEqual(uint64_t(5'500'000), chain.lastDisplayedScreenTime,
+                L"Chain should latch adjusted screenTime");
+        }
+
     };
     TEST_CLASS(DisplayLatencyTests)
     {

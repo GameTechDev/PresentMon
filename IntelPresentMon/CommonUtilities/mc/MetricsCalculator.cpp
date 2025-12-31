@@ -301,11 +301,30 @@ namespace pmon::util::metrics
         }
 
         void AdjustScreenTimeForCollapsedPresentNV(
-            const FrameData& present,
+            FrameData& present,
             FrameData* nextDisplayedPresent,
+            const uint64_t& lastDisplayedFlipDelay,
+            const uint64_t& lastDisplayedScreenTime,
             uint64_t& screenTime,
-            uint64_t& nextScreenTime)
+            uint64_t& nextScreenTime,
+            MetricsVersion version)
         {
+            if (version == MetricsVersion::V1) {
+                // NV1 collapsed/runt correction: legacy V1 adjusts the *current* present using the
+                // previous displayed state when the last displayed screen time (adjusted by flip delay)
+                // is greater than this present's screen time.
+                if (lastDisplayedFlipDelay > 0 &&
+                    lastDisplayedScreenTime > screenTime &&
+                    !present.displayed.empty()) {
+
+                    const uint64_t diff = lastDisplayedScreenTime - screenTime;
+                    present.flipDelay += diff;
+                    present.displayed[0].second = lastDisplayedScreenTime;
+                    screenTime = present.displayed[0].second;
+                }
+                return;
+            }
+
             // nextDisplayedPresent should always be non-null for NV GPU.
             if (present.flipDelay && screenTime > nextScreenTime && nextDisplayedPresent) {
                 // If screenTime that is adjusted by flipDelay is larger than nextScreenTime,
@@ -679,7 +698,7 @@ namespace pmon::util::metrics
 
     std::vector<ComputedMetrics> ComputeMetricsForPresent(
         const QpcConverter& qpc,
-        const FrameData& present,
+        FrameData& present,
         FrameData* nextDisplayed,
         SwapChainCoreState& chainState,
         MetricsVersion version)
@@ -729,11 +748,23 @@ namespace pmon::util::metrics
         if (version == MetricsVersion::V1) {
             const size_t displayIndex = 0;
             uint64_t screenTime = present.getDisplayedScreenTime(displayIndex);
-            const bool isDisplayedInstance = (screenTime != 0);
-            uint64_t nextScreenTime = isDisplayedInstance ? screenTime : 0; // avoids bogus msDisplayedTime without requiring next present
+            uint64_t nextScreenTime = 0;
 
+            AdjustScreenTimeForCollapsedPresentNV(
+                present,
+                nextDisplayed,
+                chainState.lastDisplayedFlipDelay,
+                chainState.lastDisplayedScreenTime,
+                screenTime,
+                nextScreenTime,
+                version);
+            
+            // This is so msDisplayedTime comes back as 0 instead of garbage for V1 single-row output.
+            // TODO: Better option is to have display metrics be optional. Update metrics struct accordingly.
+            nextScreenTime = screenTime;
             const auto indexing = DisplayIndexing::Calculate(present, nullptr);
             const bool isAppFrame = (displayIndex == indexing.appIndex);
+            const bool isDisplayedInstance = isDisplayed && screenTime != 0;
             const FrameType frameType = isDisplayedInstance ? present.getDisplayedFrameType(displayIndex) : FrameType::NotSet;
 
             auto metrics = ComputeFrameMetrics(
@@ -775,7 +806,7 @@ namespace pmon::util::metrics
                 break;  // No next screen time available
             }
 
-            AdjustScreenTimeForCollapsedPresentNV(present, nextDisplayed, screenTime, nextScreenTime);
+            AdjustScreenTimeForCollapsedPresentNV(present, nextDisplayed, 0, 0, screenTime, nextScreenTime, version);
 
             const bool isAppFrame = (displayIndex == indexing.appIndex);
             const bool isDisplayedInstance = isDisplayed && screenTime != 0 && nextScreenTime != 0;

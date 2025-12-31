@@ -40,7 +40,7 @@ namespace pmon::util::metrics
 
     std::vector<ComputedMetrics> ComputeMetricsForPresent(
         const QpcConverter& qpc,
-        const FrameData& present,
+        FrameData& present,
         FrameData* nextDisplayed,
         SwapChainCoreState& chainState,
         MetricsVersion version = MetricsVersion::V2);
