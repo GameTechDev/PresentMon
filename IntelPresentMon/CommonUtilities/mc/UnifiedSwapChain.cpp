@@ -63,9 +63,9 @@ namespace pmon::util::metrics
 
         // V1: FIFO (no buffering / no look-ahead). Every present is ready immediately.
         if (version == MetricsVersion::V1) {
-            waitingDisplayed_.reset();
-            blocked_.clear();
-            out.push_back(ReadyItem{ std::move(present), std::nullopt });
+            waitingDisplayed.reset();
+            blocked.clear();
+            out.push_back(ReadyItem{ std::move(present), nullptr, nullptr });
             return out;
         }
 
@@ -80,31 +80,36 @@ namespace pmon::util::metrics
             (present.getDisplayedCount() > 0);
 
         if (isDisplayed) {
-            // 1) Finalize previously waiting displayed
-            if (waitingDisplayed_.has_value()) {
-                out.push_back(ReadyItem{ std::move(*waitingDisplayed_), present /* nextDisplayed */ });
-                waitingDisplayed_.reset();
+            // 1) Finalize previously waiting displayed (if any), pointing at swapchain-owned next displayed.
+            if (waitingDisplayed.has_value()) {
+                FrameData prev = std::move(*waitingDisplayed);
+                waitingDisplayed = std::move(present);
+
+                out.push_back(ReadyItem{ std::move(prev), nullptr, &*waitingDisplayed });
             }
-            
-            // 2) Release blocked not-displayed frames
-            while (!blocked_.empty()) {
-                out.push_back(ReadyItem{ std::move(blocked_.front()), std::nullopt });
-                blocked_.pop_front();
+            else {
+                // First displayed: becomes the waitingDisplayed_.
+                waitingDisplayed = std::move(present);
             }
 
-            // 3) Current displayed is ready (all-but-last); becomes the new waitingDisplayed
-            out.push_back(ReadyItem{ present /* copy */, std::nullopt });
-            waitingDisplayed_ = std::move(present);
+            // 2) Release blocked not-displayed frames (owned, no look-ahead).
+            while (!blocked.empty()) {
+                out.push_back(ReadyItem{ std::move(blocked.front()), nullptr, nullptr });
+                blocked.pop_front();
+            }
+
+            // 3) Current displayed is ready (all-but-last); provide a pointer so NV adjustments persist.
+            out.push_back(ReadyItem{ FrameData{}, &*waitingDisplayed, nullptr });
             return out;
         }
 
         // Not displayed
-        if (waitingDisplayed_.has_value()) {
-            blocked_.push_back(std::move(present));
+        if (waitingDisplayed.has_value()) {
+            blocked.push_back(std::move(present));
             return out; // nothing ready yet
         }
 
-        out.push_back(ReadyItem{ std::move(present), std::nullopt });
+        out.push_back(ReadyItem{ std::move(present), nullptr, nullptr });
         return out;
     }
 }

@@ -489,14 +489,8 @@ static void ProcessEvents(
             // Build FrameData copies for the unified calculator state-advance (and V2 metrics).
             using namespace pmon::util::metrics;
 
-            FrameData frame = std::move(it.present);
-
-            FrameData nextFrame{};
-            FrameData* nextPtr = nullptr;
-            if (it.nextDisplayed.has_value()) {
-                nextFrame = std::move(*it.nextDisplayed);
-                nextPtr = &nextFrame;
-            }
+            FrameData& frame = (it.presentPtr != nullptr) ? *it.presentPtr : it.present;
+            FrameData* nextPtr = it.nextDisplayedPtr;
 
             if (args.mUseV1Metrics) {
                 // V1: compute immediately (no look-ahead) and emit legacy V1 CSV.

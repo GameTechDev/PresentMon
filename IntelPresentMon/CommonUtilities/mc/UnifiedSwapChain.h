@@ -16,8 +16,9 @@ namespace pmon::util::metrics
     {
         struct ReadyItem
         {
-            FrameData present;
-            std::optional<FrameData> nextDisplayed; // populated when flushing pending
+            FrameData present;                     // owned (used when presentPtr==nullptr)
+            FrameData* presentPtr = nullptr;       // points into waitingDisplayed_ (optional)
+            FrameData* nextDisplayedPtr = nullptr; // points into waitingDisplayed_ (optional)
         };
 
         SwapChainCoreState swapChain;
@@ -42,7 +43,7 @@ namespace pmon::util::metrics
 
     private:
         static void SanitizeDisplayedRepeatedPresents(FrameData& present);
-        std::optional<FrameData> waitingDisplayed_;
-        std::deque<FrameData> blocked_;
+        std::optional<FrameData> waitingDisplayed;
+        std::deque<FrameData> blocked;
     };
 }
