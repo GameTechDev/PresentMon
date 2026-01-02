@@ -20,7 +20,7 @@ namespace pmon::util::metrics
         {
             if (isDisplayed) {
                 out.msUntilDisplayed = qpc.DeltaUnsignedMilliSeconds(
-                    present.getPresentStartTime(),
+                    present.presentStartTime,
                     screenTime);
             }
             else {
@@ -70,8 +70,8 @@ namespace pmon::util::metrics
             bool isDisplayed,
             FrameMetrics& out)
         {
-            if (isDisplayed && present.getFlipDelay() != 0) {
-                out.msFlipDelay = qpc.DurationMilliSeconds(present.getFlipDelay());
+            if (isDisplayed && present.flipDelay != 0) {
+                out.msFlipDelay = qpc.DurationMilliSeconds(present.flipDelay);
             }
             else {
                 out.msFlipDelay = std::nullopt;
@@ -101,8 +101,8 @@ namespace pmon::util::metrics
             uint64_t screenTime,
             FrameMetrics& out)
         {
-            if (isDisplayed && present.getReadyTime() != 0) {
-                out.msReadyTimeToDisplayLatency = qpc.DeltaUnsignedMilliSeconds(present.getReadyTime(), screenTime);
+            if (isDisplayed && present.readyTime != 0) {
+                out.msReadyTimeToDisplayLatency = qpc.DeltaUnsignedMilliSeconds(present.readyTime, screenTime);
             }
             else {
                 out.msReadyTimeToDisplayLatency = std::nullopt;
@@ -283,7 +283,7 @@ namespace pmon::util::metrics
 
             bool isFirstProviderSimTime =
                 chain.animationErrorSource == AnimationErrorSource::CpuStart &&
-                (present.getAppSimStartTime() != 0 || present.getPclSimStartTime() != 0);
+                (present.appSimStartTime != 0 || present.pclSimStartTime != 0);
             if (isFirstProviderSimTime) {
                 // Seed only: no animation time yet. UpdateAfterPresent will flip us
                 // into AppProvider/PCL and latch firstAppSimStartTime.
@@ -649,10 +649,10 @@ namespace pmon::util::metrics
         DisplayIndexing result{};
 
         // Get display count
-        auto displayCount = present.getDisplayedCount();  // ConsoleAdapter/PresentSnapshot method
+        auto displayCount = present.displayed.size();  // ConsoleAdapter/PresentSnapshot method
 
         // Check if displayed
-        bool displayed = present.getFinalState() == PresentResult::Presented && displayCount > 0;
+        bool displayed = present.finalState == PresentResult::Presented && displayCount > 0;
 
         // hasNextDisplayed
         result.hasNextDisplayed = (nextDisplayed != nullptr);
@@ -683,7 +683,7 @@ namespace pmon::util::metrics
         result.appIndex = std::numeric_limits<size_t>::max();
         if (displayCount > 0) {
             for (size_t i = result.startIndex; i < displayCount; ++i) {
-                auto frameType = present.getDisplayedFrameType(i);
+                auto frameType = present.displayed[i].first;
                 if (frameType == FrameType::NotSet || frameType == FrameType::Application) {
                     result.appIndex = i;
                     break;
@@ -705,8 +705,8 @@ namespace pmon::util::metrics
     {
         std::vector<ComputedMetrics> results;
 
-        const auto displayCount = present.getDisplayedCount();
-        const bool isDisplayed = present.getFinalState() == PresentResult::Presented && displayCount > 0;
+        const auto displayCount = present.displayed.size();
+        const bool isDisplayed = present.finalState == PresentResult::Presented && displayCount > 0;
 
         // Case 1: not displayed, return single not-displayed metrics
         if (!isDisplayed || displayCount == 0) {
@@ -721,7 +721,7 @@ namespace pmon::util::metrics
 
             const bool isAppFrame = (displayIndex == appIndex);
             const FrameType frameType = (displayCount > 0)
-                ? present.getDisplayedFrameType(displayIndex)
+                ? present.displayed[displayIndex].first
                 : FrameType::NotSet;
 
             auto metrics = ComputeFrameMetrics(
@@ -747,7 +747,7 @@ namespace pmon::util::metrics
         // Emit exactly one row per present (legacy V1 behavior).
         if (version == MetricsVersion::V1) {
             const size_t displayIndex = 0;
-            uint64_t screenTime = present.getDisplayedScreenTime(displayIndex);
+            uint64_t screenTime = present.displayed[displayIndex].second;
             uint64_t nextScreenTime = 0;
 
             AdjustScreenTimeForCollapsedPresentNV(
@@ -765,7 +765,7 @@ namespace pmon::util::metrics
             const auto indexing = DisplayIndexing::Calculate(present, nullptr);
             const bool isAppFrame = (displayIndex == indexing.appIndex);
             const bool isDisplayedInstance = isDisplayed && screenTime != 0;
-            const FrameType frameType = isDisplayedInstance ? present.getDisplayedFrameType(displayIndex) : FrameType::NotSet;
+            const FrameType frameType = isDisplayedInstance ? present.displayed[displayIndex].first : FrameType::NotSet;
 
             auto metrics = ComputeFrameMetrics(
                 qpc,
@@ -791,16 +791,16 @@ namespace pmon::util::metrics
         const bool shouldUpdateSwapChain = (nextDisplayed != nullptr);
 
         for (size_t displayIndex = indexing.startIndex; displayIndex < indexing.endIndex; ++displayIndex) {
-            uint64_t screenTime = present.getDisplayedScreenTime(displayIndex);
+            uint64_t screenTime = present.displayed[displayIndex].second;
             uint64_t nextScreenTime = 0;
 
             if (displayIndex + 1 < displayCount) {
                 // Next display instance of the same present
-                nextScreenTime = present.getDisplayedScreenTime(displayIndex + 1);
+                nextScreenTime = present.displayed[displayIndex + 1].second;
             }
-            else if (nextDisplayed != nullptr && nextDisplayed->getDisplayedCount() > 0) {
+            else if (nextDisplayed != nullptr && !nextDisplayed->displayed.empty()) {
                 // First display of the *next* presented frame
-                nextScreenTime = nextDisplayed->getDisplayedScreenTime(0);
+                nextScreenTime = nextDisplayed->displayed[0].second;
             }
             else {
                 break;  // No next screen time available
@@ -810,7 +810,7 @@ namespace pmon::util::metrics
 
             const bool isAppFrame = (displayIndex == indexing.appIndex);
             const bool isDisplayedInstance = isDisplayed && screenTime != 0 && nextScreenTime != 0;
-            const FrameType frameType = isDisplayedInstance ? present.getDisplayedFrameType(displayIndex) : FrameType::NotSet;
+            const FrameType frameType = isDisplayedInstance ? present.displayed[displayIndex].first : FrameType::NotSet;
 
             auto metrics = ComputeFrameMetrics(
                 qpc,
@@ -850,19 +850,19 @@ namespace pmon::util::metrics
         // to the current present
         if (swapChain.lastPresent.has_value()) {
             out.msBetweenPresents = qpc.DeltaUnsignedMilliSeconds(
-                swapChain.lastPresent->getPresentStartTime(),
-                present.getPresentStartTime());
+                swapChain.lastPresent->presentStartTime,
+                present.presentStartTime);
         } else {
             out.msBetweenPresents = 0.0;
         }
 
-        out.msInPresentApi = qpc.DurationMilliSeconds(present.getTimeInPresent());
+        out.msInPresentApi = qpc.DurationMilliSeconds(present.timeInPresent);
         out.msUntilRenderStart = qpc.DeltaSignedMilliSeconds(
-            present.getPresentStartTime(),
+            present.presentStartTime,
             present.gpuStartTime);
         out.msUntilRenderComplete = qpc.DeltaSignedMilliSeconds(
-            present.getPresentStartTime(),
-            present.getReadyTime());
+            present.presentStartTime,
+            present.readyTime);
         out.msGpuDuration = qpc.DurationMilliSeconds(present.gpuDuration);
         out.msVideoDuration = qpc.DurationMilliSeconds(present.gpuVideoDuration);
         out.msSinceInput = (present.inputTime == 0)
@@ -1250,18 +1250,18 @@ namespace pmon::util::metrics
         uint64_t cpuStart = 0;
         if (chainState.lastAppPresent.has_value()) {
             const auto& lastAppPresent = chainState.lastAppPresent.value();
-            if (lastAppPresent.getAppPropagatedPresentStartTime() != 0) {
-                cpuStart = lastAppPresent.getAppPropagatedPresentStartTime() +
-                    lastAppPresent.getAppPropagatedTimeInPresent();
+            if (lastAppPresent.appPropagatedPresentStartTime != 0) {
+                cpuStart = lastAppPresent.appPropagatedPresentStartTime +
+                    lastAppPresent.appPropagatedTimeInPresent;
             }
             else {
-                cpuStart = lastAppPresent.getPresentStartTime() +
-                    lastAppPresent.getTimeInPresent();
+                cpuStart = lastAppPresent.presentStartTime +
+                    lastAppPresent.timeInPresent;
             }
         }
         else {
             cpuStart = chainState.lastPresent.has_value() ?
-                chainState.lastPresent->getPresentStartTime() + chainState.lastPresent->getTimeInPresent() : 0;
+                chainState.lastPresent->presentStartTime + chainState.lastPresent->timeInPresent : 0;
         }
         return cpuStart;
     }
@@ -1277,10 +1277,10 @@ namespace pmon::util::metrics
             simStartTime = CalculateCPUStart(chainState, present);
         }
         else if (source == AnimationErrorSource::AppProvider) {
-            simStartTime = present.getAppSimStartTime();
+            simStartTime = present.appSimStartTime;
         }
         else if (source == AnimationErrorSource::PCLatency) {
-            simStartTime = present.getPclSimStartTime();
+            simStartTime = present.pclSimStartTime;
         }
         return simStartTime;
     }

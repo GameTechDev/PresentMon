@@ -100,7 +100,6 @@
     <ClCompile Include="ModuleInit.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
     <ClCompile Include="PolledPacedTests.cpp" />
-    <ClCompile Include="SwapChainTests.cpp" />
     <ClCompile Include="WrapperIntrospectionTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />
     <ClCompile Include="Logging.cpp" />

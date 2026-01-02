@@ -89,60 +89,6 @@ namespace pmon::util::metrics {
         uint32_t appFrameId = 0;
         uint32_t pclFrameId = 0;
 
-        // Setters for test setup
-        void setFinalState(PresentResult state) { finalState = state; }
-
-        // Inline getters - same interface as ConsoleAdapter (zero cost)
-        uint64_t getPresentStartTime() const { return presentStartTime; }
-        uint64_t getReadyTime() const { return readyTime; }
-        uint64_t getTimeInPresent() const { return timeInPresent; }
-        uint64_t getGPUStartTime() const { return gpuStartTime; }
-        uint64_t getGPUDuration() const { return gpuDuration; }
-        uint64_t getGPUVideoDuration() const { return gpuVideoDuration; }
-
-        // Propagated data
-        uint64_t getAppPropagatedPresentStartTime() const { return appPropagatedPresentStartTime; }
-        uint64_t getAppPropagatedTimeInPresent() const { return appPropagatedTimeInPresent; }
-        uint64_t getAppPropagatedGPUStartTime() const { return appPropagatedGPUStartTime; }
-        uint64_t getAppPropagatedReadyTime() const { return appPropagatedReadyTime; }
-        uint64_t getAppPropagatedGPUDuration() const { return appPropagatedGPUDuration; }
-        uint64_t getAppPropagatedGPUVideoDuration() const { return appPropagatedGPUVideoDuration; }
-
-        // Instrumented data
-        uint64_t getAppSimStartTime() const { return appSimStartTime; }
-        uint64_t getAppSleepStartTime() const { return appSleepStartTime; }
-        uint64_t getAppSleepEndTime() const { return appSleepEndTime; }
-        uint64_t getAppRenderSubmitStartTime() const { return appRenderSubmitStartTime; }
-        uint64_t getAppRenderSubmitEndTime() const { return appRenderSubmitEndTime; }
-        uint64_t getAppPresentStartTime() const { return appPresentStartTime; }
-        uint64_t getAppPresentEndTime() const { return appPresentEndTime; }
-        std::pair<uint64_t, InputDeviceType> getAppInputSample() const { return appInputSample; }
-
-        // PC Latency
-        uint64_t getPclSimStartTime() const { return pclSimStartTime; }
-        uint64_t getPclInputPingTime() const { return pclInputPingTime; }
-
-        // Input tracking
-        uint64_t getInputTime() const { return inputTime; }
-        uint64_t getMouseClickTime() const { return mouseClickTime; }
-
-        // Display data - normalized access
-        size_t getDisplayedCount() const { return displayed.size(); }
-        FrameType getDisplayedFrameType(size_t idx) const { return displayed[idx].first; }
-        uint64_t getDisplayedScreenTime(size_t idx) const { return displayed[idx].second; }
-
-        // Vendor-specific
-        uint64_t getFlipDelay() const { return flipDelay; }
-        uint32_t getFlipToken() const { return flipToken; }
-
-        // Metadata
-        PresentResult getFinalState() const { return finalState; }
-        uint32_t getProcessId() const { return processId; }
-        uint32_t getThreadId() const { return threadId; }
-        uint64_t getSwapChainAddress() const { return swapChainAddress; }
-        uint32_t getFrameId() const { return frameId; }
-        uint32_t getAppFrameId() const { return appFrameId; }
-
         // Factory Methods
         static FrameData CopyFrameData(const PmNsmPresentEvent& p);
         static FrameData CopyFrameData(const std::shared_ptr<PresentEvent>& p);

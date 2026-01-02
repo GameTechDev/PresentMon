@@ -74,8 +74,8 @@ namespace pmon::util::metrics
         }
 
         const bool isDisplayed =
-            (present.getFinalState() == PresentResult::Presented) &&
-            (present.getDisplayedCount() > 0);
+            (present.finalState == PresentResult::Presented) &&
+            (!present.displayed.empty());
 
         if (isDisplayed) {
             // 1) Finalize previously waiting displayed (if any), pointing at swapchain-owned next displayed.

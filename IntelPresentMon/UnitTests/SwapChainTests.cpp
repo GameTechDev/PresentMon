@@ -7,7 +7,7 @@
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
-namespace SwapChainTests
+namespace MetricsCoreTests
 {
     TEST_CLASS(SwapChainStateTests)
     {
@@ -176,7 +176,7 @@ namespace SwapChainTests
 
             // Store in core state
             swapChain.lastPresent = present;
-
+            
             // Verify access
             Assert::IsTrue(swapChain.lastPresent.has_value());
             Assert::AreEqual(uint32_t(7777), swapChain.lastPresent.value().appFrameId);
@@ -196,7 +196,7 @@ namespace SwapChainTests
             swapChain.lastPresent = presentOne;
             swapChain.lastSimStartTime = 1000;
             Assert::AreEqual(true, swapChain.lastPresent.has_value());
-            
+
             // Frame 2: Next frame received
             pmon::util::metrics::FrameData presentTwo;
 
@@ -208,9 +208,8 @@ namespace SwapChainTests
             swapChain.lastDisplayedSimStartTime = 2000;
             swapChain.lastDisplayedScreenTime = 2016;  // +16ms latency
             swapChain.lastDisplayedAppScreenTime = 2016;
-            
             Assert::AreEqual(uint64_t(2016), swapChain.lastDisplayedScreenTime);
-            
+
             // Frame 3
             pmon::util::metrics::FrameData presentThree;
             swapChain.lastPresent = presentThree;

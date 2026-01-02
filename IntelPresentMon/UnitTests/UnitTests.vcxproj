@@ -102,6 +102,7 @@
   <ItemGroup>
     <ClCompile Include="ExtremeQueue.cpp" />
     <ClCompile Include="MetricsCore.cpp" />
+    <ClCompile Include="SwapChainTests.cpp" />
     <ClCompile Include="Style.cpp" />
     <ClCompile Include="Timing.cpp" />
   </ItemGroup>
