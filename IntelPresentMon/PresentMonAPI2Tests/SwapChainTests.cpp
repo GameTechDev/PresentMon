@@ -44,55 +44,6 @@ namespace SwapChainTests
             // Verify optional presents are empty
             Assert::IsFalse(swapChain.lastPresent.has_value());
             Assert::IsFalse(swapChain.lastAppPresent.has_value());
-            
-            // Verify pending presents vector is empty
-            Assert::AreEqual(size_t(0), swapChain.pendingPresents.size());
-        }
-
-        TEST_METHOD(SwapChainInstantiation_ConsolePattern)
-        {
-            // Test with a simple type to verify default initialization
-            pmon::util::metrics::SwapChainCoreState swapChain{};
-
-            // Create a mock present event
-            pmon::util::metrics::FrameData present{};
-            present.presentStartTime = 1122;
-            present.appFrameId = 3344;
-            
-            // Add to pending presents
-            swapChain.pendingPresents.push_back(present);
-            Assert::AreEqual(size_t(1), swapChain.pendingPresents.size());
-            
-            // Set as last present
-            swapChain.lastPresent = present;
-            Assert::IsTrue(swapChain.lastPresent.has_value());
-            Assert::AreEqual(uint64_t(1122), swapChain.lastPresent.value().presentStartTime);
-            Assert::AreEqual(uint32_t(3344), swapChain.lastPresent.value().appFrameId);
-        }
-
-        TEST_METHOD(PendingPresents_VectorOperations)
-        {
-            pmon::util::metrics::SwapChainCoreState swapChain{};
-
-            // Create some mock presents
-            pmon::util::metrics::FrameData present[3]{};
-            present[0].appFrameId = 1;
-            present[1].appFrameId = 2;
-            present[2].appFrameId = 3;
-
-            // Add multiple items
-            swapChain.pendingPresents.push_back(present[0]);
-            swapChain.pendingPresents.push_back(present[1]);
-            swapChain.pendingPresents.push_back(present[2]);
-            
-            Assert::AreEqual(size_t(3), swapChain.pendingPresents.size());
-            Assert::AreEqual(uint32_t(1), swapChain.pendingPresents[0].appFrameId);
-            Assert::AreEqual(uint32_t(2), swapChain.pendingPresents[1].appFrameId);
-            Assert::AreEqual(uint32_t(3), swapChain.pendingPresents[2].appFrameId);
-            
-            // Clear pending presents
-            swapChain.pendingPresents.clear();
-            Assert::AreEqual(size_t(0), swapChain.pendingPresents.size());
         }
 
         TEST_METHOD(OptionalPresents_HasValue)
@@ -222,11 +173,10 @@ namespace SwapChainTests
             present.appFrameId = 7777;
             present.presentStartTime = 5555;
             present.timeInPresent = 2000;
-           
+
             // Store in core state
-            swapChain.pendingPresents.push_back(present);
             swapChain.lastPresent = present;
-            
+
             // Verify access
             Assert::IsTrue(swapChain.lastPresent.has_value());
             Assert::AreEqual(uint32_t(7777), swapChain.lastPresent.value().appFrameId);
@@ -243,40 +193,28 @@ namespace SwapChainTests
 
             presentOne.presentStartTime = 1000;
             presentOne.appFrameId = 1;
-            swapChain.pendingPresents.push_back(presentOne);
             swapChain.lastPresent = presentOne;
             swapChain.lastSimStartTime = 1000;
-            
-            Assert::AreEqual(size_t(1), swapChain.pendingPresents.size());
             Assert::AreEqual(true, swapChain.lastPresent.has_value());
             
             // Frame 2: Next frame received
             pmon::util::metrics::FrameData presentTwo;
 
             int frame2 = 2000;
-            swapChain.pendingPresents.push_back(presentTwo);
             swapChain.lastPresent = presentTwo;
             swapChain.lastSimStartTime = 2000;
-            Assert::AreEqual(size_t(2), swapChain.pendingPresents.size());
 
             // Frame 2 displayed: Update display state
             swapChain.lastDisplayedSimStartTime = 2000;
             swapChain.lastDisplayedScreenTime = 2016;  // +16ms latency
             swapChain.lastDisplayedAppScreenTime = 2016;
             
-            // Clear pending presents (they've been processed)
-            swapChain.pendingPresents.clear();
-            
-            Assert::AreEqual(size_t(0), swapChain.pendingPresents.size());
             Assert::AreEqual(uint64_t(2016), swapChain.lastDisplayedScreenTime);
             
             // Frame 3
             pmon::util::metrics::FrameData presentThree;
-            swapChain.pendingPresents.push_back(presentThree);
             swapChain.lastPresent = presentThree;
             swapChain.lastReceivedNotDisplayedAllInputTime = 2990;
-            
-            Assert::AreEqual(size_t(1), swapChain.pendingPresents.size());
             Assert::AreEqual(uint64_t(2990), swapChain.lastReceivedNotDisplayedAllInputTime);
         }
 
@@ -288,8 +226,6 @@ namespace SwapChainTests
             
             // Set state in core1
             swapChainOne.lastSimStartTime = 1234;
-            swapChainOne.pendingPresents.push_back(presents[0]);
-            swapChainOne.pendingPresents.push_back(presents[1]);
             swapChainOne.lastPresent = presents[1];
             swapChainOne.accumulatedInput2FrameStartTime = 16.7;
             
@@ -300,18 +236,15 @@ namespace SwapChainTests
 
             // Verify core2 has same values
             Assert::AreEqual(uint64_t(1234), swapChainTwo.lastSimStartTime);
-            Assert::AreEqual(size_t(2), swapChainTwo.pendingPresents.size());
             //Assert::AreEqual(presents[1], *swapChainTwo.lastPresent);
             Assert::AreEqual(16.7, swapChainTwo.accumulatedInput2FrameStartTime, 0.001);
             
             // Modify SwapChainTwo
             swapChainTwo.lastSimStartTime = 5678;
-            swapChainTwo.pendingPresents.push_back(presents[2]);
             swapChainTwo.lastPresent = presents[2];
             
             // Verify core1 is unchanged
             Assert::AreEqual(uint64_t(1234), swapChainOne.lastSimStartTime);
-            Assert::AreEqual(size_t(2), swapChainOne.pendingPresents.size());
             //Assert::AreEqual(presents[1], *swapChainOne.lastPresent);
         }
     };

@@ -46,10 +46,8 @@ namespace pmon::util::metrics
 
     void UnifiedSwapChain::SeedFromFirstPresent(FrameData present)
     {
-
         // Mirror console baseline behavior:
         // first present just seeds history (no pending pipeline).
-        swapChain.pendingPresents.clear();
         swapChain.UpdateAfterPresent(present);
     }
 

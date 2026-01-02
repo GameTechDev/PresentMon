@@ -3,17 +3,13 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
 #include "MetricsTypes.h"
 
 namespace pmon::util::metrics {
 
 struct SwapChainCoreState {
 
-    // Pending and Historical Presents
-    
-    // Pending presents waiting for the next displayed present.
-    std::vector<FrameData> pendingPresents;
+    // Historical Presents
 
     // The most recent present that has been processed (e.g., output into CSV and/or used for frame
     // statistics).

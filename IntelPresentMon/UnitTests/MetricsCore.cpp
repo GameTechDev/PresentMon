@@ -381,21 +381,6 @@ namespace MetricsCoreTests
             Assert::IsFalse(swapChain.lastAppPresent.has_value());
         }
 
-        TEST_METHOD(PendingPresents_CanStoreMultiplePendingPresents)
-        {
-            SwapChainCoreState swapChain;
-
-            FrameData p1{};
-            FrameData p2{};
-            FrameData p3{};
-
-            swapChain.pendingPresents.push_back(p1);
-            swapChain.pendingPresents.push_back(p2);
-            swapChain.pendingPresents.push_back(p3);
-
-            Assert::AreEqual(size_t(3), swapChain.pendingPresents.size());
-        }
-
         TEST_METHOD(LastPresent_CanBeAssigned)
         {
             SwapChainCoreState swapChain;
