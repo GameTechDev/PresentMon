@@ -140,22 +140,46 @@ namespace pmon::ipc
             {
                 // resolve out existing or new weak ptr, try and lock
                 auto& pWeak = frameShmWeaks_[pid];
-                auto pFrameData = frameShmWeaks_[pid].lock();
+                auto pFrameData = pWeak.lock();
                 if (!pFrameData) {
                     // if weak ptr was new (or expired), lock will not work and we need to construct
                     // make a frame data store as shared ptr
-                    pFrameData = std::make_shared<OwnedDataSegment<FrameDataStore>>(
-                        namer_.MakeFrameName(pid), 
-                        DataStoreSizingInfo{
-                            .ringSamples = frameRingSamples_,
-                            .backpressured = backpressured,
-                        },
-                        static_cast<const bip::permissions&>(Permissions_{}));
+                    const auto segmentName = namer_.MakeFrameName(pid);
+                    const DataStoreSizingInfo sizing{
+                        .ringSamples = frameRingSamples_,
+                        .backpressured = backpressured,
+                    };
+                    pFrameData = std::shared_ptr<OwnedDataSegment<FrameDataStore>>(
+                        new OwnedDataSegment<FrameDataStore>(
+                            segmentName,
+                            sizing,
+                            static_cast<const bip::permissions&>(Permissions_{})),
+                        [pid, segmentName](OwnedDataSegment<FrameDataStore>* pSegment) {
+                            pmlog_dbg("Frame data segment destroyed")
+                                .pmwatch(pid)
+                                .pmwatch(segmentName);
+                            delete pSegment;
+                        });
                     // store a weak reference
                     pWeak = pFrameData;
+                    pmlog_dbg("Frame data segment created")
+                        .pmwatch(pid)
+                        .pmwatch(segmentName)
+                        .pmwatch(backpressured);
                 }
                 // remove stale elements to keep map lean
-                std::erase_if(frameShmWeaks_, [](auto&&kv){return kv.second.expired();});
+                for (auto it = frameShmWeaks_.begin(); it != frameShmWeaks_.end(); ) {
+                    if (it->second.expired()) {
+                        const auto segmentName = namer_.MakeFrameName(it->first);
+                        pmlog_dbg("Frame data segment released")
+                            .pmwatch(it->first)
+                            .pmwatch(segmentName);
+                        it = frameShmWeaks_.erase(it);
+                    }
+                    else {
+                        ++it;
+                    }
+                }
 
                 return pFrameData;
             }
@@ -167,6 +191,10 @@ namespace pmon::ipc
                         return pSegment;
                     }
                     // if weak ptr has expired, garbage collect from the map
+                    const auto segmentName = namer_.MakeFrameName(pid);
+                    pmlog_dbg("Frame data segment released")
+                        .pmwatch(pid)
+                        .pmwatch(segmentName);
                     frameShmWeaks_.erase(i);
                 }
                 return {};
@@ -320,10 +348,19 @@ namespace pmon::ipc
                     std::forward_as_tuple(pid),
                     std::forward_as_tuple(segName)
                 );
+                pmlog_dbg("Frame data segment opened")
+                    .pmwatch(pid)
+                    .pmwatch(segName);
             }
             void CloseFrameDataStore(uint32_t pid) override
             {
-                frameShms_.erase(pid);
+                if (auto it = frameShms_.find(pid); it != frameShms_.end()) {
+                    const auto segName = namer_.MakeFrameName(pid);
+                    pmlog_dbg("Frame data segment closed")
+                        .pmwatch(pid)
+                        .pmwatch(segName);
+                    frameShms_.erase(it);
+                }
             }
             // data store access
             const FrameDataStore& GetFrameDataStore(uint32_t pid) const override
