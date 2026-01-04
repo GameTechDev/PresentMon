@@ -1,6 +1,7 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
 #include <format>
+#include <cereal/cereal.hpp>
 
 #define ACT_NAME ReportMetricUse
 #define ACT_EXEC_CTX ActionExecutionContext
@@ -19,7 +20,7 @@ namespace pmon::svc::acts
 		{
 			std::unordered_set<MetricUse> metricUsage;
 			template<class A> void serialize(A& ar) {
-				ar(metricUsage);
+				ar(CEREAL_NVP(metricUsage));
 			}
 		};
 		struct Response
@@ -30,6 +31,10 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
+			pmlog_verb(pmon::util::log::V::met_use)("ReportMetricUse action payload")
+				.pmwatch(stx.remotePid)
+				.serialize("reportMetricUse", in);
+
 			stx.metricUsage = std::move(in.metricUsage);
 			ctx.UpdateMetricUsage();
 			return {};

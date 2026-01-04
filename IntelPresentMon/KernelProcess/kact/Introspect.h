@@ -10,9 +10,7 @@
 
 // cereal JSON dump + NVP macro
 #include <cereal/cereal.hpp>
-#include <cereal/archives/json.hpp>
 #include <cereal/types/string.hpp>
-#include <sstream>
 
 #define ACT_NAME Introspect
 #define ACT_EXEC_CTX KernelExecutionContext
@@ -176,28 +174,8 @@ namespace ACT_NS
                     });
             }
 
-            // --- dump response as JSON to log (best-effort; never fail the action due to logging) ---
-            std::string responseJson;
-            try
-            {
-                std::ostringstream os;
-
-                // Pretty JSON by default; use NoIndent() if you want compact output.
-                auto opts = cereal::JSONOutputArchive::Options::Default();
-                cereal::JSONOutputArchive ar(os, opts);
-
-                // Use macro-driven naming for the root object too
-                auto& introspect = res;
-                ar(CEREAL_NVP(introspect));
-
-                responseJson = os.str();
-            }
-            catch (const std::exception& e)
-            {
-                responseJson = std::string("Introspect JSON serialization failed: ") + e.what();
-            }
-
-            pmlog_verb(v::kact)("Introspect action").pmwatch(responseJson);
+            pmlog_verb(v::kact)("Introspect action")
+                .serialize("introspect", res);
 
             return res;
         }

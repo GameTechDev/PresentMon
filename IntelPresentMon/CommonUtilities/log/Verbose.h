@@ -15,6 +15,7 @@ namespace pmon::util::log
 		etwq,
 		kact,
 		ipc_sto,
+		met_use,
 		Count
 	};
 

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
 #include "KernelExecutionContext.h"
 #include "../MakeOverlaySpec.h"
@@ -11,11 +11,9 @@
 
 // cereal JSON dump + NVP macro
 #include <cereal/cereal.hpp>
-#include <cereal/archives/json.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/types/vector.hpp>
 #include <cereal/types/optional.hpp>
-#include <sstream>
 
 #define ACT_NAME PushSpecification
 #define ACT_EXEC_CTX KernelExecutionContext
@@ -299,27 +297,10 @@ namespace ACT_NS
                 (*ctx.ppKernel)->PushSpec(MakeOverlaySpec(in));
             }
 
-            // --- dump params as JSON to log (best-effort; never fail the action due to logging) ---
             // (No useful response fields; logging the request is typically what you want here.)
-            std::string paramsJson;
-            try
-            {
-                std::ostringstream os;
-                auto opts = cereal::JSONOutputArchive::Options::Default();
-                cereal::JSONOutputArchive ar(os, opts);
-
-                auto& pushSpecification = in;
-                ar(CEREAL_NVP(pushSpecification));
-
-                paramsJson = os.str();
-            }
-            catch (const std::exception& e)
-            {
-                paramsJson = std::string("PushSpecification JSON serialization failed: ") + e.what();
-            }
-
             using v = pmon::util::log::V;
-            pmlog_verb(v::kact)("PushSpecification action").pmwatch(paramsJson);
+            pmlog_verb(v::kact)("PushSpecification action")
+                .serialize("pushSpecification", in);
 
             return {};
         }

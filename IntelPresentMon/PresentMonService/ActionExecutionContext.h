@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../Interprocess/source/act/SymmetricActionConnector.h"
 #include "../Interprocess/source/ShmNamer.h"
 #include "../CommonUtilities/Hash.h"
@@ -13,6 +13,7 @@
 #include <map>
 #include <functional>
 #include <type_traits>
+#include <cereal/cereal.hpp>
 
 #include "PresentMon.h"
 #include "Service.h"
@@ -21,7 +22,7 @@
 namespace pmon::svc::acts
 {
     struct ActionExecutionContext;
-
+    // TODO: move this struct into its own header
     struct MetricUse
     {
         PM_METRIC metricId;
@@ -31,7 +32,9 @@ namespace pmon::svc::acts
         template<class A>
         void serialize(A& ar)
         {
-            ar(metricId, deviceId, arrayIdx);
+            ar(CEREAL_NVP(metricId),
+                CEREAL_NVP(deviceId),
+                CEREAL_NVP(arrayIdx));
         }
 
         bool operator==(const MetricUse& rhs) const
@@ -91,6 +94,8 @@ namespace pmon::svc::acts
         PresentMon* pPmon = nullptr;
         const std::unordered_map<uint32_t, SessionContextType>* pSessionMap = nullptr;
         std::optional<uint32_t> responseWriteTimeoutMs;
+        mutable std::unordered_set<MetricUse> lastAggregateMetricUsage;
+        mutable bool hasLastAggregateMetricUsage = false;
 
         // functions
         void Dispose(SessionContextType& stx);

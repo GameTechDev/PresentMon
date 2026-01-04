@@ -74,7 +74,7 @@ namespace InterimBroadcasterTests
                 .ctrlPipe = R"(\\.\pipe\pm-intbroad-test-ctrl)",
                 .shmNamePrefix = "pm_intbroad_test",
                 .logLevel = "verbose",
-                .logVerboseModules = "ipc_sto",
+                .logVerboseModules = "ipc_sto met_use",
                 .logFolder = logFolder_,
                 .sampleClientMode = "NONE",
             };
