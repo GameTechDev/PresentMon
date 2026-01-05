@@ -505,11 +505,10 @@ namespace pmon::util::metrics
             return qpc.DeltaUnsignedMilliSeconds(present.appRenderSubmitStartTime, screenTime);
         }
 
-        std::optional<double> ComputeInstrumentedSleep(const QpcConverter& qpc,
+        std::optional<double> ComputeInstrumentedSleep(
+            const QpcConverter& qpc,
             const FrameData& present,
-            bool isDisplayed,
-            bool isAppFrame,
-            uint64_t screenTime)
+            bool isAppFrame)
         {
             if (!isAppFrame) {
                 return std::nullopt;
@@ -526,7 +525,6 @@ namespace pmon::util::metrics
         std::optional<double> ComputeInstrumentedGpuLatency(
             const QpcConverter& qpc,
             const FrameData& present,
-            bool isDisplayed,
             bool isAppFrame)
         {
             if (!isAppFrame) {
@@ -943,13 +941,14 @@ namespace pmon::util::metrics
         FrameMetrics& metrics,
         ComputedMetrics::StateDeltas& stateDeltas)
     {
+        const uint64_t screenTime = metrics.screenTimeQpc;
         metrics.msClickToPhotonLatency = ComputeClickToPhotonLatency(
             qpc,
             swapChain,
             present,
             isDisplayed,
             isAppFrame,
-            metrics.screenTimeQpc,
+            screenTime,
             stateDeltas);
 
         metrics.msAllInputPhotonLatency = ComputeAllInputToPhotonLatency(
@@ -958,7 +957,7 @@ namespace pmon::util::metrics
             present, 
             isDisplayed, 
             isAppFrame, 
-            metrics.screenTimeQpc,
+            screenTime,
             stateDeltas);
 
         metrics.msInstrumentedInputTime = ComputeInstrumentedInputToPhotonLatency(
@@ -967,7 +966,7 @@ namespace pmon::util::metrics
             present,
             isDisplayed,
             isAppFrame,
-            metrics.screenTimeQpc,
+            screenTime,
             stateDeltas);
     }
 
@@ -1077,14 +1076,11 @@ namespace pmon::util::metrics
         metrics.msInstrumentedSleep = ComputeInstrumentedSleep(
             qpc,
             present,
-            isDisplayed,
-            isAppFrame,
-            screenTime);
+            isAppFrame);
 
         metrics.msInstrumentedGpuLatency = ComputeInstrumentedGpuLatency(
             qpc,
             present,
-            isDisplayed,
             isAppFrame);
 
         metrics.msBetweenSimStarts = ComputeMsBetweenSimulationStarts(
