@@ -66,6 +66,10 @@ namespace pmon::ipc
             {
                 auto lck = LockIntrospectionMutexExclusive_();
                 const auto deviceId = nextDeviceIndex_++;
+                pmlog_dbg("GPU metric capabilities")
+                    .pmwatch(deviceId)
+                    .pmwatch(deviceName)
+                    .pmwatch(caps.ToString(26));
                 intro::PopulateGpuDevice(
                     shm_.get_segment_manager(), *pRoot_,
                     deviceId, vendor, deviceName, caps
@@ -105,6 +109,12 @@ namespace pmon::ipc
                 const MetricCapabilities& caps) override
             {
                 auto lck = LockIntrospectionMutexExclusive_();
+                constexpr size_t kWatchIndent = 5;
+                constexpr size_t kCapsTextIndent = kWatchIndent + (sizeof("capsText => ") - 1);
+                const auto capsText = caps.ToString(kCapsTextIndent);
+                pmlog_dbg("CPU metric capabilities")
+                    .pmwatch(deviceName)
+                    .pmwatch(capsText);
                 intro::PopulateCpu(
                     shm_.get_segment_manager(), *pRoot_, vendor, std::move(deviceName), caps
                 );

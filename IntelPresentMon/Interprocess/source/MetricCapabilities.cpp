@@ -1,4 +1,6 @@
-#include "MetricCapabilities.h"
+﻿#include "MetricCapabilities.h"
+#include <sstream>
+#include <type_traits>
 
 namespace pmon::ipc
 {
@@ -36,5 +38,22 @@ namespace pmon::ipc
             return 0; // not present / not available
         }
         return it->second;
+    }
+
+    std::string MetricCapabilities::ToString(size_t indentSpaces) const
+    {
+        std::ostringstream oss;
+        const std::string indent(indentSpaces, ' ');
+        bool first = true;
+        for (const auto& kv : caps_) {
+            if (!first) {
+                oss << "\r\n";
+                oss << indent;
+            }
+            first = false;
+            oss << "metricId=" << static_cast<std::underlying_type_t<PM_METRIC>>(kv.first)
+                << " arraySize=" << kv.second;
+        }
+        return oss.str();
     }
 }

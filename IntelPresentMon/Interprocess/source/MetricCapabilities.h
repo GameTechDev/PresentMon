@@ -1,6 +1,7 @@
-#pragma once
+﻿#pragma once
 #include "../../PresentMonAPI2/PresentMonAPI.h"
 #include <unordered_map>
+#include <string>
 
 namespace pmon::ipc
 {
@@ -13,6 +14,7 @@ namespace pmon::ipc
 		void Set(PM_METRIC metricId, size_t arraySize);
 		void Merge(const MetricCapabilities& capsToMerge);
 		size_t Check(PM_METRIC metricId) const noexcept;
+		std::string ToString(size_t indentSpaces = 0) const;
 		auto begin() const noexcept
 		{
 			return caps_.begin();
