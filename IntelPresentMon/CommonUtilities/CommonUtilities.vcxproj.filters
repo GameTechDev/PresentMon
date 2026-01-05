@@ -306,6 +306,9 @@
     <ClInclude Include="mc\UnifiedSwapChain.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="mc\MetricsCalculatorInternal.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cli\CliFramework.cpp">
@@ -492,6 +495,21 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="mc\UnifiedSwapChain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsCalculatorDisplay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsCalculatorInstrumented.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsCalculatorAnimation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsCalculatorCpuGpu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsCalculatorInput.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
