@@ -6,169 +6,164 @@
 #include "../IntelPresentMon/PresentMonUtils/StreamFormat.h"
 #include "../Math.h"
 
+// Layout: internal helpers -> entry points -> metric assembly -> exported helpers
+
 namespace pmon::util::metrics
 {
+    // ============================================================================
+    // 1) Internal helpers (file-local)
+    // ============================================================================
     namespace
     {
         // Helper dedicated to computing msUntilDisplayed, matching legacy ReportMetricsHelper behavior.
-        void ComputeMsUntilDisplayed(
+
+        // ---- Display metrics ----
+        double ComputeMsUntilDisplayed(
             const QpcConverter& qpc,
             const FrameData& present,
             bool isDisplayed,
-            uint64_t screenTime,
-            FrameMetrics& out)
+            uint64_t screenTime)
         {
-            if (isDisplayed) {
-                out.msUntilDisplayed = qpc.DeltaUnsignedMilliSeconds(
-                    present.presentStartTime,
-                    screenTime);
-            }
-            else {
-                out.msUntilDisplayed = 0.0;
-            }
+            return isDisplayed
+                ? qpc.DeltaUnsignedMilliSeconds(present.presentStartTime, screenTime)
+                : 0.0;
         }
 
+
         // Helper dedicated to computing msBetweenDisplayChange, matching legacy ReportMetricsHelper behavior.
-        void ComputeMsBetweenDisplayChange(
+        double ComputeMsBetweenDisplayChange(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
             bool isDisplayed,
-            uint64_t screenTime,
-            FrameMetrics& out)
+            uint64_t screenTime)
         {
-            if (isDisplayed) {
-                out.msBetweenDisplayChange = qpc.DeltaUnsignedMilliSeconds(
-                    chain.lastDisplayedScreenTime,
-                    screenTime);
-            }
-            else {
-                out.msBetweenDisplayChange = 0.0;
-            }
+            return isDisplayed
+                ? qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedScreenTime, screenTime)
+                : 0.0;
         }
+
 
         // Helper dedicated to computing msDisplayedTime, matching legacy ReportMetricsHelper behavior.
-        void ComputeMsDisplayedTime(
+        double ComputeMsDisplayedTime(
             const QpcConverter& qpc,
             bool isDisplayed,
             uint64_t screenTime,
-            uint64_t nextScreenTime,
-            FrameMetrics& out)
+            uint64_t nextScreenTime)
         {
-            if (isDisplayed) {
-                out.msDisplayedTime = qpc.DeltaUnsignedMilliSeconds(
-                    screenTime,
-                    nextScreenTime);
-            }
-            else {
-                out.msDisplayedTime = 0.0;
-            }
+            return isDisplayed
+                ? qpc.DeltaUnsignedMilliSeconds(screenTime, nextScreenTime)
+                : 0.0;
         }
+
         
-        void ComputeMsFlipDelay(
+        std::optional<double> ComputeMsFlipDelay(
             const QpcConverter& qpc,
             const FrameData& present,
-            bool isDisplayed,
-            FrameMetrics& out)
+            bool isDisplayed)
         {
             if (isDisplayed && present.flipDelay != 0) {
-                out.msFlipDelay = qpc.DurationMilliSeconds(present.flipDelay);
+                return qpc.DurationMilliSeconds(present.flipDelay);
             }
-            else {
-                out.msFlipDelay = std::nullopt;
-            }
+            return std::nullopt;
         }
 
-        void ComputeMsDisplayLatency(
+
+        double ComputeMsDisplayLatency(
             const QpcConverter& qpc,
             const SwapChainCoreState& swapChain,
             const FrameData& present,
             bool isDisplayed,
-            uint64_t screenTime,
-            FrameMetrics& out)
+            uint64_t screenTime)
         {
             const auto cpuStart = CalculateCPUStart(swapChain, present);
-            if (isDisplayed && cpuStart != 0) {
-                out.msDisplayLatency = qpc.DeltaUnsignedMilliSeconds(cpuStart, screenTime);
-            } else {
-                out.msDisplayLatency = 0.0;
-            }
+            return (isDisplayed && cpuStart != 0)
+                ? qpc.DeltaUnsignedMilliSeconds(cpuStart, screenTime)
+                : 0.0;
         }
 
-        void ComputeMsReadyTimeToDisplayLatency(
+
+        std::optional<double> ComputeMsReadyTimeToDisplayLatency(
             const QpcConverter& qpc,
             const FrameData& present,
             bool isDisplayed,
-            uint64_t screenTime,
-            FrameMetrics& out)
+            uint64_t screenTime)
         {
             if (isDisplayed && present.readyTime != 0) {
-                out.msReadyTimeToDisplayLatency = qpc.DeltaUnsignedMilliSeconds(present.readyTime, screenTime);
+                return qpc.DeltaUnsignedMilliSeconds(present.readyTime, screenTime);
             }
-            else {
-                out.msReadyTimeToDisplayLatency = std::nullopt;
-            }
+            return std::nullopt;
         }
 
-        void ComputeMsCpuBusy(
+
+        // ---- CPU/GPU metrics ----
+        double ComputeMsCpuBusy(
             const QpcConverter& qpc,
             const SwapChainCoreState& swapChain,
             const FrameData& present,
-            bool isAppPresent,
-            FrameMetrics& out)
+            bool isAppPresent)
         {
-            //out.msCPUBusy = std::nullopt;
-            out.msCPUBusy = 0.0;
-            if (isAppPresent) {
-                auto cpuStart = CalculateCPUStart(swapChain, present);
-                if (cpuStart != 0) {
-                    if (present.appPropagatedPresentStartTime != 0) {
-                        out.msCPUBusy = qpc.DeltaUnsignedMilliSeconds(cpuStart, present.appPropagatedPresentStartTime);
-                    } else if (present.presentStartTime != 0) {
-                        out.msCPUBusy = qpc.DeltaUnsignedMilliSeconds(cpuStart, present.presentStartTime);
-                    }
-                }
+            if (!isAppPresent) {
+                return 0.0;
             }
+
+            const auto cpuStart = CalculateCPUStart(swapChain, present);
+            if (cpuStart == 0) {
+                return 0.0;
+            }
+
+            if (present.appPropagatedPresentStartTime != 0) {
+                return qpc.DeltaUnsignedMilliSeconds(cpuStart, present.appPropagatedPresentStartTime);
+            }
+            if (present.presentStartTime != 0) {
+                return qpc.DeltaUnsignedMilliSeconds(cpuStart, present.presentStartTime);
+            }
+            return 0.0;
         }
 
-        void ComputeMsCpuWait(
+
+        double ComputeMsCpuWait(
             const QpcConverter& qpc,
             const FrameData& present,
-            bool isAppPresent,
-            FrameMetrics& out)
+            bool isAppPresent)
         {
-            //out.msCPUWait = std::nullopt;
-            out.msCPUWait = 0.0;
-            if (isAppPresent) {
-                if (present.appPropagatedTimeInPresent != 0) {
-                    out.msCPUWait = qpc.DurationMilliSeconds(present.appPropagatedTimeInPresent);
-                }
-                else if (present.timeInPresent != 0) {
-                    out.msCPUWait = qpc.DurationMilliSeconds(present.timeInPresent);
-                }
+            if (!isAppPresent) {
+                return 0.0;
             }
+
+            if (present.appPropagatedTimeInPresent != 0) {
+                return qpc.DurationMilliSeconds(present.appPropagatedTimeInPresent);
+            }
+            if (present.timeInPresent != 0) {
+                return qpc.DurationMilliSeconds(present.timeInPresent);
+            }
+            return 0.0;
         }
 
-        void ComputeMsGpuLatency(
+
+        double ComputeMsGpuLatency(
             const QpcConverter& qpc,
             const SwapChainCoreState& swapChain,
             const FrameData& present,
-            bool isAppPresent,
-            FrameMetrics& out)
+            bool isAppPresent)
         {
-            //out.msGPULatency = std::nullopt;
-            out.msGPULatency = 0.0;
-            if (isAppPresent) {
-                auto cpuStart = CalculateCPUStart(swapChain, present);
-                if (cpuStart != 0) {
-                    if (present.appPropagatedGPUStartTime != 0) {
-                        out.msGPULatency = qpc.DeltaUnsignedMilliSeconds(cpuStart, present.appPropagatedGPUStartTime);
-                    }
-                    else if (present.gpuStartTime != 0) {
-                        out.msGPULatency = qpc.DeltaUnsignedMilliSeconds(cpuStart, present.gpuStartTime);
-                    }
-                }
+            if (!isAppPresent) {
+                return 0.0;
             }
+
+            const auto cpuStart = CalculateCPUStart(swapChain, present);
+            if (cpuStart == 0) {
+                return 0.0;
+            }
+
+            if (present.appPropagatedGPUStartTime != 0) {
+                return qpc.DeltaUnsignedMilliSeconds(cpuStart, present.appPropagatedGPUStartTime);
+            }
+            if (present.gpuStartTime != 0) {
+                return qpc.DeltaUnsignedMilliSeconds(cpuStart, present.gpuStartTime);
+            }
+            return 0.0;
         }
+
 
         double ComputeMsGpuBusy(
             const QpcConverter& qpc,
@@ -188,23 +183,24 @@ namespace pmon::util::metrics
             return msGPUBusy;
         }
 
-        void ComputeMsVideoBusy(
+        double ComputeMsVideoBusy(
             const QpcConverter& qpc,
             const FrameData& present,
-            bool isAppPresent,
-            FrameMetrics& out)
+            bool isAppPresent)
         {
-            //out.msVideoBusy = std::nullopt;
-            out.msVideoBusy = 0.0;
-            if (isAppPresent) {
-                if (present.appPropagatedGPUVideoDuration != 0) {
-                    out.msVideoBusy = qpc.DurationMilliSeconds(present.appPropagatedGPUVideoDuration);
-                }
-                else if (present.gpuVideoDuration != 0) {
-                    out.msVideoBusy = qpc.DurationMilliSeconds(present.gpuVideoDuration);
-                }
+            if (!isAppPresent) {
+                return 0.0;
             }
+
+            if (present.appPropagatedGPUVideoDuration != 0) {
+                return qpc.DurationMilliSeconds(present.appPropagatedGPUVideoDuration);
+            }
+            if (present.gpuVideoDuration != 0) {
+                return qpc.DurationMilliSeconds(present.gpuVideoDuration);
+            }
+            return 0.0;
         }
+
 
         double ComputeMsGpuDuration (
             const QpcConverter& qpc,
@@ -224,27 +220,28 @@ namespace pmon::util::metrics
             return msGPUDuration;
         }
 
-        void ComputeMsGpuWait(
+        double ComputeMsGpuWait(
             const QpcConverter& qpc,
             const FrameData& present,
-            bool isAppPresent,
-            FrameMetrics& out)
+            bool isAppPresent)
         {
-            out.msGPUWait = std::max(0.0, ComputeMsGpuDuration(qpc, present, isAppPresent) - ComputeMsGpuBusy(qpc, present, isAppPresent));
+            return std::max(0.0,
+                ComputeMsGpuDuration(qpc, present, isAppPresent) -
+                ComputeMsGpuBusy(qpc, present, isAppPresent));
         }
 
-        void ComputeAnimationError(
+
+        // ---- Animation metrics ----
+        std::optional<double> ComputeAnimationError(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
             const FrameData& present,
             bool isDisplayed,
             bool isAppFrame,
-            uint64_t screenTime,
-            FrameMetrics& out)
+            uint64_t screenTime)
         {
             if (!isDisplayed || !isAppFrame) {
-                out.msAnimationError = std::nullopt;
-                return;
+                return std::nullopt;
             }
 
             uint64_t currentSimStart = CalculateAnimationErrorSimStartTime(chain, present, chain.animationErrorSource);
@@ -253,32 +250,29 @@ namespace pmon::util::metrics
                 chain.lastDisplayedSimStartTime == 0 ||
                 currentSimStart <= chain.lastDisplayedSimStartTime ||
                 chain.lastDisplayedAppScreenTime == 0) {
-                out.msAnimationError = std::nullopt;
-                return;
+                return std::nullopt;
             }
 
             double simElapsed = qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedSimStartTime, currentSimStart);
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedAppScreenTime, screenTime);
 
-            if(simElapsed == 0.0 || displayElapsed == 0.0) {
-                out.msAnimationError = std::nullopt;
-                return;
+            if (simElapsed == 0.0 || displayElapsed == 0.0) {
+                return std::nullopt;
             }
 
-            out.msAnimationError = simElapsed - displayElapsed;
+            return simElapsed - displayElapsed;
         }
 
-        void ComputeAnimationTime(
+
+        std::optional<double> ComputeAnimationTime(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
             const FrameData& present,
             bool isDisplayed,
-            bool isAppFrame,
-            FrameMetrics& out)
+            bool isAppFrame)
         {
             if (!isDisplayed || !isAppFrame) {
-                out.msAnimationTime = std::nullopt;
-                return;
+                return std::nullopt;
             }
 
             bool isFirstProviderSimTime =
@@ -287,19 +281,19 @@ namespace pmon::util::metrics
             if (isFirstProviderSimTime) {
                 // Seed only: no animation time yet. UpdateAfterPresent will flip us
                 // into AppProvider/PCL and latch firstAppSimStartTime.
-                out.msAnimationTime = std::nullopt;
-                return;
+                return std::nullopt;
             }
 
             uint64_t currentSimStart = CalculateAnimationErrorSimStartTime(chain, present, chain.animationErrorSource);
             if (currentSimStart == 0) {
-                out.msAnimationTime = std::nullopt;
-                return;
+                return std::nullopt;
             }
 
-            out.msAnimationTime = CalculateAnimationTime(qpc, chain.firstAppSimStartTime, currentSimStart);
+            return CalculateAnimationTime(qpc, chain.firstAppSimStartTime, currentSimStart);
         }
 
+
+        // ---- NV collapsed/runt correction ----
         void AdjustScreenTimeForCollapsedPresentNV(
             FrameData& present,
             FrameData* nextDisplayedPresent,
@@ -338,6 +332,7 @@ namespace pmon::util::metrics
             }
         }
 
+        // ---- Input latency metrics ----
         std::optional<double> ComputeClickToPhotonLatency(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
@@ -468,6 +463,7 @@ namespace pmon::util::metrics
             return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
         }
 
+        // ---- Instrumented metrics ----
         std::optional<double> ComputeInstrumentedLatency(
             const QpcConverter& qpc,
             const FrameData& present,
@@ -553,6 +549,7 @@ namespace pmon::util::metrics
             return qpc.DeltaUnsignedMilliSeconds(instrumentedStartTime, present.gpuStartTime);
         }
 
+        // ---- Simulation metrics ----
         std::optional<double> ComputeMsBetweenSimulationStarts(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
@@ -583,6 +580,7 @@ namespace pmon::util::metrics
             }
         }
 
+        // ---- Swap-chain state application ----
         void ApplyStateDeltas(
             SwapChainCoreState& chainState,
             const ComputedMetrics::StateDeltas& d)
@@ -642,6 +640,10 @@ namespace pmon::util::metrics
         }
     }
 
+
+    // ============================================================================
+    // 2) Public entry points
+    // ============================================================================
     DisplayIndexing DisplayIndexing::Calculate(
         const FrameData& present,
         const FrameData* nextDisplayed)
@@ -837,7 +839,9 @@ namespace pmon::util::metrics
         return results;
     }
 
-
+    // ============================================================================
+    // 3) Metric assembly helpers (ComputeFrameMetrics)
+    // ============================================================================
     void CalculateBasePresentMetrics(
         const QpcConverter& qpc,
         const FrameData& present,
@@ -877,57 +881,15 @@ namespace pmon::util::metrics
         bool isDisplayed,
         uint64_t screenTime,
         uint64_t nextScreenTime,
-        FrameMetrics& metrics) {
+        FrameMetrics& metrics)
+    {
+        metrics.msUntilDisplayed = ComputeMsUntilDisplayed(qpc, present, isDisplayed, screenTime);
+        metrics.msBetweenDisplayChange = ComputeMsBetweenDisplayChange(qpc, swapChain, isDisplayed, screenTime);
+        metrics.msDisplayedTime = ComputeMsDisplayedTime(qpc, isDisplayed, screenTime, nextScreenTime);
+        metrics.msFlipDelay = ComputeMsFlipDelay(qpc, present, isDisplayed);
+        metrics.msDisplayLatency = ComputeMsDisplayLatency(qpc, swapChain, present, isDisplayed, screenTime);
+        metrics.msReadyTimeToDisplayLatency = ComputeMsReadyTimeToDisplayLatency(qpc, present, isDisplayed, screenTime);
 
-        // msUntilDisplayed depends only on whether this display instance is displayed and its screen time
-        ComputeMsUntilDisplayed(
-            qpc,
-            present,
-            isDisplayed,
-            screenTime,
-            metrics);
-
-        // msBetweenDisplayChange depends on previous displayed screen time and the current screen time
-        ComputeMsBetweenDisplayChange(
-            qpc,
-            swapChain,
-            isDisplayed,
-            screenTime,
-            metrics);
-
-        // msDisplayedTime depends on the current screen time and the next screen time
-        ComputeMsDisplayedTime(
-            qpc,
-            isDisplayed,
-            screenTime,
-            nextScreenTime,
-            metrics);
-
-        // msFlipDelay depends if the current present has a flip delay
-        ComputeMsFlipDelay(
-            qpc,
-            present,
-            isDisplayed,
-            metrics);
-        
-        // msDisplayLatency is the cpu start time to the current screen time
-        ComputeMsDisplayLatency(
-            qpc,
-            swapChain,
-            present,
-            isDisplayed,
-            screenTime,
-            metrics);
-
-        // msReadyTimeToDisplayLatency is ready time to the current screen time
-        ComputeMsReadyTimeToDisplayLatency(
-            qpc,
-            present,
-            isDisplayed,
-            screenTime,
-            metrics);
-
-        // screenTimeQpc is simply the current screen time
         metrics.screenTimeQpc = screenTime;
     }
 
@@ -938,45 +900,15 @@ namespace pmon::util::metrics
         bool isAppFrame,
         FrameMetrics& metrics)
     {
-        ComputeMsCpuBusy(
-            qpc,
-            chainState,
-            present,
-            isAppFrame,
-            metrics);
+        metrics.msCPUBusy = ComputeMsCpuBusy(qpc, chainState, present, isAppFrame);
+        metrics.msCPUWait = ComputeMsCpuWait(qpc, present, isAppFrame);
+        metrics.msGPULatency = ComputeMsGpuLatency(qpc, chainState, present, isAppFrame);
 
-        ComputeMsCpuWait(
-            qpc,
-            present,
-            isAppFrame,
-            metrics);
-
-        ComputeMsGpuLatency(
-            qpc,
-            chainState,
-            present,
-            isAppFrame,
-            metrics);
-
-        metrics.msGPUBusy = ComputeMsGpuBusy(
-            qpc, 
-            present, 
-            isAppFrame);
-
-        ComputeMsVideoBusy(
-            qpc,
-            present,
-            isAppFrame,
-            metrics);
-
-        ComputeMsGpuWait(
-            qpc,
-            present,
-            isAppFrame,
-            metrics);
+        metrics.msGPUBusy = ComputeMsGpuBusy(qpc, present, isAppFrame);
+        metrics.msVideoBusy = ComputeMsVideoBusy(qpc, present, isAppFrame);
+        metrics.msGPUWait = ComputeMsGpuWait(qpc, present, isAppFrame);
     }
 
-    
     void CalculateAnimationMetrics(
         const QpcConverter& qpc,
         const SwapChainCoreState& swapChain,
@@ -986,22 +918,20 @@ namespace pmon::util::metrics
         uint64_t screenTime,
         FrameMetrics& metrics)
     {
-        ComputeAnimationError(
+        metrics.msAnimationError = ComputeAnimationError(
             qpc,
             swapChain,
             present,
             isDisplayed,
             isAppFrame,
-            screenTime,
-            metrics);
+            screenTime);
 
-        ComputeAnimationTime(
+        metrics.msAnimationTime = ComputeAnimationTime(
             qpc,
             swapChain,
             present,
             isDisplayed,
-            isAppFrame,
-            metrics);
+            isAppFrame);
     }
 
     void CalculateInputLatencyMetrics(
@@ -1242,7 +1172,9 @@ namespace pmon::util::metrics
         return result;
     }
 
-    // Helper: Calculate CPU start time
+    // ============================================================================
+    // 4) Exported helper definitions (declared in MetricsCalculator.h)
+    // ============================================================================
     uint64_t CalculateCPUStart(
         const SwapChainCoreState& chainState,
         const FrameData& present)
