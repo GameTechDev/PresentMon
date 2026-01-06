@@ -477,6 +477,9 @@ ULONG PMTraceSession::Start(
         sessionProps.Wnode.Flags = WNODE_FLAG_TRACED_GUID;
         sessionProps.LogFileMode = EVENT_TRACE_REAL_TIME_MODE;      // We have a realtime consumer, not writing to a log file
         sessionProps.LoggerNameOffset = offsetof(TraceProperties, mSessionName);  // Location of session name; will be written by StartTrace()
+        sessionProps.BufferSize = 64;                                // Buffer size in KB
+        sessionProps.MinimumBuffers = 256;                           // Minimum number of buffers allocated for the session's buffer pool
+        sessionProps.MaximumBuffers = 1024;                             // Maximum number of buffers (0 = no limit)
 
         auto status = StartTraceW(&mSessionHandle, sessionName, &sessionProps);
         if (status != ERROR_SUCCESS) {
@@ -654,6 +657,41 @@ void PMTraceSession::TimestampToLocalSystemTime(uint64_t timestamp, SYSTEMTIME* 
     FileTimeToLocalFileTime((FILETIME*) &timestamp, &lft);
     FileTimeToSystemTime(&lft, st);
     *ns = (timestamp % 10000000) * 100;
+}
+
+bool PMTraceSession::QueryEtwStatus(EtwStatus* status) const
+{
+    if (mSessionHandle == 0) {
+        return false;
+    }
+
+    TraceProperties sessionProps = {};
+    sessionProps.Wnode.BufferSize = (ULONG) sizeof(TraceProperties);
+    sessionProps.LoggerNameOffset = offsetof(TraceProperties, mSessionName);
+
+    auto queryStatus = ControlTraceW(mSessionHandle, nullptr, &sessionProps, EVENT_TRACE_CONTROL_QUERY);
+    if (queryStatus != ERROR_SUCCESS) {
+        return false;
+    }
+
+    // Update cached status
+    mCachedEtwStatus.mEtwBuffersInUse = sessionProps.NumberOfBuffers - sessionProps.FreeBuffers;
+    mCachedEtwStatus.mEtwTotalBuffers = sessionProps.NumberOfBuffers;
+    mCachedEtwStatus.mEtwEventsLost = sessionProps.EventsLost;
+    mCachedEtwStatus.mEtwBuffersLost = sessionProps.LogBuffersLost + sessionProps.RealTimeBuffersLost;
+
+    if (sessionProps.NumberOfBuffers > 0) {
+        mCachedEtwStatus.mEtwBufferFillPct = 100.0 * mCachedEtwStatus.mEtwBuffersInUse / sessionProps.NumberOfBuffers;
+    } else {
+        mCachedEtwStatus.mEtwBufferFillPct = 0.0;
+    }
+
+    // Copy to output if provided
+    if (status != nullptr) {
+        *status = mCachedEtwStatus;
+    }
+
+    return true;
 }
 
 ULONG EnableProvidersListing(

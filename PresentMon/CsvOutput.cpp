@@ -179,6 +179,13 @@ void WriteCsvHeader<FrameMetrics1>(FILE* fp)
     if (args.mWriteFrameId) {
         fwprintf(fp, L",FrameId");
     }
+    if (args.mTrackEtwStatus) {
+        fwprintf(fp, L",EtwBufferFillPct"
+                     L",EtwBuffersInUse"
+                     L",EtwTotalBuffers"
+                     L",EtwEventsLost"
+                     L",EtwBuffersLost");
+    }
     fwprintf(fp, L"\n");
 
     if (args.mCSVOutput == CSVOutput::Stdout) {
@@ -258,6 +265,14 @@ void WriteCsvRow<FrameMetrics1>(
     }
     if (args.mWriteFrameId) {
         fwprintf(fp, L",%u", p.FrameId);
+    }
+    if (args.mTrackEtwStatus) {
+        fwprintf(fp, L",%.1lf,%lu,%lu,%lu,%lu",
+            pmSession.mCachedEtwStatus.mEtwBufferFillPct,
+            pmSession.mCachedEtwStatus.mEtwBuffersInUse,
+            pmSession.mCachedEtwStatus.mEtwTotalBuffers,
+            pmSession.mCachedEtwStatus.mEtwEventsLost,
+            pmSession.mCachedEtwStatus.mEtwBuffersLost);
     }
     fwprintf(fp, L"\n");
 
@@ -392,6 +407,13 @@ void WriteCsvHeader<FrameMetrics>(FILE* fp)
         if (args.mTrackPcLatency) {
             fwprintf(fp, L",PCLFrameId");
         }
+    }
+    if (args.mTrackEtwStatus) {
+        fwprintf(fp, L",EtwBufferFillPct"
+                     L",EtwBuffersInUse"
+                     L",EtwTotalBuffers"
+                     L",EtwEventsLost"
+                     L",EtwBuffersLost");
     }
     fwprintf(fp, L"\n");
 
@@ -605,6 +627,14 @@ void WriteCsvRow<FrameMetrics>(
         if (args.mTrackPcLatency) {
             fwprintf(fp, L",%u", p.PclFrameId);
         }
+    }
+    if (args.mTrackEtwStatus) {
+        fwprintf(fp, L",%.1lf,%lu,%lu,%lu,%lu",
+            pmSession.mCachedEtwStatus.mEtwBufferFillPct,
+            pmSession.mCachedEtwStatus.mEtwBuffersInUse,
+            pmSession.mCachedEtwStatus.mEtwTotalBuffers,
+            pmSession.mCachedEtwStatus.mEtwEventsLost,
+            pmSession.mCachedEtwStatus.mEtwBuffersLost);
     }
     fwprintf(fp, L"\n");
 

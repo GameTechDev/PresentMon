@@ -102,6 +102,7 @@ struct CommandLineArgs {
     bool mWriteFrameId;
     bool mWriteDisplayTime;
     bool mDisableOfflineBackpressure;
+    bool mTrackEtwStatus;
 };
 
 // Metrics computed per-frame.  Duration and Latency metrics are in milliseconds.

@@ -11,11 +11,15 @@ enum {
     // Timer ID's must be non-zero
     DELAY_TIMER_ID = 1,
     TIMED_TIMER_ID = 2,
+    ETW_STATUS_TIMER_ID = 3,
 };
+
+static constexpr UINT ETW_STATUS_INTERVAL_MS = 1000; // Query ETW status every 1 second
 
 static HWND gWnd = NULL;
 static bool gIsRecording = false;
 static uint32_t gHotkeyIgnoreCount = 0;
+static PMTraceSession* gPMTraceSession = nullptr;
 
 static bool LoadNVDDManifest()
 {
@@ -75,6 +79,23 @@ static bool EnableScrollLock(bool enable)
 static bool IsRecording()
 {
     return gIsRecording;
+}
+
+static void OutputEtwStatus()
+{
+    if (gPMTraceSession == nullptr) {
+        return;
+    }
+
+    EtwStatus status = {};
+    if (gPMTraceSession->QueryEtwStatus(&status)) {
+        wprintf(L"[ETW Status] BufferFillPct=%.1f%% BuffersInUse=%lu TotalBuffers=%lu EventsLost=%lu BuffersLost=%lu\n",
+            status.mEtwBufferFillPct,
+            status.mEtwBuffersInUse,
+            status.mEtwTotalBuffers,
+            status.mEtwEventsLost,
+            status.mEtwBuffersLost);
+    }
 }
 
 static void StartRecording()
@@ -163,6 +184,10 @@ static LRESULT CALLBACK HandleWindowMessage(HWND hWnd, UINT uMsg, WPARAM wParam,
             if (args.mTerminateAfterTimer) {
                 ExitMainThread();
             }
+            return 0;
+
+        case ETW_STATUS_TIMER_ID:
+            OutputEtwStatus();
             return 0;
         }
         break;
@@ -301,6 +326,7 @@ int wmain(int argc, wchar_t** argv)
     // Start the ETW trace session.
     PMTraceSession pmSession;
     pmSession.mPMConsumer = &pmConsumer;
+    gPMTraceSession = &pmSession;
     auto status = pmSession.Start(args.mEtlFileName, args.mSessionName);
 
     // If a session with this same name is already running, we either exit or
@@ -377,6 +403,13 @@ int wmain(int argc, wchar_t** argv)
         PostMessageW(gWnd, WM_HOTKEY, HOTKEY_ID, args.mHotkeyModifiers & ~MOD_NOREPEAT);
     }
 
+    // Start ETW status monitoring timer if requested (only for realtime sessions)
+    if (args.mTrackEtwStatus && args.mEtlFileName == nullptr) {
+        // Query initial status immediately so CSV output has valid values from the start
+        pmSession.QueryEtwStatus(nullptr);
+        SetTimer(gWnd, ETW_STATUS_TIMER_ID, ETW_STATUS_INTERVAL_MS, (TIMERPROC) nullptr);
+    }
+
     // Enter the MainThread message loop.  This thread will block waiting for
     // any window messages, dispatching the appropriate function to
     // HandleWindowMessage(), and then blocking again until the WM_QUIT message
@@ -395,10 +428,15 @@ int wmain(int argc, wchar_t** argv)
     }
 
     // Stop the trace session.
+    if (args.mTrackEtwStatus && args.mEtlFileName == nullptr) {
+        KillTimer(gWnd, ETW_STATUS_TIMER_ID);
+    }
+
     if (args.mScrollLockIndicator) {
         EnableScrollLock(originalScrollLockEnabled);
     }
 
+    gPMTraceSession = nullptr;
     pmSession.Stop();
 
     // Wait for the consumer and output threads to end (which are using the
