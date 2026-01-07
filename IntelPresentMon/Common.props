@@ -17,7 +17,7 @@
       <AdditionalIncludeDirectories>..;../..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>PM_VER_FILE_NUM=$(PresentMonFileVersionNumbers);PM_VER_PRODUCT_NUM=$(PresentMonProductVersionNumbers);PM_VER_FILE_STR=\"$(PresentMonFileVersion)\";PM_VER_PRODUCT_STR=\"$(PresentMonProductVersion)\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+        <PreprocessorDefinitions>PM_VER_FILE_NUM=$(PresentMonFileVersionNumbers);PM_VER_PRODUCT_NUM=$(PresentMonProductVersionNumbers);PM_VER_FILE_STR=\"$(PresentMonFileVersion)\";PM_VER_PRODUCT_STR=\"$(PresentMonProductVersion)\";PM_VER_COPYRIGHT=\"$(PresentMonCopyright)\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup />
