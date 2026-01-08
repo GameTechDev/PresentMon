@@ -104,6 +104,7 @@ jetbrains-toolbox.exe
 kdeconnect-app.exe
 kodi.exe
 launcher.exe
+leagueclientux.exe
 leagueclientuxrender.exe
 lghub.exe
 livelywpf.exe
@@ -144,6 +145,7 @@ nvcplui.exe
 nvdisplay.container.exe
 nvfrapsscreencapture.exe
 nvidia geforce experience.exe
+nvidia overlay.exe
 nvidia share.exe
 nzxt cam beta.exe
 nzxt cam.exe
@@ -193,6 +195,7 @@ razercortex.exe
 redlauncher.exe
 readyfor.exe
 reshade_setup_4.9.1.exe
+riot client.exe
 riotclientuxrender.exe
 rsi launcher.exe
 rtss.exe
