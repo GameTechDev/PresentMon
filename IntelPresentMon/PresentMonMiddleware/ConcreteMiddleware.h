@@ -9,6 +9,7 @@
 #include "../CommonUtilities/Hash.h"
 #include "../CommonUtilities/Math.h"
 #include "FrameTimingData.h"
+#include "../IntelPresentMon/CommonUtilities/mc/SwapChainState.h"
 
 namespace pmapi::intro
 {

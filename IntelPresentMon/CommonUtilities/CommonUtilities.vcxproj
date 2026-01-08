@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -68,6 +68,11 @@
     <ClInclude Include="log\Verbose.h" />
     <ClInclude Include="Macro.h" />
     <ClInclude Include="Math.h" />
+    <ClInclude Include="mc\MetricsCalculator.h" />
+    <ClInclude Include="mc\MetricsCalculatorInternal.h" />
+    <ClInclude Include="mc\MetricsTypes.h" />
+    <ClInclude Include="mc\SwapChainState.h" />
+    <ClInclude Include="mc\UnifiedSwapChain.h" />
     <ClInclude Include="Memory.h" />
     <ClInclude Include="Hash.h" />
     <ClInclude Include="Meta.h" />
@@ -150,6 +155,15 @@
     <ClCompile Include="log\NamedPipeMarshallSender.cpp" />
     <ClCompile Include="log\TimePoint.cpp" />
     <ClCompile Include="log\Verbose.cpp" />
+    <ClCompile Include="mc\MetricsCalculator.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorCpuGpu.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorDisplay.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorInput.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorInstrumented.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorAnimation.cpp" />
+    <ClCompile Include="mc\MetricsTypes.cpp" />
+    <ClCompile Include="mc\SwapChainState.cpp" />
+    <ClCompile Include="mc\UnifiedSwapChain.cpp" />
     <ClCompile Include="mt\Thread.cpp" />
     <ClCompile Include="pipe\CoroMutex.cpp" />
     <ClCompile Include="pipe\Pipe.cpp" />

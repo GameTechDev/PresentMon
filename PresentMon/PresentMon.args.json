@@ -68,11 +68,15 @@
     },
     {
       "Id": "8f014852-6512-466b-99cb-0a8724c36862",
-      "Command": "--output_file gold_5.csv"
+      "Command": "--output_file \"E:\\EtlTesting\\ETLDebugging\\test_case_8_unified-fid.csv\""
     },
     {
       "Id": "1606ee3e-ac1c-4fea-9a87-736864dd1f00",
-      "Command": "--etl_file \"C:\\Users\\Chili\\Desktop\\cpp\\ipm-relay\\Tests\\Gold\\test_case_5.etl\""
+      "Command": "--etl_file \"E:\\EtlTesting\\GoldETLTests-External\\test_case_8.etl\""
+    },
+    {
+      "Id": "abf6cf88-1afe-4b6d-ac24-71ba39c9615a",
+      "Command": "--etl_file \"D:\\source\\repos\\drivers.gpu.tools.presentmon\\Tests\\Gold\\test_case_0.etl\""
     },
     {
       "Id": "8dc2827c-9d81-4c64-8596-ea11dbd81c8f",
@@ -105,6 +109,18 @@
     {
       "Id": "892a1932-a81e-4f5c-b30f-899e6884457d",
       "Command": "--track_frame_type"
+    },
+    {
+      "Id": "3f809034-342e-40c3-a24a-c836e5c0ae29",
+      "Command": "--track_app_timing"
+    },
+    {
+      "Id": "5e1344fb-cd04-46d7-a2c7-7b69faf0101a",
+      "Command": "--track_pc_latency"
+    },
+    {
+      "Id": "279d1ed9-07a1-4217-a370-3d058d565a49",
+      "Command": "--v1_metrics"
     }
   ]
 }

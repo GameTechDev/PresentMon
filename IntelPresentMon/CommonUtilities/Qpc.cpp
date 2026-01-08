@@ -33,6 +33,25 @@ namespace pmon::util
 		return double(end - start) * period;
 	}
 
+	double TimestampDeltaToMilliSeconds(uint64_t duration, uint64_t qpcFrequency) noexcept
+	{
+		return qpcFrequency == 0 ? 0.0 : (duration * 1000.0) / double(qpcFrequency);
+	}
+
+	double TimestampDeltaToMilliSeconds(uint64_t start, uint64_t end, uint64_t qpcFrequency) noexcept
+	{
+		return (end <= start || qpcFrequency == 0) ? 0.0 : TimestampDeltaToMilliSeconds(end - start, qpcFrequency);
+	}
+
+	double TimestampDeltaToSignedMilliSeconds(uint64_t start, uint64_t end, uint64_t qpcFrequency) noexcept
+	{
+		if (qpcFrequency == 0 || start == 0 || end == 0 || start == end) {
+			return 0.0;
+		}
+		return end > start
+			? TimestampDeltaToMilliSeconds(end - start, qpcFrequency)
+			: -TimestampDeltaToMilliSeconds(start - end, qpcFrequency);
+	}
 
 	QpcTimer::QpcTimer() noexcept
 	{
@@ -61,5 +80,33 @@ namespace pmon::util
 		while (Peek() < seconds) {
 			std::this_thread::yield();
 		}
+	}
+
+	// Duration in ticks -> ms
+	double QpcConverter::TicksToMilliSeconds(uint64_t ticks) const noexcept
+	{
+		return ticks * msPerTick_;
+	}
+
+	// Unsigned delta (0 if end <= start or either is 0)
+	double QpcConverter::DeltaUnsignedMilliSeconds(uint64_t start, uint64_t end) const noexcept
+	{
+		return (end <= start || start == 0 || end == 0) ? 0.0 : TicksToMilliSeconds(end - start);
+	}
+
+	// Signed delta (positive if end > start; negative if end < start; 0 if invalid)
+	double QpcConverter::DeltaSignedMilliSeconds(uint64_t start, uint64_t end) const noexcept
+	{
+		if (start == 0 || end == 0 || start == end) {
+			return 0.0;
+		}
+		return end > start ? TicksToMilliSeconds(end - start)
+			: -TicksToMilliSeconds(start - end);
+	}
+
+	// Convenience: raw duration already a tick count (e.g. TimeInPresent)
+	double QpcConverter::DurationMilliSeconds(uint64_t tickCount) const noexcept
+	{
+		return TicksToMilliSeconds(tickCount);
 	}
 }
