@@ -25,8 +25,7 @@ namespace EtlLoggerTests
 		{
 			static CommonProcessArgs args{
 				.ctrlPipe = R"(\\.\pipe\pm-etllog-test-ctrl)",
-				.introNsm = "pm_etllog_test_intro",
-				.frameNsm = "pm_etllog_test_nsm",
+				.shmNamePrefix = "pm_etllog_test_intro",
 				.logLevel = "debug",
 				.logFolder = logFolder_,
 				.sampleClientMode = "EtlLogger",

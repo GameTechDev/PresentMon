@@ -14,6 +14,7 @@
 #include "../../PresentData/PresentMonTraceConsumer.hpp"
 #include "../../PresentData/PresentMonTraceSession.hpp"
 #include "PowerTelemetryContainer.h"
+#include "FrameBroadcaster.h"
 
 #include "../PresentMonAPI2Tests/TestCommands.h"
 
@@ -30,6 +31,8 @@ struct ProcessInfo {
     HANDLE mHandle = INVALID_HANDLE_VALUE;
     bool mTargetProcess = false;
 };
+
+using namespace pmon;
 
 class PresentMonSession {
 public:
@@ -75,5 +78,6 @@ public:
     std::atomic<std::optional<uint32_t>> etw_flush_period_ms_;
 
     Streamer streamer_;
+    svc::FrameBroadcaster* pBroadcaster = nullptr;
 };
 

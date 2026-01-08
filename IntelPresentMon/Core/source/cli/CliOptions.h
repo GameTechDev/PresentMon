@@ -21,7 +21,7 @@ namespace p2c::cli
 
 	private: Group gd_{ this, "Debugging", "Aids in debugging this tool" }; public:
 		Option<std::string> controlPipe{ this, "--control-pipe", R"(\\.\pipe\pm-ctrl)", "Named pipe to connect to the service with" };
-		Option<std::string> shmName{ this, "--shm-name", "pm-intro-shm", "Shared memory to connect to the service with" };
+		Option<std::string> shmNamePrefix{ this, "--shm-name-prefix", "pm-child-shm", "Shared memory to connect to the service with" };
 		Option<std::string> etwSessionName{ this, "--etw-session-name", "pm-child-etw-session", "ETW session name when lauching service as child" };
 		Flag svcAsChild{ this, "--svc-as-child", "Launch service as child console app" };
 		Flag traceExceptions{ this, "--trace-exceptions", "Add stack trace to all thrown exceptions (including SEH exceptions)" };
@@ -60,7 +60,7 @@ namespace p2c::cli
 	private: Group glists_{ this, "Standard", "Standard options for the list subcommand" }; public:
 		Flag listMetrics{ this, "--metrics,-m", "Output a list of available metrics" };
 		Flag listMetricsStats{ this, "--stats,-s", "Output a list of available stats for each metric" };
-		Flag listDevices{ this, "--devices,-d", "Output a list of available graphics adapters" };
+		Flag listDevices{ this, "--devices,-d", "Output a list of available devices" };
 		Flag listFilterFrame{ this, "--filter-frame,-f", "Filter to only metrics available for use with frame event capture" };
 		Flag listFilterDynamic{ this, "--filter-dynamic,-y", "Filter to only metrics available for use with dynamic polling" };
 		Option<std::string> listSearch{ this, "--search", {}, "Substring to filter metric results on (case-insensitive)" };

@@ -33,6 +33,7 @@
 #include "MetricListSample.h"
 #include "MultiClient.h"
 #include "EtlLogger.h"
+#include "IpcComponentServer.h"
 #include "PacedPlayback.h"
 #include "LogDemo.h"
 #include "DiagnosticDemo.h"
@@ -61,8 +62,7 @@ void RunPlaybackFrameQuery()
         "PresentMonService.exe"s,
         // "--timed-stop"s, "10000"s,
         "--control-pipe"s, pipeName,
-        "--nsm-prefix"s, "pmon_nsm_tt_"s,
-        "--intro-nsm"s, "svc-intro-tt"s,
+        "--shm-name-prefix"s, "pm-tt-shm"s,
         "--etw-session-name"s, "svc-sesh-tt"s,
         bp::args(dargs),
     };
@@ -147,8 +147,7 @@ void RunPlaybackDynamicQuery()
         "PresentMonService.exe"s,
         // "--timed-stop"s, "10000"s,
         "--control-pipe"s, pipeName,
-        "--nsm-prefix"s, "pmon_nsm_tt_"s,
-        "--intro-nsm"s, "svc-intro-tt"s,
+        "--shm-name-prefix"s, "pm-tt-shm"s,
         "--etw-session-name"s, "svc-sesh-tt"s,
         bp::args(dargs),
     };
@@ -222,8 +221,7 @@ void RunPlaybackDynamicQueryN()
             "PresentMonService.exe"s,
             // "--timed-stop"s, "10000"s,
             "--control-pipe"s, pipeName,
-            "--nsm-prefix"s, "pmon_nsm_tt_"s,
-            "--intro-nsm"s, "svc-intro-tt"s,
+            "--shm-name-prefix"s, "pm-tt-shm"s,
             "--etw-session-name"s, "svc-sesh-tt"s,
             bp::args(dargs),
         };
@@ -287,8 +285,7 @@ void IntrospectAllDynamicOptions()
     bp::child svc{
         "PresentMonService.exe"s,
         "--control-pipe"s, pipeName,
-        "--nsm-prefix"s, "pmon_nsm_tt_"s,
-        "--intro-nsm"s, "svc-intro-tt"s,
+        "--shm-name-prefix"s, "pm-tt-shm"s,
         "--etw-session-name"s, "svc-sesh-tt"s,
     };
 
@@ -382,6 +379,8 @@ int main(int argc, char* argv[])
             RunPlaybackFrameQuery(); break;
         case clio::Mode::IntrospectAllDynamicOptions:
             IntrospectAllDynamicOptions(); break;
+        case clio::Mode::IpcComponentServer:
+            IpcComponentServer(); break;
         default:
             throw std::runtime_error{ "unknown sample client mode" };
         }

@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "ConcreteMiddleware.h"
 #include <cstring>
@@ -18,6 +18,7 @@
 #include "../Interprocess/source/IntrospectionTransfer.h"
 #include "../Interprocess/source/IntrospectionHelpers.h"
 #include "../Interprocess/source/IntrospectionCloneAllocators.h"
+#include "../Interprocess/source/SystemDeviceId.h"
 #include "../Interprocess/source/PmStatusError.h"
 #include "DynamicQuery.h"
 #include "../ControlLib/PresentMonPowerTelemetry.h"
@@ -46,7 +47,7 @@ namespace pmon::mid
         const auto pipeName = pipeNameOverride.transform(&std::string::c_str)
             .value_or(pmon::gid::defaultControlPipeName);
 
-        // Try to open a named pipe; wait for it, if necessary
+        // Try to open a named pipe to action server; wait for it, if necessary
         try {
             if (!pipe::DuplexPipe::WaitForAvailability(pipeName, 500)) {
                 throw std::runtime_error{ "Timeout waiting for service action pipe to become available" };
@@ -60,11 +61,8 @@ namespace pmon::mid
 
         clientProcessId = GetCurrentProcessId();
 
-        // discover introspection shm name
-        auto res = pActionClient->DispatchSync(GetIntrospectionShmName::Params{});
-
-        // connect to the introspection nsm
-        pComms = ipc::MakeMiddlewareComms(std::move(res.name));
+        // connect to the shm server
+        pComms = ipc::MakeMiddlewareComms(pActionClient->GetShmPrefix(), pActionClient->GetShmSalt());
 
         // Get the introspection data
         try {
@@ -238,8 +236,8 @@ namespace pmon::mid
 
         uint64_t offset = 0u;
         for (auto& qe : queryElements) {
-            // A device of zero is NOT a graphics adapter.
-            if (qe.deviceId != 0) {
+            // A device of zero is NOT a graphics adapter; system is not GPU either
+            if (qe.deviceId != 0 && qe.deviceId != ipc::kSystemDeviceId) {
                 // If we have already set a device id in this query, check to
                 // see if it's the same device id as previously set. Currently
                 // we don't support querying multiple gpu devices in the one

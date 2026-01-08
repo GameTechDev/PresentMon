@@ -52,8 +52,21 @@ namespace pmon::mid
                     .pmwatch(res.serviceBuildConfig).pmwatch(bid::BuildIdConfig());
                 throw Except<ipc::PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH);
             }
+            shmPrefix_ = res.shmPrefix;
+            shmSalt_ = res.shmSalt;
             pmlog_info(std::format("Opened session with server, pid = [{}]", res.servicePid));
             EstablishSession_(res.servicePid);
         }
+        const std::string& GetShmPrefix() const
+        {
+            return shmPrefix_;
+        }
+        const std::string& GetShmSalt() const
+        {
+            return shmSalt_;
+        }
+    private:
+        std::string shmPrefix_;
+        std::string shmSalt_;
     };
 }

@@ -3,7 +3,7 @@
 #include <exception>
 #include <memory>
 #include <optional>
-#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
+#include "../PresentMonAPI2/PresentMonAPI.h"
 
 namespace pmon::util
 {
@@ -34,7 +34,7 @@ namespace pmon::util
 
 	void DoCapture_(Exception& e);
 
-	template<class E, typename...R>
+	template<class E = Exception, typename...R>
 	auto Except(R&&...args)
 	{
 		E exception{ std::forward<R>(args)... };

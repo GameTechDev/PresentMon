@@ -18,13 +18,16 @@ namespace pmon::svc::acts
 		struct Params
 		{
 			uint32_t targetPid;
+			bool isPlayback = false;
+			bool isBackpressured = false;
 
 			template<class A> void serialize(A& ar) {
-				ar(targetPid);
+				ar(targetPid, isPlayback, isBackpressured);
 			}
 		};
 		struct Response
 		{
+			// TODO: remove this when Streamer is gone
 			std::string nsmFileName;
 
 			template<class A> void serialize(A& ar) {
@@ -36,11 +39,15 @@ namespace pmon::svc::acts
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
 			std::string nsmFileName;
+			// TODO: replace PresentMon container system and directly return the segment
+			// from a single "StartStreaming" replacement call
+			auto pSegment = ctx.pPmon->GetBroadcaster().RegisterTarget(
+				in.targetPid, in.isPlayback, in.isBackpressured);
 			if (auto sta = ctx.pPmon->StartStreaming(stx.remotePid, in.targetPid, nsmFileName); sta != PM_STATUS_SUCCESS) {
 				pmlog_error("Start stream failed").code(sta);
 				throw util::Except<ActionExecutionError>(sta);
 			}
-			stx.trackedPids.insert(in.targetPid);
+			stx.trackedPids[in.targetPid] = std::move(pSegment);
 			const Response out{ .nsmFileName = std::move(nsmFileName) };
 			pmlog_info(std::format("StartTracking action from [{}] targeting [{}] assigned nsm [{}]",
 				stx.remotePid, in.targetPid, out.nsmFileName));

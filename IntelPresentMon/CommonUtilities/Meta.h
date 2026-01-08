@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <type_traits>
 #include <utility>
 
@@ -64,4 +64,47 @@ namespace pmon::util
     }
     template <typename T>
     struct FunctionPtrTraits : impl::FunctionPtrTraitsImpl_<std::remove_cvref_t<T>> {};
+
+    namespace impl {
+        template<typename Enum, std::underlying_type_t<Enum> MaxValue,
+            std::underlying_type_t<Enum> Value, typename Functor>
+        constexpr void ForEachEnumValueRecursive_(Functor& func)
+        {
+            if constexpr (Value < MaxValue) {
+                func.template operator()<static_cast<Enum>(Value)>();
+                ForEachEnumValueRecursive_<Enum, MaxValue, Value + 1>(func);
+            }
+        }
+
+        template<typename Enum, std::underlying_type_t<Enum> MaxValue,
+            std::underlying_type_t<Enum> Value, typename Functor, typename ReturnT>
+        constexpr ReturnT DispatchEnumValueRecursive_(std::underlying_type_t<Enum> target,
+            Functor& func, ReturnT defaultValue)
+        {
+            if constexpr (Value < MaxValue) {
+                if (target == Value) {
+                    return func.template operator()<static_cast<Enum>(Value)>();
+                }
+                return DispatchEnumValueRecursive_<Enum, MaxValue, Value + 1>(
+                    target, func, defaultValue);
+            }
+            return defaultValue;
+        }
+    }
+
+    template<typename Enum, std::underlying_type_t<Enum> MaxValue, typename Functor>
+    constexpr void ForEachEnumValue(Functor&& func)
+    {
+        auto& fn = func;
+        impl::ForEachEnumValueRecursive_<Enum, MaxValue, 0>(fn);
+    }
+
+    template<typename Enum, std::underlying_type_t<Enum> MaxValue, typename Functor, typename ReturnT>
+    constexpr ReturnT DispatchEnumValue(Enum value, Functor&& func, ReturnT defaultValue)
+    {
+        auto& fn = func;
+        return impl::DispatchEnumValueRecursive_<Enum, MaxValue, 0>(
+            static_cast<std::underlying_type_t<Enum>>(value),
+            fn, defaultValue);
+    }
 }

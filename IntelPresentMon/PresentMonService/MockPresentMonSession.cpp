@@ -9,8 +9,9 @@ static const std::wstring kMockEtwSessionName = L"MockETWSession";
 
 using namespace std::literals;
 
-MockPresentMonSession::MockPresentMonSession()
+MockPresentMonSession::MockPresentMonSession(svc::FrameBroadcaster& broadcaster)
 {
+    pBroadcaster = &broadcaster;
     ResetEtwFlushPeriod();
 }
 
@@ -33,7 +34,8 @@ PM_STATUS MockPresentMonSession::StartStreaming(uint32_t client_process_id,
 
     // TODO: hook up all cli options
     PM_STATUS status = streamer_.StartStreaming(client_process_id,
-        target_process_id, nsmFileName, true, opt.pacePlayback, opt.pacePlayback, !opt.pacePlayback, true);
+        target_process_id, nsmFileName, true, opt.pacePlayback, opt.pacePlayback,
+        !opt.pacePlayback && !opt.disableLegacyBackpressure, true);
     if (status != PM_STATUS::PM_STATUS_SUCCESS) {
         return status;
     }
@@ -183,24 +185,26 @@ PM_STATUS MockPresentMonSession::StartTraceSession(uint32_t processId, const std
 
 void MockPresentMonSession::StopTraceSession() {
     // PHASE 1: Signal shutdown and wait for threads to observe it
-    session_active_.store(false, std::memory_order_release);
+    // also enforce only_once semantics with atomic flag
+    if (session_active_.exchange(false, std::memory_order_acq_rel)) {
 
-    // Stop the trace session.
-    trace_session_.Stop();
+        // Stop the trace session.
+        trace_session_.Stop();
 
-    // Wait for the consumer and output threads to end (which are using the
-    // consumers).
-    WaitForConsumerThreadToExit();
-    StopOutputThread();
+        // Wait for the consumer and output threads to end (which are using the
+        // consumers).
+        WaitForConsumerThreadToExit();
+        StopOutputThread();
 
-    // PHASE 2: Safe cleanup after threads have finished
-    std::lock_guard<std::mutex> lock(session_mutex_);
+        // PHASE 2: Safe cleanup after threads have finished
+        std::lock_guard<std::mutex> lock(session_mutex_);
 
-    // Stop all streams
-    streamer_.StopAllStreams();
+        // Stop all streams
+        streamer_.StopAllStreams();
 
-    if (pm_consumer_) {
-        pm_consumer_.reset();
+        if (pm_consumer_) {
+            pm_consumer_.reset();
+        }
     }
 }
 
@@ -321,6 +325,8 @@ void MockPresentMonSession::AddPresents(
             processInfo->mModuleName, gpu_telemetry_cap_bits,
             cpu_telemetry_cap_bits);
 
+        // timeout set for 1000 ms
+        pBroadcaster->Broadcast(*presentEvent, 1000);
 
         chain->mLastPresentQPC = presentEvent->PresentStartTime;
         if (presentEvent->FinalState == PresentResult::Presented) {
@@ -505,6 +511,7 @@ void MockPresentMonSession::UpdateProcesses(
             if (newProcess) {
                 InitProcessInfo(processInfo, processEvent.ProcessId, NULL,
                     processEvent.ImageFileName);
+                pBroadcaster->HandleTargetProcessEvent(processEvent);
             }
         }
     }

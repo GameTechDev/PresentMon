@@ -194,7 +194,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     }
 
     // name this process / thread
-    log::IdentificationTable::AddThisProcess(opt.cefType.AsOptional().value_or("main-client"));
+    log::IdentificationTable::AddThisProcess("cef-" + opt.cefType.AsOptional().value_or("mclient"));
     log::IdentificationTable::AddThisThread("main");
 
     // initialize the logging system

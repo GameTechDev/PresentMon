@@ -1,16 +1,19 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
 #include "JobManager.h"
+#include "Logging.h"
 #include "TestCommands.h"
 #include "../CommonUtilities/file/FileUtils.h"
 #include "../CommonUtilities/pipe/Pipe.h"
 #include <boost/process.hpp>
 #include <cereal/archives/json.hpp>
+#include <cctype>
 #include <iostream>
 #include <format>
+#include <optional>
 #include <sstream>
 #include <filesystem>
 
@@ -25,12 +28,48 @@ using namespace pmon;
 struct CommonProcessArgs
 {
 	std::string ctrlPipe;
-	std::string introNsm;
-	std::string frameNsm;
+	std::string shmNamePrefix;
 	std::string logLevel;
+	std::optional<std::string> logVerboseModules;
 	std::string logFolder;
 	std::string sampleClientMode;
+	bool suppressService = false;
 };
+
+inline std::vector<std::string> SplitVerboseModulesArgs_(const std::string& raw)
+{
+	std::vector<std::string> modules;
+	std::string token;
+	for (unsigned char ch : raw) {
+		if (ch == ',' || std::isspace(ch)) {
+			if (!token.empty()) {
+				modules.push_back(token);
+				token.clear();
+			}
+			continue;
+		}
+		token.push_back(static_cast<char>(ch));
+	}
+	if (!token.empty()) {
+		modules.push_back(token);
+	}
+	return modules;
+}
+
+inline void AppendVerboseModulesArgs_(std::vector<std::string>& args,
+	const std::optional<std::string>& modules,
+	const char* flag)
+{
+	if (!modules || modules->empty()) {
+		return;
+	}
+	const auto values = SplitVerboseModulesArgs_(*modules);
+	if (values.empty()) {
+		return;
+	}
+	args.push_back(flag);
+	args.insert(args.end(), values.begin(), values.end());
+}
 
 // base class to represent child processes launched by test cases
 class TestProcess
@@ -163,13 +202,14 @@ private:
 	{
 		std::vector<std::string> allArgs{
 			"--control-pipe"s, common.ctrlPipe,
-			"--nsm-prefix"s, common.frameNsm,
-			"--intro-nsm"s, common.introNsm,
+			"--shm-name-prefix"s, common.shmNamePrefix,
 			"--enable-test-control"s,
 			"--log-dir"s, common.logFolder,
 			"--log-name-pid"s,
 			"--log-level"s, common.logLevel,
+			"--enable-debugger-log"s,
 		};
+		AppendVerboseModulesArgs_(allArgs, common.logVerboseModules, "--log-verbose-modules");
 		allArgs.append_range(customArgs);
 		return allArgs;
 	}
@@ -199,13 +239,13 @@ private:
 	{
 		std::vector<std::string> allArgs{
 			"--control-pipe"s, common.ctrlPipe,
-			"--intro-nsm"s, common.introNsm,
 			"--middleware-dll-path"s, "PresentMonAPI2.dll"s,
 			"--log-folder"s, common.logFolder,
 			"--log-name-pid"s,
 			"--log-level"s, common.logLevel,
 			"--mode"s, common.sampleClientMode,
 		};
+		AppendVerboseModulesArgs_(allArgs, common.logVerboseModules, "--log-verbose-modules");
 		allArgs.append_range(customArgs);
 		return allArgs;
 	}
@@ -259,21 +299,42 @@ public:
 
 	void Setup(std::vector<std::string> args = {})
 	{
-		StartService_(args, GetCommonArgs());
+		if (!logManager_) {
+			logManager_.emplace();
+		}
+		pmon::test::SetupTestLogging(GetCommonArgs().logFolder, GetCommonArgs().logLevel,
+			GetCommonArgs().logVerboseModules);
 		svcArgs_ = std::move(args);
+		if (!GetCommonArgs().suppressService) {
+			StartService_(svcArgs_, GetCommonArgs());
+			serviceStarted_ = true;
+		}
+		else {
+			serviceStarted_ = false;
+		}
 	}
 	void Cleanup()
 	{
-		StopService_(GetCommonArgs());
-		ioctxRunThread_.join();
+		if (serviceStarted_) {
+			StopService_(GetCommonArgs());
+			serviceStarted_ = false;
+		}
+		if (ioctxRunThread_.joinable()) {
+			ioctxRunThread_.join();
+		}
+		logManager_.reset();
 	}
 	void RebootService(std::optional<std::vector<std::string>> newArgs = {})
 	{
 		auto& common = GetCommonArgs();
+		if (common.suppressService) {
+			return;
+		}
 		auto& svcArgs = newArgs ? *newArgs : svcArgs_;
 		StopService_(common);
 		StartService_(svcArgs, common);
 		svcArgs_ = std::move(svcArgs);
+		serviceStarted_ = true;
 	}
 	ClientProcess LaunchClient(const std::vector<std::string>& args = {})
 	{
@@ -323,6 +384,8 @@ private:
 	static constexpr int svcPipeTimeout_ = 250;
 	std::vector<std::string> svcArgs_;
 	JobManager jobMan_;
+	bool serviceStarted_ = false;
 	std::thread ioctxRunThread_;
 	as::io_context ioctx_;
+	std::optional<pmon::test::LogChannelManager> logManager_;
 };

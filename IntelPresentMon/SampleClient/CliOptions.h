@@ -1,7 +1,9 @@
-#pragma once
+﻿#pragma once
 #include "../CommonUtilities/cli/CliFramework.h"
 #include "../CommonUtilities/log/Level.h"
+#include "../CommonUtilities/log/Verbose.h"
 #include "../CommonUtilities/ref/StaticReflection.h"
+#include <cstddef>
 #include <format>
 
 namespace clio
@@ -24,6 +26,7 @@ namespace clio
 		MultiClient,
 		EtlLogger,
 		PacedPlayback,
+		IpcComponentServer,
 		Count,
 	};
 
@@ -36,7 +39,6 @@ namespace clio
 		Option<int> submode{ this, "--submode", 0, "Which submode option to run for the given mode" };
 	private: Group gc_{ this, "Connection", "Control client connection" }; public:
 		Option<std::string> controlPipe{ this, "--control-pipe", "", "Name of the named pipe to use for the client-service control channel" };
-		Option<std::string> introNsm{ this, "--intro-nsm", "", "Name of the NSM used for introspection data" };
 		Option<std::string> middlewareDllPath{ this, "--middleware-dll-path", "", "Override middleware DLL path discovery with custom path" };
 	private: Group gs_{ this, "Sampling", "Control sampling / targeting behavior" }; public:
 		Option<double> metricOffset{ this, "--metric-offset", 1064., "Offset from top for frame data. Used in --dynamic-query-sample" };
@@ -58,11 +60,16 @@ namespace clio
 		Option<std::string> logAllowList{ this, "--log-allow-list", "", "Path to log allow list (with trace overrides)", CLI::ExistingFile };
 		Option<std::string> logFolder{ this, "--log-folder", "", "Folder to create log file(s) in" };
 		Flag logNamePid{ this, "--log-name-pid", "Append PID to the log file name" };
+		Option<std::vector<log::V>> logVerboseModules{ this, "--log-verbose-modules", {}, "Verbose logging modules to enable", CLI::CheckedTransformer{ log::GetVerboseModuleMapNarrow(), CLI::ignore_case } };
 	private: Group gv_{ this, "Service", "Control service options" }; public:
 		Flag servicePacePlayback{ this, "--service-pace-playback", "Pace ETL playback on the service" };
 		Option<std::string> serviceEtlPath{ this, "--service-etl-path", "", "Path of the ETL file to pass to the service for playback" };
 	private: Group gt_{ this, "Testing", "Control testing support options" }; public:
 		Flag testExpectError{ this, "--test-expect-error", "Indicates to test modes that fail state is being tested" };
+		Option<size_t> ipcSystemRingCapacity{ this, "--ipc-system-ring-capacity", 32,
+			"System telemetry ring capacity for the IPC component server" };
+		Option<size_t> ipcSystemSamplesPerPush{ this, "--ipc-system-samples-per-push", 12,
+			"Samples per push batch for the IPC component server" };
 
 		static constexpr const char* description = "Minimal Sample Client for Intel PresentMon service";
 		static constexpr const char* name = "SampleClient.exe";

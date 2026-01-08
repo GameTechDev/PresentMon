@@ -1,6 +1,7 @@
 #include "../CommonUtilities/win/WinAPI.h"
 #include "../Core/source/kernel/Kernel.h"
 #include "../Core/source/infra/util/FolderResolver.h"
+#include "../CommonUtilities/log/IdentificationTable.h"
 #include "../Interprocess/source/act/SymmetricActionServer.h"
 #include "kact/KernelExecutionContext.h"
 #include "../AppCef/source/util/cact/TargetLostAction.h"
@@ -124,6 +125,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 #endif
 
 	try {
+		util::log::IdentificationTable::AddThisProcess("kproc");
+		util::log::IdentificationTable::AddThisThread("main");
 		// if we were run from a parent with a console (terminal?), try to attach there
 		const bool fromTerminal = TryAttachToParentConsole_();
 		// parse the command line arguments and make them globally available
@@ -213,8 +216,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			// compile fixed CLI options
 			auto args = std::vector<std::string>{
 				"--control-pipe"s, *opt.controlPipe,
-				"--nsm-prefix"s, "pm-frame-nsm"s,
-				"--intro-nsm"s, *opt.shmName,
+				"--shm-name-prefix"s, *opt.shmNamePrefix,
 				"--etw-session-name"s, *opt.etwSessionName,
 				"--log-level"s, util::log::GetLevelName(util::log::GlobalPolicy::Get().GetLogLevel()),
 				"--log-pipe-name"s, logSvcPipe,
@@ -228,7 +230,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			// launch service child process
 			svcChild = bp2::windows::default_launcher{}(ioctx, "PresentMonService.exe"s, std::move(args));
 			// wait for pipe availability of service api
-			if (!::pmon::util::win::WaitForNamedPipe(*opt.controlPipe + "-in", 1500)) {
+			if (!::pmon::util::win::WaitForNamedPipe(*opt.controlPipe + "-in", 1500000)) {
 				pmlog_error("timeout waiting for child service control pipe to go online");
 				return -1;
 			}
@@ -311,10 +313,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			}
 			// list adapter devices
 			if (opt.listDevices) {
-				std::cout << "List of graphics adapters:\n";
+				std::cout << "List of queryable devices:\n";
 				for (auto&& d : pIntro->GetDevices()) {
-					if (!d.GetId()) continue;
-					std::cout << d.GetName() << " [" << d.GetId() << "] (" << d.IntrospectVendor().GetName() << ")\n";
+					std::cout << d.GetName() << " [" << d.GetId() << "] "
+						<< d.IntrospectVendor().GetName()
+						<< " (" << d.IntrospectType().GetName() << ")\n";
 				}
 			}
 			return 0;
@@ -410,6 +413,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			// don't exit this process until the CEF control panel exits
 			cefChild.wait();
 		}
+		// TODO: organize headless CLI code into own source modules
 		else if (opt.subcCapture.Active()) {
 			DWORD pid;
 			if (opt.capTargetPid) {
@@ -481,10 +485,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				}
 			}
 			else { // wait indefinitely until %q command received or kernel signal
-				auto res = util::win::WaitAnyEvent(
+				if (util::win::WaitAnyEvent(
 					dynamic_cast<HeadlessKernelHandler*>(pKernelHandler.get())->stopEvent_,
-					stopCommandEvent);
-				if (res && *res == 1) {
+					stopCommandEvent) == 1) {
 					std::cerr << "Capture terminated by %q command." << std::endl;
 				}
 				else {

@@ -15,6 +15,7 @@ namespace pmon::svc::acts
 	namespace rn = std::ranges;
 	namespace vi = rn::views;
 
+	// TODO: remove this action, it is redundant in light of Introspection
 	class ACT_NAME : public ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>
 	{
 	public:

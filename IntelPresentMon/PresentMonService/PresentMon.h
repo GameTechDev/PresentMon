@@ -3,15 +3,24 @@
 #pragma once
 #include "PresentMonSession.h"
 #include "EtwLogger.h"
+#include "FrameBroadcaster.h"
+#include "../CommonUtilities/win/Event.h"
+#include "../CommonUtilities/Hash.h"
 #include <memory>
 #include <span>
+#include <unordered_set>
+#include <unordered_map>
+#include <shared_mutex>
+#include <source_location>
+#include <utility>
+#include <cstdint>
 
 using namespace pmon;
 
 class PresentMon
 {
 public:
-	PresentMon(bool isRealtime);
+	PresentMon(svc::FrameBroadcaster& broadcaster, bool isRealtime);
 	~PresentMon();
 
 	// Check the status of both ETW logfile and real time trace sessions.
@@ -81,9 +90,51 @@ public:
 	{
 		return etwLogger_;
 	}
+	auto& GetBroadcaster()
+	{
+		return broadcaster_;
+	}
+	bool CheckDeviceMetricUsage(uint32_t deviceId) const
+	{
+		std::shared_lock lk{ metricDeviceUsageMtx_ };
+		return metricDeviceUsage_.contains(deviceId);
+	}
+	void SetDeviceMetricUsage(std::unordered_set<uint32_t> usage)
+	{
+		// we need exclusive lock to prevent concurrent access to usage data while being modified
+		{
+			std::lock_guard lk{ metricDeviceUsageMtx_ };
+			metricDeviceUsage_ = std::move(usage);
+		}
+		// keep shared lock now to prevent modification to event set while we are iterating it
+		// if this were non-shared, it would cause the listeners to block immediately on wake
+		std::shared_lock lk2{ metricDeviceUsageMtx_ };
+		for (auto& kv : deviceUsageEvts_) {
+			kv.second.Set();
+		}
+	}
+	HANDLE GetDeviceUsageEvent(std::source_location loc = std::source_location::current()) const
+	{
+		const DeviceUsageEvtKey key{ loc.file_name(), (uint32_t)loc.line() };
+		{
+			std::shared_lock lk{ metricDeviceUsageMtx_ };
+			if (auto it = deviceUsageEvts_.find(key); it != deviceUsageEvts_.end()) {
+				return it->second.Get();
+			}
+		}
+		// get non-shared lock for modification purposes (add new event)
+		std::lock_guard lk2{ metricDeviceUsageMtx_ };
+		auto it = deviceUsageEvts_.emplace(key, util::win::Event{ false, false }).first;
+		return it->second.Get();
+	}
 	void StartPlayback();
 	void StopPlayback();
 private:
+	svc::FrameBroadcaster& broadcaster_;
 	svc::EtwLogger etwLogger_;
 	std::unique_ptr<PresentMonSession> pSession_;
+	mutable std::shared_mutex metricDeviceUsageMtx_;
+	std::unordered_set<uint32_t> metricDeviceUsage_;
+	using DeviceUsageEvtKey = std::pair<const char*, uint32_t>;
+	mutable std::unordered_map<DeviceUsageEvtKey, util::win::Event> deviceUsageEvts_;
 };

@@ -72,6 +72,12 @@ WmiCpu::WmiCpu() {
   // next_sample_qpc_.QuadPart += frequency_.QuadPart;
 }
 
+
+const CpuTelemetryInfo& WmiCpu::GetNewest() const noexcept
+{
+    return *std::prev(history_.end());
+}
+
 bool WmiCpu::Sample() noexcept {
   DWORD counter_type;
 

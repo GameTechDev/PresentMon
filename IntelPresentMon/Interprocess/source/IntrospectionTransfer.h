@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <vector>
 #include <memory>
@@ -6,6 +6,7 @@
 #include <ranges>
 #include <cstring>
 #include "../../PresentMonAPI2/PresentMonAPI.h"
+#include "../../CommonUtilities/Exception.h"
 #include "SharedMemoryTypes.h"
 #include <span>
 #include <utility>
@@ -102,6 +103,10 @@ namespace pmon::ipc::intro
 			return pSelf;
 		}
 		std::span<ShmUniquePtr<T>> GetElements()
+		{
+			return { buffer_ };
+		}
+		std::span<const ShmUniquePtr<T>> GetElements() const
 		{
 			return { buffer_ };
 		}
@@ -245,6 +250,14 @@ namespace pmon::ipc::intro
 		{
 			return id_ < rhs.id_;
 		}
+		uint32_t GetId() const
+		{
+			return id_;
+		}
+		PM_DEVICE_TYPE GetType() const
+		{
+			return type_;
+		}
 	private:
 		uint32_t id_;
 		PM_DEVICE_TYPE type_;
@@ -280,6 +293,10 @@ namespace pmon::ipc::intro
 			}
 			return pSelf;
 		}
+		uint32_t GetDeviceId() const
+		{
+			return deviceId_;
+		}
 	private:
 		uint32_t deviceId_;
 		PM_METRIC_AVAILABILITY availability_;
@@ -313,6 +330,10 @@ namespace pmon::ipc::intro
 				std::allocator_traits<A>::construct(alloc, pSelf, content);
 			}
 			return pSelf;
+		}
+		PM_DATA_TYPE GetFrameType() const
+		{
+			return frameType_;
 		}
 	private:
 		PM_DATA_TYPE polledType_;
@@ -447,6 +468,18 @@ namespace pmon::ipc::intro
 		{
 			return id_;
 		}
+		const IntrospectionDataTypeInfo& GetDataTypeInfo() const
+		{
+			return *pTypeInfo_;
+		}
+		std::span<const ShmUniquePtr<IntrospectionDeviceMetricInfo>> GetDeviceMetricInfo() const
+		{
+			return deviceMetricInfo_.GetElements();
+		}
+		PM_METRIC_TYPE GetMetricType() const
+		{
+			return type_;
+		}
 		bool operator<(const IntrospectionMetric& rhs) const
 		{
 			return id_ < rhs.id_;
@@ -491,6 +524,37 @@ namespace pmon::ipc::intro
 		{
 			return metrics_.GetElements();
 		}
+		std::span<const ShmUniquePtr<IntrospectionMetric>> GetMetrics() const
+		{
+			return metrics_.GetElements();
+		}
+		std::span<ShmUniquePtr<IntrospectionDevice>> GetDevices()
+		{
+			return devices_.GetElements();
+		}
+		std::span<const ShmUniquePtr<IntrospectionDevice>> GetDevices() const
+		{
+			return devices_.GetElements();
+		}
+		IntrospectionMetric& FindMetric(PM_METRIC metric)
+		{
+			for (auto& p : GetMetrics()) {
+				if (p->GetId() == metric) {
+					return *p;
+				}
+			}
+			throw util::Except<>("Metric ID not found in introspection");
+		}
+		const IntrospectionMetric& FindMetric(PM_METRIC metric) const
+		{
+			for (const auto& p : GetMetrics()) {
+				if (p->GetId() == metric) {
+					return *p;
+				}
+			}
+			throw util::Except<>("Metric ID not found in introspection");
+		}
+
 		using ApiType = PM_INTROSPECTION_ROOT;
 		template<class V>
 		const ApiType* ApiClone(V voidAlloc) const

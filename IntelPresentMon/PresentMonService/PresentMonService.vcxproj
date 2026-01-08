@@ -133,8 +133,8 @@
     <ClInclude Include="acts\EnumerateAdapters.h" />
     <ClInclude Include="acts\FinishEtlLogging.h" />
     <ClInclude Include="acts\GetStaticCpuMetrics.h" />
-    <ClInclude Include="acts\GetIntrospectionShmName.h" />
     <ClInclude Include="acts\OpenSession.h" />
+    <ClInclude Include="acts\ReportMetricUse.h" />
     <ClInclude Include="acts\SelectAdapter.h" />
     <ClInclude Include="acts\SetEtwFlushPeriod.h" />
     <ClInclude Include="acts\SetTelemetryPeriod.h" />
@@ -146,6 +146,7 @@
     <ClInclude Include="CliOptions.h" />
     <ClInclude Include="EtwLogger.h" />
     <ClInclude Include="EtwLogSession.h" />
+    <ClInclude Include="FrameBroadcaster.h" />
     <ClInclude Include="GlobalIdentifiers.h" />
     <ClInclude Include="Logging.h" />
     <ClInclude Include="LogSetup.h" />

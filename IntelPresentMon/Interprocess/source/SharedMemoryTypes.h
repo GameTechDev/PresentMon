@@ -2,6 +2,7 @@
 #include <boost/interprocess/managed_windows_shared_memory.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/containers/vector.hpp>
+#include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/smart_ptr/unique_ptr.hpp>
 
 namespace pmon::ipc
@@ -17,6 +18,8 @@ namespace pmon::ipc
 	using ShmVector = bip::vector<T, ShmAllocator<T>>;
 	template<typename T>
 	using ShmUniquePtr = typename bip::managed_unique_ptr<T, ShmSegment>::type;
+	template<typename K, typename T>
+	using ShmMap = bip::map<K, T, std::less<K>, ShmAllocator<std::pair<const K, T>>>;
 
 	namespace impl {
 		template<typename T, typename...P>

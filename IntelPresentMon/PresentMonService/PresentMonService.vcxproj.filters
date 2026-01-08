@@ -43,13 +43,14 @@
     <ClInclude Include="Logging.h" />
     <ClInclude Include="acts\SetEtwFlushPeriod.h" />
     <ClInclude Include="Registry.h" />
-    <ClInclude Include="acts\GetIntrospectionShmName.h" />
     <ClInclude Include="acts\StopPlayback.h" />
     <ClInclude Include="testing\TestControl.h" />
     <ClInclude Include="EtwLogger.h" />
     <ClInclude Include="EtwLogSession.h" />
     <ClInclude Include="acts\StartEtlLogging.h" />
     <ClInclude Include="acts\FinishEtlLogging.h" />
+    <ClInclude Include="FrameBroadcaster.h" />
+    <ClInclude Include="acts\ReportMetricUse.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PresentMonService.rc" />

@@ -1,9 +1,9 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
-#include "../PMMainThread.h"
 #include <format>
+#include <cereal/cereal.hpp>
 
-#define ACT_NAME GetIntrospectionShmName
+#define ACT_NAME ReportMetricUse
 #define ACT_EXEC_CTX ActionExecutionContext
 #define ACT_NS ::pmon::svc::acts
 #define ACT_TYPE AsyncActionBase_
@@ -16,24 +16,28 @@ namespace pmon::svc::acts
 	{
 	public:
 		static constexpr const char* Identifier = STRINGIFY(ACT_NAME);
-		struct Params {};
+		struct Params
+		{
+			std::unordered_set<MetricUse> metricUsage;
+			template<class A> void serialize(A& ar) {
+				ar(CEREAL_NVP(metricUsage));
+			}
+		};
 		struct Response
 		{
-			std::string name;
-
-			template<class A> void serialize(A& ar) {
-				ar(name);
-			}
+			template<class A> void serialize(A& ar) {}
 		};
 	private:
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
-			const Response out{
-				.name = ::GetIntrospectionShmName(),
-			};
-			pmlog_dbg(std::format("Reported introspection shm name: {}", out.name));
-			return out;
+			pmlog_verb(pmon::util::log::V::met_use)("ReportMetricUse action payload")
+				.pmwatch(stx.remotePid)
+				.serialize("reportMetricUse", in);
+
+			stx.metricUsage = std::move(in.metricUsage);
+			ctx.UpdateMetricUsage();
+			return {};
 		}
 	};
 

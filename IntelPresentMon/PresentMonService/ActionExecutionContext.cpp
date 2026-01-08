@@ -1,7 +1,8 @@
-#include "ActionExecutionContext.h"
+﻿#include "ActionExecutionContext.h"
 #include <CommonUtilities/rng/MemberSlice.h>
 #include <CommonUtilities/rng/OptionalMinMax.h>
 #include "../Interprocess/source/act/ActionHelper.h"
+#include <cereal/types/unordered_set.hpp>
 
 namespace pmon::svc::acts
 {
@@ -13,13 +14,18 @@ namespace pmon::svc::acts
                 etw.CancelLogSession(id);
             }
         }
-        for (auto& tracked : stx.trackedPids) {
-            pPmon->StopStreaming(stx.remotePid, tracked);
+        for (auto&&[pid, pSeg] : stx.trackedPids) {
+            pPmon->StopStreaming(stx.remotePid, pid);
         }
         stx.requestedTelemetryPeriodMs.reset();
         UpdateTelemetryPeriod();
         stx.requestedEtwFlushPeriodMs.reset();
         UpdateEtwFlushPeriod();
+        pmlog_verb(pmon::util::log::V::met_use)("Session closing, removing metric usage")
+            .pmwatch(stx.remotePid)
+            .serialize("sessionMetricUsage", stx.metricUsage);
+        stx.metricUsage.clear();
+        UpdateMetricUsage();
     }
     void ActionExecutionContext::UpdateTelemetryPeriod() const
     {
@@ -44,5 +50,24 @@ namespace pmon::svc::acts
             pmlog_error("Set telemetry period failed").code(sta);
             throw util::Except<ipc::act::ActionExecutionError>(sta);
         }
+    }
+    void ActionExecutionContext::UpdateMetricUsage() const
+    {
+        std::unordered_set<MetricUse> aggregateMetricUsage;
+        std::unordered_set<uint32_t> deviceMetricUsage;
+        auto&& allUsageSets = util::rng::MemberSlice(*pSessionMap, &SessionContextType::metricUsage);
+        for (auto&& clientUsageSet : allUsageSets) {
+            for (auto&& usage : clientUsageSet) {
+                aggregateMetricUsage.insert(usage);
+                deviceMetricUsage.insert(usage.deviceId);
+            }
+        }
+        if (!hasLastAggregateMetricUsage || aggregateMetricUsage != lastAggregateMetricUsage) {
+            pmlog_verb(pmon::util::log::V::met_use)("Aggregate metric usage updated")
+                .serialize("aggregateMetricUsage", aggregateMetricUsage);
+            lastAggregateMetricUsage = aggregateMetricUsage;
+            hasLastAggregateMetricUsage = true;
+        }
+        pPmon->SetDeviceMetricUsage(std::move(deviceMetricUsage));
     }
 }

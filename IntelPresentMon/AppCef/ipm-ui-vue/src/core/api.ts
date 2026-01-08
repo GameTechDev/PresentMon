@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 import { type Metric } from '@/core/metric'
 import { type Stat } from './stat'
@@ -54,11 +54,12 @@ export class Api {
     static async loadEnvVars(): Promise<EnvVars> {
         return await this.invokeEndpointFuture('loadEnvVars', {});
     }
-    static async introspect(): Promise<{metrics: Metric[], stats: Stat[], units: Unit[]}> {
+    static async introspect(): Promise<{metrics: Metric[], stats: Stat[], units: Unit[], systemDeviceId: number}> {
         const introData = await this.invokeEndpointFuture('Introspect', {});
-        if (!Array.isArray(introData.metrics) || !Array.isArray(introData.stats) || !Array.isArray(introData.units)) {
+        if (!Array.isArray(introData.metrics) || !Array.isArray(introData.stats) ||
+            !Array.isArray(introData.units) || typeof introData.systemDeviceId !== 'number') {
             console.log("error intro call");
-            throw new Error('Bad (non-array) member type returned from introspect');
+            throw new Error('Bad member type returned from introspect');
         }
         return introData;
     }

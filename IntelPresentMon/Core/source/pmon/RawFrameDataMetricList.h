@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 // must include PresentMonAPI.h before including this file
@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <vector>
 #include <ranges>
+#include "../../../Interprocess/source/SystemDeviceId.h"
 
 namespace p2c::pmon
 {
@@ -91,10 +92,10 @@ namespace p2c::pmon
             Element{.metricId = PM_METRIC_GPU_MEM_VOLTAGE_LIMITED, .deviceId = activeDeviceId },
             Element{.metricId = PM_METRIC_GPU_MEM_UTILIZATION_LIMITED, .deviceId = activeDeviceId },
 
-            Element{.metricId = PM_METRIC_CPU_UTILIZATION },
-            Element{.metricId = PM_METRIC_CPU_POWER },
-            Element{.metricId = PM_METRIC_CPU_TEMPERATURE },
-            Element{.metricId = PM_METRIC_CPU_FREQUENCY },
+            Element{.metricId = PM_METRIC_CPU_UTILIZATION, .deviceId = ::pmon::ipc::kSystemDeviceId },
+            Element{.metricId = PM_METRIC_CPU_POWER, .deviceId = ::pmon::ipc::kSystemDeviceId },
+            Element{.metricId = PM_METRIC_CPU_TEMPERATURE, .deviceId = ::pmon::ipc::kSystemDeviceId },
+            Element{.metricId = PM_METRIC_CPU_FREQUENCY, .deviceId = ::pmon::ipc::kSystemDeviceId },
         };
 
         if (enableTimestamp) {

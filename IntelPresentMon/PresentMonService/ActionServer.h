@@ -6,6 +6,7 @@
 #include <memory>
 #include "PresentMon.h"
 #include "Service.h"
+#include "FrameBroadcaster.h"
 
 namespace pmon::svc
 {

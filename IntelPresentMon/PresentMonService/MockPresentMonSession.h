@@ -4,11 +4,13 @@
 #include "PresentMonSession.h"
 #include "../CommonUtilities/win/Event.h"
 
+using namespace pmon;
+
 class MockPresentMonSession : public PresentMonSession
 {
 public:
     // functions
-    MockPresentMonSession();
+    MockPresentMonSession(svc::FrameBroadcaster& broadcaster);
     MockPresentMonSession(const MockPresentMonSession& t) = delete;
     MockPresentMonSession& operator=(const MockPresentMonSession& t) = delete;
     ~MockPresentMonSession() override = default;

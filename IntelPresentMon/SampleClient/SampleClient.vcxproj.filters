@@ -9,6 +9,7 @@
     <ClCompile Include="MultiClient.cpp" />
     <ClCompile Include="EtlLogger.cpp" />
     <ClCompile Include="PacedPlayback.cpp" />
+    <ClCompile Include="IpcComponentServer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Console.h" />
@@ -26,5 +27,6 @@
     <ClInclude Include="MultiClient.h" />
     <ClInclude Include="EtlLogger.h" />
     <ClInclude Include="PacedPlayback.h" />
+    <ClInclude Include="IpcComponentServer.h" />
   </ItemGroup>
 </Project>

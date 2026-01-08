@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+﻿import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
 import { Api } from '@/core/api';
 import type { Metric } from '@/core/metric';
@@ -11,6 +11,7 @@ export const useIntrospectionStore = defineStore('introspection', () => {
   const metrics = ref<Metric[]>([]);
   const stats = ref<Stat[]>([]);
   const units = ref<Unit[]>([]);
+  const systemDeviceId = ref<number>(0);
 
   // === Computed ===
   const metricOptions = computed<MetricOption[]>(() => {
@@ -25,11 +26,12 @@ export const useIntrospectionStore = defineStore('introspection', () => {
 
   // === Actions ===
   async function load() {
-    if (metrics.value.length === 0) {
+    if (metrics.value.length === 0 || systemDeviceId.value === 0) {
       const intro = await Api.introspect();
       metrics.value = intro.metrics;
       stats.value = intro.stats;
       units.value = intro.units;
+      systemDeviceId.value = intro.systemDeviceId;
     }
   }
 
@@ -38,6 +40,7 @@ export const useIntrospectionStore = defineStore('introspection', () => {
     metrics,
     stats,
     units,
+    systemDeviceId,
     metricOptions,
     load
   };
