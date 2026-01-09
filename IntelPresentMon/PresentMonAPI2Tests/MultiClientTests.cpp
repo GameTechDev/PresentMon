@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
@@ -550,6 +550,89 @@ namespace MultiClientTests
 					frames.size(), i).c_str());
 				Assert::IsTrue(frames.size() >= 40ull, L"Minimum threshold frames received");
 			}
+		}
+	};
+
+	TEST_CLASS(ServiceCrashTests)
+	{
+	private:
+		class Fixture_ : public CommonTestFixture
+		{
+		protected:
+			const CommonProcessArgs& GetCommonArgs() const override
+			{
+				static CommonProcessArgs args{
+					.ctrlPipe = R"(\\.\pipe\pm-multi-test-ctrl)",
+					.introNsm = "pm_multi_test_intro",
+					.frameNsm = "pm_multi_test_nsm",
+					.logLevel = "debug",
+					.logFolder = logFolder_,
+					.sampleClientMode = "ServiceCrashClient",
+				};
+				return args;
+			}
+		} fixture_;
+		static constexpr auto clientExitTimeout_ = 3s;
+
+		void RunCrashCase_(const std::vector<std::string>& args)
+		{
+			auto client = fixture_.LaunchClient(args);
+
+			fixture_.StopService();
+
+			Assert::AreEqual("exit-ack"s, client.Command("exit"));
+			if (!client.WaitForExit(clientExitTimeout_)) {
+				client.Murder();
+				Assert::Fail(L"Client did not exit after service termination");
+			}
+		}
+
+		void RunCrashCase_(pmon::test::client::CrashPhase phase)
+		{
+			RunCrashCase_({
+				"--submode"s, std::to_string(static_cast<int>(phase)),
+			});
+		}
+
+		void RunCrashCaseWithPresenter_(pmon::test::client::CrashPhase phase)
+		{
+			auto presenter = fixture_.LaunchPresenter();
+			std::this_thread::sleep_for(30ms);
+
+			RunCrashCase_({
+				"--submode"s, std::to_string(static_cast<int>(phase)),
+				"--process-id"s, std::to_string(presenter.GetId()),
+			});
+		}
+
+	public:
+		TEST_METHOD_INITIALIZE(Setup)
+		{
+			fixture_.Setup();
+		}
+		TEST_METHOD_CLEANUP(Cleanup)
+		{
+			fixture_.Cleanup();
+		}
+		// service drops while client has a session open
+		TEST_METHOD(SessionOpen)
+		{
+			RunCrashCase_(pmon::test::client::CrashPhase::SessionOpen);
+		}
+		// service drops while client has a registered query
+		TEST_METHOD(QueryRegistered)
+		{
+			RunCrashCase_(pmon::test::client::CrashPhase::QueryRegistered);
+		}
+		// service drops while client is tracking a target
+		TEST_METHOD(TargetTracked)
+		{
+			RunCrashCaseWithPresenter_(pmon::test::client::CrashPhase::TargetTracked);
+		}
+		// service drops while client is polling a query/target
+		TEST_METHOD(QueryPolling)
+		{
+			RunCrashCaseWithPresenter_(pmon::test::client::CrashPhase::QueryPolling);
 		}
 	};
 }

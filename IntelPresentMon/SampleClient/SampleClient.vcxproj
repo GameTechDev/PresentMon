@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -112,6 +112,7 @@
     <ClCompile Include="LogSetup.cpp" />
     <ClCompile Include="LogDemo.cpp" />
     <ClCompile Include="MultiClient.cpp" />
+    <ClCompile Include="ServiceCrashClient.cpp" />
     <ClCompile Include="PacedPlayback.cpp" />
     <ClCompile Include="SampleClient.cpp" />
   </ItemGroup>
@@ -128,6 +129,7 @@
     <ClInclude Include="LogDemo.h" />
     <ClInclude Include="MetricListSample.h" />
     <ClInclude Include="MultiClient.h" />
+    <ClInclude Include="ServiceCrashClient.h" />
     <ClInclude Include="PacedPlayback.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="WrapperStaticQuery.h" />

@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "SymmetricActionConnector.h"
@@ -54,19 +54,20 @@ namespace pmon::ipc::act
         auto DispatchSync(Params&& params)
         {
             assert(IsRunning());
+
             return stx_.pConn->DispatchSync(std::forward<Params>(params), ioctx_, stx_);
         }
         template<class Params>
-        auto DispatchDetached(Params&& params)
+        void DispatchDetached(Params&& params)
         {
             assert(IsRunning());
-            return stx_.pConn->DispatchDetached(std::forward<Params>(params), ioctx_, stx_);
+            stx_.pConn->DispatchDetached(std::forward<Params>(params), ioctx_, stx_);
         }
         template<class Params>
         void DispatchWithContinuation(Params&& params, std::function<void(ResponseFromParams<Params>&&, std::exception_ptr)> cont)
         {
             assert(IsRunning());
-            return stx_.pConn->DispatchWithContinuation(std::forward<Params>(params), ioctx_, stx_, std::move(cont));
+            stx_.pConn->DispatchWithContinuation(std::forward<Params>(params), ioctx_, stx_, std::move(cont));
         }
         bool IsRunning() const
         {

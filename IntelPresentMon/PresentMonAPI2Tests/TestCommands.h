@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <set>
 #include <optional>
 #include <cereal/types/set.hpp>
@@ -28,6 +28,14 @@ namespace pmon::test
 
 	namespace client
 	{
+		enum class CrashPhase
+		{
+			SessionOpen = 0,
+			QueryRegistered = 1,
+			TargetTracked = 2,
+			QueryPolling = 3,
+		};
+
 		struct Frame
 		{
 			double receivedTime;
