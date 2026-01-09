@@ -149,6 +149,32 @@
           "Command": "--telemetry-period 50"
         }
       ]
+    },
+    {
+      "Id": "ee0f6607-fe9f-43f0-baa8-ad3c4cc045a6",
+      "Command": "VS-Debug-Run",
+      "Items": [
+        {
+          "Id": "e87d6601-c9fb-4f0d-b174-c8275581ff88",
+          "Command": "--svc-as-child"
+        },
+        {
+          "Id": "0f2729dd-d4b7-458f-8ba5-a65a953d8e9c",
+          "Command": "--files-working"
+        },
+        {
+          "Id": "424b31f1-2ce9-4336-a284-91c7778480d0",
+          "Command": "--log-level verbose"
+        },
+        {
+          "Id": "19c02072-8767-4dc8-98e8-8a4d3ffbc422",
+          "Command": "--middleware-dll-path .\\PresentMonAPI2.dll"
+        },
+        {
+          "Id": "9364f1fd-7146-4233-9e19-83cd7e3b7ddb",
+          "Command": "--log-middleware-copy"
+        }
+      ]
     }
   ]
 }
