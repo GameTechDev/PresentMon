@@ -2377,6 +2377,12 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
         }
     }
 
+    // Remove the app frame data for this present
+    auto ii = mPresentByAppFrameId.find(std::make_pair(appFrameId, processId));
+    if (ii != mPresentByAppFrameId.end()) {
+        mPresentByAppFrameId.erase(ii);
+    }
+
     // Prune out old PC Latency timing data to prevent memory leaks.
     // This is critical because PCL data accumulates for every frame and the
     // PCLStatsShutdown event (the only other cleanup mechanism) is app-controlled.
