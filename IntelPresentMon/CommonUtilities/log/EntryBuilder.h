@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Entry.h"
 #include "../Meta.h"
 #include <format>
@@ -55,7 +55,7 @@ namespace pmon::util::log
 			return *this;
 		}
 		template<typename E>
-		EntryBuilder& raise()
+		[[noreturn]] EntryBuilder& raise()
 		{
 			auto note = note_;
 			commit_();
@@ -68,6 +68,7 @@ namespace pmon::util::log
 			else {
 				static_assert(::pmon::util::DependentFalse<E>,
 					"EntryBuilder::raise requires exception type with (code, std::string) or (std::string) constructor.");
+				throw std::runtime_error{ "Generic Error /w reporting failure in log::raise" };
 			}
 		}
 		EntryBuilder& mark(const TimePoint& tp) noexcept;

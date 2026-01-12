@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../CommonUtilities/win/WinAPI.h"
 #include "../CommonUtilities/ref/StaticReflection.h"
 #include "../Interprocess/source/PmStatusError.h"
@@ -55,6 +55,8 @@ namespace pmon::mid
             pmlog_info(std::format("Opened session with server, pid = [{}]", res.servicePid));
             EstablishSession_(res.servicePid);
         }
+#pragma warning(push)
+#pragma warning(disable: 4715)
         template<class Params>
         auto DispatchSync(Params&& params)
         {
@@ -66,6 +68,7 @@ namespace pmon::mid
                 pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN).raise<ipc::PmStatusError>();
             }
         }
+#pragma warning(pop)
         template<class Params>
         void DispatchDetached(Params&& params)
         {

@@ -1,4 +1,4 @@
-#include <memory>
+﻿#include <memory>
 #include <crtdbg.h>
 #include <unordered_map>
 #include "../PresentMonMiddleware/ConcreteMiddleware.h"
@@ -31,6 +31,16 @@ Middleware& LookupMiddleware_(const void* handle)
 		pmlog_error("session handle not found during lookup").diag();
 		throw util::Except<ipc::PmStatusError>(PM_STATUS_SESSION_NOT_OPEN);
 	}
+}
+Middleware& LookupMiddlewareCheckDropped_(const void* handle)
+{
+	auto& mid = LookupMiddleware_(handle);
+	if (!mid.ServiceConnected()) {
+		pmlog_error("Service dropped; proactive abort")
+			.code(PM_STATUS_SESSION_NOT_OPEN)
+			.raise<ipc::PmStatusError>();
+	}
+	return mid;
 }
 
 void DestroyMiddleware_(PM_SESSION_HANDLE handle)
@@ -193,7 +203,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetIntrospectionRoot(PM_SESSION_HANDLE handle
 			pmlog_error("null outptr for introspection interface").diag();
 			return PM_STATUS_BAD_ARGUMENT;
 		}
-		const auto pIntro = LookupMiddleware_(handle).GetIntrospectionData();
+		const auto pIntro = LookupMiddlewareCheckDropped_(handle).GetIntrospectionData();
 		// we don't need the middleware to free introspection data
 		// detaching like this (eliding handle mapping) will allow introspection data
 		// to not obstruct cleanup of middleware
@@ -267,7 +277,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmRegisterDynamicQuery(PM_SESSION_HANDLE sessio
 			pmlog_error("zero length query element array").diag();
 			return PM_STATUS_BAD_ARGUMENT;
 		}
-		const auto queryHandle = LookupMiddleware_(sessionHandle).RegisterDynamicQuery(
+		const auto queryHandle = LookupMiddlewareCheckDropped_(sessionHandle).RegisterDynamicQuery(
 			{pElements, numElements}, windowSizeMs, metricOffsetMs);
 		AddHandleMapping_(sessionHandle, queryHandle);
 		*pQueryHandle = queryHandle;
@@ -314,7 +324,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQuery(PM_DYNAMIC_QUERY_HANDLE hand
 			pmlog_error("swap chain in count is zero").diag();
 			return PM_STATUS_BAD_ARGUMENT;
 		}
-		LookupMiddleware_(handle).PollDynamicQuery(handle, processId, pBlob, numSwapChains);
+		LookupMiddlewareCheckDropped_(handle).PollDynamicQuery(handle, processId, pBlob, numSwapChains);
 		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
@@ -335,7 +345,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmPollStaticQuery(PM_SESSION_HANDLE sessionHand
 			pmlog_error("null ptr to blob").diag();
 			return PM_STATUS_BAD_ARGUMENT;
 		}
-		LookupMiddleware_(sessionHandle).PollStaticQuery(*pElement, processId, pBlob);
+		LookupMiddlewareCheckDropped_(sessionHandle).PollStaticQuery(*pElement, processId, pBlob);
 		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
@@ -364,7 +374,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmRegisterFrameQuery(PM_SESSION_HANDLE sessionH
 			pmlog_error("zero blob size").diag();
 			return PM_STATUS_BAD_ARGUMENT;
 		}
-		const auto queryHandle = LookupMiddleware_(sessionHandle).RegisterFrameEventQuery({ pElements, numElements }, *pBlobSize);
+		const auto queryHandle = LookupMiddlewareCheckDropped_(sessionHandle).RegisterFrameEventQuery({ pElements, numElements }, *pBlobSize);
 		AddHandleMapping_(sessionHandle, queryHandle);
 		*pQueryHandle = queryHandle;
 		return PM_STATUS_SUCCESS;
@@ -387,7 +397,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmConsumeFrames(PM_FRAME_QUERY_HANDLE handle, u
 			pmlog_error("null frame count in-out ptr").diag();
 			return PM_STATUS_BAD_ARGUMENT;
 		}
-		LookupMiddleware_(handle).ConsumeFrameEvents(handle, processId, pBlob, *pNumFramesToRead);
+		LookupMiddlewareCheckDropped_(handle).ConsumeFrameEvents(handle, processId, pBlob, *pNumFramesToRead);
 		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
@@ -431,7 +441,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetApiVersion(PM_VERSION* pVersion)
 PRESENTMON_API2_EXPORT PM_STATUS pmStopPlayback_(PM_SESSION_HANDLE handle)
 {
 	try {
-		auto& mid = LookupMiddleware_(handle);
+		auto& mid = LookupMiddlewareCheckDropped_(handle);
 		mid.StopPlayback();
 		return PM_STATUS_SUCCESS;
 	}
@@ -446,7 +456,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM
 	uint64_t reserved1, uint64_t reserved2)
 {
 	try {
-		auto& mid = LookupMiddleware_(session);
+		auto& mid = LookupMiddlewareCheckDropped_(session);
 		*pEtlHandle = mid.StartEtlLogging();
 		return PM_STATUS_SUCCESS;
 	}
@@ -461,7 +471,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, P
 	char* pOutputFilePathBuffer, uint32_t bufferSize)
 {
 	try {
-		auto& mid = LookupMiddleware_(session);
+		auto& mid = LookupMiddlewareCheckDropped_(session);
 		const auto path = mid.FinishEtlLogging(etlHandle);
 		if (path.size() + 1 > bufferSize) {
 			const auto code = PM_STATUS_INSUFFICIENT_BUFFER;

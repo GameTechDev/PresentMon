@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../PresentMonAPI2/PresentMonAPI.h"
 #include <span>
 #include <optional>
@@ -27,5 +27,6 @@ namespace pmon::mid
 		virtual void StopPlayback() = 0;
 		virtual uint32_t StartEtlLogging() = 0;
 		virtual std::string FinishEtlLogging(uint32_t etlLogSessionHandle) = 0;
+		virtual bool ServiceConnected() const { return false; }
 	};
 }

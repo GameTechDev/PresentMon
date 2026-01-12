@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../CommonUtilities/win/WinAPI.h"
 #include "Middleware.h"
 #include "../Interprocess/source/Interprocess.h"
@@ -186,6 +186,7 @@ namespace pmon::mid
 		void StopPlayback() override;
 		uint32_t StartEtlLogging() override;
 		std::string FinishEtlLogging(uint32_t etlLogSessionHandle) override;
+		bool ServiceConnected() const override;
 	private:
 		PmNsmFrameData* GetFrameDataStart(StreamClient* client, uint64_t& index, uint64_t dataOffset, uint64_t& queryFrameDataDelta, double& windowSampleSizeMs);
 		uint64_t GetAdjustedQpc(uint64_t current_qpc, uint64_t frame_data_qpc, uint64_t queryMetricsOffset, LARGE_INTEGER frequency, uint64_t& queryFrameDataDelta);
