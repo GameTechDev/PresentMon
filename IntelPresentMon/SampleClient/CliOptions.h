@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../CommonUtilities/cli/CliFramework.h"
 #include "../CommonUtilities/log/Level.h"
 #include "../CommonUtilities/ref/StaticReflection.h"
@@ -22,6 +22,7 @@ namespace clio
 		PlaybackDynamicQuery,
 		IntrospectAllDynamicOptions,
 		MultiClient,
+		ServiceCrashClient,
 		EtlLogger,
 		PacedPlayback,
 		Count,

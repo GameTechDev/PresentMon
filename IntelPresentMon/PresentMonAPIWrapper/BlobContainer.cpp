@@ -79,9 +79,16 @@ namespace pmapi
         return const_cast<BlobContainer&>(*this)[index];
     }
 
-    std::vector<uint8_t*>::const_iterator BlobContainer::begin() const { return blobPointers_.begin(); }
+    std::vector<uint8_t*>::const_iterator BlobContainer::begin() const
+    {
+        return blobPointers_.begin();
+    }
 
-    std::vector<uint8_t*>::const_iterator BlobContainer::end() const { return blobPointers_.begin() + GetNumBlobsPopulated(); }
+    std::vector<uint8_t*>::const_iterator BlobContainer::end() const
+    {
+        return blobPointers_.begin() +
+            std::min(GetNumBlobsPopulated(), GetBlobCount());
+    }
 
     bool BlobContainer::AllBlobsPopulated() const { return nBlobsFilledInOut_ == nBlobs_; }
 

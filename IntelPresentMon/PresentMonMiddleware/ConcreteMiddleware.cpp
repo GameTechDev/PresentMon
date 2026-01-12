@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "ConcreteMiddleware.h"
 #include <cstring>
@@ -1424,6 +1424,11 @@ static void ReportMetrics(
     void ConcreteMiddleware::StopPlayback()
     {
         pActionClient->DispatchSync(StopPlayback::Params{});
+    }
+
+    bool ConcreteMiddleware::ServiceConnected() const
+    {
+        return pActionClient->IsRunning();
     }
 
     uint32_t ConcreteMiddleware::StartEtlLogging()

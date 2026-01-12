@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "../CommonUtilities/win/WinAPI.h"
@@ -13,6 +13,7 @@
 #include <format>
 #include <sstream>
 #include <filesystem>
+#include <chrono>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace as = boost::asio;
@@ -68,6 +69,19 @@ public:
 	void Wait()
 	{
 		process_.wait();
+	}
+	bool WaitForExit(std::chrono::milliseconds timeout)
+	{
+		if (!process_.running()) {
+			return true;
+		}
+		const auto waitResult = WaitForSingleObject(process_.native_handle(),
+			static_cast<DWORD>(timeout.count()));
+		if (waitResult == WAIT_OBJECT_0) {
+			process_.wait();
+			return true;
+		}
+		return false;
 	}
 	std::string Command(const std::string& command)
 	{
@@ -266,6 +280,10 @@ public:
 	{
 		StopService_(GetCommonArgs());
 		ioctxRunThread_.join();
+	}
+	void StopService()
+	{
+		StopService_(GetCommonArgs());
 	}
 	void RebootService(std::optional<std::vector<std::string>> newArgs = {})
 	{

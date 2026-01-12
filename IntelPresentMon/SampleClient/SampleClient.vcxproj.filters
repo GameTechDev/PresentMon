@@ -7,6 +7,7 @@
     <ClCompile Include="LogDemo.cpp" />
     <ClCompile Include="DiagnosticDemo.cpp" />
     <ClCompile Include="MultiClient.cpp" />
+    <ClCompile Include="ServiceCrashClient.cpp" />
     <ClCompile Include="EtlLogger.cpp" />
     <ClCompile Include="PacedPlayback.cpp" />
   </ItemGroup>
@@ -24,6 +25,7 @@
     <ClInclude Include="LogSetup.h" />
     <ClInclude Include="DiagnosticDemo.h" />
     <ClInclude Include="MultiClient.h" />
+    <ClInclude Include="ServiceCrashClient.h" />
     <ClInclude Include="EtlLogger.h" />
     <ClInclude Include="PacedPlayback.h" />
   </ItemGroup>
