@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "SymmetricActionConnector.h"
@@ -19,6 +19,9 @@ namespace pmon::ipc::act
     using namespace ipc;
     namespace as = boost::asio;
     using namespace as::experimental::awaitable_operators;
+
+    PM_DEFINE_EX(ActionClientError);
+    PM_DEFINE_EX_FROM(ActionClientError, ServerDroppedError);
 
     template<class ExecCtx>
     class SymmetricActionClient
@@ -53,20 +56,25 @@ namespace pmon::ipc::act
         template<class Params>
         auto DispatchSync(Params&& params)
         {
-            assert(IsRunning());
-
+            if (!IsRunning()) {
+                throw Except<ServerDroppedError>("Server dropped off (ioctx not running); cannot dispatch");
+            }
             return stx_.pConn->DispatchSync(std::forward<Params>(params), ioctx_, stx_);
         }
         template<class Params>
         void DispatchDetached(Params&& params)
         {
-            assert(IsRunning());
+            if (!IsRunning()) {
+                throw Except<ServerDroppedError>("Server dropped off (ioctx not running); cannot dispatch");
+            }
             stx_.pConn->DispatchDetached(std::forward<Params>(params), ioctx_, stx_);
         }
         template<class Params>
         void DispatchWithContinuation(Params&& params, std::function<void(ResponseFromParams<Params>&&, std::exception_ptr)> cont)
         {
-            assert(IsRunning());
+            if (!IsRunning()) {
+                throw Except<ServerDroppedError>("Server dropped off (ioctx not running); cannot dispatch");
+            }
             stx_.pConn->DispatchWithContinuation(std::forward<Params>(params), ioctx_, stx_, std::move(cont));
         }
         bool IsRunning() const

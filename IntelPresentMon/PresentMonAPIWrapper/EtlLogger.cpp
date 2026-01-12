@@ -6,7 +6,8 @@ namespace pmapi
     // stops tracking the associated process
     EtlLogger::~EtlLogger()
     {
-        Reset();
+        try { Reset(); }
+        catch (...) {}
     }
     // move ctor
     EtlLogger::EtlLogger(EtlLogger&& other) noexcept

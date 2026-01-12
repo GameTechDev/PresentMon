@@ -1,5 +1,6 @@
 #pragma once
 #include "Entry.h"
+#include "../Meta.h"
 #include <format>
 #include <memory>
 #include <sstream>
@@ -58,7 +59,16 @@ namespace pmon::util::log
 		{
 			auto note = note_;
 			commit_();
-			throw Except<E>(std::move(note));
+			if constexpr (std::is_constructible_v<E, ErrorCodeArg_, std::string>) {
+				throw Except<E>(ErrorCodeArg_{ errorCode_ }, std::move(note));
+			}
+			else if constexpr (std::is_constructible_v<E, std::string>) {
+				throw Except<E>(std::move(note));
+			}
+			else {
+				static_assert(::pmon::util::DependentFalse<E>,
+					"EntryBuilder::raise requires exception type with (code, std::string) or (std::string) constructor.");
+			}
 		}
 		EntryBuilder& mark(const TimePoint& tp) noexcept;
 		EntryBuilder& note(std::string note = "") noexcept;
@@ -92,6 +102,33 @@ namespace pmon::util::log
 			return *this;
 		}
 	private:
+		struct ErrorCodeArg_
+		{
+			const ErrorCode& code_;
+			template<typename T>
+			requires ::pmon::util::IsIntegralOrEnum<T>
+			operator T() const noexcept
+			{
+				using RawT = ::pmon::util::EnumOrIntegralUnderlying<T>;
+				if constexpr (std::is_signed_v<RawT>) {
+					if (auto value = code_.AsSigned()) {
+						return static_cast<T>(static_cast<RawT>(*value));
+					}
+					if (auto value = code_.AsUnsigned()) {
+						return static_cast<T>(static_cast<RawT>(*value));
+					}
+				}
+				else {
+					if (auto value = code_.AsUnsigned()) {
+						return static_cast<T>(static_cast<RawT>(*value));
+					}
+					if (auto value = code_.AsSigned()) {
+						return static_cast<T>(static_cast<RawT>(*value));
+					}
+				}
+				return static_cast<T>(RawT{});
+			}
+		};
 		// functions
 		void commit_() noexcept;
 		// data
