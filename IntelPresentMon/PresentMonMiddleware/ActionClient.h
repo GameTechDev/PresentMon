@@ -55,8 +55,6 @@ namespace pmon::mid
             pmlog_info(std::format("Opened session with server, pid = [{}]", res.servicePid));
             EstablishSession_(res.servicePid);
         }
-#pragma warning(push)
-#pragma warning(disable: 4715)
         template<class Params>
         auto DispatchSync(Params&& params)
         {
@@ -65,10 +63,10 @@ namespace pmon::mid
                 return ClientBase::DispatchSync(std::forward<Params>(params));
             }
             catch (const ipc::act::ServerDroppedError& e) {
-                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN).raise<ipc::PmStatusError>();
+                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN);
+                throw util::Except<ipc::PmStatusError>(PM_STATUS_SESSION_NOT_OPEN, e.GetNote());
             }
         }
-#pragma warning(pop)
         template<class Params>
         void DispatchDetached(Params&& params)
         {
