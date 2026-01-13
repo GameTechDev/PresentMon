@@ -266,7 +266,7 @@ namespace pmon::util::cnr
 		}
 
 	private:
-		using Storage = std::aligned_storage_t<sizeof(T), alignof(T)>;
+		using StorageByte = std::byte;
 
 		template<std::ranges::input_range R>
 		void AssignRange_(R&& range)
@@ -298,12 +298,14 @@ namespace pmon::util::cnr
 
 		pointer Ptr_(size_type index) noexcept
 		{
-			return std::launder(reinterpret_cast<pointer>(&storage_[index]));
+			auto* raw = storage_.data() + (index * sizeof(T));
+			return std::launder(reinterpret_cast<pointer>(raw));
 		}
 
 		const_pointer Ptr_(size_type index) const noexcept
 		{
-			return std::launder(reinterpret_cast<const_pointer>(&storage_[index]));
+			auto* raw = storage_.data() + (index * sizeof(T));
+			return std::launder(reinterpret_cast<const_pointer>(raw));
 		}
 
 		void DestroyRange_(size_type first, size_type last) noexcept
@@ -337,7 +339,7 @@ namespace pmon::util::cnr
 			other.Clear();
 		}
 
-		std::array<Storage, MaxCapacity> storage_{};
+		alignas(T) std::array<StorageByte, sizeof(T) * MaxCapacity> storage_{};
 		size_type size_ = 0;
 	};
 }
