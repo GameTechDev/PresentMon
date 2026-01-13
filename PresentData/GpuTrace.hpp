@@ -10,7 +10,7 @@
 struct PresentEvent;
 struct PMTraceConsumer;
 
-class GpuTrace {
+class GpuTrace final {
     // PacketTrace is the execution information for each process' frame.
     struct PacketTrace {
         uint64_t mFirstPacketTime;         // QPC when the first packet started for the current frame
@@ -75,6 +75,10 @@ class GpuTrace {
 
 public:
     explicit GpuTrace(PMTraceConsumer* pmConsumer);
+    GpuTrace(const GpuTrace& t) = delete;
+    GpuTrace& operator=(const GpuTrace& t) = delete;
+    GpuTrace(GpuTrace&& t) = delete;
+    GpuTrace& operator=(GpuTrace&& t) = delete;
     ~GpuTrace();
 
     void RegisterDevice(uint64_t hDevice, uint64_t pDxgAdapter);

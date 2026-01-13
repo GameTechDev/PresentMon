@@ -54,7 +54,7 @@ public:
 	TestProcess& operator=(const TestProcess&) = delete;
 	TestProcess(TestProcess&& other) noexcept = delete;
 	TestProcess& operator=(TestProcess&& other) noexcept = delete;
-	virtual ~TestProcess() = default;
+	virtual ~TestProcess() noexcept = default;
 
 	void Murder()
 	{
@@ -269,7 +269,7 @@ public:
 	CommonTestFixture& operator=(const CommonTestFixture&) = delete;
 	CommonTestFixture(CommonTestFixture&&) = delete;
 	CommonTestFixture& operator=(CommonTestFixture&&) = delete;
-	virtual ~CommonTestFixture() = default;
+	virtual ~CommonTestFixture() noexcept = default;
 
 	void Setup(std::vector<std::string> args = {})
 	{
