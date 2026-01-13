@@ -235,6 +235,43 @@ namespace pmon::util::cnr
 			--size_;
 		}
 
+		iterator Erase(const_iterator pos)
+		{
+			return Erase(pos, pos + 1);
+		}
+
+		iterator Erase(const_iterator first, const_iterator last)
+		{
+			assert(first >= CBegin());
+			assert(last <= CEnd());
+			assert(first <= last);
+
+			const size_type start = static_cast<size_type>(first - CBegin());
+			const size_type end = static_cast<size_type>(last - CBegin());
+			if (start == end) {
+				return begin() + start;
+			}
+
+			const size_type count = end - start;
+			const size_type tail = size_ - end;
+
+			if constexpr (std::is_move_assignable_v<T>) {
+				for (size_type i = 0; i < tail; ++i) {
+					(*this)[start + i] = std::move((*this)[end + i]);
+				}
+			}
+			else {
+				for (size_type i = 0; i < tail; ++i) {
+					std::destroy_at(Ptr_(start + i));
+					std::construct_at(Ptr_(start + i), std::move((*this)[end + i]));
+				}
+			}
+
+			DestroyRange_(size_ - count, size_);
+			size_ -= count;
+			return begin() + start;
+		}
+
 		void Assign(size_type count, const T& value)
 		{
 			Clear();

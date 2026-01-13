@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MetricsTypes.h"
 #include "UnifiedSwapChain.h"
@@ -22,10 +22,10 @@ namespace pmon::util::metrics
 
     void UnifiedSwapChain::SanitizeDisplayedRepeatedPresents(FrameData& present)
     {
-        // Port of OutputThread.cpp::ReportMetrics() �Remove Repeated flips� pre-pass,
-        // but applied to FrameData (so we don�t mutate PresentEvent).
+        // Port of OutputThread.cpp::ReportMetrics() "Remove Repeated flips" pre-pass,
+        // but applied to FrameData (so we do not mutate PresentEvent).
         auto& d = present.displayed;
-        for (size_t i = 0; i + 1 < d.size(); ) {
+        for (size_t i = 0; i + 1 < d.Size(); ) {
             const auto a = d[i].first;
             const auto b = d[i + 1].first;
 
@@ -33,10 +33,10 @@ namespace pmon::util::metrics
             const bool rep_then_app = (a == FrameType::Repeated && b == FrameType::Application);
 
             if (app_then_rep) {
-                d.erase(d.begin() + i + 1);
+                d.Erase(d.begin() + i + 1);
             }
             else if (rep_then_app) {
-                d.erase(d.begin() + i);
+                d.Erase(d.begin() + i);
             }
             else {
                 ++i;
@@ -75,7 +75,7 @@ namespace pmon::util::metrics
 
         const bool isDisplayed =
             (present.finalState == PresentResult::Presented) &&
-            (!present.displayed.empty());
+            (!present.displayed.Empty());
 
         if (isDisplayed) {
             // 1) Finalize previously waiting displayed (if any), pointing at swapchain-owned next displayed.

@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MetricsCalculator.h"
 #include "MetricsCalculatorInternal.h"
@@ -107,7 +107,7 @@ namespace pmon::util::metrics
             // is greater than this present's screen time.
             if (lastDisplayedFlipDelay > 0 &&
                 lastDisplayedScreenTime > screenTime &&
-                !present.displayed.empty()) {
+                !present.displayed.Empty()) {
 
                 const uint64_t diff = lastDisplayedScreenTime - screenTime;
                 present.flipDelay += diff;
@@ -138,7 +138,7 @@ namespace pmon::util::metrics
         DisplayIndexing result{};
 
         // Get display count
-        auto displayCount = present.displayed.size();  // ConsoleAdapter/PresentSnapshot method
+        auto displayCount = present.displayed.Size();  // ConsoleAdapter/PresentSnapshot method
 
         // Check if displayed
         bool displayed = present.finalState == PresentResult::Presented && displayCount > 0;

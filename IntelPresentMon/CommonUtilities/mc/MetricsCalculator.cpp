@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MetricsCalculator.h"
 #include "MetricsCalculatorInternal.h"
@@ -88,7 +88,7 @@ namespace pmon::util::metrics
     {
         std::vector<ComputedMetrics> results;
 
-        const auto displayCount = present.displayed.size();
+        const auto displayCount = present.displayed.Size();
         const bool isDisplayed = present.finalState == PresentResult::Presented && displayCount > 0;
 
         // Case 1: not displayed, return single not-displayed metrics
@@ -181,7 +181,7 @@ namespace pmon::util::metrics
                 // Next display instance of the same present
                 nextScreenTime = present.displayed[displayIndex + 1].second;
             }
-            else if (nextDisplayed != nullptr && !nextDisplayed->displayed.empty()) {
+            else if (nextDisplayed != nullptr && !nextDisplayed->displayed.Empty()) {
                 // First display of the *next* presented frame
                 nextScreenTime = nextDisplayed->displayed[0].second;
             }

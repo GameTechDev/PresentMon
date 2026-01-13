@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include <CppUnitTest.h>
 #include <CommonUtilities/qpc.h>
@@ -180,7 +180,7 @@ namespace MetricsCoreTests
 
             auto frame = FrameData::CopyFrameData(nsmEvent);
 
-            Assert::AreEqual(size_t(2), frame.displayed.size());
+            Assert::AreEqual(size_t(2), frame.displayed.Size());
             Assert::IsTrue(frame.displayed[0].first == FrameType::Application);
             Assert::AreEqual(9000ull, frame.displayed[0].second);
             Assert::IsTrue(frame.displayed[1].first == FrameType::Repeated);
@@ -194,7 +194,7 @@ namespace MetricsCoreTests
 
             auto frame = FrameData::CopyFrameData(nsmEvent);
 
-            Assert::AreEqual(size_t(0), frame.displayed.size());
+            Assert::AreEqual(size_t(0), frame.displayed.Size());
         }
 
         TEST_METHOD(FromCircularBuffer_CopiesMetadata)
@@ -463,7 +463,7 @@ namespace MetricsCoreTests
         {
             FrameData present{};
             // No displayed frames
-            present.displayed.clear();
+            present.displayed.Clear();
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
 
@@ -476,7 +476,7 @@ namespace MetricsCoreTests
         TEST_METHOD(Calculate_SingleDisplay_NoNext_Postponed)
         {
             FrameData present{};
-            present.displayed.push_back({ FrameType::Application, 1000 });
+            present.displayed.PushBack({ FrameType::Application, 1000 });
             present.finalState = PresentResult::Presented;
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
@@ -491,9 +491,9 @@ namespace MetricsCoreTests
         TEST_METHOD(Calculate_MultipleDisplays_NoNext_PostponeLast)
         {
             FrameData present{};
-            present.displayed.push_back({ FrameType::Application, 1000 });
-            present.displayed.push_back({ FrameType::Repeated, 2000 });
-            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            present.displayed.PushBack({ FrameType::Application, 1000 });
+            present.displayed.PushBack({ FrameType::Repeated, 2000 });
+            present.displayed.PushBack({ FrameType::Repeated, 3000 });
             present.finalState = PresentResult::Presented;
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
@@ -508,13 +508,13 @@ namespace MetricsCoreTests
         TEST_METHOD(Calculate_MultipleDisplays_WithNext_ProcessPostponed)
         {
             FrameData present{};
-            present.displayed.push_back({ FrameType::Application, 1000 });
-            present.displayed.push_back({ FrameType::Repeated, 2000 });
-            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            present.displayed.PushBack({ FrameType::Application, 1000 });
+            present.displayed.PushBack({ FrameType::Repeated, 2000 });
+            present.displayed.PushBack({ FrameType::Repeated, 3000 });
             present.finalState = PresentResult::Presented;
 
             FrameData next{};
-            next.displayed.push_back({ FrameType::Application, 4000 });
+            next.displayed.PushBack({ FrameType::Application, 4000 });
 
             auto result = DisplayIndexing::Calculate(present, &next);
 
@@ -528,8 +528,8 @@ namespace MetricsCoreTests
         TEST_METHOD(Calculate_NotDisplayed_ReturnsEmptyRange)
         {
             FrameData present{};
-            present.displayed.push_back({ FrameType::Application, 1000 });
-            present.displayed.push_back({ FrameType::Repeated, 2000 });
+            present.displayed.PushBack({ FrameType::Application, 1000 });
+            present.displayed.PushBack({ FrameType::Repeated, 2000 });
             // Don't set finalState = Presented, so displayed = false
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
@@ -544,9 +544,9 @@ namespace MetricsCoreTests
         TEST_METHOD(Calculate_FindsAppFrameIndex_Displayed)
         {
             FrameData present{};
-            present.displayed.push_back({ FrameType::Repeated, 1000 });
-            present.displayed.push_back({ FrameType::Application, 2000 });
-            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            present.displayed.PushBack({ FrameType::Repeated, 1000 });
+            present.displayed.PushBack({ FrameType::Application, 2000 });
+            present.displayed.PushBack({ FrameType::Repeated, 3000 });
             present.finalState = PresentResult::Presented;
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
@@ -560,9 +560,9 @@ namespace MetricsCoreTests
         TEST_METHOD(Calculate_FindsAppFrameIndex_NotDisplayed)
         {
             FrameData present{};
-            present.displayed.push_back({ FrameType::Repeated, 1000 });
-            present.displayed.push_back({ FrameType::Application, 2000 });
-            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            present.displayed.PushBack({ FrameType::Repeated, 1000 });
+            present.displayed.PushBack({ FrameType::Application, 2000 });
+            present.displayed.PushBack({ FrameType::Repeated, 3000 });
             // Not displayed
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
@@ -575,9 +575,9 @@ namespace MetricsCoreTests
         TEST_METHOD(Calculate_AllRepeatedFrames_AppIndexInvalid)
         {
             FrameData present{};
-            present.displayed.push_back({ FrameType::Repeated, 1000 });
-            present.displayed.push_back({ FrameType::Repeated, 2000 });
-            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            present.displayed.PushBack({ FrameType::Repeated, 1000 });
+            present.displayed.PushBack({ FrameType::Repeated, 2000 });
+            present.displayed.PushBack({ FrameType::Repeated, 3000 });
             present.finalState = PresentResult::Presented;
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
@@ -591,9 +591,9 @@ namespace MetricsCoreTests
         TEST_METHOD(Calculate_MultipleAppFrames_FindsFirst)
         {
             FrameData present{};
-            present.displayed.push_back({ FrameType::Application, 1000 });
-            present.displayed.push_back({ FrameType::Application, 2000 });
-            present.displayed.push_back({ FrameType::Repeated, 3000 });
+            present.displayed.PushBack({ FrameType::Application, 1000 });
+            present.displayed.PushBack({ FrameType::Application, 2000 });
+            present.displayed.PushBack({ FrameType::Repeated, 3000 });
             present.finalState = PresentResult::Presented;
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
@@ -608,7 +608,7 @@ namespace MetricsCoreTests
         {
             // Verify template works with FrameData
             FrameData present{};
-            present.displayed.push_back({ FrameType::Application, 1000 });
+            present.displayed.PushBack({ FrameType::Application, 1000 });
             present.finalState = PresentResult::Presented;
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
@@ -841,7 +841,7 @@ namespace MetricsCoreTests
         uint64_t presentStartTime,
         uint64_t timeInPresent,
         uint64_t readyTime,
-        const std::vector<std::pair<FrameType, uint64_t>>& displayed,
+        const DisplayedVector& displayed,
         uint64_t appSimStartTime = 0,
         uint64_t pclSimStartTime = 0,
         uint64_t flipDelay = 0)
@@ -973,7 +973,7 @@ public:
         Assert::AreEqual(size_t(1), out.size());
         Assert::IsNotNull(out[0].presentPtr);
 
-        Assert::AreEqual(size_t(1), out[0].presentPtr->displayed.size());
+        Assert::AreEqual(size_t(1), out[0].presentPtr->displayed.Size());
         Assert::AreEqual((int)FrameType::Application, (int)out[0].presentPtr->displayed[0].first);
     }
 
@@ -991,7 +991,7 @@ public:
         Assert::AreEqual(size_t(1), out.size());
         Assert::IsNotNull(out[0].presentPtr);
 
-        Assert::AreEqual(size_t(1), out[0].presentPtr->displayed.size());
+        Assert::AreEqual(size_t(1), out[0].presentPtr->displayed.Size());
         Assert::AreEqual((int)FrameType::Application, (int)out[0].presentPtr->displayed[0].first);
     }
 
@@ -1835,7 +1835,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 /*presentStartTime*/ 1'016'000,      // slightly later than first
                 /*timeInPresent*/    300'000,
                 /*readyTime*/        1'616'000,
-                std::vector<std::pair<FrameType, uint64_t>>{
+                DisplayedVector{
                     { FrameType::Application, 2'000'000 }   // one displayed instance
             });
             second.gpuStartTime = 1'200'000;
@@ -1846,7 +1846,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 /*presentStartTime*/ 2'100'000,
                 /*timeInPresent*/    100'000,
                 /*readyTime*/        2'200'000,
-                std::vector<std::pair<FrameType, uint64_t>>{
+                DisplayedVector{
                     { FrameType::Application, 2'300'000 }
             });
 
@@ -1939,11 +1939,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.readyTime = 2'050'000;
             frame.finalState = PresentResult::Presented;
             // Single displayed; will be postponed unless nextDisplayed provided
-            frame.displayed.push_back({ FrameType::Application, 2'500'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             FrameData next{}; // provide nextDisplayed to process postponed
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 3'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 3'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -1962,11 +1962,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.readyTime = 5'030'000;
             frame.finalState = PresentResult::Presented;
             // Displayed generated frame (e.g., Repeated/Composed/Desktop depending on enum)
-            frame.displayed.push_back({ FrameType::Intel_XEFG, 5'100'000 });
+            frame.displayed.PushBack({ FrameType::Intel_XEFG, 5'100'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 6'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 6'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2005,11 +2005,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 20'000;
             frame.readyTime = 2'050'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'500'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'800'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'800'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2029,13 +2029,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 30'000;
             frame.readyTime = 3'050'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 3'100'000 });
-            frame.displayed.push_back({ FrameType::Repeated, 3'400'000 });
-            frame.displayed.push_back({ FrameType::Repeated, 3'700'000 });
+            frame.displayed.PushBack({ FrameType::Application, 3'100'000 });
+            frame.displayed.PushBack({ FrameType::Repeated, 3'400'000 });
+            frame.displayed.PushBack({ FrameType::Repeated, 3'700'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 4'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 4'000'000 });
 
             auto results1 = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
             Assert::AreEqual(size_t(2), results1.size());
@@ -2067,11 +2067,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 5'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
+            frame.displayed.PushBack({ FrameType::Application, 5'500'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 6'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 6'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2091,11 +2091,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 5'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
+            frame.displayed.PushBack({ FrameType::Application, 5'500'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 6'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 6'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2135,13 +2135,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 5'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
-            frame.displayed.push_back({ FrameType::Repeated, 5'800'000 });
-            frame.displayed.push_back({ FrameType::Repeated, 6'100'000 });
+            frame.displayed.PushBack({ FrameType::Application, 5'500'000 });
+            frame.displayed.PushBack({ FrameType::Repeated, 5'800'000 });
+            frame.displayed.PushBack({ FrameType::Repeated, 6'100'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 6'400'000 });
+            next.displayed.PushBack({ FrameType::Application, 6'400'000 });
 
             auto results1 = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
             Assert::AreEqual(size_t(2), results1.size());
@@ -2195,11 +2195,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.readyTime = 7'100'000;
             frame.flipDelay = 100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 7'500'000 });
+            frame.displayed.PushBack({ FrameType::Application, 7'500'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 8'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 8'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2222,11 +2222,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.readyTime = 7'100'000;
             frame.flipDelay = 0;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 7'500'000 });
+            frame.displayed.PushBack({ FrameType::Application, 7'500'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 8'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 8'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2248,11 +2248,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.readyTime = 7'100'000;
             frame.flipDelay = 50'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Repeated, 7'500'000 });
+            frame.displayed.PushBack({ FrameType::Repeated, 7'500'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 8'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 8'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2296,11 +2296,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 90'000;
             frame.readyTime = 9'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 9'500'000 });
+            frame.displayed.PushBack({ FrameType::Application, 9'500'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 10'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 10'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2319,13 +2319,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 90'000;
             frame.readyTime = 9'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 9'500'000 });
-            frame.displayed.push_back({ FrameType::Repeated, 9'800'000 });
-            frame.displayed.push_back({ FrameType::Repeated, 10'100'000 });
+            frame.displayed.PushBack({ FrameType::Application, 9'500'000 });
+            frame.displayed.PushBack({ FrameType::Repeated, 9'800'000 });
+            frame.displayed.PushBack({ FrameType::Repeated, 10'100'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 10'400'000 });
+            next.displayed.PushBack({ FrameType::Application, 10'400'000 });
 
             auto results1 = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
             Assert::AreEqual(size_t(2), results1.size());
@@ -2347,11 +2347,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 90'000;
             frame.readyTime = 9'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Repeated, 9'700'000 });
+            frame.displayed.PushBack({ FrameType::Repeated, 9'700'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 10'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 10'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2381,7 +2381,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             first.flipDelay = 200'000;  // 0.02ms at 10MHz
             first.finalState = PresentResult::Presented;
             // First's screen time is 5'500'000
-            first.displayed.push_back({ FrameType::Application, 5'500'000 });
+            first.displayed.PushBack({ FrameType::Application, 5'500'000 });
 
             // Second frame (next displayed)
             FrameData second{};
@@ -2392,7 +2392,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             second.finalState = PresentResult::Presented;
             // Second's raw screen time is 5'000'000, which is EARLIER than first's (5'500'000)
             // This triggers NV2 adjustment
-            second.displayed.push_back({ FrameType::Application, 5'000'000 });
+            second.displayed.PushBack({ FrameType::Application, 5'000'000 });
 
             // Process first frame with second as nextDisplayed
             auto resultsFirst = ComputeMetricsForPresent(qpc, first, &second, chain);
@@ -2401,7 +2401,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // Now process second frame (which should have been adjusted by NV2)
             FrameData third{};
             third.finalState = PresentResult::Presented;
-            third.displayed.push_back({ FrameType::Application, 6'000'000 });
+            third.displayed.PushBack({ FrameType::Application, 6'000'000 });
 
             auto resultsSecond = ComputeMetricsForPresent(qpc, second, &third, chain);
             Assert::AreEqual(size_t(1), resultsSecond.size());
@@ -2445,11 +2445,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             current.flipDelay = 75'000;
             current.finalState = PresentResult::Presented;
             // Current screen time is LATER than lastDisplayedScreenTime, so no NV1 adjustment
-            current.displayed.push_back({ FrameType::Application, 4'000'000 });
+            current.displayed.PushBack({ FrameType::Application, 4'000'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 5'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 5'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, current, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2487,7 +2487,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             first.flipDelay = 100'000;
             first.finalState = PresentResult::Presented;
             // First screen time is 5'000'000
-            first.displayed.push_back({ FrameType::Application, 5'000'000 });
+            first.displayed.PushBack({ FrameType::Application, 5'000'000 });
 
             // Second frame with screen time >= first (no collapse condition)
             FrameData second{};
@@ -2497,14 +2497,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             second.flipDelay = 50'000;
             second.finalState = PresentResult::Presented;
             // Second screen time is equal to first (5'000'000), so NV2 should NOT adjust
-            second.displayed.push_back({ FrameType::Application, 5'000'000 });
+            second.displayed.PushBack({ FrameType::Application, 5'000'000 });
 
             auto resultsFirst = ComputeMetricsForPresent(qpc, first, &second, chain);
             Assert::AreEqual(size_t(1), resultsFirst.size());
 
             FrameData third{};
             third.finalState = PresentResult::Presented;
-            third.displayed.push_back({ FrameType::Application, 6'000'000 });
+            third.displayed.PushBack({ FrameType::Application, 6'000'000 });
 
             auto resultsSecond = ComputeMetricsForPresent(qpc, second, &third, chain);
             Assert::AreEqual(size_t(1), resultsSecond.size());
@@ -2544,7 +2544,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             current.readyTime = 4'100'000;
             current.flipDelay = 100'000;
             current.finalState = PresentResult::Presented;
-            current.displayed.push_back({ FrameType::Application, 5'000'000 });
+            current.displayed.PushBack({ FrameType::Application, 5'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, current, nullptr, chain, MetricsVersion::V1);
             Assert::AreEqual(size_t(1), results.size());
@@ -2588,11 +2588,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 1'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             // Set up chain with prior app present to establish cpuStart
             FrameData priorApp{};
@@ -2624,11 +2624,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 1'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             FrameData priorApp{};
             priorApp.presentStartTime = 1'700'000;
@@ -2681,11 +2681,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 1'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 3'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 3'000'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 3'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 3'500'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2716,11 +2716,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 1'500'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2746,11 +2746,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 2'000'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2796,11 +2796,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 70'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -2837,13 +2837,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 1'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
-            frame.displayed.push_back({ FrameType::Repeated, 2'100'000 });
-            frame.displayed.push_back({ FrameType::Repeated, 2'200'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'000'000 });
+            frame.displayed.PushBack({ FrameType::Repeated, 2'100'000 });
+            frame.displayed.PushBack({ FrameType::Repeated, 2'200'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             FrameData priorApp{};
             priorApp.presentStartTime = 800'000;
@@ -2892,13 +2892,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 1'500'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
-            frame.displayed.push_back({ FrameType::Intel_XEFG, 2'100'000 });
-            frame.displayed.push_back({ FrameType::Intel_XEFG, 2'200'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'000'000 });
+            frame.displayed.PushBack({ FrameType::Intel_XEFG, 2'100'000 });
+            frame.displayed.PushBack({ FrameType::Intel_XEFG, 2'200'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             FrameData priorApp{};
             priorApp.presentStartTime = 800'000;
@@ -2951,7 +2951,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.flipDelay = 50'000;
             frame.finalState = PresentResult::Presented;
             // Raw screen time is 4'000'000, greater than next screen time
-            frame.displayed.push_back({ FrameType::Application, 4'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 4'000'000 });
 
             FrameData next1{};
             next1.presentStartTime = 2'000'000;
@@ -2959,14 +2959,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next1.readyTime = 2'100'000;
             next1.flipDelay = 30'000;
             next1.finalState = PresentResult::Presented;
-            next1.displayed.push_back({ FrameType::Application, 3'000'000 });
+            next1.displayed.PushBack({ FrameType::Application, 3'000'000 });
 
             FrameData next2{};
             next2.presentStartTime = 3'000'000;
             next2.timeInPresent = 50'000;
             next2.readyTime = 3'100'000;
             next2.finalState = PresentResult::Presented;
-            next2.displayed.push_back({ FrameType::Application, 5'000'000 });
+            next2.displayed.PushBack({ FrameType::Application, 5'000'000 });
 
             // Set up chain with prior app present to establish cpuStart
             FrameData priorApp{};
@@ -3015,7 +3015,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.flipDelay = 50'000;
             frame.finalState = PresentResult::Presented;
             // Raw screen time is 4'000'000, greater than next screen time
-            frame.displayed.push_back({ FrameType::Application, 4'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 4'000'000 });
 
             FrameData next1{};
             next1.presentStartTime = 2'000'000;
@@ -3023,14 +3023,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next1.readyTime = 2'100'000;
             next1.flipDelay = 30'000;
             next1.finalState = PresentResult::Presented;
-            next1.displayed.push_back({ FrameType::Application, 3'000'000 });
+            next1.displayed.PushBack({ FrameType::Application, 3'000'000 });
 
             FrameData next2{};
             next2.presentStartTime = 3'000'000;
             next2.timeInPresent = 50'000;
             next2.readyTime = 3'100'000;
             next2.finalState = PresentResult::Presented;
-            next2.displayed.push_back({ FrameType::Application, 5'000'000 });
+            next2.displayed.PushBack({ FrameType::Application, 5'000'000 });
 
             // Set up chain with prior app present to establish cpuStart
             FrameData priorApp{};
@@ -3074,11 +3074,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 1'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             FrameData priorApp{};
             priorApp.presentStartTime = 2'500'000;
@@ -3110,11 +3110,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 3'000'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3141,11 +3141,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 1'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3175,11 +3175,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 1'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'500'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             FrameData priorApp{};
             priorApp.presentStartTime = 1'000'000;
@@ -3215,7 +3215,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorFrame.timeInPresent = 200'000;
             priorFrame.readyTime = 1'100'000;
             priorFrame.finalState = PresentResult::Presented;
-            priorFrame.displayed.push_back({ FrameType::Application, 1'200'000 });
+            priorFrame.displayed.PushBack({ FrameType::Application, 1'200'000 });
 
             chain.lastAppPresent = priorFrame;
 
@@ -3224,11 +3224,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 100'000;
             frame.readyTime = 1'200'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'400'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'400'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3255,7 +3255,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.appPropagatedPresentStartTime = 800'000;
             priorApp.appPropagatedTimeInPresent = 200'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'300'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3265,7 +3265,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 100'000;
             frame.readyTime = 1'600'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'700'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3273,7 +3273,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 80'000;
             next.readyTime = 2'100'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'200'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'200'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3301,7 +3301,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 100'000;
             frame.readyTime = 5'200'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
+            frame.displayed.PushBack({ FrameType::Application, 5'500'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3309,7 +3309,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 80'000;
             next.readyTime = 6'100'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 6'300'000 });
+            next.displayed.PushBack({ FrameType::Application, 6'300'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3336,7 +3336,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorFrame.timeInPresent = 200'000;
             priorFrame.readyTime = 1'100'000;
             priorFrame.finalState = PresentResult::Presented;
-            priorFrame.displayed.push_back({ FrameType::Application, 1'200'000 });
+            priorFrame.displayed.PushBack({ FrameType::Application, 1'200'000 });
 
             chain.lastAppPresent = priorFrame;
 
@@ -3346,7 +3346,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 0;             // Zero present duration
             frame.readyTime = 1'000'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'100'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3354,7 +3354,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3379,7 +3379,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorFrame.timeInPresent = 100'000;
             priorFrame.readyTime = 1'100'000;
             priorFrame.finalState = PresentResult::Presented;
-            priorFrame.displayed.push_back({ FrameType::Application, 1'200'000 });
+            priorFrame.displayed.PushBack({ FrameType::Application, 1'200'000 });
 
             chain.lastAppPresent = priorFrame;
 
@@ -3389,7 +3389,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 200'000;  // 20 ms
             frame.readyTime = 1'300'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'400'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3397,7 +3397,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'900'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3421,7 +3421,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorFrame.timeInPresent = 100'000;
             priorFrame.readyTime = 1'100'000;
             priorFrame.finalState = PresentResult::Presented;
-            priorFrame.displayed.push_back({ FrameType::Application, 1'200'000 });
+            priorFrame.displayed.PushBack({ FrameType::Application, 1'200'000 });
 
             chain.lastAppPresent = priorFrame;
 
@@ -3432,7 +3432,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.readyTime = 1'300'000;
             frame.appPropagatedTimeInPresent = 150'000;  // 15 ms (propagated value)
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'400'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3440,7 +3440,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'900'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3465,7 +3465,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorFrame.timeInPresent = 100'000;
             priorFrame.readyTime = 1'100'000;
             priorFrame.finalState = PresentResult::Presented;
-            priorFrame.displayed.push_back({ FrameType::Application, 1'200'000 });
+            priorFrame.displayed.PushBack({ FrameType::Application, 1'200'000 });
 
             chain.lastAppPresent = priorFrame;
 
@@ -3475,7 +3475,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 0;  // Zero CPU wait time
             frame.readyTime = 1'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'200'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'200'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3483,7 +3483,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'700'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'800'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3513,7 +3513,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3525,7 +3525,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 200'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'400'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3533,7 +3533,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'700'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'800'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3556,7 +3556,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3570,7 +3570,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appPropagatedGPUStartTime = 1'080'000;
             frame.appPropagatedGPUDuration = 200'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'400'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3578,7 +3578,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'700'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'800'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3602,7 +3602,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 500'000;  // cpuStart = 2'000'000
             priorApp.readyTime = 2'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 2'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 2'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3614,7 +3614,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuStartTime = 1'900'000;  // Earlier than cpuStart
             frame.gpuDuration = 300'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 2'400'000 });
+            frame.displayed.PushBack({ FrameType::Application, 2'400'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3622,7 +3622,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 2'700'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'800'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'800'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3645,7 +3645,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3657,7 +3657,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 500'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3665,7 +3665,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3689,7 +3689,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3701,7 +3701,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuStartTime = 1'050'000;
             frame.gpuDuration = 0;  // No GPU work
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3709,7 +3709,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3732,7 +3732,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3746,7 +3746,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appPropagatedGPUStartTime = 1'050'000;
             frame.appPropagatedGPUDuration = 450'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3754,7 +3754,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3779,7 +3779,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3791,7 +3791,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuStartTime = 1'000'000;
             frame.gpuDuration = 500'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'700'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3799,7 +3799,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 2'000'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'100'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'100'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3828,7 +3828,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3840,7 +3840,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuStartTime = 1'000'000;
             frame.gpuDuration = 600'000;  // Equal to total
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'700'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3848,7 +3848,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 2'000'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'100'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'100'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3874,7 +3874,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3886,7 +3886,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuStartTime = 1'000'000;
             frame.gpuDuration = 700'000;  // Greater than total (impossible)
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'700'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3894,7 +3894,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 2'000'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'100'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'100'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3920,7 +3920,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3935,7 +3935,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appPropagatedReadyTime = 1'550'000;
             frame.appPropagatedGPUDuration = 450'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'700'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3943,7 +3943,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 2'000'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'100'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'100'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -3975,7 +3975,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -3988,7 +3988,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuDuration = 500'000;
             frame.gpuVideoDuration = 200'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -3996,7 +3996,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4020,7 +4020,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -4033,7 +4033,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuDuration = 500'000;
             frame.gpuVideoDuration = 0;  // No video work
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4041,7 +4041,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4063,7 +4063,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -4079,7 +4079,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appPropagatedGPUDuration = 450'000;
             frame.appPropagatedGPUVideoDuration = 180'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4087,7 +4087,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4112,7 +4112,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -4125,7 +4125,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuDuration = 500'000;
             frame.gpuVideoDuration = 200'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4133,7 +4133,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4160,7 +4160,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -4173,7 +4173,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuDuration = 300'000;  // 30 ms
             frame.gpuVideoDuration = 500'000;  // 50 ms (larger than gpuDuration)
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4181,7 +4181,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4216,7 +4216,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 100'000;
             frame.readyTime = 1'200'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4224,7 +4224,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4262,7 +4262,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuStartTime = 1'150'000;
             frame.gpuDuration = 200'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Repeated, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Repeated, 1'300'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4270,7 +4270,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4295,7 +4295,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -4333,7 +4333,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             lastApp.timeInPresent = 200'000;
             lastApp.readyTime = 1'000'000;
             lastApp.finalState = PresentResult::Presented;
-            lastApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            lastApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = lastApp;
 
@@ -4343,7 +4343,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 100'000;
             frame.readyTime = 1'300'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'400'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4351,7 +4351,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'700'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'800'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4373,7 +4373,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             lastPresent.timeInPresent = 200'000;
             lastPresent.readyTime = 1'000'000;
             lastPresent.finalState = PresentResult::Presented;
-            lastPresent.displayed.push_back({ FrameType::Application, 1'100'000 });
+            lastPresent.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastPresent = lastPresent;
             // lastAppPresent remains unset
@@ -4384,7 +4384,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 100'000;
             frame.readyTime = 1'300'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'400'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4392,7 +4392,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'700'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'800'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4415,7 +4415,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 100'000;
             frame.readyTime = 5'200'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
+            frame.displayed.PushBack({ FrameType::Application, 5'500'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4423,7 +4423,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 6'100'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 6'300'000 });
+            next.displayed.PushBack({ FrameType::Application, 6'300'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4446,7 +4446,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.readyTime = 5'200'000;
             frame.flipDelay = 777;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 5'500'000 });
+            frame.displayed.PushBack({ FrameType::Application, 5'500'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4454,7 +4454,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 6'100'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 6'300'000 });
+            next.displayed.PushBack({ FrameType::Application, 6'300'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4484,7 +4484,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 100'000'000;
             priorApp.readyTime = 1'000'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -4494,7 +4494,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 100'000'000;
             frame.readyTime = 1'200'000'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4502,7 +4502,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000'000;
             next.readyTime = 1'700'000'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'800'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'800'000'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4528,7 +4528,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             chain.lastAppPresent = priorApp;
 
@@ -4540,7 +4540,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.gpuStartTime = 1'000'001;  // Only 1 tick later than cpuStart
             frame.gpuDuration = 200'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'300'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'300'000 });
 
             // Next displayed frame (required to process current frame's display)
             FrameData next{};
@@ -4548,7 +4548,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'600'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'700'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'700'000 });
 
             auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results.size());
@@ -4576,14 +4576,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frameA.gpuDuration = 400'000;
             frameA.gpuVideoDuration = 0;  // No video
             frameA.finalState = PresentResult::Presented;
-            frameA.displayed.push_back({ FrameType::Application, 1'500'000 });
+            frameA.displayed.PushBack({ FrameType::Application, 1'500'000 });
 
             FrameData nextA{};
             nextA.presentStartTime = 2'000'000;
             nextA.timeInPresent = 50'000;
             nextA.readyTime = 2'100'000;
             nextA.finalState = PresentResult::Presented;
-            nextA.displayed.push_back({ FrameType::Application, 2'200'000 });
+            nextA.displayed.PushBack({ FrameType::Application, 2'200'000 });
 
             auto resultsA = ComputeMetricsForPresent(qpc, frameA, &nextA, chain);
             Assert::AreEqual(size_t(1), resultsA.size());
@@ -4598,14 +4598,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frameB.gpuDuration = 400'000;
             frameB.gpuVideoDuration = 300'000;  // 30 ms of video
             frameB.finalState = PresentResult::Presented;
-            frameB.displayed.push_back({ FrameType::Application, 2'600'000 });
+            frameB.displayed.PushBack({ FrameType::Application, 2'600'000 });
 
             FrameData nextB{};
             nextB.presentStartTime = 3'000'000;
             nextB.timeInPresent = 50'000;
             nextB.readyTime = 3'100'000;
             nextB.finalState = PresentResult::Presented;
-            nextB.displayed.push_back({ FrameType::Application, 3'200'000 });
+            nextB.displayed.PushBack({ FrameType::Application, 3'200'000 });
 
             auto resultsB = ComputeMetricsForPresent(qpc, frameB, &nextB, chain);
             Assert::AreEqual(size_t(1), resultsB.size());
@@ -4648,11 +4648,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appSimStartTime = 0;  // No app instrumentation yet
             frame.pclSimStartTime = 0;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // Verify frame setup
             Assert::AreEqual(uint64_t(0), frame.appSimStartTime);
-            Assert::AreEqual(size_t(1), frame.displayed.size());
+            Assert::AreEqual(size_t(1), frame.displayed.Size());
 
             // Create nextDisplayed to allow processing
             FrameData next{};
@@ -4660,7 +4660,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 400;
             next.readyTime = 2'500'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             // Action: Compute metrics for this frame
             auto metricsVector = ComputeMetricsForPresent(qpc, frame, &next, state);
@@ -4710,7 +4710,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appSimStartTime = 100;  // First valid app sim start
             frame.pclSimStartTime = 0;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // Create nextDisplayed
             FrameData frame2{};
@@ -4718,7 +4718,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame2.timeInPresent = 400;
             frame2.readyTime = 2'500'000;
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame2.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             // Action: Compute metrics
             auto metricsVector = ComputeMetricsForPresent(qpc, frame, &frame2, state);
@@ -4764,12 +4764,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 300;
             frame1.appSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 900'000 });
+            frame1.displayed.PushBack({ FrameType::Application, 900'000 });
 
             FrameData next1{};
             next1.presentStartTime = 1'500'000;
             next1.finalState = PresentResult::Presented;
-            next1.displayed.push_back({ FrameType::Application, 1'500'000 });
+            next1.displayed.PushBack({ FrameType::Application, 1'500'000 });
 
             ComputeMetricsForPresent(qpc, frame1, &next1, state);
             // After this, source is AppProvider, firstAppSimStartTime = 100
@@ -4782,7 +4782,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appSimStartTime = 150;  // 50 ticks later
             frame.pclSimStartTime = 0;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // Create nextDisplayed
             FrameData next{};
@@ -4790,7 +4790,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 400;
             next.readyTime = 2'500'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             // Action: Compute metrics
             auto metricsVector = ComputeMetricsForPresent(qpc, frame, &next, state);
@@ -4848,14 +4848,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.appSimStartTime = 100;
             frame1.pclSimStartTime = 0;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1'000'000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             FrameData next1{};
             next1.presentStartTime = 2'000'000;
             next1.timeInPresent = 400;
             next1.readyTime = 2'500'000;
             next1.finalState = PresentResult::Presented;
-            next1.displayed.push_back({ FrameType::Application, 2'000'000 });
+            next1.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             auto metrics1 = ComputeMetricsForPresent(qpc, frame1, &next1, state);
             Assert::AreEqual(size_t(1), metrics1.size());
@@ -4883,14 +4883,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame2.appSimStartTime = 150;
             frame2.pclSimStartTime = 0;
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 3'000'000 });
+            frame2.displayed.PushBack({ FrameType::Application, 3'000'000 });
 
             FrameData next2{};
             next2.presentStartTime = 4'000'000;
             next2.timeInPresent = 400;
             next2.readyTime = 4'500'000;
             next2.finalState = PresentResult::Presented;
-            next2.displayed.push_back({ FrameType::Application, 4'000'000 });
+            next2.displayed.PushBack({ FrameType::Application, 4'000'000 });
 
             auto metrics2 = ComputeMetricsForPresent(qpc, frame2, &next2, state);
             Assert::AreEqual(size_t(1), metrics2.size());
@@ -4920,14 +4920,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.appSimStartTime = 250;
             frame3.pclSimStartTime = 0;
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 5'000'000 });
+            frame3.displayed.PushBack({ FrameType::Application, 5'000'000 });
 
             FrameData next3{};
             next3.presentStartTime = 6'000'000;
             next3.timeInPresent = 400;
             next3.readyTime = 6'500'000;
             next3.finalState = PresentResult::Presented;
-            next3.displayed.push_back({ FrameType::Application, 6'000'000 });
+            next3.displayed.PushBack({ FrameType::Application, 6'000'000 });
 
             auto metrics3 = ComputeMetricsForPresent(qpc, frame3, &next3, state);
             Assert::AreEqual(size_t(1), metrics3.size());
@@ -5008,7 +5008,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frameDisplayed.readyTime = 3'050'000;
             frameDisplayed.appSimStartTime = 200;
             frameDisplayed.finalState = PresentResult::Presented;
-            frameDisplayed.displayed.push_back({ FrameType::Application, 3'500'000 });
+            frameDisplayed.displayed.PushBack({ FrameType::Application, 3'500'000 });
 
             // Dummy "next" frame – just to exercise the Case 3 path so that
             // UpdateAfterPresent() is called for frameDisplayed.
@@ -5018,7 +5018,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frameNext.readyTime = 4'050'000;
             frameNext.appSimStartTime = 250;
             frameNext.finalState = PresentResult::Presented;
-            frameNext.displayed.push_back({ FrameType::Application, 4'500'000 });
+            frameNext.displayed.PushBack({ FrameType::Application, 4'500'000 });
 
             auto displayedResults = ComputeMetricsForPresent(qpc, frameDisplayed, &frameNext, state);
             Assert::AreEqual(size_t(1), displayedResults.size());
@@ -5072,11 +5072,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appSimStartTime = 0;
             frame.pclSimStartTime = 0;  // No PC latency instrumentation yet
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // Verify frame setup
             Assert::AreEqual(uint64_t(0), frame.pclSimStartTime);
-            Assert::AreEqual(size_t(1), frame.displayed.size());
+            Assert::AreEqual(size_t(1), frame.displayed.Size());
 
             // Create nextDisplayed to allow processing
             FrameData next{};
@@ -5084,7 +5084,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 400;
             next.readyTime = 2'500'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             // Action: Compute metrics for this frame
             auto metricsVector = ComputeMetricsForPresent(qpc, frame, &next, state);
@@ -5134,7 +5134,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appSimStartTime = 0;
             frame.pclSimStartTime = 100;  // First valid pcl sim start
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // Create nextDisplayed
             FrameData frame2{};
@@ -5142,7 +5142,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame2.timeInPresent = 400;
             frame2.readyTime = 2'500'000;
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame2.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             // Action: Compute metrics
             auto metricsVector = ComputeMetricsForPresent(qpc, frame, &frame2, state);
@@ -5187,12 +5187,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 300;
             frame1.pclSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 900'000 });
+            frame1.displayed.PushBack({ FrameType::Application, 900'000 });
 
             FrameData next1{};
             next1.presentStartTime = 1'500'000;
             next1.finalState = PresentResult::Presented;
-            next1.displayed.push_back({ FrameType::Application, 1'500'000 });
+            next1.displayed.PushBack({ FrameType::Application, 1'500'000 });
 
             ComputeMetricsForPresent(qpc, frame1, &next1, state);
             // After this, source is PCLatency, firstAppSimStartTime = 100
@@ -5205,7 +5205,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appSimStartTime = 0;
             frame.pclSimStartTime = 200;  // 100 ticks later
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // Create nextDisplayed
             FrameData next{};
@@ -5213,7 +5213,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 400;
             next.readyTime = 2'500'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             // Action: Compute metrics
             auto metricsVector = ComputeMetricsForPresent(qpc, frame, &next, state);
@@ -5272,14 +5272,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.appSimStartTime = 0;
             frame1.pclSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1'000'000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             FrameData next1{};
             next1.presentStartTime = 2'000'000;
             next1.timeInPresent = 400;
             next1.readyTime = 2'500'000;
             next1.finalState = PresentResult::Presented;
-            next1.displayed.push_back({ FrameType::Application, 2'000'000 });
+            next1.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             auto metrics1 = ComputeMetricsForPresent(qpc, frame1, &next1, state);
             Assert::AreEqual(size_t(1), metrics1.size());
@@ -5307,14 +5307,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame2.appSimStartTime = 0;
             frame2.pclSimStartTime = 150;
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 3'000'000 });
+            frame2.displayed.PushBack({ FrameType::Application, 3'000'000 });
 
             FrameData next2{};
             next2.presentStartTime = 4'000'000;
             next2.timeInPresent = 400;
             next2.readyTime = 4'500'000;
             next2.finalState = PresentResult::Presented;
-            next2.displayed.push_back({ FrameType::Application, 4'000'000 });
+            next2.displayed.PushBack({ FrameType::Application, 4'000'000 });
 
             auto metrics2 = ComputeMetricsForPresent(qpc, frame2, &next2, state);
             Assert::AreEqual(size_t(1), metrics2.size());
@@ -5344,14 +5344,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.appSimStartTime = 0;
             frame3.pclSimStartTime = 250;
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 5'000'000 });
+            frame3.displayed.PushBack({ FrameType::Application, 5'000'000 });
 
             FrameData next3{};
             next3.presentStartTime = 6'000'000;
             next3.timeInPresent = 400;
             next3.readyTime = 6'500'000;
             next3.finalState = PresentResult::Presented;
-            next3.displayed.push_back({ FrameType::Application, 6'000'000 });
+            next3.displayed.PushBack({ FrameType::Application, 6'000'000 });
 
             auto metrics3 = ComputeMetricsForPresent(qpc, frame3, &next3, state);
             Assert::AreEqual(size_t(1), metrics3.size());
@@ -5402,14 +5402,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.readyTime = 1'010'000;
             frame1.pclSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 2'000'000 });
+            frame1.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             FrameData next1{};
             next1.presentStartTime = 3'000'000;
             next1.timeInPresent = 10'000;
             next1.readyTime = 3'010'000;
             next1.finalState = PresentResult::Presented;
-            next1.displayed.push_back({ FrameType::Application, 4'000'000 });
+            next1.displayed.PushBack({ FrameType::Application, 4'000'000 });
 
             auto metrics1 = ComputeMetricsForPresent(qpc, frame1, &next1, chain);
             Assert::AreEqual(size_t(1), metrics1.size());
@@ -5455,14 +5455,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.readyTime = 6'010'000;
             frame3.pclSimStartTime = 300;
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 7'000'000 });
+            frame3.displayed.PushBack({ FrameType::Application, 7'000'000 });
 
             FrameData next3{};
             next3.presentStartTime = 8'000'000;
             next3.timeInPresent = 10'000;
             next3.readyTime = 8'010'000;
             next3.finalState = PresentResult::Presented;
-            next3.displayed.push_back({ FrameType::Application, 9'000'000 });
+            next3.displayed.PushBack({ FrameType::Application, 9'000'000 });
 
             auto metrics3 = ComputeMetricsForPresent(qpc, frame3, &next3, chain);
             Assert::AreEqual(size_t(1), metrics3.size());
@@ -5506,12 +5506,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 300;
             frame1.pclSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 900'000 });
+            frame1.displayed.PushBack({ FrameType::Application, 900'000 });
 
             FrameData next1{};
             next1.presentStartTime = 1'500'000;
             next1.finalState = PresentResult::Presented;
-            next1.displayed.push_back({ FrameType::Application, 1'500'000 });
+            next1.displayed.PushBack({ FrameType::Application, 1'500'000 });
 
             auto metrics1 = ComputeMetricsForPresent(qpc, frame1, &next1, state);
             Assert::AreEqual(size_t(1), metrics1.size());
@@ -5526,7 +5526,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appSimStartTime = 0;
             frame.pclSimStartTime = 0;  // PCL data disappeared
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'400'000 });
 
             // Create nextDisplayed
             FrameData next{};
@@ -5534,7 +5534,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'700'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'800'000 });
 
             // Action: Compute metrics
             auto metricsVector = ComputeMetricsForPresent(qpc, frame, &next, state);
@@ -5588,10 +5588,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appSimStartTime = 0;
             frame.pclSimStartTime = 0;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'000'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // Verify frame setup
-            Assert::AreEqual(size_t(1), frame.displayed.size());
+            Assert::AreEqual(size_t(1), frame.displayed.Size());
 
             // Create nextDisplayed to allow processing
             FrameData next{};
@@ -5599,7 +5599,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 400;
             next.readyTime = 2'500'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 2'000'000 });
+            next.displayed.PushBack({ FrameType::Application, 2'000'000 });
 
             // Action: Compute metrics for this frame
             auto metricsVector = ComputeMetricsForPresent(qpc, frame, &next, state);
@@ -5648,7 +5648,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             priorApp.timeInPresent = 200'000;
             priorApp.readyTime = 1'000'000;
             priorApp.finalState = PresentResult::Presented;
-            priorApp.displayed.push_back({ FrameType::Application, 1'100'000 });
+            priorApp.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             state.lastAppPresent = priorApp;
 
@@ -5660,7 +5660,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.appSimStartTime = 0;
             frame.pclSimStartTime = 0;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.push_back({ FrameType::Application, 1'400'000 });
+            frame.displayed.PushBack({ FrameType::Application, 1'400'000 });
 
             // Create nextDisplayed
             FrameData next{};
@@ -5668,7 +5668,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             next.timeInPresent = 50'000;
             next.readyTime = 1'700'000;
             next.finalState = PresentResult::Presented;
-            next.displayed.push_back({ FrameType::Application, 1'800'000 });
+            next.displayed.PushBack({ FrameType::Application, 1'800'000 });
 
             // Action: Compute metrics
             auto metricsVector = ComputeMetricsForPresent(qpc, frame, &next, state);
@@ -5716,7 +5716,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             prior.timeInPresent = 100'000;   // cpuStart1 = 1'100'000
             prior.readyTime = 1'200'000;
             prior.finalState = PresentResult::Presented;
-            prior.displayed.push_back({ FrameType::Application, 1'300'000 });
+            prior.displayed.PushBack({ FrameType::Application, 1'300'000 });
             state.lastAppPresent = prior;
 
             // Sanity: no provider sim-start yet.
@@ -5733,14 +5733,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.appSimStartTime = 0;
             frame1.pclSimStartTime = 0;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 2'500'000 });
+            frame1.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
             FrameData next1{};
             next1.presentStartTime = 3'000'000;
             next1.timeInPresent = 50'000;
             next1.readyTime = 3'100'000;
             next1.finalState = PresentResult::Presented;
-            next1.displayed.push_back({ FrameType::Application, 3'500'000 });
+            next1.displayed.PushBack({ FrameType::Application, 3'500'000 });
 
             auto metrics1 = ComputeMetricsForPresent(qpc, frame1, &next1, state);
             Assert::AreEqual(size_t(1), metrics1.size());
@@ -5767,14 +5767,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame2.appSimStartTime = 0;
             frame2.pclSimStartTime = 0;
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 4'600'000 });
+            frame2.displayed.PushBack({ FrameType::Application, 4'600'000 });
 
             FrameData next2{};
             next2.presentStartTime = 5'000'000;
             next2.timeInPresent = 50'000;
             next2.readyTime = 5'100'000;
             next2.finalState = PresentResult::Presented;
-            next2.displayed.push_back({ FrameType::Application, 5'500'000 });
+            next2.displayed.PushBack({ FrameType::Application, 5'500'000 });
 
             auto metrics2 = ComputeMetricsForPresent(qpc, frame2, &next2, state);
             Assert::AreEqual(size_t(1), metrics2.size());
@@ -5815,12 +5815,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             present.timeInPresent = 100;
             present.appSimStartTime = 150;
             present.finalState = PresentResult::Presented;
-            present.displayed.push_back({ FrameType::Application, 200 });
+            present.displayed.PushBack({ FrameType::Application, 200 });
 
             FrameData nextPresent{};
             nextPresent.presentStartTime = 2000;
             nextPresent.finalState = PresentResult::Presented;
-            nextPresent.displayed.push_back({ FrameType::Application, 2100 });
+            nextPresent.displayed.PushBack({ FrameType::Application, 2100 });
 
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
@@ -5843,25 +5843,25 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 100;
             frame1.appSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1000 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
             frame2.timeInPresent = 100;
             frame2.appSimStartTime = 150;  // sim elapsed = 50
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1050 });  // display elapsed = 50
+            frame2.displayed.PushBack({ FrameType::Application, 1050 });  // display elapsed = 50
 
             // Process frame 1
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 2000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             auto results1 = ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             // Process frame 2
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 3000 });
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results2 = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::AreEqual(size_t(1), results2.size());
@@ -5883,23 +5883,23 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 100;
             frame1.appSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1000 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
             frame2.timeInPresent = 100;
             frame2.appSimStartTime = 140;  // sim elapsed = 40
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1050 });  // display elapsed = 50
+            frame2.displayed.PushBack({ FrameType::Application, 1050 });  // display elapsed = 50
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 2000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 3000 });
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
@@ -5922,23 +5922,23 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 100;
             frame1.appSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1000 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
             frame2.timeInPresent = 100;
             frame2.appSimStartTime = 160;  // sim elapsed = 60
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1050 });  // display elapsed = 50
+            frame2.displayed.PushBack({ FrameType::Application, 1050 });  // display elapsed = 50
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 2000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 3000 });
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
@@ -5961,23 +5961,23 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 100;
             frame1.appSimStartTime = 150;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1050 });
+            frame1.displayed.PushBack({ FrameType::Application, 1050 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
             frame2.timeInPresent = 100;
             frame2.appSimStartTime = 140;  // backwards!
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1100 });
+            frame2.displayed.PushBack({ FrameType::Application, 1100 });
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 2000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 3000 });
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
@@ -5997,23 +5997,23 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 100;
             frame1.appSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1000 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
             frame2.timeInPresent = 100;
             frame2.appSimStartTime = 0;  // no instrumentation
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1050 });
+            frame2.displayed.PushBack({ FrameType::Application, 1050 });
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 2000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, swapChain);
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 3000 });
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, swapChain);
 
             Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
@@ -6033,23 +6033,23 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 100;
             frame1.appSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1000 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
             frame2.timeInPresent = 100;
             frame2.appSimStartTime = 150;  // sim elapsed = 50
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1000 });  // same screen time!
+            frame2.displayed.PushBack({ FrameType::Application, 1000 });  // same screen time!
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 2000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 3000 });
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::IsFalse(results[0].metrics.msAnimationError.has_value());
@@ -6070,23 +6070,23 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 100;
             frame1.pclSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1000 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
             frame2.timeInPresent = 100;
             frame2.pclSimStartTime = 140;  // PCL sim elapsed = 40
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1050 });  // display elapsed = 50
+            frame2.displayed.PushBack({ FrameType::Application, 1050 });  // display elapsed = 50
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 2000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 3000 });
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
@@ -6109,7 +6109,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 100;
             frame1.pclSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1000 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
@@ -6117,16 +6117,16 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame2.pclSimStartTime = 0;  // PCL unavailable
             frame2.appSimStartTime = 150;  // app available, but should not be used
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1050 });
+            frame2.displayed.PushBack({ FrameType::Application, 1050 });
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 2000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 3000 });
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
@@ -6146,11 +6146,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             present.timeInPresent = 100;
             present.pclSimStartTime = 100;  // first valid PCL
             present.finalState = PresentResult::Presented;
-            present.displayed.push_back({ FrameType::Application, 1000 });
+            present.displayed.PushBack({ FrameType::Application, 1000 });
 
             FrameData nextPresent{};
             nextPresent.finalState = PresentResult::Presented;
-            nextPresent.displayed.push_back({ FrameType::Application, 2000 });
+            nextPresent.displayed.PushBack({ FrameType::Application, 2000 });
 
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
@@ -6171,14 +6171,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.presentStartTime = 800;
             frame1.timeInPresent = 100;  // CPU end = 900
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1800 });
+            frame1.displayed.PushBack({ FrameType::Application, 1800 });
 
             // Frame 2: Continue with CPU source
             FrameData frame2{};
             frame2.presentStartTime = 1000;
             frame2.timeInPresent = 100;  // CPU end = 1100
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 2000 });
+            frame2.displayed.PushBack({ FrameType::Application, 2000 });
 
             // Frame 3: PCL becomes available, triggers source switch
             FrameData frame3{};
@@ -6187,14 +6187,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.pclSimStartTime = 150;  // PCL data present
             frame3.appSimStartTime = 150;
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 2100 });
+            frame3.displayed.PushBack({ FrameType::Application, 2100 });
 
             // Frame 4: Next frame for completion
             FrameData frame4{};
             frame4.presentStartTime = 1400;
             frame4.timeInPresent = 100;
             frame4.finalState = PresentResult::Presented;
-            frame4.displayed.push_back({ FrameType::Application, 2200 });
+            frame4.displayed.PushBack({ FrameType::Application, 2200 });
 
             ComputeMetricsForPresent(qpc, frame1, &frame2, state);
             ComputeMetricsForPresent(qpc, frame2, &frame3, state);
@@ -6225,7 +6225,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.pclSimStartTime = 100;
             frame1.appSimStartTime = 200;  // different value
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1000 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
@@ -6233,16 +6233,16 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame2.pclSimStartTime = 150;  // PCL elapsed = 50
             frame2.appSimStartTime = 300;  // app elapsed = 100 (should be ignored)
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1050 });  // display elapsed = 50
+            frame2.displayed.PushBack({ FrameType::Application, 1050 });  // display elapsed = 50
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 2000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 3000 });
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
@@ -6270,33 +6270,33 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.presentStartTime = 800;
             frame1.timeInPresent = 100;  // CPU sim start for next frame = 900
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1900 });
+            frame1.displayed.PushBack({ FrameType::Application, 1900 });
 
             FrameData frame2{};
             frame2.presentStartTime = 1000;
             frame2.timeInPresent = 100;  // CPU sim start for next frame = 1100
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 2000 });
+            frame2.displayed.PushBack({ FrameType::Application, 2000 });
 
             FrameData frame3{};
             frame3.presentStartTime = 1200;
             frame3.timeInPresent = 100;  // CPU sim start = 1300, elapsed from 1100 = 200
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 2050 });  // display elapsed from 2000 = 50
+            frame3.displayed.PushBack({ FrameType::Application, 2050 });  // display elapsed from 2000 = 50
 
             FrameData dummyNext1{};
             dummyNext1.finalState = PresentResult::Presented;
-            dummyNext1.displayed.push_back({ FrameType::Application, 2500 });
+            dummyNext1.displayed.PushBack({ FrameType::Application, 2500 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext1, state);
 
             FrameData dummyNext2{};
             dummyNext2.finalState = PresentResult::Presented;
-            dummyNext2.displayed.push_back({ FrameType::Application, 3000 });
+            dummyNext2.displayed.PushBack({ FrameType::Application, 3000 });
             ComputeMetricsForPresent(qpc, frame2, &dummyNext2, state);
 
             FrameData frame4{};
             frame4.finalState = PresentResult::Presented;
-            frame4.displayed.push_back({ FrameType::Application, 4000 });
+            frame4.displayed.PushBack({ FrameType::Application, 4000 });
             auto results = ComputeMetricsForPresent(qpc, frame3, &frame4, state);
 
             Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
@@ -6328,13 +6328,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.presentStartTime = 55454457377;
             frame1.timeInPresent = 2411;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 55454512384 });
+            frame1.displayed.PushBack({ FrameType::Application, 55454512384 });
 
             FrameData frame2{};
             frame2.presentStartTime = 55454612236;
             frame2.timeInPresent = 3056;
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 55454615330 });
+            frame2.displayed.PushBack({ FrameType::Application, 55454615330 });
 
             ComputeMetricsForPresent(qpc, frame1, nullptr, state);
             auto results = ComputeMetricsForPresent(qpc, frame1, &frame2, state);
@@ -6354,23 +6354,23 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.presentStartTime = 1000;
             frame1.timeInPresent = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 2000 });
+            frame1.displayed.PushBack({ FrameType::Application, 2000 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
             frame2.timeInPresent = 100;
             frame2.appSimStartTime = 100;  // app instrumentation appears
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 2050 });
+            frame2.displayed.PushBack({ FrameType::Application, 2050 });
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 3000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 3000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 4000 });
+            frame3.displayed.PushBack({ FrameType::Application, 4000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
@@ -6396,11 +6396,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             present.timeInPresent = 100;
             present.appSimStartTime = 150;
             present.finalState = PresentResult::Presented;
-            present.displayed.push_back({ FrameType::Repeated, 2000 });  // Not Application!
+            present.displayed.PushBack({ FrameType::Repeated, 2000 });  // Not Application!
 
             FrameData nextPresent{};
             nextPresent.finalState = PresentResult::Presented;
-            nextPresent.displayed.push_back({ FrameType::Application, 3000 });
+            nextPresent.displayed.PushBack({ FrameType::Application, 3000 });
 
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
@@ -6425,11 +6425,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             present.appSimStartTime = 0;  // no instrumentation
             present.pclSimStartTime = 0;
             present.finalState = PresentResult::Presented;
-            present.displayed.push_back({ FrameType::Application, 2000 });
+            present.displayed.PushBack({ FrameType::Application, 2000 });
 
             FrameData nextPresent{};
             nextPresent.finalState = PresentResult::Presented;
-            nextPresent.displayed.push_back({ FrameType::Application, 3000 });
+            nextPresent.displayed.PushBack({ FrameType::Application, 3000 });
 
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
@@ -6450,23 +6450,23 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 100;
             frame1.appSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1100 });
+            frame1.displayed.PushBack({ FrameType::Application, 1100 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
             frame2.timeInPresent = 100;
             frame2.appSimStartTime = 150;  // sim elapsed = 50
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1050 });  // screen time backward!
+            frame2.displayed.PushBack({ FrameType::Application, 1050 });  // screen time backward!
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 2000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 3000 });
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
@@ -6486,23 +6486,23 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 100;
             frame1.appSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1000 });
 
             FrameData frame2{};
             frame2.presentStartTime = 2000;
             frame2.timeInPresent = 100;
             frame2.appSimStartTime = 500;  // sim elapsed = 400 ticks
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Application, 1010 });  // display elapsed = 10 ticks
+            frame2.displayed.PushBack({ FrameType::Application, 1010 });  // display elapsed = 10 ticks
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 2000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
-            frame3.displayed.push_back({ FrameType::Application, 3000 });
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
@@ -6528,11 +6528,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             present.timeInPresent = 100;
             present.appSimStartTime = 150;
             present.finalState = PresentResult::Presented;
-            present.displayed.push_back({ FrameType::Repeated, 2000 });
+            present.displayed.PushBack({ FrameType::Repeated, 2000 });
 
             FrameData nextPresent{};
             nextPresent.finalState = PresentResult::Presented;
-            nextPresent.displayed.push_back({ FrameType::Application, 3000 });
+            nextPresent.displayed.PushBack({ FrameType::Application, 3000 });
 
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
@@ -6556,7 +6556,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame1.timeInPresent = 100;
             frame1.appSimStartTime = 100;
             frame1.finalState = PresentResult::Presented;
-            frame1.displayed.push_back({ FrameType::Application, 1000 });
+            frame1.displayed.PushBack({ FrameType::Application, 1000 });
 
             // Frame with multiple display instances
             FrameData frame2{};
@@ -6564,13 +6564,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame2.timeInPresent = 100;
             frame2.appSimStartTime = 150;
             frame2.finalState = PresentResult::Presented;
-            frame2.displayed.push_back({ FrameType::Repeated, 2000 });      // [0]
-            frame2.displayed.push_back({ FrameType::Application, 2050 });   // [1] - appIndex
-            frame2.displayed.push_back({ FrameType::Repeated, 2100 });      // [2]
+            frame2.displayed.PushBack({ FrameType::Repeated, 2000 });      // [0]
+            frame2.displayed.PushBack({ FrameType::Application, 2050 });   // [1] - appIndex
+            frame2.displayed.PushBack({ FrameType::Repeated, 2100 });      // [2]
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.push_back({ FrameType::Application, 3000 });
+            dummyNext.displayed.PushBack({ FrameType::Application, 3000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
 
             // Process frame2 without next (should process [0] and [1])
@@ -6634,7 +6634,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.appSimStartTime = 475'000;
             p1.pclSimStartTime = 0;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 1'000'000 });
+            p1.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // Arrival of P1 -> Case 2 (no nextDisplayed yet), becomes pending
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
@@ -6657,7 +6657,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p2.appSimStartTime = 575'000;
             p2.pclSimStartTime = 0;
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 1'100'000 });
+            p2.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             // Arrival of P2:
             // 1) Flush pending P1 using P2 as nextDisplayed -> Case 3, finalize P1.
@@ -6697,7 +6697,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p3.appSimStartTime = 675'000;
             p3.pclSimStartTime = 0;
             p3.finalState = PresentResult::Presented;
-            p3.displayed.push_back({ FrameType::Application, 1'200'000 });
+            p3.displayed.PushBack({ FrameType::Application, 1'200'000 });
 
             // Arrival of P3:
             // 1) Flush pending P2 using P3 as nextDisplayed -> Case 3, finalize P2.
@@ -6796,7 +6796,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.appSimStartTime = 475'000;   // APC-provided sim start (QPC ticks)
             p1.pclSimStartTime = 0;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 1'000'000 }); // screen time
+            p1.displayed.PushBack({ FrameType::Application, 1'000'000 }); // screen time
 
             // P1 arrives -> Case 2 (no nextDisplayed yet), becomes pending
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
@@ -6854,7 +6854,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p3.appSimStartTime = 675'000;   // another +100'000 ticks in sim space
             p3.pclSimStartTime = 0;
             p3.finalState = PresentResult::Presented;
-            p3.displayed.push_back({ FrameType::Application, 1'100'000 }); // next screen time
+            p3.displayed.PushBack({ FrameType::Application, 1'100'000 }); // next screen time
 
             // P3 arrives:
             // 1) Flush pending P1 using P3 as nextDisplayed -> Case 3, finalize P1.
@@ -6923,7 +6923,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.inputTime = 0;
             p1.appSimStartTime = 450'000;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 1'000'000 });
+            p1.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // P2: next displayed frame
             FrameData p2{};
@@ -6932,7 +6932,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p2.mouseClickTime = 0;
             p2.inputTime = 0;
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 1'100'000 });
+            p2.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             // P1 arrives (pending)
             auto p1_pending = ComputeMetricsForPresent(qpc, p1, nullptr, state);
@@ -6992,14 +6992,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p2.mouseClickTime = 0;
             p2.inputTime = 0;
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 1'000'000 });
+            p2.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // P3: later frame to finalize P2
             FrameData p3{};
             p3.presentStartTime = 1'050'000;
             p3.timeInPresent = 50'000;
             p3.finalState = PresentResult::Presented;
-            p3.displayed.push_back({ FrameType::Application, 1'100'000 });
+            p3.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             // P1 arrives (dropped)
             auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
@@ -7075,14 +7075,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p3.inputTime = 0;
             p3.mouseClickTime = 0;
             p3.finalState = PresentResult::Presented;
-            p3.displayed.push_back({ FrameType::Application, 1'000'000 });
+            p3.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // P4: later frame to finalize P3
             FrameData p4{};
             p4.presentStartTime = 1'050'000;
             p4.timeInPresent = 50'000;
             p4.finalState = PresentResult::Presented;
-            p4.displayed.push_back({ FrameType::Application, 1'100'000 });
+            p4.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             // P1 arrives (dropped)
             auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
@@ -7150,14 +7150,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.inputTime = 500'000;
             p1.mouseClickTime = 0;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 1'000'000 });
+            p1.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // P2: later frame to finalize P1
             FrameData p2{};
             p2.presentStartTime = 1'050'000;
             p2.timeInPresent = 50'000;
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 1'100'000 });
+            p2.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             // P0 arrives (dropped)
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
@@ -7207,7 +7207,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.appSimStartTime = 475'000;
             p1.pclSimStartTime = 0;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 1'000'000 });
+            p1.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
             // P2: Frame with input (we assert on this)
             FrameData p2{};
@@ -7218,7 +7218,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p2.appInputSample.first = 500'000; // Using same value for simplicity
             p2.appInputSample.second = InputDeviceType::Mouse;
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 1'100'000 });
+            p2.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
             // P3: Later frame to finalize P2
             FrameData p3{};
@@ -7226,7 +7226,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p3.timeInPresent = 100'000;
             p3.appSimStartTime = 675'000;
             p3.finalState = PresentResult::Presented;
-            p3.displayed.push_back({ FrameType::Application, 1'200'000 });
+            p3.displayed.PushBack({ FrameType::Application, 1'200'000 });
 
             // P1 arrives (pending)
             auto p1_pending = ComputeMetricsForPresent(qpc, p1, nullptr, state);
@@ -7358,7 +7358,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.pclSimStartTime = 20'000;  // SIM0
 
             p0.finalState = PresentResult::Discarded;
-            p0.displayed.clear();          // not displayed
+            p0.displayed.Clear();          // not displayed
 
             // P0 arrival -> Case 1 (not displayed), process immediately.
             auto p0_metrics_list = ComputeMetricsForPresent(qpc, p0, nullptr, state);
@@ -7394,7 +7394,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.pclSimStartTime = 30'000;  // SIM1
 
             p1.finalState = PresentResult::Discarded;
-            p1.displayed.clear();          // not displayed
+            p1.displayed.Clear();          // not displayed
 
             auto p1_metrics_list = ComputeMetricsForPresent(qpc, p1, nullptr, state);
             Assert::AreEqual(size_t(1), p1_metrics_list.size(),
@@ -7431,8 +7431,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p2.pclSimStartTime = 40'000;   // SIM2
 
             p2.finalState = PresentResult::Presented;
-            p2.displayed.clear();
-            p2.displayed.push_back({ FrameType::Application, 50'000 });  // SCR2
+            p2.displayed.Clear();
+            p2.displayed.PushBack({ FrameType::Application, 50'000 });  // SCR2
 
             // P2 arrival: Case 2 (displayed, no nextDisplayed), becomes pending.
             auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
@@ -7460,8 +7460,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p3.pclSimStartTime = 0; // no PCL for P3 itself
 
             p3.finalState = PresentResult::Presented;
-            p3.displayed.clear();
-            p3.displayed.push_back({ FrameType::Application, 60'000 }); // some later screen time
+            p3.displayed.Clear();
+            p3.displayed.PushBack({ FrameType::Application, 60'000 }); // some later screen time
 
             // P3 arrival:
             //  1) Flush pending P2 using P3 as nextDisplayed -> Case 3, finalize P2.
@@ -7547,7 +7547,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.processId = PROCESS_ID;
             p1.swapChainAddress = SWAPCHAIN;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 100'000 });
+            p1.displayed.PushBack({ FrameType::Application, 100'000 });
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
             Assert::AreEqual(size_t(0), p1_phase1.size(),
@@ -7564,7 +7564,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p2.processId = PROCESS_ID;
             p2.swapChainAddress = SWAPCHAIN;
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 120'000 });
+            p2.displayed.PushBack({ FrameType::Application, 120'000 });
 
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
             Assert::AreEqual(size_t(1), p1_final.size(),
@@ -7587,7 +7587,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p3.processId = PROCESS_ID;
             p3.swapChainAddress = SWAPCHAIN;
             p3.finalState = PresentResult::Presented;
-            p3.displayed.push_back({ FrameType::Application, 140'000 });
+            p3.displayed.PushBack({ FrameType::Application, 140'000 });
 
             auto p2_final = ComputeMetricsForPresent(qpc, p2, &p3, state);
             Assert::AreEqual(size_t(1), p2_final.size(),
@@ -7628,8 +7628,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.pclInputPingTime = 10'000;
             p0.pclSimStartTime = 20'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.push_back({ FrameType::Application, 50'000 });
-            p0.displayed.push_back({ FrameType::Application, 60'000 });
+            p0.displayed.PushBack({ FrameType::Application, 50'000 });
+            p0.displayed.PushBack({ FrameType::Application, 60'000 });
 
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(1), p0_results.size(),
@@ -7679,7 +7679,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.pclInputPingTime = 10'000;
             p0.pclSimStartTime = 20'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.push_back({ FrameType::Application, 50'000 });
+            p0.displayed.PushBack({ FrameType::Application, 50'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(0), p0_phase1.size(),
@@ -7692,7 +7692,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.pclInputPingTime = 30'000;
             p1.pclSimStartTime = 40'000;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 70'000 });
+            p1.displayed.PushBack({ FrameType::Application, 70'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
             Assert::AreEqual(size_t(1), p0_final.size(),
@@ -7714,7 +7714,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // --------------------------------------------------------------------
             FrameData p2{};
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 90'000 });
+            p2.displayed.PushBack({ FrameType::Application, 90'000 });
 
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
             Assert::AreEqual(size_t(1), p1_final.size(),
@@ -7855,7 +7855,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.pclInputPingTime = 10'000;
             p0.pclSimStartTime = 20'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.push_back({ FrameType::Application, 50'000 });
+            p0.displayed.PushBack({ FrameType::Application, 50'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(0), p0_phase1.size());
@@ -7864,7 +7864,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.pclInputPingTime = 0;
             p1.pclSimStartTime = 35'000;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 70'000 });
+            p1.displayed.PushBack({ FrameType::Application, 70'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
             Assert::AreEqual(size_t(1), p0_final.size());
@@ -7877,7 +7877,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             FrameData p2{};
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 90'000 });
+            p2.displayed.PushBack({ FrameType::Application, 90'000 });
 
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
             Assert::AreEqual(size_t(1), p1_final.size());
@@ -7915,7 +7915,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.pclInputPingTime = 10'000;
             p0.pclSimStartTime = 30'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.push_back({ FrameType::Application, 70'000 });
+            p0.displayed.PushBack({ FrameType::Application, 70'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(0), p0_phase1.size());
@@ -7924,7 +7924,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.pclInputPingTime = 0;
             p1.pclSimStartTime = 0;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 90'000 });
+            p1.displayed.PushBack({ FrameType::Application, 90'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
             Assert::AreEqual(size_t(1), p0_final.size());
@@ -7941,7 +7941,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             FrameData p2{};
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 110'000 });
+            p2.displayed.PushBack({ FrameType::Application, 110'000 });
 
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
             Assert::AreEqual(size_t(1), p1_final.size());
@@ -8047,14 +8047,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.pclInputPingTime = 100'000;
             p0.pclSimStartTime = 120'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.push_back({ FrameType::Application, 150'000 });
+            p0.displayed.PushBack({ FrameType::Application, 150'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(0), p0_phase1.size());
 
             FrameData p1{};
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 180'000 });
+            p1.displayed.PushBack({ FrameType::Application, 180'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
             Assert::AreEqual(size_t(1), p0_final.size());
@@ -8159,8 +8159,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Mark as displayed Application frame
             p0.finalState = PresentResult::Presented;
-            p0.displayed.clear();
-            p0.displayed.push_back({ FrameType::Application, 50'000 }); // screenTime = 50'000
+            p0.displayed.Clear();
+            p0.displayed.PushBack({ FrameType::Application, 50'000 }); // screenTime = 50'000
 
             // First call: P0 arrives, becomes pending (no metrics yet).
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
@@ -8179,8 +8179,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.readyTime = 0;
 
             p1.finalState = PresentResult::Presented;
-            p1.displayed.clear();
-            p1.displayed.push_back({ FrameType::Application, 60'000 }); // later display, not important
+            p1.displayed.Clear();
+            p1.displayed.PushBack({ FrameType::Application, 60'000 }); // later display, not important
 
             // Second call: P1 arrives, finalize P0 using P1 as nextDisplayed (Case 3).
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
@@ -8287,8 +8287,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Mark as displayed Application frame with a single screen time.
             p0.finalState = PresentResult::Presented;
-            p0.displayed.clear();
-            p0.displayed.push_back({ FrameType::Application, 30'000 }); // screenTime = 30'000
+            p0.displayed.Clear();
+            p0.displayed.PushBack({ FrameType::Application, 30'000 }); // screenTime = 30'000
 
             // First call: P0 arrives, becomes pending.
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
@@ -8307,8 +8307,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.readyTime = 0;
 
             p1.finalState = PresentResult::Presented;
-            p1.displayed.clear();
-            p1.displayed.push_back({ FrameType::Application, 40'000 }); // later display
+            p1.displayed.Clear();
+            p1.displayed.PushBack({ FrameType::Application, 40'000 }); // later display
 
             // Second call: finalize P0 with nextDisplayed=P1
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
@@ -8394,8 +8394,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.appSimStartTime = 70'000;
             p0.gpuStartTime = 90'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.clear();
-            p0.displayed.push_back({ FrameType::Application, 120'000 });
+            p0.displayed.Clear();
+            p0.displayed.PushBack({ FrameType::Application, 120'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
             Assert::AreEqual(size_t(0), p0_phase1.size(),
@@ -8406,8 +8406,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.processId = PROCESS_ID;
             p1.swapChainAddress = SWAPCHAIN;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.clear();
-            p1.displayed.push_back({ FrameType::Application, 150'000 });
+            p1.displayed.Clear();
+            p1.displayed.PushBack({ FrameType::Application, 150'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
             Assert::AreEqual(size_t(1), p0_final.size(),
@@ -8464,8 +8464,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.swapChainAddress = SWAPCHAIN;
             p0.gpuStartTime = 80'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.clear();
-            p0.displayed.push_back({ FrameType::Application, 100'000 });
+            p0.displayed.Clear();
+            p0.displayed.PushBack({ FrameType::Application, 100'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
             Assert::AreEqual(size_t(0), p0_phase1.size());
@@ -8474,7 +8474,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.processId = PROCESS_ID;
             p1.swapChainAddress = SWAPCHAIN;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 120'000 });
+            p1.displayed.PushBack({ FrameType::Application, 120'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
             Assert::AreEqual(size_t(1), p0_final.size());
@@ -8581,8 +8581,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.pclSimStartTime = 72'000;
             p0.gpuStartTime = 90'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.clear();
-            p0.displayed.push_back({ FrameType::Repeated, 120'000 });
+            p0.displayed.Clear();
+            p0.displayed.PushBack({ FrameType::Repeated, 120'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
             Assert::AreEqual(size_t(0), p0_phase1.size());
@@ -8591,7 +8591,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.processId = PROCESS_ID;
             p1.swapChainAddress = SWAPCHAIN;
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 150'000 });
+            p1.displayed.PushBack({ FrameType::Application, 150'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
             Assert::AreEqual(size_t(1), p0_final.size());
@@ -8627,14 +8627,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.readyTime = 80'000;
             p0.appSleepEndTime = 50'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.push_back({ FrameType::Application, 100'000 });
+            p0.displayed.PushBack({ FrameType::Application, 100'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
             Assert::AreEqual(size_t(0), p0_phase1.size());
 
             FrameData p1{};
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 130'000 });
+            p1.displayed.PushBack({ FrameType::Application, 130'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
             Assert::AreEqual(size_t(1), p0_final.size());
@@ -8684,14 +8684,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.readyTime = 30'000;
             p0.appSleepEndTime = 0;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.push_back({ FrameType::Application, 60'000 });
+            p0.displayed.PushBack({ FrameType::Application, 60'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
             Assert::AreEqual(size_t(0), p0_phase1.size());
 
             FrameData p1{};
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 90'000 });
+            p1.displayed.PushBack({ FrameType::Application, 90'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
             Assert::AreEqual(size_t(1), p0_final.size());
@@ -8735,14 +8735,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.appRenderSubmitStartTime = 12'000;
             p0.readyTime = 32'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.push_back({ FrameType::Application, 70'000 });
+            p0.displayed.PushBack({ FrameType::Application, 70'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
             Assert::AreEqual(size_t(0), p0_phase1.size());
 
             FrameData p1{};
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 90'000 });
+            p1.displayed.PushBack({ FrameType::Application, 90'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
             Assert::AreEqual(size_t(1), p0_final.size());
@@ -8783,14 +8783,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.readyTime = 30'000;
             p0.appSleepEndTime = 5'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.push_back({ FrameType::Repeated, 60'000 });
+            p0.displayed.PushBack({ FrameType::Repeated, 60'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
             Assert::AreEqual(size_t(0), p0_phase1.size());
 
             FrameData p1{};
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 90'000 });
+            p1.displayed.PushBack({ FrameType::Application, 90'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
             Assert::AreEqual(size_t(1), p0_final.size());
@@ -8871,7 +8871,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // P1: Displayed Application frame without its own AppInputSample.
             FrameData p1{};
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 70'000 });
+            p1.displayed.PushBack({ FrameType::Application, 70'000 });
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
             Assert::AreEqual(size_t(0), p1_phase1.size());
@@ -8879,7 +8879,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // P2: Simple next displayed frame to flush P1.
             FrameData p2{};
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 90'000 });
+            p2.displayed.PushBack({ FrameType::Application, 90'000 });
 
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, chain);
             Assert::AreEqual(size_t(1), p1_final.size());
@@ -8932,14 +8932,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             FrameData p1{};
             p1.appInputSample = { directInputTime, InputDeviceType::Mouse };
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 60'000 });
+            p1.displayed.PushBack({ FrameType::Application, 60'000 });
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
             Assert::AreEqual(size_t(0), p1_phase1.size());
 
             FrameData p2{};
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 80'000 });
+            p2.displayed.PushBack({ FrameType::Application, 80'000 });
 
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, chain);
             Assert::AreEqual(size_t(1), p1_final.size());
@@ -8981,14 +8981,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             FrameData p0{};
             p0.appInputSample = { ignoredInputTime, InputDeviceType::Mouse };
             p0.finalState = PresentResult::Presented;
-            p0.displayed.push_back({ FrameType::Repeated, 50'000 });
+            p0.displayed.PushBack({ FrameType::Repeated, 50'000 });
 
             auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
             Assert::AreEqual(size_t(0), p0_phase1.size());
 
             FrameData p1{};
             p1.finalState = PresentResult::Presented;
-            p1.displayed.push_back({ FrameType::Application, 80'000 });
+            p1.displayed.PushBack({ FrameType::Application, 80'000 });
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
             Assert::AreEqual(size_t(1), p0_final.size());
@@ -9000,7 +9000,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             FrameData p2{};
             p2.finalState = PresentResult::Presented;
-            p2.displayed.push_back({ FrameType::Application, 100'000 });
+            p2.displayed.PushBack({ FrameType::Application, 100'000 });
 
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, chain);
             Assert::AreEqual(size_t(1), p1_final.size());

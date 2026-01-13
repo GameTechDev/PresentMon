@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MetricsTypes.h"
 
@@ -46,12 +46,11 @@ namespace pmon::util::metrics {
         frame.flipToken = p.FlipToken;
 
         // Normalize parallel arrays to vector<DisplayEntry>
-        frame.displayed.reserve(p.DisplayedCount);
+        frame.displayed.Reserve(p.DisplayedCount);
         for (size_t i = 0; i < p.DisplayedCount; ++i) {
-            frame.displayed.push_back({
+            frame.displayed.EmplaceBack(
                 p.Displayed_FrameType[i],
-                p.Displayed_ScreenTime[i]
-                });
+                p.Displayed_ScreenTime[i]);
         }
 
         frame.swapChainAddress = p.SwapChainAddress;
@@ -106,7 +105,7 @@ namespace pmon::util::metrics {
         frame.flipDelay = p->FlipDelay;
         frame.flipToken = p->FlipToken;
 
-        frame.displayed = p->Displayed;
+        frame.displayed.Assign(p->Displayed.begin(), p->Displayed.end());
 
         frame.swapChainAddress = p->SwapChainAddress;
         frame.syncInterval = p->SyncInterval;
@@ -160,7 +159,7 @@ namespace pmon::util::metrics {
         frame.flipDelay = p.FlipDelay;
         frame.flipToken = p.FlipToken;
 
-        frame.displayed = p.Displayed;
+        frame.displayed.Assign(p.Displayed.begin(), p.Displayed.end());
 
         frame.swapChainAddress = p.SwapChainAddress;
         frame.syncInterval = p.SyncInterval;

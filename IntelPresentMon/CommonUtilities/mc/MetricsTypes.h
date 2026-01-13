@@ -1,10 +1,11 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <cstdint>
-#include <vector>
 #include <memory>
 #include <optional>
+
+#include "../cnr/FixedVector.h"
 
 // Forward declarations for external types
 enum class Runtime;
@@ -29,6 +30,9 @@ namespace pmon::util::metrics {
         AppProvider,
         PCLatency,
     };
+
+    using DisplayedEntry = std::pair<FrameType, uint64_t>;
+    using DisplayedVector = pmon::util::cnr::FixedVector<DisplayedEntry, 16>;
 
     // Immutable snapshot - safe for both ownership models
     struct FrameData {
@@ -66,7 +70,7 @@ namespace pmon::util::metrics {
         uint64_t inputTime = 0;           // All input devices
         uint64_t mouseClickTime = 0;      // Mouse click specific
 
-        std::vector<std::pair<FrameType, uint64_t>> displayed;
+        DisplayedVector displayed;
 
         // PC Latency data
         uint64_t pclSimStartTime = 0;

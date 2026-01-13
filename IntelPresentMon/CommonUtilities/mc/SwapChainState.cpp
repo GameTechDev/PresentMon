@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "SwapChainState.h"
 #include "../PresentData/PresentMonTraceConsumer.hpp"
@@ -8,7 +8,7 @@ namespace pmon::util::metrics {
     void SwapChainCoreState::UpdateAfterPresent(const FrameData& present)
     {
         const auto finalState = present.finalState;
-        const size_t displayCnt = present.displayed.size();
+        const size_t displayCnt = present.displayed.Size();
 
         if (finalState == PresentResult::Presented) {
             if (displayCnt > 0) {
