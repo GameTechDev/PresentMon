@@ -32,7 +32,6 @@
     <ClInclude Include="source\act\SymmetricActionServer.h" />
     <ClInclude Include="source\act\Transfer.h" />
     <ClInclude Include="source\DataStores.h" />
-    <ClInclude Include="source\FrameDataPlaceholder.h" />
     <ClInclude Include="source\MetricCapabilities.h" />
     <ClInclude Include="source\MetricCapabilitiesShim.h" />
     <ClInclude Include="source\PmStatusError.h" />

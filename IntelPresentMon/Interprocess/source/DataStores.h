@@ -1,11 +1,11 @@
-﻿#pragma once
+#pragma once
 #include "SharedMemoryTypes.h"
 #include "ShmRing.h"
 #include "TelemetryMap.h"
 #include "../../CommonUtilities/Exception.h"
 #include "../../CommonUtilities/log/Log.h"
+#include "../../CommonUtilities/mc/MetricsTypes.h"
 #include "../../PresentMonAPI2/PresentMonAPI.h"
-#include "FrameDataPlaceholder.h"
 #include <optional>
 #include <variant>
 
@@ -15,6 +15,8 @@
 
 namespace pmon::ipc
 {
+    using FrameData = util::metrics::FrameData;
+
     class MetricCapabilities;
     namespace intro
     {

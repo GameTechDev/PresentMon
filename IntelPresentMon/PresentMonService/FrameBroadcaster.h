@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../Interprocess/source/Interprocess.h"
 #include "../../PresentData/PresentMonTraceConsumer.hpp"
 #include "../CommonUtilities/win/Utilities.h"
@@ -12,67 +12,6 @@ namespace pmon::svc
     namespace rn = std::ranges;
 	using ipc::FrameData;
     using namespace std::literals;
-
-	namespace
-	{
-        FrameData FrameDataFromPresentEvent(const PresentEvent& present)
-        {
-            using DisplayedEntry = std::pair<FrameType, uint64_t>;
-            using DisplayedVector = boost::container::static_vector<DisplayedEntry, 10>;
-
-            return FrameData{
-                // Timing data
-                .presentStartTime = present.PresentStartTime,
-                .readyTime = present.ReadyTime,
-                .timeInPresent = present.TimeInPresent,
-                .gpuStartTime = present.GPUStartTime,
-                .gpuDuration = present.GPUDuration,
-                .gpuVideoDuration = present.GPUVideoDuration,
-
-                // XeSS-FG propagated timing
-                .appPropagatedPresentStartTime = present.AppPropagatedPresentStartTime,
-                .appPropagatedTimeInPresent = present.AppPropagatedTimeInPresent,
-                .appPropagatedGPUStartTime = present.AppPropagatedGPUStartTime,
-                .appPropagatedReadyTime = present.AppPropagatedReadyTime,
-                .appPropagatedGPUDuration = present.AppPropagatedGPUDuration,
-                .appPropagatedGPUVideoDuration = present.AppPropagatedGPUVideoDuration,
-
-                // Instrumented timestamps
-                .appSimStartTime = present.AppSimStartTime,
-                .appSleepStartTime = present.AppSleepStartTime,
-                .appSleepEndTime = present.AppSleepEndTime,
-                .appRenderSubmitStartTime = present.AppRenderSubmitStartTime,
-                .appRenderSubmitEndTime = present.AppRenderSubmitEndTime,
-                .appPresentStartTime = present.AppPresentStartTime,
-                .appPresentEndTime = present.AppPresentEndTime,
-                .appInputSample = present.AppInputSample,
-
-                // Input device timestamps
-                .inputTime = present.InputTime,
-                .mouseClickTime = present.MouseClickTime,
-
-                // Displayed history (no explicit bounds check; assumed to fit)
-                .displayed = DisplayedVector{
-                    present.Displayed.begin(),
-                    present.Displayed.end()
-                },
-
-                // PC Latency data
-                .pclSimStartTime = present.PclSimStartTime,
-                .pclInputPingTime = present.PclInputPingTime,
-                .flipDelay = present.FlipDelay,
-                .flipToken = present.FlipToken,
-
-                // Metadata
-                .finalState = present.FinalState,
-                .processId = present.ProcessId,
-                .threadId = present.ThreadId,
-                .swapChainAddress = present.SwapChainAddress,
-                .frameId = present.FrameId,
-                .appFrameId = present.AppFrameId,
-            };
-        }
-	}
 
 	class FrameBroadcaster
 	{
@@ -121,7 +60,7 @@ namespace pmon::svc
 		{
             std::lock_guard lk{ mtx_ };
 			if (auto pSegment = comms_.GetFrameDataSegment(present.ProcessId)) {
-                pSegment->GetStore().frameData.Push(FrameDataFromPresentEvent(present));
+                pSegment->GetStore().frameData.Push(FrameData::CopyFrameData(present));
 			}
 		}
         void HandleTargetProcessEvent(const ProcessEvent& targetProcessEvent)
