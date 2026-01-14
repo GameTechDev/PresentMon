@@ -98,6 +98,7 @@ hxoutlook.exe
 icue.exe
 iexplore.exe
 imagemonitor.exe
+intelgraphicssoftware.exe
 ipitting.livecompanion.exe
 javaw.exe
 jetbrains-toolbox.exe
@@ -175,6 +176,7 @@ perftune.exe
 photosapp.exe
 photoshop.exe
 playnite.desktopapp.exe
+pix.exe
 plex.exe
 plitch.exe
 powerpnt.exe
