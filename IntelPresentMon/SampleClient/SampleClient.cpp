@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include <string>
@@ -35,6 +35,7 @@
 #include "EtlLogger.h"
 #include "IpcComponentServer.h"
 #include "PacedPlayback.h"
+#include "PacedFramePlayback.h"
 #include "LogDemo.h"
 #include "DiagnosticDemo.h"
 #include "LogSetup.h"
@@ -373,6 +374,8 @@ int main(int argc, char* argv[])
             return EtlLoggerTest(ConnectSession());
         case clio::Mode::PacedPlayback:
             return PacedPlaybackTest(ConnectSession());
+        case clio::Mode::PacedFramePlayback:
+            return PacedFramePlaybackTest(ConnectSession());
         case clio::Mode::PlaybackDynamicQuery:
             RunPlaybackDynamicQueryN(); break;
         case clio::Mode::PlaybackFrameQuery:

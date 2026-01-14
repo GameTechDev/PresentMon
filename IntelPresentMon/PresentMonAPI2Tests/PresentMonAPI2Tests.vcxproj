@@ -101,6 +101,7 @@
     <ClCompile Include="IpcComponentTests.cpp" />
     <ClCompile Include="ModuleInit.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
+    <ClCompile Include="PacedFrameTests.cpp" />
     <ClCompile Include="PacedPollingTests.cpp" />
     <ClCompile Include="WrapperIntrospectionTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />

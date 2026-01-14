@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 namespace MultiClientTests
 {
@@ -15,6 +15,12 @@ namespace PacedPolling
 {
 	static constexpr const char* logFolder_ = "TestLogs\\PacedPolling";
 	static constexpr const char* outFolder_ = "TestOutput\\PacedPolling";
+}
+
+namespace PacedFrame
+{
+	static constexpr const char* logFolder_ = "TestLogs\\PacedFrame";
+	static constexpr const char* outFolder_ = "TestOutput\\PacedFrame";
 }
 
 namespace InterimBroadcasterTests

@@ -1,4 +1,4 @@
-#include "../CommonUtilities/win/WinAPI.h"
+﻿#include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
 #include <filesystem>
 #include "Folders.h"
@@ -34,6 +34,8 @@ TEST_MODULE_INITIALIZE(Api2TestModuleInit)
 	WipeAndRecreate(EtlLoggerTests::outFolder_);
 	WipeAndRecreate(PacedPolling::logFolder_);
 	WipeAndRecreate(PacedPolling::outFolder_);
+	WipeAndRecreate(PacedFrame::logFolder_);
+	WipeAndRecreate(PacedFrame::outFolder_);
 	WipeAndRecreate(InterimBroadcasterTests::logFolder_);
 	WipeAndRecreate(InterimBroadcasterTests::outFolder_);
 }

@@ -26,6 +26,7 @@ namespace clio
 		MultiClient,
 		EtlLogger,
 		PacedPlayback,
+		PacedFramePlayback,
 		IpcComponentServer,
 		Count,
 	};
@@ -52,6 +53,7 @@ namespace clio
 		Option<double> runStart{ this, "--run-start", 1., "How many seconds to delay before beginning run" };
 		Option<double> pollPeriod{ this, "--poll-period", 0.1, "Period in seconds for polling the API query" };
 		Option<std::string> outputPath{ this, "--output-path", {}, "Full path to output to" };
+		Option<size_t> frameLimit{ this, "--frame-limit", 0, "Maximum number of frames to capture (0 for unlimited)" };
 	private: Group gl_{ this, "Logging", "Control logging behavior" }; public:
 		Option<log::Level> logLevel{ this, "--log-level", log::Level::Error, "Severity to log at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };
 		Option<log::Level> logTraceLevel{ this, "--log-trace-level", log::Level::Error, "Severity to print stacktrace at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };

@@ -113,6 +113,7 @@
     <ClCompile Include="LogSetup.cpp" />
     <ClCompile Include="LogDemo.cpp" />
     <ClCompile Include="MultiClient.cpp" />
+    <ClCompile Include="PacedFramePlayback.cpp" />
     <ClCompile Include="PacedPlayback.cpp" />
     <ClCompile Include="SampleClient.cpp" />
   </ItemGroup>
@@ -130,6 +131,7 @@
     <ClInclude Include="LogDemo.h" />
     <ClInclude Include="MetricListSample.h" />
     <ClInclude Include="MultiClient.h" />
+    <ClInclude Include="PacedFramePlayback.h" />
     <ClInclude Include="PacedPlayback.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="WrapperStaticQuery.h" />
