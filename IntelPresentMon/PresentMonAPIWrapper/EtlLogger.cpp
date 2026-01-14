@@ -1,5 +1,6 @@
 #include "EtlLogger.h"
-#include <IntelPresentMon/PresentMonAPIWrapperCommon/Exception.h>
+#include "../CommonUtilities/log/Log.h"
+#include "../PresentMonAPIWrapperCommon/Exception.h"
 
 namespace pmapi
 {
@@ -57,7 +58,9 @@ namespace pmapi
             if (auto sta = pmFinishEtlLogging(hSession_, hLogger_, buffer, (uint32_t)std::size(buffer));
                 sta == PM_STATUS_SUCCESS) {
                 std::error_code ec;
-                std::filesystem::remove(buffer, ec);
+                // TODO: report this error via diagnostic custom
+                try { std::filesystem::remove(buffer, ec); }
+                catch (...) {}
             }
         }
         Clear_();

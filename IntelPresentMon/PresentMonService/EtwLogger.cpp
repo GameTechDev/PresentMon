@@ -32,7 +32,7 @@ namespace pmon::svc
 
     uint32_t EtwLogger::nextSessionId_ = 0;
 
-    EtwLogger::EtwLogger(bool isElevated) noexcept
+    EtwLogger::EtwLogger(bool isElevated)
     {
         try {
             workDirectory_ = file::SecureSubdirectory::CreateInSystemTemp(

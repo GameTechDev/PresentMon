@@ -145,7 +145,10 @@ public:
 	~ConnectedTestProcess() override
 	{
 		if (process_.running()) {
-			Quit();
+			try { Quit(); }
+			catch (...) {
+				Logger::WriteMessage(util::ReportException("ConnectedTestProcess dtor").first.c_str());
+			}
 		}
 	}
 protected:
