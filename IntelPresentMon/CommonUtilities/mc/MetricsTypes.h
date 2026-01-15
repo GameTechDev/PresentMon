@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-
 #include "../cnr/FixedVector.h"
 
 // Forward declarations for external types

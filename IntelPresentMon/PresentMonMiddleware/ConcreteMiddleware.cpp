@@ -1256,7 +1256,7 @@ static void ReportMetrics(
 
     PM_FRAME_QUERY* mid::ConcreteMiddleware::RegisterFrameEventQuery(std::span<PM_QUERY_ELEMENT> queryElements, uint32_t& blobSize)
     {
-        const auto pQuery = new PM_FRAME_QUERY{ queryElements };
+        const auto pQuery = new PM_FRAME_QUERY{ queryElements, *pComms };
         blobSize = (uint32_t)pQuery->GetBlobSize();
         return pQuery;
     }
