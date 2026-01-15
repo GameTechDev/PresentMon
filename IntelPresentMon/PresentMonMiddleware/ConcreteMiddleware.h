@@ -225,6 +225,7 @@ namespace pmon::mid
 		std::unordered_map<std::pair<const PM_DYNAMIC_QUERY*, uint32_t>, uint64_t> queryFrameDataDeltas;
 		// Dynamic query handle to cache data
 		std::unordered_map<std::pair<const PM_DYNAMIC_QUERY*, uint32_t>, std::unique_ptr<uint8_t[]>> cachedMetricDatas;
+		PM_FRAME_QUERY* activeFrameEventQuery = nullptr;
 		std::vector<DeviceInfo> cachedGpuInfo;
 		std::vector<DeviceInfo> cachedCpuInfo;
 		uint32_t currentGpuInfoIndex = UINT32_MAX;
