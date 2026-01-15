@@ -26,6 +26,7 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 		throw Except<util::Exception>("Empty frame query");
 	}
 
+	// TODO: pass in from middleware cache rather than marshalling over anew from comms
 	const auto pIntro = comms.GetIntrospectionRoot();
 	if (!pIntro) {
 		pmlog_error("Failed to acquire introspection root for frame query").diag();
@@ -375,6 +376,14 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 		*reinterpret_cast<uint64_t*>(pBlobBytes + cmd.blobOffset) =
 			*reinterpret_cast<const uint64_t*>(pFrameMemberBytes);
 		break;
+	case PM_DATA_TYPE_INT32:
+		*reinterpret_cast<int32_t*>(pBlobBytes + cmd.blobOffset) =
+			*reinterpret_cast<const int32_t*>(pFrameMemberBytes);
+		break;
+	case PM_DATA_TYPE_UINT32:
+		*reinterpret_cast<uint32_t*>(pBlobBytes + cmd.blobOffset) =
+			*reinterpret_cast<const uint32_t*>(pFrameMemberBytes);
+		break;
 	case PM_DATA_TYPE_DOUBLE:
 	{
 		auto& blobDouble = *reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset);
@@ -396,6 +405,16 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 		*reinterpret_cast<int*>(pBlobBytes + cmd.blobOffset) =
 			*reinterpret_cast<const int*>(pFrameMemberBytes);
 		break;
+	case PM_DATA_TYPE_BOOL:
+		*reinterpret_cast<bool*>(pBlobBytes + cmd.blobOffset) =
+			*reinterpret_cast<const bool*>(pFrameMemberBytes);
+		break;
+	case PM_DATA_TYPE_STRING:
+		std::copy_n(reinterpret_cast<const char*>(pFrameMemberBytes), PM_MAX_PATH,
+			reinterpret_cast<char*>(pBlobBytes + cmd.blobOffset));
+		break;
+	case PM_DATA_TYPE_VOID:
+		break;
 	}
 }
 
@@ -406,6 +425,12 @@ void PM_FRAME_QUERY::GatherFromTelemetry_(const GatherCommand_& cmd, uint8_t* pB
 	case PM_DATA_TYPE_UINT64:
 		*reinterpret_cast<uint64_t*>(pBlobBytes + cmd.blobOffset) =
 			teleMap.FindRing<uint64_t>(cmd.metricId)[cmd.arrayIdx].At(searchQpc).value;
+		break;
+	case PM_DATA_TYPE_INT32:
+		*reinterpret_cast<int32_t*>(pBlobBytes + cmd.blobOffset) = 0;
+		break;
+	case PM_DATA_TYPE_UINT32:
+		*reinterpret_cast<uint32_t*>(pBlobBytes + cmd.blobOffset) = 0u;
 		break;
 	case PM_DATA_TYPE_DOUBLE:
 		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) =
@@ -418,6 +443,11 @@ void PM_FRAME_QUERY::GatherFromTelemetry_(const GatherCommand_& cmd, uint8_t* pB
 	case PM_DATA_TYPE_BOOL:
 		*reinterpret_cast<bool*>(pBlobBytes + cmd.blobOffset) =
 			teleMap.FindRing<bool>(cmd.metricId)[cmd.arrayIdx].At(searchQpc).value;
+		break;
+	case PM_DATA_TYPE_STRING:
+		std::fill_n(pBlobBytes + cmd.blobOffset, PM_MAX_PATH, 0);
+		break;
+	case PM_DATA_TYPE_VOID:
 		break;
 	}
 }

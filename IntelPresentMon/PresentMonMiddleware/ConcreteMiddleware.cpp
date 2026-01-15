@@ -25,6 +25,7 @@
 #include "../ControlLib/CpuTelemetryInfo.h"
 #include "../PresentMonService/GlobalIdentifiers.h"
 #include "FrameEventQuery.h"
+#include "FrameMetricsSource.h"
 #include "../CommonUtilities/mt/Thread.h"
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/Qpc.h"
@@ -42,6 +43,7 @@ namespace pmon::mid
 
     static const uint32_t kMaxRespBufferSize = 4096;
 	static const uint64_t kClientFrameDeltaQPCThreshold = 50000000;
+    static constexpr size_t kFrameMetricsPerSwapChainCapacity = 4096u;
 	ConcreteMiddleware::ConcreteMiddleware(std::optional<std::string> pipeNameOverride)
 	{
         const auto pipeName = pipeNameOverride.transform(&std::string::c_str)
@@ -110,6 +112,11 @@ namespace pmon::mid
                 presentMonStreamClients.emplace(targetPid,
                     std::make_unique<StreamClient>(std::move(res.nsmFileName), false));
             }
+            auto sourceIter = frameMetricsSources.find(targetPid);
+            if (sourceIter == frameMetricsSources.end()) {
+                frameMetricsSources.emplace(targetPid,
+                    std::make_unique<FrameMetricsSource>(*pComms, targetPid, kFrameMetricsPerSwapChainCapacity));
+            }
         }
         catch (...) {
             const auto code = util::GeneratePmStatus();
@@ -129,6 +136,10 @@ namespace pmon::mid
             auto iter = presentMonStreamClients.find(targetPid);
             if (iter != presentMonStreamClients.end()) {
                 presentMonStreamClients.erase(std::move(iter));
+            }
+            auto sourceIter = frameMetricsSources.find(targetPid);
+            if (sourceIter != frameMetricsSources.end()) {
+                frameMetricsSources.erase(std::move(sourceIter));
             }
             // Remove the input to frame start data for this process.
             mPclI2FsManager.RemoveProcess(targetPid);
@@ -1268,155 +1279,26 @@ static void ReportMetrics(
 
     void mid::ConcreteMiddleware::ConsumeFrameEvents(const PM_FRAME_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t& numFrames)
     {
-        PM_STATUS status = PM_STATUS::PM_STATUS_SUCCESS;
-
         const auto frames_to_copy = numFrames;
-        // We have saved off the number of frames to copy, now set
-        // to zero in case we error out along the way BEFORE we
-        // copy frames into the buffer. If a successful copy occurs
-        // we'll set to actual number copied.
-        uint32_t frames_copied = 0;
         numFrames = 0;
 
-        StreamClient* pShmClient = nullptr;
-        try {
-            pShmClient = presentMonStreamClients.at(processId).get();
-        }
-        catch (...) {
-            LOG(INFO)
-                << "Stream client for process " << processId
-                << " doesn't exist. Please call pmStartStream to initialize the "
-                "client.";
-            pmlog_error("Stream client for process {} doesn't exist. Please call pmStartStream to initialize the client.").diag();
-            throw Except<util::Exception>(std::format("Failed to find stream for pid {} in ConsumeFrameEvents", processId));
+        auto sourceIter = frameMetricsSources.find(processId);
+        if (sourceIter == frameMetricsSources.end() || sourceIter->second == nullptr) {
+            pmlog_error("Frame metrics source for process {} doesn't exist. Please call pmStartStream to initialize the client.").diag();
+            throw Except<util::Exception>(std::format("Failed to find frame metrics source for pid {} in ConsumeFrameEvents", processId));
         }
 
-        const auto nsm_view = pShmClient->GetNamedSharedMemView();
-        const auto nsm_hdr = nsm_view->GetHeader();
-        if (!nsm_hdr->process_active) {
-            StopStreaming(processId);
-            pmlog_dbg("Process death detected while consuming frame events").diag();
-            throw Except<ipc::PmStatusError>(PM_STATUS_INVALID_PID, "Process died cannot consume frame events");
-        }
-
-        const auto last_frame_idx = pShmClient->GetLatestFrameIndex();
-        if (last_frame_idx == UINT_MAX) {
-            // There are no frames available, no error frames copied = 0
+        if (frames_to_copy == 0) {
             return;
         }
 
-        // make sure active device is the one referenced in this query
-        if (auto devId = pQuery->GetReferencedDevice()) {
-            SetActiveGraphicsAdapter(*devId);
+        auto frames = sourceIter->second->Consume(frames_to_copy);
+        for (const auto& frameMetrics : frames) {
+            pQuery->GatherToBlob(pBlob, frameMetrics);
+            pBlob += pQuery->GetBlobSize();
         }
 
-        FrameTimingData currentFrameTimingData{};
-        auto iter = frameTimingData.find(processId);
-        if (iter != frameTimingData.end()) {
-            currentFrameTimingData = iter->second;
-        }
-
-        FakePMTraceSession pmSession;
-        pmSession.mMilliSecondsPerTimestamp = 1000.0 / pShmClient->GetQpcFrequency().QuadPart;
-
-        // context transmits various data that applies to each gather command in the query
-        PM_FRAME_QUERY::Context ctx{ 
-            nsm_hdr->start_qpc,
-            pShmClient->GetQpcFrequency().QuadPart,
-            currentFrameTimingData };
-
-        while (frames_copied < frames_to_copy) {
-            const PmNsmFrameData* pCurrentFrameData = nullptr;
-            const PmNsmFrameData* pNextFrameData = nullptr;
-            const PmNsmFrameData* pFrameDataOfLastPresented = nullptr;
-            const PmNsmFrameData* pFrameDataOfLastAppPresented = nullptr;
-            const PmNsmFrameData* pFrameDataOfNextDisplayed = nullptr;
-            const PmNsmFrameData* pFrameDataOfLastDisplayed = nullptr;
-            const PmNsmFrameData* pFrameDataOfLastAppDisplayed = nullptr;
-            const PmNsmFrameData* pFrameDataOfPreviousAppFrameOfLastAppDisplayed = nullptr;
-            const auto status = pShmClient->ConsumePtrToNextNsmFrameData(&pCurrentFrameData, &pNextFrameData,
-                &pFrameDataOfNextDisplayed, &pFrameDataOfLastPresented, &pFrameDataOfLastAppPresented,
-                &pFrameDataOfLastDisplayed, &pFrameDataOfLastAppDisplayed, &pFrameDataOfPreviousAppFrameOfLastAppDisplayed);
-            if (status != PM_STATUS::PM_STATUS_SUCCESS) {
-                pmlog_error("Error while trying to get frame data from shared memory").diag();
-                throw Except<util::Exception>("Error while trying to get frame data from shared memory");
-            }
-            if (!pCurrentFrameData) {
-                break;
-            }
-            if (pFrameDataOfLastPresented && pFrameDataOfLastAppPresented && pFrameDataOfNextDisplayed) {
-                ctx.UpdateSourceData(pCurrentFrameData,
-                    pFrameDataOfNextDisplayed,
-                    pFrameDataOfLastPresented,
-                    pFrameDataOfLastAppPresented,
-                    pFrameDataOfLastDisplayed,
-                    pFrameDataOfLastAppDisplayed,
-                    pFrameDataOfPreviousAppFrameOfLastAppDisplayed);
-
-                if (ctx.dropped && ctx.pSourceFrameData->present_event.DisplayedCount == 0) {
-                        pQuery->GatherToBlob(ctx, pBlob);
-                        pBlob += pQuery->GetBlobSize();
-                        frames_copied++;
-                } else {
-                    while (ctx.sourceFrameDisplayIndex < ctx.pSourceFrameData->present_event.DisplayedCount) {
-                        if (ctx.pSourceFrameData->present_event.PclSimStartTime != 0) {
-                            // If we are calculating PC Latency then we need to update the input to frame start
-                            // time.
-                            if (ctx.pSourceFrameData->present_event.PclInputPingTime == 0) {
-                                if (ctx.mAccumulatedInput2FrameStartTime != 0) {
-                                    // This frame was displayed but we don't have a pc latency input time. However, there is accumulated time
-                                    // so there is a pending input that will now hit the screen. Add in the time from the last not
-                                    // displayed pc simulation start to this frame's pc simulation start.
-                                    ctx.mAccumulatedInput2FrameStartTime +=
-                                        pmSession.TimestampDeltaToUnsignedMilliSeconds(
-                                            ctx.mLastReceivedNotDisplayedPclSimStart,
-                                            ctx.pSourceFrameData->present_event.PclSimStartTime);
-                                    // Add all of the accumlated time to the average input to frame start time.
-                                    mPclI2FsManager.AddI2FsValueForProcess(
-                                        ctx.pSourceFrameData->present_event.ProcessId,
-                                        ctx.mLastReceivedNotDisplayedPclInputTime,
-                                        ctx.mAccumulatedInput2FrameStartTime);
-                                    // Reset the tracking variables for when we have a dropped frame with a pc latency input
-                                    ctx.mAccumulatedInput2FrameStartTime = 0.f;
-                                    ctx.mLastReceivedNotDisplayedPclSimStart = 0;
-                                    ctx.mLastReceivedNotDisplayedPclInputTime = 0;
-                                }
-                            } else {
-                                mPclI2FsManager.AddI2FsValueForProcess(
-                                    ctx.pSourceFrameData->present_event.ProcessId,
-                                    ctx.pSourceFrameData->present_event.PclInputPingTime,
-                                    pmSession.TimestampDeltaToUnsignedMilliSeconds(
-                                        ctx.pSourceFrameData->present_event.PclInputPingTime,
-                                        ctx.pSourceFrameData->present_event.PclSimStartTime));
-                            }
-                        }
-                        ctx.avgInput2Fs = mPclI2FsManager.GetI2FsForProcess(ctx.pSourceFrameData->present_event.ProcessId);
-                        pQuery->GatherToBlob(ctx, pBlob);
-                        pBlob += pQuery->GetBlobSize();
-                        frames_copied++;
-                        ctx.sourceFrameDisplayIndex++;
-                    }
-                }
-
-            }
-            // Check to see if the next frame produces more frames than we can store in the
-            // the blob.
-            if (frames_copied + pNextFrameData->present_event.DisplayedCount >= frames_to_copy) {
-                break;
-            }
-        }
-        // Set to the actual number of frames copied
-        numFrames = frames_copied;
-        // Trim off any old flip delay data that resides in the FrameTimingData::flipDelayDataMap map
-        // that is older than the last displayed frame id.
-        for (auto it = ctx.frameTimingData.flipDelayDataMap.begin(); it != ctx.frameTimingData.flipDelayDataMap.end();) {
-            if (it->first < ctx.frameTimingData.lastDisplayedFrameId) {
-                it = ctx.frameTimingData.flipDelayDataMap.erase(it); // Erase and move to the next element
-            } else {
-                ++it; // Move to the next element
-            }
-        }
-        frameTimingData[processId] = ctx.frameTimingData;
+        numFrames = uint32_t(frames.size());
     }
 
     void ConcreteMiddleware::StopPlayback()

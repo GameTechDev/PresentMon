@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../CommonUtilities/win/WinAPI.h"
 #include "Middleware.h"
 #include "../Interprocess/source/Interprocess.h"
@@ -18,6 +18,8 @@ namespace pmapi::intro
 
 namespace pmon::mid
 {
+	class FrameMetricsSource;
+
 	// Used to calculate correct start frame based on metric offset
 	struct MetricOffsetData {
 		uint64_t queryToFrameDataDelta = 0;
@@ -229,5 +231,9 @@ namespace pmon::mid
 		std::optional<uint32_t> activeDevice;
 		std::unique_ptr<pmapi::intro::Root> pIntroRoot;
 		InputToFsManager mPclI2FsManager;
+
+		// new members
+		// Frame metrics sources mapped to process id
+		std::map<uint32_t, std::unique_ptr<FrameMetricsSource>> frameMetricsSources;
 	};
 }
