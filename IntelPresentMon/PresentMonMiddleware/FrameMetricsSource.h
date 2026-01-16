@@ -50,8 +50,7 @@ namespace pmon::mid
 		uint32_t processId_ = 0;
 		size_t perSwapChainCapacity_ = 0;
 		size_t nextFrameSerial_ = 0;
-		uint64_t qpcFrequency_ = 0;
-		uint64_t sessionStartQpc_ = 0;
+		std::optional<util::QpcConverter> qpcConverter_;
 		std::unordered_map<uint64_t, SwapChainState> swapChains_;
 	};
 }

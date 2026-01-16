@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <cstdint>
@@ -6,6 +6,8 @@
 namespace pmon::util
 {
 	int64_t GetCurrentTimestamp() noexcept;
+	double GetTimestampFrequencyDouble() noexcept;
+	uint64_t GetTimestampFrequencyUint64() noexcept;
 	double GetTimestampPeriodSeconds() noexcept;
 	void SpinWaitUntilTimestamp(int64_t timestamp) noexcept;
 	double TimestampDeltaToSeconds(int64_t start, int64_t end, double period) noexcept;

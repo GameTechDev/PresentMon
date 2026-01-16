@@ -66,15 +66,13 @@ namespace pmon::mid
 		:
 		comms_{ comms },
 		processId_{ processId },
-		perSwapChainCapacity_{ perSwapChainCapacity == 0 ? size_t{ 1 } : perSwapChainCapacity },
-		qpcFrequency_{}
+		perSwapChainCapacity_{ perSwapChainCapacity == 0 ? size_t{ 1 } : perSwapChainCapacity }
 	{
-		const double period = util::GetTimestampPeriodSeconds();
-		qpcFrequency_ = period == 0.0 ? 0 : uint64_t(1.0 / period + 0.5);
 		// open the data store from ipc
 		comms_.OpenFrameDataStore(processId_);
 		pStore_ = &comms_.GetFrameDataStore(processId_);
-		sessionStartQpc_ = uint64_t(pStore_->bookkeeping.startQpc);
+		// TODO: potentially source qpc frequency from store's bookkeeping
+		qpcConverter_ = util::QpcConverter{ util::GetTimestampFrequencyUint64(), (uint64_t)pStore_->bookkeeping.startQpc};
 		const auto range = pStore_->frameData.GetSerialRange();
 		nextFrameSerial_ = range.first;
 	}
@@ -88,8 +86,6 @@ namespace pmon::mid
 			}
 			comms_.CloseFrameDataStore(processId_);
 			pStore_ = nullptr;
-			nextFrameSerial_ = 0;
-			sessionStartQpc_ = 0;
 			swapChains_.clear();
 		}
 		catch (...) {
@@ -103,10 +99,6 @@ namespace pmon::mid
 			return;
 		}
 
-		if (sessionStartQpc_ == 0 && pStore_->bookkeeping.startQpc != 0) {
-			sessionStartQpc_ = uint64_t(pStore_->bookkeeping.startQpc);
-		}
-
 		const auto& ring = pStore_->frameData;
 		const auto range = ring.GetSerialRange();
 
@@ -117,13 +109,11 @@ namespace pmon::mid
 			return;
 		}
 
-		util::QpcConverter qpc{ qpcFrequency_, sessionStartQpc_ };
-
 		for (size_t serial = nextFrameSerial_; serial < range.second; ++serial) {
 			const auto& frame = ring.At(serial);
 			auto [it, inserted] = swapChains_.try_emplace(frame.swapChainAddress, perSwapChainCapacity_);
 			auto& state = it->second;
-			state.ProcessFrame(frame, qpc);
+			state.ProcessFrame(frame, *qpcConverter_);
 		}
 
 		nextFrameSerial_ = range.second;

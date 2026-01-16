@@ -1,4 +1,4 @@
-#include "Qpc.h"
+﻿#include "Qpc.h"
 #include "win/WinAPI.h"
 #include "log/Log.h"
 #include <thread>
@@ -14,13 +14,23 @@ namespace pmon::util
 		}
 		return (int64_t)timestamp.QuadPart;
 	}
-	double GetTimestampPeriodSeconds() noexcept
+	double GetTimestampFrequencyDouble() noexcept
+	{
+		return double(GetTimestampFrequencyUint64());
+	}
+	uint64_t GetTimestampFrequencyUint64() noexcept
 	{
 		LARGE_INTEGER freq;
 		if (!QueryPerformanceFrequency(&freq)) {
 			pmlog_error("qpc frequency failed").hr().every(5);
+			return 0;
 		}
-		return 1.0 / double(freq.QuadPart);
+		return (uint64_t)freq.QuadPart;
+	}
+	double GetTimestampPeriodSeconds() noexcept
+	{
+		const auto frequency = GetTimestampFrequencyDouble();
+		return frequency == 0.0 ? 0.0 : 1.0 / frequency;
 	}
 	void SpinWaitUntilTimestamp(int64_t timestamp) noexcept
 	{
