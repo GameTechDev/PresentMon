@@ -99,6 +99,7 @@
     <ClCompile Include="EtlLoggerTests.cpp" />
     <ClCompile Include="InterimBroadcasterTests.cpp" />
     <ClCompile Include="IpcComponentTests.cpp" />
+    <ClCompile Include="IpcMcIntegrationTests.cpp" />
     <ClCompile Include="ModuleInit.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
     <ClCompile Include="PacedFrameTests.cpp" />
@@ -138,6 +139,7 @@
     <ClInclude Include="CsvHelper.h" />
     <ClInclude Include="Folders.h" />
     <ClInclude Include="JobManager.h" />
+    <ClInclude Include="Logging.h" />
     <ClInclude Include="TestCommands.h" />
     <ClInclude Include="StatusComparison.h" />
     <ClInclude Include="TestProcess.h" />

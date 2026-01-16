@@ -38,4 +38,5 @@ TEST_MODULE_INITIALIZE(Api2TestModuleInit)
 	WipeAndRecreate(PacedFrame::outFolder_);
 	WipeAndRecreate(InterimBroadcasterTests::logFolder_);
 	WipeAndRecreate(InterimBroadcasterTests::outFolder_);
+	WipeAndRecreate(IpcMcIntegrationTests::logFolder_);
 }

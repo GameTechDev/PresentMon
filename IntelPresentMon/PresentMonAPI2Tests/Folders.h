@@ -34,3 +34,8 @@ namespace IpcComponentTests
 	static constexpr const char* logFolder_ = "TestLogs\\IpcComponent";
 	static constexpr const char* outFolder_ = "TestOutput\\IpcComponent";
 }
+
+namespace IpcMcIntegrationTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\IpcMcIntegration";
+}

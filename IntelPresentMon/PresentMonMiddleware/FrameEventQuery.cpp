@@ -139,7 +139,7 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 			cmd.qpcToMs = 0.0;
 		}
 		else if (q.deviceId == ipc::kUniversalDeviceId) {
-			cmd = MapQueryElementToFrameGatherCommand_(q, blobCursor);
+			cmd = MapQueryElementToFrameGatherCommand_(q, blobCursor, metricView);
 
 			if (cmd.gatherType == PM_DATA_TYPE_VOID) {
 				pmlog_error("Unsupported frame metric in frame query")
@@ -197,13 +197,13 @@ size_t PM_FRAME_QUERY::GetBlobSize() const
 	return blobSize_;
 }
 
-PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherCommand_(const PM_QUERY_ELEMENT& q, size_t blobByteCursor)
+PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherCommand_(const PM_QUERY_ELEMENT& q, size_t blobByteCursor, const pmapi::intro::MetricView& metricView)
 {
 	const double qpcToMs = util::GetTimestampPeriodSeconds() * 1000.0;
 
 	GatherCommand_ cmd{};
 	cmd.metricId = q.metric;
-	cmd.gatherType = PM_DATA_TYPE_VOID;
+	cmd.gatherType = metricView.GetDataTypeInfo().GetFrameType();
 	cmd.blobOffset = static_cast<uint32_t>(blobByteCursor);
 	cmd.frameMetricsOffset = 0u;
 	cmd.deviceId = q.deviceId;
@@ -212,129 +212,132 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 	cmd.qpcToMs = 0.0;
 
 	switch (q.metric) {
+	case PM_METRIC_ALLOWS_TEARING:
+		// TODO: fix this placeholder
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		break;
+	case PM_METRIC_PRESENT_RUNTIME:
+		// TODO: fix this placeholder
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		break;
+	case PM_METRIC_PRESENT_MODE:
+		// TODO: fix this placeholder
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		break;
+	case PM_METRIC_PRESENT_FLAGS:
+		// TODO: fix this placeholder
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		break;
+	case PM_METRIC_SYNC_INTERVAL:
+		// TODO: fix this placeholder
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		break;
+	case PM_METRIC_SWAP_CHAIN_ADDRESS:
+		// TODO: fix this placeholder
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		break;
 	case PM_METRIC_PRESENT_START_QPC:
-		cmd.gatherType = PM_DATA_TYPE_UINT64;
+		// TODO: fix
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, timeInSeconds);
 		break;
 	case PM_METRIC_PRESENT_START_TIME:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
+		// TODO: fix
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, timeInSeconds);
 		cmd.qpcToMs = qpcToMs;
 		break;
 	case PM_METRIC_CPU_START_QPC:
-		cmd.gatherType = PM_DATA_TYPE_UINT64;
+		// TODO: fix
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, cpuStartQpc);
 		break;
 	case PM_METRIC_CPU_START_TIME:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
+		// TODO: fix
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, cpuStartQpc);
 		cmd.qpcToMs = qpcToMs;
 		break;
 	case PM_METRIC_BETWEEN_PRESENTS:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msBetweenPresents);
 		break;
 	case PM_METRIC_IN_PRESENT_API:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msInPresentApi);
 		break;
 	case PM_METRIC_RENDER_PRESENT_LATENCY:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msUntilRenderComplete);
 		break;
 	case PM_METRIC_BETWEEN_DISPLAY_CHANGE:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msBetweenDisplayChange);
 		break;
 	case PM_METRIC_UNTIL_DISPLAYED:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msUntilDisplayed);
 		break;
 	case PM_METRIC_DISPLAYED_TIME:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msDisplayedTime);
 		break;
 	case PM_METRIC_DISPLAY_LATENCY:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msDisplayLatency);
 		break;
 	case PM_METRIC_BETWEEN_SIMULATION_START:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msBetweenSimStarts);
 		cmd.isOptional = true;
 		break;
 	case PM_METRIC_PC_LATENCY:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msPcLatency);
 		cmd.isOptional = true;
 		break;
 	case PM_METRIC_CPU_BUSY:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msCPUBusy);
 		break;
 	case PM_METRIC_CPU_WAIT:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msCPUWait);
 		break;
 	case PM_METRIC_CPU_FRAME_TIME:
 	case PM_METRIC_BETWEEN_APP_START:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		break;
 	case PM_METRIC_GPU_LATENCY:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msGPULatency);
 		break;
 	case PM_METRIC_GPU_TIME:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		break;
 	case PM_METRIC_GPU_BUSY:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msGPUBusy);
 		break;
 	case PM_METRIC_GPU_WAIT:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msGPUWait);
 		break;
 	case PM_METRIC_DROPPED_FRAMES:
-		cmd.gatherType = PM_DATA_TYPE_BOOL;
 		break;
 	case PM_METRIC_ANIMATION_ERROR:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msAnimationError);
 		cmd.isOptional = true;
 		break;
 	case PM_METRIC_ANIMATION_TIME:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msAnimationTime);
 		cmd.isOptional = true;
 		break;
 	case PM_METRIC_CLICK_TO_PHOTON_LATENCY:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msClickToPhotonLatency);
 		cmd.isOptional = true;
 		break;
 	case PM_METRIC_ALL_INPUT_TO_PHOTON_LATENCY:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msAllInputPhotonLatency);
 		cmd.isOptional = true;
 		break;
 	case PM_METRIC_INSTRUMENTED_LATENCY:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msInstrumentedLatency);
 		cmd.isOptional = true;
 		break;
 	case PM_METRIC_FLIP_DELAY:
-		cmd.gatherType = PM_DATA_TYPE_DOUBLE;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msFlipDelay);
 		cmd.isOptional = true;
 		break;
 	case PM_METRIC_FRAME_TYPE:
-		cmd.gatherType = PM_DATA_TYPE_ENUM;
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, frameType);
 		break;
 	default:
-		pmlog_error("unknown metric id").pmwatch((int)q.metric).diag();
-		return {};
+		pmlog_error("Unexpected frame metric in frame query")
+			.pmwatch(metricView.Introspect().GetSymbol())
+			.pmwatch(metricView.IntrospectType().GetSymbol())
+			.pmwatch((int)q.metric).diag();
+		throw Except<util::Exception>("Unexpected frame metric in frame query");
 	}
 	return cmd;
 }
@@ -410,10 +413,8 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 			*reinterpret_cast<const bool*>(pFrameMemberBytes);
 		break;
 	case PM_DATA_TYPE_STRING:
-		std::copy_n(reinterpret_cast<const char*>(pFrameMemberBytes), PM_MAX_PATH,
-			reinterpret_cast<char*>(pBlobBytes + cmd.blobOffset));
-		break;
 	case PM_DATA_TYPE_VOID:
+		pmlog_error("Unsupported frame data type");
 		break;
 	}
 }
@@ -425,12 +426,6 @@ void PM_FRAME_QUERY::GatherFromTelemetry_(const GatherCommand_& cmd, uint8_t* pB
 	case PM_DATA_TYPE_UINT64:
 		*reinterpret_cast<uint64_t*>(pBlobBytes + cmd.blobOffset) =
 			teleMap.FindRing<uint64_t>(cmd.metricId)[cmd.arrayIdx].At(searchQpc).value;
-		break;
-	case PM_DATA_TYPE_INT32:
-		*reinterpret_cast<int32_t*>(pBlobBytes + cmd.blobOffset) = 0;
-		break;
-	case PM_DATA_TYPE_UINT32:
-		*reinterpret_cast<uint32_t*>(pBlobBytes + cmd.blobOffset) = 0u;
 		break;
 	case PM_DATA_TYPE_DOUBLE:
 		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) =
@@ -444,10 +439,11 @@ void PM_FRAME_QUERY::GatherFromTelemetry_(const GatherCommand_& cmd, uint8_t* pB
 		*reinterpret_cast<bool*>(pBlobBytes + cmd.blobOffset) =
 			teleMap.FindRing<bool>(cmd.metricId)[cmd.arrayIdx].At(searchQpc).value;
 		break;
+	case PM_DATA_TYPE_INT32:
+	case PM_DATA_TYPE_UINT32:
 	case PM_DATA_TYPE_STRING:
-		std::fill_n(pBlobBytes + cmd.blobOffset, PM_MAX_PATH, 0);
-		break;
 	case PM_DATA_TYPE_VOID:
+		pmlog_error("Unsupported telemetry data type");
 		break;
 	}
 }

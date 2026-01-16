@@ -8,6 +8,7 @@
 namespace pmapi::intro
 {
 	class Root;
+	class MetricView;
 }
 
 namespace pmon::ipc
@@ -47,7 +48,7 @@ private:
 		double qpcToMs;
 	};
 	// functions
-	static GatherCommand_ MapQueryElementToFrameGatherCommand_(const PM_QUERY_ELEMENT& q, size_t blobCursor);
+	static GatherCommand_ MapQueryElementToFrameGatherCommand_(const PM_QUERY_ELEMENT& q, size_t blobCursor, const pmapi::intro::MetricView& metricView);
 	static void GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t* pBlobBytes, const pmon::util::metrics::FrameMetrics& frameMetrics);
 	void GatherFromTelemetry_(const GatherCommand_& cmd, uint8_t* pBlobBytes, int64_t searchQpc,
 		const pmon::ipc::TelemetryMap& teleMap) const;
