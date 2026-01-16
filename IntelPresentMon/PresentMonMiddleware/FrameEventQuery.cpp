@@ -207,22 +207,16 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, swapChainAddress);
 		break;
 	case PM_METRIC_PRESENT_START_QPC:
-		// TODO: fix
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, timeInSeconds);
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, presentStartQpc);
 		break;
 	case PM_METRIC_PRESENT_START_TIME:
-		// TODO: fix
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, timeInSeconds);
-		cmd.qpcToMs = qpcToMs;
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, presentStartMs);
 		break;
 	case PM_METRIC_CPU_START_QPC:
-		// TODO: fix
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, cpuStartQpc);
 		break;
 	case PM_METRIC_CPU_START_TIME:
-		// TODO: fix
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, cpuStartQpc);
-		cmd.qpcToMs = qpcToMs;
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, cpuStartMs);
 		break;
 	case PM_METRIC_BETWEEN_PRESENTS:
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msBetweenPresents);
@@ -327,9 +321,12 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 		*reinterpret_cast<bool*>(pBlobBytes + cmd.blobOffset) =	frameMetrics.isDroppedFrame;
 		return;
 	}
-	if (cmd.metricId == PM_METRIC_PRESENT_START_TIME || cmd.metricId == PM_METRIC_CPU_START_TIME) {
-		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) =
-			double(*reinterpret_cast<const uint64_t*>(pFrameMemberBytes)) * cmd.qpcToMs;
+	if (cmd.metricId == PM_METRIC_PRESENT_START_TIME) {
+		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) = frameMetrics.presentStartMs;
+		return;
+	} 
+	if (cmd.metricId == PM_METRIC_CPU_START_TIME) {
+		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) = frameMetrics.cpuStartMs;
 		return;
 	}
 	if (frameMetrics.screenTimeQpc == 0 &&

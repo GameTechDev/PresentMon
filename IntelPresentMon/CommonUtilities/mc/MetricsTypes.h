@@ -101,7 +101,10 @@ namespace pmon::util::metrics {
     struct FrameMetrics {
         // Core Timing (always computed)
         uint64_t timeInSeconds = 0;
+        uint64_t presentStartQpc = 0;
+        double presentStartMs = 0;
         uint64_t cpuStartQpc = 0;
+        double cpuStartMs = 0;
         double msBetweenPresents = 0;
         double msInPresentApi = 0;
         double msUntilRenderStart = 0;

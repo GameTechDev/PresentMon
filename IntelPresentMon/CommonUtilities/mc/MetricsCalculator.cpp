@@ -74,8 +74,17 @@ namespace pmon::util::metrics
                     *d.newInput2FrameStartEma;
             }
         }
+        
+        double ComputeCPUStartTimeMs(
+            const QpcConverter& qpc,
+            const uint64_t& CPUStartTimeQpc)
+        {
+            const auto startQpc = qpc.GetSessionStartTimestamp();
+            return (startQpc != 0 && CPUStartTimeQpc != 0)
+                ? qpc.DeltaSignedMilliSeconds(startQpc, CPUStartTimeQpc)
+                : 0.0;
+        }
     }
-
 
     // 2) Public entry points
     // ============================================================================
@@ -297,6 +306,7 @@ namespace pmon::util::metrics
             metrics);
 
         metrics.cpuStartQpc = CalculateCPUStart(chain, present);
+        metrics.cpuStartMs = ComputeCPUStartTimeMs(qpc, metrics.cpuStartQpc);
 
         return result;
     }

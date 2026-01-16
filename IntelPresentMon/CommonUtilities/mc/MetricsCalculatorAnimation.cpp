@@ -72,6 +72,15 @@ namespace pmon::util::metrics
             return CalculateAnimationTime(qpc, chain.firstAppSimStartTime, currentSimStart);
         }
 
+        double ComputePresentStartTimeMs(
+            const QpcConverter& qpc,
+            const FrameData& present)
+        {
+            const auto startQpc = qpc.GetSessionStartTimestamp();
+            return startQpc != 0 && present.presentStartTime != 0
+                ? qpc.DeltaSignedMilliSeconds(startQpc, present.presentStartTime)
+                : 0.0;
+        }
 
     }
 
@@ -82,6 +91,8 @@ namespace pmon::util::metrics
         FrameMetrics& out)
     {
         out.timeInSeconds = present.presentStartTime;
+        out.presentStartQpc = present.presentStartTime;
+        out.presentStartMs = ComputePresentStartTimeMs(qpc, present);
 
         // Calculate the delta from the previous present (if one exists)
         // to the current present
