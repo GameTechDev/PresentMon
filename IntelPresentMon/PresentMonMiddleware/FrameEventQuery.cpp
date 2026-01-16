@@ -1,6 +1,7 @@
 ﻿// Copyright (C) 2017-2024 Intel Corporation
 #include "FrameEventQuery.h"
 #include "../PresentMonAPIWrapperCommon/Introspection.h"
+#include "../PresentMonAPIWrapperCommon/Exception.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../Interprocess/source/IntrospectionHelpers.h"
@@ -77,7 +78,13 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 		}
 
 		if (q.deviceId != ipc::kUniversalDeviceId) {
-			// TODO: check that device exists in introspection
+			try {
+				introRoot.FindDevice(q.deviceId);
+			}
+			catch (const pmapi::LookupException&) {
+				pmlog_error(util::ReportException("Registering frame query"));
+				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Invalid device ID");
+			}
 		}
 
 		const auto deviceMetricInfo = [&]() -> std::optional<pmapi::intro::DeviceMetricInfoView> {
