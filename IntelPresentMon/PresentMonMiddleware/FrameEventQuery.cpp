@@ -29,29 +29,6 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 		throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Empty frame query");
 	}
 
-	// TODO: use data type ipc bridger
-	auto GetDataTypeAlignment = [](PM_DATA_TYPE dataType) {
-		switch (dataType) {
-		case PM_DATA_TYPE_DOUBLE:
-			return alignof(double);
-		case PM_DATA_TYPE_UINT64:
-			return alignof(uint64_t);
-		case PM_DATA_TYPE_INT32:
-			return alignof(int32_t);
-		case PM_DATA_TYPE_UINT32:
-			return alignof(uint32_t);
-		case PM_DATA_TYPE_ENUM:
-			return alignof(int);
-		case PM_DATA_TYPE_BOOL:
-			return alignof(bool);
-		case PM_DATA_TYPE_STRING:
-			return alignof(char);
-		default:
-			pmlog_error("Bad data type in alignment calculation");
-			return size_t{ 1u };
-		}
-	};
-
 	size_t blobCursor = 0;
 	gatherCommands_.reserve(queryElements.size());
 
@@ -112,7 +89,7 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 			throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Frame query array index out of bounds");
 		}
 
-		const auto alignment = GetDataTypeAlignment(frameType);
+		const auto alignment = ipc::intro::GetDataTypeAlignment(frameType);
 		blobCursor = util::PadToAlignment(blobCursor, alignment);
 
 		GatherCommand_ cmd{};
@@ -130,7 +107,7 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 
 			cmd.metricId = q.metric;
 			cmd.gatherType = frameType;
-			cmd.blobOffset = static_cast<uint32_t>(blobCursor);
+			cmd.blobOffset = uint32_t(blobCursor);
 			cmd.frameMetricsOffset = 0u;
 			cmd.deviceId = q.deviceId;
 			cmd.arrayIdx = q.arrayIndex;
@@ -203,7 +180,7 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 	GatherCommand_ cmd{};
 	cmd.metricId = q.metric;
 	cmd.gatherType = metricView.GetDataTypeInfo().GetFrameType();
-	cmd.blobOffset = static_cast<uint32_t>(blobByteCursor);
+	cmd.blobOffset = uint32_t(blobByteCursor);
 	cmd.frameMetricsOffset = 0u;
 	cmd.deviceId = q.deviceId;
 	cmd.arrayIdx = q.arrayIndex;
@@ -361,7 +338,7 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 	}
 	if (cmd.metricId == PM_METRIC_PRESENT_START_TIME || cmd.metricId == PM_METRIC_CPU_START_TIME) {
 		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) =
-			static_cast<double>(*reinterpret_cast<const uint64_t*>(pFrameMemberBytes)) * cmd.qpcToMs;
+			double(*reinterpret_cast<const uint64_t*>(pFrameMemberBytes)) * cmd.qpcToMs;
 		return;
 	}
 	if (frameMetrics.screenTimeQpc == 0 &&

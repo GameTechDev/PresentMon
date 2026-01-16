@@ -70,7 +70,7 @@ namespace pmon::mid
 		qpcFrequency_{}
 	{
 		const double period = util::GetTimestampPeriodSeconds();
-		qpcFrequency_ = period == 0.0 ? 0 : static_cast<uint64_t>(1.0 / period + 0.5);
+		qpcFrequency_ = period == 0.0 ? 0 : uint64_t(1.0 / period + 0.5);
 		Open_();
 	}
 
@@ -83,7 +83,7 @@ namespace pmon::mid
 	{
 		comms_.OpenFrameDataStore(processId_);
 		pStore_ = &comms_.GetFrameDataStore(processId_);
-		sessionStartQpc_ = static_cast<uint64_t>(pStore_->bookkeeping.startQpc);
+		sessionStartQpc_ = uint64_t(pStore_->bookkeeping.startQpc);
 		const auto range = pStore_->frameData.GetSerialRange();
 		nextFrameSerial_ = range.first;
 	}
@@ -107,7 +107,7 @@ namespace pmon::mid
 		}
 
 		if (sessionStartQpc_ == 0 && pStore_->bookkeeping.startQpc != 0) {
-			sessionStartQpc_ = static_cast<uint64_t>(pStore_->bookkeeping.startQpc);
+			sessionStartQpc_ = uint64_t(pStore_->bookkeeping.startQpc);
 		}
 
 		const auto& ring = pStore_->frameData;
