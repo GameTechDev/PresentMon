@@ -1271,10 +1271,9 @@ static void ReportMetrics(
             pmlog_error("Frame event query already registered").diag();
             throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_QUOTA_EXCEEDED, "Frame event query already registered");
         }
-        const auto pQuery = new PM_FRAME_QUERY{ queryElements, *pComms };
-        activeFrameEventQuery = pQuery;
-        blobSize = (uint32_t)pQuery->GetBlobSize();
-        return pQuery;
+        activeFrameEventQuery = new PM_FRAME_QUERY{ queryElements, *pComms, GetIntrospectionRoot() };
+        blobSize = (uint32_t)activeFrameEventQuery->GetBlobSize();
+        return activeFrameEventQuery;
     }
 
     void mid::ConcreteMiddleware::FreeFrameEventQuery(const PM_FRAME_QUERY* pQuery)

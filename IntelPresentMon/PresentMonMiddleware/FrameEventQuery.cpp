@@ -18,7 +18,8 @@ namespace util = pmon::util;
 
 using namespace util;
 
-PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::MiddlewareComms& comms)
+PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::MiddlewareComms& comms,
+	const pmapi::intro::Root& introRoot)
 	:
 	comms_{ comms }
 {
@@ -26,17 +27,6 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 		pmlog_error("Frame query requires at least one query element").diag();
 		throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Empty frame query");
 	}
-
-	// TODO: pass in from middleware cache rather than marshalling over anew from comms
-	const auto pIntro = comms.GetIntrospectionRoot();
-	if (!pIntro) {
-		pmlog_error("Failed to acquire introspection root for frame query").diag();
-		throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "No introspection root for frame query");
-	}
-	// TODO: consider direct use (unwrapped)
-	pmapi::intro::Root introRoot{ pIntro, [](const PM_INTROSPECTION_ROOT* p) {
-		free(const_cast<PM_INTROSPECTION_ROOT*>(p));
-	} };
 
 	// TODO: use data type ipc bridger
 	auto GetDataTypeAlignment = [](PM_DATA_TYPE dataType) {
@@ -56,6 +46,7 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 		case PM_DATA_TYPE_STRING:
 			return alignof(char);
 		default:
+			pmlog_error("Bad data type in alignment calculation");
 			return size_t{ 1u };
 		}
 	};

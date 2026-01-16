@@ -21,7 +21,8 @@ struct PM_FRAME_QUERY
 {
 public:
 	// functions
-	PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, pmon::ipc::MiddlewareComms& comms);
+	PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, pmon::ipc::MiddlewareComms& comms,
+		const pmapi::intro::Root& introRoot);
 	~PM_FRAME_QUERY();
 	void GatherToBlob(uint8_t* pBlobBytes, const pmon::util::metrics::FrameMetrics& frameMetrics) const;
 	size_t GetBlobSize() const;
