@@ -16,6 +16,6 @@ namespace pmon::util::log
 		Count
 	};
 
-	std::string GetVerboseModuleName(V mod) noexcept;
-	std::map<std::string, V> GetVerboseModuleMapNarrow() noexcept;
+	std::string GetVerboseModuleName(V mod);
+	std::map<std::string, V> GetVerboseModuleMapNarrow();
 }

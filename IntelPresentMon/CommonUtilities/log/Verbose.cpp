@@ -4,12 +4,12 @@
 
 namespace pmon::util::log
 {
-	std::string GetVerboseModuleName(V mod) noexcept
+	std::string GetVerboseModuleName(V mod)
 	{
 		return std::string{ reflect::enum_name<V, "Unknown">(mod) };
 	}
 
-	std::map<std::string, V> GetVerboseModuleMapNarrow() noexcept
+	std::map<std::string, V> GetVerboseModuleMapNarrow()
 	{
 		using namespace pmon::util::str;
 		std::map<std::string, V> map;

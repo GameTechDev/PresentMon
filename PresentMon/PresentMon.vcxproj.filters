@@ -24,4 +24,10 @@
   <ItemGroup>
     <None Include="..\README-ConsoleApplication.md" />
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ddETWExternal.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ddETWExternalRcWrapper.rc" />
+  </ItemGroup>
 </Project>
