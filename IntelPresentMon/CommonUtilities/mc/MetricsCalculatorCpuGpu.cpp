@@ -155,10 +155,12 @@ namespace pmon::util::metrics
     {
         metrics.msCPUBusy = ComputeMsCpuBusy(qpc, chainState, present, isAppFrame);
         metrics.msCPUWait = ComputeMsCpuWait(qpc, present, isAppFrame);
+        metrics.msCPUTime = metrics.msCPUBusy + metrics.msCPUWait;
         metrics.msGPULatency = ComputeMsGpuLatency(qpc, chainState, present, isAppFrame);
 
         metrics.msGPUBusy = ComputeMsGpuBusy(qpc, present, isAppFrame);
         metrics.msVideoBusy = ComputeMsVideoBusy(qpc, present, isAppFrame);
         metrics.msGPUWait = ComputeMsGpuWait(qpc, present, isAppFrame);
+        metrics.msGPUTime = metrics.msGPUBusy + metrics.msGPUWait;
     }
 }

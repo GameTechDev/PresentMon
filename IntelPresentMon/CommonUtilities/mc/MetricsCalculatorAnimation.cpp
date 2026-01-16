@@ -105,6 +105,14 @@ namespace pmon::util::metrics
         out.msSinceInput = (present.inputTime == 0)
             ? 0.0
             : qpc.DurationMilliSeconds(present.presentStartTime - present.inputTime);
+
+        // Copy metadata
+        out.swapChainAddress = present.swapChainAddress;
+        out.runtime = present.runtime;
+        out.syncInterval = present.syncInterval;
+        out.presentFlags = present.presentFlags;
+        out.allowsTearing = present.supportsTearing;
+        out.presentMode = present.presentMode;
     }
 
     void CalculateAnimationMetrics(

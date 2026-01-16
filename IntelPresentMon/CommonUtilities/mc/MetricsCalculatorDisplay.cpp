@@ -201,7 +201,7 @@ namespace pmon::util::metrics
         metrics.msFlipDelay = ComputeMsFlipDelay(qpc, present, isDisplayed);
         metrics.msDisplayLatency = ComputeMsDisplayLatency(qpc, swapChain, present, isDisplayed, screenTime);
         metrics.msReadyTimeToDisplayLatency = ComputeMsReadyTimeToDisplayLatency(qpc, present, isDisplayed, screenTime);
-
+        metrics.isDroppedFrame = !isDisplayed;
         metrics.screenTimeQpc = screenTime;
     }
 }

@@ -189,28 +189,22 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 
 	switch (q.metric) {
 	case PM_METRIC_ALLOWS_TEARING:
-		// TODO: fix this placeholder
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, allowsTearing);
 		break;
 	case PM_METRIC_PRESENT_RUNTIME:
-		// TODO: fix this placeholder
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, runtime);
 		break;
 	case PM_METRIC_PRESENT_MODE:
-		// TODO: fix this placeholder
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, presentMode);
 		break;
 	case PM_METRIC_PRESENT_FLAGS:
-		// TODO: fix this placeholder
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, presentFlags);
 		break;
 	case PM_METRIC_SYNC_INTERVAL:
-		// TODO: fix this placeholder
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, syncInterval);
 		break;
 	case PM_METRIC_SWAP_CHAIN_ADDRESS:
-		// TODO: fix this placeholder
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, util::metrics::FrameMetrics::cpuStartQpc);
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, swapChainAddress);
 		break;
 	case PM_METRIC_PRESENT_START_QPC:
 		// TODO: fix
@@ -322,18 +316,15 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 {
 	const auto pFrameMemberBytes = reinterpret_cast<const uint8_t*>(&frameMetrics) + cmd.frameMetricsOffset;
 	if (cmd.metricId == PM_METRIC_CPU_FRAME_TIME || cmd.metricId == PM_METRIC_BETWEEN_APP_START) {
-		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) =
-			frameMetrics.msCPUBusy + frameMetrics.msCPUWait;
+		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) = frameMetrics.msCPUTime;
 		return;
 	}
 	if (cmd.metricId == PM_METRIC_GPU_TIME) {
-		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) =
-			frameMetrics.msGPUBusy + frameMetrics.msGPUWait;
+		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) = frameMetrics.msGPUTime;
 		return;
 	}
 	if (cmd.metricId == PM_METRIC_DROPPED_FRAMES) {
-		*reinterpret_cast<bool*>(pBlobBytes + cmd.blobOffset) =
-			frameMetrics.screenTimeQpc == 0;
+		*reinterpret_cast<bool*>(pBlobBytes + cmd.blobOffset) =	frameMetrics.isDroppedFrame;
 		return;
 	}
 	if (cmd.metricId == PM_METRIC_PRESENT_START_TIME || cmd.metricId == PM_METRIC_CPU_START_TIME) {

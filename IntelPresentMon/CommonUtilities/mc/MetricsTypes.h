@@ -101,6 +101,7 @@ namespace pmon::util::metrics {
     struct FrameMetrics {
         // Core Timing (always computed)
         uint64_t timeInSeconds = 0;
+        uint64_t cpuStartQpc = 0;
         double msBetweenPresents = 0;
         double msInPresentApi = 0;
         double msUntilRenderStart = 0;
@@ -116,17 +117,19 @@ namespace pmon::util::metrics {
         double msBetweenDisplayChange = 0;
         uint64_t screenTimeQpc = 0;
         std::optional<double> msReadyTimeToDisplayLatency;
+        bool isDroppedFrame = false;
 
         // CPU Metrics (app frames only)
-        uint64_t cpuStartQpc = 0;
         double msCPUBusy = 0;
         double msCPUWait = 0;
+        double msCPUTime = 0;
 
         // GPU Metrics (app frames only)
         double msGPULatency = 0;
         double msGPUBusy = 0;
         double msVideoBusy = 0;
         double msGPUWait = 0;
+        double msGPUTime = 0;
 
         // Input Latency (optional, app+displayed only)
         std::optional<double> msClickToPhotonLatency = {};
@@ -150,5 +153,13 @@ namespace pmon::util::metrics {
 
         // Frame Classification
         FrameType frameType = {};
+
+        // Present Metadata
+        uint64_t swapChainAddress = 0;
+        Runtime runtime = {};
+        int32_t syncInterval = 0;
+        uint32_t presentFlags = 0;
+        bool allowsTearing = false;
+        PresentMode presentMode = {};
     };
 }
