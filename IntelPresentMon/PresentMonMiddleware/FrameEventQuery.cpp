@@ -4,6 +4,7 @@
 #include "../Interprocess/source/Interprocess.h"
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../Interprocess/source/IntrospectionHelpers.h"
+#include "../Interprocess/source/PmStatusError.h"
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/Exception.h"
 #include "../CommonUtilities/Memory.h"
@@ -23,14 +24,14 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 {
 	if (queryElements.empty()) {
 		pmlog_error("Frame query requires at least one query element").diag();
-		throw Except<util::Exception>("Empty frame query");
+		throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Empty frame query");
 	}
 
 	// TODO: pass in from middleware cache rather than marshalling over anew from comms
 	const auto pIntro = comms.GetIntrospectionRoot();
 	if (!pIntro) {
 		pmlog_error("Failed to acquire introspection root for frame query").diag();
-		throw Except<util::Exception>("No introspection root for frame query");
+		throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "No introspection root for frame query");
 	}
 	// TODO: consider direct use (unwrapped)
 	pmapi::intro::Root introRoot{ pIntro, [](const PM_INTROSPECTION_ROOT* p) {
@@ -67,7 +68,7 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 		if (!pmapi::intro::MetricTypeIsFrameEvent(metricView.GetType())) {
 			pmlog_error("Non-frame metric used in frame query")
 				.pmwatch(metricView.Introspect().GetSymbol()).diag();
-			throw Except<util::Exception>("Frame query contains non-frame metric");
+			throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Frame query contains non-frame metric");
 		}
 
 		if (q.stat != PM_STAT_NONE) {
@@ -81,7 +82,7 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 		if (frameTypeSize == 0) {
 			pmlog_error("Unsupported frame query data type")
 				.pmwatch(metricView.Introspect().GetSymbol()).diag();
-			throw Except<util::Exception>("Unsupported frame query data type");
+			throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Unsupported frame query data type");
 		}
 
 		if (q.deviceId != ipc::kUniversalDeviceId) {
@@ -101,7 +102,7 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 			pmlog_error("Metric not supported by device in frame query")
 				.pmwatch(metricView.Introspect().GetSymbol())
 				.pmwatch(q.deviceId).diag();
-			throw Except<util::Exception>("Metric not supported by device in frame query");
+			throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Metric not supported by device in frame query");
 		}
 
 		const auto arraySize = deviceMetricInfo->GetArraySize();
@@ -110,7 +111,7 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 				.pmwatch(metricView.Introspect().GetSymbol())
 				.pmwatch(q.arrayIndex)
 				.pmwatch(arraySize).diag();
-			throw Except<util::Exception>("Frame query array index out of bounds");
+			throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Frame query array index out of bounds");
 		}
 
 		const auto alignment = GetDataTypeAlignment(frameType);
@@ -126,7 +127,7 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 				pmlog_error("Telemetry ring missing for metric in frame query")
 					.pmwatch(metricView.Introspect().GetSymbol())
 					.pmwatch(q.deviceId).diag();
-				throw Except<util::Exception>("Telemetry ring missing for metric in frame query");
+				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Telemetry ring missing for metric in frame query");
 			}
 
 			cmd.metricId = q.metric;
@@ -144,7 +145,7 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 			if (cmd.gatherType == PM_DATA_TYPE_VOID) {
 				pmlog_error("Unsupported frame metric in frame query")
 					.pmwatch(metricView.Introspect().GetSymbol()).diag();
-				throw Except<util::Exception>("Unsupported frame metric in frame query");
+				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Unsupported frame metric in frame query");
 			}
 
 			const auto gatherTypeSize = ipc::intro::GetDataTypeSize(cmd.gatherType);
@@ -153,13 +154,13 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 					.pmwatch(metricView.Introspect().GetSymbol())
 					.pmwatch(gatherTypeSize)
 					.pmwatch(frameTypeSize).diag();
-				throw Except<util::Exception>("Frame query type mismatch");
+				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Frame query type mismatch");
 			}
 		}
 		else {
 			pmlog_error("Invalid device id in frame query")
 				.pmwatch(q.deviceId).diag();
-			throw Except<util::Exception>("Invalid device id in frame query");
+			throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Invalid device id in frame query");
 		}
 
 		q.dataOffset = blobCursor;
@@ -337,7 +338,7 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 			.pmwatch(metricView.Introspect().GetSymbol())
 			.pmwatch(metricView.IntrospectType().GetSymbol())
 			.pmwatch((int)q.metric).diag();
-		throw Except<util::Exception>("Unexpected frame metric in frame query");
+		throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Unexpected frame metric in frame query");
 	}
 	return cmd;
 }

@@ -1269,7 +1269,7 @@ static void ReportMetrics(
     {
         if (activeFrameEventQuery != nullptr) {
             pmlog_error("Frame event query already registered").diag();
-            throw Except<util::Exception>("Frame event query already registered");
+            throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_QUOTA_EXCEEDED, "Frame event query already registered");
         }
         const auto pQuery = new PM_FRAME_QUERY{ queryElements, *pComms };
         activeFrameEventQuery = pQuery;

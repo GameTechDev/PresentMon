@@ -23,4 +23,6 @@
 		X_(STATUS, MIDDLEWARE_MISSING_ENDPOINT, "Middleware Missing Endpoint", "", "A required endpoint function was not found in the Middleware DLL") \
 		X_(STATUS, MIDDLEWARE_VERSION_LOW, "Middleware Version Low", "", "Middleware DLL version was found to be too low for compatibility") \
 		X_(STATUS, MIDDLEWARE_VERSION_HIGH, "Middleware Version High", "", "Middleware DLL version was found to be too high for compatibility") \
-		X_(STATUS, MIDDLEWARE_SERVICE_MISMATCH, "Middleware Service Mismatch", "", "Middleware DLL build ID does not match that of the service")
+		X_(STATUS, MIDDLEWARE_SERVICE_MISMATCH, "Middleware Service Mismatch", "", "Middleware DLL build ID does not match that of the service") \
+		X_(STATUS, QUERY_MALFORMED, "Query Malformed", "", "There are errors or inconsistencies in the elements of the query being registered") \
+		X_(STATUS, QUERY_QUOTA_EXCEEDED, "Query Quota Exceeded", "", "Limit on the number of concurrently registered queries is exceeded (1 max for frame queries)")
