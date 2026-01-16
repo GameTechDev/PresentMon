@@ -71,16 +71,7 @@ namespace pmon::mid
 	{
 		const double period = util::GetTimestampPeriodSeconds();
 		qpcFrequency_ = period == 0.0 ? 0 : uint64_t(1.0 / period + 0.5);
-		Open_();
-	}
-
-	FrameMetricsSource::~FrameMetricsSource()
-	{
-		Close_();
-	}
-
-	void FrameMetricsSource::Open_()
-	{
+		// open the data store from ipc
 		comms_.OpenFrameDataStore(processId_);
 		pStore_ = &comms_.GetFrameDataStore(processId_);
 		sessionStartQpc_ = uint64_t(pStore_->bookkeeping.startQpc);
@@ -88,16 +79,22 @@ namespace pmon::mid
 		nextFrameSerial_ = range.first;
 	}
 
-	void FrameMetricsSource::Close_()
+	FrameMetricsSource::~FrameMetricsSource()
 	{
-		if (pStore_ == nullptr) {
-			return;
+		// close the data store
+		try {
+			if (pStore_ == nullptr) {
+				return;
+			}
+			comms_.CloseFrameDataStore(processId_);
+			pStore_ = nullptr;
+			nextFrameSerial_ = 0;
+			sessionStartQpc_ = 0;
+			swapChains_.clear();
 		}
-		comms_.CloseFrameDataStore(processId_);
-		pStore_ = nullptr;
-		nextFrameSerial_ = 0;
-		sessionStartQpc_ = 0;
-		swapChains_.clear();
+		catch (...) {
+			pmlog_error(util::ReportException("Error closing frame data store"));
+		}
 	}
 
 	void FrameMetricsSource::ProcessNewFrames_()

@@ -43,8 +43,6 @@ namespace pmon::mid
 		std::vector<util::metrics::FrameMetrics> Consume(size_t maxFrames);
 
 	private:
-		void Open_();
-		void Close_();
 		void ProcessNewFrames_();
 
 		ipc::MiddlewareComms& comms_;
