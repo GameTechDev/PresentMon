@@ -41,6 +41,7 @@ namespace pmon::mid
 		FrameMetricsSource& operator=(FrameMetricsSource&&) = delete;
 
 		std::vector<util::metrics::FrameMetrics> Consume(size_t maxFrames);
+		const util::QpcConverter& GetQpcConverter() const;
 
 	private:
 		void ProcessNewFrames_();

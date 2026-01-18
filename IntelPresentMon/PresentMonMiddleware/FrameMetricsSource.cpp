@@ -161,4 +161,10 @@ namespace pmon::mid
 		return output;
 	}
 
+	const util::QpcConverter& FrameMetricsSource::GetQpcConverter() const
+	{
+		assert(qpcConverter_);
+		return *qpcConverter_;
+	}
+
 }

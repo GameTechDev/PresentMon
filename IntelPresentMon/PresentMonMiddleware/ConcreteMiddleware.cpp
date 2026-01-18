@@ -1286,7 +1286,7 @@ static void ReportMetrics(
 
     void mid::ConcreteMiddleware::ConsumeFrameEvents(const PM_FRAME_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t& numFrames)
     {
-        const auto frames_to_copy = numFrames;
+        const auto framesToCopy = numFrames;
         numFrames = 0;
 
         auto sourceIter = frameMetricsSources.find(processId);
@@ -1295,11 +1295,14 @@ static void ReportMetrics(
             throw Except<util::Exception>(std::format("Failed to find frame metrics source for pid {} in ConsumeFrameEvents", processId));
         }
 
-        if (frames_to_copy == 0) {
+        if (framesToCopy == 0) {
             return;
         }
 
-        auto frames = sourceIter->second->Consume(frames_to_copy);
+        auto&& [storePid, source] = *sourceIter;
+        // TODO: consider making consume return one frame at a time (eliminate need for heap alloc)
+        auto frames = source->Consume(framesToCopy);
+        assert(frames.size() <= framesToCopy);
         for (const auto& frameMetrics : frames) {
             pQuery->GatherToBlob(pBlob, frameMetrics);
             pBlob += pQuery->GetBlobSize();

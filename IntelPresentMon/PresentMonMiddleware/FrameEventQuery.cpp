@@ -59,7 +59,8 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 				introRoot.FindDevice(q.deviceId);
 			}
 			catch (const pmapi::LookupException&) {
-				pmlog_error(util::ReportException("Registering frame query"));
+				pmlog_error(util::ReportException("Failed to find device ID while registering frame query"))
+					.diag();
 				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Invalid device ID");
 			}
 		}
@@ -108,11 +109,8 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 			cmd.metricId = q.metric;
 			cmd.gatherType = frameType;
 			cmd.blobOffset = uint32_t(blobCursor);
-			cmd.frameMetricsOffset = 0u;
 			cmd.deviceId = q.deviceId;
 			cmd.arrayIdx = q.arrayIndex;
-			cmd.isOptional = false;
-			cmd.qpcToMs = 0.0;
 		}
 		else if (q.deviceId == ipc::kUniversalDeviceId) {
 			cmd = MapQueryElementToFrameGatherCommand_(q, blobCursor, metricView);
@@ -160,17 +158,14 @@ size_t PM_FRAME_QUERY::GetBlobSize() const
 
 PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherCommand_(const PM_QUERY_ELEMENT& q, size_t blobByteCursor, const pmapi::intro::MetricView& metricView)
 {
-	const double qpcToMs = util::GetTimestampPeriodSeconds() * 1000.0;
-
-	GatherCommand_ cmd{};
-	cmd.metricId = q.metric;
-	cmd.gatherType = metricView.GetDataTypeInfo().GetFrameType();
-	cmd.blobOffset = uint32_t(blobByteCursor);
-	cmd.frameMetricsOffset = 0u;
-	cmd.deviceId = q.deviceId;
-	cmd.arrayIdx = q.arrayIndex;
-	cmd.isOptional = false;
-	cmd.qpcToMs = 0.0;
+	GatherCommand_ cmd{
+		.metricId = q.metric,
+		.gatherType = metricView.GetDataTypeInfo().GetFrameType(),
+		.blobOffset = uint32_t(blobByteCursor),
+		.frameMetricsOffset = std::numeric_limits<uint32_t>::max(),
+		.deviceId = q.deviceId,
+		.arrayIdx = q.arrayIndex,
+	};
 
 	switch (q.metric) {
 	case PM_METRIC_ALLOWS_TEARING:
@@ -240,11 +235,13 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 		break;
 	case PM_METRIC_CPU_FRAME_TIME:
 	case PM_METRIC_BETWEEN_APP_START:
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msCPUTime);
 		break;
 	case PM_METRIC_GPU_LATENCY:
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msGPULatency);
 		break;
 	case PM_METRIC_GPU_TIME:
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msGPUTime);
 		break;
 	case PM_METRIC_GPU_BUSY:
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msGPUBusy);
@@ -253,6 +250,7 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msGPUWait);
 		break;
 	case PM_METRIC_DROPPED_FRAMES:
+		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, isDroppedFrame);
 		break;
 	case PM_METRIC_ANIMATION_ERROR:
 		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msAnimationError);
@@ -288,10 +286,17 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 			.pmwatch((int)q.metric).diag();
 		throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Unexpected frame metric in frame query");
 	}
+	if (cmd.frameMetricsOffset == std::numeric_limits<uint32_t>::max()) {
+		pmlog_error("Frame metrics offset not set")
+			.pmwatch(metricView.Introspect().GetSymbol())
+			.pmwatch((int)q.metric);
+		throw Except<>("Frame metrics offset not set in command mapping");
+	}
 	return cmd;
 }
 
-void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t* pBlobBytes, const util::metrics::FrameMetrics& frameMetrics)
+void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t* pBlobBytes,
+	const util::metrics::FrameMetrics& frameMetrics) const
 {
 	const auto pFrameMemberBytes = reinterpret_cast<const uint8_t*>(&frameMetrics) + cmd.frameMetricsOffset;
 	// metrics relating to display decay to NaN when frame was dropped/not displayed at all
@@ -344,7 +349,7 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 		break;
 	case PM_DATA_TYPE_STRING:
 	case PM_DATA_TYPE_VOID:
-		pmlog_error("Unsupported frame data type");
+		pmlog_error("Unsupported frame data type").pmwatch((int)cmd.gatherType);
 		break;
 	}
 }
@@ -373,7 +378,7 @@ void PM_FRAME_QUERY::GatherFromTelemetry_(const GatherCommand_& cmd, uint8_t* pB
 	case PM_DATA_TYPE_UINT32:
 	case PM_DATA_TYPE_STRING:
 	case PM_DATA_TYPE_VOID:
-		pmlog_error("Unsupported telemetry data type");
+		pmlog_error("Unsupported telemetry data type").pmwatch((int)cmd.gatherType);
 		break;
 	}
 }

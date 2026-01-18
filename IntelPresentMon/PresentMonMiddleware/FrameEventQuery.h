@@ -37,20 +37,19 @@ private:
 	struct GatherCommand_
 	{
 		PM_METRIC metricId;
-		PM_DATA_TYPE gatherType;
+		PM_DATA_TYPE gatherType = PM_DATA_TYPE_VOID;
 		uint32_t blobOffset;
 		// offset into FrameMetrics struct from metric calculator
-		uint32_t frameMetricsOffset;
-		uint32_t deviceId;
-		uint32_t arrayIdx;
+		uint32_t frameMetricsOffset = 0;
+		uint32_t deviceId = 0;
+		uint32_t arrayIdx = 0;
 		// indicates whether the source data is gatherType or optional<gatherType>
-		bool isOptional;
-		// for qpc values that need conversion to milliseconds
-		double qpcToMs;
+		bool isOptional = false;
 	};
 	// functions
 	static GatherCommand_ MapQueryElementToFrameGatherCommand_(const PM_QUERY_ELEMENT& q, size_t blobCursor, const pmapi::intro::MetricView& metricView);
-	static void GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t* pBlobBytes, const pmon::util::metrics::FrameMetrics& frameMetrics);
+	void GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t* pBlobBytes,
+		const pmon::util::metrics::FrameMetrics& frameMetrics) const;
 	void GatherFromTelemetry_(const GatherCommand_& cmd, uint8_t* pBlobBytes, int64_t searchQpc,
 		const pmon::ipc::TelemetryMap& teleMap) const;
 	// data
