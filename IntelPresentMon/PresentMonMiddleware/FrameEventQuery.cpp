@@ -116,21 +116,6 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 		}
 		else if (q.deviceId == ipc::kUniversalDeviceId) {
 			cmd = MapQueryElementToFrameGatherCommand_(q, blobCursor, metricView);
-
-			if (cmd.gatherType == PM_DATA_TYPE_VOID) {
-				pmlog_error("Unsupported frame metric in frame query")
-					.pmwatch(metricView.Introspect().GetSymbol()).diag();
-				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Unsupported frame metric in frame query");
-			}
-
-			const auto gatherTypeSize = ipc::intro::GetDataTypeSize(cmd.gatherType);
-			if (gatherTypeSize != frameTypeSize) {
-				pmlog_error("Frame query type mismatch")
-					.pmwatch(metricView.Introspect().GetSymbol())
-					.pmwatch(gatherTypeSize)
-					.pmwatch(frameTypeSize).diag();
-				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Frame query type mismatch");
-			}
 		}
 		else {
 			pmlog_error("Invalid device id in frame query")
@@ -309,31 +294,12 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t* pBlobBytes, const util::metrics::FrameMetrics& frameMetrics)
 {
 	const auto pFrameMemberBytes = reinterpret_cast<const uint8_t*>(&frameMetrics) + cmd.frameMetricsOffset;
-	if (cmd.metricId == PM_METRIC_CPU_FRAME_TIME || cmd.metricId == PM_METRIC_BETWEEN_APP_START) {
-		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) = frameMetrics.msCPUTime;
-		return;
-	}
-	if (cmd.metricId == PM_METRIC_GPU_TIME) {
-		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) = frameMetrics.msGPUTime;
-		return;
-	}
-	if (cmd.metricId == PM_METRIC_DROPPED_FRAMES) {
-		*reinterpret_cast<bool*>(pBlobBytes + cmd.blobOffset) =	frameMetrics.isDroppedFrame;
-		return;
-	}
-	if (cmd.metricId == PM_METRIC_PRESENT_START_TIME) {
-		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) = frameMetrics.presentStartMs;
-		return;
-	} 
-	if (cmd.metricId == PM_METRIC_CPU_START_TIME) {
-		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) = frameMetrics.cpuStartMs;
-		return;
-	}
-	if (frameMetrics.screenTimeQpc == 0 &&
-		(cmd.metricId == PM_METRIC_DISPLAYED_TIME ||
-			cmd.metricId == PM_METRIC_DISPLAY_LATENCY ||
-			cmd.metricId == PM_METRIC_UNTIL_DISPLAYED ||
-			cmd.metricId == PM_METRIC_BETWEEN_DISPLAY_CHANGE)) {
+	// metrics relating to display decay to NaN when frame was dropped/not displayed at all
+	if (frameMetrics.isDroppedFrame && (
+		cmd.metricId == PM_METRIC_DISPLAYED_TIME ||
+		cmd.metricId == PM_METRIC_DISPLAY_LATENCY ||
+		cmd.metricId == PM_METRIC_UNTIL_DISPLAYED ||
+		cmd.metricId == PM_METRIC_BETWEEN_DISPLAY_CHANGE)) {
 		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) =
 			std::numeric_limits<double>::quiet_NaN();
 		return;
