@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "RawFrameDataWriter.h"
 #include <CommonUtilities/str/String.h>
@@ -47,20 +47,60 @@ namespace p2c::pmon
                     if (metric.GetType() == PM_METRIC_TYPE_DYNAMIC) {
                         pmlog_error("Specified metric does not support frame query").raise<::pmon::util::Exception>();
                     }
+                    const auto& deviceInfos = metric.GetDeviceMetricInfo();
+                    const bool isGraphicsAdapter = !deviceInfos.empty() &&
+                        deviceInfos.front().GetDevice().GetType() == PM_DEVICE_TYPE_GRAPHICS_ADAPTER;
                     elements.push_back(RawFrameQueryElementDefinition{
                         .metricId = metricLookup.at(metricSymbol),
-                        .deviceId = metric.GetDeviceMetricInfo().front().GetDevice().GetType() ==
-                            PM_DEVICE_TYPE_GRAPHICS_ADAPTER ? activeDeviceId : 0,
+                        .deviceId = isGraphicsAdapter ? activeDeviceId : 0,
                     });
                 }
                 catch (...) {
                     pmlog_error("Failed to add metric").pmwatch(metricSymbol);
                 }
             }
-            if (elements.empty()) {
-                pmlog_error("No valid metrics specified for frame event capture").raise<::pmon::util::Exception>();
-            }
             return elements;
+        }
+
+        void FilterUnavailableMetrics_(std::vector<RawFrameQueryElementDefinition>& elements, uint32_t activeDeviceId,
+            const pmapi::intro::Root& introRoot)
+        {
+            std::vector<RawFrameQueryElementDefinition> filtered;
+            filtered.reserve(elements.size());
+            for (const auto& element : elements) {
+                // special quasi-frame metrics
+                if (element.metricId == PM_METRIC_APPLICATION ||
+                    element.metricId == (PM_METRIC)PM_METRIC_INTERNAL_PROCESS_ID_) {
+                    filtered.push_back(element);
+                    continue;
+                }
+                const auto& metric = introRoot.FindMetric(element.metricId);
+                const auto checkDeviceId = element.deviceId != 0 ? element.deviceId : activeDeviceId;
+                bool available = false;
+                for (auto&& dmi : metric.GetDeviceMetricInfo()) {
+                    if (auto devId = dmi.GetDevice().GetId(); devId == checkDeviceId || devId == 0) {
+                        if (dmi.IsAvailable() && dmi.GetArraySize() > 0) {
+                            available = true;
+                            break;
+                        }
+                    }
+                }
+                if (!available) {
+                    pmlog_warn("Metric not available for active device")
+                        .pmwatch(metric.Introspect().GetSymbol())
+                        .pmwatch(checkDeviceId);
+                    continue;
+                }
+                // TODO: remove this temp check for static metrics
+                // since we are not filling yet
+                if (metric.GetType() == PM_METRIC_TYPE_STATIC) {
+                    pmlog_warn("Static metrics in frame query currently unsupported")
+                        .pmwatch(metric.Introspect().GetSymbol());
+                    continue;
+                }
+                filtered.push_back(element);
+            }
+            elements = std::move(filtered);
         }
 
         class StreamFlagPreserver_
@@ -406,6 +446,10 @@ namespace p2c::pmon
         }
         else {
             elements = GetDefaultRawFrameDataMetricList(activeDeviceId, opt.enableTimestampColumn);
+        }
+        FilterUnavailableMetrics_(elements, activeDeviceId, introRoot);
+        if (elements.empty()) {
+            pmlog_error("No valid metrics specified for frame event capture").raise<::pmon::util::Exception>();
         }
         pQueryElementContainer = std::make_unique<QueryElementContainer_>(std::move(elements), session,
             introRoot, ::pmon::util::str::ToNarrow(processName), procTracker.GetPid());
