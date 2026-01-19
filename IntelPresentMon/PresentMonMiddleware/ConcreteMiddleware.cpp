@@ -1267,20 +1267,13 @@ static void ReportMetrics(
 
     PM_FRAME_QUERY* mid::ConcreteMiddleware::RegisterFrameEventQuery(std::span<PM_QUERY_ELEMENT> queryElements, uint32_t& blobSize)
     {
-        if (activeFrameEventQuery != nullptr) {
-            pmlog_error("Frame event query already registered").diag();
-            throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_QUOTA_EXCEEDED, "Frame event query already registered");
-        }
-        activeFrameEventQuery = new PM_FRAME_QUERY{ queryElements, *pComms, GetIntrospectionRoot() };
-        blobSize = (uint32_t)activeFrameEventQuery->GetBlobSize();
-        return activeFrameEventQuery;
+        auto pQuery = new PM_FRAME_QUERY{ queryElements, *pComms, GetIntrospectionRoot() };
+        blobSize = (uint32_t)pQuery->GetBlobSize();
+        return pQuery;
     }
 
     void mid::ConcreteMiddleware::FreeFrameEventQuery(const PM_FRAME_QUERY* pQuery)
     {
-        if (pQuery == activeFrameEventQuery) {
-            activeFrameEventQuery = nullptr;
-        }
         delete const_cast<PM_FRAME_QUERY*>(pQuery);
     }
 

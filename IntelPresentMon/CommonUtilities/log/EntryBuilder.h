@@ -51,11 +51,22 @@ namespace pmon::util::log
 		EntryBuilder& watch(const char* symbol, const T& value) noexcept
 		{
 			try {
-				if (note_.empty()) {
-					note_ += std::format("   {} => {}", symbol, value);
+				if constexpr (std::is_pointer_v<std::remove_reference_t<T>>) {
+					const void* p = static_cast<const void*>(value);
+					if (note_.empty()) {
+						note_ += std::format("   {} => {}", symbol, p);
+					}
+					else {
+						note_ += std::format("\n     {} => {}", symbol, p);
+					}
 				}
 				else {
-					note_ += std::format("\n     {} => {}", symbol, value);
+					if (note_.empty()) {
+						note_ += std::format("   {} => {}", symbol, value);
+					}
+					else {
+						note_ += std::format("\n     {} => {}", symbol, value);
+					}
 				}
 			}
 			catch (...) { pmlog_panic_("Failed to format watch in EntryBuilder"); }
