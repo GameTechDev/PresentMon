@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../PresentMonAPI2/PresentMonAPI.h"
 #include <span>
 #include <optional>
@@ -14,6 +14,7 @@ namespace pmon::mid
 		virtual const PM_INTROSPECTION_ROOT* GetIntrospectionData() = 0;
 		virtual void FreeIntrospectionData(const PM_INTROSPECTION_ROOT* pRoot) = 0;
 		virtual PM_STATUS StartStreaming(uint32_t processId) = 0;
+		virtual PM_STATUS StartPlaybackTracking(uint32_t processId, bool isBackpressured) = 0;
 		virtual PM_STATUS StopStreaming(uint32_t processId) = 0;
 		virtual PM_STATUS SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs) = 0;
 		virtual PM_STATUS SetEtwFlushPeriod(std::optional<uint32_t> periodMs) = 0;

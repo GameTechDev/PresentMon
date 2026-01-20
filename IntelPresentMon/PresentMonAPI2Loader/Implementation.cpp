@@ -1,4 +1,4 @@
-#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
+﻿#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
 #include <IntelPresentMon/PresentMonAPI2/Internal.h>
 #include <IntelPresentMon/PresentMonAPI2/PresentMonDiagnostics.h>
 #include <IntelPresentMon/CommonUtilities/win/WinAPI.h>
@@ -27,6 +27,7 @@ PM_STATUS(*pFunc_pmOpenSession_)(PM_SESSION_HANDLE*) = nullptr;
 PM_STATUS(*pFunc_pmOpenSessionWithPipe_)(PM_SESSION_HANDLE* pHandle, const char*) = nullptr;
 PM_STATUS(*pFunc_pmCloseSession_)(PM_SESSION_HANDLE) = nullptr;
 PM_STATUS(*pFunc_pmStartTrackingProcess_)(PM_SESSION_HANDLE, uint32_t) = nullptr;
+PM_STATUS(*pFunc_pmStartPlaybackTracking_)(PM_SESSION_HANDLE, uint32_t, uint32_t) = nullptr;
 PM_STATUS(*pFunc_pmStopTrackingProcess_)(PM_SESSION_HANDLE, uint32_t) = nullptr;
 PM_STATUS(*pFunc_pmGetIntrospectionRoot_)(PM_SESSION_HANDLE, const PM_INTROSPECTION_ROOT**) = nullptr;
 PM_STATUS(*pFunc_pmFreeIntrospectionRoot_)(const PM_INTROSPECTION_ROOT*) = nullptr;
@@ -156,6 +157,7 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 		RESOLVE(pmOpenSessionWithPipe);
 		RESOLVE(pmCloseSession);
 		RESOLVE(pmStartTrackingProcess);
+		RESOLVE(pmStartPlaybackTracking);
 		RESOLVE(pmStopTrackingProcess);
 		RESOLVE(pmGetIntrospectionRoot);
 		RESOLVE(pmFreeIntrospectionRoot);
@@ -227,6 +229,11 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStartTrackingProcess(PM_SESSION_HANDLE handle
 {
 	LoadEndpointsIfEmpty_();
 	return pFunc_pmStartTrackingProcess_(handle, process_id);
+}
+PRESENTMON_API2_EXPORT PM_STATUS pmStartPlaybackTracking(PM_SESSION_HANDLE handle, uint32_t process_id, uint32_t isBackpressured)
+{
+	LoadEndpointsIfEmpty_();
+	return pFunc_pmStartPlaybackTracking_(handle, process_id, isBackpressured);
 }
 PRESENTMON_API2_EXPORT PM_STATUS pmStopTrackingProcess(PM_SESSION_HANDLE handle, uint32_t process_id)
 {

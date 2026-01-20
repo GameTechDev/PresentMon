@@ -1,4 +1,4 @@
-#include <memory>
+﻿#include <memory>
 #include <crtdbg.h>
 #include <unordered_map>
 #include "../PresentMonMiddleware/ConcreteMiddleware.h"
@@ -164,6 +164,20 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStartTrackingProcess(PM_SESSION_HANDLE handle
 		// TODO: consider tracking resource usage for process tracking to validate Start/Stop pairing
 		// TODO: middleware (StartStreaming) should not return status codes
 		return LookupMiddleware_(handle).StartStreaming(processId);
+	}
+	catch (...) {
+		const auto code = util::GeneratePmStatus();
+		pmlog_error(util::ReportException()).code(code);
+		return code;
+	}
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmStartPlaybackTracking(PM_SESSION_HANDLE handle, uint32_t processId, uint32_t isBackpressured)
+{
+	try {
+		// TODO: consider tracking resource usage for process tracking to validate Start/Stop pairing
+		// TODO: middleware (StartStreaming) should not return status codes
+		return LookupMiddleware_(handle).StartPlaybackTracking(processId, isBackpressured != 0);
 	}
 	catch (...) {
 		const auto code = util::GeneratePmStatus();

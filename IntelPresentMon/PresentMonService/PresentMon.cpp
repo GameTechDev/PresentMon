@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "PresentMon.h"
 
@@ -16,7 +16,8 @@ PresentMon::PresentMon(svc::FrameBroadcaster& broadcaster,
 	bool isRealtime)
 	:
 	broadcaster_{ broadcaster },
-	etwLogger_{ util::win::WeAreElevated() }
+	etwLogger_{ util::win::WeAreElevated() },
+	isRealtime_{ isRealtime }
 {
 	if (isRealtime) {
 		pSession_ = std::make_unique<RealtimePresentMonSession>(broadcaster);

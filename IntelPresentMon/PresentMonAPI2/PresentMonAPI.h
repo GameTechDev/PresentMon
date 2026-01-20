@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #ifdef PRESENTMONAPI2_EXPORTS
@@ -44,6 +44,7 @@ extern "C" {
 		PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH,
 		PM_STATUS_QUERY_MALFORMED,
 		PM_STATUS_QUERY_QUOTA_EXCEEDED,
+		PM_STATUS_MODE_MISMATCH,
 	};
 
 	enum PM_METRIC
@@ -399,6 +400,9 @@ extern "C" {
 	PRESENTMON_API2_EXPORT PM_STATUS pmCloseSession(PM_SESSION_HANDLE handle);
 	// command the service to process and make available frame/metric data for the specified process id
 	PRESENTMON_API2_EXPORT PM_STATUS pmStartTrackingProcess(PM_SESSION_HANDLE handle, uint32_t process_id);
+	// command the service to process and make available frame/metric data for playback of the specified process id
+	// isBackpressured controls whether playback uses backpressured frame rings
+	PRESENTMON_API2_EXPORT PM_STATUS pmStartPlaybackTracking(PM_SESSION_HANDLE handle, uint32_t process_id, uint32_t isBackpressured);
 	// command the service to cease processing and exporting frame/metric data for the specified process id
 	PRESENTMON_API2_EXPORT PM_STATUS pmStopTrackingProcess(PM_SESSION_HANDLE handle, uint32_t process_id);
 	// allocate and populate a tree data structure describing the available metrics, devices, etc.

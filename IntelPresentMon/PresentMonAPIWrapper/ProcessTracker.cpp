@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ProcessTracker.h"
 #include <IntelPresentMon/PresentMonAPIWrapperCommon/Exception.h>
 #include <format>
@@ -46,12 +46,19 @@ namespace pmapi
 
     ProcessTracker::operator bool() const { return !Empty(); }
 
-    ProcessTracker::ProcessTracker(PM_SESSION_HANDLE hSession, uint32_t pid)
+    ProcessTracker::ProcessTracker(PM_SESSION_HANDLE hSession, uint32_t pid, bool isPlayback, bool isBackpressured)
         :
         pid_{ pid },
         hSession_{ hSession }
     {
-        if (auto sta = pmStartTrackingProcess(hSession_, pid_); sta != PM_STATUS_SUCCESS) {
+        PM_STATUS sta = PM_STATUS_SUCCESS;
+        if (isPlayback) {
+            sta = pmStartPlaybackTracking(hSession_, pid_, isBackpressured ? 1u : 0u);
+        }
+        else {
+            sta = pmStartTrackingProcess(hSession_, pid_);
+        }
+        if (sta != PM_STATUS_SUCCESS) {
             throw ApiErrorException{ sta, "start process tracking call failed" };
         }
     }

@@ -128,6 +128,36 @@ namespace pmon::mid
         return PM_STATUS_SUCCESS;
     }
 
+    PM_STATUS ConcreteMiddleware::StartPlaybackTracking(uint32_t targetPid, bool isBackpressured)
+    {
+        try {
+            auto res = pActionClient->DispatchSync(StartTracking::Params{
+                .targetPid = targetPid,
+                .isPlayback = true,
+                .isBackpressured = isBackpressured
+            });
+            // Initialize client in client map using returned nsm name
+            auto iter = presentMonStreamClients.find(targetPid);
+            if (iter == presentMonStreamClients.end()) {
+                presentMonStreamClients.emplace(targetPid,
+                    std::make_unique<StreamClient>(std::move(res.nsmFileName), false));
+            }
+            auto sourceIter = frameMetricsSources.find(targetPid);
+            if (sourceIter == frameMetricsSources.end()) {
+                frameMetricsSources.emplace(targetPid,
+                    std::make_unique<FrameMetricsSource>(*pComms, targetPid, kFrameMetricsPerSwapChainCapacity));
+            }
+        }
+        catch (...) {
+            const auto code = util::GeneratePmStatus();
+            pmlog_error(util::ReportException()).code(code).diag();
+            return code;
+        }
+
+        pmlog_info(std::format("Started playback tracking pid [{}]", targetPid)).diag();
+        return PM_STATUS_SUCCESS;
+    }
+
     PM_STATUS ConcreteMiddleware::StopStreaming(uint32_t targetPid)
     {
         try {

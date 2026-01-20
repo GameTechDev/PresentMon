@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "PresentMonSession.h"
@@ -94,6 +94,10 @@ public:
 	{
 		return broadcaster_;
 	}
+	bool IsPlayback() const
+	{
+		return !isRealtime_;
+	}
 	bool CheckDeviceMetricUsage(uint32_t deviceId) const
 	{
 		std::shared_lock lk{ metricDeviceUsageMtx_ };
@@ -133,6 +137,7 @@ private:
 	svc::FrameBroadcaster& broadcaster_;
 	svc::EtwLogger etwLogger_;
 	std::unique_ptr<PresentMonSession> pSession_;
+	bool isRealtime_ = true;
 	mutable std::shared_mutex metricDeviceUsageMtx_;
 	std::unordered_set<uint32_t> metricDeviceUsage_;
 	using DeviceUsageEvtKey = std::pair<const char*, uint32_t>;

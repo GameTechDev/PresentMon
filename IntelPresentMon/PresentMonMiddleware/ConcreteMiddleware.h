@@ -176,6 +176,7 @@ namespace pmon::mid
 		const PM_INTROSPECTION_ROOT* GetIntrospectionData() override;
 		void FreeIntrospectionData(const PM_INTROSPECTION_ROOT* pRoot) override;
 		PM_STATUS StartStreaming(uint32_t processId) override;
+		PM_STATUS StartPlaybackTracking(uint32_t processId, bool isBackpressured) override;
 		PM_STATUS StopStreaming(uint32_t processId) override;
 		PM_STATUS SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs) override;
 		PM_STATUS SetEtwFlushPeriod(std::optional<uint32_t> periodMs) override;

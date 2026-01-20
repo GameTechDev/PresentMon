@@ -1,4 +1,4 @@
-#include "MultiClient.h"
+﻿#include "MultiClient.h"
 #include "CliOptions.h"
 #include <PresentMonAPIWrapperCommon/EnumMap.h>
 #include <PresentMonAPIWrapper/FixedQuery.h>
@@ -162,7 +162,7 @@ public:
 		double recordingStopSec, double pollInterval)
 	{
 		// start tracking target
-		auto tracker = pSession_->TrackProcess(targetPid);
+		auto tracker = pSession_->TrackProcess(targetPid, true, false);
 		// get the waiter and the timer clocks ready
 		using Clock = std::chrono::high_resolution_clock;
 		const auto startTime = Clock::now();

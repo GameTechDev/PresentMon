@@ -92,7 +92,7 @@ void RunPlaybackFrameQuery()
         // track the pid we know to be active in the ETL (1268 for dwm in gold_0)
         pid = opt.processId.AsOptional().value_or(1268);
     }
-    auto tracker = api.TrackProcess(pid);
+    auto tracker = api.TrackProcess(pid, true, false);
     std::this_thread::sleep_for(500ms);
 
     uint32_t frameCount = 0;
@@ -171,7 +171,7 @@ void RunPlaybackDynamicQuery()
     PM_END_FIXED_QUERY query{ api, 200., 50., 1, 1 };
 
     // track the pid we know to be active in the ETL (1268 for dwm in gold_0)
-    auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268));
+    auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268), true, false);
 
     pmon::util::IntervalWaiter waiter{ 0.1 };
 
@@ -245,7 +245,7 @@ void RunPlaybackDynamicQueryN()
         PM_END_FIXED_QUERY query{ api, 200., 50., 1, 1 };
 
         // track the pid we know to be active in the ETL (1268 for dwm in gold_0)
-        auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268));
+        auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268), true, false);
 
         pmon::util::IntervalWaiter waiter{ 0.1 };
 

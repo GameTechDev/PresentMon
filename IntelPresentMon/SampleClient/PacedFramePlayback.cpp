@@ -196,7 +196,7 @@ int PacedFramePlaybackTest(std::unique_ptr<pmapi::Session> pSession)
 			pmapi::FixedQueryElement msInstrumentedLatency{ this, PM_METRIC_INSTRUMENTED_LATENCY, PM_STAT_NONE };
 		PM_END_FIXED_QUERY query{ *pSession, 512 };
 
-		auto tracker = pSession->TrackProcess(*opt.processId);
+		auto tracker = pSession->TrackProcess(*opt.processId, true, false);
 
 		std::ofstream csv{ *opt.outputPath };
 		if (!csv.is_open()) {

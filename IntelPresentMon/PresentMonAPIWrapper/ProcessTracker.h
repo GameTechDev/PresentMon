@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
 
 namespace pmapi
@@ -28,7 +28,7 @@ namespace pmapi
         operator bool() const;
     private:
         // functions
-        ProcessTracker(PM_SESSION_HANDLE hSession, uint32_t pid);
+        ProcessTracker(PM_SESSION_HANDLE hSession, uint32_t pid, bool isPlayback, bool isBackpressured);
         // zero out members, useful after emptying via move or reset
         void Clear_() noexcept;
         // data

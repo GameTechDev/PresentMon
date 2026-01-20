@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
 #include <format>
 
@@ -38,6 +38,12 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
+			const bool serviceIsPlayback = ctx.pPmon->IsPlayback();
+			if (serviceIsPlayback != in.isPlayback) {
+				pmlog_error("StartTracking playback mode mismatch")
+					.pmwatch(serviceIsPlayback).pmwatch(in.isPlayback);
+				throw util::Except<ActionExecutionError>(PM_STATUS_MODE_MISMATCH);
+			}
 			std::string nsmFileName;
 			// TODO: replace PresentMon container system and directly return the segment
 			// from a single "StartStreaming" replacement call

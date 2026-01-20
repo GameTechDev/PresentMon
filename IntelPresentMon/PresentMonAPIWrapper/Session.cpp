@@ -1,4 +1,4 @@
-#include "Session.h"
+﻿#include "Session.h"
 #include <IntelPresentMon/PresentMonAPIWrapperCommon/Exception.h>
 #include <IntelPresentMon/PresentMonAPIWrapperCommon/EnumMap.h>
 #include <IntelPresentMon/PresentMonAPIWrapperCommon/Introspection.h>
@@ -77,10 +77,10 @@ namespace pmapi
         return pIntrospectionRootCache_ = std::make_shared<intro::Root>(pRoot, [](const PM_INTROSPECTION_ROOT* ptr) { pmFreeIntrospectionRoot(ptr); });
     }
 
-    ProcessTracker Session::TrackProcess(uint32_t pid)
+    ProcessTracker Session::TrackProcess(uint32_t pid, bool isPlayback, bool isBackpressured)
     {
         assert(handle_);
-        return { handle_, pid };
+        return { handle_, pid, isPlayback, isBackpressured };
     }
 
     DynamicQuery Session::RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> elements, double winSizeMs, double metricOffsetMs)
