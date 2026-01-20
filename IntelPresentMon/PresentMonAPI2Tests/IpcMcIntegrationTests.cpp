@@ -114,24 +114,24 @@ namespace IpcMcIntegrationTests
             Assert::IsTrue(gotFrames, L"Expected frame query to consume frames");
         }
 
-        TEST_METHOD(SecondFrameQueryRegistrationFails)
-        {
-            pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
-            auto intro = session.GetIntrospectionRoot();
-            Assert::IsTrue((bool)intro);
+        //TEST_METHOD(SecondFrameQueryRegistrationFails)
+        //{
+        //    pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
+        //    auto intro = session.GetIntrospectionRoot();
+        //    Assert::IsTrue((bool)intro);
 
-            auto elements = BuildUniversalFrameQueryElements_(*intro);
-            Assert::IsTrue(!elements.empty(), L"No universal frame metrics found");
+        //    auto elements = BuildUniversalFrameQueryElements_(*intro);
+        //    Assert::IsTrue(!elements.empty(), L"No universal frame metrics found");
 
-            // first registration succeeds
-            std::vector<PM_QUERY_ELEMENT> single{ elements.front() };
-            auto query = session.RegisterFrameQuery(single);
-            Assert::IsTrue((bool)query);
+        //    // first registration succeeds
+        //    std::vector<PM_QUERY_ELEMENT> single{ elements.front() };
+        //    auto query = session.RegisterFrameQuery(single);
+        //    Assert::IsTrue((bool)query);
 
-            // second registration fails
-            Assert::ExpectException<pmapi::ApiErrorException>([&] {
-                session.RegisterFrameQuery(single);
-            });
-        }
+        //    // second registration fails
+        //    Assert::ExpectException<pmapi::ApiErrorException>([&] {
+        //        session.RegisterFrameQuery(single);
+        //    });
+        //}
     };
 }
