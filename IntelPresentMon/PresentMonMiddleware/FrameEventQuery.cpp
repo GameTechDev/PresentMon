@@ -357,22 +357,25 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 void PM_FRAME_QUERY::GatherFromTelemetry_(const GatherCommand_& cmd, uint8_t* pBlobBytes, int64_t searchQpc,
 	const ipc::TelemetryMap& teleMap) const
 {
+	const auto ResolveValue = [&, this]<typename T>() -> const T& {
+		// resolve ring by metric id + array index
+		auto& ring = teleMap.FindRing<T>(cmd.metricId)[cmd.arrayIdx];
+		// find nearest sample in ring and return value
+		return ring.Nearest(searchQpc).value;
+	};
+
 	switch (cmd.gatherType) {
 	case PM_DATA_TYPE_UINT64:
-		*reinterpret_cast<uint64_t*>(pBlobBytes + cmd.blobOffset) =
-			teleMap.FindRing<uint64_t>(cmd.metricId)[cmd.arrayIdx].At(searchQpc).value;
+		*reinterpret_cast<uint64_t*>(pBlobBytes + cmd.blobOffset) = ResolveValue.operator()<uint64_t>();
 		break;
 	case PM_DATA_TYPE_DOUBLE:
-		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) =
-			teleMap.FindRing<double>(cmd.metricId)[cmd.arrayIdx].At(searchQpc).value;
+		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) = ResolveValue.operator()<double>();
 		break;
 	case PM_DATA_TYPE_ENUM:
-		*reinterpret_cast<int*>(pBlobBytes + cmd.blobOffset) =
-			teleMap.FindRing<int>(cmd.metricId)[cmd.arrayIdx].At(searchQpc).value;
+		*reinterpret_cast<int*>(pBlobBytes + cmd.blobOffset) = ResolveValue.operator()<int>();
 		break;
 	case PM_DATA_TYPE_BOOL:
-		*reinterpret_cast<bool*>(pBlobBytes + cmd.blobOffset) =
-			teleMap.FindRing<bool>(cmd.metricId)[cmd.arrayIdx].At(searchQpc).value;
+		*reinterpret_cast<bool*>(pBlobBytes + cmd.blobOffset) = ResolveValue.operator()<bool>();
 		break;
 	case PM_DATA_TYPE_INT32:
 	case PM_DATA_TYPE_UINT32:

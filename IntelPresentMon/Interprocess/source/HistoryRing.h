@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ShmRing.h"
 
 namespace pmon::ipc
@@ -37,6 +37,10 @@ namespace pmon::ipc
         {
             return samples_.At(serial);
         }
+        const Sample& Nearest(uint64_t timestamp) const
+        {
+            return samples_.At(NearestSerial(timestamp));
+        }
         std::pair<size_t, size_t> GetSerialRange() const
         {
             return samples_.GetSerialRange();
@@ -66,12 +70,21 @@ namespace pmon::ipc
         // If the timestamp is outside the stored range, clamps to first/last.
         size_t NearestSerial(uint64_t timestamp) const
         {
+            const auto range = samples_.GetSerialRange();
+            if (range.first == range.second) {
+                return range.first;
+            }
+
             // First serial with timestamp >= requested
             size_t serial = LowerBoundSerial(timestamp);
 
+            if (serial >= range.second) {
+                return range.second - 1;
+            }
+
             // Check whether the previous sample is actually closer.
             // but only if there is a sample available before this one
-            if (serial > samples_.GetSerialRange().first) {
+            if (serial > range.first) {
                 const auto nextTimestamp = At(serial).timestamp;
                 const auto prevTimestamp = At(serial - 1).timestamp;
                 const uint64_t dPrev = timestamp - prevTimestamp;
