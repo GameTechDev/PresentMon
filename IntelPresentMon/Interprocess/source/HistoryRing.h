@@ -1,5 +1,8 @@
 ﻿#pragma once
 #include "ShmRing.h"
+#include "../../CommonUtilities/log/Verbose.h"
+#include <format>
+#include <string>
 
 namespace pmon::ipc
 {
@@ -71,14 +74,38 @@ namespace pmon::ipc
         size_t NearestSerial(uint64_t timestamp) const
         {
             const auto range = samples_.GetSerialRange();
+            // empty ring case
             if (range.first == range.second) {
+                pmlog_verb(util::log::V::ipc_ring)("Reading from empty history ring");
                 return range.first;
             }
 
             // First serial with timestamp >= requested
             size_t serial = LowerBoundSerial(timestamp);
 
+            // case where requested timestamp is newer than newest sample
             if (serial >= range.second) {
+                // log timing and dump ring contents in case where ring has insufficient samples
+                if (util::log::GlobalPolicy::VCheck(util::log::V::ipc_ring)) {
+                    std::string recentSamples;
+                    const size_t sampleCount = range.second - range.first;
+                    const size_t maxSamples = 12;
+                    const size_t dumpCount = sampleCount < maxSamples ? sampleCount : maxSamples;
+                    const size_t startSerial = range.second - dumpCount;
+                    for (size_t s = startSerial; s < range.second; ++s) {
+                        const auto& sample = At(s);
+                        if (!recentSamples.empty()) {
+                            recentSamples += "\n";
+                        }
+                        recentSamples += std::format("ts={} value={}", sample.timestamp, sample.value);
+                    }
+                    pmlog_verb(util::log::V::ipc_ring)("Target timestamp past end of history ring")
+                        .pmwatch(timestamp)
+                        .pmwatch(range.second)
+                        .pmwatch(int64_t(At(serial - 1).timestamp) - int64_t(timestamp))
+                        .watch("recent_samples", recentSamples);
+                }
+
                 return range.second - 1;
             }
 
@@ -94,6 +121,10 @@ namespace pmon::ipc
                 }
             }
 
+            pmlog_verb(util::log::V::ipc_ring)("Found nearest sample")
+                .pmwatch(timestamp)
+                .pmwatch(serial)
+                .pmwatch(int64_t(At(serial).timestamp) - int64_t(timestamp));
             return serial;
         }
         // Calls func(sample) for each sample whose timestamp is in [start, end].
