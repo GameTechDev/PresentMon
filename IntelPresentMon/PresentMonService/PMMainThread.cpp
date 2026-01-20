@@ -16,6 +16,7 @@
 #include "CliOptions.h"
 #include "Registry.h"
 #include "GlobalIdentifiers.h"
+#include <array>
 #include <ranges>
 #include "../CommonUtilities/IntervalWaiter.h"
 #include "../CommonUtilities/PrecisionWaiter.h"
@@ -85,12 +86,46 @@ void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
     }
 }
 
+struct DerivedGpuTelemetry_
+{
+    double memUtilization = 0.0;
+    std::array<double, 5> fanSpeedPercent{};
+    size_t fanSpeedPercentCount = 0;
+};
+
+static DerivedGpuTelemetry_ CalculateDerivedGpuTelemetry_(
+    const ipc::GpuDataStore& store,
+    const PresentMonPowerTelemetryInfo& s) noexcept
+{
+    DerivedGpuTelemetry_ out{};
+    if (store.statics.memSize > 0) {
+        out.memUtilization = 100.0 * (static_cast<double>(s.gpu_mem_used_b) /
+            static_cast<double>(store.statics.memSize));
+    }
+
+    const size_t maxFanCount = store.statics.maxFanSpeedRpm.size();
+    const size_t fanCount = std::min(maxFanCount, s.fan_speed_rpm.size());
+    out.fanSpeedPercentCount = fanCount;
+    for (size_t i = 0; i < fanCount; ++i) {
+        const auto maxRpm = store.statics.maxFanSpeedRpm[i];
+        if (maxRpm > 0) {
+            out.fanSpeedPercent[i] = s.fan_speed_rpm[i] / static_cast<double>(maxRpm);
+        }
+        else {
+            out.fanSpeedPercent[i] = 0.0;
+        }
+    }
+
+    return out;
+}
+
 // Translate a single power-telemetry sample into the rings for one GPU store.
 // This mirrors the CPU placeholder approach but handles double/uint64/bool rings.
 static void PopulateGpuTelemetryRings_(
     ipc::GpuDataStore& store,
     const PresentMonPowerTelemetryInfo& s) noexcept
 {
+    const auto derived = CalculateDerivedGpuTelemetry_(store, s);
     for (auto&& [metric, ringVariant] : store.telemetryData.Rings()) {
         switch (metric) {
 
@@ -178,6 +213,17 @@ static void PopulateGpuTelemetryRings_(
             break;
         }
 
+        case PM_METRIC_GPU_FAN_SPEED_PERCENT:
+        {
+            auto& ringVect =
+                std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant);
+            const size_t n = std::min(ringVect.size(), derived.fanSpeedPercentCount);
+            for (size_t i = 0; i < n; ++i) {
+                ringVect[i].Push(derived.fanSpeedPercent[i], s.qpc);
+            }
+            break;
+        }
+
         // VRAM-related doubles
         case PM_METRIC_GPU_MEM_POWER:
             std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
@@ -213,6 +259,11 @@ static void PopulateGpuTelemetryRings_(
         case PM_METRIC_GPU_MEM_READ_BANDWIDTH:
             std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
                 .Push(s.gpu_mem_read_bandwidth_bps, s.qpc);
+            break;
+
+        case PM_METRIC_GPU_MEM_UTILIZATION:
+            std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant)[0]
+                .Push(derived.memUtilization, s.qpc);
             break;
 
             // -------- uint64 metrics --------

@@ -512,11 +512,6 @@ namespace InterimBroadcasterTests
                     m.GetType() != PM_METRIC_TYPE_DYNAMIC_FRAME) {
                     continue;
                 }
-                // some polled metrics are derived in middleware thus not present in shm
-                if (m.GetId() == PM_METRIC_GPU_MEM_UTILIZATION ||
-                    m.GetId() == PM_METRIC_GPU_FAN_SPEED_PERCENT) {
-                    continue;
-                }
                 // check availability for target gpu
                 size_t arraySize = 0;
                 for (auto&& di : m.GetDeviceMetricInfo()) {
