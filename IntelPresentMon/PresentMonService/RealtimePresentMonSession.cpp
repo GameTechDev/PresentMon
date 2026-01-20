@@ -236,6 +236,9 @@ void RealtimePresentMonSession::AddPresents(
     if (session_active_.load(std::memory_order_acquire)) {
         if (trace_session_.mStartTimestamp.QuadPart != 0) {
             streamer_.SetStartQpc(trace_session_.mStartTimestamp.QuadPart);
+            if (pBroadcaster) {
+                pBroadcaster->SetStartQpc(trace_session_.mStartTimestamp.QuadPart);
+            }
         }
     }
 

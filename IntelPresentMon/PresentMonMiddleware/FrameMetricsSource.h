@@ -51,6 +51,7 @@ namespace pmon::mid
 		uint32_t processId_ = 0;
 		size_t perSwapChainCapacity_ = 0;
 		size_t nextFrameSerial_ = 0;
+		// optional to defer creation until we are sure store is fully initialized (startQpc)
 		std::optional<util::QpcConverter> qpcConverter_;
 		std::unordered_map<uint64_t, SwapChainState> swapChains_;
 	};

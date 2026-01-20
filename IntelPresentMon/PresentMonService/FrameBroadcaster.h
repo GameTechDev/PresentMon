@@ -21,7 +21,6 @@ namespace pmon::svc
 		std::shared_ptr<Segment> RegisterTarget(uint32_t pid, bool isPlayback, bool isBackpressured)
 		{
             std::lock_guard lk{ mtx_ };
-            const auto startQpc = util::GetCurrentTimestamp();
             auto pSegment = comms_.CreateOrGetFrameDataSegment(pid, isBackpressured);
             auto& store = pSegment->GetStore();
             auto& book = store.bookkeeping;
@@ -29,16 +28,14 @@ namespace pmon::svc
             if (!book.bookkeepingInitComplete) {
                 book.processId = pid; // we can also init this static here
                 book.isPlayback = isPlayback;
-                book.startQpc = startQpc;
+                book.startQpc = startQpc_; // this member is optionally lazy initialized
                 book.bookkeepingInitComplete = true;
             }
             else { // sanity checks for subsequent opens
-                if (book.processId != pid || book.isPlayback != isPlayback ||
-                    book.startQpc >= startQpc) {
+                if (book.processId != pid || book.isPlayback != isPlayback) {
                     pmlog_error("Mismatch in bookkeeping data")
                         .pmwatch(book.processId).pmwatch(pid)
-                        .pmwatch(book.isPlayback).pmwatch(isPlayback)
-                        .pmwatch(book.startQpc).pmwatch(startQpc);
+                        .pmwatch(book.isPlayback).pmwatch(isPlayback);
                 }
             }
             // initialize name/pid statics on new store segment creation
@@ -75,6 +72,7 @@ namespace pmon::svc
                 }
             }
         }
+
 		std::vector<uint32_t> GetPids() const
 		{
             std::lock_guard lk{ mtx_ };
@@ -84,9 +82,30 @@ namespace pmon::svc
         {
             return comms_.GetNamer();
         }
+        // TODO: consider how this works when multiple trace sessions (realtime and playback)
+        // are able to be in flight simultaneously
+        void SetStartQpc(int64_t startQpc)
+        {
+            if (startQpc_ == 0) {
+                std::lock_guard lk{ mtx_ };
+                // set qpc here so that future stores are initialized with it
+                startQpc_ = startQpc;
+                // make sure all existing stores get updated right now
+                for (auto pid : comms_.GetFramePids()) {
+                    try {
+                        auto pSeg = comms_.GetFrameDataSegment(pid);
+                        pSeg->GetStore().bookkeeping.startQpc = startQpc_;
+                    }
+                    catch (...) {
+                        pmlog_warn("Failed getting store for pid, might just be closure race").pmwatch(pid);
+                    }
+                }
+            }
+        }
 	private:
 		// data
 		ipc::ServiceComms& comms_;
         mutable std::mutex mtx_;
+        int64_t startQpc_ = 0;
 	};
 }

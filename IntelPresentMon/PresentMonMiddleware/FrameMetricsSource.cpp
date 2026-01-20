@@ -71,8 +71,6 @@ namespace pmon::mid
 		// open the data store from ipc
 		comms_.OpenFrameDataStore(processId_);
 		pStore_ = &comms_.GetFrameDataStore(processId_);
-		// TODO: potentially source qpc frequency from store's bookkeeping
-		qpcConverter_ = util::QpcConverter{ util::GetTimestampFrequencyUint64(), (uint64_t)pStore_->bookkeeping.startQpc};
 		const auto range = pStore_->frameData.GetSerialRange();
 		nextFrameSerial_ = range.first;
 	}
@@ -107,6 +105,14 @@ namespace pmon::mid
 		}
 		if (nextFrameSerial_ >= range.second) {
 			return;
+		}
+
+		// deferred initialization of the qpc converter is required because
+		// when the store is first created, start qpc is not yet populated (populates on
+		// first frame that is broadcasted)
+		if (!qpcConverter_) {
+			// TODO: potentially source qpc frequency from store's bookkeeping
+			qpcConverter_ = util::QpcConverter{ util::GetTimestampFrequencyUint64(), (uint64_t)pStore_->bookkeeping.startQpc };
 		}
 
 		for (size_t serial = nextFrameSerial_; serial < range.second; ++serial) {
