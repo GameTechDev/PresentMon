@@ -1191,7 +1191,7 @@ namespace InterimBroadcasterTests
 
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 19736;
-            auto tracker = session.TrackProcess(pid);
+            auto tracker = query.TrackProcess(pid, true, true);
 
             // sleep here to let the etw system warm up, and frames propagate
             std::this_thread::sleep_for(300ms);
@@ -1273,7 +1273,7 @@ namespace InterimBroadcasterTests
 
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
-            auto tracker = session.TrackProcess(pid);
+            auto tracker = query.TrackProcess(pid, true, true);
 
             // sleep here to let the etw system warm up, and frames propagate
             std::this_thread::sleep_for(300ms);
@@ -1319,7 +1319,8 @@ namespace InterimBroadcasterTests
             const auto total = count1 + count2 + count3;
             // known issue with PresentData is that it sometimes outputs 24 rogue frames at
             // the end for P00; we can ignore these for the time being, issue added to board
-            Assert::IsTrue(total == 1903u || total == 1927u);
+            Logger::WriteMessage(std::format("Total frames: {}\n", total).c_str());
+            Assert::IsTrue(total == 1902u);
         }
     };
 }
