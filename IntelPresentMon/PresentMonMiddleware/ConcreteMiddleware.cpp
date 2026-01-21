@@ -1306,7 +1306,7 @@ static void ReportMetrics(
 
     PM_FRAME_QUERY* mid::ConcreteMiddleware::RegisterFrameEventQuery(std::span<PM_QUERY_ELEMENT> queryElements, uint32_t& blobSize)
     {
-        auto pQuery = new PM_FRAME_QUERY{ queryElements, *pComms, GetIntrospectionRoot() };
+        auto pQuery = new PM_FRAME_QUERY{ queryElements, *this, *pComms, GetIntrospectionRoot() };
         blobSize = (uint32_t)pQuery->GetBlobSize();
         return pQuery;
     }
@@ -1336,7 +1336,7 @@ static void ReportMetrics(
         auto frames = source->Consume(framesToCopy);
         assert(frames.size() <= framesToCopy);
         for (const auto& frameMetrics : frames) {
-            pQuery->GatherToBlob(pBlob, frameMetrics);
+            pQuery->GatherToBlob(pBlob, processId, frameMetrics);
             pBlob += pQuery->GetBlobSize();
         }
 

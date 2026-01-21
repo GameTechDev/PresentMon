@@ -96,6 +96,10 @@ namespace pmon::ipc::intro
                     caps.Set(Metric, 1);
                 }
             }
+
+            if constexpr (IsCpuStaticMetric<Lookup>) {
+                caps.Set(Metric, 1);
+            }
         }
     } // namespace detail
 

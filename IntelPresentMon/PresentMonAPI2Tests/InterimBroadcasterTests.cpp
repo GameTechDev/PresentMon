@@ -1088,7 +1088,6 @@ namespace InterimBroadcasterTests
             Assert::AreEqual(0ull, range1.first);
             Assert::IsTrue(range2.first <= range1.second);
             Assert::IsTrue(range3.first <= range2.second);
-            Assert::AreEqual(1905ull, range3.second);
             // known issue with PresentData is that it sometimes outputs 24 rogue frames at
             // the end for P00; we can ignore these for the time being, issue added to board
             Assert::IsTrue(range3.second == 1905ull || range3.second == 1929ull);

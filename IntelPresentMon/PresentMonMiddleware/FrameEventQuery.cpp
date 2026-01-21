@@ -1,5 +1,6 @@
 ﻿// Copyright (C) 2017-2024 Intel Corporation
 #include "FrameEventQuery.h"
+#include "Middleware.h"
 #include "../PresentMonAPIWrapperCommon/Introspection.h"
 #include "../PresentMonAPIWrapperCommon/Exception.h"
 #include "../Interprocess/source/Interprocess.h"
@@ -19,9 +20,10 @@ namespace util = pmon::util;
 
 using namespace util;
 
-PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::MiddlewareComms& comms,
-	const pmapi::intro::Root& introRoot)
+PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, pmon::mid::Middleware& middleware,
+	ipc::MiddlewareComms& comms, const pmapi::intro::Root& introRoot)
 	:
+	middleware_{ middleware },
 	comms_{ comms }
 {
 	if (queryElements.empty()) {
@@ -34,7 +36,9 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 
 	for (auto& q : queryElements) {
 		const auto metricView = introRoot.FindMetric(q.metric);
-		if (!pmapi::intro::MetricTypeIsFrameEvent(metricView.GetType())) {
+		const auto metricType = metricView.GetType();
+		const bool isStaticMetric = metricType == PM_METRIC_TYPE_STATIC;
+		if (!pmapi::intro::MetricTypeIsFrameEvent(metricType) && !isStaticMetric) {
 			pmlog_error("Non-frame metric used in frame query")
 				.pmwatch(metricView.Introspect().GetSymbol()).diag();
 			throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Frame query contains non-frame metric");
@@ -74,27 +78,54 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 			return std::nullopt;
 		}();
 
-		if (!deviceMetricInfo.has_value() || !deviceMetricInfo->IsAvailable()) {
-			pmlog_error("Metric not supported by device in frame query")
-				.pmwatch(metricView.Introspect().GetSymbol())
-				.pmwatch(q.deviceId).diag();
-			throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Metric not supported by device in frame query");
+		if (!deviceMetricInfo.has_value()) {
+			if (!isStaticMetric || q.deviceId != ipc::kSystemDeviceId) {
+				pmlog_error("Metric not supported by device in frame query")
+					.pmwatch(metricView.Introspect().GetSymbol())
+					.pmwatch(q.deviceId).diag();
+				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Metric not supported by device in frame query");
+			}
+			if (q.arrayIndex != 0) {
+				pmlog_error("Frame query array index out of bounds")
+					.pmwatch(metricView.Introspect().GetSymbol())
+					.pmwatch(q.arrayIndex)
+					.pmwatch(1).diag();
+				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Frame query array index out of bounds");
+			}
 		}
+		else {
+			if (!deviceMetricInfo->IsAvailable()) {
+				pmlog_error("Metric not supported by device in frame query")
+					.pmwatch(metricView.Introspect().GetSymbol())
+					.pmwatch(q.deviceId).diag();
+				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Metric not supported by device in frame query");
+			}
 
-		const auto arraySize = deviceMetricInfo->GetArraySize();
-		if (q.arrayIndex >= arraySize) {
-			pmlog_error("Frame query array index out of bounds")
-				.pmwatch(metricView.Introspect().GetSymbol())
-				.pmwatch(q.arrayIndex)
-				.pmwatch(arraySize).diag();
-			throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Frame query array index out of bounds");
+			const auto arraySize = deviceMetricInfo->GetArraySize();
+			if (q.arrayIndex >= arraySize) {
+				pmlog_error("Frame query array index out of bounds")
+					.pmwatch(metricView.Introspect().GetSymbol())
+					.pmwatch(q.arrayIndex)
+					.pmwatch(arraySize).diag();
+				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Frame query array index out of bounds");
+			}
 		}
 
 		const auto alignment = ipc::intro::GetDataTypeAlignment(frameType);
 		blobCursor = util::PadToAlignment(blobCursor, alignment);
 
 		GatherCommand_ cmd{};
-		if (q.deviceId > 0 && q.deviceId <= ipc::kSystemDeviceId) {
+		cmd.metricId = q.metric;
+		cmd.gatherType = frameType;
+		cmd.blobOffset = uint32_t(blobCursor);
+		cmd.dataSize = (uint32_t)frameTypeSize;
+		cmd.deviceId = q.deviceId;
+		cmd.arrayIdx = q.arrayIndex;
+
+		if (isStaticMetric) {
+			cmd.isStatic = true;
+		}
+		else if (q.deviceId > 0 && q.deviceId <= ipc::kSystemDeviceId) {
 			const auto& teleMap = q.deviceId == ipc::kSystemDeviceId ?
 				comms_.GetSystemDataStore().telemetryData :
 				comms_.GetGpuDataStore(q.deviceId).telemetryData;
@@ -105,15 +136,10 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 					.pmwatch(q.deviceId).diag();
 				throw Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "Telemetry ring missing for metric in frame query");
 			}
-
-			cmd.metricId = q.metric;
-			cmd.gatherType = frameType;
-			cmd.blobOffset = uint32_t(blobCursor);
-			cmd.deviceId = q.deviceId;
-			cmd.arrayIdx = q.arrayIndex;
 		}
 		else if (q.deviceId == ipc::kUniversalDeviceId) {
 			cmd = MapQueryElementToFrameGatherCommand_(q, blobCursor, metricView);
+			cmd.dataSize = (uint32_t)frameTypeSize;
 		}
 		else {
 			pmlog_error("Invalid device id in frame query")
@@ -133,10 +159,13 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, ipc::M
 
 PM_FRAME_QUERY::~PM_FRAME_QUERY() = default;
 
-void PM_FRAME_QUERY::GatherToBlob(uint8_t* pBlobBytes, const util::metrics::FrameMetrics& frameMetrics) const
+void PM_FRAME_QUERY::GatherToBlob(uint8_t* pBlobBytes, uint32_t processId, const util::metrics::FrameMetrics& frameMetrics) const
 {
 	for (auto& cmd : gatherCommands_) {
-		if (cmd.deviceId == ipc::kUniversalDeviceId) {
+		if (cmd.isStatic) {
+			GatherFromStatic_(cmd, pBlobBytes, processId);
+		}
+		else if (cmd.deviceId == ipc::kUniversalDeviceId) {
 			GatherFromFrameMetrics_(cmd, pBlobBytes, frameMetrics);
 		}
 		else if (cmd.deviceId == ipc::kSystemDeviceId) {
@@ -352,6 +381,20 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 		pmlog_error("Unsupported frame data type").pmwatch((int)cmd.gatherType);
 		break;
 	}
+}
+
+void PM_FRAME_QUERY::GatherFromStatic_(const GatherCommand_& cmd, uint8_t* pBlobBytes, uint32_t processId) const
+{
+	const PM_QUERY_ELEMENT element{
+		.metric = cmd.metricId,
+		.stat = PM_STAT_NONE,
+		.deviceId = cmd.deviceId,
+		.arrayIndex = cmd.arrayIdx,
+		.dataOffset = (uint64_t)cmd.blobOffset,
+		.dataSize = (uint64_t)cmd.dataSize,
+	};
+
+	middleware_.PollStaticQuery(element, processId, pBlobBytes + cmd.blobOffset);
 }
 
 void PM_FRAME_QUERY::GatherFromTelemetry_(const GatherCommand_& cmd, uint8_t* pBlobBytes, int64_t searchQpc,

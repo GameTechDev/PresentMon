@@ -72,7 +72,9 @@ namespace pmon::ipc::intro
 	};
 	// static CPU
 	template<> struct IntrospectionCapsLookup<PM_METRIC_CPU_POWER_LIMIT> { static constexpr auto cpuCapBit = CpuTelemetryCapBits::cpu_power_limit; };
-	// TODO: what about name/vendor? (currently functioning as universal)
+	template<> struct IntrospectionCapsLookup<PM_METRIC_CPU_NAME> { using CpuStatic = std::true_type; };
+	template<> struct IntrospectionCapsLookup<PM_METRIC_CPU_VENDOR> { using CpuStatic = std::true_type; };
+	// TODO: consider additional static CPU metrics beyond name/vendor.
 
 
 	// concepts to help determine device-metric mapping type
@@ -81,6 +83,7 @@ namespace pmon::ipc::intro
 	template<class T> concept IsGpuDeviceMetricArray = requires { T::gpuCapBitArray; };
 	template<class T> concept IsGpuDeviceStaticMetric = requires { typename T::GpuDeviceStatic; };
 	template<class T> concept IsCpuMetric = requires { T::cpuCapBit; };
+	template<class T> concept IsCpuStaticMetric = requires { typename T::CpuStatic; };
 	template<class T> concept IsManualDisableMetric = requires { typename T::ManualDisable; };
 	template<class T> concept IsDerivedMetric = requires { typename T::Derived; };
 }
