@@ -34,10 +34,10 @@ namespace p2c::pmon
             elements.reserve(metricSymbols.size());
             for (auto& metricSymbol : metricSymbols) {
                 try {
-                    // special case for pid, which is not an api metric but needs to be available in headless
+                    // special case for pid to support headless output
                     if (metricSymbol == "PM_METRIC_INTERNAL_PROCESS_ID_") {
                         elements.push_back(RawFrameQueryElementDefinition{
-                            .metricId = (PM_METRIC)PM_METRIC_INTERNAL_PROCESS_ID_,
+                            .metricId = PM_METRIC_PROCESS_ID,
                         });
                         continue;
                     }
@@ -70,7 +70,7 @@ namespace p2c::pmon
             for (const auto& element : elements) {
                 // special quasi-frame metrics
                 if (element.metricId == PM_METRIC_APPLICATION ||
-                    element.metricId == (PM_METRIC)PM_METRIC_INTERNAL_PROCESS_ID_) {
+                    element.metricId == PM_METRIC_PROCESS_ID) {
                     filtered.push_back(element);
                     continue;
                 }
@@ -307,7 +307,7 @@ namespace p2c::pmon
                     annotationPtrs_.back()->columnName = "Application";
                     continue;
                 }
-                else if (el.metricId == (PM_METRIC)PM_METRIC_INTERNAL_PROCESS_ID_) {
+                else if (el.metricId == PM_METRIC_PROCESS_ID) {
                     annotationPtrs_.push_back(std::make_unique<PidAnnotation_>(pid));
                     annotationPtrs_.back()->columnName = "ProcessID";
                     continue;

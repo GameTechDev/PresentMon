@@ -151,6 +151,8 @@ namespace pmon::ipc
         switch (metric) {
         case PM_METRIC_APPLICATION:
             return statics.applicationName.c_str();
+        case PM_METRIC_PROCESS_ID:
+            return bookkeeping.processId;
         default:
             throw util::Except<PmStatusError>(PM_STATUS_QUERY_MALFORMED,
                 "Static metric not handled by frame data store");

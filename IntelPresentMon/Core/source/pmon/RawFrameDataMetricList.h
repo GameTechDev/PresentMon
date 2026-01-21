@@ -17,8 +17,6 @@ namespace p2c::pmon
         std::optional<uint32_t> index;
     };
 
-    constexpr int PM_METRIC_INTERNAL_PROCESS_ID_ = 4'021'373;
-
     inline std::vector<RawFrameQueryElementDefinition> GetDefaultRawFrameDataMetricList(uint32_t activeDeviceId, bool enableTimestamp)
     {
         namespace rn = std::ranges;
@@ -27,7 +25,7 @@ namespace p2c::pmon
         std::vector<Element> queryElements{
             // these first 2 are special cases filled by the writer logic
             Element{.metricId = PM_METRIC_APPLICATION, .deviceId = 0 },
-            Element{.metricId = (PM_METRIC)PM_METRIC_INTERNAL_PROCESS_ID_, .deviceId = 0 },
+            Element{.metricId = PM_METRIC_PROCESS_ID, .deviceId = 0 },
             Element{.metricId = PM_METRIC_SWAP_CHAIN_ADDRESS, .deviceId = 0 },
             Element{.metricId = PM_METRIC_PRESENT_RUNTIME, .deviceId = 0 },
             Element{.metricId = PM_METRIC_SYNC_INTERVAL, .deviceId = 0 },

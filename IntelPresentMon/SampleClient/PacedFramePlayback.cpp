@@ -167,6 +167,7 @@ int PacedFramePlaybackTest(std::unique_ptr<pmapi::Session> pSession)
 
 		PM_BEGIN_FIXED_FRAME_QUERY(FrameQuery)
 			pmapi::FixedQueryElement applicationName{ this, PM_METRIC_APPLICATION, PM_STAT_NONE };
+			pmapi::FixedQueryElement processId{ this, PM_METRIC_PROCESS_ID, PM_STAT_NONE };
 			pmapi::FixedQueryElement swapChain{ this, PM_METRIC_SWAP_CHAIN_ADDRESS, PM_STAT_NONE };
 			pmapi::FixedQueryElement presentRuntime{ this, PM_METRIC_PRESENT_RUNTIME, PM_STAT_NONE };
 			pmapi::FixedQueryElement syncInterval{ this, PM_METRIC_SYNC_INTERVAL, PM_STAT_NONE };
@@ -224,7 +225,12 @@ int PacedFramePlaybackTest(std::unique_ptr<pmapi::Session> pSession)
 					appName = query.applicationName.As<std::string>();
 				}
 				csv << appName << ",";
-				csv << *opt.processId << ",";
+				if (query.processId.IsAvailable()) {
+					csv << query.processId.As<uint32_t>() << ",";
+				}
+				else {
+					csv << *opt.processId << ",";
+				}
 				csv << std::hex << std::uppercase << "0x" << query.swapChain.As<uint64_t>()
 					<< std::dec << std::nouppercase << ",";
 				csv << TranslateGraphicsRuntime(query.presentRuntime.As<PM_GRAPHICS_RUNTIME>()) << ",";
