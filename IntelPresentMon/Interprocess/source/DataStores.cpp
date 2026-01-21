@@ -2,6 +2,7 @@
 #include "MetricCapabilities.h"
 #include "IntrospectionTransfer.h"
 #include "IntrospectionDataTypeMapping.h"
+#include "PmStatusError.h"
 #include "../../CommonUtilities/Meta.h"
 #include "../../CommonUtilities/Memory.h"
 #include "../../CommonUtilities/log/Verbose.h"
@@ -145,6 +146,17 @@ namespace pmon::ipc
         return totalBytes;
     }
 
+    StaticMetricValue FrameDataStore::FindStaticMetric(PM_METRIC metric) const
+    {
+        switch (metric) {
+        case PM_METRIC_APPLICATION:
+            return statics.applicationName.c_str();
+        default:
+            throw util::Except<PmStatusError>(PM_STATUS_QUERY_MALFORMED,
+                "Static metric not handled by frame data store");
+        }
+    }
+
     void PopulateTelemetryRings(TelemetryMap& telemetryData,
         const DataStoreSizingInfo& sizing,
         PM_DEVICE_TYPE deviceType)
@@ -160,9 +172,43 @@ namespace pmon::ipc
         return TelemetrySegmentBytes_(sizing, PM_DEVICE_TYPE_GRAPHICS_ADAPTER);
     }
 
+    StaticMetricValue GpuDataStore::FindStaticMetric(PM_METRIC metric) const
+    {
+        switch (metric) {
+        case PM_METRIC_GPU_VENDOR:
+            return int32_t(statics.vendor);
+        case PM_METRIC_GPU_NAME:
+            return statics.name.c_str();
+        case PM_METRIC_GPU_SUSTAINED_POWER_LIMIT:
+            return statics.sustainedPowerLimit;
+        case PM_METRIC_GPU_MEM_SIZE:
+            return statics.memSize;
+        case PM_METRIC_GPU_MEM_MAX_BANDWIDTH:
+            return statics.maxMemBandwidth;
+        default:
+            throw util::Except<PmStatusError>(PM_STATUS_QUERY_MALFORMED,
+                "Static metric not handled by gpu data store");
+        }
+    }
+
     size_t SystemDataStore::CalculateSegmentBytes(const DataStoreSizingInfo& sizing)
     {
         return TelemetrySegmentBytes_(sizing, PM_DEVICE_TYPE_SYSTEM);
+    }
+
+    StaticMetricValue SystemDataStore::FindStaticMetric(PM_METRIC metric) const
+    {
+        switch (metric) {
+        case PM_METRIC_CPU_VENDOR:
+            return int32_t(statics.cpuVendor);
+        case PM_METRIC_CPU_NAME:
+            return statics.cpuName.c_str();
+        case PM_METRIC_CPU_POWER_LIMIT:
+            return statics.cpuPowerLimit;
+        default:
+            throw util::Except<PmStatusError>(PM_STATUS_QUERY_MALFORMED,
+                "Static metric not handled by system data store");
+        }
     }
 }
 

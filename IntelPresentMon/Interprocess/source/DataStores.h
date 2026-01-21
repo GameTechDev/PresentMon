@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "SharedMemoryTypes.h"
 #include "ShmRing.h"
 #include "TelemetryMap.h"
@@ -35,6 +35,15 @@ namespace pmon::ipc
         bool backpressured = false;
     };
 
+    using StaticMetricValue = std::variant<
+        double,
+        uint64_t,
+        int32_t,
+        uint32_t,
+        bool,
+        int64_t,
+        const char*>;
+
 	struct FrameDataStore
 	{
         FrameDataStore(ShmSegmentManager& segMan, size_t cap, bool backpressured)
@@ -63,6 +72,8 @@ namespace pmon::ipc
         } bookkeeping{};
 		ShmRing<FrameData> frameData;
 
+        StaticMetricValue FindStaticMetric(PM_METRIC metric) const;
+
         static size_t CalculateSegmentBytes(const DataStoreSizingInfo& sizing);
 	};
 
@@ -89,6 +100,8 @@ namespace pmon::ipc
         } statics;
         TelemetryMap telemetryData;
 
+        StaticMetricValue FindStaticMetric(PM_METRIC metric) const;
+
         static size_t CalculateSegmentBytes(const DataStoreSizingInfo& sizing);
     };
 
@@ -109,6 +122,8 @@ namespace pmon::ipc
             double cpuPowerLimit;
         } statics;
         TelemetryMap telemetryData;
+
+        StaticMetricValue FindStaticMetric(PM_METRIC metric) const;
 
         static size_t CalculateSegmentBytes(const DataStoreSizingInfo& sizing);
     };

@@ -7,6 +7,7 @@
 #include <memory>
 #include <cassert>
 #include <cstdlib>
+#include <type_traits>
 #include <Shlwapi.h>
 #include <numeric>
 #include <algorithm>
@@ -1281,18 +1282,26 @@ static void ReportMetrics(
 
     void ConcreteMiddleware::PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob)
     {
-        auto& ispec = GetIntrospectionRoot();
-        auto metricView = ispec.FindMetric(element.metric);
-        if (metricView.GetType() != int(PM_METRIC_TYPE_STATIC)) {
-            pmlog_error(std::format("dynamic metric [{}] in static query poll", metricView.Introspect().GetSymbol())).diag();
-            throw Except<util::Exception>("dynamic metric in static query poll");
-        }
+        const ipc::StaticMetricValue value = [&]() {
+            if (element.deviceId == ipc::kSystemDeviceId) {
+                return pComms->GetSystemDataStore().FindStaticMetric(element.metric);
+            }
+            if (element.deviceId == ipc::kUniversalDeviceId) {
+                return pComms->GetFrameDataStore(processId).FindStaticMetric(element.metric);
+            }
+            return pComms->GetGpuDataStore(element.deviceId).FindStaticMetric(element.metric);
+        }();
 
-        auto elementSize = GetDataTypeSize(metricView.GetDataTypeInfo().GetPolledType());
-
-        CopyStaticMetricData(element.metric, element.deviceId, pBlob, 0, elementSize);
-
-        return;
+        std::visit([&](auto&& v) {
+            using T = std::decay_t<decltype(v)>;
+            // need stringcopy instead of memcpy for string type data (null terminator)
+            if constexpr (std::is_same_v<T, const char*>) {
+                strncpy_s(reinterpret_cast<char*>(pBlob), PM_MAX_PATH, v, _TRUNCATE);
+            }
+            else {
+                std::memcpy(pBlob, &v, sizeof(v));
+            }
+        }, value);
     }
 
     PM_FRAME_QUERY* mid::ConcreteMiddleware::RegisterFrameEventQuery(std::span<PM_QUERY_ELEMENT> queryElements, uint32_t& blobSize)

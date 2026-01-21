@@ -41,4 +41,8 @@ namespace pmon::ipc
 	{
 		return impl::ShmMakeUnique_<T>(name.c_str(), pSegmentManager, std::forward<P>(params)...);
 	}
+	inline std::string_view ToStringView(const ShmString& value)
+	{
+		return std::string_view{ value.c_str(), value.size() };
+	}
 }

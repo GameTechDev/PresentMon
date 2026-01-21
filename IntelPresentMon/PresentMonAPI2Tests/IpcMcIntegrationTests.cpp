@@ -10,7 +10,7 @@
 
 #include <chrono>
 #include <format>
-#include <thread>
+#include <string>
 #include <vector>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -68,6 +68,21 @@ namespace IpcMcIntegrationTests
         return elements;
     }
 
+    static std::optional<uint32_t> FindFirstGpuDeviceId_(const pmapi::intro::Root& intro)
+    {
+        for (auto device : intro.GetDevices()) {
+            if (device.GetType() == PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
+                return device.GetId();
+            }
+        }
+        return std::nullopt;
+    }
+
+    static std::string GetVendorName_(const pmapi::intro::Root& intro, PM_DEVICE_VENDOR vendor)
+    {
+        return intro.FindEnumKey(PM_ENUM_DEVICE_VENDOR, static_cast<int>(vendor)).GetName();
+    }
+
     TEST_CLASS(IpcMcIntegrationTests)
     {
         TestFixture fixture_;
@@ -114,24 +129,46 @@ namespace IpcMcIntegrationTests
             Assert::IsTrue(gotFrames, L"Expected frame query to consume frames");
         }
 
-        //TEST_METHOD(SecondFrameQueryRegistrationFails)
-        //{
-        //    pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
-        //    auto intro = session.GetIntrospectionRoot();
-        //    Assert::IsTrue((bool)intro);
+        TEST_METHOD(StaticQueryReturnsExpectedValues)
+        {
+            pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
+            auto intro = session.GetIntrospectionRoot();
+            Assert::IsTrue((bool)intro);
 
-        //    auto elements = BuildUniversalFrameQueryElements_(*intro);
-        //    Assert::IsTrue(!elements.empty(), L"No universal frame metrics found");
+            const auto gpuDeviceId = FindFirstGpuDeviceId_(*intro);
+            Assert::IsTrue(gpuDeviceId.has_value(), L"No GPU device found");
 
-        //    // first registration succeeds
-        //    std::vector<PM_QUERY_ELEMENT> single{ elements.front() };
-        //    auto query = session.RegisterFrameQuery(single);
-        //    Assert::IsTrue((bool)query);
+            auto presenter = fixture_.LaunchPresenter();
+            auto tracker = session.TrackProcess(presenter.GetId());
 
-        //    // second registration fails
-        //    Assert::ExpectException<pmapi::ApiErrorException>([&] {
-        //        session.RegisterFrameQuery(single);
-        //    });
-        //}
+            const auto cpuName = pmapi::PollStatic(session, tracker, PM_METRIC_CPU_NAME, ipc::kSystemDeviceId)
+                .As<std::string>();
+            Logger::WriteMessage(std::format("CPU name: {}\n", cpuName).c_str());
+            Assert::IsTrue(!cpuName.empty(), L"CPU name empty");
+
+            const auto cpuVendor = pmapi::PollStatic(session, tracker, PM_METRIC_CPU_VENDOR, ipc::kSystemDeviceId)
+                .As<PM_DEVICE_VENDOR>();
+            const auto cpuVendorName = GetVendorName_(*intro, cpuVendor);
+            Logger::WriteMessage(std::format("CPU vendor: {}\n", cpuVendorName).c_str());
+            Assert::IsTrue(!cpuVendorName.empty(), L"CPU vendor name empty");
+
+            const auto gpuName = pmapi::PollStatic(session, tracker, PM_METRIC_GPU_NAME, *gpuDeviceId)
+                .As<std::string>();
+            const auto gpuVendor = pmapi::PollStatic(session, tracker, PM_METRIC_GPU_VENDOR, *gpuDeviceId)
+                .As<PM_DEVICE_VENDOR>();
+            const auto gpuMemSize = pmapi::PollStatic(session, tracker, PM_METRIC_GPU_MEM_SIZE, *gpuDeviceId)
+                .As<uint64_t>();
+            Logger::WriteMessage(std::format("GPU name: {}\n", gpuName).c_str());
+            Assert::IsTrue(!gpuName.empty(), L"GPU name empty");
+            const auto gpuVendorName = GetVendorName_(*intro, gpuVendor);
+            Logger::WriteMessage(std::format("GPU vendor: {}\n", gpuVendorName).c_str());
+            Assert::IsTrue(!gpuVendorName.empty(), L"GPU vendor name empty");
+            Logger::WriteMessage(std::format("GPU memory size: {}\n", gpuMemSize).c_str());
+            Assert::IsTrue(gpuMemSize > 0, L"GPU memory size not available");
+
+            const auto appName = pmapi::PollStatic(session, tracker, PM_METRIC_APPLICATION).As<std::string>();
+            Logger::WriteMessage(std::format("Application name: {}\n", appName).c_str());
+            Assert::IsTrue(appName == "PresentBench.exe", L"Unexpected application name");
+        }
     };
 }
