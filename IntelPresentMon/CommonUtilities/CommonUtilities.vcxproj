@@ -157,6 +157,7 @@
     <ClCompile Include="log\TimePoint.cpp" />
     <ClCompile Include="log\Verbose.cpp" />
     <ClCompile Include="mc\MetricsCalculator.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorBase.cpp" />
     <ClCompile Include="mc\MetricsCalculatorCpuGpu.cpp" />
     <ClCompile Include="mc\MetricsCalculatorDisplay.cpp" />
     <ClCompile Include="mc\MetricsCalculatorInput.cpp" />
