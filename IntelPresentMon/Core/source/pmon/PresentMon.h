@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <optional>
@@ -41,7 +41,7 @@ namespace p2c::pmon
 		std::optional<uint32_t> GetPid() const;
 		const pmapi::ProcessTracker& GetTracker() const;
 		std::shared_ptr<RawFrameDataWriter> MakeRawFrameDataWriter(std::wstring path, std::optional<std::wstring> statsPath,
-			uint32_t pid, std::wstring procName);
+			uint32_t pid);
 		std::optional<uint32_t> GetSelectedAdapter() const;
 		const pmapi::intro::Root& GetIntrospectionRoot() const;
 		pmapi::Session& GetSession();

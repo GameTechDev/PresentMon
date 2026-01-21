@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Overlay.h"
 #include <Core/source/gfx/layout/GraphElement.h>
@@ -450,7 +450,7 @@ namespace p2c::kern
                     return std::nullopt;
                 }
             }();
-            pWriter = { pm->MakeRawFrameDataWriter(std::move(fullPath), std::move(fullStatsPath), proc.pid, proc.name) };
+            pWriter = { pm->MakeRawFrameDataWriter(std::move(fullPath), std::move(fullStatsPath), proc.pid) };
         }
         else if (!active && pWriter) {
             pWriter.reset();

@@ -1,7 +1,6 @@
 ﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "RawFrameDataWriter.h"
-#include <CommonUtilities/str/String.h>
 #include <CommonUtilities/Exception.h>
 #include <PresentMonAPIWrapper/FrameQuery.h>
 #include <PresentMonAPIWrapperCommon/EnumMap.h>
@@ -12,7 +11,6 @@
 
 namespace p2c::pmon
 {
-    using ::pmon::util::str::ToNarrow;
     namespace rn = std::ranges;
     namespace vi = rn::views;
 
@@ -34,13 +32,6 @@ namespace p2c::pmon
             elements.reserve(metricSymbols.size());
             for (auto& metricSymbol : metricSymbols) {
                 try {
-                    // special case for pid to support headless output
-                    if (metricSymbol == "PM_METRIC_INTERNAL_PROCESS_ID_") {
-                        elements.push_back(RawFrameQueryElementDefinition{
-                            .metricId = PM_METRIC_PROCESS_ID,
-                        });
-                        continue;
-                    }
                     const auto metricId = metricLookup.at(metricSymbol);
                     const auto& metric = introRoot.FindMetric(metricId);
                     // make sure metric is valid for a frame query
@@ -68,12 +59,6 @@ namespace p2c::pmon
             std::vector<RawFrameQueryElementDefinition> filtered;
             filtered.reserve(elements.size());
             for (const auto& element : elements) {
-                // special quasi-frame metrics
-                if (element.metricId == PM_METRIC_APPLICATION ||
-                    element.metricId == PM_METRIC_PROCESS_ID) {
-                    filtered.push_back(element);
-                    continue;
-                }
                 const auto& metric = introRoot.FindMetric(element.metricId);
                 const auto checkDeviceId = element.deviceId != 0 ? element.deviceId : activeDeviceId;
                 bool available = false;
@@ -89,13 +74,6 @@ namespace p2c::pmon
                     pmlog_warn("Metric not available for active device")
                         .pmwatch(metric.Introspect().GetSymbol())
                         .pmwatch(checkDeviceId);
-                    continue;
-                }
-                // TODO: remove this temp check for static metrics
-                // since we are not filling yet
-                if (metric.GetType() == PM_METRIC_TYPE_STATIC) {
-                    pmlog_warn("Static metrics in frame query currently unsupported")
-                        .pmwatch(metric.Introspect().GetSymbol());
                     continue;
                 }
                 filtered.push_back(element);
@@ -172,30 +150,6 @@ namespace p2c::pmon
                     out << *reinterpret_cast<const T*>(pBytes);
                 }
             }
-        };
-        struct ProcessNameAnnotation_ : public Annotation_
-        {
-            ProcessNameAnnotation_(std::string name)
-                :
-                name_{ std::move(name) }
-            {}
-            void Write(std::ostream& out, const uint8_t*) const override
-            {
-                out << name_;
-            }
-            std::string name_;
-        };
-        struct PidAnnotation_ : public Annotation_
-        {
-            PidAnnotation_(uint32_t pid)
-                :
-                pid_{ pid }
-            {}
-            void Write(std::ostream& out, const uint8_t*) const override
-            {
-                out << pid_;
-            }
-            uint32_t pid_;
         };
         template<>
         struct TypedAnnotation_<void> : public Annotation_
@@ -298,20 +252,9 @@ namespace p2c::pmon
     {
     public:
         QueryElementContainer_(std::span<const RawFrameQueryElementDefinition> elements,
-            pmapi::Session& session, const pmapi::intro::Root& introRoot, std::string procName, uint32_t pid)
+            pmapi::Session& session, const pmapi::intro::Root& introRoot)
         {
             for (auto& el : elements) {
-                // check for specific fill-in metrics
-                if (el.metricId == PM_METRIC_APPLICATION) {
-                    annotationPtrs_.push_back(std::make_unique<ProcessNameAnnotation_>(procName));
-                    annotationPtrs_.back()->columnName = "Application";
-                    continue;
-                }
-                else if (el.metricId == PM_METRIC_PROCESS_ID) {
-                    annotationPtrs_.push_back(std::make_unique<PidAnnotation_>(pid));
-                    annotationPtrs_.back()->columnName = "ProcessID";
-                    continue;
-                }
                 const auto metric = introRoot.FindMetric(el.metricId);
                 annotationPtrs_.push_back(Annotation_::MakeTyped(el.metricId, el.deviceId, metric));
                 // append metric array index to column name if array metric
@@ -392,9 +335,8 @@ namespace p2c::pmon
         {
             return reinterpret_cast<const double&>(pBlob[queryElements_[animationErrorElementIdx_].dataOffset]);
         }
-        void WriteFrame(uint32_t pid, const std::string& procName, std::ostream& out, const uint8_t* pBlob)
+        void WriteFrame(std::ostream& out, const uint8_t* pBlob)
         {
-            // TODO: use metrics from procname and pid piped through middleware (after IPC upgrade)
             // loop over each element (column/field) in a frame of data
             for (auto&& [i, pAnno] : annotationPtrs_ | vi::enumerate) {
                 if (i) {
@@ -429,11 +371,10 @@ namespace p2c::pmon
         int animationErrorElementIdx_ = -1;
     };
 
-    RawFrameDataWriter::RawFrameDataWriter(std::wstring path, const pmapi::ProcessTracker& procTrackerIn, std::wstring processName, uint32_t activeDeviceId,
+    RawFrameDataWriter::RawFrameDataWriter(std::wstring path, const pmapi::ProcessTracker& procTrackerIn, uint32_t activeDeviceId,
         pmapi::Session& session, std::optional<std::wstring> frameStatsPathIn, const pmapi::intro::Root& introRoot)
         :
         procTracker{ procTrackerIn },
-        procName{ ToNarrow(processName) },
         frameStatsPath{ std::move(frameStatsPathIn) },
         pStatsTracker{ frameStatsPath ? std::make_unique<StatisticsTracker>() : nullptr },
         pAnimationErrorTracker{ frameStatsPath ? std::make_unique<StatisticsTracker>() : nullptr },
@@ -451,8 +392,7 @@ namespace p2c::pmon
         if (elements.empty()) {
             pmlog_error("No valid metrics specified for frame event capture").raise<::pmon::util::Exception>();
         }
-        pQueryElementContainer = std::make_unique<QueryElementContainer_>(std::move(elements), session,
-            introRoot, ::pmon::util::str::ToNarrow(processName), procTracker.GetPid());
+        pQueryElementContainer = std::make_unique<QueryElementContainer_>(std::move(elements), session, introRoot);
         blobs = pQueryElementContainer->MakeBlobs(numberOfBlobs);                
         // write header
         pQueryElementContainer->WriteHeader(file);
@@ -483,7 +423,7 @@ namespace p2c::pmon
                         pAnimationErrorTracker->Push(std::abs(animationError));
                     }
                 }
-                pQueryElementContainer->WriteFrame(procTracker.GetPid(), procName, file, pBlob);
+                pQueryElementContainer->WriteFrame(file, pBlob);
             }
         } while (blobs.AllBlobsPopulated()); // if container filled, means more might be left
         file << std::flush;

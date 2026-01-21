@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "PresentMon.h"
 #include <Core/source/infra/Logging.h>
@@ -150,14 +150,14 @@ namespace p2c::pmon
 		return processTracker;
 	}
 	std::shared_ptr<RawFrameDataWriter> PresentMon::MakeRawFrameDataWriter(std::wstring path,
-		std::optional<std::wstring> statsPath, uint32_t pid, std::wstring procName)
+		std::optional<std::wstring> statsPath, uint32_t pid)
 	{
 		// flush any buffered present events before starting capture
 		pFlusher->Flush(processTracker);
 
 		// make the frame data writer
-		return std::make_shared<RawFrameDataWriter>(std::move(path), processTracker, std::move(procName),
-			selectedAdapter.value_or(1), *pSession, std::move(statsPath), *pIntrospectionRoot);
+		return std::make_shared<RawFrameDataWriter>(std::move(path), processTracker, selectedAdapter.value_or(1),
+			*pSession, std::move(statsPath), *pIntrospectionRoot);
 	}
 	std::optional<uint32_t> PresentMon::GetSelectedAdapter() const
 	{

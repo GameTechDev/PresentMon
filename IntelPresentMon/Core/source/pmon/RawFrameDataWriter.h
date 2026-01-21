@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <fstream>
@@ -18,7 +18,7 @@ namespace p2c::pmon
 	class RawFrameDataWriter
 	{
 	public:
-        RawFrameDataWriter(std::wstring path, const pmapi::ProcessTracker& procTracker, std::wstring processName, uint32_t activeDeviceId,
+        RawFrameDataWriter(std::wstring path, const pmapi::ProcessTracker& procTracker, uint32_t activeDeviceId,
 			pmapi::Session& session, std::optional<std::wstring> frameStatsPath, const pmapi::intro::Root& introRoot);
 		RawFrameDataWriter(const RawFrameDataWriter&) = delete;
 		RawFrameDataWriter& operator=(const RawFrameDataWriter&) = delete;
@@ -31,7 +31,6 @@ namespace p2c::pmon
 		// data
 		static constexpr uint32_t numberOfBlobs = 150u;
 		const pmapi::ProcessTracker& procTracker;
-		std::string procName;
 		std::unique_ptr<QueryElementContainer_> pQueryElementContainer;
 		std::optional<std::wstring> frameStatsPath;
 		std::unique_ptr<StatisticsTracker> pStatsTracker;
