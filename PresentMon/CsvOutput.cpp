@@ -873,13 +873,13 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
 
     fwprintf(fp, L"%s,%d,0x%llX,%hs,%d,%d", processInfo.mModuleName.c_str(),
         p.ProcessId,
-        p.SwapChainAddress,
-        RuntimeToString(p.Runtime),
-        p.SyncInterval,
-        p.PresentFlags);
+        metrics.swapChainAddress,
+        RuntimeToString(metrics.runtime),
+        metrics.syncInterval,
+        metrics.presentFlags);
     if (args.mTrackDisplay) {
-        fwprintf(fp, L",%d,%hs", p.SupportsTearing,
-            PresentModeToString(p.PresentMode));
+        fwprintf(fp, L",%d,%hs", metrics.allowsTearing,
+            PresentModeToString(metrics.presentMode));
     }
     if (args.mTrackFrameType) {
         fwprintf(fp, L",%hs", FrameTypeToString(metrics.frameType));
@@ -1090,13 +1090,13 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
 
     fwprintf(fp, L"%s,%d,0x%llX,%hs,%d,%d", processInfo.mModuleName.c_str(),
         p.processId,
-        p.swapChainAddress,
-        RuntimeToString(p.runtime),
-        p.syncInterval,
-        p.presentFlags);
+        metrics.swapChainAddress,
+        RuntimeToString(metrics.runtime),
+        metrics.syncInterval,
+        metrics.presentFlags);
     if (args.mTrackDisplay) {
-        fwprintf(fp, L",%d,%hs", p.supportsTearing,
-            PresentModeToString(p.presentMode));
+        fwprintf(fp, L",%d,%hs", metrics.allowsTearing,
+            PresentModeToString(metrics.presentMode));
     }
     if (args.mTrackFrameType) {
         fwprintf(fp, L",%hs", FrameTypeToString(metrics.frameType));
@@ -1111,7 +1111,7 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
         case TimeUnit::DateTime: {
             SYSTEMTIME st = {};
             uint64_t ns = 0;
-            pmSession.TimestampToLocalSystemTime(metrics.timeInSeconds, &st, &ns);
+            pmSession.TimestampToLocalSystemTime(metrics.presentStartQpc, &st, &ns);
             fwprintf(fp, L",%u-%u-%u %u:%02u:%02u.%09llu", st.wYear,
                 st.wMonth,
                 st.wDay,
@@ -1122,13 +1122,13 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
         }   break;
         case TimeUnit::MilliSeconds:
         case TimeUnit::QPCMilliSeconds:
-            fwprintf(fp, L",%.4lf", pmSession.TimestampToMilliSeconds(metrics.timeInSeconds));
+            fwprintf(fp, L",%.4lf", metrics.presentStartMs); // pmSession.TimestampToMilliSeconds(metrics.timeInSeconds
             break;
         case TimeUnit::QPC:
-            fwprintf(fp, L",%llu", metrics.timeInSeconds);
+            fwprintf(fp, L",%llu", metrics.presentStartQpc);
             break;
         default:
-            fwprintf(fp, L",%.*lf", DBL_DIG - 1, 0.001 * pmSession.TimestampToMilliSeconds(metrics.timeInSeconds));
+            fwprintf(fp, L",%.*lf", DBL_DIG - 1, 0.001 * metrics.presentStartMs);
             break;
         }
 
@@ -1181,13 +1181,13 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
     // CPUStartTime
     switch (args.mTimeUnit) {
     case TimeUnit::MilliSeconds:
-        fwprintf(fp, L",%.4lf", pmSession.TimestampToMilliSeconds(metrics.cpuStartQpc));
+        fwprintf(fp, L",%.4lf", metrics.cpuStartMs);
         break;
     case TimeUnit::QPC:
         fwprintf(fp, L",%llu", metrics.cpuStartQpc);
         break;
     case TimeUnit::QPCMilliSeconds:
-        fwprintf(fp, L",%.4lf", pmSession.TimestampDeltaToMilliSeconds(metrics.cpuStartQpc));
+        fwprintf(fp, L",%.4lf", metrics.cpuStartMs);
         break;
     case TimeUnit::DateTime: {
         SYSTEMTIME st = {};
@@ -1203,7 +1203,7 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
     }
                            break;
     default:
-        fwprintf(fp, L",%.4lf", 0.001 * pmSession.TimestampToMilliSeconds(metrics.cpuStartQpc));
+        fwprintf(fp, L",%.4lf", 0.001 * metrics.cpuStartMs);
     }
 
     // MsBetweenAppStart, MsCPUBusy, MsCPUWait
