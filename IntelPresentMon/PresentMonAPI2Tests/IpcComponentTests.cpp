@@ -55,7 +55,7 @@ namespace IpcComponentTests
         }
     };
 
-    static std::string DumpRing_(const ipc::HistoryRing<double>& ring, size_t maxSamples = 8)
+    static std::string DumpRing_(const ipc::SampleHistoryRing<double>& ring, size_t maxSamples = 8)
     {
         std::ostringstream oss;
         const auto [first, last] = ring.GetSerialRange();
@@ -91,7 +91,7 @@ namespace IpcComponentTests
         return oss.str();
     }
 
-    static void LogRing_(const char* label, const ipc::HistoryRing<double>& ring)
+    static void LogRing_(const char* label, const ipc::SampleHistoryRing<double>& ring)
     {
         std::ostringstream oss;
         oss << label << "\n" << DumpRing_(ring);
@@ -116,7 +116,7 @@ namespace IpcComponentTests
         return 50.0 + 2.0 * static_cast<double>(i);
     }
 
-    static void AssertScalarSampleMatches_(const ipc::HistoryRing<double>& ring, size_t serial)
+    static void AssertScalarSampleMatches_(const ipc::SampleHistoryRing<double>& ring, size_t serial)
     {
         const auto& sample = ring.At(serial);
         const uint64_t expectedTs = kBaseTs + static_cast<uint64_t>(serial);

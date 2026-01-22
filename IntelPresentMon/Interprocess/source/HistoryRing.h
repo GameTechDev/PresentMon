@@ -2,45 +2,49 @@
 #include "ShmRing.h"
 #include "../../CommonUtilities/log/Verbose.h"
 #include <format>
+#include <optional>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 namespace pmon::ipc
 {
     // wrapper around ShmRing that adds the ability to search/address by timestamp
     // meant for use with telemetry data
-    template<typename T, size_t ReadBufferSize = 4>
+    template<typename T, uint64_t T::*TimestampMember, size_t ReadBufferSize = 4>
     class HistoryRing
     {
     public:
-        // types
-        struct Sample
-        {
-            T value;
-            uint64_t timestamp;
-        };
         // functions
-        HistoryRing(size_t capacity, ShmVector<Sample>::allocator_type alloc)
+        HistoryRing(size_t capacity, ShmVector<T>::allocator_type alloc, bool backpressured = false)
             :
-            samples_{ capacity, alloc }
+            samples_{ capacity, alloc, backpressured }
         {
             if (capacity < ReadBufferSize * 2) {
                 throw std::logic_error{ "The capacity of a ShmRing must be at least double its ReadBufferSize" };
             }
         }
-        void Push(const T& value, uint64_t timestamp)
+        bool Push(const T& sample, std::optional<uint32_t> timeoutMs = {})
         {
-            samples_.Push({ value, timestamp });
+            return samples_.Push(sample, timeoutMs);
         }
-        const Sample& Newest() const
+        template<typename U = T,
+            typename ValueT = std::decay_t<decltype(std::declval<U>().value)>,
+            typename = std::enable_if_t<std::is_constructible_v<U, ValueT, uint64_t>>>
+        bool Push(const ValueT& value, uint64_t timestamp, std::optional<uint32_t> timeoutMs = {})
+        {
+            return samples_.Push(U{ value, timestamp }, timeoutMs);
+        }
+        const T& Newest() const
         {
             auto&&[first, last] = samples_.GetSerialRange();
             return At(last - 1);
         }
-        const Sample& At(size_t serial) const
+        const T& At(size_t serial) const
         {
             return samples_.At(serial);
         }
-        const Sample& Nearest(uint64_t timestamp) const
+        const T& Nearest(uint64_t timestamp) const
         {
             return samples_.At(NearestSerial(timestamp));
         }
@@ -57,17 +61,21 @@ namespace pmon::ipc
             const auto range = GetSerialRange();
             return range.second - range.first;
         }
+        void MarkNextRead(size_t serial) const
+        {
+            samples_.MarkNextRead(serial);
+        }
         // First serial with timestamp >= given timestamp.
         // If all samples have timestamp < given timestamp, returns last (one past end).
         size_t LowerBoundSerial(uint64_t timestamp) const
         {
-            return BoundSerial_<BoundKind::Lower>(timestamp);
+            return BoundSerial_<BoundKind_::Lower>(timestamp);
         }
         // First serial with timestamp > given timestamp.
         // If all samples have timestamp <= given timestamp, returns last (one past end).
         size_t UpperBoundSerial(uint64_t timestamp) const
         {
-            return BoundSerial_<BoundKind::Upper>(timestamp);
+            return BoundSerial_<BoundKind_::Upper>(timestamp);
         }
         // Find the serial whose timestamp is closest to the given timestamp.
         // If the timestamp is outside the stored range, clamps to first/last.
@@ -97,12 +105,23 @@ namespace pmon::ipc
                         if (!recentSamples.empty()) {
                             recentSamples += "\n";
                         }
-                        recentSamples += std::format("ts={} value={}", sample.timestamp, sample.value);
+                        if constexpr (HasValueMember_<T>::value) {
+                            using ValueMemberT = std::decay_t<decltype(std::declval<T>().value)>;
+                            if constexpr (IsFormattable_<ValueMemberT>::value) {
+                                recentSamples += std::format("ts={} value={}", TimestampOf_(sample), sample.value);
+                            }
+                            else {
+                                recentSamples += std::format("ts={}", TimestampOf_(sample));
+                            }
+                        }
+                        else {
+                            recentSamples += std::format("ts={}", TimestampOf_(sample));
+                        }
                     }
                     pmlog_verb(util::log::V::ipc_ring)("Target timestamp past end of history ring")
                         .pmwatch(timestamp)
                         .pmwatch(range.second)
-                        .pmwatch(int64_t(At(serial - 1).timestamp) - int64_t(timestamp))
+                        .pmwatch(int64_t(TimestampOf_(At(serial - 1))) - int64_t(timestamp))
                         .watch("recent_samples", recentSamples);
                 }
 
@@ -112,8 +131,8 @@ namespace pmon::ipc
             // Check whether the previous sample is actually closer.
             // but only if there is a sample available before this one
             if (serial > range.first) {
-                const auto nextTimestamp = At(serial).timestamp;
-                const auto prevTimestamp = At(serial - 1).timestamp;
+                const auto nextTimestamp = TimestampOf_(At(serial));
+                const auto prevTimestamp = TimestampOf_(At(serial - 1));
                 const uint64_t dPrev = timestamp - prevTimestamp;
                 const uint64_t dNext = nextTimestamp - timestamp;
                 if (dPrev <= dNext) {
@@ -124,7 +143,7 @@ namespace pmon::ipc
             pmlog_verb(util::log::V::ipc_ring)("Found nearest sample")
                 .pmwatch(timestamp)
                 .pmwatch(serial)
-                .pmwatch(int64_t(At(serial).timestamp) - int64_t(timestamp));
+                .pmwatch(int64_t(TimestampOf_(At(serial))) - int64_t(timestamp));
             return serial;
         }
         // Calls func(sample) for each sample whose timestamp is in [start, end].
@@ -141,8 +160,8 @@ namespace pmon::ipc
             size_t count = 0;
             // Walk forward until we leave the [start, end] window or hit last
             for (; serial < range.second; ++serial) {
-                const Sample& s = At(serial);
-                if (s.timestamp > end) {
+                const T& s = At(serial);
+                if (TimestampOf_(s) > end) {
                     break;
                 }
                 // s.timestamp is guaranteed >= start by LowerBoundSerial
@@ -155,14 +174,26 @@ namespace pmon::ipc
 
     private:
         // types
-        enum class BoundKind
+        enum class BoundKind_
         {
             Lower,
             Upper
         };
+        template<typename U, typename = void>
+        struct HasValueMember_ : std::false_type {};
+        template<typename U>
+        struct HasValueMember_<U, std::void_t<decltype(std::declval<U>().value)>> : std::true_type {};
+        template<typename U, typename = void>
+        struct IsFormattable_ : std::false_type {};
+        template<typename U>
+        struct IsFormattable_<U, std::void_t<decltype(std::format("{}", std::declval<U>()))>> : std::true_type {};
         // functions
+        static uint64_t TimestampOf_(const T& sample)
+        {
+            return sample.*TimestampMember;
+        }
         // Shared binary search implementation for LowerBoundSerial / UpperBoundSerial.
-        template<BoundKind Kind>
+        template<BoundKind_ Kind>
         size_t BoundSerial_(uint64_t timestamp) const
         {
             auto range = samples_.GetSerialRange();
@@ -175,11 +206,11 @@ namespace pmon::ipc
             // Standard lower/upper bound style search over [first, last)
             while (lo < hi) {
                 size_t mid = lo + (hi - lo) / 2;
-                const Sample& s = At(mid);
+                const T& s = At(mid);
 
-                if constexpr (Kind == BoundKind::Lower) {
+                if constexpr (Kind == BoundKind_::Lower) {
                     // First with s.timestamp >= timestamp
-                    if (s.timestamp < timestamp) {
+                    if (TimestampOf_(s) < timestamp) {
                         lo = mid + 1;
                     }
                     else {
@@ -188,7 +219,7 @@ namespace pmon::ipc
                 }
                 else {
                     // First with s.timestamp > timestamp
-                    if (s.timestamp <= timestamp) {
+                    if (TimestampOf_(s) <= timestamp) {
                         lo = mid + 1;
                     }
                     else {
@@ -200,7 +231,17 @@ namespace pmon::ipc
             return lo; // in [first, last]
         }
         // data
-        ShmRing<Sample> samples_;
+        ShmRing<T> samples_;
     };
 
+    template<typename TValue>
+    struct TelemetrySample
+    {
+        using value_type = TValue;
+        TValue value;
+        uint64_t timestamp;
+    };
+    // Alias for telemetry convenience; matches the prior HistoryRing behavior.
+    template<typename TValue, size_t ReadBufferSize = 4>
+    using SampleHistoryRing = HistoryRing<TelemetrySample<TValue>, &TelemetrySample<TValue>::timestamp, ReadBufferSize>;
 }

@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include "SharedMemoryTypes.h"
-#include "ShmRing.h"
+#include "HistoryRing.h"
 #include "TelemetryMap.h"
 #include "../../CommonUtilities/Exception.h"
 #include "../../CommonUtilities/log/Log.h"
@@ -16,6 +16,7 @@
 namespace pmon::ipc
 {
     using FrameData = util::metrics::FrameData;
+    using FrameHistoryRing = HistoryRing<FrameData, &FrameData::presentStartTime>;
 
     class MetricCapabilities;
     namespace intro
@@ -70,7 +71,7 @@ namespace pmon::ipc
             bool bookkeepingInitComplete = false;
             bool isPlayback = false;
         } bookkeeping{};
-		ShmRing<FrameData> frameData;
+		FrameHistoryRing frameData;
 
         StaticMetricValue FindStaticMetric(PM_METRIC metric) const;
 

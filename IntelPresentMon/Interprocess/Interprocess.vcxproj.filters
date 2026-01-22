@@ -182,5 +182,8 @@
     <ClInclude Include="source\MetricCapabilitiesShim.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="source\SystemDeviceId.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

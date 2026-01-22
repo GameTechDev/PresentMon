@@ -11,7 +11,7 @@ namespace pmon::ipc
     {
     public:
         template<typename T>
-        using HistoryRingVect = ShmVector<HistoryRing<T>>;
+        using HistoryRingVect = ShmVector<SampleHistoryRing<T>>;
         using MapValueType = std::variant<
             HistoryRingVect<double>, HistoryRingVect<uint64_t>,
             HistoryRingVect<bool>, HistoryRingVect<int>>;
@@ -51,9 +51,9 @@ namespace pmon::ipc
                 "Unsupported ring type for TelemetryMap"
             );
 
-            using RingAlloc = typename MapType::allocator_type::template rebind<HistoryRing<T>>::other;
+            using RingAlloc = typename MapType::allocator_type::template rebind<SampleHistoryRing<T>>::other;
 
-            // Construct an allocator for HistoryRing<T> from the map's allocator
+            // Construct an allocator for SampleHistoryRing<T> from the map's allocator
             RingAlloc ringAlloc(ringMap_.get_allocator());
 
             // Insert (or get existing) entry for this id, constructing the correct variant alternative

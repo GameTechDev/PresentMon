@@ -66,6 +66,7 @@
     <ClInclude Include="source\ShmNamer.h" />
     <ClInclude Include="source\ShmRing.h" />
     <ClInclude Include="source\OwnedDataSegment.h" />
+    <ClInclude Include="source\SystemDeviceId.h" />
     <ClInclude Include="source\TelemetryMap.h" />
     <ClInclude Include="source\ViewedDataSegment.h" />
   </ItemGroup>

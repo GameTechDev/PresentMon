@@ -29,7 +29,7 @@ using namespace pmon;
 
 namespace InterimBroadcasterTests
 {
-    static std::string DumpRing_(const ipc::HistoryRing<double>& ring, size_t maxSamples = 8)
+    static std::string DumpRing_(const ipc::SampleHistoryRing<double>& ring, size_t maxSamples = 8)
     {
         std::ostringstream oss;
         const auto [first, last] = ring.GetSerialRange();
@@ -216,8 +216,8 @@ namespace InterimBroadcasterTests
             std::this_thread::sleep_for(150ms);
 
             // check that we have data for frequency and utilization
-            std::vector<ipc::HistoryRing<double>::Sample> utilizSamples;
-            std::vector<ipc::HistoryRing<double>::Sample> freqSamples;
+            std::vector<ipc::TelemetrySample<double>> utilizSamples;
+            std::vector<ipc::TelemetrySample<double>> freqSamples;
             for (int i = 0; i < 10; i++) {
                 std::this_thread::sleep_for(250ms);
                 {
@@ -432,8 +432,8 @@ namespace InterimBroadcasterTests
             // allow a short warmup
             std::this_thread::sleep_for(150ms);
 
-            std::vector<ipc::HistoryRing<double>::Sample> tempSamples;
-            std::vector<ipc::HistoryRing<double>::Sample> powerSamples;
+            std::vector<ipc::TelemetrySample<double>> tempSamples;
+            std::vector<ipc::TelemetrySample<double>> powerSamples;
 
             for (int i = 0; i < 10; i++) {
                 std::this_thread::sleep_for(250ms);
@@ -610,7 +610,7 @@ namespace InterimBroadcasterTests
             auto& sysFreqRing = sys.telemetryData.FindRing<double>(PM_METRIC_CPU_FREQUENCY).at(0);
             auto& gpuRing = gpu.telemetryData.FindRing<double>(PM_METRIC_GPU_TEMPERATURE).at(0);
             std::this_thread::sleep_for(1500ms);
-            const auto logRing = [](const char* label, const ipc::HistoryRing<double>& ring) {
+            const auto logRing = [](const char* label, const ipc::SampleHistoryRing<double>& ring) {
                 const auto range = ring.GetSerialRange();
                 Logger::WriteMessage(std::format(
                     "{}: serial [{}, {}) count={}\n",
@@ -675,7 +675,7 @@ namespace InterimBroadcasterTests
             auto& gpuPowerRing = gpu.telemetryData.FindRing<double>(PM_METRIC_GPU_POWER).at(0);
             auto& sysRing = sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION).at(0);
             std::this_thread::sleep_for(1500ms);
-            const auto logRing = [](const char* label, const ipc::HistoryRing<double>& ring) {
+            const auto logRing = [](const char* label, const ipc::SampleHistoryRing<double>& ring) {
                 const auto range = ring.GetSerialRange();
                 Logger::WriteMessage(std::format(
                     "{}: serial [{}, {}) count={}\n",
