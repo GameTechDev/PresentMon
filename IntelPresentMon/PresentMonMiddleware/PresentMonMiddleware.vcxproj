@@ -12,12 +12,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ActionClient.h" />
+    <ClInclude Include="DynamicQueryWindow.h" />
     <ClInclude Include="FrameTimingData.h" />
     <ClInclude Include="FrameMetricsSource.h" />
     <ClInclude Include="ConcreteMiddleware.h" />
+    <ClInclude Include="DynamicMetric.h" />
     <ClInclude Include="DynamicQuery.h" />
+    <ClInclude Include="DynamicStat.h" />
     <ClInclude Include="FrameEventQuery.h" />
     <ClInclude Include="LogSetup.h" />
+    <ClInclude Include="HistoryRingTraverser.h" />
     <ClInclude Include="Middleware.h" />
     <ClInclude Include="MockCommon.h" />
   </ItemGroup>
@@ -25,8 +29,12 @@
     <ClCompile Include="ConcreteMiddleware.cpp">
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="DynamicQuery.cpp" />
+    <ClCompile Include="DynamicMetric.cpp" />
+    <ClCompile Include="DynamicStat.cpp" />
     <ClCompile Include="FrameMetricsSource.cpp" />
     <ClCompile Include="FrameEventQuery.cpp" />
+    <ClCompile Include="HistoryRingTraverser.cpp" />
     <ClCompile Include="LogSetup.cpp" />
   </ItemGroup>
   <ItemGroup>

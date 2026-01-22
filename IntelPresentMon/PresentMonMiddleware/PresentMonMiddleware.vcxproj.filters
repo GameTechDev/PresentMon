@@ -27,6 +27,15 @@
     <ClInclude Include="DynamicQuery.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DynamicMetric.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DynamicStat.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HistoryRingTraverser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="FrameEventQuery.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -42,15 +51,30 @@
     <ClInclude Include="FrameMetricsSource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DynamicQueryWindow.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ConcreteMiddleware.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DynamicMetric.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DynamicQuery.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DynamicStat.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FrameMetricsSource.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FrameEventQuery.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="HistoryRingTraverser.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="LogSetup.cpp">
