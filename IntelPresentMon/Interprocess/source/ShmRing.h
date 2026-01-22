@@ -30,14 +30,14 @@ namespace pmon::ipc
 		ShmRing& operator=(const ShmRing&) = delete;
 		// we need to enable move for use inside vectors
 		// not enabled by default because of the atomic member
-		ShmRing(ShmRing&& other)
+		ShmRing(ShmRing&& other) noexcept
 			:
 			backpressured_{ other.backpressured_ },
 			data_{ std::move(other.data_) },
 			nextWriteSerial_{ other.nextWriteSerial_.load() }
 		{
 		}
-		ShmRing& operator=(ShmRing&& other)
+		ShmRing& operator=(ShmRing&& other) noexcept
 		{
 			if (this != &other) {
 				data_ = std::move(other.data_);
