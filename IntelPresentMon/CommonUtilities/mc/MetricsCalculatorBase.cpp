@@ -16,7 +16,7 @@ namespace pmon::util::metrics
             const FrameData& present)
         {
             const auto startQpc = qpc.GetSessionStartTimestamp();
-            return startQpc != 0 && present.presentStartTime != 0
+            return present.presentStartTime != 0
                 ? qpc.DeltaSignedMilliSeconds(startQpc, present.presentStartTime)
                 : 0.0;
         }

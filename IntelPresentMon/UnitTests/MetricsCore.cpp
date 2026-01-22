@@ -214,143 +214,6 @@ namespace MetricsCoreTests
         }
     };
 
-    // ConsoleAdapter tests are skipped in unit tests because they require PresentData
-    // which has ETW dependencies. These will be tested during Console integration.
-    /*
-    TEST_CLASS(ConsoleAdapterTests)
-    {
-    public:
-        TEST_METHOD(Constructor_AcceptsSharedPtr)
-        {
-            auto event = std::make_shared<PresentEvent>();
-            event->PresentStartTime = 1234;
-
-            ConsoleAdapter adapter(event);
-
-            Assert::AreEqual(1234ull, adapter.getPresentStartTime());
-        }
-
-        TEST_METHOD(Constructor_AcceptsRawPointer)
-        {
-            PresentEvent event{};
-            event.ReadyTime = 5678;
-
-            ConsoleAdapter adapter(&event);
-
-            Assert::AreEqual(5678ull, adapter.getReadyTime());
-        }
-
-        TEST_METHOD(GettersProvideAccessToAllTimingFields)
-        {
-            auto event = std::make_shared<PresentEvent>();
-            event->PresentStartTime = 100;
-            event->ReadyTime = 200;
-            event->TimeInPresent = 50;
-            event->GPUStartTime = 150;
-            event->GPUDuration = 75;
-            event->GPUVideoDuration = 25;
-
-            ConsoleAdapter adapter(event);
-
-            Assert::AreEqual(100ull, adapter.getPresentStartTime());
-            Assert::AreEqual(200ull, adapter.getReadyTime());
-            Assert::AreEqual(50ull, adapter.getTimeInPresent());
-            Assert::AreEqual(150ull, adapter.getGPUStartTime());
-            Assert::AreEqual(75ull, adapter.getGPUDuration());
-            Assert::AreEqual(25ull, adapter.getGPUVideoDuration());
-        }
-
-        TEST_METHOD(GettersProvideAccessToAppPropagatedData)
-        {
-            auto event = std::make_shared<PresentEvent>();
-            event->AppPropagatedPresentStartTime = 300;
-            event->AppPropagatedGPUDuration = 100;
-
-            ConsoleAdapter adapter(event);
-
-            Assert::AreEqual(300ull, adapter.getAppPropagatedPresentStartTime());
-            Assert::AreEqual(100ull, adapter.getAppPropagatedGPUDuration());
-        }
-
-        TEST_METHOD(GettersProvideAccessToPcLatencyData)
-        {
-            auto event = std::make_shared<PresentEvent>();
-            event->PclSimStartTime = 400;
-            event->PclInputPingTime = 350;
-
-            ConsoleAdapter adapter(event);
-
-            Assert::AreEqual(400ull, adapter.getPclSimStartTime());
-            Assert::AreEqual(350ull, adapter.getPclInputPingTime());
-        }
-
-        TEST_METHOD(GetDisplayedCount_ReturnsVectorSize)
-        {
-            auto event = std::make_shared<PresentEvent>();
-            event->Displayed.push_back({FrameType::Application, 100});
-            event->Displayed.push_back({FrameType::Repeated, 200});
-
-            ConsoleAdapter adapter(event);
-
-            Assert::AreEqual(size_t(2), adapter.getDisplayedCount());
-        }
-
-        TEST_METHOD(GetDisplayed_ProvidesIndexedAccess)
-        {
-            auto event = std::make_shared<PresentEvent>();
-            event->Displayed.push_back({FrameType::Application, 1000});
-            event->Displayed.push_back({FrameType::Repeated, 2000});
-
-            ConsoleAdapter adapter(event);
-
-            Assert::IsTrue(adapter.getDisplayedFrameType(0) == FrameType::Application);
-            Assert::AreEqual(1000ull, adapter.getDisplayedScreenTime(0));
-            Assert::IsTrue(adapter.getDisplayedFrameType(1) == FrameType::Repeated);
-            Assert::AreEqual(2000ull, adapter.getDisplayedScreenTime(1));
-        }
-
-        TEST_METHOD(HasAppPropagatedData_ReturnsTrueWhenPresent)
-        {
-            auto event = std::make_shared<PresentEvent>();
-            event->AppPropagatedPresentStartTime = 123;
-
-            ConsoleAdapter adapter(event);
-
-            Assert::IsTrue(adapter.hasAppPropagatedData());
-        }
-
-        TEST_METHOD(HasAppPropagatedData_ReturnsFalseWhenZero)
-        {
-            auto event = std::make_shared<PresentEvent>();
-            event->AppPropagatedPresentStartTime = 0;
-
-            ConsoleAdapter adapter(event);
-
-            Assert::IsFalse(adapter.hasAppPropagatedData());
-        }
-
-        TEST_METHOD(HasPclSimStartTime_ReturnsTrueWhenPresent)
-        {
-            auto event = std::make_shared<PresentEvent>();
-            event->PclSimStartTime = 456;
-
-            ConsoleAdapter adapter(event);
-
-            Assert::IsTrue(adapter.hasPclSimStartTime());
-        }
-
-        TEST_METHOD(HasPclInputPingTime_ReturnsTrueWhenPresent)
-        {
-            auto event = std::make_shared<PresentEvent>();
-            event->PclInputPingTime = 789;
-
-            ConsoleAdapter adapter(event);
-
-            Assert::IsTrue(adapter.hasPclInputPingTime());
-        }
-    };
-    */
-
     // ============================================================================
     // SECTION 2: SwapChainCoreState
     // ============================================================================
@@ -1662,7 +1525,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
         TEST_METHOD(ComputeMetricsForPresent_NotDisplayed_BaseTimingAndCpuStart_AreCorrect)
         {
             // 10 MHz QPC: 10,000,000 ticks per second
-            QpcConverter qpc(10'000'000, 0);
+            QpcConverter qpc(10'000'000, 10'000);
             SwapChainCoreState chain{};
 
             // First frame: not displayed, becomes the baseline lastPresent/lastAppPresent.
@@ -1727,6 +1590,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 uint64_t(0),
                 firstMetrics.cpuStartQpc,
                 L"First frame with no history should have cpuStartQpc == 0.");
+            Assert::AreEqual(
+                double(0.0),
+                firstMetrics.cpuStartMs,
+                0.0001,
+                L"First frame with no history should have cpuStartMs == 0.");
 
             // Chain must now have lastPresent/lastAppPresent set to 'first'
             Assert::IsTrue(chain.lastPresent.has_value(), L"Expected lastPresent to be set.");
@@ -1801,11 +1669,18 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 expectedCpuStartSecond,
                 secondMetrics.cpuStartQpc,
                 L"cpuStartQpc should match CalculateCPUStart from lastAppPresent.");
+
+            auto expectedCpuStartMs = qpc.DeltaSignedMilliSeconds(10'000, expectedCpuStartSecond);
+            Assert::AreEqual(
+                expectedCpuStartMs,
+                secondMetrics.cpuStartMs,
+                0.0001,
+                L"cpuStartMs should match qpc start time to frame.presentStartTime + frame.timeInPresent");
         }
         TEST_METHOD(ComputeMetricsForPresent_DisplayedWithNext_BaseTimingAndCpuStart_AreCorrect)
         {
             // 10 MHz QPC
-            QpcConverter qpc(10'000'000, 0);
+            QpcConverter qpc(10'000'000, 10'000);
             SwapChainCoreState chain{};
 
             // Baseline frame: Presented but not displayed → not-displayed path
@@ -1908,6 +1783,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 expectedCpuStartSecond,
                 secondMetrics.cpuStartQpc,
                 L"cpuStartQpc for displayed frame should match CalculateCPUStart based on lastAppPresent.");
+            
+            auto expectedCpuStartMs = qpc.DeltaSignedMilliSeconds(10'000, expectedCpuStartSecond);
+            Assert::AreEqual(
+                expectedCpuStartMs,
+                secondMetrics.cpuStartMs,
+                0.0001,
+                L"cpuStartMs should match qpc start time to frame.presentStartTime + frame.timeInPresent");
         }
     };
     TEST_CLASS(MsUntilDisplayedTests) {
@@ -4325,7 +4207,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
         TEST_METHOD(CPUStart_UsesLastAppPresent_WhenAvailable)
         {
             // chain.lastAppPresent set; current is app frame
-            QpcConverter qpc(10'000'000, 0);
+            QpcConverter qpc(10'000'000, 10'000);
             SwapChainCoreState chain{};
 
             FrameData lastApp{};
@@ -4358,14 +4240,20 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             const auto& m = results[0].metrics;
             // cpuStart should be 800'000 + 200'000 = 1'000'000
-            uint64_t expectedCpuStart = 800'000 + 200'000;
+            uint64_t expectedCpuStart = lastApp.presentStartTime + lastApp.timeInPresent;
             Assert::AreEqual(expectedCpuStart, m.cpuStartQpc);
+            auto expectedCpuStartMs = qpc.DeltaSignedMilliSeconds(10'000, expectedCpuStart);
+            Assert::AreEqual(
+                expectedCpuStartMs,
+                m.cpuStartMs,
+                0.0001,
+                L"cpuStartMs should match qpc start time to frame.presentStartTime + frame.timeInPresent");
         }
 
         TEST_METHOD(CPUStart_FallsBackToLastPresent_WhenNoAppPresent)
         {
             // chain.lastAppPresent is empty; chain.lastPresent is set
-            QpcConverter qpc(10'000'000, 0);
+            QpcConverter qpc(10'000'000, 10'000);
             SwapChainCoreState chain{};
 
             FrameData lastPresent{};
@@ -4401,6 +4289,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // cpuStart falls back to lastPresent: 800'000 + 200'000 = 1'000'000
             uint64_t expectedCpuStart = 800'000 + 200'000;
             Assert::AreEqual(expectedCpuStart, m.cpuStartQpc);
+            auto expectedCpuStartMs = qpc.DeltaSignedMilliSeconds(10'000, expectedCpuStart);
+            Assert::AreEqual(
+                expectedCpuStartMs,
+                m.cpuStartMs,
+                0.0001,
+                L"cpuStartMs should match qpc start time to frame.presentStartTime + frame.timeInPresent");
         }
 
         TEST_METHOD(CPUStart_ReturnsZero_WhenNoChainHistory)
@@ -4431,6 +4325,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
             // cpuStart = 0 (no history)
             Assert::AreEqual(uint64_t(0), m.cpuStartQpc);
+            Assert::AreEqual(double(0.0), m.cpuStartMs, 0.0001);
         }
 
         TEST_METHOD(ChainState_UpdatedAfterPresent_SingleDisplay)
@@ -9010,6 +8905,169 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, chain);
             Assert::AreEqual(size_t(0), p2_phase1.size());
+        }
+    };
+    // ============================================================================
+    // SECTION: Basic Present Metric Tests
+    // ============================================================================
+
+    TEST_CLASS(BaseMetricTests)
+    {
+    public:
+        TEST_METHOD(BaseMetricPresentStartTests)
+        {
+            QpcConverter qpc(10'000'000, 100'000);
+            SwapChainCoreState chain{};
+
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'200'000;
+            priorApp.finalState = PresentResult::Presented;
+            priorApp.displayed.PushBack({ FrameType::Application, 1'300'000 });
+
+            chain.lastAppPresent = priorApp;
+
+            // Current frame
+            FrameData frame{};
+            frame.presentStartTime = 1'500'000;
+            frame.timeInPresent = 200'000;
+            frame.readyTime = 2'000'000;
+            frame.gpuStartTime = 1'500'000;
+            frame.gpuDuration = 500'000;
+            frame.finalState = PresentResult::Presented;
+            frame.displayed.PushBack({ FrameType::Application, 2'100'000 });
+
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 3'200'000;
+            next.timeInPresent = 200'000;
+            next.readyTime = 3'600'000;
+            next.finalState = PresentResult::Presented;
+            next.displayed.PushBack({ FrameType::Application, 3'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+
+            const auto& m = results[0].metrics;
+            Assert::AreEqual(frame.presentStartTime, m.presentStartQpc);
+            Assert::AreEqual(qpc.DeltaSignedMilliSeconds(100'000, frame.presentStartTime), m.presentStartMs, 0.0001);
+        }
+        TEST_METHOD(BaseMetricCPUGPUTTimeTests)
+        {
+            QpcConverter qpc(10'000'000, 100'000);
+            SwapChainCoreState chain{};
+
+            // Prior app frame
+            FrameData priorApp{};
+            priorApp.presentStartTime = 800'000;
+            priorApp.timeInPresent = 200'000;
+            priorApp.readyTime = 1'200'000;
+            priorApp.finalState = PresentResult::Presented;
+            priorApp.displayed.PushBack({ FrameType::Application, 1'300'000 });
+
+            chain.lastAppPresent = priorApp;
+
+            // Current frame
+            FrameData frame{};
+            frame.presentStartTime = 1'500'000;
+            frame.timeInPresent = 200'000;
+            frame.gpuStartTime = 1'500'000;
+            frame.readyTime = 2'000'000;
+            frame.gpuDuration = 250'000;
+            frame.finalState = PresentResult::Presented;
+            frame.displayed.PushBack({ FrameType::Application, 2'100'000 });
+
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.presentStartTime = 3'200'000;
+            next.timeInPresent = 200'000;
+            next.gpuStartTime = 3'300'000;
+            next.readyTime = 3'600'000;
+            next.gpuDuration = 150'000;
+            next.finalState = PresentResult::Presented;
+            next.displayed.PushBack({ FrameType::Application, 3'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+
+            const auto& m = results[0].metrics;
+            auto previousPresentEndTime = priorApp.presentStartTime + priorApp.timeInPresent;
+            auto currentPresentEndTime = frame.presentStartTime + frame.timeInPresent;
+            auto expectedCpuTime = qpc.DeltaSignedMilliSeconds(previousPresentEndTime, currentPresentEndTime);
+            Assert::AreEqual(expectedCpuTime, m.msCPUTime, 0.0001);
+            auto gpuTotalDurationMs = qpc.DeltaSignedMilliSeconds(frame.gpuStartTime, frame.readyTime);
+            auto gpuActiveTimeMs = qpc.DurationMilliSeconds(frame.gpuDuration);
+            auto gputWaitTimeMs = gpuTotalDurationMs - gpuActiveTimeMs;
+            Assert::AreEqual(gpuActiveTimeMs + gputWaitTimeMs, m.msGPUTime, 0.0001);
+        }
+        TEST_METHOD(BaseMetricMetadataTests)
+        {
+            QpcConverter qpc(10'000'000, 100'000);
+            SwapChainCoreState chain{};
+
+            // Prior app frame
+            FrameData prior{};
+            prior.swapChainAddress = 0x12345678;
+            prior.syncInterval = -1;
+            prior.presentFlags = 512;
+            prior.supportsTearing = true;
+            prior.runtime = Runtime::DXGI;
+            prior.presentMode = PresentMode::Hardware_Composed_Independent_Flip;
+
+            prior.presentStartTime = 800'000;
+            prior.timeInPresent = 200'000;
+            prior.readyTime = 1'200'000;
+            prior.finalState = PresentResult::Presented;
+            prior.displayed.PushBack({ FrameType::Application, 1'300'000 });
+
+            chain.lastAppPresent = prior;
+
+            // Current frame
+            FrameData frame{};
+            frame.swapChainAddress = 0x12345678;
+            frame.syncInterval = -1;
+            frame.presentFlags = 512;
+            frame.supportsTearing = true;
+            frame.runtime = Runtime::DXGI;
+            frame.presentMode = PresentMode::Hardware_Composed_Independent_Flip;
+
+            frame.presentStartTime = 1'500'000;
+            frame.timeInPresent = 200'000;
+            frame.gpuStartTime = 1'500'000;
+            frame.readyTime = 2'000'000;
+            frame.gpuDuration = 250'000;
+            frame.finalState = PresentResult::Presented;
+            frame.displayed.PushBack({ FrameType::Application, 2'100'000 });
+
+            // Next displayed frame (required to process current frame's display)
+            FrameData next{};
+            next.swapChainAddress = 0x12345678;
+            next.syncInterval = -1;
+            next.presentFlags = 512;
+            next.supportsTearing = true;
+            next.runtime = Runtime::DXGI;
+            next.presentMode = PresentMode::Hardware_Composed_Independent_Flip;
+
+            next.presentStartTime = 3'200'000;
+            next.timeInPresent = 200'000;
+            next.gpuStartTime = 3'300'000;
+            next.readyTime = 3'600'000;
+            next.gpuDuration = 150'000;
+            next.finalState = PresentResult::Presented;
+            next.displayed.PushBack({ FrameType::Application, 3'700'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+
+            const auto& m = results[0].metrics;
+            Assert::AreEqual<uint64_t>(0x12345678, m.swapChainAddress);
+            Assert::AreEqual<int32_t>(-1, m.syncInterval);
+            Assert::AreEqual<uint32_t>(512, m.presentFlags);
+            Assert::AreEqual(true, m.allowsTearing);
+            Assert::AreEqual((int)Runtime::DXGI, (int)m.runtime);
+            Assert::AreEqual((int)PresentMode::Hardware_Composed_Independent_Flip, (int)m.presentMode);
         }
     };
 }
