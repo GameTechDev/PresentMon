@@ -138,6 +138,7 @@ extern "C" {
 		PM_METRIC_PRESENTED_FRAME_TIME,
 		PM_METRIC_FLIP_DELAY,
 		PM_METRIC_PROCESS_ID,
+		PM_METRIC_COUNT, // sentry to mark end of metric list; not an actual query metric
 	};
 
 	enum PM_METRIC_TYPE

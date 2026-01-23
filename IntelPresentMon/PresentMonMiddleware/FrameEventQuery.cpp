@@ -199,9 +199,7 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 		.arrayIdx = q.arrayIndex,
 	};
 
-	using MetricUnderlying = std::underlying_type_t<PM_METRIC>;
-	constexpr MetricUnderlying kMaxMetricUnderlying = MetricUnderlying(PM_METRIC_PROCESS_ID) + 1;
-	const bool mapped = util::DispatchEnumValue<PM_METRIC, kMaxMetricUnderlying>(
+	const bool mapped = util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT)>(
 		q.metric,
 		[&]<PM_METRIC Metric>() -> bool {
 			if constexpr (util::metrics::HasFrameMetricMember<Metric>) {

@@ -8,10 +8,8 @@ namespace pmon::ipc::intro
     namespace detail
     {
         using MetricEnum = PM_METRIC;
-        using MetricUnderlying = std::underlying_type_t<MetricEnum>;
-
-        // Probe underlying values in [0, MaxMetricUnderlying)
-        constexpr MetricUnderlying MaxMetricUnderlying = 256;
+        // Probe underlying values in [0, COUNT)
+        constexpr auto MaxMetricUnderlying = int(PM_METRIC_COUNT);
 
         // xxxCapBits is std::bitset<N>
         template<typename BitsType, typename Index>
