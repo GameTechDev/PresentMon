@@ -9,11 +9,14 @@
 #include "../Interprocess/source/PmStatusError.h"
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/Exception.h"
+#include "../CommonUtilities/Meta.h"
 #include "../CommonUtilities/Memory.h"
 #include "../CommonUtilities/Qpc.h"
+#include "../CommonUtilities/mc/FrameMetricsMemberMap.h"
 #include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <type_traits>
 
 namespace ipc = pmon::ipc;
 namespace util = pmon::util;
@@ -196,119 +199,23 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 		.arrayIdx = q.arrayIndex,
 	};
 
-	switch (q.metric) {
-	case PM_METRIC_ALLOWS_TEARING:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, allowsTearing);
-		break;
-	case PM_METRIC_PRESENT_RUNTIME:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, runtime);
-		break;
-	case PM_METRIC_PRESENT_MODE:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, presentMode);
-		break;
-	case PM_METRIC_PRESENT_FLAGS:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, presentFlags);
-		break;
-	case PM_METRIC_SYNC_INTERVAL:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, syncInterval);
-		break;
-	case PM_METRIC_SWAP_CHAIN_ADDRESS:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, swapChainAddress);
-		break;
-	case PM_METRIC_PRESENT_START_QPC:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, presentStartQpc);
-		break;
-	case PM_METRIC_PRESENT_START_TIME:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, presentStartMs);
-		break;
-	case PM_METRIC_CPU_START_QPC:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, cpuStartQpc);
-		break;
-	case PM_METRIC_CPU_START_TIME:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, cpuStartMs);
-		break;
-	case PM_METRIC_BETWEEN_PRESENTS:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msBetweenPresents);
-		break;
-	case PM_METRIC_IN_PRESENT_API:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msInPresentApi);
-		break;
-	case PM_METRIC_RENDER_PRESENT_LATENCY:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msUntilRenderComplete);
-		break;
-	case PM_METRIC_BETWEEN_DISPLAY_CHANGE:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msBetweenDisplayChange);
-		break;
-	case PM_METRIC_UNTIL_DISPLAYED:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msUntilDisplayed);
-		break;
-	case PM_METRIC_DISPLAYED_TIME:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msDisplayedTime);
-		break;
-	case PM_METRIC_DISPLAY_LATENCY:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msDisplayLatency);
-		break;
-	case PM_METRIC_BETWEEN_SIMULATION_START:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msBetweenSimStarts);
-		cmd.isOptional = true;
-		break;
-	case PM_METRIC_PC_LATENCY:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msPcLatency);
-		cmd.isOptional = true;
-		break;
-	case PM_METRIC_CPU_BUSY:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msCPUBusy);
-		break;
-	case PM_METRIC_CPU_WAIT:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msCPUWait);
-		break;
-	case PM_METRIC_CPU_FRAME_TIME:
-	case PM_METRIC_BETWEEN_APP_START:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msCPUTime);
-		break;
-	case PM_METRIC_GPU_LATENCY:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msGPULatency);
-		break;
-	case PM_METRIC_GPU_TIME:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msGPUTime);
-		break;
-	case PM_METRIC_GPU_BUSY:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msGPUBusy);
-		break;
-	case PM_METRIC_GPU_WAIT:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msGPUWait);
-		break;
-	case PM_METRIC_DROPPED_FRAMES:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, isDroppedFrame);
-		break;
-	case PM_METRIC_ANIMATION_ERROR:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msAnimationError);
-		cmd.isOptional = true;
-		break;
-	case PM_METRIC_ANIMATION_TIME:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msAnimationTime);
-		cmd.isOptional = true;
-		break;
-	case PM_METRIC_CLICK_TO_PHOTON_LATENCY:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msClickToPhotonLatency);
-		cmd.isOptional = true;
-		break;
-	case PM_METRIC_ALL_INPUT_TO_PHOTON_LATENCY:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msAllInputPhotonLatency);
-		cmd.isOptional = true;
-		break;
-	case PM_METRIC_INSTRUMENTED_LATENCY:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msInstrumentedLatency);
-		cmd.isOptional = true;
-		break;
-	case PM_METRIC_FLIP_DELAY:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, msFlipDelay);
-		cmd.isOptional = true;
-		break;
-	case PM_METRIC_FRAME_TYPE:
-		cmd.frameMetricsOffset = offsetof(util::metrics::FrameMetrics, frameType);
-		break;
-	default:
+	using MetricUnderlying = std::underlying_type_t<PM_METRIC>;
+	constexpr MetricUnderlying kMaxMetricUnderlying = MetricUnderlying(PM_METRIC_PROCESS_ID) + 1;
+	const bool mapped = util::DispatchEnumValue<PM_METRIC, kMaxMetricUnderlying>(
+		q.metric,
+		[&]<PM_METRIC Metric>() -> bool {
+			if constexpr (util::metrics::HasFrameMetricMember<Metric>) {
+				constexpr auto memberPtr = util::metrics::FrameMetricMember<Metric>::member;
+				using MemberType = typename util::MemberPointerInfo<decltype(memberPtr)>::MemberType;
+				static const uint32_t memberOffset = uint32_t(util::MemberPointerOffset(memberPtr));
+				cmd.frameMetricsOffset = memberOffset;
+				cmd.isOptional = util::IsStdOptional<MemberType>;
+				return true;
+			}
+			return false;
+		},
+		false);
+	if (!mapped) {
 		pmlog_error("Unexpected frame metric in frame query")
 			.pmwatch(metricView.Introspect().GetSymbol())
 			.pmwatch(metricView.IntrospectType().GetSymbol())

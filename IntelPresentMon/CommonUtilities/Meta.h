@@ -1,4 +1,7 @@
 ﻿#pragma once
+#include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -10,6 +13,13 @@ namespace pmon::util
     template<typename T>
     inline constexpr bool DependentFalse = DependentFalseT<T>::value;
 
+    template<typename T>
+    struct IsStdOptionalT : std::false_type {};
+    template<typename T>
+    struct IsStdOptionalT<std::optional<T>> : std::true_type {};
+    template<typename T>
+    inline constexpr bool IsStdOptional = IsStdOptionalT<std::remove_cvref_t<T>>::value;
+
     // deconstruct member pointer into the object type the pointer works with and the member type
     template <typename T> struct MemberPointerInfo;
     template <typename S, typename M>
@@ -17,6 +27,30 @@ namespace pmon::util
         using StructType = S;
         using MemberType = M;
     };
+    template <typename S, typename M>
+    struct MemberPointerInfo<M S::* const> {
+        using StructType = S;
+        using MemberType = M;
+    };
+    template <typename S, typename M>
+    struct MemberPointerInfo<M S::* volatile> {
+        using StructType = S;
+        using MemberType = M;
+    };
+    template <typename S, typename M>
+    struct MemberPointerInfo<M S::* const volatile> {
+        using StructType = S;
+        using MemberType = M;
+    };
+
+    template<typename S, typename M>
+    std::size_t MemberPointerOffset(M S::*memberPtr)
+    {
+        const S sample{};
+        const auto* base = reinterpret_cast<const uint8_t*>(&sample);
+        const auto* member = reinterpret_cast<const uint8_t*>(&(sample.*memberPtr));
+        return static_cast<std::size_t>(member - base);
+    }
 
     // get the type of the elements in any iterable type (typically containers)
     template<typename T>
@@ -91,6 +125,8 @@ namespace pmon::util
             return defaultValue;
         }
     }
+
+    // compile-time static to runtime dynamic TMP bridges (on enum)
 
     template<typename Enum, std::underlying_type_t<Enum> MaxValue, typename Functor>
     constexpr void ForEachEnumValue(Functor&& func)
