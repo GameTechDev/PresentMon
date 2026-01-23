@@ -458,7 +458,8 @@ ULONG CALLBACK BufferCallback(EVENT_TRACE_LOGFILE* pLogFile)
 
 ULONG PMTraceSession::Start(
     wchar_t const* etlPath,
-    wchar_t const* sessionName)
+    wchar_t const* sessionName,
+    bool enableProviders)
 {
     assert(mPMConsumer != nullptr);
     assert(mSessionHandle == 0);
@@ -487,10 +488,15 @@ ULONG PMTraceSession::Start(
             return status;
         }
 
-        status = EnableProviders(mSessionHandle, sessionProps.Wnode.Guid, mPMConsumer);
-        if (status != ERROR_SUCCESS) {
-            Stop();
-            return status;
+        // Set the session GUID
+        mSessionGuid = sessionProps.Wnode.Guid;
+
+        if (enableProviders) {
+            status = EnableProviders(mSessionHandle, sessionProps.Wnode.Guid, mPMConsumer);
+            if (status != ERROR_SUCCESS) {
+                Stop();
+                return status;
+            }
         }
     }
 
@@ -692,6 +698,16 @@ bool PMTraceSession::QueryEtwStatus(EtwStatus* status) const
     }
 
     return true;
+}
+
+ULONG PMTraceSession::StartProviders()
+{
+    return EnableProviders(mSessionHandle, mSessionGuid, mPMConsumer);
+}
+
+void PMTraceSession::StopProviders()
+{
+    DisableProviders(mSessionHandle);
 }
 
 ULONG EnableProvidersListing(

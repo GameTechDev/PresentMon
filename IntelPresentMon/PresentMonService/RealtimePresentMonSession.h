@@ -23,8 +23,8 @@ public:
 
 private:
     // functions
-    PM_STATUS StartTraceSession();
-    void StopTraceSession();
+    PM_STATUS StartEtwSession();
+    void StopEtwSession();
 
     void DequeueAnalyzedInfo(
         std::vector<ProcessEvent>* processEvents,
