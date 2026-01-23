@@ -30,7 +30,6 @@
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ClCompile Include="DynamicQuery.cpp" />
-    <ClCompile Include="DynamicMetric.cpp" />
     <ClCompile Include="DynamicStat.cpp" />
     <ClCompile Include="FrameMetricsSource.cpp" />
     <ClCompile Include="FrameEventQuery.cpp" />

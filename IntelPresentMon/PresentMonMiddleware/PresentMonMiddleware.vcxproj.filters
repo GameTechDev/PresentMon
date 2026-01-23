@@ -59,9 +59,6 @@
     <ClCompile Include="ConcreteMiddleware.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="DynamicMetric.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="DynamicQuery.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
