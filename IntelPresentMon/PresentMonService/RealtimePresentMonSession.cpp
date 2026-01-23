@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Logging.h"
 #include "RealtimePresentMonSession.h"
@@ -17,6 +17,7 @@ RealtimePresentMonSession::RealtimePresentMonSession(svc::FrameBroadcaster& broa
 {
     pBroadcaster = &broadcaster;
     ResetEtwFlushPeriod();
+    StartEtwSession();
 }
 
 bool RealtimePresentMonSession::IsTraceSessionActive() {
@@ -33,13 +34,24 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
     SyncTrackedPidState(trackedPids);
     const bool isActive = HasLiveTargets();
     if (isActive && (!wasActive || !IsTraceSessionActive())) {
-        auto status = StartTraceSession();
+        // If the etw session is not active for some reason attempt to start it.
+        // This will only happen if the session was stopped or failed to start
+        // during initialization
+        auto status = StartEtwSession();
         if (status != PM_STATUS_SUCCESS) {
             {
                 std::lock_guard lock(tracked_processes_mutex_);
                 tracked_pid_live_ = std::move(previousState);
             }
             return status;
+        }
+        auto const providerStatus = trace_session_.StartProviders();
+        if (providerStatus != ERROR_SUCCESS) {
+            {
+                std::lock_guard lock(tracked_processes_mutex_);
+                tracked_pid_live_ = std::move(previousState);
+            }            
+            return PM_STATUS::PM_STATUS_FAILURE;
         }
     }
     if (isActive && evtStreamingStarted_) {
@@ -49,19 +61,19 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
         if (evtStreamingStarted_) {
             evtStreamingStarted_.Reset();
         }
-        StopTraceSession();
+        trace_session_.StopProviders();
     }
     return PM_STATUS::PM_STATUS_SUCCESS;
 }
 
 bool RealtimePresentMonSession::CheckTraceSessions(bool forceTerminate) {
     if (forceTerminate) {
-        StopTraceSession();
+        StopEtwSession();
         ClearTrackedProcesses();
         return true;
     }
     if (!HasLiveTargets() && (IsTraceSessionActive() == true)) {
-        StopTraceSession();
+        StopEtwSession();
         return true;
     }
     return false;
@@ -83,7 +95,6 @@ void RealtimePresentMonSession::FlushEvents()
             pmlog_warn("Failed manual flush of ETW event buffer").hr();
         }
     }
-
 }
 
 void RealtimePresentMonSession::ResetEtwFlushPeriod()
@@ -91,8 +102,8 @@ void RealtimePresentMonSession::ResetEtwFlushPeriod()
     etw_flush_period_ms_ = default_realtime_etw_flush_period_ms_;
 }
 
-PM_STATUS RealtimePresentMonSession::StartTraceSession() {
-    std::lock_guard lock(session_mutex_);
+PM_STATUS RealtimePresentMonSession::StartEtwSession() {
+    std::lock_guard<std::mutex> lock(session_mutex_);
 
     if (pm_consumer_) {
         return PM_STATUS::PM_STATUS_SERVICE_ERROR;
@@ -128,12 +139,12 @@ PM_STATUS RealtimePresentMonSession::StartTraceSession() {
     // it and start a new session. This is useful if a previous process failed to
     // properly shut down the session for some reason.
     trace_session_.mPMConsumer = pm_consumer_.get();
-    auto status = trace_session_.Start(etl_file_name, pm_session_name_.c_str());
+    auto status = trace_session_.Start(etl_file_name, pm_session_name_.c_str(), false);
 
     if (status == ERROR_ALREADY_EXISTS) {
         status = StopNamedTraceSession(pm_session_name_.c_str());
         if (status == ERROR_SUCCESS) {
-            status = trace_session_.Start(etl_file_name, pm_session_name_.c_str());
+            status = trace_session_.Start(etl_file_name, pm_session_name_.c_str(), false);
         }
     }
 
@@ -167,7 +178,7 @@ PM_STATUS RealtimePresentMonSession::StartTraceSession() {
     return PM_STATUS::PM_STATUS_SUCCESS;
 }
 
-void RealtimePresentMonSession::StopTraceSession() {
+void RealtimePresentMonSession::StopEtwSession() {
     // PHASE 1: Signal shutdown and wait for threads to observe it
     // this also enforces "only_once" semantics for multiple stop callers
     if (session_active_.exchange(false, std::memory_order_acq_rel)) {
