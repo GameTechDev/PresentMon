@@ -68,7 +68,7 @@
     },
     {
       "Id": "8f014852-6512-466b-99cb-0a8724c36862",
-      "Command": "--output_file gold_5.csv"
+      "Command": "--output_file \"C:\\DataAnalysis\\BG6-Bug\\out.csv\""
     },
     {
       "Id": "1606ee3e-ac1c-4fea-9a87-736864dd1f00",

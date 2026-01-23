@@ -16,6 +16,7 @@ using v = util::log::V;
 RealtimePresentMonSession::RealtimePresentMonSession()
 {
     ResetEtwFlushPeriod();
+    StartEtwSession();
 }
 
 bool RealtimePresentMonSession::IsTraceSessionActive() {
@@ -42,13 +43,25 @@ PM_STATUS RealtimePresentMonSession::StartStreaming(uint32_t client_process_id,
     else {
         // Add the client process id to be monitored
         GetProcessInfo(client_process_id);
-        auto status = StartTraceSession();
-        if (status == PM_STATUS_FAILURE) {
-            // Unable to start a trace session. Destroy the NSM and
-            // return status
-            streamer_.StopStreaming(target_process_id);
-            return status;
+
+        // If the trace session is not active for some reason attempt to start it.
+        // This will only happen if the session was stopped or failed to start
+        // during initialization.
+        if (!IsTraceSessionActive()) {
+            status = StartEtwSession();
+            if (status != PM_STATUS::PM_STATUS_SUCCESS) {
+                // Unable to start the ETW session, stop streaming and return error
+                streamer_.StopStreaming(target_process_id);
+                return status;
+            }
         }
+
+        auto const providerStatus = trace_session_.StartProviders();
+        if (providerStatus != ERROR_SUCCESS) {
+            streamer_.StopStreaming(target_process_id);
+            return PM_STATUS::PM_STATUS_FAILURE;
+        }
+
         // Only signal the streaming started event when we have
         // exactly one stream after returning from StartStreaming.
         if ((streamer_.NumActiveStreams() == 1) && evtStreamingStarted_) {
@@ -66,14 +79,13 @@ void RealtimePresentMonSession::StopStreaming(uint32_t client_process_id,
     streamer_.StopStreaming(client_process_id, target_process_id);
     if ((streamer_.NumActiveStreams() == 0) && evtStreamingStarted_) {
         evtStreamingStarted_.Reset();
-        StopTraceSession();
+        trace_session_.StopProviders();
     }
 }
 
 bool RealtimePresentMonSession::CheckTraceSessions(bool forceTerminate) {
-    if (((GetActiveStreams() == 0) && (IsTraceSessionActive() == true)) ||
-        forceTerminate) {
-        StopTraceSession();
+    if (forceTerminate) {
+        StopEtwSession();
         return true;
     }
     return false;
@@ -95,7 +107,6 @@ void RealtimePresentMonSession::FlushEvents()
             pmlog_warn("Failed manual flush of ETW event buffer").hr();
         }
     }
-
 }
 
 void RealtimePresentMonSession::ResetEtwFlushPeriod()
@@ -103,7 +114,7 @@ void RealtimePresentMonSession::ResetEtwFlushPeriod()
     etw_flush_period_ms_ = default_realtime_etw_flush_period_ms_;
 }
 
-PM_STATUS RealtimePresentMonSession::StartTraceSession() {
+PM_STATUS RealtimePresentMonSession::StartEtwSession() {
     std::lock_guard<std::mutex> lock(session_mutex_);
 
     if (pm_consumer_) {
@@ -140,12 +151,12 @@ PM_STATUS RealtimePresentMonSession::StartTraceSession() {
     // it and start a new session. This is useful if a previous process failed to
     // properly shut down the session for some reason.
     trace_session_.mPMConsumer = pm_consumer_.get();
-    auto status = trace_session_.Start(etl_file_name, pm_session_name_.c_str());
+    auto status = trace_session_.Start(etl_file_name, pm_session_name_.c_str(), false);
 
     if (status == ERROR_ALREADY_EXISTS) {
         status = StopNamedTraceSession(pm_session_name_.c_str());
         if (status == ERROR_SUCCESS) {
-            status = trace_session_.Start(etl_file_name, pm_session_name_.c_str());
+            status = trace_session_.Start(etl_file_name, pm_session_name_.c_str(), false);
         }
     }
 
@@ -179,7 +190,7 @@ PM_STATUS RealtimePresentMonSession::StartTraceSession() {
     return PM_STATUS::PM_STATUS_SUCCESS;
 }
 
-void RealtimePresentMonSession::StopTraceSession() {
+void RealtimePresentMonSession::StopEtwSession() {
     // PHASE 1: Signal shutdown and wait for threads to observe it
     session_active_.store(false, std::memory_order_release);
     
