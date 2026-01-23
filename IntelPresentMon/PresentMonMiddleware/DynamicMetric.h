@@ -38,6 +38,7 @@ namespace pmon::mid
         virtual void GatherToBlob(uint8_t* pBlobBase) const = 0;
         virtual uint32_t AddStat(PM_STAT stat, uint32_t blobByteOffset, const pmapi::intro::Root& intro) = 0;
         virtual void FinalizeStats() = 0;
+        virtual bool NeedsFullTraversal() const = 0;
     };
 
     template<typename S, typename T, T S::* MemberPtr>

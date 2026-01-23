@@ -33,7 +33,7 @@
     <ClInclude Include="DynamicStat.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HistoryRingTraverser.h">
+    <ClInclude Include="RingMetricBinding.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="FrameEventQuery.h">
@@ -71,7 +71,7 @@
     <ClCompile Include="FrameEventQuery.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="HistoryRingTraverser.cpp">
+    <ClCompile Include="RingMetricBinding.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="LogSetup.cpp">

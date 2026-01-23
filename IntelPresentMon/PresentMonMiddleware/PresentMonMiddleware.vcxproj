@@ -21,7 +21,7 @@
     <ClInclude Include="DynamicStat.h" />
     <ClInclude Include="FrameEventQuery.h" />
     <ClInclude Include="LogSetup.h" />
-    <ClInclude Include="HistoryRingTraverser.h" />
+    <ClInclude Include="RingMetricBinding.h" />
     <ClInclude Include="Middleware.h" />
     <ClInclude Include="MockCommon.h" />
   </ItemGroup>
@@ -33,7 +33,7 @@
     <ClCompile Include="DynamicStat.cpp" />
     <ClCompile Include="FrameMetricsSource.cpp" />
     <ClCompile Include="FrameEventQuery.cpp" />
-    <ClCompile Include="HistoryRingTraverser.cpp" />
+    <ClCompile Include="RingMetricBinding.cpp" />
     <ClCompile Include="LogSetup.cpp" />
   </ItemGroup>
   <ItemGroup>
