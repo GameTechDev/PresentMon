@@ -103,12 +103,18 @@ namespace pmon::ipc::intro
 	}
 
 	void PopulateGpuDevice(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root, uint32_t deviceId,
-		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const GpuTelemetryBitset& gpuCaps)
+		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const GpuTelemetryBitset& gpuCaps, uint64_t adapterId)
 	{
 		// add the device
 		auto charAlloc = pSegmentManager->get_allocator<char>();
+		auto pLuid = (adapterId != 0)
+			? ShmMakeUnique<IntrospectionDeviceLuid>(pSegmentManager, adapterId, pSegmentManager)
+			: ShmUniquePtr<IntrospectionDeviceLuid>(nullptr, bip::deleter<IntrospectionDeviceLuid, ShmSegmentManager>{ pSegmentManager });
+		if (adapterId != 0) {
+			pLuid = ShmMakeUnique<IntrospectionDeviceLuid>(pSegmentManager, adapterId, pSegmentManager);
+		}
 		root.AddDevice(ShmMakeUnique<IntrospectionDevice>(pSegmentManager, deviceId,
-			PM_DEVICE_TYPE_GRAPHICS_ADAPTER, vendor, ShmString{ deviceName.c_str(), charAlloc}));
+			PM_DEVICE_TYPE_GRAPHICS_ADAPTER, vendor, ShmString{ deviceName.c_str(), charAlloc }, std::move(pLuid)));
 
 		// populate device-metric info for this device
 #define X_WALK_METRIC(metric, metric_type, unit, data_type, enum_id, device_type, ...) \

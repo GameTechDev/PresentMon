@@ -211,14 +211,52 @@ namespace pmon::ipc::intro
 		IntrospectionString description_;
 	};
 
+	struct IntrospectionDeviceLuid
+	{
+		IntrospectionDeviceLuid(uint64_t luid, ShmSegmentManager* pSegmentManager)
+			:
+			buffer_{ pSegmentManager->get_allocator<uint8_t>()}
+        {
+            buffer_.resize(sizeof(uint64_t));
+            std::memcpy(buffer_.data(), &luid, sizeof(uint64_t));
+        }
+        using ApiType = PM_INTROSPECTION_DEVICE_LUID;
+        template<class V>
+		ApiType* ApiClone(V voidAlloc) const
+		{
+            // local to hold structure contents being built up
+            ApiType content;
+            // self allocation
+            using A = std::allocator_traits<V>::template rebind_alloc<ApiType>;
+            A alloc{ voidAlloc };
+			auto pSelf = alloc.allocate(1);
+			// prepare contents
+            using CA = std::allocator_traits<V>::template rebind_alloc<uint8_t>;
+			CA charAlloc{ voidAlloc };
+			content.size = static_cast<uint32_t>(buffer_.size());
+			content.pData = charAlloc.allocate(content.size);
+			if (content.pData) {
+				std::memcpy(const_cast<uint8_t*>(content.pData), buffer_.data(), content.size);
+			}
+            // emplace to allocated self
+			if (pSelf) {
+				std::allocator_traits<A>::construct(alloc, pSelf, content);
+			}
+            return pSelf;
+		}
+    private:
+        ShmVector<uint8_t> buffer_;
+	};
+
 	struct IntrospectionDevice
 	{
-		IntrospectionDevice(uint32_t id_in, PM_DEVICE_TYPE type_in, PM_DEVICE_VENDOR vendor_in, ShmString name_in)
+		IntrospectionDevice(uint32_t id_in, PM_DEVICE_TYPE type_in, PM_DEVICE_VENDOR vendor_in, ShmString name_in, ShmUniquePtr<IntrospectionDeviceLuid> pLuid_in)
 			:
 			id_{ id_in },
 			type_{ type_in },
 			vendor_{ vendor_in },
-			name_{ std::move(name_in) }
+			name_{ std::move(name_in) },
+			pLuid_{ std::move(pLuid_in) }
 		{}
 		using ApiType = PM_INTROSPECTION_DEVICE;
 		template<class V>
@@ -235,6 +273,7 @@ namespace pmon::ipc::intro
 			content.type = type_;
 			content.vendor = vendor_;
 			content.pName = name_.ApiClone(voidAlloc);
+			content.pLuid = pLuid_ ? pLuid_->ApiClone(voidAlloc) : nullptr;
 			// emplace to allocated self
 			if (pSelf) {
 				std::allocator_traits<A>::construct(alloc, pSelf, content);
@@ -250,6 +289,7 @@ namespace pmon::ipc::intro
 		PM_DEVICE_TYPE type_;
 		PM_DEVICE_VENDOR vendor_;
 		IntrospectionString name_;
+		ShmUniquePtr<IntrospectionDeviceLuid> pLuid_;
 	};
 
 	struct IntrospectionDeviceMetricInfo

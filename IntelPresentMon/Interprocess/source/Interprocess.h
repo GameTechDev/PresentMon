@@ -20,7 +20,7 @@ namespace pmon::ipc
 	public:
 		virtual ~ServiceComms() = default;
 		virtual intro::IntrospectionRoot& GetIntrospectionRoot() = 0;
-		virtual void RegisterGpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const GpuTelemetryBitset& gpuCaps) = 0;
+		virtual void RegisterGpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const GpuTelemetryBitset& gpuCaps, uint64_t adapterId) = 0;
 		virtual void FinalizeGpuDevices() = 0;
 		virtual void RegisterCpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const CpuTelemetryBitset& cpuCaps) = 0;
 	};

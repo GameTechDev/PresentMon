@@ -46,10 +46,10 @@ namespace pmon::ipc
 			{
 				return *pRoot_;
 			}
-			void RegisterGpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const GpuTelemetryBitset& gpuCaps) override
+			void RegisterGpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const GpuTelemetryBitset& gpuCaps, uint64_t adapterId) override
 			{
 				auto lck = LockIntrospectionMutexExclusive_();
-				intro::PopulateGpuDevice(shm_.get_segment_manager(), *pRoot_, nextDeviceIndex_++, vendor, deviceName, gpuCaps);
+				intro::PopulateGpuDevice(shm_.get_segment_manager(), *pRoot_, nextDeviceIndex_++, vendor, deviceName, gpuCaps, adapterId);
 			}
 			void FinalizeGpuDevices() override
 			{
@@ -99,8 +99,12 @@ namespace pmon::ipc
 				intro::PopulateEnums(pSegmentManager, *pRoot_);
 				intro::PopulateMetrics(pSegmentManager, *pRoot_);
 				intro::PopulateUnits(pSegmentManager, *pRoot_);
+
+				// construct null LUID pointer
+				ShmUniquePtr<intro::IntrospectionDeviceLuid> pLuid(nullptr, bip::deleter<intro::IntrospectionDeviceLuid, ShmSegmentManager>{ pSegmentManager });
+
 				pRoot_->AddDevice(ShmMakeUnique<intro::IntrospectionDevice>(pSegmentManager,
-					0, PM_DEVICE_TYPE_INDEPENDENT, PM_DEVICE_VENDOR_UNKNOWN, ShmString{ "Device-independent", charAlloc }));
+					0, PM_DEVICE_TYPE_INDEPENDENT, PM_DEVICE_VENDOR_UNKNOWN, ShmString{ "Device-independent", charAlloc }, std::move(pLuid)));
 			}
 			void FinalizeIntrospection_()
 			{
