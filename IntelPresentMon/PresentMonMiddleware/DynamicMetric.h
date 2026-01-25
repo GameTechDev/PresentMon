@@ -10,6 +10,9 @@
 #include "DynamicQueryWindow.h"
 #include "DynamicStat.h"
 #include "../CommonUtilities/Exception.h"
+#include "../CommonUtilities/Meta.h"
+#include "../CommonUtilities/Memory.h"
+#include "../CommonUtilities/mc/FrameMetricsMemberMap.h"
 #include "../Interprocess/source/IntrospectionHelpers.h"
 #include "../Interprocess/source/PmStatusError.h"
 #include "../PresentMonAPIWrapperCommon/Introspection.h"
@@ -36,7 +39,7 @@ namespace pmon::mid
         virtual const std::vector<uint64_t>& GetRequestedSamplePoints(const DynamicQueryWindow& window) const = 0;
         virtual void InputRequestedPointSamples(const std::vector<const S*>& samples) = 0;
         virtual void GatherToBlob(uint8_t* pBlobBase) const = 0;
-        virtual uint32_t AddStat(PM_STAT stat, uint32_t blobByteOffset, const pmapi::intro::Root& intro) = 0;
+        virtual void AddStat(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro) = 0;
         virtual void FinalizeStats() = 0;
         virtual bool NeedsFullTraversal() const = 0;
     };
@@ -107,17 +110,20 @@ namespace pmon::mid
             }
         }
 
-        uint32_t AddStat(PM_STAT stat, uint32_t blobByteOffset, const pmapi::intro::Root& intro) override
+        void AddStat(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro) override
         {
             const auto metricView = intro.FindMetric(metric_);
-            if (!IsStatSupported_(stat, metricView)) {
+            if (!IsStatSupported_(qel.stat, metricView)) {
                 throw pmon::util::Except<pmon::ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED,
                     "Dynamic metric stat not supported by metric.");
             }
 
             const auto inType = GetSampleType_();
-            auto outType = SelectOutputType_(stat, metricView.GetDataTypeInfo().GetPolledType());
-            auto statPtr = MakeDynamicStat<T>(stat, inType, outType, blobByteOffset);
+            auto outType = SelectOutputType_(qel.stat, metricView.GetDataTypeInfo().GetPolledType());
+            qel.dataSize = (uint32_t)ipc::intro::GetDataTypeSize(outType);
+            // adjust offset written in qel when padding is needed for type alignment
+            qel.dataOffset = util::PadToAlignment(qel.dataOffset, qel.dataSize);
+            auto statPtr = MakeDynamicStat<T>(qel.stat, inType, outType, qel.dataOffset);
             auto* rawPtr = statPtr.get();
             statPtrs_.push_back(std::move(statPtr));
 
@@ -130,8 +136,6 @@ namespace pmon::mid
             else if (!rawPtr->NeedsSortedWindow() && rawPtr->NeedsUpdate()) {
                 needsUpdatePtrs_.push_back(rawPtr);
             }
-
-            return (uint32_t)ipc::intro::GetDataTypeSize(outType);
         }
 
         void FinalizeStats() override
@@ -188,4 +192,28 @@ namespace pmon::mid
         std::vector<DynamicStat<T>*> needsSortedWindowPtrs_;
         mutable std::vector<uint64_t> requestedSamplePoints_;
     };
+
+    template<typename S>
+    std::unique_ptr<DynamicMetric<S>> MakeDynamicMetric(const PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro)
+    {
+        return util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT)>(
+            qel.metric,
+            [&]<PM_METRIC Metric>() -> std::unique_ptr<DynamicMetric<S>> {
+                if constexpr (util::metrics::HasFrameMetricMember<Metric>) {
+                    // frame data case
+                    constexpr auto memberPtr = util::metrics::FrameMetricMember<Metric>::member;
+                    using MemberInfo = util::MemberPointerInfo<decltype(memberPtr)>;
+                    using MemberType = typename MemberInfo::MemberType;
+                    return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric);
+                }
+                else {
+                    // telemetry case
+                    constexpr auto memberPtr = &S::value;
+                    using MemberInfo = util::MemberPointerInfo<decltype(memberPtr)>;
+                    using MemberType = typename MemberInfo::MemberType;
+                    return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric);
+                }
+            }, {}
+        );
+    }
 }
