@@ -17,7 +17,7 @@ namespace pmon::mid
             metricIds_{ { qel.metric } }
         {}
         void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
-            std::optional<uint32_t> pid) const override
+            const std::optional<uint32_t>& pid) const override
         {
             // find the history ring for this metric(s)
             const ipc::HistoryRing<S, TimestampMember>* pRing = nullptr;

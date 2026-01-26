@@ -18,19 +18,19 @@ namespace pmon::mid
         public:
             void AddSample(T) override
             {
-                ThrowMalformed_("DynamicStat::AddSample unsupported for this stat");
+                throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "DynamicStat::AddSample unsupported for this stat");
             }
             uint64_t GetSamplePoint(const DynamicQueryWindow& win) const override
             {
-                ThrowMalformed_("DynamicStat::GetSamplePoint unsupported for this stat");
+                throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "DynamicStat::GetSamplePoint unsupported for this stat");
             }
             void SetSampledValue(T) override
             {
-                ThrowMalformed_("DynamicStat::SetSampledValue unsupported for this stat");
+                throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "DynamicStat::SetSampledValue unsupported for this stat");
             }
             void InputSortedSamples(std::span<const T>) override
             {
-                ThrowMalformed_("DynamicStat::InputSortedSamples unsupported for this stat");
+                throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "DynamicStat::InputSortedSamples unsupported for this stat");
             }
         protected:
             DynamicStatBase_(PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes)
@@ -38,10 +38,6 @@ namespace pmon::mid
                 outType_{ outType },
                 offsetBytes_{ offsetBytes }
             {}
-            void ThrowMalformed_(const char* msg) const
-            {
-                throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, msg);
-            }
             PM_DATA_TYPE inType_ = PM_DATA_TYPE_DOUBLE;
             PM_DATA_TYPE outType_ = PM_DATA_TYPE_DOUBLE;
             size_t offsetBytes_ = 0;

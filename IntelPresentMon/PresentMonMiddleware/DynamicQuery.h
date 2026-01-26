@@ -6,15 +6,11 @@
 #include <optional>
 #include <memory>
 #include "RingMetricBinding.h"
+#include "DynamicQueryWindow.h"
 #include "../PresentMonAPI2/PresentMonAPI.h"
 #include "../ControlLib/CpuTelemetryInfo.h"
 #include "../ControlLib/PresentMonPowerTelemetry.h"
 
-namespace pmapi::intro
-{
-	class Root;
-	class MetricView;
-}
 
 namespace pmon::mid
 {
@@ -35,8 +31,12 @@ namespace pmon::mid::todo
 	public:
 		PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, ipc::MiddlewareComms& comms);
 		size_t GetBlobSize() const;
-		void Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms, std::optional<uint32_t> pid) const;
+		void Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms, std::optional<uint32_t> pid, uint64_t nowTimestamp) const;
+
 	private:
+		// functions
+		DynamicQueryWindow GenerateQueryWindow_(uint64_t nowTimestamp) const;
+		// data
 		std::vector<std::unique_ptr<RingMetricBinding>> ringMetricPtrs_;
 		size_t blobSize_;
 		// window parameters; these could theoretically be independent of query but current API couples them
