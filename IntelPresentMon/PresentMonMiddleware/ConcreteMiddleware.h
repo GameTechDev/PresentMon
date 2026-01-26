@@ -191,6 +191,7 @@ namespace pmon::mid
 		uint32_t StartEtlLogging() override;
 		std::string FinishEtlLogging(uint32_t etlLogSessionHandle) override;
 	private:
+		// functions
 		PmNsmFrameData* GetFrameDataStart(StreamClient* client, uint64_t& index, uint64_t dataOffset, uint64_t& queryFrameDataDelta, double& windowSampleSizeMs);
 		uint64_t GetAdjustedQpc(uint64_t current_qpc, uint64_t frame_data_qpc, uint64_t queryMetricsOffset, LARGE_INTEGER frequency, uint64_t& queryFrameDataDelta);
 		bool DecrementIndex(NamedSharedMem* nsm_view, uint64_t& index);
@@ -211,6 +212,9 @@ namespace pmon::mid
 		void SaveMetricCache(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId, uint8_t* pBlob);
 		void CopyMetricCacheToBlob(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId, uint8_t* pBlob);
 
+		FrameMetricsSource& GetFrameMetricSource_(uint32_t pid) const;
+
+		// data
 		std::optional<size_t> GetCachedGpuInfoIndex(uint32_t deviceId);
 
 		const pmapi::intro::Root& GetIntrospectionRoot();

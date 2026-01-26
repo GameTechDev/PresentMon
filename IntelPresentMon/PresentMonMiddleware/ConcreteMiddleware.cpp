@@ -114,6 +114,7 @@ namespace pmon::mid
                 presentMonStreamClients.emplace(targetPid,
                     std::make_unique<StreamClient>(std::move(res.nsmFileName), false));
             }
+            // TODO: error when already tracking
             auto sourceIter = frameMetricsSources.find(targetPid);
             if (sourceIter == frameMetricsSources.end()) {
                 frameMetricsSources.emplace(targetPid,
@@ -1318,20 +1319,12 @@ static void ReportMetrics(
     {
         const auto framesToCopy = numFrames;
         numFrames = 0;
-
-        auto sourceIter = frameMetricsSources.find(processId);
-        if (sourceIter == frameMetricsSources.end() || sourceIter->second == nullptr) {
-            pmlog_error("Frame metrics source for process {} doesn't exist. Please call pmStartStream to initialize the client.").diag();
-            throw Except<util::Exception>(std::format("Failed to find frame metrics source for pid {} in ConsumeFrameEvents", processId));
-        }
-
         if (framesToCopy == 0) {
             return;
         }
 
-        auto&& [storePid, source] = *sourceIter;
         // TODO: consider making consume return one frame at a time (eliminate need for heap alloc)
-        auto frames = source->Consume(framesToCopy);
+        auto frames = GetFrameMetricSource_(processId).Consume(framesToCopy);
         assert(frames.size() <= framesToCopy);
         for (const auto& frameMetrics : frames) {
             pQuery->GatherToBlob(pBlob, processId, frameMetrics);
@@ -1920,6 +1913,18 @@ static void ReportMetrics(
         {
             auto& uniquePtr = it->second;
             std::copy(uniquePtr.get(), uniquePtr.get() + pQuery->queryCacheSize, pBlob);
+        }
+    }
+
+    FrameMetricsSource& ConcreteMiddleware::GetFrameMetricSource_(uint32_t pid) const
+    {        
+        if (auto it = frameMetricsSources.find(pid);
+            it == frameMetricsSources.end() || it->second == nullptr) {
+            pmlog_error("Frame metrics source for process {} doesn't exist. Call pmStartTracking to initialize the client.").diag();
+            throw Except<util::Exception>(std::format("Failed to find frame metrics source for pid {}", pid));
+        }
+        else {
+            return *it->second;
         }
     }
 
