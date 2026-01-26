@@ -27,7 +27,7 @@ namespace pmon::mid
     public:
         virtual ~RingMetricBinding() = default;
 
-        virtual void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms, std::optional<uint32_t> pid = {}) const = 0;
+        virtual void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms, std::optional<uint32_t> pid) const = 0;
         virtual void Finalize() = 0;
         virtual void AddMetricStat(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro) = 0;
     };

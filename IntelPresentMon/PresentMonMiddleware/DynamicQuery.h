@@ -2,7 +2,9 @@
 #include <vector>
 #include <bitset>
 #include <map>
+#include <span>
 #include <optional>
+#include <memory>
 #include "../PresentMonAPI2/PresentMonAPI.h"
 #include "../ControlLib/CpuTelemetryInfo.h"
 #include "../ControlLib/PresentMonPowerTelemetry.h"
@@ -16,6 +18,7 @@ namespace pmapi::intro
 namespace pmon::mid
 {
 	class Middleware;
+	class RingMetricBinding;
 }
 
 namespace pmon::ipc
@@ -29,9 +32,15 @@ namespace pmon::mid::todo
 	struct PM_DYNAMIC_QUERY
 	{
 	public:
-		PM_DYNAMIC_QUERY();
-
+		PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, ipc::MiddlewareComms& comms);
+		size_t GetBlobSize() const;
+		void Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms, std::optional<uint32_t> pid) const;
 	private:
+		std::vector<std::unique_ptr<RingMetricBinding>> ringMetricPtrs_;
+		size_t blobSize_;
+		// window parameters; these could theoretically be independent of query but current API couples them
+		double windowSizeMs_ = 0;
+		double metricOffsetMs_ = 0.;
 	};
 }
 
