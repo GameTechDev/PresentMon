@@ -21,17 +21,9 @@ namespace pmon::mid
             // find the history ring for this metric(s)
             const ipc::HistoryRing<S, TimestampMember>* pRing = nullptr;
             if constexpr (std::is_same_v<S, ipc::FrameData>) {
-                if (!pid) {
-                    throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED,
-                        "Frame metrics require a process id.");
-                }
                 pRing = &comms.GetFrameDataStore(*pid).frameData;
             }
             else {
-                if (pid) {
-                    throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED,
-                        "Telemetry metrics do not accept a process id.");
-                }
                 using ValueType = typename S::value_type;
                 if (deviceId_ == ipc::kSystemDeviceId) {
                     pRing = &comms.GetSystemDataStore().telemetryData.FindRing<ValueType>(metricIds_.front()).at(arrayIndex_);

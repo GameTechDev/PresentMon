@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <vector>
 #include <ranges>
+#include <boost/container/vector.hpp>
 #include "DynamicQueryWindow.h"
 #include "DynamicStat.h"
 #include "../CommonUtilities/Exception.h"
@@ -48,7 +49,6 @@ namespace pmon::mid
     template<typename S, typename T, T S::* MemberPtr>
     class DynamicMetricBinding : public DynamicMetric<S>
     {
-        using SampleStorageT = std::conditional_t<std::is_same_v<T, bool>, uint8_t, T>;
     public:
         DynamicMetricBinding(PM_METRIC metric)
             :
@@ -68,7 +68,7 @@ namespace pmon::mid
             const auto& value = sample.*MemberPtr;
             // if samples has reserved size, it is needed
             if (samples_.capacity()) {
-                samples_.push_back((SampleStorageT)value);
+                samples_.push_back(value);
             }
             for (auto* stat : needsUpdatePtrs_) {
                 stat->AddSample(value);
@@ -106,24 +106,9 @@ namespace pmon::mid
         {
             if (!needsSortedWindowPtrs_.empty()) {
                 std::ranges::sort(samples_);
-                if constexpr (std::is_same_v<T, bool>) {
-                    const size_t sampleCount = samples_.size();
-                    std::unique_ptr<bool[]> boolSamples;
-                    if (sampleCount > 0) {
-                        boolSamples = std::make_unique<bool[]>(sampleCount);
-                        for (size_t i = 0; i < sampleCount; ++i) {
-                            boolSamples[i] = samples_[i] != 0;
-                        }
-                    }
-                    const std::span<const bool> spanSamples{ boolSamples.get(), sampleCount };
-                    for (auto pStat : needsSortedWindowPtrs_) {
-                        pStat->InputSortedSamples(spanSamples);
-                    }
-                }
-                else {
-                    for (auto pStat : needsSortedWindowPtrs_) {
-                        pStat->InputSortedSamples(samples_);
-                    }
+                const std::span<const T> spanSamples{ samples_.data(), samples_.size() };
+                for (auto pStat : needsSortedWindowPtrs_) {
+                    pStat->InputSortedSamples(spanSamples);
                 }
             }
             // clear the sample sorting buffer for the next poll
@@ -212,7 +197,7 @@ namespace pmon::mid
         }
 
         PM_METRIC metric_;
-        mutable std::vector<SampleStorageT> samples_;
+        mutable boost::container::vector<T> samples_;
         std::vector<std::unique_ptr<DynamicStat<T>>> statPtrs_;
         std::vector<DynamicStat<T>*> needsUpdatePtrs_;
         std::vector<DynamicStat<T>*> needsSamplePtrs_;
