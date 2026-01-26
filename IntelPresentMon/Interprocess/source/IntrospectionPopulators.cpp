@@ -103,16 +103,16 @@ namespace pmon::ipc::intro
 	}
 
 	void PopulateGpuDevice(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root, uint32_t deviceId,
-		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const GpuTelemetryBitset& gpuCaps, uint64_t adapterId)
+		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const GpuTelemetryBitset& gpuCaps, std::span<const uint8_t> luidBytes)
 	{
 		// add the device
 		auto charAlloc = pSegmentManager->get_allocator<char>();
-		auto pLuid = (adapterId != 0)
-			? ShmMakeUnique<IntrospectionDeviceLuid>(pSegmentManager, adapterId, pSegmentManager)
-			: ShmUniquePtr<IntrospectionDeviceLuid>(nullptr, bip::deleter<IntrospectionDeviceLuid, ShmSegmentManager>{ pSegmentManager });
-		if (adapterId != 0) {
-			pLuid = ShmMakeUnique<IntrospectionDeviceLuid>(pSegmentManager, adapterId, pSegmentManager);
-		}
+        // default null LUID
+        ShmUniquePtr<IntrospectionDeviceLuid> pLuid(nullptr, bip::deleter<IntrospectionDeviceLuid, ShmSegmentManager>{ pSegmentManager });
+        // allocate luid only if provided
+		if (!luidBytes.empty()) {
+			pLuid = ShmMakeUnique<IntrospectionDeviceLuid>(pSegmentManager, luidBytes, pSegmentManager);
+        }
 		root.AddDevice(ShmMakeUnique<IntrospectionDevice>(pSegmentManager, deviceId,
 			PM_DEVICE_TYPE_GRAPHICS_ADAPTER, vendor, ShmString{ deviceName.c_str(), charAlloc }, std::move(pLuid)));
 

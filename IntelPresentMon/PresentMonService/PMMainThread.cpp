@@ -109,7 +109,16 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
             // sample 2x here as workaround/kludge because Intel provider misreports 1st sample
             adapter->Sample();
             adapter->Sample();
-            pComms->RegisterGpuDevice(adapter->GetVendor(), adapter->GetName(), adapter->GetPowerTelemetryCapBits(), adapter->GetAdapterId());
+            uint64_t luid = adapter->GetAdapterId();
+            std::span<const uint8_t> bytes;
+            if (luid == 0) {
+                // if we have no LUID, send empty span
+                bytes = std::span<const uint8_t>{};
+            }
+            else {
+                bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(&luid), sizeof(luid));
+            }
+            pComms->RegisterGpuDevice(adapter->GetVendor(), adapter->GetName(), adapter->GetPowerTelemetryCapBits(), bytes);
         }
         pComms->FinalizeGpuDevices();
         pmlog_info(std::format("Finished populating GPU telemetry introspection, {} seconds elapsed", timer.Mark()));

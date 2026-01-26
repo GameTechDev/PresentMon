@@ -213,12 +213,14 @@ namespace pmon::ipc::intro
 
 	struct IntrospectionDeviceLuid
 	{
-		IntrospectionDeviceLuid(uint64_t luid, ShmSegmentManager* pSegmentManager)
+		IntrospectionDeviceLuid(std::span<const uint8_t> luidBytes, ShmSegmentManager* pSegmentManager)
 			:
 			buffer_{ pSegmentManager->get_allocator<uint8_t>()}
         {
-            buffer_.resize(sizeof(uint64_t));
-            std::memcpy(buffer_.data(), &luid, sizeof(uint64_t));
+			if (!luidBytes.empty()) {
+                buffer_.resize(luidBytes.size());
+                std::memcpy(buffer_.data(), luidBytes.data(), luidBytes.size());
+			}
         }
         using ApiType = PM_INTROSPECTION_DEVICE_LUID;
         template<class V>
