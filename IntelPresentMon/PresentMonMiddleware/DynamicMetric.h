@@ -121,11 +121,6 @@ namespace pmon::mid
         void AddStat(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro) override
         {
             const auto metricView = intro.FindMetric(metric_);
-            if (!IsStatSupported_(qel.stat, metricView)) {
-                throw pmon::util::Except<pmon::ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED,
-                    "Dynamic metric stat not supported by metric.");
-            }
-
             const auto inType = GetSampleType_();
             auto outType = SelectOutputType_(qel.stat, metricView.GetDataTypeInfo().GetPolledType());
             qel.dataSize = (uint32_t)ipc::intro::GetDataTypeSize(outType);
@@ -184,16 +179,6 @@ namespace pmon::mid
                 return PM_DATA_TYPE_DOUBLE;
             }
             return metricOutType;
-        }
-
-        static bool IsStatSupported_(PM_STAT stat, const pmapi::intro::MetricView& metricView)
-        {
-            for (auto statInfo : metricView.GetStatInfo()) {
-                if (statInfo.GetStat() == stat) {
-                    return true;
-                }
-            }
-            return false;
         }
 
         PM_METRIC metric_;

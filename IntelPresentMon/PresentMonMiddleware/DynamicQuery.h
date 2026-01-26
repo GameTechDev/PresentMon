@@ -5,6 +5,7 @@
 #include <span>
 #include <optional>
 #include <memory>
+#include "RingMetricBinding.h"
 #include "../PresentMonAPI2/PresentMonAPI.h"
 #include "../ControlLib/CpuTelemetryInfo.h"
 #include "../ControlLib/PresentMonPowerTelemetry.h"

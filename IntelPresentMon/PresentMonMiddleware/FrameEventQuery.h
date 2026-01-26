@@ -8,7 +8,6 @@
 namespace pmapi::intro
 {
 	class Root;
-	class MetricView;
 }
 
 namespace pmon::mid
@@ -55,7 +54,7 @@ private:
 		bool isStatic = false;
 	};
 	// functions
-	static GatherCommand_ MapQueryElementToFrameGatherCommand_(const PM_QUERY_ELEMENT& q, size_t blobCursor, const pmapi::intro::MetricView& metricView);
+	static GatherCommand_ MapQueryElementToFrameGatherCommand_(const PM_QUERY_ELEMENT& q, size_t blobCursor, PM_DATA_TYPE frameType);
 	void GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t* pBlobBytes,
 		const pmon::util::metrics::FrameMetrics& frameMetrics) const;
 	void GatherFromStatic_(const GatherCommand_& cmd, uint8_t* pBlobBytes, uint32_t processId) const;

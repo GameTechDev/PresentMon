@@ -34,6 +34,7 @@
 #include "../CommonUtilities/log/GlogShim.h"
 
 #include "ActionClient.h"
+#include "QueryValidation.h"
 
 namespace pmon::mid
 {
@@ -271,6 +272,7 @@ namespace pmon::mid
         // get introspection data for reference
         // TODO: cache this data so it's not required to be generated every time
         auto& ispec = GetIntrospectionRoot();
+        ValidateQueryElements(queryElements, PM_METRIC_TYPE_DYNAMIC, ispec, *pComms);
 
         // make the query object that will be managed by the handle
         auto pQuery = std::make_unique<PM_DYNAMIC_QUERY>();
@@ -503,10 +505,6 @@ namespace pmon::mid
                 //pQuery->accumCpuBits.set(static_cast<size_t>(CpuTelemetryCapBits::cpu_power));
                 break;
             default:
-                if (metricView.GetType() == PM_METRIC_TYPE_FRAME_EVENT) {
-                    pmlog_warn(std::format("ignoring frame event metric [{}] while building dynamic query",
-                        metricView.Introspect().GetSymbol())).diag();
-                }
                 break;
             }
 

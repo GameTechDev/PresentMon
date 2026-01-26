@@ -24,6 +24,7 @@
     <ClInclude Include="RingMetricBinding.h" />
     <ClInclude Include="Middleware.h" />
     <ClInclude Include="MockCommon.h" />
+    <ClInclude Include="QueryValidation.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ConcreteMiddleware.cpp">
@@ -35,6 +36,7 @@
     <ClCompile Include="FrameEventQuery.cpp" />
     <ClCompile Include="RingMetricBinding.cpp" />
     <ClCompile Include="LogSetup.cpp" />
+    <ClCompile Include="QueryValidation.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CommonUtilities\CommonUtilities.vcxproj">

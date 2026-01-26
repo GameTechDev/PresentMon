@@ -54,6 +54,9 @@
     <ClInclude Include="DynamicQueryWindow.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="QueryValidation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ConcreteMiddleware.cpp">
@@ -78,6 +81,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="LogSetup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="QueryValidation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

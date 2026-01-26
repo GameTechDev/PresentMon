@@ -2,6 +2,7 @@
 #include "../Interprocess/source/Interprocess.h"
 #include "../Interprocess/source/IntrospectionDataTypeMapping.h"
 #include "../Interprocess/source/SystemDeviceId.h"
+#include <cassert>
 
 namespace pmon::mid
 {
@@ -67,9 +68,9 @@ namespace pmon::mid
             if (!pMetric) {
                 auto pNewMetric = MakeDynamicMetric<S>(qel);
                 pMetric = pNewMetric.get();
+                assert(pMetric != nullptr);
                 if (pMetric == nullptr) {
-                    throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED,
-                        "Unsupported metric for dynamic query.");
+                    return;
                 }
                 metricPtrs_.push_back(std::move(pNewMetric));
             }
@@ -117,14 +118,14 @@ namespace pmon::mid
                     return std::make_unique<RingMetricBindingBound<SampleType, &SampleType::timestamp>>(qel);
                 }
                 else {
-                    throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED,
-                        "Unsupported telemetry ring data type for dynamic query.");
+                    assert(false);
+                    return {};
                 }
             }
             static std::unique_ptr<RingMetricBinding> Default(PM_QUERY_ELEMENT&)
             {
-                throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED,
-                    "Unknown telemetry ring data type for dynamic query.");
+                assert(false);
+                return {};
             }
         };
     }
