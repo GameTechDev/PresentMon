@@ -42,18 +42,25 @@ namespace pmon::mid
         virtual void AddStat(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro) = 0;
         virtual void FinalizeStats() = 0;
         virtual bool NeedsFullTraversal() const = 0;
+        virtual PM_METRIC GetMetricId() const = 0;
     };
 
     template<typename S, typename T, T S::* MemberPtr>
     class DynamicMetricBinding : public DynamicMetric<S>
     {
+        using SampleStorageT = std::conditional_t<std::is_same_v<T, bool>, uint8_t, T>;
     public:
         DynamicMetricBinding(PM_METRIC metric)
             :
             metric_{ metric }
         {
-            static_assert(std::is_same_v<T, double> || std::is_same_v<T, int32_t> || std::is_same_v<T, bool>,
-                "DynamicMetricBinding only supports double, int32_t, and bool sample types.");
+            static_assert(std::is_same_v<T, double> || std::is_same_v<T, int32_t> || std::is_same_v<T, uint64_t> || std::is_same_v<T, bool>,
+                "DynamicMetricBinding only supports double, int32_t, uint64_t, and bool sample types.");
+        }
+
+        PM_METRIC GetMetricId() const override
+        {
+            return metric_;
         }
 
         void AddSample(const S& sample) override
@@ -61,7 +68,7 @@ namespace pmon::mid
             const auto& value = sample.*MemberPtr;
             // if samples has reserved size, it is needed
             if (samples_.capacity()) {
-                samples_.push_back(value);
+                samples_.push_back((SampleStorageT)value);
             }
             for (auto* stat : needsUpdatePtrs_) {
                 stat->AddSample(value);
@@ -99,8 +106,24 @@ namespace pmon::mid
         {
             if (!needsSortedWindowPtrs_.empty()) {
                 std::ranges::sort(samples_);
-                for (auto pStat : needsSortedWindowPtrs_) {
-                    pStat->InputSortedSamples(samples_);
+                if constexpr (std::is_same_v<T, bool>) {
+                    const size_t sampleCount = samples_.size();
+                    std::unique_ptr<bool[]> boolSamples;
+                    if (sampleCount > 0) {
+                        boolSamples = std::make_unique<bool[]>(sampleCount);
+                        for (size_t i = 0; i < sampleCount; ++i) {
+                            boolSamples[i] = samples_[i] != 0;
+                        }
+                    }
+                    const std::span<const bool> spanSamples{ boolSamples.get(), sampleCount };
+                    for (auto pStat : needsSortedWindowPtrs_) {
+                        pStat->InputSortedSamples(spanSamples);
+                    }
+                }
+                else {
+                    for (auto pStat : needsSortedWindowPtrs_) {
+                        pStat->InputSortedSamples(samples_);
+                    }
                 }
             }
             // clear the sample sorting buffer for the next poll
@@ -146,6 +169,10 @@ namespace pmon::mid
                 samples_.reserve(150);
             }
         }
+        bool NeedsFullTraversal() const override
+        {
+            return !needsUpdatePtrs_.empty() || !needsSortedWindowPtrs_.empty();
+        }
 
         ~DynamicMetricBinding() = default;
 
@@ -185,7 +212,7 @@ namespace pmon::mid
         }
 
         PM_METRIC metric_;
-        mutable std::vector<T> samples_;
+        mutable std::vector<SampleStorageT> samples_;
         std::vector<std::unique_ptr<DynamicStat<T>>> statPtrs_;
         std::vector<DynamicStat<T>*> needsUpdatePtrs_;
         std::vector<DynamicStat<T>*> needsSamplePtrs_;
@@ -194,26 +221,28 @@ namespace pmon::mid
     };
 
     template<typename S>
-    std::unique_ptr<DynamicMetric<S>> MakeDynamicMetric(const PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro)
+    std::unique_ptr<DynamicMetric<S>> MakeDynamicMetric(const PM_QUERY_ELEMENT& qel)
     {
         return util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT)>(
             qel.metric,
             [&]<PM_METRIC Metric>() -> std::unique_ptr<DynamicMetric<S>> {
                 if constexpr (util::metrics::HasFrameMetricMember<Metric>) {
-                    // frame data case
                     constexpr auto memberPtr = util::metrics::FrameMetricMember<Metric>::member;
                     using MemberInfo = util::MemberPointerInfo<decltype(memberPtr)>;
-                    using MemberType = typename MemberInfo::MemberType;
-                    return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric);
+                    if constexpr (std::is_same_v<typename MemberInfo::StructType, S>) {
+                        using MemberType = typename MemberInfo::MemberType;
+                        return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric);
+                    }
                 }
-                else {
+                if constexpr (requires { &S::value; }) {
                     // telemetry case
                     constexpr auto memberPtr = &S::value;
                     using MemberInfo = util::MemberPointerInfo<decltype(memberPtr)>;
                     using MemberType = typename MemberInfo::MemberType;
                     return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric);
                 }
-            }, {}
+                return {};
+            }, std::unique_ptr<DynamicMetric<S>>{}
         );
     }
 }

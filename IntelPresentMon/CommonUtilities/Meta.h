@@ -113,16 +113,16 @@ namespace pmon::util
         template<typename Enum, std::underlying_type_t<Enum> MaxValue,
             std::underlying_type_t<Enum> Value, typename Functor, typename ReturnT>
         constexpr ReturnT DispatchEnumValueRecursive_(std::underlying_type_t<Enum> target,
-            Functor& func, ReturnT defaultValue)
+            Functor& func, ReturnT&& defaultValue)
         {
             if constexpr (Value < MaxValue) {
                 if (target == Value) {
                     return func.template operator()<static_cast<Enum>(Value)>();
                 }
                 return DispatchEnumValueRecursive_<Enum, MaxValue, Value + 1>(
-                    target, func, defaultValue);
+                    target, func, std::move(defaultValue));
             }
-            return defaultValue;
+            return std::move(defaultValue);
         }
     }
 
@@ -136,11 +136,13 @@ namespace pmon::util
     }
 
     template<typename Enum, std::underlying_type_t<Enum> MaxValue, typename Functor, typename ReturnT>
-    constexpr ReturnT DispatchEnumValue(Enum value, Functor&& func, ReturnT defaultValue)
+    constexpr std::remove_reference_t<ReturnT> DispatchEnumValue(Enum value, Functor&& func, ReturnT&& defaultValue)
     {
+        using Ret = std::remove_reference_t<ReturnT>;
         auto& fn = func;
+        Ret defaultValueCopy = std::forward<ReturnT>(defaultValue);
         return impl::DispatchEnumValueRecursive_<Enum, MaxValue, 0>(
             static_cast<std::underlying_type_t<Enum>>(value),
-            fn, defaultValue);
+            fn, std::move(defaultValueCopy));
     }
 }

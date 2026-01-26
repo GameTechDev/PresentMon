@@ -127,6 +127,9 @@ namespace pmon::mid
                 case PM_DATA_TYPE_BOOL:
                     *reinterpret_cast<bool*>(pTarget) = hasValue_ ? value_ != 0.0 : false;
                     break;
+                case PM_DATA_TYPE_UINT64:
+                    *reinterpret_cast<uint64_t*>(pTarget) = hasValue_ ? (uint64_t)value_ : 0;
+                    break;
                 default:
                     this->ThrowMalformed_("DynamicStat percentile expects double, int32, enum, or bool output value");
                 }
@@ -182,6 +185,9 @@ namespace pmon::mid
                 case PM_DATA_TYPE_BOOL:
                     *reinterpret_cast<bool*>(pTarget) = hasValue_ ? value_ != 0.0 : false;
                     break;
+                case PM_DATA_TYPE_UINT64:
+                    *reinterpret_cast<uint64_t*>(pTarget) = hasValue_ ? (uint64_t)value_ : 0;
+                    break;
                 default:
                     this->ThrowMalformed_("DynamicStat min/max expects double, int32, enum, or bool output value");
                 }
@@ -233,6 +239,9 @@ namespace pmon::mid
                 case PM_DATA_TYPE_BOOL:
                     *reinterpret_cast<bool*>(pTarget) = hasValue_ ? doubleVal != 0.0 : false;
                     break;
+                case PM_DATA_TYPE_UINT64:
+                    *reinterpret_cast<uint64_t*>(pTarget) = hasValue_ ? (uint64_t)value_ : 0;
+                    break;
                 default:
                     this->ThrowMalformed_("DynamicStat point expects double, int32, enum, or bool output value");
                 }
@@ -266,6 +275,12 @@ namespace pmon::mid
                         "Unsupported dynamic stat input data type");
                 }
             }
+            else if constexpr (std::is_same_v<T, uint64_t>) {
+                if (inType != PM_DATA_TYPE_UINT64) {
+                    throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED,
+                        "Unsupported dynamic stat input data type");
+                }
+            }
             else if constexpr (std::is_same_v<T, bool>) {
                 if (inType != PM_DATA_TYPE_BOOL) {
                     throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED,
@@ -283,7 +298,7 @@ namespace pmon::mid
             return stat == PM_STAT_AVG || stat == PM_STAT_NON_ZERO_AVG;
         }
 
-        bool IsSupportedOutputType_(PM_DATA_TYPE outType, bool allowBool)
+        bool IsSupportedOutputType_(PM_DATA_TYPE outType, bool allowBool, bool allowUint64)
         {
             switch (outType) {
             case PM_DATA_TYPE_DOUBLE:
@@ -292,6 +307,8 @@ namespace pmon::mid
                 return true;
             case PM_DATA_TYPE_BOOL:
                 return allowBool;
+            case PM_DATA_TYPE_UINT64:
+                return allowUint64;
             default:
                 return false;
             }
@@ -308,7 +325,8 @@ namespace pmon::mid
             }
 
             const bool allowBool = inType == PM_DATA_TYPE_BOOL;
-            if (!IsSupportedOutputType_(outType, allowBool)) {
+            const bool allowUint64 = inType == PM_DATA_TYPE_UINT64;
+            if (!IsSupportedOutputType_(outType, allowBool, allowUint64)) {
                 throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED,
                     "Unsupported dynamic stat output data type");
             }
@@ -365,5 +383,6 @@ namespace pmon::mid
 
     template std::unique_ptr<DynamicStat<double>> MakeDynamicStat<double>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
     template std::unique_ptr<DynamicStat<int32_t>> MakeDynamicStat<int32_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
+    template std::unique_ptr<DynamicStat<uint64_t>> MakeDynamicStat<uint64_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
     template std::unique_ptr<DynamicStat<bool>> MakeDynamicStat<bool>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
 }
