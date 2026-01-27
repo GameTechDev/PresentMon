@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #include <boost/circular_buffer.hpp>
 #include "../CommonUtilities/Qpc.h"
@@ -19,8 +20,43 @@ namespace pmon::mid
 		const util::metrics::FrameMetrics& Peek() const;
 		void ConsumeNext();
 		void ProcessFrame(const util::metrics::FrameData& frame, util::QpcConverter& qpc);
+		bool Empty() const;
+		size_t Size() const;
+		const util::metrics::FrameMetrics& At(size_t index) const;
+		size_t LowerBoundIndex(uint64_t timestamp) const;
+		size_t UpperBoundIndex(uint64_t timestamp) const;
+		size_t NearestIndex(uint64_t timestamp) const;
+		size_t CountInTimestampRange(uint64_t start, uint64_t end) const;
+		template<typename F>
+		size_t ForEachInTimestampRange(uint64_t start, uint64_t end, F&& func) const
+		{
+			const size_t count = Size();
+			if (count == 0) {
+				return 0;
+			}
+
+			size_t index = LowerBoundIndex(start);
+			size_t visited = 0;
+			for (; index < count; ++index) {
+				const auto& metrics = At(index);
+				if (TimestampOf_(metrics) > end) {
+					break;
+				}
+				std::forward<F>(func)(metrics);
+				++visited;
+			}
+			return visited;
+		}
 
 	private:
+		enum class BoundKind_
+		{
+			Lower,
+			Upper
+		};
+
+		size_t BoundIndex_(uint64_t timestamp, BoundKind_ kind) const;
+		static uint64_t TimestampOf_(const util::metrics::FrameMetrics& metrics);
 		void ClampCursor_();
 		void PushMetrics_(const util::metrics::FrameMetrics& metrics);
 
@@ -40,11 +76,24 @@ namespace pmon::mid
 		FrameMetricsSource(FrameMetricsSource&&) = delete;
 		FrameMetricsSource& operator=(FrameMetricsSource&&) = delete;
 
+		void Update();
 		std::vector<util::metrics::FrameMetrics> Consume(size_t maxFrames);
+		template<typename F>
+		size_t ForEachInActiveTimestampRange(uint64_t start, uint64_t end, F&& func) const
+		{
+			const auto* pSwap = GetActiveSwapChainState_(start, end);
+			if (pSwap == nullptr) {
+				return 0;
+			}
+			return pSwap->ForEachInTimestampRange(start, end, std::forward<F>(func));
+		}
+		const util::metrics::FrameMetrics* FindNearestActive(uint64_t start, uint64_t end, uint64_t timestamp) const;
+		bool HasActiveSwapChainSamples(uint64_t start, uint64_t end) const;
 		const util::QpcConverter& GetQpcConverter() const;
 
 	private:
 		void ProcessNewFrames_();
+		const SwapChainState* GetActiveSwapChainState_(uint64_t start, uint64_t end) const;
 
 		ipc::MiddlewareComms& comms_;
 		const ipc::FrameDataStore* pStore_ = nullptr;

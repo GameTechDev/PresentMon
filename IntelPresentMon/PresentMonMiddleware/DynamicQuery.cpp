@@ -55,7 +55,7 @@ namespace pmon::mid::todo
 			if (qel.deviceId == ipc::kUniversalDeviceId) {
 				binding = frameBinding;
 				if (!binding) {
-					auto bindingPtr = MakeRingMetricBinding(qel, introRoot);
+					auto bindingPtr = MakeFrameMetricBinding(qel);
 					binding = bindingPtr.get();
 					frameBinding = bindingPtr.get();
 					ringMetricPtrs_.push_back(std::move(bindingPtr));
@@ -71,7 +71,7 @@ namespace pmon::mid::todo
 					binding = it->second;
 				}
 				else {
-					auto bindingPtr = MakeRingMetricBinding(qel, introRoot);
+					auto bindingPtr = MakeTelemetryRingMetricBinding(qel, introRoot);
 					binding = bindingPtr.get();
 					ringMetricPtrs_.push_back(std::move(bindingPtr));
 					telemetryBindings.emplace(key, binding);
@@ -102,12 +102,12 @@ namespace pmon::mid::todo
 	}
 
 
-	void PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms, std::optional<uint32_t> pid,
-		uint64_t nowTimestamp) const
+	void PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
+		uint64_t nowTimestamp, FrameMetricsSource* frameSource) const
 	{
 		const auto window = GenerateQueryWindow_(nowTimestamp);
 		for (auto& pRing : ringMetricPtrs_) {
-			pRing->Poll(window, pBlobBase, comms, pid);
+			pRing->Poll(window, pBlobBase, comms, frameSource);
 		}
 	}
 }

@@ -20,6 +20,8 @@ namespace pmon::ipc
 
 namespace pmon::mid
 {
+    class FrameMetricsSource;
+
     // container to bind and type erase a metric ring static type to one or more metrics
     // (telemetry rings are always 1 metric per ring, but the frame ring serves many metrics)
     class RingMetricBinding
@@ -27,10 +29,12 @@ namespace pmon::mid
     public:
         virtual ~RingMetricBinding() = default;
 
-        virtual void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms, const std::optional<uint32_t>& pid) const = 0;
+        virtual void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
+            FrameMetricsSource* pFrameSource) const = 0;
         virtual void Finalize() = 0;
         virtual void AddMetricStat(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro) = 0;
     };
 
-    std::unique_ptr<RingMetricBinding> MakeRingMetricBinding(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro);
+    std::unique_ptr<RingMetricBinding> MakeFrameMetricBinding(PM_QUERY_ELEMENT& qel);
+    std::unique_ptr<RingMetricBinding> MakeTelemetryRingMetricBinding(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro);
 }

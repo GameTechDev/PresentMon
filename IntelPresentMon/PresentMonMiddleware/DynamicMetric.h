@@ -54,8 +54,6 @@ namespace pmon::mid
             :
             metric_{ metric }
         {
-            static_assert(std::is_same_v<T, double> || std::is_same_v<T, int32_t> || std::is_same_v<T, uint64_t> || std::is_same_v<T, bool>,
-                "DynamicMetricBinding only supports double, int32_t, uint64_t, and bool sample types.");
         }
 
         PM_METRIC GetMetricId() const override

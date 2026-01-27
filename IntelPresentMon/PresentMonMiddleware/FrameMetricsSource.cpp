@@ -46,6 +46,104 @@ namespace pmon::mid
 		}
 	}
 
+	bool SwapChainState::Empty() const
+	{
+		return metrics_.empty();
+	}
+
+	size_t SwapChainState::Size() const
+	{
+		return metrics_.size();
+	}
+
+	const util::metrics::FrameMetrics& SwapChainState::At(size_t index) const
+	{
+		return metrics_[index];
+	}
+
+	size_t SwapChainState::LowerBoundIndex(uint64_t timestamp) const
+	{
+		return BoundIndex_(timestamp, BoundKind_::Lower);
+	}
+
+	size_t SwapChainState::UpperBoundIndex(uint64_t timestamp) const
+	{
+		return BoundIndex_(timestamp, BoundKind_::Upper);
+	}
+
+	size_t SwapChainState::NearestIndex(uint64_t timestamp) const
+	{
+		const size_t count = Size();
+		if (count == 0) {
+			return 0;
+		}
+
+		size_t index = LowerBoundIndex(timestamp);
+		if (index >= count) {
+			return count - 1;
+		}
+
+		if (index > 0) {
+			const uint64_t nextTimestamp = TimestampOf_(At(index));
+			const uint64_t prevTimestamp = TimestampOf_(At(index - 1));
+			const uint64_t prevDelta = timestamp - prevTimestamp;
+			const uint64_t nextDelta = nextTimestamp - timestamp;
+			if (prevDelta <= nextDelta) {
+				--index;
+			}
+		}
+
+		return index;
+	}
+
+	size_t SwapChainState::CountInTimestampRange(uint64_t start, uint64_t end) const
+	{
+		const size_t count = Size();
+		if (count == 0) {
+			return 0;
+		}
+
+		const size_t first = LowerBoundIndex(start);
+		const size_t last = UpperBoundIndex(end);
+		if (last < first) {
+			return 0;
+		}
+		return last - first;
+	}
+
+	size_t SwapChainState::BoundIndex_(uint64_t timestamp, BoundKind_ kind) const
+	{
+		const size_t count = Size();
+		size_t lo = 0;
+		size_t hi = count;
+		while (lo < hi) {
+			const size_t mid = lo + (hi - lo) / 2;
+			const uint64_t midTimestamp = TimestampOf_(At(mid));
+			if (kind == BoundKind_::Lower) {
+				if (midTimestamp < timestamp) {
+					lo = mid + 1;
+				}
+				else {
+					hi = mid;
+				}
+			}
+			else {
+				if (midTimestamp <= timestamp) {
+					lo = mid + 1;
+				}
+				else {
+					hi = mid;
+				}
+			}
+		}
+		return lo;
+	}
+
+	uint64_t SwapChainState::TimestampOf_(const util::metrics::FrameMetrics& metrics)
+	{
+		return metrics.presentStartQpc;
+	}
+
 	void SwapChainState::PushMetrics_(const util::metrics::FrameMetrics& metrics)
 	{
 		if (metrics_.full() && cursor_ > 0) {
@@ -126,10 +224,15 @@ namespace pmon::mid
 		ring.MarkNextRead(nextFrameSerial_);
 	}
 
+	void FrameMetricsSource::Update()
+	{
+		ProcessNewFrames_();
+	}
+
 	std::vector<util::metrics::FrameMetrics> FrameMetricsSource::Consume(size_t maxFrames)
 	{
 		std::vector<util::metrics::FrameMetrics> output;
-		ProcessNewFrames_();
+		Update();
 
 		if (maxFrames == 0) {
 			return output;
@@ -165,6 +268,43 @@ namespace pmon::mid
 		}
 
 		return output;
+	}
+
+	const SwapChainState* FrameMetricsSource::GetActiveSwapChainState_(uint64_t start, uint64_t end) const
+	{
+		const SwapChainState* selectedState = nullptr;
+		uint64_t selectedCount = 0;
+
+		for (const auto& [address, state] : swapChains_) {
+			if (state.Empty()) {
+				continue;
+			}
+			const size_t count = state.CountInTimestampRange(start, end);
+			if (selectedState == nullptr ||
+				count > selectedCount) {
+				selectedState = &state;
+				selectedCount = count;
+			}
+		}
+
+		return selectedState;
+	}
+
+	const util::metrics::FrameMetrics* FrameMetricsSource::FindNearestActive(uint64_t start, uint64_t end, uint64_t timestamp) const
+	{
+		const auto* state = GetActiveSwapChainState_(start, end);
+		if (state == nullptr || state->Empty()) {
+			return nullptr;
+		}
+
+		const size_t index = state->NearestIndex(timestamp);
+		return &state->At(index);
+	}
+
+	bool FrameMetricsSource::HasActiveSwapChainSamples(uint64_t start, uint64_t end) const
+	{
+		const auto* state = GetActiveSwapChainState_(start, end);
+		return state != nullptr && !state->Empty();
 	}
 
 	const util::QpcConverter& FrameMetricsSource::GetQpcConverter() const

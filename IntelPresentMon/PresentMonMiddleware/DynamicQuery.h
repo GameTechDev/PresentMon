@@ -31,7 +31,8 @@ namespace pmon::mid::todo
 	public:
 		PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, ipc::MiddlewareComms& comms);
 		size_t GetBlobSize() const;
-		void Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms, std::optional<uint32_t> pid, uint64_t nowTimestamp) const;
+		void Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
+			uint64_t nowTimestamp, FrameMetricsSource* frameSource) const;
 
 	private:
 		// functions
