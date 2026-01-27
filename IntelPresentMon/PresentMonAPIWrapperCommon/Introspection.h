@@ -173,6 +173,7 @@ namespace pmapi
             PM_DEVICE_VENDOR GetVendor() const;
             uint32_t GetId() const;
             std::string GetName() const;
+            PM_INTROSPECTION_DEVICE_LUID GetLuid() const;
             const SelfType* operator->() const;
             const BaseType* GetBasePtr() const;
         private:

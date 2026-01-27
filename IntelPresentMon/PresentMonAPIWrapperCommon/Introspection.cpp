@@ -155,6 +155,11 @@ namespace pmapi::intro
         return pBase->pName->pData;
     }
 
+    PM_INTROSPECTION_DEVICE_LUID DeviceView::GetLuid() const
+    {
+        return pBase->pLuid ? *pBase->pLuid : PM_INTROSPECTION_DEVICE_LUID{ nullptr, 0 };
+    }
+
     const DeviceView::SelfType* DeviceView::operator->() const
     {
         return this;
