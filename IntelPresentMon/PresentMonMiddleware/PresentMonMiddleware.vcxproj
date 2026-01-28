@@ -21,7 +21,7 @@
     <ClInclude Include="DynamicStat.h" />
     <ClInclude Include="FrameEventQuery.h" />
     <ClInclude Include="LogSetup.h" />
-    <ClInclude Include="RingMetricBinding.h" />
+    <ClInclude Include="MetricBinding.h" />
     <ClInclude Include="Middleware.h" />
     <ClInclude Include="MockCommon.h" />
     <ClInclude Include="QueryValidation.h" />
@@ -34,7 +34,7 @@
     <ClCompile Include="DynamicStat.cpp" />
     <ClCompile Include="FrameMetricsSource.cpp" />
     <ClCompile Include="FrameEventQuery.cpp" />
-    <ClCompile Include="RingMetricBinding.cpp" />
+    <ClCompile Include="MetricBinding.cpp" />
     <ClCompile Include="LogSetup.cpp" />
     <ClCompile Include="QueryValidation.cpp" />
   </ItemGroup>

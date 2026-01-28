@@ -14,6 +14,7 @@
 #include "../CommonUtilities/Meta.h"
 #include "../CommonUtilities/Memory.h"
 #include "../CommonUtilities/mc/FrameMetricsMemberMap.h"
+#include "../CommonUtilities/log/Log.h"
 #include "../Interprocess/source/IntrospectionHelpers.h"
 #include "../Interprocess/source/PmStatusError.h"
 #include "../PresentMonAPIWrapperCommon/Introspection.h"
@@ -209,8 +210,10 @@ namespace pmon::mid
                     using MemberType = typename MemberInfo::MemberType;
                     return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric);
                 }
+                pmlog_error("Cannot make dynamic metric for").pmwatch((int)Metric);
                 return {};
-            }, std::unique_ptr<DynamicMetric<S>>{}
+            },
+            std::unique_ptr<DynamicMetric<S>>{}
         );
     }
 }

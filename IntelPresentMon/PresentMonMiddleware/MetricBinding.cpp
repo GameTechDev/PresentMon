@@ -1,8 +1,11 @@
-﻿#include "RingMetricBinding.h"
+﻿#include "MetricBinding.h"
 #include "FrameMetricsSource.h"
+#include "Middleware.h"
 #include "../Interprocess/source/Interprocess.h"
+#include "../Interprocess/source/IntrospectionHelpers.h"
 #include "../Interprocess/source/IntrospectionDataTypeMapping.h"
 #include "../Interprocess/source/SystemDeviceId.h"
+#include "../CommonUtilities/Memory.h"
 #include <cassert>
 #include <utility>
 
@@ -18,7 +21,7 @@ namespace pmon::mid
             std::is_same_v<T, int>;
 
         template<typename S>
-        class RingMetricBindingBase_ : public RingMetricBinding
+        class MetricBindingBase_ : public MetricBinding
         {
         public:
             void AddMetricStat(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro) override
@@ -95,10 +98,10 @@ namespace pmon::mid
         };
 
         template<typename S, uint64_t S::*TimestampMember>
-        class TelemetryRingMetricBinding_ : public RingMetricBindingBase_<S>
+        class TelemetryMetricBinding_ : public MetricBindingBase_<S>
         {
         public:
-            explicit TelemetryRingMetricBinding_(const PM_QUERY_ELEMENT& qel)
+            explicit TelemetryMetricBinding_(const PM_QUERY_ELEMENT& qel)
                 :
                 deviceId_{ qel.deviceId },
                 arrayIndex_{ qel.arrayIndex },
@@ -107,9 +110,10 @@ namespace pmon::mid
             }
 
             void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
-                FrameMetricsSource* pFrameSource) const override
+                FrameMetricsSource* pFrameSource, uint32_t processId) const override
             {
                 (void)pFrameSource;
+                (void)processId;
 
                 const ipc::HistoryRing<S, TimestampMember>* pRing = nullptr;
                 using ValueType = typename S::value_type;
@@ -136,7 +140,7 @@ namespace pmon::mid
             PM_METRIC metricId_;
         };
 
-        class FrameMetricBinding_ : public RingMetricBindingBase_<util::metrics::FrameMetrics>
+        class FrameMetricBinding_ : public MetricBindingBase_<util::metrics::FrameMetrics>
         {
         public:
             explicit FrameMetricBinding_(const PM_QUERY_ELEMENT&)
@@ -144,9 +148,10 @@ namespace pmon::mid
             }
 
             void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
-                FrameMetricsSource* pFrameSource) const override
+                FrameMetricsSource* pFrameSource, uint32_t processId) const override
             {
                 (void)comms;
+                (void)processId;
 
                 if (pFrameSource == nullptr) {
                     throw pmon::util::Except<ipc::PmStatusError>(PM_STATUS_FAILURE,
@@ -167,15 +172,71 @@ namespace pmon::mid
             }
         };
 
-        template<PM_DATA_TYPE dt, PM_ENUM enumId>
-        struct TelemetryRingBindingBridger_
+        class StaticMetricBinding_ : public MetricBinding
         {
-            static std::unique_ptr<RingMetricBinding> Invoke(PM_ENUM, PM_QUERY_ELEMENT& qel)
+        public:
+            StaticMetricBinding_(Middleware& middleware, const PM_QUERY_ELEMENT& qel)
+                :
+                middleware_{ middleware },
+                metricId_{ qel.metric },
+                deviceId_{ qel.deviceId },
+                arrayIndex_{ qel.arrayIndex }
+            {
+            }
+
+            void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
+                FrameMetricsSource* pFrameSource, uint32_t processId) const override
+            {
+                (void)window;
+                (void)comms;
+                (void)pFrameSource;
+
+                const PM_QUERY_ELEMENT element{
+                    .metric = metricId_,
+                    .stat = PM_STAT_NONE,
+                    .deviceId = deviceId_,
+                    .arrayIndex = arrayIndex_,
+                    .dataOffset = dataOffset_,
+                    .dataSize = dataSize_,
+                };
+
+                middleware_.PollStaticQuery(element, processId, pBlobBase + dataOffset_);
+            }
+
+            void Finalize() override
+            {
+            }
+
+            void AddMetricStat(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro) override
+            {
+                const auto metricView = intro.FindMetric(qel.metric);
+                const auto dataType = metricView.GetDataTypeInfo().GetPolledType();
+                const auto dataSize = ipc::intro::GetDataTypeSize(dataType);
+                qel.dataSize = (uint64_t)dataSize;
+                qel.dataOffset = (uint64_t)util::PadToAlignment((size_t)qel.dataOffset, dataSize);
+
+                dataOffset_ = qel.dataOffset;
+                dataSize_ = qel.dataSize;
+            }
+
+        private:
+            Middleware& middleware_;
+            PM_METRIC metricId_;
+            uint32_t deviceId_;
+            uint32_t arrayIndex_;
+            uint64_t dataOffset_ = 0;
+            uint64_t dataSize_ = 0;
+        };
+
+        template<PM_DATA_TYPE dt, PM_ENUM enumId>
+        struct TelemetryBindingBridger_
+        {
+            static std::unique_ptr<MetricBinding> Invoke(PM_ENUM, PM_QUERY_ELEMENT& qel)
             {
                 using ValueType = typename ipc::intro::DataTypeToStaticType<dt>::type;
                 if constexpr (IsTelemetryRingValue_<ValueType>) {
                     using SampleType = ipc::TelemetrySample<ValueType>;
-                    return std::make_unique<TelemetryRingMetricBinding_<SampleType, &SampleType::timestamp>>(qel);
+                    return std::make_unique<TelemetryMetricBinding_<SampleType, &SampleType::timestamp>>(qel);
                 }
                 else {
                     assert(false);
@@ -183,7 +244,7 @@ namespace pmon::mid
                 }
             }
 
-            static std::unique_ptr<RingMetricBinding> Default(PM_QUERY_ELEMENT&)
+            static std::unique_ptr<MetricBinding> Default(PM_QUERY_ELEMENT&)
             {
                 assert(false);
                 return {};
@@ -191,16 +252,21 @@ namespace pmon::mid
         };
     }
 
-    std::unique_ptr<RingMetricBinding> MakeFrameMetricBinding(PM_QUERY_ELEMENT& qel)
+    std::unique_ptr<MetricBinding> MakeFrameMetricBinding(PM_QUERY_ELEMENT& qel)
     {
         return std::make_unique<FrameMetricBinding_>(qel);
     }
 
-    std::unique_ptr<RingMetricBinding> MakeTelemetryRingMetricBinding(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro)
+    std::unique_ptr<MetricBinding> MakeTelemetryMetricBinding(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro)
     {
         const auto metricView = intro.FindMetric(qel.metric);
         const auto typeInfo = metricView.GetDataTypeInfo();
-        return ipc::intro::BridgeDataTypeWithEnum<TelemetryRingBindingBridger_>(
+        return ipc::intro::BridgeDataTypeWithEnum<TelemetryBindingBridger_>(
             typeInfo.GetFrameType(), typeInfo.GetEnumId(), qel);
+    }
+
+    std::unique_ptr<MetricBinding> MakeStaticMetricBinding(PM_QUERY_ELEMENT& qel, Middleware& middleware)
+    {
+        return std::make_unique<StaticMetricBinding_>(middleware, qel);
     }
 }

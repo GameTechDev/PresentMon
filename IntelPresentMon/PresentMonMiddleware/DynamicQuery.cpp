@@ -43,7 +43,7 @@ namespace std
 }
 
 PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double windowSizeMs,
-	double windowOffsetMs, double qpcPeriodSeconds, ipc::MiddlewareComms& comms)
+	double windowOffsetMs, double qpcPeriodSeconds, ipc::MiddlewareComms& comms, pmon::mid::Middleware& middleware)
 	:
 	windowSizeQpc_{ int64_t((windowSizeMs / 1000.) / qpcPeriodSeconds) },
 	windowOffsetQpc_{ int64_t((windowOffsetMs / 1000.) / qpcPeriodSeconds) }
@@ -52,13 +52,21 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 	pmapi::intro::Root introRoot{ introBase, [](const PM_INTROSPECTION_ROOT*) {} };
 	pmon::mid::ValidateQueryElements(qels, PM_METRIC_TYPE_DYNAMIC, introRoot, comms);
 
-	std::unordered_map<TelemetryBindingKey_, RingMetricBinding*> telemetryBindings;
-	RingMetricBinding* frameBinding = nullptr;
+	std::unordered_map<TelemetryBindingKey_, MetricBinding*> telemetryBindings;
+	MetricBinding* frameBinding = nullptr;
 
 	size_t blobCursor = 0;
 	for (auto& qel : qels) {
-		RingMetricBinding* binding = nullptr;
-		if (qel.deviceId == ipc::kUniversalDeviceId) {
+		MetricBinding* binding = nullptr;
+		const auto metricView = introRoot.FindMetric(qel.metric);
+		const auto metricType = metricView.GetType();
+		const bool isStaticMetric = metricType == PM_METRIC_TYPE_STATIC;
+		if (isStaticMetric) {
+			auto bindingPtr = MakeStaticMetricBinding(qel, middleware);
+			binding = bindingPtr.get();
+			ringMetricPtrs_.push_back(std::move(bindingPtr));
+		}
+		else if (qel.deviceId == ipc::kUniversalDeviceId) {
 			binding = frameBinding;
 			if (!binding) {
 				auto bindingPtr = MakeFrameMetricBinding(qel);
@@ -77,7 +85,7 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 				binding = it->second;
 			}
 			else {
-				auto bindingPtr = MakeTelemetryRingMetricBinding(qel, introRoot);
+				auto bindingPtr = MakeTelemetryMetricBinding(qel, introRoot);
 				binding = bindingPtr.get();
 				ringMetricPtrs_.push_back(std::move(bindingPtr));
 				telemetryBindings.emplace(key, binding);
@@ -110,10 +118,10 @@ DynamicQueryWindow PM_DYNAMIC_QUERY::GenerateQueryWindow_(int64_t nowTimestamp) 
 }
 
 void PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
-	uint64_t nowTimestamp, FrameMetricsSource* frameSource) const
+	uint64_t nowTimestamp, FrameMetricsSource* frameSource, uint32_t processId) const
 {
 	const auto window = GenerateQueryWindow_(nowTimestamp);
 	for (auto& pRing : ringMetricPtrs_) {
-		pRing->Poll(window, pBlobBase, comms, frameSource);
+		pRing->Poll(window, pBlobBase, comms, frameSource, processId);
 	}
 }

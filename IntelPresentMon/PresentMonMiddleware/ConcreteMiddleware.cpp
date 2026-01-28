@@ -196,7 +196,7 @@ namespace pmon::mid
     {
         pmlog_dbg("Registering dynamic query").pmwatch(queryElements.size()).pmwatch(windowSizeMs).pmwatch(metricOffsetMs);
         const auto qpcPeriod = util::GetTimestampPeriodSeconds();
-        return new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms };
+        return new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms, *this };
     }
 
     void ConcreteMiddleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains)
@@ -208,7 +208,7 @@ namespace pmon::mid
             pFrameSource = &GetFrameMetricSource_(processId);
         }
         // execute the dynamic poll operation
-        pQuery->Poll(pBlob, *pComms, (uint64_t)util::GetCurrentTimestamp(), pFrameSource);
+        pQuery->Poll(pBlob, *pComms, (uint64_t)util::GetCurrentTimestamp(), pFrameSource, processId);
     }
 
     void ConcreteMiddleware::PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob)
