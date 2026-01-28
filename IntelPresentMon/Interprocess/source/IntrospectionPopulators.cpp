@@ -107,12 +107,7 @@ namespace pmon::ipc::intro
 	{
 		// add the device
 		auto charAlloc = pSegmentManager->get_allocator<char>();
-        // default null LUID
-        ShmUniquePtr<IntrospectionDeviceLuid> pLuid(nullptr, bip::deleter<IntrospectionDeviceLuid, ShmSegmentManager>{ pSegmentManager });
-        // allocate luid only if provided
-		if (!luidBytes.empty()) {
-			pLuid = ShmMakeUnique<IntrospectionDeviceLuid>(pSegmentManager, luidBytes, pSegmentManager);
-        }
+        auto pLuid = ShmMakeUnique<IntrospectionDeviceLuid>(pSegmentManager, luidBytes, pSegmentManager);
 		root.AddDevice(ShmMakeUnique<IntrospectionDevice>(pSegmentManager, deviceId,
 			PM_DEVICE_TYPE_GRAPHICS_ADAPTER, vendor, ShmString{ deviceName.c_str(), charAlloc }, std::move(pLuid)));
 

@@ -130,7 +130,10 @@ namespace pmapi::intro
 
     const void* DeviceLuidView::GetData() const
     {
-        return pBase ? pBase->pData : nullptr;
+        if (!pBase || pBase->size == 0) {
+            return nullptr;
+        }
+        return pBase->pData;
     }
 
     bool DeviceLuidView::IsEmpty() const

@@ -100,8 +100,8 @@ namespace pmon::ipc
 				intro::PopulateMetrics(pSegmentManager, *pRoot_);
 				intro::PopulateUnits(pSegmentManager, *pRoot_);
 
-				// construct null LUID pointer
-				ShmUniquePtr<intro::IntrospectionDeviceLuid> pLuid(nullptr, bip::deleter<intro::IntrospectionDeviceLuid, ShmSegmentManager>{ pSegmentManager });
+                // construct empty LUID object (size = 0 means no LUID)
+                auto pLuid = ShmMakeUnique<intro::IntrospectionDeviceLuid>(pSegmentManager, std::span<const uint8_t>{}, pSegmentManager);
 
 				pRoot_->AddDevice(ShmMakeUnique<intro::IntrospectionDevice>(pSegmentManager,
 					0, PM_DEVICE_TYPE_INDEPENDENT, PM_DEVICE_VENDOR_UNKNOWN, ShmString{ "Device-independent", charAlloc }, std::move(pLuid)));

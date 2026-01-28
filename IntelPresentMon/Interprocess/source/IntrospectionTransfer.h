@@ -236,9 +236,14 @@ namespace pmon::ipc::intro
             using CA = std::allocator_traits<V>::template rebind_alloc<uint8_t>;
 			CA charAlloc{ voidAlloc };
 			content.size = static_cast<uint32_t>(buffer_.size());
-			content.pData = charAlloc.allocate(content.size);
-			if (content.pData) {
-				std::memcpy(const_cast<uint8_t*>(content.pData), buffer_.data(), content.size);
+			if (content.size == 0) {
+				content.pData = nullptr;
+			}
+            else {
+				content.pData = charAlloc.allocate(content.size);
+				if (content.pData) {
+					std::memcpy(const_cast<uint8_t*>(content.pData), buffer_.data(), content.size);
+				}
 			}
             // emplace to allocated self
 			if (pSelf) {
@@ -275,7 +280,22 @@ namespace pmon::ipc::intro
 			content.type = type_;
 			content.vendor = vendor_;
 			content.pName = name_.ApiClone(voidAlloc);
-			content.pLuid = pLuid_ ? pLuid_->ApiClone(voidAlloc) : nullptr;
+			if (pLuid_) {
+                content.pLuid = pLuid_->ApiClone(voidAlloc);
+			}
+			else {
+				using LT = PM_INTROSPECTION_DEVICE_LUID;
+				using LA = std::allocator_traits<V>::template rebind_alloc<LT>;
+				LA luidAlloc{ voidAlloc };
+				auto pEmpty = luidAlloc.allocate(1);
+				if (pEmpty) {
+					LT empty{};
+					empty.pData = nullptr;
+					empty.size = 0;
+					std::allocator_traits<LA>::construct(luidAlloc, pEmpty, empty);
+				}
+				content.pLuid = pEmpty;
+            }
 			// emplace to allocated self
 			if (pSelf) {
 				std::allocator_traits<A>::construct(alloc, pSelf, content);
