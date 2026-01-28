@@ -84,6 +84,12 @@ namespace pmon::util::metrics
                 ? qpc.DeltaSignedMilliSeconds(startQpc, CPUStartTimeQpc)
                 : 0.0;
         }
+
+        double ComputeFpsFromMs(double ms)
+        {
+            return ms > 0.0 ? 1000.0 / ms : 0.0;
+        }
+
     }
 
     // 2) Public entry points
@@ -307,6 +313,10 @@ namespace pmon::util::metrics
 
         metrics.cpuStartQpc = CalculateCPUStart(chain, present);
         metrics.cpuStartMs = ComputeCPUStartTimeMs(qpc, metrics.cpuStartQpc);
+
+        metrics.fpsPresent = ComputeFpsFromMs(metrics.msBetweenPresents);
+        metrics.fpsDisplay = ComputeFpsFromMs(metrics.msBetweenDisplayChange);
+        metrics.fpsApplication = ComputeFpsFromMs(metrics.msCPUTime);
 
         return result;
     }
