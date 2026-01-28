@@ -191,6 +191,22 @@ namespace pmon::mid
                 (void)comms;
                 (void)pFrameSource;
 
+                if (needsConversion_) {
+                    alignas(alignof(uint64_t)) uint8_t scratch[kScratchSize_]{};
+                    const PM_QUERY_ELEMENT element{
+                        .metric = metricId_,
+                        .stat = PM_STAT_NONE,
+                        .deviceId = deviceId_,
+                        .arrayIndex = arrayIndex_,
+                        .dataOffset = 0,
+                        .dataSize = frameDataSize_,
+                    };
+
+                    middleware_.PollStaticQuery(element, processId, scratch);
+                    ConvertStaticMetricValue_(pBlobBase + dataOffset_, outputType_, scratch, frameType_);
+                    return;
+                }
+
                 const PM_QUERY_ELEMENT element{
                     .metric = metricId_,
                     .stat = PM_STAT_NONE,
@@ -210,22 +226,91 @@ namespace pmon::mid
             void AddMetricStat(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro) override
             {
                 const auto metricView = intro.FindMetric(qel.metric);
-                const auto dataType = metricView.GetDataTypeInfo().GetPolledType();
-                const auto dataSize = ipc::intro::GetDataTypeSize(dataType);
+                const auto typeInfo = metricView.GetDataTypeInfo();
+                frameType_ = typeInfo.GetFrameType();
+                outputType_ = typeInfo.GetPolledType();
+                const auto dataSize = ipc::intro::GetDataTypeSize(outputType_);
                 qel.dataSize = (uint64_t)dataSize;
                 qel.dataOffset = (uint64_t)util::PadToAlignment((size_t)qel.dataOffset, dataSize);
 
                 dataOffset_ = qel.dataOffset;
                 dataSize_ = qel.dataSize;
+                frameDataSize_ = ipc::intro::GetDataTypeSize(frameType_);
+                needsConversion_ = frameType_ != outputType_;
             }
 
         private:
+            static constexpr size_t kScratchSize_ = ipc::intro::DataTypeToStaticType_sz<PM_DATA_TYPE_STRING>;
+
+            template<typename T>
+            static void WriteConvertedStaticValue_(uint8_t* pTarget, PM_DATA_TYPE outType, T value)
+            {
+                switch (outType) {
+                case PM_DATA_TYPE_DOUBLE:
+                    *reinterpret_cast<double*>(pTarget) = (double)value;
+                    break;
+                case PM_DATA_TYPE_INT32:
+                case PM_DATA_TYPE_ENUM:
+                    *reinterpret_cast<int32_t*>(pTarget) = (int32_t)value;
+                    break;
+                case PM_DATA_TYPE_UINT32:
+                    *reinterpret_cast<uint32_t*>(pTarget) = (uint32_t)value;
+                    break;
+                case PM_DATA_TYPE_UINT64:
+                    *reinterpret_cast<uint64_t*>(pTarget) = (uint64_t)value;
+                    break;
+                case PM_DATA_TYPE_BOOL:
+                    *reinterpret_cast<bool*>(pTarget) = value != (T)0;
+                    break;
+                default:
+                    assert(false);
+                    break;
+                }
+            }
+
+            static void ConvertStaticMetricValue_(uint8_t* pTarget, PM_DATA_TYPE outType, const uint8_t* pSource, PM_DATA_TYPE inType)
+            {
+                if (inType == PM_DATA_TYPE_STRING || outType == PM_DATA_TYPE_STRING ||
+                    inType == PM_DATA_TYPE_VOID || outType == PM_DATA_TYPE_VOID) {
+                    assert(false);
+                    return;
+                }
+
+                switch (inType) {
+                case PM_DATA_TYPE_DOUBLE:
+                    WriteConvertedStaticValue_(pTarget, outType, *reinterpret_cast<const double*>(pSource));
+                    break;
+                case PM_DATA_TYPE_INT32:
+                    WriteConvertedStaticValue_(pTarget, outType, *reinterpret_cast<const int32_t*>(pSource));
+                    break;
+                case PM_DATA_TYPE_UINT32:
+                    WriteConvertedStaticValue_(pTarget, outType, *reinterpret_cast<const uint32_t*>(pSource));
+                    break;
+                case PM_DATA_TYPE_UINT64:
+                    WriteConvertedStaticValue_(pTarget, outType, *reinterpret_cast<const uint64_t*>(pSource));
+                    break;
+                case PM_DATA_TYPE_ENUM:
+                    WriteConvertedStaticValue_(pTarget, outType, *reinterpret_cast<const int32_t*>(pSource));
+                    break;
+                case PM_DATA_TYPE_BOOL:
+                    WriteConvertedStaticValue_(pTarget, outType, *reinterpret_cast<const bool*>(pSource));
+                    break;
+                default:
+                    assert(false);
+                    break;
+                }
+            }
+
             Middleware& middleware_;
             PM_METRIC metricId_;
             uint32_t deviceId_;
             uint32_t arrayIndex_;
             uint64_t dataOffset_ = 0;
             uint64_t dataSize_ = 0;
+            uint64_t frameDataSize_ = 0;
+            PM_DATA_TYPE frameType_ = PM_DATA_TYPE_VOID;
+            PM_DATA_TYPE outputType_ = PM_DATA_TYPE_VOID;
+            bool needsConversion_ = false;
         };
 
         template<PM_DATA_TYPE dt, PM_ENUM enumId>
