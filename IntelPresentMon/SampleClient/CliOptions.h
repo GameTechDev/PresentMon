@@ -25,6 +25,7 @@ namespace clio
 		ServiceCrashClient,
 		EtlLogger,
 		PacedPlayback,
+		IntrospectionDevices,
 		Count,
 	};
 
