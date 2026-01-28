@@ -155,6 +155,26 @@ namespace pmapi
             const BaseType* pBase = nullptr;
         };
 
+        class DeviceLuidView
+        {
+            using BaseType = PM_INTROSPECTION_DEVICE_LUID;
+            using SelfType = DeviceLuidView;
+            friend class DeviceView;
+
+        public:
+            uint32_t GetSize() const;
+            const void* GetData() const;
+            bool IsEmpty() const;
+            const SelfType* operator->() const;
+            const BaseType* GetBasePtr() const;
+        private:
+            // functions
+            DeviceLuidView(const class Root* pRoot_, const BaseType* pBase_);
+            // data
+            const class Root* pRoot = nullptr;
+            const BaseType* pBase = nullptr;
+        };
+
         // information about a hardware device
         // device 0 is a special device used for metrics not tied to any
         // specific hardware device, and thus for metrics which are (typically)
@@ -173,7 +193,7 @@ namespace pmapi
             PM_DEVICE_VENDOR GetVendor() const;
             uint32_t GetId() const;
             std::string GetName() const;
-            PM_INTROSPECTION_DEVICE_LUID GetLuid() const;
+            DeviceLuidView GetLuid() const;
             const SelfType* operator->() const;
             const BaseType* GetBasePtr() const;
         private:

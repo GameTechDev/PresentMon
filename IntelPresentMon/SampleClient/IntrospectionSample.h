@@ -45,10 +45,11 @@ int IntrospectAllDevices(std::unique_ptr<pmapi::Session>&& pSession)
     {
         auto luid = device.GetLuid();
         std::string luidString;
-        luidString.reserve(luid.size * 3); // "XX:" per byte
-        for (size_t i = 0; i < luid.size; ++i)
+        luidString.reserve(luid->GetSize() * 3); // "XX:" per byte
+        auto luidData = static_cast<const uint8_t*>(luid->GetData());
+        for (size_t i = 0; i < luid->GetSize(); ++i)
         {
-            luidString += std::format("{:02X}", luid.pData[i]);
+            luidString += std::format("{:02X}", luidData[i]);
         }
         std::cout << std::format("Device Name: {}, Device Id: {}, Luid: {}",
             device.GetName(), device.GetId(), luidString);
