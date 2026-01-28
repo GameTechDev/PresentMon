@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 #include <memory>
 #include <type_traits>
@@ -20,7 +21,7 @@ namespace pmon::ipc
 
 namespace pmon::mid
 {
-    class FrameMetricsSource;
+    class SwapChainState;
     class Middleware;
 
     // container to bind and type erase a metric source type to one or more metrics
@@ -31,7 +32,7 @@ namespace pmon::mid
         virtual ~MetricBinding() = default;
 
         virtual void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
-            FrameMetricsSource* pFrameSource, uint32_t processId) const = 0;
+            const SwapChainState* pSwapChain, uint32_t processId) const = 0;
         virtual void Finalize() = 0;
         virtual void AddMetricStat(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro) = 0;
     };

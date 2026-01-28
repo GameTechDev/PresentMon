@@ -42,5 +42,7 @@ namespace pmon::util::metrics
     template<>struct FrameMetricMember<PM_METRIC_INSTRUMENTED_LATENCY>{static constexpr auto member=&FrameMetrics::msInstrumentedLatency;};
     template<>struct FrameMetricMember<PM_METRIC_FLIP_DELAY>{static constexpr auto member=&FrameMetrics::msFlipDelay;};
     template<>struct FrameMetricMember<PM_METRIC_FRAME_TYPE>{static constexpr auto member=&FrameMetrics::frameType;};
-    template<PM_METRIC MetricId>inline constexpr bool HasFrameMetricMember=requires{FrameMetricMember<MetricId>::member;};
+
+    template<PM_METRIC MetricId>
+    inline constexpr bool HasFrameMetricMember = requires{ FrameMetricMember<MetricId>::member; };
 }

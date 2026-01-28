@@ -312,6 +312,9 @@
     <ClInclude Include="mc\MetricsCalculatorInternal.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="mc\FrameMetricsMemberMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cli\CliFramework.cpp">

@@ -78,22 +78,12 @@ namespace pmon::mid
 
 		void Update();
 		std::vector<util::metrics::FrameMetrics> Consume(size_t maxFrames);
-		template<typename F>
-		size_t ForEachInActiveTimestampRange(uint64_t start, uint64_t end, F&& func) const
-		{
-			const auto* pSwap = GetActiveSwapChainState_(start, end);
-			if (pSwap == nullptr) {
-				return 0;
-			}
-			return pSwap->ForEachInTimestampRange(start, end, std::forward<F>(func));
-		}
-		const util::metrics::FrameMetrics* FindNearestActive(uint64_t start, uint64_t end, uint64_t timestamp) const;
-		bool HasActiveSwapChainSamples(uint64_t start, uint64_t end) const;
+		std::vector<uint64_t> GetSwapChainAddressesInTimestampRange(uint64_t start, uint64_t end) const;
+		const SwapChainState* FindSwapChainState(uint64_t swapChainAddress) const;
 		const util::QpcConverter& GetQpcConverter() const;
 
 	private:
 		void ProcessNewFrames_();
-		const SwapChainState* GetActiveSwapChainState_(uint64_t start, uint64_t end) const;
 
 		ipc::MiddlewareComms& comms_;
 		const ipc::FrameDataStore* pStore_ = nullptr;

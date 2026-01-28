@@ -1,10 +1,12 @@
 ﻿#include "DynamicQuery.h"
+#include "FrameMetricsSource.h"
 #include "QueryValidation.h"
 #include "../PresentMonAPIWrapperCommon/Introspection.h"
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../CommonUtilities/Hash.h"
 #include <unordered_map>
+#include <algorithm>
 #include <limits>
 
 using namespace pmon;
@@ -117,11 +119,38 @@ DynamicQueryWindow PM_DYNAMIC_QUERY::GenerateQueryWindow_(int64_t nowTimestamp) 
 	return { .oldest = uint64_t(oldest), .newest = uint64_t(newest)};
 }
 
-void PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
-	uint64_t nowTimestamp, FrameMetricsSource* frameSource, uint32_t processId) const
+uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
+	uint64_t nowTimestamp, FrameMetricsSource* frameSource, uint32_t processId, uint32_t maxSwapChains) const
 {
-	const auto window = GenerateQueryWindow_(nowTimestamp);
-	for (auto& pRing : ringMetricPtrs_) {
-		pRing->Poll(window, pBlobBase, comms, frameSource, processId);
+	if (pBlobBase == nullptr || maxSwapChains == 0) {
+		return 0;
 	}
+
+	const auto window = GenerateQueryWindow_(nowTimestamp);
+	std::vector<uint64_t> swapChainAddresses;
+	if (frameSource != nullptr) {
+		swapChainAddresses = frameSource->GetSwapChainAddressesInTimestampRange(window.oldest, window.newest);
+	}
+
+	auto pollOnce = [&](const SwapChainState* pSwapChain, uint8_t* pBlob) {
+		for (auto& pRing : ringMetricPtrs_) {
+			pRing->Poll(window, pBlob, comms, pSwapChain, processId);
+		}
+	};
+
+	if (swapChainAddresses.empty()) {
+		pollOnce(nullptr, pBlobBase);
+		return 1;
+	}
+
+	const uint32_t swapChainsToPoll = (uint32_t)std::min<size_t>(swapChainAddresses.size(), maxSwapChains);
+	for (uint32_t i = 0; i < swapChainsToPoll; ++i) {
+		const SwapChainState* pSwapChain = frameSource != nullptr
+			? frameSource->FindSwapChainState(swapChainAddresses[i])
+			: nullptr;
+		pollOnce(pSwapChain, pBlobBase);
+		pBlobBase += blobSize_;
+	}
+
+	return swapChainsToPoll;
 }
