@@ -5,6 +5,7 @@
 #include "../Interprocess/source/Interprocess.h"
 #include "../CommonUtilities/Hash.h"
 #include <unordered_map>
+#include <limits>
 
 using namespace pmon;
 using namespace mid;
@@ -41,7 +42,11 @@ namespace std
 	};
 }
 
-PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, ipc::MiddlewareComms& comms)
+PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double windowSizeMs,
+	double windowOffsetMs, double qpcPeriodSeconds, ipc::MiddlewareComms& comms)
+	:
+	windowSizeQpc_{ int64_t((windowSizeMs / 1000.) / qpcPeriodSeconds) },
+	windowOffsetQpc_{ int64_t((windowOffsetMs / 1000.) / qpcPeriodSeconds) }
 {
 	const auto* introBase = comms.GetIntrospectionRoot();
 	pmapi::intro::Root introRoot{ introBase, [](const PM_INTROSPECTION_ROOT*) {} };
@@ -97,11 +102,12 @@ size_t PM_DYNAMIC_QUERY::GetBlobSize() const
 	return blobSize_;
 }
 
-DynamicQueryWindow PM_DYNAMIC_QUERY::GenerateQueryWindow_(uint64_t nowTimestamp) const
+DynamicQueryWindow PM_DYNAMIC_QUERY::GenerateQueryWindow_(int64_t nowTimestamp) const
 {
-	return DynamicQueryWindow();
+	const auto newest = nowTimestamp - windowOffsetQpc_;
+	const auto oldest = newest - windowSizeQpc_;
+	return { .oldest = uint64_t(oldest), .newest = uint64_t(newest)};
 }
-
 
 void PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 	uint64_t nowTimestamp, FrameMetricsSource* frameSource) const

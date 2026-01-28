@@ -191,13 +191,24 @@ namespace pmon::mid
         return PM_STATUS_SUCCESS;
     }
 
-    PM_DYNAMIC_QUERY* ConcreteMiddleware::RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements, double windowSizeMs, double metricOffsetMs)
+    PM_DYNAMIC_QUERY* ConcreteMiddleware::RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements,
+        double windowSizeMs, double metricOffsetMs)
     {
-        return nullptr;
+        pmlog_info("Registering dynamic query").pmwatch(queryElements.size()).pmwatch(windowSizeMs).pmwatch(metricOffsetMs);
+        const auto qpcPeriod = util::GetTimestampPeriodSeconds();
+        return new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms };
     }
 
     void ConcreteMiddleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains)
     {
+        // TODO: implement multi-swap handling
+        // locate frame metric source for target process if required
+        FrameMetricsSource* pFrameSource = nullptr;
+        if (processId) {
+            pFrameSource = &GetFrameMetricSource_(processId);
+        }
+        // execute the dynamic poll operation
+        pQuery->Poll(pBlob, *pComms, (uint64_t)util::GetCurrentTimestamp(), pFrameSource);
     }
 
     void ConcreteMiddleware::PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob)

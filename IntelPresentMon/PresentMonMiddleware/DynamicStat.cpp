@@ -2,8 +2,10 @@
 #include "DynamicQueryWindow.h"
 #include "../CommonUtilities/Exception.h"
 #include "../Interprocess/source/PmStatusError.h"
+#include "../../PresentData/PresentMonTraceConsumer.hpp"
 #include <algorithm>
 #include <cassert>
+#include <optional>
 
 namespace ipc = pmon::ipc;
 namespace util = pmon::util;
@@ -12,6 +14,48 @@ namespace pmon::mid
 {
     namespace detail
     {
+        template<typename T>
+        struct SampleAdapter_
+        {
+            static bool HasValue(const T&)
+            {
+                return true;
+            }
+            static bool IsZero(const T& val)
+            {
+                return val == (T)0;
+            }
+            static double ToDouble(const T& val)
+            {
+                return (double)val;
+            }
+            static uint64_t ToUint64(const T& val)
+            {
+                return (uint64_t)val;
+            }
+        };
+
+        template<typename U>
+        struct SampleAdapter_<std::optional<U>>
+        {
+            static bool HasValue(const std::optional<U>& val)
+            {
+                return val.has_value();
+            }
+            static bool IsZero(const std::optional<U>& val)
+            {
+                return !val.has_value() || *val == (U)0;
+            }
+            static double ToDouble(const std::optional<U>& val)
+            {
+                return val.has_value() ? (double)*val : 0.0;
+            }
+            static uint64_t ToUint64(const std::optional<U>& val)
+            {
+                return val.has_value() ? (uint64_t)*val : 0;
+            }
+        };
+
         template<typename T>
         class DynamicStatBase_ : public DynamicStat<T>
         {
@@ -57,10 +101,13 @@ namespace pmon::mid
             bool NeedsSortedWindow() const override { return false; }
             void AddSample(T val) override
             {
-                if (skipZero_ && val == (T)0) {
+                if (!SampleAdapter_<T>::HasValue(val)) {
                     return;
                 }
-                sum_ += (double)val;
+                if (skipZero_ && SampleAdapter_<T>::IsZero(val)) {
+                    return;
+                }
+                sum_ += SampleAdapter_<T>::ToDouble(val);
                 ++count_;
             }
             void GatherToBlob(uint8_t* pBase) const override
@@ -92,17 +139,22 @@ namespace pmon::mid
             bool NeedsSortedWindow() const override { return true; }
             void InputSortedSamples(std::span<const T> sortedSamples) override
             {
-                if (sortedSamples.empty()) {
+                size_t firstValid = 0;
+                while (firstValid < sortedSamples.size() && !SampleAdapter_<T>::HasValue(sortedSamples[firstValid])) {
+                    ++firstValid;
+                }
+                const size_t validCount = sortedSamples.size() - firstValid;
+                if (validCount == 0) {
                     value_ = 0.0;
                     hasValue_ = false;
                     return;
                 }
 
                 const double clamped = std::clamp(percentile_, 0.0, 1.0);
-                const size_t last = sortedSamples.size() - 1;
+                const size_t last = validCount - 1;
                 const double position = clamped * (double)last;
                 const size_t index = (size_t)(position + 0.5);
-                value_ = (double)sortedSamples[index];
+                value_ = SampleAdapter_<T>::ToDouble(sortedSamples[firstValid + index]);
                 hasValue_ = true;
             }
             void GatherToBlob(uint8_t* pBase) const override
@@ -146,7 +198,10 @@ namespace pmon::mid
             bool NeedsSortedWindow() const override { return false; }
             void AddSample(T val) override
             {
-                const double doubleVal = (double)val;
+                if (!SampleAdapter_<T>::HasValue(val)) {
+                    return;
+                }
+                const double doubleVal = SampleAdapter_<T>::ToDouble(val);
                 if (!hasValue_) {
                     value_ = doubleVal;
                     hasValue_ = true;
@@ -219,7 +274,8 @@ namespace pmon::mid
             void GatherToBlob(uint8_t* pBase) const override
             {
                 auto* pTarget = pBase + this->offsetBytes_;
-                const double doubleVal = (double)value_;
+                // TODO: consider less conversion/laundering (ToDouble then ToXXX)
+                const double doubleVal = SampleAdapter_<T>::ToDouble(value_);
                 switch (this->outType_) {
                 case PM_DATA_TYPE_DOUBLE:
                     *reinterpret_cast<double*>(pTarget) = hasValue_ ? doubleVal : 0.0;
@@ -232,7 +288,7 @@ namespace pmon::mid
                     *reinterpret_cast<bool*>(pTarget) = hasValue_ ? doubleVal != 0.0 : false;
                     break;
                 case PM_DATA_TYPE_UINT64:
-                    *reinterpret_cast<uint64_t*>(pTarget) = hasValue_ ? (uint64_t)value_ : 0;
+                    *reinterpret_cast<uint64_t*>(pTarget) = hasValue_ ? SampleAdapter_<T>::ToUint64(value_) : 0;
                     break;
                 default:
                     assert(false);
@@ -242,11 +298,11 @@ namespace pmon::mid
             void SetSampledValue(T val) override
             {
                 value_ = val;
-                hasValue_ = true;
+                hasValue_ = SampleAdapter_<T>::HasValue(val);
             }
             PM_STAT mode_ = PM_STAT_MID_POINT;
             bool hasValue_ = false;
-            T value_ = (T)0;
+            T value_{};
         };
     }
 
@@ -300,6 +356,11 @@ namespace pmon::mid
 
     template std::unique_ptr<DynamicStat<double>> MakeDynamicStat<double>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
     template std::unique_ptr<DynamicStat<int32_t>> MakeDynamicStat<int32_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
+    template std::unique_ptr<DynamicStat<uint32_t>> MakeDynamicStat<uint32_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
     template std::unique_ptr<DynamicStat<uint64_t>> MakeDynamicStat<uint64_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
     template std::unique_ptr<DynamicStat<bool>> MakeDynamicStat<bool>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
+    template std::unique_ptr<DynamicStat<std::optional<double>>> MakeDynamicStat<std::optional<double>>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
+    template std::unique_ptr<DynamicStat<::PresentMode>> MakeDynamicStat<::PresentMode>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
+    template std::unique_ptr<DynamicStat<::Runtime>> MakeDynamicStat<::Runtime>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
+    template std::unique_ptr<DynamicStat<::FrameType>> MakeDynamicStat<::FrameType>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
 }
