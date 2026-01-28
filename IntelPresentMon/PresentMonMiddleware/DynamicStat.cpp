@@ -14,6 +14,7 @@ namespace pmon::mid
 {
     namespace detail
     {
+        // TODO: consider ways of obviating this adapter construct
         template<typename T>
         struct SampleAdapter_
         {
@@ -55,6 +56,32 @@ namespace pmon::mid
                 return val.has_value() ? (uint64_t)*val : 0;
             }
         };
+
+        template<typename T>
+        void WriteOptionalValueToBlob_(uint8_t* pBase, size_t offsetBytes, PM_DATA_TYPE outType, const std::optional<T>& value)
+        {
+            auto* pTarget = pBase + offsetBytes;
+            const double doubleVal = value ? SampleAdapter_<T>::ToDouble(*value) : 0.0;
+            const uint64_t uint64Val = value ? SampleAdapter_<T>::ToUint64(*value) : 0;
+            switch (outType) {
+            case PM_DATA_TYPE_DOUBLE:
+                *reinterpret_cast<double*>(pTarget) = doubleVal;
+                break;
+            case PM_DATA_TYPE_INT32:
+            case PM_DATA_TYPE_ENUM:
+                *reinterpret_cast<int32_t*>(pTarget) = value ? (int32_t)doubleVal : 0;
+                break;
+            case PM_DATA_TYPE_BOOL:
+                *reinterpret_cast<bool*>(pTarget) = value ? doubleVal != 0.0 : false;
+                break;
+            case PM_DATA_TYPE_UINT64:
+                *reinterpret_cast<uint64_t*>(pTarget) = value ? uint64Val : 0;
+                break;
+            default:
+                pmlog_error("Unhandled data type case").pmwatch((int)outType);
+                assert(false);
+            }
+        }
 
         template<typename T>
         class DynamicStatBase_ : public DynamicStat<T>
@@ -112,17 +139,19 @@ namespace pmon::mid
             }
             void GatherToBlob(uint8_t* pBase) const override
             {
-                double avg = 0.0;
+                std::optional<double> avg;
                 if (count_ > 0) {
                     avg = sum_ / (double)count_;
                 }
-                auto* pTarget = pBase + this->offsetBytes_;
-                *reinterpret_cast<double*>(pTarget) = avg;
+                WriteOptionalValueToBlob_(pBase, this->offsetBytes_, this->outType_, avg);
+                // reset for the next poll
+                sum_ = 0;
+                count_ = 0;
             }
         private:
             bool skipZero_ = false;
-            double sum_ = 0.0;
-            size_t count_ = 0;
+            mutable double sum_ = 0.0;
+            mutable size_t count_ = 0;
         };
 
         template<typename T>
@@ -139,49 +168,30 @@ namespace pmon::mid
             bool NeedsSortedWindow() const override { return true; }
             void InputSortedSamples(std::span<const T> sortedSamples) override
             {
+                // TODO: review interaction of optional values with percentile sorted buffer
                 size_t firstValid = 0;
                 while (firstValid < sortedSamples.size() && !SampleAdapter_<T>::HasValue(sortedSamples[firstValid])) {
                     ++firstValid;
                 }
                 const size_t validCount = sortedSamples.size() - firstValid;
                 if (validCount == 0) {
-                    value_ = 0.0;
-                    hasValue_ = false;
                     return;
                 }
 
-                const double clamped = std::clamp(percentile_, 0.0, 1.0);
                 const size_t last = validCount - 1;
-                const double position = clamped * (double)last;
+                const double position = percentile_ * (double)last;
                 const size_t index = (size_t)(position + 0.5);
                 value_ = SampleAdapter_<T>::ToDouble(sortedSamples[firstValid + index]);
-                hasValue_ = true;
             }
             void GatherToBlob(uint8_t* pBase) const override
             {
-                auto* pTarget = pBase + this->offsetBytes_;
-                switch (this->outType_) {
-                case PM_DATA_TYPE_DOUBLE:
-                    *reinterpret_cast<double*>(pTarget) = hasValue_ ? value_ : 0.0;
-                    break;
-                case PM_DATA_TYPE_INT32:
-                case PM_DATA_TYPE_ENUM:
-                    *reinterpret_cast<int32_t*>(pTarget) = hasValue_ ? (int32_t)value_ : 0;
-                    break;
-                case PM_DATA_TYPE_BOOL:
-                    *reinterpret_cast<bool*>(pTarget) = hasValue_ ? value_ != 0.0 : false;
-                    break;
-                case PM_DATA_TYPE_UINT64:
-                    *reinterpret_cast<uint64_t*>(pTarget) = hasValue_ ? (uint64_t)value_ : 0;
-                    break;
-                default:
-                    assert(false);
-                }
+                WriteOptionalValueToBlob_(pBase, this->offsetBytes_, this->outType_, value_);
+                // reset for the next poll
+                value_.reset();
             }
         private:
             double percentile_ = 0.0;
-            double value_ = 0.0;
-            bool hasValue_ = false;
+            mutable std::optional<double> value_;
         };
 
         template<typename T>
@@ -202,47 +212,30 @@ namespace pmon::mid
                     return;
                 }
                 const double doubleVal = SampleAdapter_<T>::ToDouble(val);
-                if (!hasValue_) {
+                if (!value_) {
                     value_ = doubleVal;
-                    hasValue_ = true;
                     return;
                 }
                 if (isMax_) {
-                    if (doubleVal > value_) {
+                    if (doubleVal > *value_) {
                         value_ = doubleVal;
                     }
                 }
                 else {
-                    if (doubleVal < value_) {
+                    if (doubleVal < *value_) {
                         value_ = doubleVal;
                     }
                 }
             }
             void GatherToBlob(uint8_t* pBase) const override
             {
-                auto* pTarget = pBase + this->offsetBytes_;
-                switch (this->outType_) {
-                case PM_DATA_TYPE_DOUBLE:
-                    *reinterpret_cast<double*>(pTarget) = hasValue_ ? value_ : 0.0;
-                    break;
-                case PM_DATA_TYPE_INT32:
-                case PM_DATA_TYPE_ENUM:
-                    *reinterpret_cast<int32_t*>(pTarget) = hasValue_ ? (int32_t)value_ : 0;
-                    break;
-                case PM_DATA_TYPE_BOOL:
-                    *reinterpret_cast<bool*>(pTarget) = hasValue_ ? value_ != 0.0 : false;
-                    break;
-                case PM_DATA_TYPE_UINT64:
-                    *reinterpret_cast<uint64_t*>(pTarget) = hasValue_ ? (uint64_t)value_ : 0;
-                    break;
-                default:
-                    assert(false);
-                }
+                WriteOptionalValueToBlob_(pBase, this->offsetBytes_, this->outType_, value_);
+                // reset min/max
+                value_.reset();
             }
         private:
             bool isMax_ = false;
-            double value_ = 0.0;
-            bool hasValue_ = false;
+            mutable std::optional<double> value_;
         };
 
         template<typename T>
@@ -267,42 +260,25 @@ namespace pmon::mid
                 case PM_STAT_MID_POINT:
                     return win.oldest + (win.newest - win.oldest) / 2;
                 default:
+
+                    pmlog_error("Unhandled point stat case").pmwatch((int)mode_);
                     assert(false);
                     return win.newest;
                 }
             }
-            void GatherToBlob(uint8_t* pBase) const override
-            {
-                auto* pTarget = pBase + this->offsetBytes_;
-                // TODO: consider less conversion/laundering (ToDouble then ToXXX)
-                const double doubleVal = SampleAdapter_<T>::ToDouble(value_);
-                switch (this->outType_) {
-                case PM_DATA_TYPE_DOUBLE:
-                    *reinterpret_cast<double*>(pTarget) = hasValue_ ? doubleVal : 0.0;
-                    break;
-                case PM_DATA_TYPE_INT32:
-                case PM_DATA_TYPE_ENUM:
-                    *reinterpret_cast<int32_t*>(pTarget) = hasValue_ ? (int32_t)doubleVal : 0;
-                    break;
-                case PM_DATA_TYPE_BOOL:
-                    *reinterpret_cast<bool*>(pTarget) = hasValue_ ? doubleVal != 0.0 : false;
-                    break;
-                case PM_DATA_TYPE_UINT64:
-                    *reinterpret_cast<uint64_t*>(pTarget) = hasValue_ ? SampleAdapter_<T>::ToUint64(value_) : 0;
-                    break;
-                default:
-                    assert(false);
-                }
-            }
-        private:
             void SetSampledValue(T val) override
             {
                 value_ = val;
-                hasValue_ = SampleAdapter_<T>::HasValue(val);
             }
+            void GatherToBlob(uint8_t* pBase) const override
+            {
+                WriteOptionalValueToBlob_(pBase, this->offsetBytes_, this->outType_, value_);
+                // reset for the next poll
+                value_.reset();
+            }
+        private:
             PM_STAT mode_ = PM_STAT_MID_POINT;
-            bool hasValue_ = false;
-            T value_{};
+            mutable std::optional<T> value_;
         };
     }
 
@@ -342,6 +318,7 @@ namespace pmon::mid
             case PM_STAT_MID_LERP:
             case PM_STAT_COUNT:
             default:
+                pmlog_error("Unhandled stat case").pmwatch((int)stat);
                 assert(false);
                 return {};
             }

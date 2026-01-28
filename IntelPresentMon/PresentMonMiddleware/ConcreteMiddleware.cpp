@@ -194,7 +194,7 @@ namespace pmon::mid
     PM_DYNAMIC_QUERY* ConcreteMiddleware::RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements,
         double windowSizeMs, double metricOffsetMs)
     {
-        pmlog_info("Registering dynamic query").pmwatch(queryElements.size()).pmwatch(windowSizeMs).pmwatch(metricOffsetMs);
+        pmlog_dbg("Registering dynamic query").pmwatch(queryElements.size()).pmwatch(windowSizeMs).pmwatch(metricOffsetMs);
         const auto qpcPeriod = util::GetTimestampPeriodSeconds();
         return new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms };
     }
