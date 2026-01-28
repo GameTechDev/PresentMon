@@ -212,6 +212,10 @@ namespace pmon::mid
         if (pBlob == nullptr) {
             throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pBlob pointer is null.");
         }
+        if (processId == 0 && pQuery->HasFrameMetrics()) {
+            throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT,
+                "processId is zero but query requires frame metrics.");
+        }
 
         *numSwapChains = 0;
 

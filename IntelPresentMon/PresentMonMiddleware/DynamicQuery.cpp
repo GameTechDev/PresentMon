@@ -103,6 +103,8 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 		binding->Finalize();
 	}
 
+	hasFrameMetrics_ = frameBinding != nullptr;
+
 	// make sure blob sizes are multiple of 16 bytes for blob array alignment purposes
 	blobSize_ = util::PadToAlignment(blobCursor, 16u);
 }
@@ -110,6 +112,11 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 size_t PM_DYNAMIC_QUERY::GetBlobSize() const
 {
 	return blobSize_;
+}
+
+bool PM_DYNAMIC_QUERY::HasFrameMetrics() const
+{
+	return hasFrameMetrics_;
 }
 
 DynamicQueryWindow PM_DYNAMIC_QUERY::GenerateQueryWindow_(int64_t nowTimestamp) const
