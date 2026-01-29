@@ -72,6 +72,7 @@ namespace
         case PM_DATA_TYPE_DOUBLE:
         case PM_DATA_TYPE_INT32:
         case PM_DATA_TYPE_ENUM:
+        case PM_DATA_TYPE_UINT32:
         case PM_DATA_TYPE_UINT64:
         case PM_DATA_TYPE_BOOL:
             return true;
@@ -80,7 +81,7 @@ namespace
         }
     }
 
-    bool IsSupportedDynamicOutputType_(PM_DATA_TYPE outType, bool allowBool, bool allowUint64)
+    bool IsSupportedDynamicOutputType_(PM_DATA_TYPE outType, bool allowBool, bool allowUint32, bool allowUint64)
     {
         switch (outType) {
         case PM_DATA_TYPE_DOUBLE:
@@ -89,6 +90,8 @@ namespace
             return true;
         case PM_DATA_TYPE_BOOL:
             return allowBool;
+        case PM_DATA_TYPE_UINT32:
+            return allowUint32;
         case PM_DATA_TYPE_UINT64:
             return allowUint64;
         default:
@@ -106,8 +109,9 @@ namespace
         }
 
         const bool allowBool = inType == PM_DATA_TYPE_BOOL;
+        const bool allowUint32 = inType == PM_DATA_TYPE_UINT32;
         const bool allowUint64 = inType == PM_DATA_TYPE_UINT64;
-        if (!IsSupportedDynamicOutputType_(outType, allowBool, allowUint64)) {
+        if (!IsSupportedDynamicOutputType_(outType, allowBool, allowUint32, allowUint64)) {
             return "Unsupported dynamic stat output data type";
         }
         return nullptr;
@@ -138,6 +142,7 @@ namespace
         {
             using ValueType = typename ipc::intro::DataTypeToStaticType<dt, enumValue>::type;
             return std::is_same_v<ValueType, double> ||
+                std::is_same_v<ValueType, uint32_t> ||
                 std::is_same_v<ValueType, uint64_t> ||
                 std::is_same_v<ValueType, bool> ||
                 std::is_same_v<ValueType, int>;

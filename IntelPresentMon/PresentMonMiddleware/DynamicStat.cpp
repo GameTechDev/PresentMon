@@ -71,6 +71,9 @@ namespace pmon::mid
             case PM_DATA_TYPE_ENUM:
                 *reinterpret_cast<int32_t*>(pTarget) = value ? (int32_t)doubleVal : 0;
                 break;
+            case PM_DATA_TYPE_UINT32:
+                *reinterpret_cast<uint32_t*>(pTarget) = value ? (uint32_t)uint64Val : 0;
+                break;
             case PM_DATA_TYPE_BOOL:
                 *reinterpret_cast<bool*>(pTarget) = value ? doubleVal != 0.0 : false;
                 break;

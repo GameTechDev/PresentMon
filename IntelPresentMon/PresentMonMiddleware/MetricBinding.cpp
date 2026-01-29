@@ -16,6 +16,7 @@ namespace pmon::mid
         template<typename T>
         inline constexpr bool IsTelemetryRingValue_ =
             std::is_same_v<T, double> ||
+            std::is_same_v<T, uint32_t> ||
             std::is_same_v<T, uint64_t> ||
             std::is_same_v<T, bool> ||
             std::is_same_v<T, int>;

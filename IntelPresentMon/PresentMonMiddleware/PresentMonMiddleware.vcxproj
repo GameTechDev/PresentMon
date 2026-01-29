@@ -27,14 +27,14 @@
     <ClInclude Include="QueryValidation.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ConcreteMiddleware.cpp">
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/bigobj %(AdditionalOptions)</AdditionalOptions>
-    </ClCompile>
+    <ClCompile Include="ConcreteMiddleware.cpp" />
     <ClCompile Include="DynamicQuery.cpp" />
     <ClCompile Include="DynamicStat.cpp" />
     <ClCompile Include="FrameMetricsSource.cpp" />
     <ClCompile Include="FrameEventQuery.cpp" />
-    <ClCompile Include="MetricBinding.cpp" />
+    <ClCompile Include="MetricBinding.cpp">
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/bigobj /we4062 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="LogSetup.cpp" />
     <ClCompile Include="QueryValidation.cpp" />
   </ItemGroup>

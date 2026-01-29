@@ -164,6 +164,12 @@ namespace pmon::mid
             else if constexpr (std::is_same_v<T, int32_t>) {
                 return PM_DATA_TYPE_INT32;
             }
+            else if constexpr (std::is_same_v<T, uint32_t>) {
+                return PM_DATA_TYPE_UINT32;
+            }
+            else if constexpr (std::is_same_v<T, uint64_t>) {
+                return PM_DATA_TYPE_UINT64;
+            }
             else if constexpr (std::is_same_v<T, bool>) {
                 return PM_DATA_TYPE_BOOL;
             }

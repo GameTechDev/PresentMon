@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "SharedMemoryTypes.h"
 #include "HistoryRing.h"
 #include "../../PresentMonAPI2/PresentMonAPI.h"
@@ -13,7 +13,7 @@ namespace pmon::ipc
         template<typename T>
         using HistoryRingVect = ShmVector<SampleHistoryRing<T>>;
         using MapValueType = std::variant<
-            HistoryRingVect<double>, HistoryRingVect<uint64_t>,
+            HistoryRingVect<double>, HistoryRingVect<uint32_t>, HistoryRingVect<uint64_t>,
             HistoryRingVect<bool>, HistoryRingVect<int>>;
         using MapType = ShmMap<PM_METRIC, MapValueType>;
         using AllocatorType = MapType::allocator_type;
@@ -26,6 +26,9 @@ namespace pmon::ipc
             switch (type) {
             case PM_DATA_TYPE_DOUBLE:
                 AddRing<double>(id, size, count);
+                break;
+            case PM_DATA_TYPE_UINT32:
+                AddRing<uint32_t>(id, size, count);
                 break;
             case PM_DATA_TYPE_UINT64:
                 AddRing<uint64_t>(id, size, count);
@@ -45,6 +48,7 @@ namespace pmon::ipc
             // extra guard of misuse at compile time
             static_assert(
                 std::is_same_v<T, double> ||
+                std::is_same_v<T, uint32_t> ||
                 std::is_same_v<T, uint64_t> ||
                 std::is_same_v<T, bool> ||
                 std::is_same_v<T, int>,
