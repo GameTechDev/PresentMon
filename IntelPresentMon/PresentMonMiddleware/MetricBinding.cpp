@@ -50,6 +50,10 @@ namespace pmon::mid
 
             void Finalize() override
             {
+                for (const auto& metric : metricPtrs_) {
+                    metric->FinalizeStats();
+                }
+
                 needsFullTraversalMetricPtrs_.clear();
                 for (const auto& metric : metricPtrs_) {
                     if (metric->NeedsFullTraversal()) {
@@ -110,9 +114,9 @@ namespace pmon::mid
             }
 
             void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
-                FrameMetricsSource* pFrameSource, uint32_t processId) const override
+                const SwapChainState* pSwapChain, uint32_t processId) const override
             {
-                (void)pFrameSource;
+                (void)pSwapChain;
                 (void)processId;
 
                 const ipc::HistoryRing<S, TimestampMember>* pRing = nullptr;
@@ -148,26 +152,30 @@ namespace pmon::mid
             }
 
             void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
-                FrameMetricsSource* pFrameSource, uint32_t processId) const override
+                const SwapChainState* pSwapChain, uint32_t processId) const override
             {
                 (void)comms;
                 (void)processId;
 
-                if (pFrameSource == nullptr) {
-                    throw pmon::util::Except<ipc::PmStatusError>(PM_STATUS_FAILURE,
-                        "Frame metrics source missing for dynamic query.");
+                if (pSwapChain == nullptr) {
+                    // TODO: consider logging (debug or verbose) that empty chain was processed
+                    auto forEachFunc = [](uint64_t, uint64_t, auto&&) {};
+                    auto nearestFunc = [](uint64_t) -> const util::metrics::FrameMetrics* {
+                        return nullptr;
+                    };
+                    this->ProcessSamples_(window, pBlobBase, forEachFunc, nearestFunc, false);
+                    return;
                 }
 
-                pFrameSource->Update();
-
-                auto forEachFunc = [pFrameSource](uint64_t start, uint64_t end, auto&& func) {
-                    pFrameSource->ForEachInActiveTimestampRange(start, end, std::forward<decltype(func)>(func));
+                auto forEachFunc = [pSwapChain](uint64_t start, uint64_t end, auto&& func) {
+                    pSwapChain->ForEachInTimestampRange(start, end, std::forward<decltype(func)>(func));
                 };
-                auto nearestFunc = [pFrameSource, &window](uint64_t point) -> const util::metrics::FrameMetrics* {
-                    return pFrameSource->FindNearestActive(window.oldest, window.newest, point);
+                auto nearestFunc = [pSwapChain](uint64_t point) -> const util::metrics::FrameMetrics* {
+                    const size_t index = pSwapChain->NearestIndex(point);
+                    return &pSwapChain->At(index);
                 };
 
-                const bool hasSamples = pFrameSource->HasActiveSwapChainSamples(window.oldest, window.newest);
+                const bool hasSamples = pSwapChain->CountInTimestampRange(window.oldest, window.newest) > 0;
                 this->ProcessSamples_(window, pBlobBase, forEachFunc, nearestFunc, hasSamples);
             }
         };
@@ -185,11 +193,11 @@ namespace pmon::mid
             }
 
             void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
-                FrameMetricsSource* pFrameSource, uint32_t processId) const override
+                const SwapChainState* pSwapChain, uint32_t processId) const override
             {
                 (void)window;
                 (void)comms;
-                (void)pFrameSource;
+                (void)pSwapChain;
 
                 if (needsConversion_) {
                     alignas(alignof(uint64_t)) uint8_t scratch[kScratchSize_]{};

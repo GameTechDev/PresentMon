@@ -201,14 +201,32 @@ namespace pmon::mid
 
     void ConcreteMiddleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains)
     {
-        // TODO: implement multi-swap handling
-        // locate frame metric source for target process if required
-        FrameMetricsSource* pFrameSource = nullptr;
-        if (processId) {
-            pFrameSource = &GetFrameMetricSource_(processId);
+        if (numSwapChains == nullptr) {
+            throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "numSwapChains pointer is null.");
         }
-        // execute the dynamic poll operation
-        pQuery->Poll(pBlob, *pComms, (uint64_t)util::GetCurrentTimestamp(), pFrameSource, processId);
+
+        const uint32_t maxSwapChains = *numSwapChains;
+        if (maxSwapChains == 0) {
+            throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "numSwapChains is zero.");
+        }
+        if (pBlob == nullptr) {
+            throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pBlob pointer is null.");
+        }
+        if (processId == 0 && pQuery->HasFrameMetrics()) {
+            throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT,
+                "processId is zero but query requires frame metrics.");
+        }
+
+        *numSwapChains = 0;
+
+        FrameMetricsSource* pFrameSource = nullptr;
+        if (processId != 0) {
+            pFrameSource = &GetFrameMetricSource_(processId);
+            pFrameSource->Update();
+        }
+
+        const uint64_t nowTimestamp = (uint64_t)util::GetCurrentTimestamp();
+        *numSwapChains = pQuery->Poll(pBlob, *pComms, nowTimestamp, pFrameSource, processId, maxSwapChains);
     }
 
     void ConcreteMiddleware::PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob)

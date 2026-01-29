@@ -1,5 +1,6 @@
 ﻿// Copyright (C) 2025 Intel Corporation
 #include "FrameMetricsSource.h"
+#include <algorithm>
 
 namespace pmon::mid
 {
@@ -270,41 +271,46 @@ namespace pmon::mid
 		return output;
 	}
 
-	const SwapChainState* FrameMetricsSource::GetActiveSwapChainState_(uint64_t start, uint64_t end) const
+	std::vector<uint64_t> FrameMetricsSource::GetSwapChainAddressesInTimestampRange(uint64_t start, uint64_t end) const
 	{
-		const SwapChainState* selectedState = nullptr;
-		uint64_t selectedCount = 0;
+		std::vector<std::pair<uint64_t, size_t>> candidates;
+		candidates.reserve(swapChains_.size());
 
 		for (const auto& [address, state] : swapChains_) {
 			if (state.Empty()) {
 				continue;
 			}
 			const size_t count = state.CountInTimestampRange(start, end);
-			if (selectedState == nullptr ||
-				count > selectedCount) {
-				selectedState = &state;
-				selectedCount = count;
+			if (count > 0) {
+				candidates.emplace_back(address, count);
 			}
 		}
 
-		return selectedState;
-	}
-
-	const util::metrics::FrameMetrics* FrameMetricsSource::FindNearestActive(uint64_t start, uint64_t end, uint64_t timestamp) const
-	{
-		const auto* state = GetActiveSwapChainState_(start, end);
-		if (state == nullptr || state->Empty()) {
-			return nullptr;
+		if (candidates.size() > 1) {
+			std::sort(candidates.begin(), candidates.end(),
+				[](const auto& lhs, const auto& rhs) {
+					if (lhs.second != rhs.second) {
+						return lhs.second > rhs.second;
+					}
+					return lhs.first < rhs.first;
+				});
 		}
 
-		const size_t index = state->NearestIndex(timestamp);
-		return &state->At(index);
+		std::vector<uint64_t> output;
+		output.reserve(candidates.size());
+		for (const auto& candidate : candidates) {
+			output.push_back(candidate.first);
+		}
+
+		return output;
 	}
 
-	bool FrameMetricsSource::HasActiveSwapChainSamples(uint64_t start, uint64_t end) const
+	const SwapChainState* FrameMetricsSource::FindSwapChainState(uint64_t swapChainAddress) const
 	{
-		const auto* state = GetActiveSwapChainState_(start, end);
-		return state != nullptr && !state->Empty();
+		if (auto it = swapChains_.find(swapChainAddress); it != swapChains_.end()) {
+			return &it->second;
+		}
+		return nullptr;
 	}
 
 	const util::QpcConverter& FrameMetricsSource::GetQpcConverter() const
