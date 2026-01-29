@@ -7,10 +7,13 @@
 
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include "../Interprocess/source/SystemDeviceId.h"
+#include "../CommonUtilities/Meta.h"
+#include "../CommonUtilities/mc/FrameMetricsMemberMap.h"
 
 #include <chrono>
 #include <format>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -19,6 +22,7 @@ using namespace std::chrono_literals;
 namespace IpcMcIntegrationTests
 {
     namespace ipc = pmon::ipc;
+    namespace util = pmon::util;
 
     class TestFixture : public CommonTestFixture
     {
@@ -349,6 +353,62 @@ namespace IpcMcIntegrationTests
             const auto appName = pmapi::PollStatic(session, tracker, PM_METRIC_APPLICATION).As<std::string>();
             Logger::WriteMessage(std::format("Application name: {}\n", appName).c_str());
             Assert::IsTrue(appName == "PresentBench.exe", L"Unexpected application name");
+        }
+
+        TEST_METHOD(UniversalNonStaticMetricsMapToFrameMetrics)
+        {
+            pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
+            auto intro = session.GetIntrospectionRoot();
+            Assert::IsTrue((bool)intro);
+
+            std::vector<PM_METRIC> metricsToCheck;
+            for (auto metricView : intro->GetMetrics()) {
+                if (metricView.GetType() == PM_METRIC_TYPE_STATIC) {
+                    continue;
+                }
+
+                bool hasUniversalDevice = false;
+                for (auto info : metricView.GetDeviceMetricInfo()) {
+                    if (info.GetDevice().GetId() == ipc::kUniversalDeviceId) {
+                        hasUniversalDevice = true;
+                        break;
+                    }
+                }
+
+                if (hasUniversalDevice) {
+                    metricsToCheck.push_back(metricView.GetId());
+                }
+            }
+
+            Logger::WriteMessage(std::format("Universal non-static metrics to map: {}\n", metricsToCheck.size()).c_str());
+            Assert::IsTrue(!metricsToCheck.empty(), L"No universal non-static metrics found");
+
+            size_t failedMappings = 0;
+            for (auto metricId : metricsToCheck) {
+                const auto metricView = intro->FindMetric(metricId);
+                const auto symbol = metricView.Introspect().GetSymbol();
+                const bool mapped = util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT)>(
+                    metricId,
+                    [&]<PM_METRIC Metric>() -> bool {
+                        if constexpr (util::metrics::HasFrameMetricMember<Metric>) {
+                            constexpr auto memberPtr = util::metrics::FrameMetricMember<Metric>::member;
+                            using MemberInfo = util::MemberPointerInfo<decltype(memberPtr)>;
+                            return std::is_same_v<typename MemberInfo::StructType, pmon::util::metrics::FrameMetrics>;
+                        }
+                        return false;
+                    },
+                    false);
+                Logger::WriteMessage(std::format("Metric {}: {}\n", symbol, mapped ? "mapped" : "missing").c_str());
+                if (!mapped) {
+                    ++failedMappings;
+                }
+            }
+
+            if (failedMappings > 0) {
+                Logger::WriteMessage(std::format("Unmapped universal non-static metrics: {}\n", failedMappings).c_str());
+            }
+
+            Assert::IsTrue(failedMappings == 0, L"FrameMetricsMemberMap missing universal non-static metrics");
         }
     };
 }
