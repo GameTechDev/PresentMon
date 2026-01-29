@@ -398,7 +398,7 @@ namespace IpcMcIntegrationTests
                         return false;
                     },
                     false);
-                Logger::WriteMessage(std::format("Metric {}: {}\n", symbol, mapped ? "mapped" : "missing").c_str());
+                Logger::WriteMessage(std::format("Metric {}: {}\n", symbol, mapped ? "ok" : "*FAIL !! MISSING").c_str());
                 if (!mapped) {
                     ++failedMappings;
                 }
