@@ -199,7 +199,8 @@ namespace pmon::mid
         return new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms, *this };
     }
 
-    void ConcreteMiddleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains)
+    void ConcreteMiddleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId,
+        uint8_t* pBlob, uint32_t* numSwapChains, std::optional<uint64_t> nowTimestamp)
     {
         if (numSwapChains == nullptr) {
             throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "numSwapChains pointer is null.");
@@ -225,8 +226,8 @@ namespace pmon::mid
             pFrameSource->Update();
         }
 
-        const uint64_t nowTimestamp = (uint64_t)util::GetCurrentTimestamp();
-        *numSwapChains = pQuery->Poll(pBlob, *pComms, nowTimestamp, pFrameSource, processId, maxSwapChains);
+        const auto now = nowTimestamp.value_or((uint64_t)util::GetCurrentTimestamp());
+        *numSwapChains = pQuery->Poll(pBlob, *pComms, now, pFrameSource, processId, maxSwapChains);
     }
 
     void ConcreteMiddleware::PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob)

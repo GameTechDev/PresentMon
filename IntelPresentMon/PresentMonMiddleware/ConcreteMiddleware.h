@@ -34,7 +34,8 @@ namespace pmon::mid
 		PM_STATUS SetEtwFlushPeriod(std::optional<uint32_t> periodMs) override;
 		PM_DYNAMIC_QUERY* RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements, double windowSizeMs, double metricOffsetMs) override;
 		void FreeDynamicQuery(const PM_DYNAMIC_QUERY* pQuery) override {}
-		void PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains) override;
+		void PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId, uint8_t* pBlob,
+			uint32_t* numSwapChains, std::optional<uint64_t> nowTimestamp = {}) override;
 		void PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob) override;
 		PM_FRAME_QUERY* RegisterFrameEventQuery(std::span<PM_QUERY_ELEMENT> queryElements, uint32_t& blobSize) override;
 		void FreeFrameEventQuery(const PM_FRAME_QUERY* pQuery) override;
