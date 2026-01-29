@@ -111,7 +111,7 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 		.arrayIdx = q.arrayIndex,
 	};
 
-	const bool mapped = util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT)>(
+	const bool mapped = util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT_)>(
 		q.metric,
 		[&]<PM_METRIC Metric>() -> bool {
 			if constexpr (util::metrics::HasFrameMetricMember<Metric>) {

@@ -387,7 +387,7 @@ namespace IpcMcIntegrationTests
             for (auto metricId : metricsToCheck) {
                 const auto metricView = intro->FindMetric(metricId);
                 const auto symbol = metricView.Introspect().GetSymbol();
-                const bool mapped = util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT)>(
+                const bool mapped = util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT_)>(
                     metricId,
                     [&]<PM_METRIC Metric>() -> bool {
                         if constexpr (util::metrics::HasFrameMetricMember<Metric>) {

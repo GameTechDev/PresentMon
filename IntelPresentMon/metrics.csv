@@ -104,5 +104,6 @@ PM_METRIC_DISPLAYED_FRAME_TIME,1,FrameTime-Display,"The time between when the pr
 PM_METRIC_PRESENTED_FRAME_TIME,1,FrameTime-Presents,"The time between this Present call and the previous one, in milliseconds."
 PM_METRIC_BETWEEN_APP_START,,Ms Between App Start,"How long it took from the start of this frame until the CPU started working on the next frame, in milliseconds."
 PM_METRIC_FLIP_DELAY,,Ms Flip Delay,"Delay added to when the Present() was displayed."
+PM_METRIC_SESSION_START_QPC,1,Session Start QPC,"QPC of the start of the ETW trace session, derived from the first received event timestamp."
 ,,,
-PM_METRIC_COUNT,1,Metric Count,"Sentinel value for enumeration/reflection only. Not an actual metric for use in queries."
+PM_METRIC_COUNT_,1,Metric Count,"Sentinel value for enumeration/reflection only. Not an actual metric for use in queries."

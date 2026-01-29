@@ -153,6 +153,8 @@ namespace pmon::ipc
             return statics.applicationName.c_str();
         case PM_METRIC_PROCESS_ID:
             return bookkeeping.processId;
+        case PM_METRIC_SESSION_START_QPC:
+            return bookkeeping.startQpc;
         default:
             throw util::Except<PmStatusError>(PM_STATUS_QUERY_MALFORMED,
                 "Static metric not handled by frame data store");

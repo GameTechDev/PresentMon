@@ -198,7 +198,7 @@ namespace pmon::mid
     template<typename S>
     std::unique_ptr<DynamicMetric<S>> MakeDynamicMetric(const PM_QUERY_ELEMENT& qel)
     {
-        return util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT)>(
+        return util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT_)>(
             qel.metric,
             [&]<PM_METRIC Metric>() -> std::unique_ptr<DynamicMetric<S>> {
                 if constexpr (util::metrics::HasFrameMetricMember<Metric>) {

@@ -127,7 +127,7 @@ namespace
 
     bool IsFrameMetricMapped_(PM_METRIC metric)
     {
-        return util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT)>(
+        return util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT_)>(
             metric,
             [&]<PM_METRIC Metric>() -> bool {
                 return util::metrics::HasFrameMetricMember<Metric>;

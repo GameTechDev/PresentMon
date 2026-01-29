@@ -10,7 +10,7 @@ namespace pmon::ipc::intro
 	// mapping of caps to metrics
 	template<PM_METRIC metric> struct IntrospectionCapsLookup { using Universal = std::true_type; };
 	// sentinel metric used for enumeration only (no availability)
-	template<> struct IntrospectionCapsLookup<PM_METRIC_COUNT> {};
+	template<> struct IntrospectionCapsLookup<PM_METRIC_COUNT_> {};
 	// GPU caps
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_POWER> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_power; };
 	template<> struct IntrospectionCapsLookup<PM_METRIC_GPU_VOLTAGE> { static constexpr auto gpuCapBit = GpuTelemetryCapBits::gpu_voltage; };

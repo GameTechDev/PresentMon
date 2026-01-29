@@ -9,7 +9,7 @@ namespace pmon::ipc::intro
     {
         using MetricEnum = PM_METRIC;
         // Probe underlying values in [0, COUNT)
-        constexpr auto MaxMetricUnderlying = int(PM_METRIC_COUNT);
+        constexpr auto MaxMetricUnderlying = int(PM_METRIC_COUNT_);
 
         // xxxCapBits is std::bitset<N>
         template<typename BitsType, typename Index>
