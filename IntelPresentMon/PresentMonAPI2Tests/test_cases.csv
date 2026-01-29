@@ -1,0 +1,37 @@
+test_case_0_5988,5988,Presenter.exe,test_case_0.etl,test_case_0.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+TestName,ProcessID,ProcessName,EtlFile,GoldCsvFile,PollCount,WaitTimeSecs,IsExpectedFailure,FailureReason,UseAdditionalTestLocation,ProduceDebugCsv,RunTest
+test_case_0_10792,10792,Presenter.exe,test_case_0.etl,test_case_0.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_0_1268,1268,dwm.exe,test_case_0.etl,test_case_0.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_0_8320,8320,Presenter.exe,test_case_0.etl,test_case_0.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_0_11648,11648,Presenter.exe,test_case_0.etl,test_case_0.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_0_3976,3976,Presenter.exe,test_case_0.etl,test_case_0.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_0_11112,11112,Presenter.exe,test_case_0.etl,test_case_0.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_0_2032,2032,Presenter.exe,test_case_0.etl,test_case_0.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_0_5988,5988,Presenter.exe,test_case_0.etl,test_case_0.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_0_12268,12268,Presenter.exe,test_case_0.etl,test_case_0.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_0_11100,11100,Presenter.exe,test_case_0.etl,test_case_0.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_1_1564,1564,dwm.exe,test_case_1.etl,test_case_1.csv,10,1,TRUE,Expected failure - Multiple SwapChain support needed,FALSE,FALSE,TRUE
+test_case_1_24560,24560,Presenter.exe,test_case_1.etl,test_case_1.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_1_24944,24944,devenv.exe,test_case_1.etl,test_case_1.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_2_1300,1300,dwm.exe,test_case_2.etl,test_case_2.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_2_10016,10016,Presenter.exe,test_case_2.etl,test_case_2.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_2_5348,5348,Presenter.exe,test_case_2.etl,test_case_2.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_2_5220,5220,Presenter.exe,test_case_2.etl,test_case_2.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_3_1252,1252,dwm.exe,test_case_3.etl,test_case_3.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_3_5892,5892,dwm.exe,test_case_3.etl,test_case_3.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_3_10112,10112,Presenter.exe,test_case_3.etl,test_case_3.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_3_12980,12980,Presenter.exe,test_case_3.etl,test_case_3.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_4_5192,5192,Presenter.exe,test_case_4.etl,test_case_4.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_4_5236,5236,Presenter.exe,test_case_4.etl,test_case_4.csv,10,1,TRUE,Expected failure - Multiple SwapChain support needed,FALSE,FALSE,TRUE
+test_case_4_8536,8536,Presenter.exe,test_case_4.etl,test_case_4.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_4_9620,9620,Presenter.exe,test_case_4.etl,test_case_4.csv,10,1,FALSE,,FALSE,FALSE,TRUE
+test_case_4_10376,10376,dwm.exe,test_case_4.etl,test_case_4.csv,10,1,TRUE,Expected failure - Multiple SwapChain support needed,FALSE,FALSE,TRUE
+test_case_5_24892,24892,PresentBench.exe,test_case_5.etl,test_case_5.csv,10,1,TRUE,Expected failure - Multiple SwapChain support needed,FALSE,FALSE,TRUE
+test_case_6_10796,10796,cpLauncher.exe,test_case_6.etl,test_case_6.csv,10,1,FALSE,,TRUE,FALSE,TRUE
+test_case_7_11320,11320,cpLauncher.exe,test_case_7.etl,test_case_7.csv,20,5,FALSE,,TRUE,FALSE,TRUE
+test_case_8_6920,6920,scimitar_engine_win64_vs2022_llvm_fusion_dx12_px.exe,test_case_8.etl,test_case_8.csv,20,5,TRUE,Expected failure - Multiple SwapChain support needed,TRUE,FALSE,TRUE
+test_case_9_10340,10340,F1_24.exe,test_case_9.etl,test_case_9.csv,10,1,TRUE,Expected failure - Multiple SwapChain support needed,TRUE,FALSE,TRUE
+test_case_10_9888,9888,NarakaBladepoint.exe,test_case_10.etl,test_case_10.csv,10,1,TRUE,Expected failure - Multiple SwapChain support needed,TRUE,FALSE,TRUE
+test_case_11_1524,1524,NarakaBladepoint.exe,test_case_11.etl,test_case_11.csv,10,1,TRUE,Expected failure - Multiple SwapChain support needed,TRUE,FALSE,TRUE
+test_case_12_10168,10168,F1_24.exe,test_case_12.etl,test_case_12.csv,20,5,FALSE,,TRUE,FALSE,TRUE
+test_case_13_11780,11780,Dingo.Main_Win64_retail.exe,test_case_13.etl,test_case_13.csv,10,5,FALSE,,TRUE,FALSE,TRUE
