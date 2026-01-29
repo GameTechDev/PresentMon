@@ -317,7 +317,6 @@ void IntrospectAllDynamicOptions()
     }
 }
 
-
 int main(int argc, char* argv[])
 {
     try {
@@ -385,6 +384,8 @@ int main(int argc, char* argv[])
             RunPlaybackFrameQuery(); break;
         case clio::Mode::IntrospectAllDynamicOptions:
             IntrospectAllDynamicOptions(); break;
+        case clio::Mode::IntrospectionDevices:
+            IntrospectAllDevices(ConnectSession()); break;
         default:
             throw std::runtime_error{ "unknown sample client mode" };
         }
