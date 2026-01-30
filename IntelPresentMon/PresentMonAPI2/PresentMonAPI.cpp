@@ -338,6 +338,31 @@ PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQuery(PM_DYNAMIC_QUERY_HANDLE hand
 	}
 }
 
+PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQueryWithTimestamp(PM_DYNAMIC_QUERY_HANDLE handle, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains, uint64_t nowTimestamp)
+{
+	try {
+		if (!pBlob) {
+			pmlog_error("null blob ptr").diag();
+			return PM_STATUS_BAD_ARGUMENT;
+		}
+		if (!numSwapChains) {
+			pmlog_error("null swap chain inoutptr").diag();
+			return PM_STATUS_BAD_ARGUMENT;
+		}
+		if (!*numSwapChains) {
+			pmlog_error("swap chain in count is zero").diag();
+			return PM_STATUS_BAD_ARGUMENT;
+		}
+		LookupMiddleware_(handle).PollDynamicQuery(handle, processId, pBlob, numSwapChains, nowTimestamp);
+		return PM_STATUS_SUCCESS;
+	}
+	catch (...) {
+		const auto code = util::GeneratePmStatus();
+		pmlog_error(util::ReportException()).code(code);
+		return code;
+	}
+}
+
 PRESENTMON_API2_EXPORT PM_STATUS pmPollStaticQuery(PM_SESSION_HANDLE sessionHandle, const PM_QUERY_ELEMENT* pElement, uint32_t processId, uint8_t* pBlob)
 {
 	try {

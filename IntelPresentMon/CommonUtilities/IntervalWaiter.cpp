@@ -3,6 +3,13 @@
 
 namespace pmon::util
 {
+	IntervalWaiter::IntervalWaiter(double intervalSeconds, int64_t syncTimestamp, double waitBuffer)
+		:
+		intervalSeconds_{ intervalSeconds },
+		waiter_{ waitBuffer },
+		timer_{ syncTimestamp }
+	{}
+
 	IntervalWaiter::IntervalWaiter(double intervalSeconds, double waitBuffer)
 		:
 		intervalSeconds_{ intervalSeconds },
@@ -19,22 +26,25 @@ namespace pmon::util
 		intervalSeconds_ = double(interval.count()) / 1'000'000'000.;
 	}
 
-	void IntervalWaiter::Wait()
+	IntervalWaiter::WaitResult IntervalWaiter::Wait()
 	{
-		const auto waitTimeSeconds = [=, this] {
+		WaitResult res{};
+		const auto waitTimeSeconds = [=, this, &res] {
 			const auto t = timer_.Peek();
-			auto targetCandidate = lastTargetTime_ + intervalSeconds_;
+			res.targetSec = lastTargetTime_ + intervalSeconds_;
 			// if we are on-time
-			if (t <= targetCandidate) {
-				lastTargetTime_ = targetCandidate;
-				return targetCandidate - t;
+			if (t <= res.targetSec) {
+				lastTargetTime_ = res.targetSec;
+				return res.targetSec - t;
 			}
 			// if we are late, reset target to NOW and do not wait
 			lastTargetTime_ = t;
+			res.errorSec = res.targetSec - t;
 			return 0.;
 		}();
 		if (waitTimeSeconds > 0.) {
-			waiter_.Wait(waitTimeSeconds);
+			res.errorSec = waiter_.Wait(waitTimeSeconds);
 		}
+		return res;
 	}
 }

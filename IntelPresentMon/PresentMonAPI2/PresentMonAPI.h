@@ -425,6 +425,8 @@ extern "C" {
 	PRESENTMON_API2_EXPORT PM_STATUS pmFreeDynamicQuery(PM_DYNAMIC_QUERY_HANDLE handle);
 	// poll a dynamic query, writing the query poll results into the specified memory blob (byte buffer)
 	PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQuery(PM_DYNAMIC_QUERY_HANDLE handle, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains);
+	// poll a dynamic query, writing the query poll results into the specified memory blob (byte buffer) using the provided now timestamp
+	PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQueryWithTimestamp(PM_DYNAMIC_QUERY_HANDLE handle, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains, uint64_t nowTimestamp);
 	// query a static metric immediately, writing the result into the specified memory blob (byte buffer)
 	PRESENTMON_API2_EXPORT PM_STATUS pmPollStaticQuery(PM_SESSION_HANDLE sessionHandle, const PM_QUERY_ELEMENT* pElement, uint32_t processId, uint8_t* pBlob);
 	// register a frame query used for consuming desired metrics from a queue of frame events

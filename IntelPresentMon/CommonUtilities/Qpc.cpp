@@ -63,9 +63,16 @@ namespace pmon::util
 			: -TimestampDeltaToMilliSeconds(start - end, qpcFrequency);
 	}
 
+	QpcTimer::QpcTimer(int64_t seededStartTimestamp)
+		:
+		performanceCounterPeriod_{ GetTimestampPeriodSeconds() },
+		startTimestamp_{ seededStartTimestamp }
+	{}
+
 	QpcTimer::QpcTimer() noexcept
+		:
+		performanceCounterPeriod_{ GetTimestampPeriodSeconds() }
 	{
-		performanceCounterPeriod_ = GetTimestampPeriodSeconds();
 		Mark();
 	}
 	double QpcTimer::Mark() noexcept
@@ -85,11 +92,17 @@ namespace pmon::util
 	{
 		return startTimestamp_;
 	}
-	void QpcTimer::SpinWaitUntil(double seconds) const noexcept
+	double QpcTimer::GetPerformanceCounterPeriod() const noexcept
 	{
-		while (Peek() < seconds) {
+		return performanceCounterPeriod_;
+	}
+	double QpcTimer::SpinWaitUntil(double seconds) const noexcept
+	{
+		double t = Peek();
+		for (; t < seconds; t = Peek()) {
 			std::this_thread::yield();
 		}
+		return t - seconds;
 	}
 
 	// Duration in ticks -> ms

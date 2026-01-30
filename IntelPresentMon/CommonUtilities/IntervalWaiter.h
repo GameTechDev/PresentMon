@@ -10,6 +10,14 @@ namespace pmon::util
 	class IntervalWaiter
 	{
 	public:
+		// types
+		struct WaitResult
+		{
+			double targetSec;
+			double errorSec;
+		};
+		// functions
+		IntervalWaiter(double intervalSeconds, int64_t syncTimestamp, double waitBuffer = PrecisionWaiter::standardWaitBuffer);
 		IntervalWaiter(double intervalSeconds, double waitBuffer = PrecisionWaiter::standardWaitBuffer);
 		IntervalWaiter(const IntervalWaiter&) = delete;
 		IntervalWaiter & operator=(const IntervalWaiter&) = delete;
@@ -18,7 +26,7 @@ namespace pmon::util
 		~IntervalWaiter() = default;
 		void SetInterval(double intervalSeconds);
 		void SetInterval(std::chrono::nanoseconds interval);
-		void Wait();
+		WaitResult Wait();
 	private:
 		double intervalSeconds_;
 		double lastTargetTime_ = 0.;

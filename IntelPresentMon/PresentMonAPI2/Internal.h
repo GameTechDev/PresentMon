@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "PresentMonAPI.h"
 #include "PresentMonDiagnostics.h"
 #include "../CommonUtilities/log/Log.h"

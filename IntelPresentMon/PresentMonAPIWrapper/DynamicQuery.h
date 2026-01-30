@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
 #include "BlobContainer.h"
 #include "ProcessTracker.h"
@@ -33,6 +33,16 @@ namespace pmapi
         // numSwapChains: input indicates to API how many blobs available, output indicates how many were written
         // if the target process has multiple swap chains, will poll data for as many swaps as there are blobs available
         void Poll(const ProcessTracker& tracker, uint8_t* pBlob, uint32_t& numSwapChains) const;
+        // poll the specified process using this query, using an explicit timestamp for the "now" time
+        // polling processes frame event data and generates metrics for the time point at which this query was polled
+        // numSwapChains: input indicates to API how many blobs available, output indicates how many were written
+        // if the target process has multiple swap chains, will poll data for as many swaps as there are blobs available
+        void PollWithTimestamp(const ProcessTracker& tracker, uint8_t* pBlob, uint32_t& numSwapChains, uint64_t nowTimestamp) const;
+        // poll the specified process using this query, using an explicit timestamp for the "now" time
+        // polling processes frame event data and generates metrics for the time point at which this query was polled
+        // makes use of a blob container to manage the output data
+        // if the target process has multiple swap chains, will poll data for as many swaps has the container has room for
+        void PollWithTimestamp(const ProcessTracker& tracker, BlobContainer& blobs, uint64_t nowTimestamp) const;
         // create a blob container sized suited for this query
         // nBlobs parameter will control how many swaps can be polled maximum using the container
         BlobContainer MakeBlobContainer(uint32_t nBlobs) const;

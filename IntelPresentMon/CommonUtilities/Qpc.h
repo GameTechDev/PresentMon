@@ -18,11 +18,13 @@ namespace pmon::util
 	class QpcTimer
 	{
 	public:
+		QpcTimer(int64_t seededStartTimestamp);
 		QpcTimer() noexcept;
 		double Mark() noexcept;
 		double Peek() const noexcept;
 		int64_t GetStartTimestamp() const noexcept;
-		void SpinWaitUntil(double seconds) const noexcept;
+		double GetPerformanceCounterPeriod() const noexcept;
+		double SpinWaitUntil(double seconds) const noexcept;
 	private:
 		double performanceCounterPeriod_;
 		int64_t startTimestamp_ = 0;

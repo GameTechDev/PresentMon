@@ -36,6 +36,7 @@ PM_STATUS(*pFunc_pmSetEtwFlushPeriod_)(PM_SESSION_HANDLE, uint32_t) = nullptr;
 PM_STATUS(*pFunc_pmRegisterDynamicQuery_)(PM_SESSION_HANDLE, PM_DYNAMIC_QUERY_HANDLE*, PM_QUERY_ELEMENT*, uint64_t, double, double) = nullptr;
 PM_STATUS(*pFunc_pmFreeDynamicQuery_)(PM_DYNAMIC_QUERY_HANDLE) = nullptr;
 PM_STATUS(*pFunc_pmPollDynamicQuery_)(PM_DYNAMIC_QUERY_HANDLE, uint32_t, uint8_t*, uint32_t*) = nullptr;
+PM_STATUS(*pFunc_pmPollDynamicQueryWithTimestamp_)(PM_DYNAMIC_QUERY_HANDLE, uint32_t, uint8_t*, uint32_t*, uint64_t) = nullptr;
 PM_STATUS(*pFunc_pmPollStaticQuery_)(PM_SESSION_HANDLE, const PM_QUERY_ELEMENT*, uint32_t, uint8_t*) = nullptr;
 PM_STATUS(*pFunc_pmRegisterFrameQuery_)(PM_SESSION_HANDLE, PM_FRAME_QUERY_HANDLE*, PM_QUERY_ELEMENT*, uint64_t, uint32_t*) = nullptr;
 PM_STATUS(*pFunc_pmConsumeFrames_)(PM_FRAME_QUERY_HANDLE, uint32_t, uint8_t*, uint32_t*) = nullptr;
@@ -166,6 +167,7 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 		RESOLVE(pmRegisterDynamicQuery);
 		RESOLVE(pmFreeDynamicQuery);
 		RESOLVE(pmPollDynamicQuery);
+		RESOLVE(pmPollDynamicQueryWithTimestamp);
 		RESOLVE(pmPollStaticQuery);
 		RESOLVE(pmRegisterFrameQuery);
 		RESOLVE(pmConsumeFrames);
@@ -274,6 +276,11 @@ PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQuery(PM_DYNAMIC_QUERY_HANDLE hand
 {
 	LoadEndpointsIfEmpty_();
 	return pFunc_pmPollDynamicQuery_(handle, processId, pBlob, numSwapChains);
+}
+PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQueryWithTimestamp(PM_DYNAMIC_QUERY_HANDLE handle, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains, uint64_t nowTimestamp)
+{
+	LoadEndpointsIfEmpty_();
+	return pFunc_pmPollDynamicQueryWithTimestamp_(handle, processId, pBlob, numSwapChains, nowTimestamp);
 }
 PRESENTMON_API2_EXPORT PM_STATUS pmPollStaticQuery(PM_SESSION_HANDLE sessionHandle, const PM_QUERY_ELEMENT* pElement, uint32_t processId, uint8_t* pBlob)
 {

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "DynamicQuery.h"
 #include <IntelPresentMon/PresentMonAPIWrapperCommon/Introspection.h>
 #include <IntelPresentMon/PresentMonAPIWrapperCommon/Exception.h>
@@ -38,11 +38,26 @@ namespace pmapi
         }
     }
 
+    void DynamicQuery::PollWithTimestamp(const ProcessTracker& tracker, uint8_t* pBlob, uint32_t& numSwapChains, uint64_t nowTimestamp) const
+    {
+        if (auto sta = pmPollDynamicQueryWithTimestamp(hQuery_, tracker.GetPid(), pBlob, &numSwapChains, nowTimestamp);
+            sta != PM_STATUS_SUCCESS) {
+            throw ApiErrorException{ sta, "dynamic poll with timestamp call failed" };
+        }
+    }
+
     void DynamicQuery::Poll(const ProcessTracker& tracker, BlobContainer& blobs) const
     {
         assert(!Empty());
         assert(blobs.CheckHandle(hQuery_));
         Poll(tracker, blobs.GetFirst(), blobs.AcquireNumBlobsInRef_());
+    }
+
+    void DynamicQuery::PollWithTimestamp(const ProcessTracker& tracker, BlobContainer& blobs, uint64_t nowTimestamp) const
+    {
+        assert(!Empty());
+        assert(blobs.CheckHandle(hQuery_));
+        PollWithTimestamp(tracker, blobs.GetFirst(), blobs.AcquireNumBlobsInRef_(), nowTimestamp);
     }
 
     BlobContainer DynamicQuery::MakeBlobContainer(uint32_t nBlobs) const
