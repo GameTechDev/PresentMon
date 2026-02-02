@@ -2204,7 +2204,10 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
         }
     }
 
-    if (mTrackPcLatency) {
+    AppAndPclTrackingScope appPclScope(*this);
+    auto const appPclTrackingActive = static_cast<bool>(appPclScope);
+
+    if (appPclTrackingActive && mTrackPcLatency) {
         auto* pclTimingData = ExtractAppTimingData(
             mPclTimingDataByPclFrameId,
             p->ProcessId,
@@ -2359,7 +2362,8 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
         }
     }
 
-    // Prune out old app frame data
+    if (appPclTrackingActive) {
+        // Prune out old app frame data
     for (auto it = mAppTimingDataByAppFrameId.begin(); it != mAppTimingDataByAppFrameId.end();) {
         if (appFrameId != 0 && it->second.ProcessId == processId &&
             static_cast<int32_t>(appFrameId - it->second.FrameId) >= 10) {
@@ -2422,6 +2426,7 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                 ++it;
             }
         }
+    }
     }
 }
 
@@ -2614,7 +2619,8 @@ void PMTraceConsumer::RuntimePresentStop(Runtime runtime, EVENT_HEADER const& hd
     auto present = eventIter->second;
 
     if (mTrackAppTiming) {
-        if (IsApplicationPresent(present)) {
+        AppAndPclTrackingScope appPclScope(*this);
+        if (appPclScope && IsApplicationPresent(present)) {
             auto* appTimingData = ExtractAppTimingData(
                 mAppTimingDataByAppFrameId,
                 present->ProcessId,
@@ -2758,14 +2764,15 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             // Clean up PC Latency tracking data for this process to prevent memory leaks.
             // This is necessary because PCLStatsShutdown events are application-controlled
             // and may not be sent if the app crashes or terminates abnormally.
-            if (mTrackPcLatency) {
+            AppAndPclTrackingScope appPclScope(*this);
+            if (appPclScope && mTrackPcLatency) {
                 std::erase_if(mPclTimingDataByPclFrameId, [&event](const auto& p) {
                     return p.first.second == event.ProcessId;
                 });
                 mLatestPingTimestampByProcessId.erase(event.ProcessId);
             }
             // Clean up App Timing data as well...
-            if (mTrackAppTiming) {
+            if (appPclScope && mTrackAppTiming) {
                 std::erase_if(mAppTimingDataByAppFrameId, [&event](const auto& p) {
                     return p.second.ProcessId == event.ProcessId;
                 });
@@ -2801,13 +2808,14 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             event.IsStartEvent = false;
 
             // Clean up PC Latency and AppTiming tracking data for this process to prevent memory leaks.
-            if (mTrackPcLatency) {
+            AppAndPclTrackingScope appPclScope(*this);
+            if (appPclScope && mTrackPcLatency) {
                 std::erase_if(mPclTimingDataByPclFrameId, [&event](const auto& p) {
                     return p.first.second == event.ProcessId;
                 });
                 mLatestPingTimestampByProcessId.erase(event.ProcessId);
             }
-            if (mTrackAppTiming) {
+            if (appPclScope && mTrackAppTiming) {
                 std::erase_if(mAppTimingDataByAppFrameId, [&event](const auto& p) {
                     return p.second.ProcessId == event.ProcessId;
                     });
@@ -2842,6 +2850,11 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
     auto processId = pEventRecord->EventHeader.ProcessId;
 
     if (processId == DwmProcessId) {
+        return;
+    }
+
+    AppAndPclTrackingScope appPclScope(*this);
+    if (!appPclScope) {
         return;
     }
 
@@ -3156,6 +3169,11 @@ void PMTraceConsumer::HandleTraceLoggingEvent(EVENT_RECORD* pEventRecord)
 
 void PMTraceConsumer::HandlePclEvent(EVENT_RECORD* pEventRecord)
 {
+    AppAndPclTrackingScope appPclScope(*this);
+    if (!appPclScope) {
+        return;
+    }
+
     try {
         if (!mTraceLoggingDecoder.DecodeTraceLoggingEventRecord(pEventRecord)) {
             pmlog_dbg("Failed to decode trace logging event"); // too spammy?
@@ -3466,6 +3484,68 @@ void PMTraceConsumer::DequeuePresentEvents(std::vector<std::shared_ptr<PresentEv
         mCompletedRingCondition.notify_one();
     }
 }
+
+
+void PMTraceConsumer::SetAppAndPclTrackingEnabled(bool enabled)
+{
+    mAppAndPclTrackingEnabled.store(enabled, std::memory_order_release);
+}
+
+void PMTraceConsumer::ResetAppAndPclTrackingData(bool shrink)
+{
+    // Disable any future writes first.
+    mAppAndPclTrackingEnabled.store(false, std::memory_order_release);
+
+    // Wait for in-flight event handlers that touch these structures to complete.
+    // This does NOT rely on new ETW events arriving (providers may already be disabled).
+    auto const startMs = GetTickCount64();
+    while (mAppAndPclTrackingInFlight.load(std::memory_order_acquire) != 0 &&
+           (GetTickCount64() - startMs) < 2000) {
+        // Let the consumer thread make forward progress.
+        Sleep(0);
+    }
+
+    if (mAppAndPclTrackingInFlight.load(std::memory_order_acquire) != 0) {
+        // If we can't quiesce safely, do not clear to avoid a data race.
+        pmlog_warn("Timed out waiting for app/PCL tracking to quiesce; skipping reset");
+        return;
+    }
+
+    if (shrink) {
+        decltype(mAppTimingDataByAppFrameId){}.swap(mAppTimingDataByAppFrameId);
+        decltype(mPclTimingDataByPclFrameId){}.swap(mPclTimingDataByPclFrameId);
+        decltype(mPresentByAppFrameId){}.swap(mPresentByAppFrameId);
+        decltype(mLatestPingTimestampByProcessId){}.swap(mLatestPingTimestampByProcessId);
+    } else {
+        mAppTimingDataByAppFrameId.clear();
+        mPclTimingDataByPclFrameId.clear();
+        mPresentByAppFrameId.clear();
+        mLatestPingTimestampByProcessId.clear();
+    }
+
+    // Clear tracking state that is normally pruned by CompletePresent().
+    mUsingOutOfBoundPresentStart = false;
+}
+
+PMTraceConsumer::AppAndPclTrackingScope::AppAndPclTrackingScope(PMTraceConsumer& consumer)
+    : Consumer(consumer)
+{
+    Consumer.mAppAndPclTrackingInFlight.fetch_add(1, std::memory_order_acq_rel);
+    if (!Consumer.mAppAndPclTrackingEnabled.load(std::memory_order_acquire)) {
+        Consumer.mAppAndPclTrackingInFlight.fetch_sub(1, std::memory_order_acq_rel);
+        Active = false;
+        return;
+    }
+    Active = true;
+}
+
+PMTraceConsumer::AppAndPclTrackingScope::~AppAndPclTrackingScope()
+{
+    if (Active) {
+        Consumer.mAppAndPclTrackingInFlight.fetch_sub(1, std::memory_order_acq_rel);
+    }
+}
+
 AppTimingData* PMTraceConsumer::ExtractAppTimingData(
     std::unordered_map<std::pair<uint32_t, uint32_t>, AppTimingData, PairHash<uint32_t, uint32_t>>& timingDataByFrameId,
     uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime, std::function<uint64_t(const AppTimingData&)> timingSelector) {
@@ -3523,6 +3603,10 @@ bool PMTraceConsumer::IsApplicationPresent(std::shared_ptr<PresentEvent> const& 
 }
 
 void PMTraceConsumer::SetAppTimingDataAsComplete(uint32_t processId, uint32_t appFrameId) {
+    AppAndPclTrackingScope appPclScope(*this);
+    if (!appPclScope) {
+        return;
+    }
     auto key = std::make_pair(appFrameId, processId);
     auto ii = mAppTimingDataByAppFrameId.find(key);
     if (ii != mAppTimingDataByAppFrameId.end()) {

@@ -56,10 +56,23 @@ PM_STATUS RealtimePresentMonSession::StartStreaming(uint32_t client_process_id,
             }
         }
 
+        // Enable app/PCL tracking before enabling providers so any immediately-arriving
+        // events are accounted for by the quiesce logic on StopStreaming.
+        if (pm_consumer_) {
+            pm_consumer_->ResetAppAndPclTrackingData(false);
+            // Ensure tracking is disabled before starting providers
+            pm_consumer_->SetAppAndPclTrackingEnabled(false);
+        }
+
         auto const providerStatus = trace_session_.StartProviders();
         if (providerStatus != ERROR_SUCCESS) {
             streamer_.StopStreaming(target_process_id);
             return PM_STATUS::PM_STATUS_FAILURE;
+        }
+
+        if (pm_consumer_) {
+            // Providers are started, enable app/PCL tracking
+            pm_consumer_->SetAppAndPclTrackingEnabled(true);
         }
 
         // Only signal the streaming started event when we have
@@ -79,7 +92,17 @@ void RealtimePresentMonSession::StopStreaming(uint32_t client_process_id,
     streamer_.StopStreaming(client_process_id, target_process_id);
     if ((streamer_.NumActiveStreams() == 0) && evtStreamingStarted_) {
         evtStreamingStarted_.Reset();
+
+        if (pm_consumer_) {
+            pm_consumer_->SetAppAndPclTrackingEnabled(false);
+        }
+
         trace_session_.StopProviders();
+
+        if (pm_consumer_) {
+            // Drop any app/PCL tracking state that would otherwise linger until providers are re-enabled.
+            pm_consumer_->ResetAppAndPclTrackingData(true);
+        }
     }
 }
 

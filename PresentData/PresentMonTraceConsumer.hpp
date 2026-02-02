@@ -8,6 +8,7 @@
 #endif
 
 #include <deque>
+#include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -373,6 +374,13 @@ struct PMTraceConsumer
     void DequeueProcessEvents(std::vector<ProcessEvent>& outProcessEvents);
     void DequeuePresentEvents(std::vector<std::shared_ptr<PresentEvent>>& outPresentEvents);
 
+    // Control of AppTiming / PC Latency tracking state for capture start/stop without
+    // tearing down the underlying ETW session.
+    //
+    // Note: these APIs are intended to be called by the owning session/controller thread.
+    void SetAppAndPclTrackingEnabled(bool enabled);
+    void ResetAppAndPclTrackingData(bool shrink = false);
+
 
     // -------------------------------------------------------------------------------------------
     // The rest of this structure are internal data and functions for analysing the collected ETW
@@ -486,6 +494,22 @@ struct PMTraceConsumer
             return DualHash(p.first, p.second);
         }
     };
+
+    // Guard used to safely mutate/clear app timing and PC latency tracking structures
+    // without taking a mutex on every ETW event. ResetAppAndPclTrackingData() disables
+    // tracking and then waits for in-flight scopes to drain before clearing the maps.
+    struct AppAndPclTrackingScope {
+        PMTraceConsumer& Consumer;
+        bool Active = false;
+        explicit AppAndPclTrackingScope(PMTraceConsumer& consumer);
+        ~AppAndPclTrackingScope();
+        AppAndPclTrackingScope(const AppAndPclTrackingScope&) = delete;
+        AppAndPclTrackingScope& operator=(const AppAndPclTrackingScope&) = delete;
+        explicit operator bool() const noexcept { return Active; }
+    };
+
+    std::atomic<bool>     mAppAndPclTrackingEnabled{ true };
+    std::atomic<uint32_t> mAppAndPclTrackingInFlight{ 0 };
 
     std::unordered_map<uint32_t, std::shared_ptr<PresentEvent>> mPresentByThreadId;                     // ThreadId -> PresentEvent
     std::unordered_map<uint32_t, OrderedPresents>               mOrderedPresentsByProcessId;            // ProcessId -> ordered PresentStartTime -> PresentEvent
