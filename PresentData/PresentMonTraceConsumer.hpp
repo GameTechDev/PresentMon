@@ -508,8 +508,10 @@ struct PMTraceConsumer
         explicit operator bool() const noexcept { return Active; }
     };
 
-    std::atomic<bool>     mAppAndPclTrackingEnabled{ true };
-    std::atomic<uint32_t> mAppAndPclTrackingInFlight{ 0 };
+    std::atomic<bool> mAppAndPclTrackingEnabled{ true };
+    // WaitOnAddress needs a 1/2/4/8-byte memory location. Using LONG makes it
+    // Win7-compatible (via Interlocked ops) and Win8+ compatible (via WaitOnAddress shim).
+    volatile LONG mAppAndPclTrackingInFlight = 0;
 
     std::unordered_map<uint32_t, std::shared_ptr<PresentEvent>> mPresentByThreadId;                     // ThreadId -> PresentEvent
     std::unordered_map<uint32_t, OrderedPresents>               mOrderedPresentsByProcessId;            // ProcessId -> ordered PresentStartTime -> PresentEvent
