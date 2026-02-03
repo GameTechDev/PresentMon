@@ -107,22 +107,51 @@ namespace pmon::mid
                 throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED, "DynamicStat::InputSortedSamples unsupported for this stat");
             }
         protected:
-            DynamicStatBase_(PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes)
+            // functions
+            DynamicStatBase_(PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes,
+                std::optional<double> reciprocationFactor)
                 : inType_{ inType },
                 outType_{ outType },
-                offsetBytes_{ offsetBytes }
+                offsetBytes_{ offsetBytes },
+                reciprocationFactor_{ reciprocationFactor }
             {}
+            template<typename V>
+            void WriteValue_(uint8_t* pBase, const std::optional<V>& value) const
+            {
+                // if not recip we can forward to Write function (it handles empty opt etc.)
+                if (!reciprocationFactor_) {
+                    WriteOptionalValueToBlob_(pBase, offsetBytes_, outType_, value);
+                    return;
+                }
+                // if recip but no value, write nullopt (cannot reciprocate a nullopt)
+                if (!value) {
+                    WriteOptionalValueToBlob_(pBase, offsetBytes_, outType_, std::optional<double>{});
+                    return;
+                }
+                const double rawValue = SampleAdapter_<V>::ToDouble(*value);
+                // if value is present but zero, cannot recip zero so write nullopt
+                if (rawValue == 0.0) {
+                    WriteOptionalValueToBlob_(pBase, offsetBytes_, outType_, std::optional<double>{});
+                    return;
+                }
+                // otherwise, perform reciprocation and then write
+                const std::optional<double> adjusted = *reciprocationFactor_ / rawValue;
+                WriteOptionalValueToBlob_(pBase, offsetBytes_, outType_, adjusted);
+            }
+            // data
             PM_DATA_TYPE inType_ = PM_DATA_TYPE_DOUBLE;
             PM_DATA_TYPE outType_ = PM_DATA_TYPE_DOUBLE;
             size_t offsetBytes_ = 0;
+            std::optional<double> reciprocationFactor_;
         };
 
         template<typename T>
         class DynamicStatAverage_ : public DynamicStatBase_<T>
         {
         public:
-            DynamicStatAverage_(PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, bool skipZero)
-                : DynamicStatBase_<T>{ inType, outType, offsetBytes },
+            DynamicStatAverage_(PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes,
+                std::optional<double> reciprocationFactor, bool skipZero)
+                : DynamicStatBase_<T>{ inType, outType, offsetBytes, reciprocationFactor },
                 skipZero_{ skipZero }
             {
             }
@@ -146,7 +175,7 @@ namespace pmon::mid
                 if (count_ > 0) {
                     avg = sum_ / (double)count_;
                 }
-                WriteOptionalValueToBlob_(pBase, this->offsetBytes_, this->outType_, avg);
+                this->WriteValue_(pBase, avg);
                 // reset for the next poll
                 sum_ = 0;
                 count_ = 0;
@@ -161,8 +190,9 @@ namespace pmon::mid
         class DynamicStatPercentile_ : public DynamicStatBase_<T>
         {
         public:
-            DynamicStatPercentile_(PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, double percentile)
-                : DynamicStatBase_<T>{ inType, outType, offsetBytes },
+            DynamicStatPercentile_(PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes,
+                std::optional<double> reciprocationFactor, double percentile)
+                : DynamicStatBase_<T>{ inType, outType, offsetBytes, reciprocationFactor },
                 percentile_{ percentile }
             {
             }
@@ -227,7 +257,7 @@ namespace pmon::mid
             }
             void GatherToBlob(uint8_t* pBase) const override
             {
-                WriteOptionalValueToBlob_(pBase, this->offsetBytes_, this->outType_, value_);
+                this->WriteValue_(pBase, value_);
                 // reset for the next poll
                 value_.reset();
             }
@@ -240,8 +270,9 @@ namespace pmon::mid
         class DynamicStatMinMax_ : public DynamicStatBase_<T>
         {
         public:
-            DynamicStatMinMax_(PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, bool isMax)
-                : DynamicStatBase_<T>{ inType, outType, offsetBytes },
+            DynamicStatMinMax_(PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes,
+                std::optional<double> reciprocationFactor, bool isMax)
+                : DynamicStatBase_<T>{ inType, outType, offsetBytes, reciprocationFactor },
                 isMax_{ isMax }
             {
             }
@@ -271,7 +302,7 @@ namespace pmon::mid
             }
             void GatherToBlob(uint8_t* pBase) const override
             {
-                WriteOptionalValueToBlob_(pBase, this->offsetBytes_, this->outType_, value_);
+                this->WriteValue_(pBase, value_);
                 // reset min/max
                 value_.reset();
             }
@@ -284,8 +315,9 @@ namespace pmon::mid
         class DynamicStatPoint_ : public DynamicStatBase_<T>
         {
         public:
-            DynamicStatPoint_(PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, PM_STAT mode)
-                : DynamicStatBase_<T>{ inType, outType, offsetBytes },
+            DynamicStatPoint_(PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes,
+                std::optional<double> reciprocationFactor, PM_STAT mode)
+                : DynamicStatBase_<T>{ inType, outType, offsetBytes, reciprocationFactor },
                 mode_{ mode }
             {
             }
@@ -314,7 +346,7 @@ namespace pmon::mid
             }
             void GatherToBlob(uint8_t* pBase) const override
             {
-                WriteOptionalValueToBlob_(pBase, this->offsetBytes_, this->outType_, value_);
+                this->WriteValue_(pBase, value_);
                 // reset for the next poll
                 value_.reset();
             }
@@ -327,35 +359,36 @@ namespace pmon::mid
     namespace
     {
         template<typename T>
-        std::unique_ptr<DynamicStat<T>> MakeDynamicStatTyped_(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes)
+        std::unique_ptr<DynamicStat<T>> MakeDynamicStatTyped_(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType,
+            size_t offsetBytes, std::optional<double> reciprocationFactor)
         {
             switch (stat) {
             case PM_STAT_AVG:
-                return std::make_unique<detail::DynamicStatAverage_<T>>(inType, outType, offsetBytes, false);
+                return std::make_unique<detail::DynamicStatAverage_<T>>(inType, outType, offsetBytes, reciprocationFactor, false);
             case PM_STAT_NON_ZERO_AVG:
-                return std::make_unique<detail::DynamicStatAverage_<T>>(inType, outType, offsetBytes, true);
+                return std::make_unique<detail::DynamicStatAverage_<T>>(inType, outType, offsetBytes, reciprocationFactor, true);
             case PM_STAT_PERCENTILE_99:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, 0.99);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.99);
             case PM_STAT_PERCENTILE_95:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, 0.95);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.95);
             case PM_STAT_PERCENTILE_90:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, 0.90);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.90);
             case PM_STAT_PERCENTILE_01:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, 0.01);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.01);
             case PM_STAT_PERCENTILE_05:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, 0.05);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.05);
             case PM_STAT_PERCENTILE_10:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, 0.10);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.10);
             case PM_STAT_MAX:
-                return std::make_unique<detail::DynamicStatMinMax_<T>>(inType, outType, offsetBytes, true);
+                return std::make_unique<detail::DynamicStatMinMax_<T>>(inType, outType, offsetBytes, reciprocationFactor, true);
             case PM_STAT_MIN:
-                return std::make_unique<detail::DynamicStatMinMax_<T>>(inType, outType, offsetBytes, false);
+                return std::make_unique<detail::DynamicStatMinMax_<T>>(inType, outType, offsetBytes, reciprocationFactor, false);
             case PM_STAT_MID_POINT:
-                return std::make_unique<detail::DynamicStatPoint_<T>>(inType, outType, offsetBytes, PM_STAT_MID_POINT);
+                return std::make_unique<detail::DynamicStatPoint_<T>>(inType, outType, offsetBytes, reciprocationFactor, PM_STAT_MID_POINT);
             case PM_STAT_NEWEST_POINT:
-                return std::make_unique<detail::DynamicStatPoint_<T>>(inType, outType, offsetBytes, PM_STAT_NEWEST_POINT);
+                return std::make_unique<detail::DynamicStatPoint_<T>>(inType, outType, offsetBytes, reciprocationFactor, PM_STAT_NEWEST_POINT);
             case PM_STAT_OLDEST_POINT:
-                return std::make_unique<detail::DynamicStatPoint_<T>>(inType, outType, offsetBytes, PM_STAT_OLDEST_POINT);
+                return std::make_unique<detail::DynamicStatPoint_<T>>(inType, outType, offsetBytes, reciprocationFactor, PM_STAT_OLDEST_POINT);
             case PM_STAT_NONE:
             case PM_STAT_MID_LERP:
             case PM_STAT_COUNT:
@@ -368,18 +401,19 @@ namespace pmon::mid
     }
 
     template<typename T>
-    std::unique_ptr<DynamicStat<T>> MakeDynamicStat(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes)
+    std::unique_ptr<DynamicStat<T>> MakeDynamicStat(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes,
+        std::optional<double> reciprocationFactor)
     {
-        return MakeDynamicStatTyped_<T>(stat, inType, outType, offsetBytes);
+        return MakeDynamicStatTyped_<T>(stat, inType, outType, offsetBytes, reciprocationFactor);
     }
 
-    template std::unique_ptr<DynamicStat<double>> MakeDynamicStat<double>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
-    template std::unique_ptr<DynamicStat<int32_t>> MakeDynamicStat<int32_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
-    template std::unique_ptr<DynamicStat<uint32_t>> MakeDynamicStat<uint32_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
-    template std::unique_ptr<DynamicStat<uint64_t>> MakeDynamicStat<uint64_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
-    template std::unique_ptr<DynamicStat<bool>> MakeDynamicStat<bool>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
-    template std::unique_ptr<DynamicStat<std::optional<double>>> MakeDynamicStat<std::optional<double>>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
-    template std::unique_ptr<DynamicStat<::PresentMode>> MakeDynamicStat<::PresentMode>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
-    template std::unique_ptr<DynamicStat<::Runtime>> MakeDynamicStat<::Runtime>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
-    template std::unique_ptr<DynamicStat<::FrameType>> MakeDynamicStat<::FrameType>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes);
+    template std::unique_ptr<DynamicStat<double>> MakeDynamicStat<double>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
+    template std::unique_ptr<DynamicStat<int32_t>> MakeDynamicStat<int32_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
+    template std::unique_ptr<DynamicStat<uint32_t>> MakeDynamicStat<uint32_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
+    template std::unique_ptr<DynamicStat<uint64_t>> MakeDynamicStat<uint64_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
+    template std::unique_ptr<DynamicStat<bool>> MakeDynamicStat<bool>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
+    template std::unique_ptr<DynamicStat<std::optional<double>>> MakeDynamicStat<std::optional<double>>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
+    template std::unique_ptr<DynamicStat<::PresentMode>> MakeDynamicStat<::PresentMode>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
+    template std::unique_ptr<DynamicStat<::Runtime>> MakeDynamicStat<::Runtime>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
+    template std::unique_ptr<DynamicStat<::FrameType>> MakeDynamicStat<::FrameType>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
 }

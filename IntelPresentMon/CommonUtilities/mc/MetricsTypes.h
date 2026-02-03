@@ -112,7 +112,6 @@ namespace pmon::util::metrics {
         double msGpuDuration = 0;
         double msVideoDuration = 0;
         double msSinceInput = 0;
-        double fpsPresent = 0;
 
         // Display Metrics (displayed frames only)
         double msDisplayLatency = 0;
@@ -122,13 +121,11 @@ namespace pmon::util::metrics {
         uint64_t screenTimeQpc = 0;
         std::optional<double> msReadyTimeToDisplayLatency;
         bool isDroppedFrame = false;
-        double fpsDisplay = 0;
 
         // CPU Metrics (app frames only)
         double msCPUBusy = 0;
         double msCPUWait = 0;
         double msCPUTime = 0;
-        double fpsApplication = 0;
 
         // GPU Metrics (app frames only)
         double msGPULatency = 0;

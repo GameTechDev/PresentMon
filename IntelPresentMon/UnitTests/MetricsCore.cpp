@@ -1623,12 +1623,6 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 0.0001,
                 L"First frame should have msBetweenPresents == 0.");
 
-            Assert::AreEqual(
-                0.0,
-                firstMetrics[0].metrics.fpsPresent,
-                0.0001,
-                L"First frame should have fpsPresent == 0 when msBetweenPrese");
-
             // Chain should now treat this as lastPresent / lastAppPresent
             Assert::IsTrue(chain.lastPresent.has_value());
             if (!chain.lastPresent.has_value())
@@ -1665,12 +1659,6 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 0.0001,
                 L"msBetweenPresents should equal the unsigned delta between lastPresent and current presentStartTime.");
 
-            double expectedFps = (expectedDelta > 0.0) ? (1000.0 / expectedDelta) : 0.0;
-            Assert::AreEqual(
-                expectedFps,
-                secondMetrics[0].metrics.fpsPresent,
-                0.0001,
-                L"fpsPresents should be derived from msBetweenPresents");
         }
         TEST_METHOD(ComputeMetricsForPresent_NotDisplayed_BaseTimingAndCpuStart_AreCorrect)
         {
@@ -2091,7 +2079,6 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
 
             Assert::AreEqual(0.0, m.msBetweenDisplayChange, 0.0001);
-            Assert::AreEqual(0.0, m.fpsDisplay, 0.0001);
         }
 
         TEST_METHOD(SubsequentDisplayedFrame_UsesChainLastDisplayedScreenTime)
@@ -2117,8 +2104,6 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             double expected = qpc.DeltaUnsignedMilliSeconds(4'000'000, 5'500'000);
             Assert::AreEqual(expected, m.msBetweenDisplayChange, 0.0001);
-            double fpsExpected = (expected > 0.0) ? (1000.0 / expected) : 0.0;
-            Assert::AreEqual(fpsExpected, m.fpsDisplay, 0.0001);
         }
 
         TEST_METHOD(NotDisplayed_ReturnsZero)
@@ -2138,7 +2123,6 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
 
             Assert::AreEqual(0.0, m.msBetweenDisplayChange, 0.0001);
-            Assert::AreEqual(0.0, m.fpsDisplay, 0.0001);
         }
 
         TEST_METHOD(MultipleDisplays_EachComputesDeltaFromPrior)
@@ -3510,9 +3494,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(0.0, m.msCPUWait, 0.0001);
         }
 
-        TEST_METHOD(CPUTime_AndFpsApplication_AreDerivedCorrectly)
+        TEST_METHOD(CPUTime_IsDerivedCorrectly)
         {
-            // Verify msCPUTime = msCPUBusy + msCPUWait, and fpsApplication = 1000 / msCPUTime.
+            // Verify msCPUTime = msCPUBusy + msCPUWait.
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
          
@@ -3552,9 +3536,6 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(expectedBusy, m.msCPUBusy, 0.0001);
             Assert::AreEqual(expectedWait, m.msCPUWait, 0.0001);
             Assert::AreEqual(expectedCpuTime, m.msCPUTime, 0.0001);
-         
-            double expectedFps = expectedCpuTime > 0.0 ? 1000.0 / expectedCpuTime : 0.0;
-            Assert::AreEqual(expectedFps, m.fpsApplication, 0.0001);
          }
     };
 

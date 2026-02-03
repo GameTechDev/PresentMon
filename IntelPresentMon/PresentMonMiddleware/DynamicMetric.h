@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <type_traits>
 #include <vector>
@@ -51,9 +52,10 @@ namespace pmon::mid
     class DynamicMetricBinding : public DynamicMetric<S>
     {
     public:
-        DynamicMetricBinding(PM_METRIC metric)
+        DynamicMetricBinding(PM_METRIC metric, std::optional<double> reciprocationFactor)
             :
-            metric_{ metric }
+            metric_{ metric },
+            reciprocationFactor_{ reciprocationFactor }
         {
         }
 
@@ -125,7 +127,7 @@ namespace pmon::mid
             qel.dataSize = (uint32_t)ipc::intro::GetDataTypeSize(outType);
             // adjust offset written in qel when padding is needed for type alignment
             qel.dataOffset = util::PadToAlignment(qel.dataOffset, qel.dataSize);
-            auto statPtr = MakeDynamicStat<T>(qel.stat, inType, outType, qel.dataOffset);
+            auto statPtr = MakeDynamicStat<T>(qel.stat, inType, outType, qel.dataOffset, reciprocationFactor_);
             auto* rawPtr = statPtr.get();
             statPtrs_.push_back(std::move(statPtr));
 
@@ -187,6 +189,7 @@ namespace pmon::mid
         }
 
         PM_METRIC metric_;
+        std::optional<double> reciprocationFactor_;
         mutable boost::container::vector<T> samples_;
         std::vector<std::unique_ptr<DynamicStat<T>>> statPtrs_;
         std::vector<DynamicStat<T>*> needsUpdatePtrs_;
@@ -206,7 +209,8 @@ namespace pmon::mid
                     using MemberInfo = util::MemberPointerInfo<decltype(memberPtr)>;
                     if constexpr (std::is_same_v<typename MemberInfo::StructType, S>) {
                         using MemberType = typename MemberInfo::MemberType;
-                        return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric);
+                        auto reciprocationFactor = util::metrics::GetReciprocationFactor<Metric>();
+                        return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric, reciprocationFactor);
                     }
                 }
                 if constexpr (requires { &S::value; }) {
@@ -214,7 +218,7 @@ namespace pmon::mid
                     constexpr auto memberPtr = &S::value;
                     using MemberInfo = util::MemberPointerInfo<decltype(memberPtr)>;
                     using MemberType = typename MemberInfo::MemberType;
-                    return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric);
+                    return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric, std::nullopt);
                 }
                 pmlog_error("Cannot make dynamic metric for").pmwatch((int)Metric);
                 return {};

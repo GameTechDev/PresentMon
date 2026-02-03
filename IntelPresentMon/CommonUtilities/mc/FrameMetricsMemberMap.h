@@ -1,6 +1,7 @@
 ﻿// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
+#include <optional>
 #include "MetricsTypes.h"
 #include "../PresentMonAPI2/PresentMonAPI.h"
 
@@ -13,8 +14,10 @@ namespace pmon::util::metrics
     template<>struct FrameMetricMember<PM_METRIC_CPU_START_QPC>{static constexpr auto member=&FrameMetrics::cpuStartQpc;};
     template<>struct FrameMetricMember<PM_METRIC_CPU_BUSY>{static constexpr auto member=&FrameMetrics::msCPUBusy;};
     template<>struct FrameMetricMember<PM_METRIC_CPU_WAIT>{static constexpr auto member=&FrameMetrics::msCPUWait;};
-    template<>struct FrameMetricMember<PM_METRIC_DISPLAYED_FPS>{static constexpr auto member=&FrameMetrics::fpsDisplay;};
-    template<>struct FrameMetricMember<PM_METRIC_PRESENTED_FPS>{static constexpr auto member=&FrameMetrics::fpsPresent;};
+    template<>struct FrameMetricMember<PM_METRIC_DISPLAYED_FPS> {static constexpr auto member = &FrameMetrics::msBetweenDisplayChange;
+        static constexpr auto reciprocationFactor = 1000.;};
+    template<>struct FrameMetricMember<PM_METRIC_PRESENTED_FPS>{static constexpr auto member=&FrameMetrics::msBetweenPresents;
+        static constexpr auto reciprocationFactor = 1000.;}; 
     template<>struct FrameMetricMember<PM_METRIC_GPU_LATENCY>{static constexpr auto member=&FrameMetrics::msGPULatency;};
     template<>struct FrameMetricMember<PM_METRIC_GPU_TIME>{static constexpr auto member=&FrameMetrics::msGPUTime;};
     template<>struct FrameMetricMember<PM_METRIC_GPU_BUSY>{static constexpr auto member=&FrameMetrics::msGPUBusy;};
@@ -29,7 +32,8 @@ namespace pmon::util::metrics
     template<>struct FrameMetricMember<PM_METRIC_DISPLAY_LATENCY>{static constexpr auto member=&FrameMetrics::msDisplayLatency;};
     template<>struct FrameMetricMember<PM_METRIC_ANIMATION_ERROR>{static constexpr auto member=&FrameMetrics::msAnimationError;};
     template<>struct FrameMetricMember<PM_METRIC_CLICK_TO_PHOTON_LATENCY>{static constexpr auto member=&FrameMetrics::msClickToPhotonLatency;};
-    template<>struct FrameMetricMember<PM_METRIC_APPLICATION_FPS>{static constexpr auto member=&FrameMetrics::fpsApplication;};
+    template<>struct FrameMetricMember<PM_METRIC_APPLICATION_FPS>{static constexpr auto member=&FrameMetrics::msCPUTime;
+        static constexpr auto reciprocationFactor = 1000.;};
     template<>struct FrameMetricMember<PM_METRIC_FRAME_TYPE>{static constexpr auto member=&FrameMetrics::frameType;};
     template<>struct FrameMetricMember<PM_METRIC_ALL_INPUT_TO_PHOTON_LATENCY>{static constexpr auto member=&FrameMetrics::msAllInputPhotonLatency;};
     template<>struct FrameMetricMember<PM_METRIC_INSTRUMENTED_LATENCY>{static constexpr auto member=&FrameMetrics::msInstrumentedLatency;};
@@ -50,4 +54,18 @@ namespace pmon::util::metrics
 
     template<PM_METRIC MetricId>
     inline constexpr bool HasFrameMetricMember = requires{ FrameMetricMember<MetricId>::member; };
+
+    template<PM_METRIC MetricId>
+    inline constexpr bool HasReciprocationFactor = requires{ FrameMetricMember<MetricId>::reciprocationFactor; };
+
+    template<PM_METRIC MetricId>
+    constexpr std::optional<double> GetReciprocationFactor()
+    {
+        if constexpr (HasReciprocationFactor<MetricId>) {
+            return FrameMetricMember<MetricId>::reciprocationFactor;
+        }
+        else {
+            return std::nullopt;
+        }
+    }
 }
