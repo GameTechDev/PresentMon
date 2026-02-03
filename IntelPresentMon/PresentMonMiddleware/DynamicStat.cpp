@@ -171,20 +171,59 @@ namespace pmon::mid
             bool NeedsSortedWindow() const override { return true; }
             void InputSortedSamples(std::span<const T> sortedSamples) override
             {
-                // TODO: review interaction of optional values with percentile sorted buffer
+                // Methodology / steps:
+                //
+                //  0) Find the first sample that "has value" (for std::optional and similar),
+                //     assuming empties/invalids sort before valids in the already-sorted buffer.
+                //
+                //  1) Map p to a fractional index h in [0, N-1] using:
+                //        h = p * (N - 1)
+                //     This is the "linear interpolation of order statistics" mapping that
+                //     is most intuitive for continuous metrics:
+                //       - p = 0   => h = 0     => returns x[0]   (min)
+                //       - p = 1   => h = N-1   => returns x[N-1] (max)
+                //       - otherwise interpolates smoothly between neighbors
+                //
+                //  2) Split h into:
+                //        i = floor(h)         (base index)
+                //        g = h - i            (fraction in [0,1))
+                //
+                //  3) Retrieve neighbours: i and i+1 (or just i 2x if at end)
+                // 
+                //  4) Perform lerp:
+                //        q = x[i] + g * (x[i+1] - x[i])
+                //     (note that for p=1, g becomes 0.)
+
+                // Step 0: locate the first valid value (ignore empties/invalids at the front).
                 size_t firstValid = 0;
-                while (firstValid < sortedSamples.size() && !SampleAdapter_<T>::HasValue(sortedSamples[firstValid])) {
+                while (firstValid < sortedSamples.size() &&
+                    !SampleAdapter_<T>::HasValue(sortedSamples[firstValid])) {
                     ++firstValid;
                 }
                 const size_t validCount = sortedSamples.size() - firstValid;
                 if (validCount == 0) {
-                    return;
+                    return; // no valid samples => leave value_ unchanged (or set to NaN if desired)
                 }
 
-                const size_t last = validCount - 1;
-                const double position = percentile_ * (double)last;
-                const size_t index = (size_t)(position + 0.5);
-                value_ = SampleAdapter_<T>::ToDouble(sortedSamples[firstValid + index]);
+                // Step 1: p-to-index mapping (fractional index over [0, N-1]).
+                const double h = percentile_ * double(validCount - 1);
+
+                // Step 2: split into integer index + fractional part.
+                // Since h is in [0, N-1] and non-negative, truncation is equivalent to floor.
+                const size_t i = size_t(h);
+                const double g = h - double(i);
+
+                // Step 3: fetch neighbors
+                // i is nearest index position less than or equal to target position
+                // so interpolation always requires 2nd index i1 to be after i
+                // (but if at the end of container, use i for both sides of interpolation)
+                const size_t i1 = (i + 1 < validCount) ? (i + 1) : i;
+                // retrieve both samples
+                const double x0 = SampleAdapter_<T>::ToDouble(sortedSamples[firstValid + i]);
+                const double x1 = SampleAdapter_<T>::ToDouble(sortedSamples[firstValid + i1]);
+               
+                // Step 4: perform linear interpolation
+                value_ = x0 + g * (x1 - x0);
             }
             void GatherToBlob(uint8_t* pBase) const override
             {
