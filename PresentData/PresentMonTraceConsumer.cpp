@@ -2230,33 +2230,30 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
     }
 
     if (mTrackPcLatency) {
-        AppAndPclTrackingScope appPclTrackingActive(*this);
-        if (appPclTrackingActive) {
-            auto* pclTimingData = ExtractAppTimingData(
-                mPclTimingDataByPclFrameId,
-                p->ProcessId,
-                0,
-                p->PresentStartTime,
-                [this](const AppTimingData& d) {
-                    if (mUsingOutOfBoundPresentStart) {
-                        return d.PclOutOfBandPresentStartTime;
-                    }
-                    else {
-                        return d.PclPresentStartTime;
-                    }
-                });
-            if (pclTimingData) {
-                if (p->ProcessId == pclTimingData->ProcessId) {
-                    p->PclFrameId = pclTimingData->FrameId;
-                    p->PclSimStartTime = pclTimingData->PclSimStartTime;
-                    p->PclSimEndTime = pclTimingData->PclSimEndTime;
-                    p->PclRenderSubmitStartTime = pclTimingData->PclRenderSubmitStartTime;
-                    p->PclRenderSubmitEndTime = pclTimingData->PclRenderSubmitEndTime;
-                    p->PclPresentStartTime = pclTimingData->PclPresentStartTime;
-                    p->PclPresentEndTime = pclTimingData->PclPresentEndTime;
-                    p->PclInputPingTime = pclTimingData->PclInputPingTime;
-                    p->PclInputReceivedTime = pclTimingData->PclInputReceivedTime;
+        auto* pclTimingData = ExtractAppTimingData(
+            mPclTimingDataByPclFrameId,
+            p->ProcessId,
+            0,
+            p->PresentStartTime,
+            [this](const AppTimingData& d) {
+                if (mUsingOutOfBoundPresentStart) {
+                    return d.PclOutOfBandPresentStartTime;
                 }
+                else {
+                    return d.PclPresentStartTime;
+                }
+            });
+        if (pclTimingData) {
+            if (p->ProcessId == pclTimingData->ProcessId) {
+                p->PclFrameId = pclTimingData->FrameId;
+                p->PclSimStartTime = pclTimingData->PclSimStartTime;
+                p->PclSimEndTime = pclTimingData->PclSimEndTime;
+                p->PclRenderSubmitStartTime = pclTimingData->PclRenderSubmitStartTime;
+                p->PclRenderSubmitEndTime = pclTimingData->PclRenderSubmitEndTime;
+                p->PclPresentStartTime = pclTimingData->PclPresentStartTime;
+                p->PclPresentEndTime = pclTimingData->PclPresentEndTime;
+                p->PclInputPingTime = pclTimingData->PclInputPingTime;
+                p->PclInputReceivedTime = pclTimingData->PclInputReceivedTime;
             }
         }
     }
@@ -2387,70 +2384,67 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
         }
     }
 
-    AppAndPclTrackingScope appPclTrackingActive(*this);
-    if (appPclTrackingActive) {
-        // Prune out old app frame data
-        for (auto it = mAppTimingDataByAppFrameId.begin(); it != mAppTimingDataByAppFrameId.end();) {
-            if (appFrameId != 0 && it->second.ProcessId == processId &&
-                static_cast<int32_t>(appFrameId - it->second.FrameId) >= 10) {
-                // Remove the app frame data if the app frame id is too old
-                it = mAppTimingDataByAppFrameId.erase(it); // Erase and move to the next element
-            } else if (appFrameId == 0 && it->second.ProcessId == processId &&
-                it->second.AssignedToPresent == false && it->second.AppPresentStartTime != 0 &&
-                presentStartTime >= it->second.AppPresentStartTime &&
-                presentStartTime - it->second.AppPresentStartTime >= mDeferralTimeLimit) {
-                // Remove app frame data if the app present start time is too old
-                it = mAppTimingDataByAppFrameId.erase(it); // Erase and move to the next element
-            }
-            else {
-                ++it; // Move to the next element
-            }
+    // Prune out old app frame data
+    for (auto it = mAppTimingDataByAppFrameId.begin(); it != mAppTimingDataByAppFrameId.end();) {
+        if (appFrameId != 0 && it->second.ProcessId == processId &&
+            static_cast<int32_t>(appFrameId - it->second.FrameId) >= 10) {
+            // Remove the app frame data if the app frame id is too old
+            it = mAppTimingDataByAppFrameId.erase(it); // Erase and move to the next element
+        } else if (appFrameId == 0 && it->second.ProcessId == processId &&
+            it->second.AssignedToPresent == false && it->second.AppPresentStartTime != 0 &&
+            presentStartTime >= it->second.AppPresentStartTime &&
+            presentStartTime - it->second.AppPresentStartTime >= mDeferralTimeLimit) {
+            // Remove app frame data if the app present start time is too old
+            it = mAppTimingDataByAppFrameId.erase(it); // Erase and move to the next element
         }
-
-        // Remove the app frame data for this present
-        auto ii = mPresentByAppFrameId.find(std::make_pair(appFrameId, processId));
-        if (ii != mPresentByAppFrameId.end()) {
-            mPresentByAppFrameId.erase(ii);
+        else {
+            ++it; // Move to the next element
         }
+    }
 
-        // Prune out old PC Latency timing data to prevent memory leaks.
-        // This is critical because PCL data accumulates for every frame and the
-        // PCLStatsShutdown event (the only other cleanup mechanism) is app-controlled.
-        if (mTrackPcLatency) {
-            auto pclFrameId = present->PclFrameId;
-            for (auto it = mPclTimingDataByPclFrameId.begin(); it != mPclTimingDataByPclFrameId.end();) {
-                if (it->first.second == processId) {
-                    // For entries from this process:
-                    // 1. Remove if assigned and frame ID is too old (10+ frames behind)
-                    // 2. Remove if timestamp is too old (stale data - assigned or not)
-                    bool shouldRemove = false;
+    // Remove the app frame data for this present
+    auto ii = mPresentByAppFrameId.find(std::make_pair(appFrameId, processId));
+    if (ii != mPresentByAppFrameId.end()) {
+        mPresentByAppFrameId.erase(ii);
+    }
 
-                    // Get the best available timestamp for this entry
-                    uint64_t timingValue = mUsingOutOfBoundPresentStart
-                        ? it->second.PclOutOfBandPresentStartTime
-                        : it->second.PclPresentStartTime;
-                    if (timingValue == 0) {
-                        timingValue = it->second.PclSimStartTime;
-                    }
+    // Prune out old PC Latency timing data to prevent memory leaks.
+    // This is critical because PCL data accumulates for every frame and the
+    // PCLStatsShutdown event (the only other cleanup mechanism) is app-controlled.
+    if (mTrackPcLatency) {
+        auto pclFrameId = present->PclFrameId;
+        for (auto it = mPclTimingDataByPclFrameId.begin(); it != mPclTimingDataByPclFrameId.end();) {
+            if (it->first.second == processId) {
+                // For entries from this process:
+                // 1. Remove if assigned and frame ID is too old (10+ frames behind)
+                // 2. Remove if timestamp is too old (stale data - assigned or not)
+                bool shouldRemove = false;
 
-                    if (pclFrameId != 0 && it->second.AssignedToPresent &&
-                        static_cast<int32_t>(pclFrameId - it->second.FrameId) >= 10) {
-                        // Remove assigned PCL data if frame id is too old
-                        shouldRemove = true;
-                    } else if (timingValue != 0 && presentStartTime >= timingValue &&
-                        presentStartTime - timingValue >= mDeferralTimeLimit) {
-                        // Remove PCL data (assigned or not) if timestamp is too old
-                        shouldRemove = true;
-                    }
+                // Get the best available timestamp for this entry
+                uint64_t timingValue = mUsingOutOfBoundPresentStart
+                    ? it->second.PclOutOfBandPresentStartTime
+                    : it->second.PclPresentStartTime;
+                if (timingValue == 0) {
+                    timingValue = it->second.PclSimStartTime;
+                }
 
-                    if (shouldRemove) {
-                        it = mPclTimingDataByPclFrameId.erase(it);
-                    } else {
-                        ++it;
-                    }
+                if (pclFrameId != 0 && it->second.AssignedToPresent &&
+                    static_cast<int32_t>(pclFrameId - it->second.FrameId) >= 10) {
+                    // Remove assigned PCL data if frame id is too old
+                    shouldRemove = true;
+                } else if (timingValue != 0 && presentStartTime >= timingValue &&
+                    presentStartTime - timingValue >= mDeferralTimeLimit) {
+                    // Remove PCL data (assigned or not) if timestamp is too old
+                    shouldRemove = true;
+                }
+
+                if (shouldRemove) {
+                    it = mPclTimingDataByPclFrameId.erase(it);
                 } else {
                     ++it;
                 }
+            } else {
+                ++it;
             }
         }
     }
@@ -2645,8 +2639,7 @@ void PMTraceConsumer::RuntimePresentStop(Runtime runtime, EVENT_HEADER const& hd
     auto present = eventIter->second;
 
     if (mTrackAppTiming) {
-        AppAndPclTrackingScope appPclScope(*this);
-        if (appPclScope && IsApplicationPresent(present)) {
+        if (IsApplicationPresent(present)) {
             auto* appTimingData = ExtractAppTimingData(
                 mAppTimingDataByAppFrameId,
                 present->ProcessId,
@@ -2790,15 +2783,14 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             // Clean up PC Latency tracking data for this process to prevent memory leaks.
             // This is necessary because PCLStatsShutdown events are application-controlled
             // and may not be sent if the app crashes or terminates abnormally.
-            AppAndPclTrackingScope appPclScope(*this);
-            if (appPclScope && mTrackPcLatency) {
+            if (mTrackPcLatency) {
                 std::erase_if(mPclTimingDataByPclFrameId, [&event](const auto& p) {
                     return p.first.second == event.ProcessId;
                 });
                 mLatestPingTimestampByProcessId.erase(event.ProcessId);
             }
             // Clean up App Timing data as well...
-            if (appPclScope && mTrackAppTiming) {
+            if (mTrackAppTiming) {
                 std::erase_if(mAppTimingDataByAppFrameId, [&event](const auto& p) {
                     return p.second.ProcessId == event.ProcessId;
                 });
@@ -2834,14 +2826,13 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             event.IsStartEvent = false;
 
             // Clean up PC Latency and AppTiming tracking data for this process to prevent memory leaks.
-            AppAndPclTrackingScope appPclScope(*this);
-            if (appPclScope && mTrackPcLatency) {
+            if (mTrackPcLatency) {
                 std::erase_if(mPclTimingDataByPclFrameId, [&event](const auto& p) {
                     return p.first.second == event.ProcessId;
                 });
                 mLatestPingTimestampByProcessId.erase(event.ProcessId);
             }
-            if (appPclScope && mTrackAppTiming) {
+            if (mTrackAppTiming) {
                 std::erase_if(mAppTimingDataByAppFrameId, [&event](const auto& p) {
                     return p.second.ProcessId == event.ProcessId;
                     });
@@ -2876,11 +2867,6 @@ void PMTraceConsumer::SetAppTimingData(const EVENT_RECORD* pEventRecord) {
     auto processId = pEventRecord->EventHeader.ProcessId;
 
     if (processId == DwmProcessId) {
-        return;
-    }
-
-    AppAndPclTrackingScope appPclScope(*this);
-    if (!appPclScope) {
         return;
     }
 
@@ -3195,11 +3181,6 @@ void PMTraceConsumer::HandleTraceLoggingEvent(EVENT_RECORD* pEventRecord)
 
 void PMTraceConsumer::HandlePclEvent(EVENT_RECORD* pEventRecord)
 {
-    AppAndPclTrackingScope appPclScope(*this);
-    if (!appPclScope) {
-        return;
-    }
-
     try {
         if (!mTraceLoggingDecoder.DecodeTraceLoggingEventRecord(pEventRecord)) {
             pmlog_dbg("Failed to decode trace logging event"); // too spammy?
@@ -3511,97 +3492,12 @@ void PMTraceConsumer::DequeuePresentEvents(std::vector<std::shared_ptr<PresentEv
     }
 }
 
-void PMTraceConsumer::SetAppAndPclTrackingEnabled(bool enabled)
-{
-    mAppAndPclTrackingEnabled.store(enabled, std::memory_order_release);
-}
-
 void PMTraceConsumer::SetProviderToggleMode(bool enabled) {
     mProviderToggleMode.store(enabled, std::memory_order_release);
 }
 
 void PMTraceConsumer::SetEventProcessingEnabled(bool enabled) {
     mEventProcessingEnabled.store(enabled, std::memory_order_release);
-}
-
-void PMTraceConsumer::ResetAppAndPclTrackingData(bool shrink)
-{
-    // Disable any future writes first.
-    mAppAndPclTrackingEnabled.store(false, std::memory_order_release);
-
-    // Wait for in-flight event handlers that touch these structures to complete.
-    // This does NOT rely on new ETW events arriving (providers may already be disabled).
-    auto const& shim = GetWaitOnAddressShim();
-
-    ULONGLONG const startMs = ::GetTickCount64();
-    DWORD const timeoutMs = 2000;
-
-    while (::InterlockedCompareExchange(&mAppAndPclTrackingInFlight, 0, 0) != 0) {
-        ULONGLONG elapsed = ::GetTickCount64() - startMs;
-        if (elapsed >= timeoutMs) {
-            pmlog_warn("Timed out waiting for app/PCL tracking to quiesce; skipping reset");
-            return;
-        }
-
-        DWORD remaining = timeoutMs - (DWORD)elapsed;
-
-        if (shim.Available()) {
-            LONG expected = ::InterlockedCompareExchange(&mAppAndPclTrackingInFlight, 0, 0);
-            if (expected != 0) {
-                // Wait until the value at the address changes from 'expected'.
-                // Spurious wakeups are possible; loop re-check handles it.
-                shim.Wait(&mAppAndPclTrackingInFlight, &expected, sizeof(expected), remaining);
-            }
-        }
-        else {
-            // Win7 fallback
-            ::Sleep(1);
-        }
-    }
-
-
-    if (shrink) {
-        decltype(mAppTimingDataByAppFrameId){}.swap(mAppTimingDataByAppFrameId);
-        decltype(mPclTimingDataByPclFrameId){}.swap(mPclTimingDataByPclFrameId);
-        decltype(mPresentByAppFrameId){}.swap(mPresentByAppFrameId);
-        decltype(mLatestPingTimestampByProcessId){}.swap(mLatestPingTimestampByProcessId);
-    } else {
-        mAppTimingDataByAppFrameId.clear();
-        mPclTimingDataByPclFrameId.clear();
-        mPresentByAppFrameId.clear();
-        mLatestPingTimestampByProcessId.clear();
-    }
-
-    // Clear tracking state that is normally pruned by CompletePresent().
-    mUsingOutOfBoundPresentStart = false;
-}
-
-PMTraceConsumer::AppAndPclTrackingScope::AppAndPclTrackingScope(PMTraceConsumer& consumer)
-    : Consumer(consumer)
-{
-    ::InterlockedIncrement(&Consumer.mAppAndPclTrackingInFlight);
-
-    if (!Consumer.mAppAndPclTrackingEnabled.load(std::memory_order_acquire)) {
-        ::InterlockedDecrement(&Consumer.mAppAndPclTrackingInFlight);
-        Active = false;
-        return;
-    }
-
-    Active = true;
-}
-
-PMTraceConsumer::AppAndPclTrackingScope::~AppAndPclTrackingScope()
-{
-    if (Active) {
-        LONG v = ::InterlockedDecrement(&Consumer.mAppAndPclTrackingInFlight);
-        if (v == 0) {
-            auto const& shim = GetWaitOnAddressShim();
-            if (shim.Available()) {
-                shim.WakeAll((PVOID)&Consumer.mAppAndPclTrackingInFlight);
-            }
-        }
-    }
-
 }
 
 void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
@@ -3622,6 +3518,7 @@ void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
         ULONGLONG elapsed = ::GetTickCount64() - startMs;
         if (elapsed >= timeoutMs) {
             pmlog_warn("Timed out waiting for event processing to quiesce; skipping present tracking reset");
+            OutputDebugStringA("PMTraceConsumer::ResetPresentTrackingData: Timed out waiting for event processing to quiesce; skipping present tracking reset\n");
             return;
         }
         DWORD remaining = timeoutMs - (DWORD)elapsed;
@@ -3639,6 +3536,7 @@ void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
         }
     }
 
+    OutputDebugStringA("PMTraceConsumer::ResetPresentTrackingData: Event processing quiesced; proceeding with present tracking reset\n");
     // Now it is safe to clear the state
     {
         std::lock_guard<std::mutex> lock(mPresentEventMutex);
@@ -3690,6 +3588,7 @@ void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
         decltype(mAppTimingDataByAppFrameId){}.swap(mAppTimingDataByAppFrameId);
         decltype(mPclTimingDataByPclFrameId){}.swap(mPclTimingDataByPclFrameId);
         decltype(mHybridPresentModeBySwapChainPid){}.swap(mHybridPresentModeBySwapChainPid);
+        decltype(mLatestPingTimestampByProcessId){}.swap(mLatestPingTimestampByProcessId);
     } else {
         mPresentByThreadId.clear();
         mOrderedPresentsByProcessId.clear();
@@ -3704,6 +3603,7 @@ void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
         mAppTimingDataByAppFrameId.clear();
         mPclTimingDataByPclFrameId.clear();
         mHybridPresentModeBySwapChainPid.clear();
+        mLatestPingTimestampByProcessId.clear();
     }
 
     // Input association state
@@ -3712,11 +3612,16 @@ void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
     mLastInputDeviceReadTime = 0;
     mLastInputDeviceType = InputDeviceType::None;
 
+    // Reset PCL State
+    mUsingOutOfBoundPresentStart = false;
+
     // Reset GPU/NV tracking helpers
     mGpuTrace.~GpuTrace();
     new (&mGpuTrace) GpuTrace(this);
     mNvTraceConsumer.~NVTraceConsumer();
     new (&mNvTraceConsumer) NVTraceConsumer();
+
+    OutputDebugStringA(std::format("PMTraceConsumer::ResetPresentTrackingData: Present tracking reset complete (shrink={})\n", shrink).c_str());
 }
 
 PMTraceConsumer::EventProcessingScope::EventProcessingScope(PMTraceConsumer& consumer)
@@ -3724,7 +3629,7 @@ PMTraceConsumer::EventProcessingScope::EventProcessingScope(PMTraceConsumer& con
 {
     // If provider-toggle mode is not enabled, do nothing.
     if (!Consumer.mProviderToggleMode.load(std::memory_order_acquire)) {
-        active = false;
+        active = true;
         counted = false;
         return;
     }
@@ -3821,10 +3726,6 @@ bool PMTraceConsumer::IsApplicationPresent(std::shared_ptr<PresentEvent> const& 
 }
 
 void PMTraceConsumer::SetAppTimingDataAsComplete(uint32_t processId, uint32_t appFrameId) {
-    AppAndPclTrackingScope appPclScope(*this);
-    if (!appPclScope) {
-        return;
-    }
     auto key = std::make_pair(appFrameId, processId);
     auto ii = mAppTimingDataByAppFrameId.find(key);
     if (ii != mAppTimingDataByAppFrameId.end()) {

@@ -374,13 +374,6 @@ struct PMTraceConsumer
     void DequeueProcessEvents(std::vector<ProcessEvent>& outProcessEvents);
     void DequeuePresentEvents(std::vector<std::shared_ptr<PresentEvent>>& outPresentEvents);
 
-    // Control of AppTiming / PC Latency tracking state for capture start/stop without
-    // tearing down the underlying ETW session.
-    //
-    // Note: these APIs are intended to be called by the owning session/controller thread.
-    void SetAppAndPclTrackingEnabled(bool enabled);
-    void ResetAppAndPclTrackingData(bool shrink = false);
-
     // Control of general event processing state for service capture start/stop without
     // tearing down the underlying ETW session
     //
@@ -503,19 +496,9 @@ struct PMTraceConsumer
         }
     };
 
-    // Guard used to safely mutate/clear app timing and PC latency tracking structures
-    // without taking a mutex on every ETW event. ResetAppAndPclTrackingData() disables
+    // Guard used to safely mutate/clear all Present tracking structures
+    // without taking a mutex on every ETW event. ResetPresentTrackingData() disables
     // tracking and then waits for in-flight scopes to drain before clearing the maps.
-    struct AppAndPclTrackingScope {
-        PMTraceConsumer& Consumer;
-        bool Active = false;
-        explicit AppAndPclTrackingScope(PMTraceConsumer& consumer);
-        ~AppAndPclTrackingScope();
-        AppAndPclTrackingScope(const AppAndPclTrackingScope&) = delete;
-        AppAndPclTrackingScope& operator=(const AppAndPclTrackingScope&) = delete;
-        explicit operator bool() const noexcept { return Active; }
-    };
-
     struct EventProcessingScope {
         PMTraceConsumer& Consumer;
         // Whether event processing is active for the scope duration
@@ -531,12 +514,9 @@ struct PMTraceConsumer
 
     std::atomic<bool> mProviderToggleMode{ false };
     std::atomic<bool> mEventProcessingEnabled{ true };
-    volatile LONG mEventProcessingInFlight = 0;
-
-    std::atomic<bool> mAppAndPclTrackingEnabled{ true };
     // WaitOnAddress needs a 1/2/4/8-byte memory location. Using LONG makes it
     // Win7-compatible (via Interlocked ops) and Win8+ compatible (via WaitOnAddress shim).
-    volatile LONG mAppAndPclTrackingInFlight = 0;
+    volatile LONG mEventProcessingInFlight = 0;
 
     std::unordered_map<uint32_t, std::shared_ptr<PresentEvent>> mPresentByThreadId;                     // ThreadId -> PresentEvent
     std::unordered_map<uint32_t, OrderedPresents>               mOrderedPresentsByProcessId;            // ProcessId -> ordered PresentStartTime -> PresentEvent
