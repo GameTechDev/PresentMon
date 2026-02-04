@@ -148,34 +148,41 @@ public:
 	std::vector<std::vector<double>> RecordPolling(uint32_t targetPid, double recordingStartSec,
 		double recordingStopSec, double pollInterval)
 	{
+		if (recordingStartSec < 1.) {
+			pmlog_error("Insufficient recording start leeway").pmwatch(recordingStartSec).no_trace();
+		}
 		// start tracking target
 		auto tracker = pSession_->TrackProcess(targetPid, true, false);
 		// get the waiter and the timer clocks ready
 		using Clock = std::chrono::high_resolution_clock;
-		const auto startTime = Clock::now();
-		util::IntervalWaiter waiter{ pollInterval, 0.001 };
+		// wait to give time for the static data (startQpc specifically) to propagate to the shm
+		// wait until 500ms before (buffer time) the requested recordingStart
+		util::PrecisionWaiter{}.Wait(recordingStartSec - 0.5);
+		// capture session startQpc and setup interval waiter to sync with session start
+		const auto startQpc = pmapi::PollStatic(*pSession_, tracker, PM_METRIC_SESSION_START_QPC).As<uint64_t>();
+		util::IntervalWaiter waiter{ pollInterval, (int64_t)startQpc, 0.0015 };
 		// run polling loop and poll into vector
 		std::vector<std::vector<double>> rows;
 		std::vector<double> cells;
 		BlobReader br{ qels_, pIntro_ };
 		br.Target(blobs_);
-		const auto recordingStart = recordingStartSec * 1s;
-		const auto recordingStop = recordingStopSec * 1s;
-		for (auto now = Clock::now(), start = Clock::now();
-			now - start <= recordingStop; now = Clock::now()) {
+		while (true) {
+			const auto wr = waiter.Wait();
 			// skip recording while time has not reached start time
-			if (now - start >= recordingStart) {
+			if (wr.targetSec >= recordingStartSec) {
 				cells.reserve(qels_.size() + 1);
-				query_.Poll(tracker, blobs_);
+				query_.PollWithTimestamp(tracker, blobs_, (uint64_t)waiter.TargetTimeToTimestamp(wr.targetSec));
 				// first column is the time as measured in polling loop
-				cells.push_back(std::chrono::duration<double>(now - start).count());
+				cells.push_back(wr.targetSec + wr.errorSec);
 				// remaining columns are from the query
 				for (size_t i = 0; i < qels_.size(); i++) {
 					cells.push_back(br.At<double>(i));
 				}
 				rows.push_back(std::move(cells));
 			}
-			waiter.Wait();
+			if (wr.targetSec >= recordingStopSec) {
+				break;
+			}
 		}
 		return rows;
 	}

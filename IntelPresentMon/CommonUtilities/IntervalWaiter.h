@@ -27,6 +27,7 @@ namespace pmon::util
 		void SetInterval(double intervalSeconds);
 		void SetInterval(std::chrono::nanoseconds interval);
 		WaitResult Wait();
+		int64_t TargetTimeToTimestamp(double targetTime) const;
 	private:
 		double intervalSeconds_;
 		double lastTargetTime_ = 0.;

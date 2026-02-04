@@ -104,6 +104,12 @@ namespace pmon::util
 		}
 		return t - seconds;
 	}
+	int64_t QpcTimer::TimeToTimestamp(double seconds) const noexcept
+	{
+		return startTimestamp_ + int64_t(seconds / performanceCounterPeriod_);
+	}
+
+
 
 	// Duration in ticks -> ms
 	double QpcConverter::TicksToMilliSeconds(uint64_t ticks) const noexcept

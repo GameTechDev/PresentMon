@@ -47,4 +47,9 @@ namespace pmon::util
 		}
 		return res;
 	}
+
+	int64_t IntervalWaiter::TargetTimeToTimestamp(double targetTime) const
+	{
+		return timer_.TimeToTimestamp(targetTime);
+	}
 }
