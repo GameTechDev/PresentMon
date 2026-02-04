@@ -106,11 +106,6 @@ std::vector<PM_QUERY_ELEMENT> BuildQueryElementSet(const pmapi::intro::Root& int
 			continue;
 		}
 		for (const auto& s : m.GetStatInfo()) {
-			// skip displayed fps (max) as it is broken now
-			// TODO: verify this and look into the underlying issue if still present
-			if (m.GetId() == PM_METRIC_DISPLAYED_FPS && s.GetStat() == PM_STAT_MAX) {
-				continue;
-			}
 			qels.push_back(PM_QUERY_ELEMENT{ m.GetId(), s.GetStat() });
 		}
 	}
@@ -156,7 +151,7 @@ public:
 		// get the waiter and the timer clocks ready
 		using Clock = std::chrono::high_resolution_clock;
 		// wait to give time for the static data (startQpc specifically) to propagate to the shm
-		// wait until 500ms before (buffer time) the requested recordingStart
+		// wait until 500ms (buffer time) before the requested recordingStart
 		util::PrecisionWaiter{}.Wait(recordingStartSec - 0.5);
 		// capture session startQpc and setup interval waiter to sync with session start
 		const auto startQpc = pmapi::PollStatic(*pSession_, tracker, PM_METRIC_SESSION_START_QPC).As<uint64_t>();

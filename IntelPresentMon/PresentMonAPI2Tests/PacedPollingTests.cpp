@@ -252,7 +252,7 @@ namespace PacedPolling
 			"--run-time"s, std::to_string(recordingStop - recordingStart),
 			"--run-start"s, std::to_string(recordingStart),
 			"--poll-period"s, std::to_string(pollPeriod),
-			"--metric-offset"s, "64"s,
+			"--metric-offset"s, "100"s,
 			"--window-size"s, "1000"s,
 		});
 		// load up result
