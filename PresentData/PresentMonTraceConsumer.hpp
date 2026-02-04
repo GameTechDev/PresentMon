@@ -381,6 +381,14 @@ struct PMTraceConsumer
     void SetAppAndPclTrackingEnabled(bool enabled);
     void ResetAppAndPclTrackingData(bool shrink = false);
 
+    // Control of general event processing state for service capture start/stop without
+    // tearing down the underlying ETW session
+    //
+    // Provider-toggle mode enables a quiesce gate in the session callback so we can safely
+    // clear internal present tracking state from a controller thread.
+    void SetProviderToggleMode(bool enabled);
+    void SetEventProcessingEnabled(bool enabled);
+    void ResetPresentTrackingData(bool shrink = false);
 
     // -------------------------------------------------------------------------------------------
     // The rest of this structure are internal data and functions for analysing the collected ETW
@@ -507,6 +515,23 @@ struct PMTraceConsumer
         AppAndPclTrackingScope& operator=(const AppAndPclTrackingScope&) = delete;
         explicit operator bool() const noexcept { return Active; }
     };
+
+    struct EventProcessingScope {
+        PMTraceConsumer& Consumer;
+        // Whether event processing is active for the scope duration
+        bool active = false;
+        // Whether we incremented the in-flight counter
+        bool counted = false;
+        explicit EventProcessingScope(PMTraceConsumer& consumer);
+        ~EventProcessingScope();
+        EventProcessingScope(const EventProcessingScope&) = delete;
+        EventProcessingScope& operator=(const EventProcessingScope&) = delete;
+        explicit operator bool() const noexcept { return active; }
+    };
+
+    std::atomic<bool> mProviderToggleMode{ false };
+    std::atomic<bool> mEventProcessingEnabled{ true };
+    volatile LONG mEventProcessingInFlight = 0;
 
     std::atomic<bool> mAppAndPclTrackingEnabled{ true };
     // WaitOnAddress needs a 1/2/4/8-byte memory location. Using LONG makes it

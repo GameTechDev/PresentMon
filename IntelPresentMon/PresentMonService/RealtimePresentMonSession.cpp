@@ -59,9 +59,14 @@ PM_STATUS RealtimePresentMonSession::StartStreaming(uint32_t client_process_id,
         // Enable app/PCL tracking before enabling providers so any immediately-arriving
         // events are accounted for by the quiesce logic on StopStreaming.
         if (pm_consumer_) {
+            // Drop any lingering present tracking state from previous streams
+            pm_consumer_->ResetPresentTrackingData(false);
+            // Drop any app/PCL tracking state from previous streams
             pm_consumer_->ResetAppAndPclTrackingData(false);
             // Ensure tracking is disabled before starting providers
             pm_consumer_->SetAppAndPclTrackingEnabled(false);
+            // Allow event processing before enabling providers
+            pm_consumer_->SetEventProcessingEnabled(true);
         }
 
         auto const providerStatus = trace_session_.StartProviders();
@@ -100,6 +105,8 @@ void RealtimePresentMonSession::StopStreaming(uint32_t client_process_id,
         trace_session_.StopProviders();
 
         if (pm_consumer_) {
+            // Drop any present correlation state that would otherwise linger until providers are re-enabled.
+            pm_consumer_->ResetPresentTrackingData(true);
             // Drop any app/PCL tracking state that would otherwise linger until providers are re-enabled.
             pm_consumer_->ResetAppAndPclTrackingData(true);
         }
@@ -165,6 +172,9 @@ PM_STATUS RealtimePresentMonSession::StartEtwSession() {
     pm_consumer_->mTrackFrameType = true;
     pm_consumer_->mTrackAppTiming = true;
     pm_consumer_->mTrackPcLatency = true;
+
+    // Service uses provider toggling; enable quiesce gate for safe state reset on start/stop
+    pm_consumer_->SetProviderToggleMode(true);
 
     auto& opt = clio::Options::Get();
     pm_session_name_ = util::str::ToWide(*opt.etwSessionName);
