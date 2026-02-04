@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -52,10 +53,11 @@ namespace pmon::mid
     class DynamicMetricBinding : public DynamicMetric<S>
     {
     public:
-        DynamicMetricBinding(PM_METRIC metric, std::optional<double> reciprocationFactor)
+        DynamicMetricBinding(PM_METRIC metric, std::optional<double> reciprocationFactor, bool needsDynamicAbs)
             :
             metric_{ metric },
-            reciprocationFactor_{ reciprocationFactor }
+            reciprocationFactor_{ reciprocationFactor },
+            needsDynamicAbs_{ needsDynamicAbs }
         {
         }
 
@@ -66,7 +68,7 @@ namespace pmon::mid
 
         void AddSample(const S& sample) override
         {
-            const auto& value = sample.*MemberPtr;
+            const auto value = AdjustSample_(sample.*MemberPtr);
             // if samples has reserved size, it is needed
             if (samples_.capacity()) {
                 samples_.push_back(value);
@@ -99,7 +101,7 @@ namespace pmon::mid
                     throw pmon::util::Except<pmon::ipc::PmStatusError>(PM_STATUS_FAILURE,
                         "DynamicMetricBinding received null point sample.");
                 }
-                stat->SetSampledValue(sample->*MemberPtr);
+                stat->SetSampledValue(AdjustSample_(sample->*MemberPtr));
             }
         }
 
@@ -158,6 +160,35 @@ namespace pmon::mid
         ~DynamicMetricBinding() = default;
 
     private:
+        T AdjustSample_(T value) const
+        {
+            if (!needsDynamicAbs_) {
+                return value;
+            }
+            return ApplyAbs_(value);
+        }
+
+        static T ApplyAbs_(T value)
+        {
+            if constexpr (util::IsStdOptional<T>) {
+                using ValueType = typename T::value_type;
+                if (value) {
+                    if constexpr (std::is_arithmetic_v<ValueType> && std::is_signed_v<ValueType>) {
+                        using std::abs;
+                        *value = static_cast<ValueType>(abs(*value));
+                    }
+                }
+                return value;
+            }
+            else if constexpr (std::is_arithmetic_v<T> && std::is_signed_v<T>) {
+                using std::abs;
+                return static_cast<T>(abs(value));
+            }
+            else {
+                return value;
+            }
+        }
+
         static constexpr PM_DATA_TYPE GetSampleType_()
         {
             if constexpr (std::is_same_v<T, double>) {
@@ -190,6 +221,7 @@ namespace pmon::mid
 
         PM_METRIC metric_;
         std::optional<double> reciprocationFactor_;
+        bool needsDynamicAbs_ = false;
         mutable boost::container::vector<T> samples_;
         std::vector<std::unique_ptr<DynamicStat<T>>> statPtrs_;
         std::vector<DynamicStat<T>*> needsUpdatePtrs_;
@@ -210,7 +242,9 @@ namespace pmon::mid
                     if constexpr (std::is_same_v<typename MemberInfo::StructType, S>) {
                         using MemberType = typename MemberInfo::MemberType;
                         auto reciprocationFactor = util::metrics::GetReciprocationFactor<Metric>();
-                        return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric, reciprocationFactor);
+                        const auto needsDynamicAbs = util::metrics::NeedsDynamicAbs<Metric>();
+                        return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(
+                            Metric, reciprocationFactor, needsDynamicAbs);
                     }
                 }
                 if constexpr (requires { &S::value; }) {
@@ -218,7 +252,7 @@ namespace pmon::mid
                     constexpr auto memberPtr = &S::value;
                     using MemberInfo = util::MemberPointerInfo<decltype(memberPtr)>;
                     using MemberType = typename MemberInfo::MemberType;
-                    return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric, std::nullopt);
+                    return std::make_unique<DynamicMetricBinding<S, MemberType, memberPtr>>(Metric, std::nullopt, false);
                 }
                 pmlog_error("Cannot make dynamic metric for").pmwatch((int)Metric);
                 return {};

@@ -30,7 +30,8 @@ namespace pmon::util::metrics
     template<>struct FrameMetricMember<PM_METRIC_PRESENT_RUNTIME>{static constexpr auto member=&FrameMetrics::runtime;};
     template<>struct FrameMetricMember<PM_METRIC_ALLOWS_TEARING>{static constexpr auto member=&FrameMetrics::allowsTearing;};
     template<>struct FrameMetricMember<PM_METRIC_DISPLAY_LATENCY>{static constexpr auto member=&FrameMetrics::msDisplayLatency;};
-    template<>struct FrameMetricMember<PM_METRIC_ANIMATION_ERROR>{static constexpr auto member=&FrameMetrics::msAnimationError;};
+    template<>struct FrameMetricMember<PM_METRIC_ANIMATION_ERROR>{static constexpr auto member=&FrameMetrics::msAnimationError;
+        static constexpr bool needsDynamicAbs = true;};
     template<>struct FrameMetricMember<PM_METRIC_CLICK_TO_PHOTON_LATENCY>{static constexpr auto member=&FrameMetrics::msClickToPhotonLatency;};
     template<>struct FrameMetricMember<PM_METRIC_APPLICATION_FPS>{static constexpr auto member=&FrameMetrics::msCPUTime;
         static constexpr auto reciprocationFactor = 1000.;};
@@ -59,6 +60,9 @@ namespace pmon::util::metrics
     inline constexpr bool HasReciprocationFactor = requires{ FrameMetricMember<MetricId>::reciprocationFactor; };
 
     template<PM_METRIC MetricId>
+    inline constexpr bool HasDynamicAbsRequirement = requires{ FrameMetricMember<MetricId>::needsDynamicAbs; };
+
+    template<PM_METRIC MetricId>
     constexpr std::optional<double> GetReciprocationFactor()
     {
         if constexpr (HasReciprocationFactor<MetricId>) {
@@ -66,6 +70,17 @@ namespace pmon::util::metrics
         }
         else {
             return std::nullopt;
+        }
+    }
+
+    template<PM_METRIC MetricId>
+    constexpr bool NeedsDynamicAbs()
+    {
+        if constexpr (HasDynamicAbsRequirement<MetricId>) {
+            return FrameMetricMember<MetricId>::needsDynamicAbs;
+        }
+        else {
+            return false;
         }
     }
 }
