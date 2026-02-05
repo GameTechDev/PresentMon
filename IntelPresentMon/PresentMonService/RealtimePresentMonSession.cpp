@@ -487,6 +487,7 @@ void RealtimePresentMonSession::Output() {
         processEvents.reserve(128);
         presentEvents.reserve(4096);
         terminatedProcesses.reserve(16);
+        EtwStatus cachedEtwStatus{};
 
         // create a periodic timer used to check for terminated processes / quit while also waiting for events
         auto hTimer = util::win::Handle(CreateWaitableTimerW(
@@ -542,6 +543,23 @@ void RealtimePresentMonSession::Output() {
                     break;
                 }
             }
+
+            EtwStatus currentEtwStatus{};
+            trace_session_.QueryEtwStatus(&currentEtwStatus);
+            if (cachedEtwStatus.mEtwBuffersInUse != currentEtwStatus.mEtwBuffersInUse ||
+                cachedEtwStatus.mEtwBuffersLost != currentEtwStatus.mEtwBuffersLost ||
+                cachedEtwStatus.mEtwEventsLost != currentEtwStatus.mEtwEventsLost ||
+                cachedEtwStatus.mEtwTotalBuffers != currentEtwStatus.mEtwTotalBuffers ||
+                cachedEtwStatus.mNumOverflowedPresents != currentEtwStatus.mNumOverflowedPresents) {
+                OutputDebugStringA(std::format("EtwStatus: BuffersInUse = {} BuffersLost = {} EventsLost = {} TotalBuffers = {} NumOverflowedPresents = {}\n",
+                    currentEtwStatus.mEtwBuffersInUse,
+                    currentEtwStatus.mEtwBuffersLost,
+                    currentEtwStatus.mEtwEventsLost,
+                    currentEtwStatus.mEtwTotalBuffers,
+                    currentEtwStatus.mNumOverflowedPresents).c_str());
+                cachedEtwStatus = currentEtwStatus;
+            }
+
         }
 
         // Process handles

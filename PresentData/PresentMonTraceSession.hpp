@@ -12,6 +12,7 @@ struct EtwStatus {
     ULONG mEtwTotalBuffers;
     ULONG mEtwEventsLost;
     ULONG mEtwBuffersLost;
+    ULONG mNumOverflowedPresents;
 };
 
 struct PMTraceSession {
