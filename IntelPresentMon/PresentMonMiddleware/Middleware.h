@@ -25,12 +25,12 @@ namespace pmon::mid
 		~Middleware();
 		const PM_INTROSPECTION_ROOT* GetIntrospectionData();
 		void FreeIntrospectionData(const PM_INTROSPECTION_ROOT* pRoot);
-		PM_STATUS StartStreaming(uint32_t processId);
-		PM_STATUS StartPlaybackTracking(uint32_t processId, bool isBackpressured);
-		PM_STATUS StopStreaming(uint32_t processId);
-		PM_STATUS SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs);
-		PM_STATUS SetEtwFlushPeriod(std::optional<uint32_t> periodMs);
-		PM_STATUS FlushFrames(uint32_t processId);
+		void StartStreaming(uint32_t processId);
+		void StartPlaybackTracking(uint32_t processId, bool isBackpressured);
+		void StopStreaming(uint32_t processId);
+		void SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs);
+		void SetEtwFlushPeriod(std::optional<uint32_t> periodMs);
+		void FlushFrames(uint32_t processId);
 		PM_DYNAMIC_QUERY* RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements, double windowSizeMs, double metricOffsetMs);
 		void FreeDynamicQuery(const PM_DYNAMIC_QUERY* pQuery) { (void)pQuery; }
 		void PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId, uint8_t* pBlob,

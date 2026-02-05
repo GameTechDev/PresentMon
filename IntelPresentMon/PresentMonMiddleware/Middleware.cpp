@@ -42,28 +42,17 @@ namespace pmon::mid
             .value_or(pmon::gid::defaultControlPipeName);
 
         // Try to open a named pipe to action server; wait for it, if necessary
-        try {
-            if (!pipe::DuplexPipe::WaitForAvailability(pipeName, 500)) {
-                throw std::runtime_error{ "Timeout waiting for service action pipe to become available" };
-            }
-            pActionClient = std::make_shared<ActionClient>(pipeName);
+        if (!pipe::DuplexPipe::WaitForAvailability(pipeName, 500)) {
+            throw util::Except<ipc::PmStatusError>(PM_STATUS_PIPE_ERROR,
+                "Timeout waiting for service action pipe to become available");
         }
-        catch (...) {
-            pmlog_error(util::ReportException()).diag();
-            throw util::Except<ipc::PmStatusError>(PM_STATUS_PIPE_ERROR);
-        }
+        pActionClient = std::make_shared<ActionClient>(pipeName);
 
         // connect to the shm server
         pComms = ipc::MakeMiddlewareComms(pActionClient->GetShmPrefix(), pActionClient->GetShmSalt());
 
         // Get and cache the introspection data
-        try {
-            auto& ispec = GetIntrospectionRoot_();
-        }
-        catch (...) {
-            pmlog_error(ReportException("Problem acquiring introspection data"));
-            throw;
-        }
+        (void)GetIntrospectionRoot_();
 	}
     
     Middleware::~Middleware() = default;
@@ -80,68 +69,48 @@ namespace pmon::mid
     }
 
     // TODO: rename => tracking
-    PM_STATUS Middleware::StartStreaming(uint32_t targetPid)
+    void Middleware::StartStreaming(uint32_t targetPid)
     {
-        try {
-            auto res = pActionClient->DispatchSync(StartTracking::Params{ targetPid });
-            // TODO: error when already tracking
-            auto sourceIter = frameMetricsSources.find(targetPid);
-            if (sourceIter == frameMetricsSources.end()) {
-                frameMetricsSources.emplace(targetPid,
-                    std::make_unique<FrameMetricsSource>(*pComms, targetPid, kFrameMetricsPerSwapChainCapacity));
-            }
+        if (frameMetricsSources.contains(targetPid)) {
+            throw util::Except<ipc::PmStatusError>(PM_STATUS_ALREADY_TRACKING_PROCESS,
+                std::format("Process [{}] is already being tracked", targetPid));
         }
-        catch (...) {
-            const auto code = util::GeneratePmStatus();
-            pmlog_error(util::ReportException()).code(code).diag();
-            return code;
-        }
+        pActionClient->DispatchSync(StartTracking::Params{ targetPid });
+        frameMetricsSources.emplace(targetPid,
+            std::make_unique<FrameMetricsSource>(*pComms, targetPid, kFrameMetricsPerSwapChainCapacity));
 
         pmlog_info(std::format("Started tracking pid [{}]", targetPid)).diag();
-        return PM_STATUS_SUCCESS;
     }
 
-    PM_STATUS Middleware::StartPlaybackTracking(uint32_t targetPid, bool isBackpressured)
+    void Middleware::StartPlaybackTracking(uint32_t targetPid, bool isBackpressured)
     {
-        try {
-            auto res = pActionClient->DispatchSync(StartTracking::Params{
-                .targetPid = targetPid,
-                .isPlayback = true,
-                .isBackpressured = isBackpressured
-            });
-            // TODO: error when already tracking
-            auto sourceIter = frameMetricsSources.find(targetPid);
-            if (sourceIter == frameMetricsSources.end()) {
-                frameMetricsSources.emplace(targetPid,
-                    std::make_unique<FrameMetricsSource>(*pComms, targetPid, kFrameMetricsPerSwapChainCapacity));
-            }
+        if (frameMetricsSources.contains(targetPid)) {
+            throw util::Except<ipc::PmStatusError>(PM_STATUS_ALREADY_TRACKING_PROCESS,
+                std::format("Process [{}] is already being tracked", targetPid));
         }
-        catch (...) {
-            const auto code = util::GeneratePmStatus();
-            pmlog_error(util::ReportException()).code(code).diag();
-            return code;
-        }
+        pActionClient->DispatchSync(StartTracking::Params{
+            .targetPid = targetPid,
+            .isPlayback = true,
+            .isBackpressured = isBackpressured
+        });
+        frameMetricsSources.emplace(targetPid,
+            std::make_unique<FrameMetricsSource>(*pComms, targetPid, kFrameMetricsPerSwapChainCapacity));
 
         pmlog_info(std::format("Started playback tracking pid [{}]", targetPid)).diag();
-        return PM_STATUS_SUCCESS;
     }
 
     // TODO: rename => tracking
-    PM_STATUS Middleware::StopStreaming(uint32_t targetPid)
+    void Middleware::StopStreaming(uint32_t targetPid)
     {
-        try {
-            // TODO: error when not tracking (returns 0 not 1)
-            frameMetricsSources.erase(targetPid);
-            pActionClient->DispatchSync(StopTracking::Params{ targetPid });
+        auto it = frameMetricsSources.find(targetPid);
+        if (it == frameMetricsSources.end()) {
+            throw util::Except<ipc::PmStatusError>(PM_STATUS_INVALID_PID,
+                std::format("Process [{}] is not currently being tracked", targetPid));
         }
-        catch (...) {
-            const auto code = util::GeneratePmStatus();
-            pmlog_error(util::ReportException()).code(code).diag();
-            return code;
-        }
+        pActionClient->DispatchSync(StopTracking::Params{ targetPid });
+        frameMetricsSources.erase(it);
 
         pmlog_info(std::format("Stopped tracking pid [{}]", targetPid)).diag();
-        return PM_STATUS_SUCCESS;
     }
 
     const pmapi::intro::Root& mid::Middleware::GetIntrospectionRoot_()
@@ -153,46 +122,22 @@ namespace pmon::mid
         return *pIntroRoot;
     }
 
-    PM_STATUS Middleware::SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs)
+    void Middleware::SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs)
     {
-        try {
-            // note: deviceId is being ignored for the time being, but might be used in the future
-            pActionClient->DispatchSync(SetTelemetryPeriod::Params{ timeMs });
-        }
-        catch (...) {
-            const auto code = util::GeneratePmStatus();
-            pmlog_error(util::ReportException()).code(code).diag();
-            return code;
-        }
-        return PM_STATUS_SUCCESS;
+        // note: deviceId is being ignored for the time being, but might be used in the future
+        pActionClient->DispatchSync(SetTelemetryPeriod::Params{ timeMs });
     }
 
-    PM_STATUS Middleware::SetEtwFlushPeriod(std::optional<uint32_t> periodMs)
+    void Middleware::SetEtwFlushPeriod(std::optional<uint32_t> periodMs)
     {
-        try {
-            pActionClient->DispatchSync(acts::SetEtwFlushPeriod::Params{ periodMs });
-        }
-        catch (...) {
-            const auto code = util::GeneratePmStatus();
-            pmlog_error(util::ReportException()).code(code).diag();
-            return code;
-        }
-        return PM_STATUS_SUCCESS;
+        pActionClient->DispatchSync(acts::SetEtwFlushPeriod::Params{ periodMs });
     }
 
-    PM_STATUS Middleware::FlushFrames(uint32_t processId)
+    void Middleware::FlushFrames(uint32_t processId)
     {
-        try {
-            if (auto it = frameMetricsSources.find(processId); it != frameMetricsSources.end() && it->second) {
-                it->second->Flush();
-            }
+        if (auto it = frameMetricsSources.find(processId); it != frameMetricsSources.end() && it->second) {
+            it->second->Flush();
         }
-        catch (...) {
-            const auto code = util::GeneratePmStatus();
-            pmlog_error(util::ReportException()).code(code).diag();
-            return code;
-        }
-        return PM_STATUS_SUCCESS;
     }
 
     PM_DYNAMIC_QUERY* Middleware::RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements,

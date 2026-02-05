@@ -161,9 +161,8 @@ PRESENTMON_API2_EXPORT PM_STATUS pmCloseSession(PM_SESSION_HANDLE handle)
 PRESENTMON_API2_EXPORT PM_STATUS pmStartTrackingProcess(PM_SESSION_HANDLE handle, uint32_t processId)
 {
 	try {
-		// TODO: consider tracking resource usage for process tracking to validate Start/Stop pairing
-		// TODO: middleware (StartStreaming) should not return status codes
-		return LookupMiddleware_(handle).StartStreaming(processId);
+		LookupMiddleware_(handle).StartStreaming(processId);
+		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
 		const auto code = util::GeneratePmStatus();
@@ -175,9 +174,8 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStartTrackingProcess(PM_SESSION_HANDLE handle
 PRESENTMON_API2_EXPORT PM_STATUS pmStartPlaybackTracking(PM_SESSION_HANDLE handle, uint32_t processId, uint32_t isBackpressured)
 {
 	try {
-		// TODO: consider tracking resource usage for process tracking to validate Start/Stop pairing
-		// TODO: middleware (StartStreaming) should not return status codes
-		return LookupMiddleware_(handle).StartPlaybackTracking(processId, isBackpressured != 0);
+		LookupMiddleware_(handle).StartPlaybackTracking(processId, isBackpressured != 0);
+		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
 		const auto code = util::GeneratePmStatus();
@@ -189,9 +187,8 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStartPlaybackTracking(PM_SESSION_HANDLE handl
 PRESENTMON_API2_EXPORT PM_STATUS pmStopTrackingProcess(PM_SESSION_HANDLE handle, uint32_t processId)
 {
 	try {
-		// TODO: consider tracking resource usage for process tracking to validate Start/Stop pairing
-		// TODO: middleware should not return status codes
-		return LookupMiddleware_(handle).StopStreaming(processId);
+		LookupMiddleware_(handle).StopStreaming(processId);
+		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
 		const auto code = util::GeneratePmStatus();
@@ -248,7 +245,8 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFreeIntrospectionRoot(const PM_INTROSPECTION_
 PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE handle, uint32_t deviceId, uint32_t timeMs)
 {
 	try {
-		return LookupMiddleware_(handle).SetTelemetryPollingPeriod(deviceId, timeMs);
+		LookupMiddleware_(handle).SetTelemetryPollingPeriod(deviceId, timeMs);
+		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
 		const auto code = util::GeneratePmStatus();
@@ -260,7 +258,8 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE h
 PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, uint32_t periodMs)
 {
 	try {
-		return LookupMiddleware_(handle).SetEtwFlushPeriod(periodMs ? std::optional{ periodMs } : std::nullopt);
+		LookupMiddleware_(handle).SetEtwFlushPeriod(periodMs ? std::optional{ periodMs } : std::nullopt);
+		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
 		const auto code = util::GeneratePmStatus();
@@ -272,7 +271,8 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, u
 PRESENTMON_API2_EXPORT PM_STATUS pmFlushFrames(PM_SESSION_HANDLE handle, uint32_t processId)
 {
 	try {
-		return LookupMiddleware_(handle).FlushFrames(processId);
+		LookupMiddleware_(handle).FlushFrames(processId);
+		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
 		const auto code = util::GeneratePmStatus();
