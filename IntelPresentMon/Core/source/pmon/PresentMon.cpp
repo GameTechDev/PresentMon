@@ -155,9 +155,10 @@ namespace p2c::pmon
 		// flush any buffered present events before starting capture
 		pFlusher->Flush(processTracker);
 
+		constexpr bool omitUnavailableColumns = false;
 		// make the frame data writer
 		return std::make_shared<RawFrameDataWriter>(std::move(path), processTracker, selectedAdapter.value_or(1),
-			*pSession, std::move(statsPath), *pIntrospectionRoot);
+			*pSession, std::move(statsPath), *pIntrospectionRoot, omitUnavailableColumns);
 	}
 	std::optional<uint32_t> PresentMon::GetSelectedAdapter() const
 	{

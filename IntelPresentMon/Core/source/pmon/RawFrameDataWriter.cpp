@@ -53,11 +53,17 @@ namespace p2c::pmon
             return elements;
         }
 
-        void FilterUnavailableMetrics_(std::vector<RawFrameQueryElementDefinition>& elements, uint32_t activeDeviceId,
-            const pmapi::intro::Root& introRoot)
+        struct MetricColumn_
         {
-            std::vector<RawFrameQueryElementDefinition> filtered;
-            filtered.reserve(elements.size());
+            RawFrameQueryElementDefinition definition;
+            bool available = false;
+        };
+
+        std::vector<MetricColumn_> BuildMetricColumns_(const std::vector<RawFrameQueryElementDefinition>& elements,
+            uint32_t activeDeviceId, const pmapi::intro::Root& introRoot, bool omitUnavailableColumns)
+        {
+            std::vector<MetricColumn_> columns;
+            columns.reserve(elements.size());
             for (const auto& element : elements) {
                 const auto& metric = introRoot.FindMetric(element.metricId);
                 const auto checkDeviceId = element.deviceId != 0 ? element.deviceId : activeDeviceId;
@@ -74,11 +80,13 @@ namespace p2c::pmon
                     pmlog_warn("Metric not available for active device")
                         .pmwatch(metric.Introspect().GetSymbol())
                         .pmwatch(checkDeviceId);
-                    continue;
+                    if (omitUnavailableColumns) {
+                        continue;
+                    }
                 }
-                filtered.push_back(element);
+                columns.push_back(MetricColumn_{ .definition = element, .available = available });
             }
-            elements = std::move(filtered);
+            return columns;
         }
 
         class StreamFlagPreserver_
@@ -110,9 +118,9 @@ namespace p2c::pmon
             virtual ~Annotation_() = default;
             virtual void Write(std::ostream& out, const uint8_t* pBytes) const = 0;
             std::string columnName;
-            size_t queryElementIndex = 0;
-            static std::unique_ptr<Annotation_> MakeTyped(PM_METRIC metricId, uint32_t deviceId,
-                const pmapi::intro::MetricView& metric);
+            std::optional<size_t> queryElementIndex;
+            static std::unique_ptr<Annotation_> MakeTyped(PM_METRIC metricId, const pmapi::intro::MetricView& metric,
+                bool available);
 
         protected:
             uint32_t flags_;
@@ -184,15 +192,9 @@ namespace p2c::pmon
             }
             mutable std::optional<double> startTime;
         };
-        std::unique_ptr<Annotation_> Annotation_::MakeTyped(PM_METRIC metricId, uint32_t deviceId,
-            const pmapi::intro::MetricView& metric)
+        std::unique_ptr<Annotation_> Annotation_::MakeTyped(PM_METRIC metricId, const pmapi::intro::MetricView& metric,
+            bool available)
         {
-            // set availability (defaults to false, if we find matching device use its availability)
-            bool available = false;
-            for (auto di : metric.GetDeviceMetricInfo()) {
-                if (di.GetDevice().GetId() != deviceId) continue;
-                available = di.IsAvailable();
-            }
             std::unique_ptr<Annotation_> pAnnotation;
             if (available) {
                 const auto typeId = metric.GetDataTypeInfo().GetFrameType();
@@ -251,36 +253,38 @@ namespace p2c::pmon
     class QueryElementContainer_
     {
     public:
-        QueryElementContainer_(std::span<const RawFrameQueryElementDefinition> elements,
+        QueryElementContainer_(std::span<const MetricColumn_> columns,
             pmapi::Session& session, const pmapi::intro::Root& introRoot)
         {
-            for (auto& el : elements) {
-                const auto metric = introRoot.FindMetric(el.metricId);
-                annotationPtrs_.push_back(Annotation_::MakeTyped(el.metricId, el.deviceId, metric));
+            for (auto& column : columns) {
+                const auto metric = introRoot.FindMetric(column.definition.metricId);
+                annotationPtrs_.push_back(Annotation_::MakeTyped(column.definition.metricId, metric, column.available));
                 // append metric array index to column name if array metric
-                if (el.index.has_value()) {
-                    annotationPtrs_.back()->columnName += std::format("[{}]", *el.index);
+                if (column.definition.index.has_value()) {
+                    annotationPtrs_.back()->columnName += std::format("[{}]", *column.definition.index);
                 }
-                // set index into query elements
-                annotationPtrs_.back()->queryElementIndex = queryElements_.size();
-                // add to query elements
-                queryElements_.push_back(PM_QUERY_ELEMENT{
-                    .metric = el.metricId,
-                    .stat = PM_STAT_NONE,
-                    .deviceId = el.deviceId,
-                    .arrayIndex = el.index.value_or(0),
-                });
-                // check if metric is one of the specially-required fields
-                // these fields are required because they are used for summary stats
-                // we need pointers to these specific ones to read for generating those stats
-                if (el.metricId == PM_METRIC_CPU_START_TIME) {
-                    totalTimeElementIdx_ = int(queryElements_.size() - 1);
-                }
-                else if (el.metricId == PM_METRIC_BETWEEN_PRESENTS) {
-                    msBetweenPresentsElementIdx_ = int(queryElements_.size() - 1);
-                }
-                else if (el.metricId == PM_METRIC_ANIMATION_ERROR) {
-                    animationErrorElementIdx_ = int(queryElements_.size() - 1);
+                if (column.available) {
+                    // set index into query elements
+                    annotationPtrs_.back()->queryElementIndex = queryElements_.size();
+                    // add to query elements
+                    queryElements_.push_back(PM_QUERY_ELEMENT{
+                        .metric = column.definition.metricId,
+                        .stat = PM_STAT_NONE,
+                        .deviceId = column.definition.deviceId,
+                        .arrayIndex = column.definition.index.value_or(0),
+                    });
+                    // check if metric is one of the specially-required fields
+                    // these fields are required because they are used for summary stats
+                    // we need pointers to these specific ones to read for generating those stats
+                    if (column.definition.metricId == PM_METRIC_CPU_START_TIME) {
+                        totalTimeElementIdx_ = int(queryElements_.size() - 1);
+                    }
+                    else if (column.definition.metricId == PM_METRIC_BETWEEN_PRESENTS) {
+                        msBetweenPresentsElementIdx_ = int(queryElements_.size() - 1);
+                    }
+                    else if (column.definition.metricId == PM_METRIC_ANIMATION_ERROR) {
+                        animationErrorElementIdx_ = int(queryElements_.size() - 1);
+                    }
                 }
             }
             // if any specially-required fields are missing, add to query (but not to annotations)
@@ -342,8 +346,12 @@ namespace p2c::pmon
                 if (i) {
                     out << ',';
                 }
+                if (!pAnno->queryElementIndex.has_value()) {
+                    out << "NA";
+                    continue;
+                }
                 // using output from the query registration of get offset of column's data
-                const auto pBytes = pBlob + queryElements_[pAnno->queryElementIndex].dataOffset;
+                const auto pBytes = pBlob + queryElements_[*pAnno->queryElementIndex].dataOffset;
                 // annotation contains polymorphic info to reinterpret and convert bytes
                 pAnno->Write(out, pBytes);
             }
@@ -372,7 +380,8 @@ namespace p2c::pmon
     };
 
     RawFrameDataWriter::RawFrameDataWriter(std::wstring path, const pmapi::ProcessTracker& procTrackerIn, uint32_t activeDeviceId,
-        pmapi::Session& session, std::optional<std::wstring> frameStatsPathIn, const pmapi::intro::Root& introRoot)
+        pmapi::Session& session, std::optional<std::wstring> frameStatsPathIn, const pmapi::intro::Root& introRoot,
+        bool omitUnavailableColumns)
         :
         procTracker{ procTrackerIn },
         frameStatsPath{ std::move(frameStatsPathIn) },
@@ -388,11 +397,11 @@ namespace p2c::pmon
         else {
             elements = GetDefaultRawFrameDataMetricList(activeDeviceId, opt.enableTimestampColumn);
         }
-        FilterUnavailableMetrics_(elements, activeDeviceId, introRoot);
-        if (elements.empty()) {
+        const auto columns = BuildMetricColumns_(elements, activeDeviceId, introRoot, omitUnavailableColumns);
+        if (columns.empty()) {
             pmlog_error("No valid metrics specified for frame event capture").raise<::pmon::util::Exception>();
         }
-        pQueryElementContainer = std::make_unique<QueryElementContainer_>(std::move(elements), session, introRoot);
+        pQueryElementContainer = std::make_unique<QueryElementContainer_>(columns, session, introRoot);
         blobs = pQueryElementContainer->MakeBlobs(numberOfBlobs);                
         // write header
         pQueryElementContainer->WriteHeader(file);
