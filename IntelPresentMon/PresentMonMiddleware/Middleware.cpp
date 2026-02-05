@@ -1,38 +1,29 @@
 ﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Middleware.h"
-#include <cstring>
 #include <string>
 #include <vector>
 #include <memory>
 #include <cassert>
 #include <cstdlib>
-#include <type_traits>
-#include <Shlwapi.h>
 #include <numeric>
 #include <algorithm>
-#include "../PresentMonUtils/QPCUtils.h"
-#include "../PresentMonAPI2/Internal.h"
-#include "../PresentMonAPIWrapperCommon/Introspection.h"
+#include "../CommonUtilities/mt/Thread.h"
+#include "../CommonUtilities/log/Log.h"
+#include "../CommonUtilities/Qpc.h"
 #include "../Interprocess/source/IntrospectionTransfer.h"
 #include "../Interprocess/source/IntrospectionHelpers.h"
 #include "../Interprocess/source/IntrospectionCloneAllocators.h"
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../Interprocess/source/PmStatusError.h"
-#include "DynamicQuery.h"
-#include "../ControlLib/PresentMonPowerTelemetry.h"
-#include "../ControlLib/CpuTelemetryInfo.h"
+#include "../PresentMonAPI2/Internal.h"
+#include "../PresentMonAPIWrapperCommon/Introspection.h"
 #include "../PresentMonService/GlobalIdentifiers.h"
-#include "FrameEventQuery.h"
 #include "FrameMetricsSource.h"
-#include "../CommonUtilities/mt/Thread.h"
-#include "../CommonUtilities/log/Log.h"
-#include "../CommonUtilities/Qpc.h"
-
-#include "../CommonUtilities/log/GlogShim.h"
-
-#include "ActionClient.h"
+#include "FrameEventQuery.h"
+#include "DynamicQuery.h"
 #include "QueryValidation.h"
+#include "ActionClient.h"
 
 namespace pmon::mid
 {

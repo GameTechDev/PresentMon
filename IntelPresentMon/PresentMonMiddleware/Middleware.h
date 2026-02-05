@@ -2,15 +2,11 @@
 #include "../CommonUtilities/win/WinAPI.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../PresentMonAPI2/PresentMonAPI.h"
-#include "../Streamer/StreamClient.h"
 #include <map>
 #include <memory>
 #include <optional>
 #include <span>
 #include <string>
-#include "../CommonUtilities/Hash.h"
-#include "../CommonUtilities/Math.h"
-#include "FrameTimingData.h"
 #include "../IntelPresentMon/CommonUtilities/mc/SwapChainState.h"
 
 namespace pmapi::intro

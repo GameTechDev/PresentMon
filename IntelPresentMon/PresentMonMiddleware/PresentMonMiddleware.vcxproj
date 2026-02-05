@@ -13,7 +13,6 @@
   <ItemGroup>
     <ClInclude Include="ActionClient.h" />
     <ClInclude Include="DynamicQueryWindow.h" />
-    <ClInclude Include="FrameTimingData.h" />
     <ClInclude Include="FrameMetricsSource.h" />
     <ClInclude Include="DynamicMetric.h" />
     <ClInclude Include="DynamicQuery.h" />
@@ -22,7 +21,6 @@
     <ClInclude Include="LogSetup.h" />
     <ClInclude Include="MetricBinding.h" />
     <ClInclude Include="Middleware.h" />
-    <ClInclude Include="MockCommon.h" />
     <ClInclude Include="QueryValidation.h" />
   </ItemGroup>
   <ItemGroup>
