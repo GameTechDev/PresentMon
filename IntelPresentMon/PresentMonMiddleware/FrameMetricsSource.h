@@ -78,6 +78,7 @@ namespace pmon::mid
 
 		void Update();
 		std::vector<util::metrics::FrameMetrics> Consume(size_t maxFrames);
+		void Flush();
 		std::vector<uint64_t> GetSwapChainAddressesInTimestampRange(uint64_t start, uint64_t end) const;
 		const SwapChainState* FindSwapChainState(uint64_t swapChainAddress) const;
 		const util::QpcConverter& GetQpcConverter() const;

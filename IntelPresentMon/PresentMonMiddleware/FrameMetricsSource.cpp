@@ -271,6 +271,16 @@ namespace pmon::mid
 		return output;
 	}
 
+	void FrameMetricsSource::Flush()
+	{
+		Update();
+		for (auto& [address, state] : swapChains_) {
+			while (state.HasPending()) {
+				state.ConsumeNext();
+			}
+		}
+	}
+
 	std::vector<uint64_t> FrameMetricsSource::GetSwapChainAddressesInTimestampRange(uint64_t start, uint64_t end) const
 	{
 		std::vector<std::pair<uint64_t, size_t>> candidates;

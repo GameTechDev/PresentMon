@@ -20,6 +20,8 @@ namespace pmapi
         ProcessTracker& operator=(ProcessTracker&& rhs) noexcept;
         // get the id of process being tracked
         uint32_t GetPid() const;
+        // flush any buffered frame event data for this process
+        void FlushFrames();
         // empty this tracker (stop tracking process if any)
         void Reset() noexcept;
         // check if tracker is empty

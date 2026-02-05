@@ -12,25 +12,6 @@ namespace p2c::pmon
 {
 	using namespace ::pmapi;
 
-	class FrameEventFlusher
-	{
-	public:
-		FrameEventFlusher(Session& sesh)
-		{
-			// register minimal query used for flushing frame events
-			std::array queryElements{ PM_QUERY_ELEMENT{ PM_METRIC_PRESENT_MODE, PM_STAT_MID_POINT } };
-			query_ = sesh.RegisterFrameQuery(queryElements);
-			blobs_ = query_.MakeBlobContainer(50);
-		}
-		void Flush(ProcessTracker& tracker)
-		{
-			query_.ForEachConsume(tracker, blobs_, [](auto) {});
-		}
-	private:
-		FrameQuery query_;
-		BlobContainer blobs_;
-	};
-
 	PresentMon::PresentMon(std::optional<std::string> namedPipeName, double window_in, double offset_in, uint32_t telemetrySamplePeriodMs_in)
 	{
 		const auto RemoveDoubleQuotes = [](std::string s) {
@@ -56,8 +37,6 @@ namespace p2c::pmon
 		SetGpuTelemetryPeriod(telemetrySamplePeriodMs_in);
 		SetEtwFlushPeriod(std::nullopt);
 
-		// create flusher used to clear out piled-up old frame events before capture
-		pFlusher = std::make_unique<FrameEventFlusher>(*pSession);
 	}
 	PresentMon::~PresentMon() = default;
 	void PresentMon::StartTracking(uint32_t pid_)
@@ -153,7 +132,7 @@ namespace p2c::pmon
 		std::optional<std::wstring> statsPath, uint32_t pid)
 	{
 		// flush any buffered present events before starting capture
-		pFlusher->Flush(processTracker);
+		processTracker.FlushFrames();
 
 		constexpr bool omitUnavailableColumns = false;
 		// make the frame data writer

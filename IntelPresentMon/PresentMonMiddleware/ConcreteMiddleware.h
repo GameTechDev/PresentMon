@@ -32,6 +32,7 @@ namespace pmon::mid
 		PM_STATUS StopStreaming(uint32_t processId) override;
 		PM_STATUS SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs) override;
 		PM_STATUS SetEtwFlushPeriod(std::optional<uint32_t> periodMs) override;
+		PM_STATUS FlushFrames(uint32_t processId) override;
 		PM_DYNAMIC_QUERY* RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements, double windowSizeMs, double metricOffsetMs) override;
 		void FreeDynamicQuery(const PM_DYNAMIC_QUERY* pQuery) override {}
 		void PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId, uint8_t* pBlob,

@@ -10,7 +10,7 @@
 #include <cstdint>
 
 #define PM_API_VERSION_MAJOR 3
-#define PM_API_VERSION_MINOR 2
+#define PM_API_VERSION_MINOR 3
 
 #define PM_MAX_PATH 260
 
@@ -419,6 +419,8 @@ extern "C" {
 	// a value of zero indicates to use current service setting (default or value requested by other client)
 	PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, uint32_t periodMs);
 #define PM_ETW_FLUSH_PERIOD_MAX 1000
+	// flush any buffered frame event data for the specified process on this session
+	PRESENTMON_API2_EXPORT PM_STATUS pmFlushFrames(PM_SESSION_HANDLE handle, uint32_t processId);
 	// register a dynamic query used for polling metric data with (optional) statistic processing such as average or percentile
 	PRESENTMON_API2_EXPORT PM_STATUS pmRegisterDynamicQuery(PM_SESSION_HANDLE sessionHandle, PM_DYNAMIC_QUERY_HANDLE* pHandle, PM_QUERY_ELEMENT* pElements, uint64_t numElements, double windowSizeMs, double metricOffsetMs);
 	// free the resources associated with a registered dynamic query

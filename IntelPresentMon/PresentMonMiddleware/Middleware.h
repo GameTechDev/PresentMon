@@ -18,6 +18,7 @@ namespace pmon::mid
 		virtual PM_STATUS StopStreaming(uint32_t processId) = 0;
 		virtual PM_STATUS SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs) = 0;
 		virtual PM_STATUS SetEtwFlushPeriod(std::optional<uint32_t> periodMs) = 0;
+		virtual PM_STATUS FlushFrames(uint32_t processId) = 0;
 		virtual PM_DYNAMIC_QUERY* RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements, double windowSizeMs, double metricOffsetMs) = 0;
 		virtual void FreeDynamicQuery(const PM_DYNAMIC_QUERY* pQuery) = 0;
 		virtual void PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains, std::optional<uint64_t> nowTimestamp = {}) = 0;

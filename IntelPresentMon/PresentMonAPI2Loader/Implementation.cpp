@@ -33,6 +33,7 @@ PM_STATUS(*pFunc_pmGetIntrospectionRoot_)(PM_SESSION_HANDLE, const PM_INTROSPECT
 PM_STATUS(*pFunc_pmFreeIntrospectionRoot_)(const PM_INTROSPECTION_ROOT*) = nullptr;
 PM_STATUS(*pFunc_pmSetTelemetryPollingPeriod_)(PM_SESSION_HANDLE, uint32_t, uint32_t) = nullptr;
 PM_STATUS(*pFunc_pmSetEtwFlushPeriod_)(PM_SESSION_HANDLE, uint32_t) = nullptr;
+PM_STATUS(*pFunc_pmFlushFrames_)(PM_SESSION_HANDLE, uint32_t) = nullptr;
 PM_STATUS(*pFunc_pmRegisterDynamicQuery_)(PM_SESSION_HANDLE, PM_DYNAMIC_QUERY_HANDLE*, PM_QUERY_ELEMENT*, uint64_t, double, double) = nullptr;
 PM_STATUS(*pFunc_pmFreeDynamicQuery_)(PM_DYNAMIC_QUERY_HANDLE) = nullptr;
 PM_STATUS(*pFunc_pmPollDynamicQuery_)(PM_DYNAMIC_QUERY_HANDLE, uint32_t, uint8_t*, uint32_t*) = nullptr;
@@ -164,6 +165,7 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 		RESOLVE(pmFreeIntrospectionRoot);
 		RESOLVE(pmSetTelemetryPollingPeriod);
 		RESOLVE(pmSetEtwFlushPeriod);
+		RESOLVE(pmFlushFrames);
 		RESOLVE(pmRegisterDynamicQuery);
 		RESOLVE(pmFreeDynamicQuery);
 		RESOLVE(pmPollDynamicQuery);
@@ -261,6 +263,11 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, u
 {
 	LoadEndpointsIfEmpty_();
 	return pFunc_pmSetEtwFlushPeriod_(handle, periodMs);
+}
+PRESENTMON_API2_EXPORT PM_STATUS pmFlushFrames(PM_SESSION_HANDLE handle, uint32_t processId)
+{
+	LoadEndpointsIfEmpty_();
+	return pFunc_pmFlushFrames_(handle, processId);
 }
 PRESENTMON_API2_EXPORT PM_STATUS pmRegisterDynamicQuery(PM_SESSION_HANDLE sessionHandle, PM_DYNAMIC_QUERY_HANDLE* pHandle, PM_QUERY_ELEMENT* pElements, uint64_t numElements, double windowSizeMs, double metricOffsetMs)
 {

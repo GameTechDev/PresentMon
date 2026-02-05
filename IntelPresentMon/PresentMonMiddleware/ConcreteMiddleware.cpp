@@ -191,6 +191,21 @@ namespace pmon::mid
         return PM_STATUS_SUCCESS;
     }
 
+    PM_STATUS ConcreteMiddleware::FlushFrames(uint32_t processId)
+    {
+        try {
+            if (auto it = frameMetricsSources.find(processId); it != frameMetricsSources.end() && it->second) {
+                it->second->Flush();
+            }
+        }
+        catch (...) {
+            const auto code = util::GeneratePmStatus();
+            pmlog_error(util::ReportException()).code(code).diag();
+            return code;
+        }
+        return PM_STATUS_SUCCESS;
+    }
+
     PM_DYNAMIC_QUERY* ConcreteMiddleware::RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements,
         double windowSizeMs, double metricOffsetMs)
     {

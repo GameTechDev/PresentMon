@@ -30,6 +30,14 @@ namespace pmapi
         return pid_;
     }
 
+    void ProcessTracker::FlushFrames()
+    {
+        assert(!Empty());
+        if (auto sta = pmFlushFrames(hSession_, pid_); sta != PM_STATUS_SUCCESS) {
+            throw ApiErrorException{ sta, "flush frames call failed" };
+        }
+    }
+
     void ProcessTracker::Reset() noexcept
     {
         if (!Empty()) {
