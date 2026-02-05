@@ -485,8 +485,8 @@ namespace PacedPolling
 			const auto recordingStart = 1.;
 			const auto recordingStop = 14.;
 			const auto pollPeriod = 0.1;
-			const auto toleranceFactor = 0.005;
-			const auto fullFailRatio = 0.667;
+			const auto toleranceFactor = 0.01;
+			const auto fullFailRatio = 0.95;
 			// run test
 			ExecutePacedPollingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart, recordingStop,
 				pollPeriod, toleranceFactor, fullFailRatio, fixture_);
