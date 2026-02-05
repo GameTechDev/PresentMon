@@ -32,8 +32,6 @@ namespace pmon::mid
     namespace rn = std::ranges;
     namespace vi = std::views;
 
-    static const uint32_t kMaxRespBufferSize = 4096;
-	static const uint64_t kClientFrameDeltaQPCThreshold = 50000000;
     static constexpr size_t kFrameMetricsPerSwapChainCapacity = 4096u;
 
 	Middleware::Middleware(std::optional<std::string> pipeNameOverride)
@@ -46,10 +44,10 @@ namespace pmon::mid
             throw util::Except<ipc::PmStatusError>(PM_STATUS_PIPE_ERROR,
                 "Timeout waiting for service action pipe to become available");
         }
-        pActionClient = std::make_shared<ActionClient>(pipeName);
+        pActionClient_ = std::make_shared<ActionClient>(pipeName);
 
         // connect to the shm server
-        pComms = ipc::MakeMiddlewareComms(pActionClient->GetShmPrefix(), pActionClient->GetShmSalt());
+        pComms_ = ipc::MakeMiddlewareComms(pActionClient_->GetShmPrefix(), pActionClient_->GetShmSalt());
 
         // Get and cache the introspection data
         (void)GetIntrospectionRoot_();
@@ -60,7 +58,7 @@ namespace pmon::mid
     const PM_INTROSPECTION_ROOT* Middleware::GetIntrospectionData()
     {
         // TODO: consider updating cache or otherwise connecting to middleware intro cache here
-        return pComms->GetIntrospectionRoot();
+        return pComms_->GetIntrospectionRoot();
     }
 
     void Middleware::FreeIntrospectionData(const PM_INTROSPECTION_ROOT* pRoot)
@@ -68,74 +66,72 @@ namespace pmon::mid
         free(const_cast<PM_INTROSPECTION_ROOT*>(pRoot));
     }
 
-    // TODO: rename => tracking
-    void Middleware::StartStreaming(uint32_t targetPid)
+    void Middleware::StartTracking(uint32_t targetPid)
     {
-        if (frameMetricsSources.contains(targetPid)) {
+        if (frameMetricsSources_.contains(targetPid)) {
             throw util::Except<ipc::PmStatusError>(PM_STATUS_ALREADY_TRACKING_PROCESS,
                 std::format("Process [{}] is already being tracked", targetPid));
         }
-        pActionClient->DispatchSync(StartTracking::Params{ targetPid });
-        frameMetricsSources.emplace(targetPid,
-            std::make_unique<FrameMetricsSource>(*pComms, targetPid, kFrameMetricsPerSwapChainCapacity));
+        pActionClient_->DispatchSync(StartTracking::Params{ targetPid });
+        frameMetricsSources_.emplace(targetPid,
+            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, kFrameMetricsPerSwapChainCapacity));
 
         pmlog_info(std::format("Started tracking pid [{}]", targetPid)).diag();
     }
 
     void Middleware::StartPlaybackTracking(uint32_t targetPid, bool isBackpressured)
     {
-        if (frameMetricsSources.contains(targetPid)) {
+        if (frameMetricsSources_.contains(targetPid)) {
             throw util::Except<ipc::PmStatusError>(PM_STATUS_ALREADY_TRACKING_PROCESS,
                 std::format("Process [{}] is already being tracked", targetPid));
         }
-        pActionClient->DispatchSync(StartTracking::Params{
+        pActionClient_->DispatchSync(StartTracking::Params{
             .targetPid = targetPid,
             .isPlayback = true,
             .isBackpressured = isBackpressured
         });
-        frameMetricsSources.emplace(targetPid,
-            std::make_unique<FrameMetricsSource>(*pComms, targetPid, kFrameMetricsPerSwapChainCapacity));
+        frameMetricsSources_.emplace(targetPid,
+            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, kFrameMetricsPerSwapChainCapacity));
 
         pmlog_info(std::format("Started playback tracking pid [{}]", targetPid)).diag();
     }
 
-    // TODO: rename => tracking
-    void Middleware::StopStreaming(uint32_t targetPid)
+    void Middleware::StopTracking(uint32_t targetPid)
     {
-        auto it = frameMetricsSources.find(targetPid);
-        if (it == frameMetricsSources.end()) {
+        auto it = frameMetricsSources_.find(targetPid);
+        if (it == frameMetricsSources_.end()) {
             throw util::Except<ipc::PmStatusError>(PM_STATUS_INVALID_PID,
                 std::format("Process [{}] is not currently being tracked", targetPid));
         }
-        pActionClient->DispatchSync(StopTracking::Params{ targetPid });
-        frameMetricsSources.erase(it);
+        pActionClient_->DispatchSync(StopTracking::Params{ targetPid });
+        frameMetricsSources_.erase(it);
 
         pmlog_info(std::format("Stopped tracking pid [{}]", targetPid)).diag();
     }
 
     const pmapi::intro::Root& mid::Middleware::GetIntrospectionRoot_()
     {
-        if (!pIntroRoot) {
+        if (!pIntroRoot_) {
             pmlog_info("Creating and cacheing introspection root object").diag();
-            pIntroRoot = std::make_unique<pmapi::intro::Root>(GetIntrospectionData(), [this](auto p){FreeIntrospectionData(p);});
+            pIntroRoot_ = std::make_unique<pmapi::intro::Root>(GetIntrospectionData(), [this](auto p){FreeIntrospectionData(p);});
         }
-        return *pIntroRoot;
+        return *pIntroRoot_;
     }
 
     void Middleware::SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs)
     {
         // note: deviceId is being ignored for the time being, but might be used in the future
-        pActionClient->DispatchSync(SetTelemetryPeriod::Params{ timeMs });
+        pActionClient_->DispatchSync(SetTelemetryPeriod::Params{ timeMs });
     }
 
     void Middleware::SetEtwFlushPeriod(std::optional<uint32_t> periodMs)
     {
-        pActionClient->DispatchSync(acts::SetEtwFlushPeriod::Params{ periodMs });
+        pActionClient_->DispatchSync(acts::SetEtwFlushPeriod::Params{ periodMs });
     }
 
     void Middleware::FlushFrames(uint32_t processId)
     {
-        if (auto it = frameMetricsSources.find(processId); it != frameMetricsSources.end() && it->second) {
+        if (auto it = frameMetricsSources_.find(processId); it != frameMetricsSources_.end() && it->second) {
             it->second->Flush();
         }
     }
@@ -145,7 +141,7 @@ namespace pmon::mid
     {
         pmlog_dbg("Registering dynamic query").pmwatch(queryElements.size()).pmwatch(windowSizeMs).pmwatch(metricOffsetMs);
         const auto qpcPeriod = util::GetTimestampPeriodSeconds();
-        return new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms, *this };
+        return new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms_, *this };
     }
 
     void Middleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId,
@@ -176,19 +172,19 @@ namespace pmon::mid
         }
 
         const auto now = nowTimestamp.value_or((uint64_t)util::GetCurrentTimestamp());
-        *numSwapChains = pQuery->Poll(pBlob, *pComms, now, pFrameSource, processId, maxSwapChains);
+        *numSwapChains = pQuery->Poll(pBlob, *pComms_, now, pFrameSource, processId, maxSwapChains);
     }
 
     void Middleware::PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob)
     {
         const ipc::StaticMetricValue value = [&]() {
             if (element.deviceId == ipc::kSystemDeviceId) {
-                return pComms->GetSystemDataStore().FindStaticMetric(element.metric);
+                return pComms_->GetSystemDataStore().FindStaticMetric(element.metric);
             }
             if (element.deviceId == ipc::kUniversalDeviceId) {
-                return pComms->GetFrameDataStore(processId).FindStaticMetric(element.metric);
+                return pComms_->GetFrameDataStore(processId).FindStaticMetric(element.metric);
             }
-            return pComms->GetGpuDataStore(element.deviceId).FindStaticMetric(element.metric);
+            return pComms_->GetGpuDataStore(element.deviceId).FindStaticMetric(element.metric);
         }();
 
         std::visit([&](auto&& v) {
@@ -205,7 +201,7 @@ namespace pmon::mid
 
     PM_FRAME_QUERY* mid::Middleware::RegisterFrameEventQuery(std::span<PM_QUERY_ELEMENT> queryElements, uint32_t& blobSize)
     {
-        auto pQuery = new PM_FRAME_QUERY{ queryElements, *this, *pComms, GetIntrospectionRoot_() };
+        auto pQuery = new PM_FRAME_QUERY{ queryElements, *this, *pComms_, GetIntrospectionRoot_() };
         blobSize = (uint32_t)pQuery->GetBlobSize();
         return pQuery;
     }
@@ -236,23 +232,23 @@ namespace pmon::mid
 
     void Middleware::StopPlayback()
     {
-        pActionClient->DispatchSync(StopPlayback::Params{});
+        pActionClient_->DispatchSync(StopPlayback::Params{});
     }
 
     uint32_t Middleware::StartEtlLogging()
     {
-        return pActionClient->DispatchSync(StartEtlLogging::Params{}).etwLogSessionHandle;
+        return pActionClient_->DispatchSync(StartEtlLogging::Params{}).etwLogSessionHandle;
     }
 
     std::string Middleware::FinishEtlLogging(uint32_t etlLogSessionHandle)
     {
-        return pActionClient->DispatchSync(FinishEtlLogging::Params{ etlLogSessionHandle }).etlFilePath;
+        return pActionClient_->DispatchSync(FinishEtlLogging::Params{ etlLogSessionHandle }).etlFilePath;
     }
 
     FrameMetricsSource& Middleware::GetFrameMetricSource_(uint32_t pid) const
     {        
-        if (auto it = frameMetricsSources.find(pid);
-            it == frameMetricsSources.end() || it->second == nullptr) {
+        if (auto it = frameMetricsSources_.find(pid);
+            it == frameMetricsSources_.end() || it->second == nullptr) {
             pmlog_error("Frame metrics source for process {} doesn't exist. Call pmStartTracking to initialize the client.").diag();
             throw Except<util::Exception>(std::format("Failed to find frame metrics source for pid {}", pid));
         }

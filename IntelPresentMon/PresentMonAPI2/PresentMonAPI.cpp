@@ -161,7 +161,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmCloseSession(PM_SESSION_HANDLE handle)
 PRESENTMON_API2_EXPORT PM_STATUS pmStartTrackingProcess(PM_SESSION_HANDLE handle, uint32_t processId)
 {
 	try {
-		LookupMiddleware_(handle).StartStreaming(processId);
+		LookupMiddleware_(handle).StartTracking(processId);
 		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
@@ -187,7 +187,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStartPlaybackTracking(PM_SESSION_HANDLE handl
 PRESENTMON_API2_EXPORT PM_STATUS pmStopTrackingProcess(PM_SESSION_HANDLE handle, uint32_t processId)
 {
 	try {
-		LookupMiddleware_(handle).StopStreaming(processId);
+		LookupMiddleware_(handle).StopTracking(processId);
 		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {

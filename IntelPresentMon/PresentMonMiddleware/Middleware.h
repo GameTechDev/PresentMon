@@ -25,9 +25,9 @@ namespace pmon::mid
 		~Middleware();
 		const PM_INTROSPECTION_ROOT* GetIntrospectionData();
 		void FreeIntrospectionData(const PM_INTROSPECTION_ROOT* pRoot);
-		void StartStreaming(uint32_t processId);
+		void StartTracking(uint32_t processId);
 		void StartPlaybackTracking(uint32_t processId, bool isBackpressured);
-		void StopStreaming(uint32_t processId);
+		void StopTracking(uint32_t processId);
 		void SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs);
 		void SetEtwFlushPeriod(std::optional<uint32_t> periodMs);
 		void FlushFrames(uint32_t processId);
@@ -48,12 +48,12 @@ namespace pmon::mid
 		FrameMetricsSource& GetFrameMetricSource_(uint32_t pid) const;
 		// data
 		// action client connection to service RPC
-		std::shared_ptr<class ActionClient> pActionClient;
+		std::shared_ptr<class ActionClient> pActionClient_;
 		// ipc shared memory for frame data, telemetry, and introspection
-		std::unique_ptr<ipc::MiddlewareComms> pComms;
+		std::unique_ptr<ipc::MiddlewareComms> pComms_;
 		// cache of marshalled introspection data
-		std::unique_ptr<pmapi::intro::Root> pIntroRoot;
+		std::unique_ptr<pmapi::intro::Root> pIntroRoot_;
 		// Frame metrics sources mapped to process id
-		std::map<uint32_t, std::unique_ptr<FrameMetricsSource>> frameMetricsSources;
+		std::map<uint32_t, std::unique_ptr<FrameMetricsSource>> frameMetricsSources_;
 	};
 }
