@@ -1,6 +1,6 @@
 ﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
-#include "ConcreteMiddleware.h"
+#include "Middleware.h"
 #include <cstring>
 #include <string>
 #include <vector>
@@ -14,8 +14,6 @@
 #include "../PresentMonUtils/QPCUtils.h"
 #include "../PresentMonAPI2/Internal.h"
 #include "../PresentMonAPIWrapperCommon/Introspection.h"
-// TODO: don't need transfer if we can somehow get the PM_ struct generation working without inheritance
-// needed right now because even if we forward declare, we don't have the inheritance info
 #include "../Interprocess/source/IntrospectionTransfer.h"
 #include "../Interprocess/source/IntrospectionHelpers.h"
 #include "../Interprocess/source/IntrospectionCloneAllocators.h"
@@ -47,7 +45,7 @@ namespace pmon::mid
 	static const uint64_t kClientFrameDeltaQPCThreshold = 50000000;
     static constexpr size_t kFrameMetricsPerSwapChainCapacity = 4096u;
 
-	ConcreteMiddleware::ConcreteMiddleware(std::optional<std::string> pipeNameOverride)
+	Middleware::Middleware(std::optional<std::string> pipeNameOverride)
 	{
         const auto pipeName = pipeNameOverride.transform(&std::string::c_str)
             .value_or(pmon::gid::defaultControlPipeName);
@@ -77,21 +75,21 @@ namespace pmon::mid
         }
 	}
     
-    ConcreteMiddleware::~ConcreteMiddleware() = default;
+    Middleware::~Middleware() = default;
     
-    const PM_INTROSPECTION_ROOT* ConcreteMiddleware::GetIntrospectionData()
+    const PM_INTROSPECTION_ROOT* Middleware::GetIntrospectionData()
     {
         // TODO: consider updating cache or otherwise connecting to middleware intro cache here
         return pComms->GetIntrospectionRoot();
     }
 
-    void ConcreteMiddleware::FreeIntrospectionData(const PM_INTROSPECTION_ROOT* pRoot)
+    void Middleware::FreeIntrospectionData(const PM_INTROSPECTION_ROOT* pRoot)
     {
         free(const_cast<PM_INTROSPECTION_ROOT*>(pRoot));
     }
 
     // TODO: rename => tracking
-    PM_STATUS ConcreteMiddleware::StartStreaming(uint32_t targetPid)
+    PM_STATUS Middleware::StartStreaming(uint32_t targetPid)
     {
         try {
             auto res = pActionClient->DispatchSync(StartTracking::Params{ targetPid });
@@ -112,7 +110,7 @@ namespace pmon::mid
         return PM_STATUS_SUCCESS;
     }
 
-    PM_STATUS ConcreteMiddleware::StartPlaybackTracking(uint32_t targetPid, bool isBackpressured)
+    PM_STATUS Middleware::StartPlaybackTracking(uint32_t targetPid, bool isBackpressured)
     {
         try {
             auto res = pActionClient->DispatchSync(StartTracking::Params{
@@ -138,7 +136,7 @@ namespace pmon::mid
     }
 
     // TODO: rename => tracking
-    PM_STATUS ConcreteMiddleware::StopStreaming(uint32_t targetPid)
+    PM_STATUS Middleware::StopStreaming(uint32_t targetPid)
     {
         try {
             // TODO: error when not tracking (returns 0 not 1)
@@ -155,7 +153,7 @@ namespace pmon::mid
         return PM_STATUS_SUCCESS;
     }
 
-    const pmapi::intro::Root& mid::ConcreteMiddleware::GetIntrospectionRoot_()
+    const pmapi::intro::Root& mid::Middleware::GetIntrospectionRoot_()
     {
         if (!pIntroRoot) {
             pmlog_info("Creating and cacheing introspection root object").diag();
@@ -164,7 +162,7 @@ namespace pmon::mid
         return *pIntroRoot;
     }
 
-    PM_STATUS ConcreteMiddleware::SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs)
+    PM_STATUS Middleware::SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs)
     {
         try {
             // note: deviceId is being ignored for the time being, but might be used in the future
@@ -178,7 +176,7 @@ namespace pmon::mid
         return PM_STATUS_SUCCESS;
     }
 
-    PM_STATUS ConcreteMiddleware::SetEtwFlushPeriod(std::optional<uint32_t> periodMs)
+    PM_STATUS Middleware::SetEtwFlushPeriod(std::optional<uint32_t> periodMs)
     {
         try {
             pActionClient->DispatchSync(acts::SetEtwFlushPeriod::Params{ periodMs });
@@ -191,7 +189,7 @@ namespace pmon::mid
         return PM_STATUS_SUCCESS;
     }
 
-    PM_STATUS ConcreteMiddleware::FlushFrames(uint32_t processId)
+    PM_STATUS Middleware::FlushFrames(uint32_t processId)
     {
         try {
             if (auto it = frameMetricsSources.find(processId); it != frameMetricsSources.end() && it->second) {
@@ -206,7 +204,7 @@ namespace pmon::mid
         return PM_STATUS_SUCCESS;
     }
 
-    PM_DYNAMIC_QUERY* ConcreteMiddleware::RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements,
+    PM_DYNAMIC_QUERY* Middleware::RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements,
         double windowSizeMs, double metricOffsetMs)
     {
         pmlog_dbg("Registering dynamic query").pmwatch(queryElements.size()).pmwatch(windowSizeMs).pmwatch(metricOffsetMs);
@@ -214,7 +212,7 @@ namespace pmon::mid
         return new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms, *this };
     }
 
-    void ConcreteMiddleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId,
+    void Middleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId,
         uint8_t* pBlob, uint32_t* numSwapChains, std::optional<uint64_t> nowTimestamp)
     {
         if (numSwapChains == nullptr) {
@@ -245,7 +243,7 @@ namespace pmon::mid
         *numSwapChains = pQuery->Poll(pBlob, *pComms, now, pFrameSource, processId, maxSwapChains);
     }
 
-    void ConcreteMiddleware::PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob)
+    void Middleware::PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob)
     {
         const ipc::StaticMetricValue value = [&]() {
             if (element.deviceId == ipc::kSystemDeviceId) {
@@ -269,19 +267,19 @@ namespace pmon::mid
         }, value);
     }
 
-    PM_FRAME_QUERY* mid::ConcreteMiddleware::RegisterFrameEventQuery(std::span<PM_QUERY_ELEMENT> queryElements, uint32_t& blobSize)
+    PM_FRAME_QUERY* mid::Middleware::RegisterFrameEventQuery(std::span<PM_QUERY_ELEMENT> queryElements, uint32_t& blobSize)
     {
         auto pQuery = new PM_FRAME_QUERY{ queryElements, *this, *pComms, GetIntrospectionRoot_() };
         blobSize = (uint32_t)pQuery->GetBlobSize();
         return pQuery;
     }
 
-    void mid::ConcreteMiddleware::FreeFrameEventQuery(const PM_FRAME_QUERY* pQuery)
+    void mid::Middleware::FreeFrameEventQuery(const PM_FRAME_QUERY* pQuery)
     {
         delete const_cast<PM_FRAME_QUERY*>(pQuery);
     }
 
-    void mid::ConcreteMiddleware::ConsumeFrameEvents(const PM_FRAME_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t& numFrames)
+    void mid::Middleware::ConsumeFrameEvents(const PM_FRAME_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t& numFrames)
     {
         const auto framesToCopy = numFrames;
         numFrames = 0;
@@ -300,22 +298,22 @@ namespace pmon::mid
         numFrames = uint32_t(frames.size());
     }
 
-    void ConcreteMiddleware::StopPlayback()
+    void Middleware::StopPlayback()
     {
         pActionClient->DispatchSync(StopPlayback::Params{});
     }
 
-    uint32_t ConcreteMiddleware::StartEtlLogging()
+    uint32_t Middleware::StartEtlLogging()
     {
         return pActionClient->DispatchSync(StartEtlLogging::Params{}).etwLogSessionHandle;
     }
 
-    std::string ConcreteMiddleware::FinishEtlLogging(uint32_t etlLogSessionHandle)
+    std::string Middleware::FinishEtlLogging(uint32_t etlLogSessionHandle)
     {
         return pActionClient->DispatchSync(FinishEtlLogging::Params{ etlLogSessionHandle }).etlFilePath;
     }
 
-    FrameMetricsSource& ConcreteMiddleware::GetFrameMetricSource_(uint32_t pid) const
+    FrameMetricsSource& Middleware::GetFrameMetricSource_(uint32_t pid) const
     {        
         if (auto it = frameMetricsSources.find(pid);
             it == frameMetricsSources.end() || it->second == nullptr) {

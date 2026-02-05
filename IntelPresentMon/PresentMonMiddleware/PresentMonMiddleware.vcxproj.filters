@@ -18,9 +18,6 @@
     <ClInclude Include="Middleware.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ConcreteMiddleware.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="MockCommon.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -59,7 +56,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ConcreteMiddleware.cpp">
+    <ClCompile Include="Middleware.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="DynamicQuery.cpp">

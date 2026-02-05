@@ -1,7 +1,7 @@
 ﻿#include <memory>
 #include <crtdbg.h>
 #include <unordered_map>
-#include "../PresentMonMiddleware/ConcreteMiddleware.h"
+#include "../PresentMonMiddleware/Middleware.h"
 #include "../Interprocess/source/PmStatusError.h"
 #include "Internal.h"
 #include "PresentMonAPI.h"
@@ -126,8 +126,8 @@ PRESENTMON_API2_EXPORT PM_STATUS pmOpenSessionWithPipe(PM_SESSION_HANDLE* pHandl
 			return PM_STATUS_BAD_ARGUMENT;
 		}
 		std::shared_ptr<Middleware> pMiddleware;
-		pMiddleware = std::make_shared<ConcreteMiddleware>(pipe ? std::optional<std::string>{ pipe } : std::nullopt);
-		*pHandle = pMiddleware.get();
+		pMiddleware = std::make_shared<Middleware>(pipe ? std::optional<std::string>{ pipe } : std::nullopt);
+		*pHandle = reinterpret_cast<PM_SESSION_HANDLE>(pMiddleware.get());
 		handleMap_[*pHandle] = std::move(pMiddleware);
 		pmlog_info("Middleware successfully opened session with service");
 		return PM_STATUS_SUCCESS;
