@@ -41,7 +41,6 @@ namespace p2c::pmon
             Element{.metricId = PM_METRIC_IN_PRESENT_API, .deviceId = 0 },
             Element{.metricId = PM_METRIC_RENDER_PRESENT_LATENCY, .deviceId = 0 },
             Element{.metricId = PM_METRIC_UNTIL_DISPLAYED, .deviceId = 0 },
-            Element{.metricId = PM_METRIC_PC_LATENCY, .deviceId = 0 },
             Element{.metricId = PM_METRIC_CPU_START_TIME, .deviceId = 0 },
             Element{.metricId = PM_METRIC_BETWEEN_APP_START, .deviceId = 0 },
             Element{.metricId = PM_METRIC_CPU_BUSY, .deviceId = 0 },

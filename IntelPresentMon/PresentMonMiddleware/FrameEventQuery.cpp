@@ -144,43 +144,45 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 			std::numeric_limits<double>::quiet_NaN();
 		return;
 	}
-	switch (cmd.gatherType) {
-	case PM_DATA_TYPE_UINT64:
-		*reinterpret_cast<uint64_t*>(pBlobBytes + cmd.blobOffset) =
-			*reinterpret_cast<const uint64_t*>(pFrameMemberBytes);
-		break;
-	case PM_DATA_TYPE_INT32:
-		*reinterpret_cast<int32_t*>(pBlobBytes + cmd.blobOffset) =
-			*reinterpret_cast<const int32_t*>(pFrameMemberBytes);
-		break;
-	case PM_DATA_TYPE_UINT32:
-		*reinterpret_cast<uint32_t*>(pBlobBytes + cmd.blobOffset) =
-			*reinterpret_cast<const uint32_t*>(pFrameMemberBytes);
-		break;
-	case PM_DATA_TYPE_DOUBLE:
-	{
-		auto& blobDouble = *reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset);
+	// Write frame metric into the blob, preserving optional<...> semantics.
+	// For optional<double>, nullopt maps to NaN for downstream compatibility.
+	const auto WriteValue = [&]<typename T>() {
+		auto& blobValue = *reinterpret_cast<T*>(pBlobBytes + cmd.blobOffset);
 		if (!cmd.isOptional) {
-			blobDouble = *reinterpret_cast<const double*>(pFrameMemberBytes);
+			blobValue = *reinterpret_cast<const T*>(pFrameMemberBytes);
+			return;
+		}
+		const auto& optValue = *reinterpret_cast<const std::optional<T>*>(pFrameMemberBytes);
+		if (optValue) {
+			blobValue = *optValue;
 		}
 		else {
-			auto& optDouble = *reinterpret_cast<const std::optional<double>*>(pFrameMemberBytes);
-			if (optDouble) {
-				blobDouble = *optDouble;
+			if constexpr (std::is_same_v<T, double>) {
+				blobValue = std::numeric_limits<double>::quiet_NaN();
 			}
 			else {
-				blobDouble = std::numeric_limits<double>::quiet_NaN();
+				blobValue = T{};
 			}
 		}
+	};
+	switch (cmd.gatherType) {
+	case PM_DATA_TYPE_UINT64:
+		WriteValue.template operator()<uint64_t>();
 		break;
-	}
+	case PM_DATA_TYPE_INT32:
+		WriteValue.template operator()<int32_t>();
+		break;
+	case PM_DATA_TYPE_UINT32:
+		WriteValue.template operator()<uint32_t>();
+		break;
+	case PM_DATA_TYPE_DOUBLE:
+		WriteValue.template operator()<double>();
+		break;
 	case PM_DATA_TYPE_ENUM:
-		*reinterpret_cast<int*>(pBlobBytes + cmd.blobOffset) =
-			*reinterpret_cast<const int*>(pFrameMemberBytes);
+		WriteValue.template operator()<int>();
 		break;
 	case PM_DATA_TYPE_BOOL:
-		*reinterpret_cast<bool*>(pBlobBytes + cmd.blobOffset) =
-			*reinterpret_cast<const bool*>(pFrameMemberBytes);
+		WriteValue.template operator()<bool>();
 		break;
 	case PM_DATA_TYPE_STRING:
 	case PM_DATA_TYPE_VOID:
