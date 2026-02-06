@@ -45,6 +45,15 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
             }
             return status;
         }
+        // Enable app/PCL tracking before enabling providers so any immediately-arriving
+        // events are accounted for by the quiesce logic on StopStreaming.
+        if (pm_consumer_) {
+            // Drop any lingering present tracking state from previous streams
+            pm_consumer_->ResetPresentTrackingData(false);
+            // Allow event processing before enabling providers
+            pm_consumer_->SetEventProcessingEnabled(true);
+        }
+
         auto const providerStatus = trace_session_.StartProviders();
         if (providerStatus != ERROR_SUCCESS) {
             {
@@ -515,4 +524,26 @@ void RealtimePresentMonSession::HandleTerminatedProcess(uint32_t processId) {
 void RealtimePresentMonSession::CheckForTerminatedRealtimeProcesses(
     std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses) {
     (void)terminatedProcesses;
+}
+
+void RealtimePresentMonSession::OnStreamStopped()
+{
+    if (streamer_.NumActiveStreams() != 0) {
+        return;
+    }
+
+    // Signal stopped
+    if (evtStreamingStarted_) {
+        evtStreamingStarted_.Reset();
+    }
+
+    // Disable providers + nuke state
+    trace_session_.StopProviders();
+
+    if (pm_consumer_) {
+        pm_consumer_->SetEventProcessingEnabled(false);
+        pm_consumer_->ResetPresentTrackingData(true);
+        // If you still have app/pcl reset separately, call it here too.
+        // pm_consumer_->ResetAppAndPclTrackingData(true);
+    }
 }

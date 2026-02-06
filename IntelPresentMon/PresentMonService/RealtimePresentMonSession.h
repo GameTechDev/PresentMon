@@ -52,6 +52,8 @@ private:
     void CheckForTerminatedRealtimeProcesses(
         std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses);
 
+    void OnStreamStopped();
+
     // data
     std::wstring pm_session_name_;
 
