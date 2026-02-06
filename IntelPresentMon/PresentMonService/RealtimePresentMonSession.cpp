@@ -526,6 +526,26 @@ void RealtimePresentMonSession::CheckForTerminatedRealtimeProcesses(
     (void)terminatedProcesses;
 }
 
+    // Signal stopped
+void RealtimePresentMonSession::OnStreamStopped()
+{
+    if (streamer_.NumActiveStreams() != 0) {
+        return;
+    if (evtStreamingStarted_) {
+        evtStreamingStarted_.Reset();
+    }
+
+    // Disable providers + nuke state
+    trace_session_.StopProviders();
+
+    if (pm_consumer_) {
+        pm_consumer_->SetEventProcessingEnabled(false);
+        pm_consumer_->ResetPresentTrackingData(true);
+        // If you still have app/pcl reset separately, call it here too.
+        // pm_consumer_->ResetAppAndPclTrackingData(true);
+    }
+}
+
 void RealtimePresentMonSession::OnStreamStopped()
 {
     if (streamer_.NumActiveStreams() != 0) {
