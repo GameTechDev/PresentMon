@@ -557,13 +557,14 @@ void RealtimePresentMonSession::OnStreamStopped()
         evtStreamingStarted_.Reset();
     }
 
+    if (pm_consumer_) {
+        pm_consumer_->SetEventProcessingEnabled(false);
+    }
+
     // Disable providers + nuke state
     trace_session_.StopProviders();
 
     if (pm_consumer_) {
-        pm_consumer_->SetEventProcessingEnabled(false);
         pm_consumer_->ResetPresentTrackingData(true);
-        // If you still have app/pcl reset separately, call it here too.
-        // pm_consumer_->ResetAppAndPclTrackingData(true);
     }
 }
