@@ -89,6 +89,31 @@ static inline void SetScreenTime(std::shared_ptr<PresentEvent> const& p, uint64_
     }
 }
 
+namespace {
+    struct WaitOnAddressShim {
+        using WaitOnAddressFn = BOOL(WINAPI*)(volatile VOID* Address, PVOID CompareAddress, SIZE_T AddressSize, DWORD dwMilliseconds);
+        using WakeByAddressAllFn = VOID(WINAPI*)(PVOID Address);
+
+        WaitOnAddressFn    Wait = nullptr;
+        WakeByAddressAllFn WakeAll = nullptr;
+
+        bool Available() const noexcept { return Wait && WakeAll; }
+    };
+
+    static const WaitOnAddressShim& GetWaitOnAddressShim()
+    {
+        static WaitOnAddressShim shim = [] {
+            WaitOnAddressShim s{};
+            HMODULE k32 = ::GetModuleHandleW(L"kernel32.dll");
+            if (!k32) return s;
+            s.Wait = reinterpret_cast<WaitOnAddressShim::WaitOnAddressFn>(::GetProcAddress(k32, "WaitOnAddress"));
+            s.WakeAll = reinterpret_cast<WaitOnAddressShim::WakeByAddressAllFn>(::GetProcAddress(k32, "WakeByAddressAll"));
+            return s;
+            }();
+        return shim;
+    }
+} // namespace
+
 PresentEvent::PresentEvent()
     : PresentStartTime(0)
     , ProcessId(0)
@@ -3466,6 +3491,182 @@ void PMTraceConsumer::DequeuePresentEvents(std::vector<std::shared_ptr<PresentEv
         mCompletedRingCondition.notify_one();
     }
 }
+
+void PMTraceConsumer::SetProviderToggleMode(bool enabled) {
+    mProviderToggleMode.store(enabled, std::memory_order_release);
+}
+
+void PMTraceConsumer::SetEventProcessingEnabled(bool enabled) {
+    mEventProcessingEnabled.store(enabled, std::memory_order_release);
+}
+
+void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
+
+    // Disable any future processing first
+    SetEventProcessingEnabled(false);
+
+    // Wait for in-flight event handlers to drain so we can safely clear the
+    // tracking maps without taking a mutex on every ETW event. This is only
+    // meaningful when provider-toggle mode is enabled and EventProcessingScope
+    // is active in the ETW callbacks.
+    auto const& shim = GetWaitOnAddressShim();
+
+    ULONGLONG const startMs = ::GetTickCount64();
+    DWORD const timeoutMs = 2000;
+
+    while (::InterlockedCompareExchange(&mEventProcessingInFlight, 0, 0) != 0) {
+        ULONGLONG elapsed = ::GetTickCount64() - startMs;
+        if (elapsed >= timeoutMs) {
+            pmlog_warn("Timed out waiting for event processing to quiesce; skipping present tracking reset");
+            return;
+        }
+        DWORD remaining = timeoutMs - (DWORD)elapsed;
+        if (shim.Available()) {
+            LONG expected = ::InterlockedCompareExchange(&mEventProcessingInFlight, 0, 0);
+            if (expected != 0) {
+                // Wait until the value at the address changes from 'expected'.
+                // Spurious wakeups are possible; loop re-check handles it.
+                shim.Wait(&mEventProcessingInFlight, &expected, sizeof(expected), remaining);
+            }
+        }
+        else {
+            // Win7 fallback
+            ::Sleep(1);
+        }
+    }
+
+    pmlog_info("Present tracking reset: Event processing quiesced; proceeding with present tracking reset shrink ="
+        + std::to_string(shrink));
+    // Now it is safe to clear the state
+    {
+        std::lock_guard<std::mutex> lock(mPresentEventMutex);
+        // Clear rings and counters
+        for(auto& p : mTrackedPresents) {
+            p.reset();
+        }
+        for(auto& p : mCompletedPresents) {
+            p.reset();
+        }
+        mNextFreeRingIndex = 0;
+        mCompletedIndex = 0;
+        mCompletedCount = 0;
+        mReadyCount = 0;
+        mNumOverflowedPresents = 0;
+
+        // We need to see a completed present again after the providers restart
+        mHasCompletedAPresent = false;
+
+        // DWM tracking
+        mPresentsWaitingForDWM.clear();
+        DwmProcessId = 0;
+        DwmPresentThreadId = 0;
+
+        // Deferred frame-type association state
+        mPendingPresentFrameTypeEvents.clear();
+        mPendingFlipFrameTypeEvents.clear();
+        mEnableFlipFrameTypeEvents = false;
+    }
+
+    // Clear process events
+    {
+        std::lock_guard<std::mutex> lock(mProcessEventMutex);
+        mProcessEvents.clear();
+    }
+
+    // Clear and potentially shrink present tracking maps
+    if (shrink) {
+        decltype(mPresentByThreadId){}.swap(mPresentByThreadId);
+        decltype(mOrderedPresentsByProcessId){}.swap(mOrderedPresentsByProcessId);
+        decltype(mPresentBySubmitSequence){}.swap(mPresentBySubmitSequence);
+        decltype(mPresentByWin32KPresentHistoryToken){}.swap(mPresentByWin32KPresentHistoryToken);
+        decltype(mPresentByDxgkPresentHistoryToken){}.swap(mPresentByDxgkPresentHistoryToken);
+        decltype(mPresentByDxgkPresentHistoryTokenData){}.swap(mPresentByDxgkPresentHistoryTokenData);
+        decltype(mPresentByDxgkContext){}.swap(mPresentByDxgkContext);
+        decltype(mPresentByVidPnLayerId){}.swap(mPresentByVidPnLayerId);
+        decltype(mLastPresentByWindow){}.swap(mLastPresentByWindow);
+        decltype(mPresentByAppFrameId){}.swap(mPresentByAppFrameId);
+        decltype(mAppTimingDataByAppFrameId){}.swap(mAppTimingDataByAppFrameId);
+        decltype(mPclTimingDataByPclFrameId){}.swap(mPclTimingDataByPclFrameId);
+        decltype(mHybridPresentModeBySwapChainPid){}.swap(mHybridPresentModeBySwapChainPid);
+        decltype(mLatestPingTimestampByProcessId){}.swap(mLatestPingTimestampByProcessId);
+    } else {
+        mPresentByThreadId.clear();
+        mOrderedPresentsByProcessId.clear();
+        mPresentBySubmitSequence.clear();
+        mPresentByWin32KPresentHistoryToken.clear();
+        mPresentByDxgkPresentHistoryToken.clear();
+        mPresentByDxgkPresentHistoryTokenData.clear();
+        mPresentByDxgkContext.clear();
+        mPresentByVidPnLayerId.clear();
+        mLastPresentByWindow.clear();
+        mPresentByAppFrameId.clear();
+        mAppTimingDataByAppFrameId.clear();
+        mPclTimingDataByPclFrameId.clear();
+        mHybridPresentModeBySwapChainPid.clear();
+        mLatestPingTimestampByProcessId.clear();
+    }
+
+    // Input association state
+    mReceivedMouseClickByHwnd.clear();
+    mRetrievedInput.clear();
+    mLastInputDeviceReadTime = 0;
+    mLastInputDeviceType = InputDeviceType::None;
+
+    // Reset PCL State
+    mUsingOutOfBoundPresentStart = false;
+
+    // Reset GPU/NV tracking helpers
+    mGpuTrace.~GpuTrace();
+    new (&mGpuTrace) GpuTrace(this);
+    mNvTraceConsumer.~NVTraceConsumer();
+    new (&mNvTraceConsumer) NVTraceConsumer();
+}
+
+PMTraceConsumer::EventProcessingScope::EventProcessingScope(PMTraceConsumer& consumer)
+    : Consumer(consumer)
+{
+    // If provider-toggle mode is not enabled, do nothing.
+    if (!Consumer.mProviderToggleMode.load(std::memory_order_acquire)) {
+        active = true;
+        counted = false;
+        return;
+    }
+
+    counted = true;
+    ::InterlockedIncrement(&Consumer.mEventProcessingInFlight);
+
+    if (!Consumer.mEventProcessingEnabled.load(std::memory_order_acquire)) {
+        LONG v = ::InterlockedDecrement(&Consumer.mEventProcessingInFlight);
+        if (v == 0) {
+            auto const& shim = GetWaitOnAddressShim();
+            if (shim.Available()) {
+                shim.WakeAll((PVOID)&Consumer.mEventProcessingInFlight);
+            }
+        }
+
+        active = false;
+        counted = false;
+        return;
+    }
+
+    active = true;
+}
+
+PMTraceConsumer::EventProcessingScope::~EventProcessingScope()
+{
+    if (!counted) {
+        return;
+    }
+
+    LONG v = ::InterlockedDecrement(&Consumer.mEventProcessingInFlight);
+    if (v == 0) {
+        auto const& shim = GetWaitOnAddressShim();
+        if (shim.Available()) {
+            shim.WakeAll((PVOID)&Consumer.mEventProcessingInFlight);
+        }
+    }
+}
+
 AppTimingData* PMTraceConsumer::ExtractAppTimingData(
     std::unordered_map<std::pair<uint32_t, uint32_t>, AppTimingData, PairHash<uint32_t, uint32_t>>& timingDataByFrameId,
     uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime, std::function<uint64_t(const AppTimingData&)> timingSelector) {

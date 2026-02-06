@@ -62,6 +62,11 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
             evtStreamingStarted_.Reset();
         }
         trace_session_.StopProviders();
+
+        if (pm_consumer_) {
+            // Drop any present correlation state that would otherwise linger until providers are re-enabled.
+            pm_consumer_->ResetPresentTrackingData(true);
+        }
     }
     return PM_STATUS::PM_STATUS_SUCCESS;
 }
@@ -130,6 +135,9 @@ PM_STATUS RealtimePresentMonSession::StartEtwSession() {
     pm_consumer_->mTrackFrameType = true;
     pm_consumer_->mTrackAppTiming = true;
     pm_consumer_->mTrackPcLatency = true;
+
+    // Service uses provider toggling; enable quiesce gate for safe state reset on start/stop
+    pm_consumer_->SetProviderToggleMode(true);
 
     auto& opt = clio::Options::Get();
     pm_session_name_ = util::str::ToWide(*opt.etwSessionName);

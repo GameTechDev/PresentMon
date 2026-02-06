@@ -298,6 +298,11 @@ void CALLBACK EventRecordCallback(EVENT_RECORD* pEventRecord)
     auto session = (PMTraceSession*) pEventRecord->UserContext;
     const auto& hdr = pEventRecord->EventHeader;
 
+    PMTraceConsumer::EventProcessingScope processingScope(*session->mPMConsumer);
+    if (!processingScope) {
+        return;
+    }
+
     if constexpr (!IS_REALTIME_SESSION) {
         if (session->mStartTimestamp.QuadPart == 0) {
             session->mStartTimestamp = hdr.TimeStamp;
@@ -686,6 +691,7 @@ bool PMTraceSession::QueryEtwStatus(EtwStatus* status) const
     mCachedEtwStatus.mEtwTotalBuffers = sessionProps.NumberOfBuffers;
     mCachedEtwStatus.mEtwEventsLost = sessionProps.EventsLost;
     mCachedEtwStatus.mEtwBuffersLost = sessionProps.LogBuffersLost + sessionProps.RealTimeBuffersLost;
+    mCachedEtwStatus.mNumOverflowedPresents = mPMConsumer->mNumOverflowedPresents;
 
     if (sessionProps.NumberOfBuffers > 0) {
         mCachedEtwStatus.mEtwBufferFillPct = 100.0 * mCachedEtwStatus.mEtwBuffersInUse / sessionProps.NumberOfBuffers;

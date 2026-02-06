@@ -89,12 +89,13 @@ static void OutputEtwStatus()
 
     EtwStatus status = {};
     if (gPMTraceSession->QueryEtwStatus(&status)) {
-        wprintf(L"[ETW Status] BufferFillPct=%.1f%% BuffersInUse=%lu TotalBuffers=%lu EventsLost=%lu BuffersLost=%lu\n",
+        wprintf(L"[ETW Status] BufferFillPct=%.1f%% BuffersInUse=%lu TotalBuffers=%lu EventsLost=%lu BuffersLost=%lu, OverflowedPresents=%lu\n",
             status.mEtwBufferFillPct,
             status.mEtwBuffersInUse,
             status.mEtwTotalBuffers,
             status.mEtwEventsLost,
-            status.mEtwBuffersLost);
+            status.mEtwBuffersLost,
+            status.mNumOverflowedPresents);
     }
 }
 

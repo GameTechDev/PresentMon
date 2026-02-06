@@ -8,6 +8,7 @@
 #endif
 
 #include <deque>
+#include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -335,6 +336,14 @@ struct PMTraceConsumer
     void DequeueProcessEvents(std::vector<ProcessEvent>& outProcessEvents);
     void DequeuePresentEvents(std::vector<std::shared_ptr<PresentEvent>>& outPresentEvents);
 
+    // Control of general event processing state for service capture start/stop without
+    // tearing down the underlying ETW session
+    //
+    // Provider-toggle mode enables a quiesce gate in the session callback so we can safely
+    // clear internal present tracking state from a controller thread.
+    void SetProviderToggleMode(bool enabled);
+    void SetEventProcessingEnabled(bool enabled);
+    void ResetPresentTrackingData(bool shrink = false);
 
     // -------------------------------------------------------------------------------------------
     // The rest of this structure are internal data and functions for analysing the collected ETW
@@ -448,6 +457,28 @@ struct PMTraceConsumer
             return DualHash(p.first, p.second);
         }
     };
+
+    // Guard used to safely mutate/clear all Present tracking structures
+    // without taking a mutex on every ETW event. ResetPresentTrackingData() disables
+    // tracking and then waits for in-flight scopes to drain before clearing the maps.
+    struct EventProcessingScope {
+        PMTraceConsumer& Consumer;
+        // Whether event processing is active for the scope duration
+        bool active = false;
+        // Whether we incremented the in-flight counter
+        bool counted = false;
+        explicit EventProcessingScope(PMTraceConsumer& consumer);
+        ~EventProcessingScope();
+        EventProcessingScope(const EventProcessingScope&) = delete;
+        EventProcessingScope& operator=(const EventProcessingScope&) = delete;
+        explicit operator bool() const noexcept { return active; }
+    };
+
+    std::atomic<bool> mProviderToggleMode{ false };
+    std::atomic<bool> mEventProcessingEnabled{ true };
+    // WaitOnAddress needs a 1/2/4/8-byte memory location. Using LONG makes it
+    // Win7-compatible (via Interlocked ops) and Win8+ compatible (via WaitOnAddress shim).
+    volatile LONG mEventProcessingInFlight = 0;
 
     std::unordered_map<uint32_t, std::shared_ptr<PresentEvent>> mPresentByThreadId;                     // ThreadId -> PresentEvent
     std::unordered_map<uint32_t, OrderedPresents>               mOrderedPresentsByProcessId;            // ProcessId -> ordered PresentStartTime -> PresentEvent
