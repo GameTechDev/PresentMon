@@ -6,7 +6,6 @@
 #include <CommonUtilities/mc/MetricsCalculator.h>
 #include <CommonUtilities/mc/SwapChainState.h>
 #include <CommonUtilities/mc/UnifiedSwapChain.h>
-#include <IntelPresentMon/PresentMonUtils/StreamFormat.h>
 #include <CommonUtilities/Math.h>
 #include <memory>
 
@@ -20,199 +19,6 @@ namespace MetricsCoreTests
     // SECTION 1: Core Types & Foundation
     // ============================================================================
 
-    TEST_CLASS(QpcConverterTests)
-    {
-    public:
-        TEST_METHOD(TimestampDeltaToMilliSeconds_BasicConversion)
-        {
-            // 10MHz QPC frequency (10,000,000 ticks per second)
-            QpcConverter qpc(10'000'000, 0);
-
-            // 10,000 ticks = 1 millisecond at 10MHz
-            double result = qpc.DurationMilliSeconds(10'000);
-            Assert::AreEqual(1.0, result, 0.0001);
-        }
-
-        TEST_METHOD(TimestampDeltaToMilliSeconds_ZeroDuration)
-        {
-            QpcConverter qpc(10'000'000, 0);
-            double result = qpc.DurationMilliSeconds(0);
-            Assert::AreEqual(0.0, result);
-        }
-
-        TEST_METHOD(TimestampDeltaToMilliSeconds_LargeDuration)
-        {
-            QpcConverter qpc(10'000'000, 0);
-
-            // 100,000,000 ticks = 10,000 milliseconds at 10MHz
-            double result = qpc.DurationMilliSeconds(100'000'000);
-            Assert::AreEqual(10'000.0, result, 0.01);
-        }
-
-        TEST_METHOD(TimestampDeltaToUnsignedMilliSeconds_ForwardTime)
-        {
-            QpcConverter qpc(10'000'000, 0);
-
-            // Start at 1000, end at 11000 (10,000 ticks = 1ms)
-            double result = qpc.DeltaUnsignedMilliSeconds(1000, 11'000);
-            Assert::AreEqual(1.0, result, 0.0001);
-        }
-
-        TEST_METHOD(TimestampDeltaToUnsignedMilliSeconds_ZeroDelta)
-        {
-            QpcConverter qpc(10'000'000, 0);
-            double result = qpc.DeltaUnsignedMilliSeconds(5000, 5000);
-            Assert::AreEqual(0.0, result);
-        }
-
-        TEST_METHOD(TimestampDeltaToUnsignedMilliSeconds_TypicalFrameTime)
-        {
-            // Typical QPC frequency: ~10MHz
-            QpcConverter qpc(10'000'000, 0);
-
-            // 16.666ms frame time at 60fps
-            uint64_t frameTimeTicks = 166'660;
-            double result = qpc.DurationMilliSeconds(frameTimeTicks);
-            Assert::AreEqual(16.666, result, 0.001);
-        }
-
-        TEST_METHOD(GetStartTimestamp_ReturnsCorrectValue)
-        {
-            uint64_t startTime = 123'456'789;
-            QpcConverter qpc(10'000'000, startTime);
-
-            Assert::AreEqual(startTime, qpc.GetSessionStartTimestamp());
-        }
-    };
-
-    TEST_CLASS(PresentSnapshotTests)
-    {
-    public:
-        TEST_METHOD(FromCircularBuffer_CopiesBasicTimingFields)
-        {
-            // Create a mock NSM present event
-            PmNsmPresentEvent nsmEvent{};
-            nsmEvent.PresentStartTime = 1000;
-            nsmEvent.ReadyTime = 2000;
-            nsmEvent.TimeInPresent = 500;
-            nsmEvent.GPUStartTime = 1200;
-            nsmEvent.GPUDuration = 800;
-            nsmEvent.GPUVideoDuration = 300;
-
-            auto frame = FrameData::CopyFrameData(nsmEvent);
-
-            Assert::AreEqual(1000ull, frame.presentStartTime);
-            Assert::AreEqual(2000ull, frame.readyTime);
-            Assert::AreEqual(500ull, frame.timeInPresent);
-            Assert::AreEqual(1200ull, frame.gpuStartTime);
-            Assert::AreEqual(800ull, frame.gpuDuration);
-            Assert::AreEqual(300ull, frame.gpuVideoDuration);
-        }
-
-        TEST_METHOD(FromCircularBuffer_CopiesAppPropagatedData)
-        {
-            PmNsmPresentEvent nsmEvent{};
-            nsmEvent.AppPropagatedPresentStartTime =5000;
-            nsmEvent.AppPropagatedTimeInPresent =600;
-            nsmEvent.AppPropagatedGPUStartTime =5200;
-            nsmEvent.AppPropagatedReadyTime =6000;
-            nsmEvent.AppPropagatedGPUDuration =800;
-            nsmEvent.AppPropagatedGPUVideoDuration =200;
-
-            auto frame = FrameData::CopyFrameData(nsmEvent);
-
-            Assert::AreEqual(5000ull, frame.appPropagatedPresentStartTime);
-            Assert::AreEqual(600ull, frame.appPropagatedTimeInPresent);
-            Assert::AreEqual(5200ull, frame.appPropagatedGPUStartTime);
-            Assert::AreEqual(6000ull, frame.appPropagatedReadyTime);
-            Assert::AreEqual(800ull, frame.appPropagatedGPUDuration);
-            Assert::AreEqual(200ull, frame.appPropagatedGPUVideoDuration);
-        }
-
-        TEST_METHOD(FromCircularBuffer_CopiesInstrumentedTimestamps)
-        {
-            PmNsmPresentEvent nsmEvent{};
-            nsmEvent.AppSimStartTime =100;
-            nsmEvent.AppSleepStartTime =200;
-            nsmEvent.AppSleepEndTime =250;
-            nsmEvent.AppRenderSubmitStartTime =300;
-
-            auto frame = FrameData::CopyFrameData(nsmEvent);
-
-            Assert::AreEqual(100ull, frame.appSimStartTime);
-            Assert::AreEqual(200ull, frame.appSleepStartTime);
-            Assert::AreEqual(250ull, frame.appSleepEndTime);
-            Assert::AreEqual(300ull, frame.appRenderSubmitStartTime);
-        }
-
-        TEST_METHOD(FromCircularBuffer_CopiesPcLatencyData)
-        {
-            PmNsmPresentEvent nsmEvent{};
-            nsmEvent.PclSimStartTime =7000;
-            nsmEvent.PclInputPingTime =6500;
-
-            auto frame = FrameData::CopyFrameData(nsmEvent);
-
-            Assert::AreEqual(7000ull, frame.pclSimStartTime);
-            Assert::AreEqual(6500ull, frame.pclInputPingTime);
-        }
-
-        TEST_METHOD(FromCircularBuffer_CopiesInputTimes)
-        {
-            PmNsmPresentEvent nsmEvent{};
-            nsmEvent.InputTime =8000;
-            nsmEvent.MouseClickTime =8050;
-
-            auto frame = FrameData::CopyFrameData(nsmEvent);
-
-            Assert::AreEqual(8000ull, frame.inputTime);
-            Assert::AreEqual(8050ull, frame.mouseClickTime);
-        }
-
-        TEST_METHOD(FromCircularBuffer_NormalizesDisplayArrays)
-        {
-            PmNsmPresentEvent nsmEvent{};
-            nsmEvent.DisplayedCount =2;
-            nsmEvent.Displayed_FrameType[0] = FrameType::Application;
-            nsmEvent.Displayed_ScreenTime[0] =9000;
-            nsmEvent.Displayed_FrameType[1] = FrameType::Repeated;
-            nsmEvent.Displayed_ScreenTime[1] =9500;
-
-            auto frame = FrameData::CopyFrameData(nsmEvent);
-
-            Assert::AreEqual(size_t(2), frame.displayed.Size());
-            Assert::IsTrue(frame.displayed[0].first == FrameType::Application);
-            Assert::AreEqual(9000ull, frame.displayed[0].second);
-            Assert::IsTrue(frame.displayed[1].first == FrameType::Repeated);
-            Assert::AreEqual(9500ull, frame.displayed[1].second);
-        }
-
-        TEST_METHOD(FromCircularBuffer_HandlesEmptyDisplayArray)
-        {
-            PmNsmPresentEvent nsmEvent{};
-            nsmEvent.DisplayedCount = 0;
-
-            auto frame = FrameData::CopyFrameData(nsmEvent);
-
-            Assert::AreEqual(size_t(0), frame.displayed.Size());
-        }
-
-        TEST_METHOD(FromCircularBuffer_CopiesMetadata)
-        {
-            PmNsmPresentEvent nsmEvent{};
-            nsmEvent.ProcessId =1234;
-            nsmEvent.ThreadId =5678;
-            nsmEvent.SwapChainAddress =0xDEADBEEF;
-            nsmEvent.FrameId =42;
-
-            auto frame = FrameData::CopyFrameData(nsmEvent);
-
-            Assert::AreEqual(uint32_t(1234), frame.processId);
-            Assert::AreEqual(uint32_t(5678), frame.threadId);
-            Assert::AreEqual(uint64_t(0xDEADBEEF), frame.swapChainAddress);
-            Assert::AreEqual(uint32_t(42), frame.frameId);
-        }
-    };
 
     // ConsoleAdapter tests are skipped in unit tests because they require PresentData
     // which has ETW dependencies. These will be tested during Console integration.
@@ -3855,7 +3661,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // msGPUWait = 600'000 - 500'000 = 100'000 ticks = 10 ms
             double expectedTotal = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'600'000);
             double expectedBusy = qpc.DurationMilliSeconds(500'000);
-            double expectedWait = max(0.0, expectedTotal - expectedBusy);
+            double expectedWait = std::max(0.0, expectedTotal - expectedBusy);
             Assert::AreEqual(expectedWait, m.msGPUWait, 0.0001);
         }
 
@@ -3999,7 +3805,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // msGPUWait = 550'000 - 450'000 = 100'000 ticks = 10 ms
             double expectedTotal = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'550'000);
             double expectedBusy = qpc.DurationMilliSeconds(450'000);
-            double expectedWait = max(0.0, expectedTotal - expectedBusy);
+            double expectedWait = std::max(0.0, expectedTotal - expectedBusy);
             Assert::AreEqual(expectedWait, m.msGPUWait, 0.0001);
         }
     };

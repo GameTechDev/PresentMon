@@ -2,6 +2,7 @@
 #include "../Interprocess/source/act/SymmetricActionConnector.h"
 #include "../Interprocess/source/ShmNamer.h"
 #include "../CommonUtilities/Hash.h"
+#include "../CommonUtilities/win/Handle.h"
 #include <memory>
 #include <set>
 #include <unordered_map>
@@ -76,7 +77,13 @@ namespace pmon::svc::acts
         uint32_t nextCommandToken = 0;
 
         // custom items
-        std::map<uint32_t, std::shared_ptr<FrameBroadcaster::Segment>> trackedPids;
+        struct TrackedTarget
+        {
+            std::shared_ptr<FrameBroadcaster::Segment> pSegment;
+            util::win::Handle processHandle;
+        };
+        std::map<uint32_t, TrackedTarget> trackedPids;
+        // etl recording functionality support
         std::set<uint32_t> etwLogSessionIds;
         std::optional<uint32_t> requestedAdapterId;
         std::optional<uint32_t> requestedTelemetryPeriodMs;
@@ -104,5 +111,6 @@ namespace pmon::svc::acts
         void UpdateTelemetryPeriod() const;
         void UpdateEtwFlushPeriod() const;
         void UpdateMetricUsage() const;
+        std::unordered_set<uint32_t> GetTrackedPidSet() const;
     };
 }

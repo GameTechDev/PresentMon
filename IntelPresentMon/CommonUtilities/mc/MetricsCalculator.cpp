@@ -4,7 +4,6 @@
 #include "MetricsCalculatorInternal.h"
 
 #include "../PresentData/PresentMonTraceConsumer.hpp"
-#include "../IntelPresentMon/PresentMonUtils/StreamFormat.h"
 #include "../Math.h"
 
 // Layout: internal helpers -> entry points -> metric assembly -> exported helpers

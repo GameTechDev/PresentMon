@@ -1,16 +1,21 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "../CommonUtilities/win/WinAPI.h"
-
+#include <algorithm>
 #include <cmath>
 #include <random>
+#include <ranges>
 #include <atomic>
+#include <cstdint>
+#include <mutex>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 #include <VersionHelpers.h>
 
 #include "../ControlLib/PowerTelemetryProvider.h"
 #include "../ControlLib/CpuTelemetry.h"
-#include "../Streamer/Streamer.h"
 #include "../../PresentData/PresentMonTraceConsumer.hpp"
 #include "../../PresentData/PresentMonTraceSession.hpp"
 #include "PowerTelemetryContainer.h"
@@ -19,17 +24,9 @@
 #include "../PresentMonAPI2Tests/TestCommands.h"
 
 
-struct SwapChainData {
-    uint32_t mPresentHistoryCount;
-    uint64_t mLastPresentQPC;
-    uint64_t mLastDisplayedPresentQPC;
-};
-
 struct ProcessInfo {
     std::wstring mModuleName;
-    std::unordered_map<uint64_t, SwapChainData> mSwapChain;
     HANDLE mHandle = INVALID_HANDLE_VALUE;
-    bool mTargetProcess = false;
 };
 
 using namespace pmon;
@@ -38,8 +35,7 @@ class PresentMonSession {
 public:
     virtual ~PresentMonSession() = default;
     virtual bool IsTraceSessionActive() = 0;
-    virtual PM_STATUS StartStreaming(uint32_t client_process_id, uint32_t target_process_id, std::string& nsmFileName) = 0;
-    virtual void StopStreaming(uint32_t client_process_id, uint32_t target_process_id) = 0;
+    virtual PM_STATUS UpdateTracking(const std::unordered_set<uint32_t>& trackedPids) = 0;
     virtual bool CheckTraceSessions(bool forceTerminate) = 0;
     virtual HANDLE GetStreamingStartHandle() = 0;
     virtual void FlushEvents() {}
@@ -56,8 +52,16 @@ public:
     PM_STATUS SetEtwFlushPeriod(std::optional<uint32_t> periodMs);
     std::optional<uint32_t> GetEtwFlushPeriod();
     uint32_t GetGpuTelemetryPeriod();
-    int GetActiveStreams();
+    bool HasLiveTargets() const;
     void SetPowerTelemetryContainer(PowerTelemetryContainer* ptc);
+
+    void MarkProcessExited(uint32_t pid);
+    bool IsProcessTracked(uint32_t pid) const;
+    bool HasTrackedProcesses() const;
+    bool HasLiveTrackedProcesses() const;
+    void ClearTrackedProcesses();
+
+protected:
 
     // TODO: review all of these members and consider fixing the unsound thread safety aspects
     // data
@@ -77,7 +81,11 @@ public:
     // empty optional means automatic flushing active
     std::atomic<std::optional<uint32_t>> etw_flush_period_ms_;
 
-    Streamer streamer_;
     svc::FrameBroadcaster* pBroadcaster = nullptr;
+
+    void SyncTrackedPidState(const std::unordered_set<uint32_t>& trackedPids);
+
+    mutable std::mutex tracked_processes_mutex_;
+    std::unordered_map<uint32_t, bool> tracked_pid_live_;
 };
 

@@ -359,6 +359,7 @@
     <ClInclude Include="GpuTrace.hpp" />
     <ClInclude Include="IFilterBuildListener.h" />
     <ClInclude Include="NvidiaTraceConsumer.hpp" />
+    <ClInclude Include="PresentEventEnums.hpp" />
     <ClInclude Include="PresentMonTraceConsumer.hpp" />
     <ClInclude Include="TraceConsumer.hpp" />
     <ClInclude Include="PresentMonTraceSession.hpp" />

@@ -1,4 +1,5 @@
-﻿#include "MetricBinding.h"
+﻿#include "../CommonUtilities/win/WinAPI.h"
+#include "MetricBinding.h"
 #include "FrameMetricsSource.h"
 #include "Middleware.h"
 #include "../Interprocess/source/Interprocess.h"

@@ -5,15 +5,10 @@
 #include <memory>
 #include <optional>
 #include "../cnr/FixedVector.h"
+#include "../../../PresentData/PresentEventEnums.hpp"
 
 // Forward declarations for external types
-enum class Runtime;
-enum class PresentMode;
-enum class FrameType;       // From PresentData
-enum class PresentResult;   // From PresentData
-enum class InputDeviceType; // From PresentData
-struct PmNsmPresentEvent;   // From PresentMonUtils
-struct PresentEvent;        // From PresentMonTraceConsumer
+struct PresentEvent; // From PresentMonTraceConsumer
 
 namespace pmon::util::metrics {
 
@@ -93,7 +88,6 @@ namespace pmon::util::metrics {
         uint32_t pclFrameId = 0;
 
         // Factory Methods
-        static FrameData CopyFrameData(const PmNsmPresentEvent& p);
         static FrameData CopyFrameData(const std::shared_ptr<PresentEvent>& p);
         static FrameData CopyFrameData(const PresentEvent& p);
     };

@@ -180,11 +180,8 @@
     <ProjectReference Include="..\PresentMonAPIWrapperCommon\PresentMonAPIWrapperCommon.vcxproj">
       <Project>{2b343210-86ab-4153-9a6c-945e4af54c7c}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\PresentMonUtils\PresentMonUtils.vcxproj">
+    <ProjectReference Include="..\PresentMonUtils\PresentMonUtils.vcxproj" Condition="Exists('..\PresentMonUtils\PresentMonUtils.vcxproj')">
       <Project>{66e9f6c5-28db-4218-81b9-31e0e146ecc0}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\Streamer\Streamer.vcxproj">
-      <Project>{bf43064b-01f0-4c69-91fb-c2122baf621d}</Project>
     </ProjectReference>
     <ProjectReference Include="..\Versioning\Versioning.vcxproj">
       <Project>{c73aa532-e532-4d93-9279-905444653c08}</Project>

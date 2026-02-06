@@ -100,7 +100,8 @@ namespace InterimBroadcasterTests
         {
             // verify initial status
             const auto status = fixture_.service->QueryStatus();
-            Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+            Assert::AreEqual(0ull, status.trackedPids.size());
+            Assert::AreEqual(0ull, status.frameStorePids.size());
             Assert::AreEqual(16u, status.telemetryPeriodMs);
             Assert::IsTrue((bool)status.etwFlushPeriodMs);
             Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
@@ -767,6 +768,8 @@ namespace InterimBroadcasterTests
                 const auto sta = fixture_.service->QueryStatus();
                 Assert::AreEqual(1ull, sta.trackedPids.size());
                 Assert::IsTrue(sta.trackedPids.contains(pres.GetId()));
+                Assert::AreEqual(1ull, sta.frameStorePids.size());
+                Assert::IsTrue(sta.frameStorePids.contains(pres.GetId()));
             }
 
             // stop tracking
@@ -776,7 +779,11 @@ namespace InterimBroadcasterTests
             pComms->CloseFrameDataStore(pres.GetId());
 
             // verify the service not tracking, as expected
-            Assert::AreEqual(0ull, fixture_.service->QueryStatus().trackedPids.size());
+            {
+                const auto sta = fixture_.service->QueryStatus();
+                Assert::AreEqual(0ull, sta.trackedPids.size());
+                Assert::AreEqual(0ull, sta.frameStorePids.size());
+            }
 
             // verify segment can no longer be opened
             Assert::ExpectException<std::exception>([&] {pComms->OpenFrameDataStore(pres.GetId()); });

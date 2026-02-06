@@ -1,8 +1,9 @@
 ﻿#include "DynamicStat.h"
 #include "DynamicQueryWindow.h"
 #include "../CommonUtilities/Exception.h"
+#include "../CommonUtilities/log/Log.h"
 #include "../Interprocess/source/PmStatusError.h"
-#include "../../PresentData/PresentMonTraceConsumer.hpp"
+#include "../../PresentData/PresentEventEnums.hpp"
 #include <algorithm>
 #include <cassert>
 #include <optional>

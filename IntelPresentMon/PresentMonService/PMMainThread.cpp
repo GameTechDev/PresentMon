@@ -7,7 +7,6 @@
 #include "PowerTelemetryContainer.h"
 #include "FrameBroadcaster.h"
 #include "..\ControlLib\WmiCpu.h"
-#include "..\PresentMonUtils\StringUtils.h"
 #include <filesystem>
 #include "../Interprocess/source/Interprocess.h"
 #include "../Interprocess/source/ShmNamer.h"
@@ -66,7 +65,7 @@ void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
             waiter.Wait();
             // go dormant if there are no active streams left
             // TODO: GetActiveStreams is not technically thread-safe, reconsider fixing this stuff in Service
-            if (pm->GetActiveStreams() == 0) {
+            if (!pm->HasLiveTargets()) {
                 pmlog_dbg("ETW flush loop entering dormancy due to 0 active streams");
                 break;
             }
@@ -472,7 +471,7 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                         // go dormant if there are no active streams left
                         // TODO: consider race condition here if client stops and starts streams rapidly
                         // TODO: remove this legacy branch
-                        if (pm->GetActiveStreams() == 0) {
+                        if (!pm->HasLiveTargets()) {
                             break;
                         }
                     }
@@ -581,7 +580,7 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
                     // go dormant if there are no active streams left
                     // TODO: consider race condition here if client stops and starts streams rapidly
                     // TODO: remove this legacy branch
-                    if (pm->GetActiveStreams() == 0) {
+                    if (!pm->HasLiveTargets()) {
                         break;
                     }
                 }

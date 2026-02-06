@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
@@ -52,7 +52,8 @@ namespace EtlLoggerTests
 		{
 			// verify initial status
 			const auto status = fixture_.service->QueryStatus();
-			Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+			Assert::AreEqual(0ull, status.trackedPids.size());
+			Assert::AreEqual(0ull, status.frameStorePids.size());
 			Assert::AreEqual(16u, status.telemetryPeriodMs);
 			Assert::IsTrue((bool)status.etwFlushPeriodMs);
 			Assert::AreEqual(1000u, *status.etwFlushPeriodMs);

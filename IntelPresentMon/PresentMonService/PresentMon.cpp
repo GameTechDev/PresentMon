@@ -33,15 +33,9 @@ PresentMon::~PresentMon()
 	pmlog_dbg("PresentMon object destructor finishing");
 }
 
-PM_STATUS PresentMon::StartStreaming(uint32_t client_process_id, uint32_t target_process_id,
-	std::string& nsm_file_name)
+PM_STATUS PresentMon::UpdateTracking(const std::unordered_set<uint32_t>& trackedPids)
 {
-	return pSession_->StartStreaming(client_process_id, target_process_id, nsm_file_name);
-}
-
-void PresentMon::StopStreaming(uint32_t client_process_id, uint32_t target_process_id)
-{
-	return pSession_->StopStreaming(client_process_id, target_process_id);
+	return pSession_->UpdateTracking(trackedPids);
 }
 
 std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> PresentMon::EnumerateAdapters()

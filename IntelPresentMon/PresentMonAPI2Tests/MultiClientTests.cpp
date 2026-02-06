@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
@@ -51,7 +51,8 @@ namespace MultiClientTests
 		{
 			// verify initial status
 			const auto status = fixture_.service->QueryStatus();
-			Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+			Assert::AreEqual(0ull, status.trackedPids.size());
+			Assert::AreEqual(0ull, status.frameStorePids.size());
 			Assert::AreEqual(16u, status.telemetryPeriodMs);
 			Assert::IsTrue((bool)status.etwFlushPeriodMs);
 			Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
@@ -475,21 +476,24 @@ namespace MultiClientTests
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// one client quits
 			client1.Quit();
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// other client quits
 			client2.Quit();
 			// verify tracking stopped at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(0ull, status.trackedPids.size());
+				Assert::AreEqual(0ull, status.frameStorePids.size());
 			}
 		}
 		// verify process untrack (stream stop) when clients die suddenly
@@ -508,7 +512,8 @@ namespace MultiClientTests
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// one client dies
 			client1.Murder();
@@ -516,7 +521,8 @@ namespace MultiClientTests
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// other client dies
 			client2.Murder();
@@ -524,7 +530,8 @@ namespace MultiClientTests
 			// verify tracking stopped at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(0ull, status.trackedPids.size());
+				Assert::AreEqual(0ull, status.frameStorePids.size());
 			}
 		}
 		// test a large number of clients running

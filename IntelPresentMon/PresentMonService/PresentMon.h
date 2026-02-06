@@ -32,10 +32,7 @@ public:
 	void CheckTraceSessions();
 	// Force stop trace sessions
 	void StopTraceSessions();
-	PM_STATUS StartStreaming(uint32_t client_process_id,
-		uint32_t target_process_id,
-		std::string& nsm_file_name);
-	void StopStreaming(uint32_t client_process_id, uint32_t target_process_id);
+    PM_STATUS UpdateTracking(const std::unordered_set<uint32_t>& trackedPids);
 	std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> EnumerateAdapters();
 	std::string GetCpuName() { return pSession_->GetCpuName(); }
 	double GetCpuPowerLimit() { return pSession_->GetCpuPowerLimit(); }
@@ -68,10 +65,9 @@ public:
 	{
 		return pSession_->GetStreamingStartHandle();
 	}
-	int GetActiveStreams()
+	bool HasLiveTargets() const
 	{
-		// Only the real time trace uses the control libary interface
-		return pSession_->GetActiveStreams();
+		return pSession_->HasLiveTargets();
 	}
 	void SetPowerTelemetryContainer(PowerTelemetryContainer* ptc)
 	{

@@ -3,24 +3,29 @@
 #include <CommonUtilities/rng/OptionalMinMax.h>
 #include "../Interprocess/source/act/ActionHelper.h"
 #include <cereal/types/unordered_set.hpp>
+#include <vector>
 
 namespace pmon::svc::acts
 {
     void ActionExecutionContext::Dispose(SessionContextType& stx)
     {
+        // etw log trace cleanup
         auto& etw = pPmon->GetEtwLogger();
         for (auto id : stx.etwLogSessionIds) {
             if (etw.HasActiveSession(id)) {
                 etw.CancelLogSession(id);
             }
         }
-        for (auto&&[pid, pSeg] : stx.trackedPids) {
-            pPmon->StopStreaming(stx.remotePid, pid);
-        }
+        // tracked pids cleanup
+        stx.trackedPids.clear();
+        pPmon->UpdateTracking(GetTrackedPidSet());
+        // telemetry period cleanup
         stx.requestedTelemetryPeriodMs.reset();
         UpdateTelemetryPeriod();
+        // etw flush cleanup
         stx.requestedEtwFlushPeriodMs.reset();
         UpdateEtwFlushPeriod();
+        // metric use cleanup
         pmlog_verb(pmon::util::log::V::met_use)("Session closing, removing metric usage")
             .pmwatch(stx.remotePid)
             .serialize("sessionMetricUsage", stx.metricUsage);
@@ -69,5 +74,19 @@ namespace pmon::svc::acts
             hasLastAggregateMetricUsage = true;
         }
         pPmon->SetDeviceMetricUsage(std::move(deviceMetricUsage));
+    }
+
+    std::unordered_set<uint32_t> ActionExecutionContext::GetTrackedPidSet() const
+    {
+        std::unordered_set<uint32_t> trackedPids;
+        if (pSessionMap == nullptr) {
+            return trackedPids;
+        }
+        for (auto const& [sid, session] : *pSessionMap) {
+            for (auto const& [pid, target] : session.trackedPids) {
+                trackedPids.emplace(pid);
+            }
+        }
+        return trackedPids;
     }
 }

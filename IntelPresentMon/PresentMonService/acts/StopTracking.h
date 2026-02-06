@@ -1,6 +1,7 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
 #include <format>
+#include <unordered_set>
 
 #define ACT_NAME StopTracking
 #define ACT_EXEC_CTX ActionExecutionContext
@@ -28,8 +29,11 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
-			ctx.pPmon->StopStreaming(stx.remotePid, in.targetPid);
-			stx.trackedPids.erase(in.targetPid);
+			if (stx.trackedPids.erase(in.targetPid) == 0) {
+				pmlog_error("StopTracking called for untracked pid").pmwatch(in.targetPid);
+				throw util::Except<ActionExecutionError>(PM_STATUS_INVALID_PID);
+			}
+			ctx.pPmon->UpdateTracking(ctx.GetTrackedPidSet());
 			pmlog_info(std::format("StopTracking action from [{}] un-targeting [{}]", stx.remotePid, in.targetPid));
 			return {};
 		}

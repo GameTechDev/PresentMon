@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MockPresentMonSession.h"
 #include "CliOptions.h"
@@ -19,9 +19,7 @@ bool MockPresentMonSession::IsTraceSessionActive() {
     return session_active_.load(std::memory_order_acquire);
 }
 
-PM_STATUS MockPresentMonSession::StartStreaming(uint32_t client_process_id,
-    uint32_t target_process_id,
-    std::string& nsmFileName) {
+PM_STATUS MockPresentMonSession::UpdateTracking(const std::unordered_set<uint32_t>& trackedPids) {
 
     auto& opt = clio::Options::Get();
 
@@ -32,14 +30,6 @@ PM_STATUS MockPresentMonSession::StartStreaming(uint32_t client_process_id,
         return PM_STATUS::PM_STATUS_FAILURE;
     }
 
-    // TODO: hook up all cli options
-    PM_STATUS status = streamer_.StartStreaming(client_process_id,
-        target_process_id, nsmFileName, true, opt.pacePlayback, opt.pacePlayback,
-        !opt.pacePlayback && !opt.disableLegacyBackpressure, true);
-    if (status != PM_STATUS::PM_STATUS_SUCCESS) {
-        return status;
-    }
-
     std::wstring sessionName;
     if (opt.etwSessionName.AsOptional().has_value()) {
         sessionName = pmon::util::str::ToWide(opt.etwSessionName.AsOptional().value());
@@ -48,25 +38,54 @@ PM_STATUS MockPresentMonSession::StartStreaming(uint32_t client_process_id,
         sessionName = kMockEtwSessionName;
     }
 
-    // TODO: hook up all cli options
-    status = StartTraceSession(target_process_id, *opt.etlTestFile, sessionName,
-        true, opt.pacePlayback, opt.pacePlayback, !opt.pacePlayback, true);
-    if (status == PM_STATUS_FAILURE) {
-        // Unable to start a trace session. Destroy the NSM and
-        // return status
-        streamer_.StopStreaming(target_process_id);
-        return status;
+    const bool wasActive = HasLiveTargets();
+    std::unordered_map<uint32_t, bool> previousState;
+    {
+        std::lock_guard lock(tracked_processes_mutex_);
+        previousState = tracked_pid_live_;
+    }
+    SyncTrackedPidState(trackedPids);
+    const bool isActive = HasLiveTargets();
+    if (isActive && (!wasActive || !IsTraceSessionActive())) {
+        uint32_t target_process_id = 0;
+        if (!trackedPids.empty()) {
+            target_process_id = *trackedPids.begin();
+        }
+        // TODO: hook up all cli options
+        auto status = StartTraceSession(target_process_id, *opt.etlTestFile, sessionName,
+            true, opt.pacePlayback, opt.pacePlayback, !opt.pacePlayback, true);
+        if (status != PM_STATUS_SUCCESS) {
+            {
+                std::lock_guard lock(tracked_processes_mutex_);
+                tracked_pid_live_ = std::move(previousState);
+            }
+            return status;
+        }
+        if (evtStreamingStarted_) {
+            evtStreamingStarted_.Set();
+        }
+    }
+
+    {
+        std::lock_guard lock(tracked_processes_mutex_);
+        for (auto it = started_processes_.begin(); it != started_processes_.end(); ) {
+            if (tracked_pid_live_.find(*it) == tracked_pid_live_.end()) {
+                it = started_processes_.erase(it);
+            }
+            else {
+                ++it;
+            }
+        }
+    }
+
+    if (!isActive) {
+        if (evtStreamingStarted_) {
+            evtStreamingStarted_.Reset();
+        }
+        StopTraceSession();
     }
 
     return PM_STATUS::PM_STATUS_SUCCESS;
-}
-
-void MockPresentMonSession::StopStreaming(uint32_t client_process_id,
-    uint32_t target_process_id) {
-    streamer_.StopStreaming(client_process_id, target_process_id);
-    if (streamer_.NumActiveStreams() == 0) {
-        StopTraceSession();
-    }
 }
 
 bool MockPresentMonSession::CheckTraceSessions(bool forceTerminate) {
@@ -77,6 +96,7 @@ bool MockPresentMonSession::CheckTraceSessions(bool forceTerminate) {
 
     if (forceTerminate) {
         StopTraceSession();
+        ClearTrackedProcesses();
         return true;
     }
     return false;
@@ -199,12 +219,14 @@ void MockPresentMonSession::StopTraceSession() {
         // PHASE 2: Safe cleanup after threads have finished
         std::lock_guard<std::mutex> lock(session_mutex_);
 
-        // Stop all streams
-        streamer_.StopAllStreams();
+        if (evtStreamingStarted_) {
+            evtStreamingStarted_.Reset();
+        }
 
         if (pm_consumer_) {
             pm_consumer_.reset();
         }
+        started_processes_.clear();
     }
 }
 
@@ -235,10 +257,9 @@ void MockPresentMonSession::AddPresents(
     auto i = *presentEventIndex;
 
     // If session is active and mStartTimestamp contains a value, an etl file is being processed.
-    // Set this value in the streamer to have the correct start time (atomic guard).
+    // Set this value in the broadcaster bookkeeping to have the correct start time (atomic guard).
     if (session_active_.load(std::memory_order_acquire)) {
         assert(trace_session_.mStartTimestamp.QuadPart != 0);
-        streamer_.SetStartQpc(trace_session_.mStartTimestamp.QuadPart);
         if (pBroadcaster) {
             pBroadcaster->SetStartQpc(trace_session_.mStartTimestamp.QuadPart);
         }
@@ -259,47 +280,8 @@ void MockPresentMonSession::AddPresents(
             break;
         }
 
-        // Look up the swapchain this present belongs to.
-        auto processInfo = GetProcessInfo(presentEvent->ProcessId);
-        if (!processInfo->mTargetProcess) {
+        if (!IsProcessTracked(presentEvent->ProcessId)) {
             continue;
-        }
-
-        PresentMonPowerTelemetryInfo power_telemetry = {};
-        std::bitset<static_cast<size_t>(GpuTelemetryCapBits::gpu_telemetry_count)>
-            gpu_telemetry_cap_bits = {};
-        if (telemetry_container_) {
-            auto current_adapters = telemetry_container_->GetPowerTelemetryAdapters();
-            if (current_adapters.size() != 0 &&
-                current_telemetry_adapter_id_ < current_adapters.size()) {
-                auto current_telemetry_adapter =
-                    current_adapters.at(current_telemetry_adapter_id_).get();
-                if (auto data = current_telemetry_adapter->GetClosest(
-                    presentEvent->PresentStartTime)) {
-                    power_telemetry = *data;
-                }
-                gpu_telemetry_cap_bits = current_telemetry_adapter
-                    ->GetPowerTelemetryCapBits();
-            }
-        }
-
-        CpuTelemetryInfo cpu_telemetry = {};
-        std::bitset<static_cast<size_t>(CpuTelemetryCapBits::cpu_telemetry_count)>
-            cpu_telemetry_cap_bits = {};
-        if (cpu_) {
-            if (auto data = cpu_->GetClosest(presentEvent->PresentStartTime)) {
-                cpu_telemetry = *data;
-            }
-            cpu_telemetry_cap_bits = cpu_->GetCpuTelemetryCapBits();
-        }
-
-        auto result = processInfo->mSwapChain.emplace(
-            presentEvent->SwapChainAddress, SwapChainData());
-        auto chain = &result.first->second;
-        if (result.second) {
-            chain->mPresentHistoryCount = 0;
-            chain->mLastPresentQPC = 0;
-            chain->mLastDisplayedPresentQPC = 0;
         }
 
         // Remove Repeated flips if they are in Application->Repeated or Repeated->Application sequences.
@@ -319,25 +301,9 @@ void MockPresentMonSession::AddPresents(
             }
         }
 
-        // Last producer and last consumer are internal fields
-        // Remove for public build
-        // Send data to streamer if we have more than single present event
-        streamer_.ProcessPresentEvent(
-            presentEvent.get(), &power_telemetry, &cpu_telemetry,
-            chain->mLastPresentQPC, chain->mLastDisplayedPresentQPC,
-            processInfo->mModuleName, gpu_telemetry_cap_bits,
-            cpu_telemetry_cap_bits);
-
         // timeout set for 1000 ms
         pBroadcaster->Broadcast(*presentEvent, 1000);
 
-        chain->mLastPresentQPC = presentEvent->PresentStartTime;
-        if (presentEvent->FinalState == PresentResult::Presented) {
-            chain->mLastDisplayedPresentQPC = presentEvent->Displayed.empty() ? 0 : presentEvent->Displayed[0].second;
-        }
-        else if (chain->mLastDisplayedPresentQPC == chain->mLastPresentQPC) {
-            chain->mLastDisplayedPresentQPC = 0;
-        }
     }
 
     *presentEventIndex = i;
@@ -480,40 +446,16 @@ void MockPresentMonSession::StopOutputThread() {
     }
 }
 
-ProcessInfo* MockPresentMonSession::GetProcessInfo(uint32_t processId) {
-    auto result = processes_.emplace(processId, ProcessInfo());
-    auto processInfo = &result.first->second;
-    auto newProcess = result.second;
-
-    if (newProcess) {
-        InitProcessInfo(processInfo, processId, INVALID_HANDLE_VALUE, L"MockProcess.exe");
-    }
-    return processInfo;
-}
-
-void MockPresentMonSession::InitProcessInfo(ProcessInfo* processInfo, uint32_t processId,
-    HANDLE handle, std::wstring const& processName) {
-
-    processInfo->mHandle = handle;
-    processInfo->mModuleName = processName;
-    processInfo->mTargetProcess = true;
-
-    target_process_count_ += 1;
-}
-
 void MockPresentMonSession::UpdateProcesses(
     std::vector<ProcessEvent> const& processEvents,
     std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses) {
+    (void)terminatedProcesses;
     for (auto const& processEvent : processEvents) {
+        if (!IsProcessTracked(processEvent.ProcessId)) {
+            continue;
+        }
         if (processEvent.IsStartEvent) {
-            // This event is a new process starting, the pid should not already be
-            // in processes_.
-            auto result = processes_.emplace(processEvent.ProcessId, ProcessInfo());
-            auto processInfo = &result.first->second;
-            auto newProcess = result.second;
-            if (newProcess) {
-                InitProcessInfo(processInfo, processEvent.ProcessId, NULL,
-                    processEvent.ImageFileName);
+            if (started_processes_.insert(processEvent.ProcessId).second) {
                 pBroadcaster->HandleTargetProcessEvent(processEvent);
             }
         }
@@ -521,4 +463,8 @@ void MockPresentMonSession::UpdateProcesses(
 }
 
 void MockPresentMonSession::HandleTerminatedProcess(uint32_t processId) {
+    MarkProcessExited(processId);
+    if (!HasLiveTrackedProcesses() && evtStreamingStarted_) {
+        evtStreamingStarted_.Reset();
+    }
 }

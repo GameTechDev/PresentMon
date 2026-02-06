@@ -1,13 +1,13 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Logging.h"
 #include "RealtimePresentMonSession.h"
 #include "CliOptions.h"
 #include "../CommonUtilities/str/String.h"
 #include "../CommonUtilities/win/Event.h"
+#include "../CommonUtilities/win/Utilities.h"
 #include "../CommonUtilities/Qpc.h"
 #include "../CommonUtilities/Exception.h"
-#include <shlwapi.h>
 
 using namespace pmon;
 using namespace std::literals;
@@ -23,57 +23,44 @@ bool RealtimePresentMonSession::IsTraceSessionActive() {
     return session_active_.load(std::memory_order_acquire);
 }
 
-PM_STATUS RealtimePresentMonSession::StartStreaming(uint32_t client_process_id,
-    uint32_t target_process_id,
-    std::string& nsmFileName) {
-
-    // Check to see if the target process is valid
-    HANDLE target_process_handle = OpenProcess(
-        PROCESS_QUERY_LIMITED_INFORMATION, FALSE, target_process_id);
-    if (target_process_handle == nullptr) {
-        return PM_STATUS::PM_STATUS_INVALID_PID;
+PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uint32_t>& trackedPids) {
+    const bool wasActive = HasLiveTargets();
+    std::unordered_map<uint32_t, bool> previousState;
+    {
+        std::lock_guard lock(tracked_processes_mutex_);
+        previousState = tracked_pid_live_;
     }
-    CloseHandle(target_process_handle);
-
-    PM_STATUS status = streamer_.StartStreaming(client_process_id,
-        target_process_id, nsmFileName, false, false, false, false, false);
-    if (status != PM_STATUS::PM_STATUS_SUCCESS) {
-        return status;
-    }
-    else {
-        // Add the client process id to be monitored
-        GetProcessInfo(client_process_id);
+    SyncTrackedPidState(trackedPids);
+    const bool isActive = HasLiveTargets();
+    if (isActive && (!wasActive || !IsTraceSessionActive())) {
         auto status = StartTraceSession();
-        if (status == PM_STATUS_FAILURE) {
-            // Unable to start a trace session. Destroy the NSM and
-            // return status
-            streamer_.StopStreaming(target_process_id);
+        if (status != PM_STATUS_SUCCESS) {
+            {
+                std::lock_guard lock(tracked_processes_mutex_);
+                tracked_pid_live_ = std::move(previousState);
+            }
             return status;
         }
-        // Only signal the streaming started event when we have
-        // exactly one stream after returning from StartStreaming.
-        if ((streamer_.NumActiveStreams() == 1) && evtStreamingStarted_) {
-            evtStreamingStarted_.Set();
-        }
-        // Also monitor the target process id
-        GetProcessInfo(target_process_id);
-
-        return PM_STATUS::PM_STATUS_SUCCESS;
     }
-}
-
-void RealtimePresentMonSession::StopStreaming(uint32_t client_process_id,
-    uint32_t target_process_id) {
-    streamer_.StopStreaming(client_process_id, target_process_id);
-    if ((streamer_.NumActiveStreams() == 0) && evtStreamingStarted_) {
-        evtStreamingStarted_.Reset();
+    if (isActive && evtStreamingStarted_) {
+        evtStreamingStarted_.Set();
+    }
+    if (!isActive) {
+        if (evtStreamingStarted_) {
+            evtStreamingStarted_.Reset();
+        }
         StopTraceSession();
     }
+    return PM_STATUS::PM_STATUS_SUCCESS;
 }
 
 bool RealtimePresentMonSession::CheckTraceSessions(bool forceTerminate) {
-    if (((GetActiveStreams() == 0) && (IsTraceSessionActive() == true)) ||
-        forceTerminate) {
+    if (forceTerminate) {
+        StopTraceSession();
+        ClearTrackedProcesses();
+        return true;
+    }
+    if (!HasLiveTargets() && (IsTraceSessionActive() == true)) {
         StopTraceSession();
         return true;
     }
@@ -195,8 +182,6 @@ void RealtimePresentMonSession::StopTraceSession() {
         // PHASE 2: Safe cleanup after threads have finished
         std::lock_guard<std::mutex> lock(session_mutex_);
 
-        // Stop all streams
-        streamer_.StopAllStreams();
         if (evtStreamingStarted_) {
             evtStreamingStarted_.Reset();
         }
@@ -235,7 +220,6 @@ void RealtimePresentMonSession::AddPresents(
 
     if (session_active_.load(std::memory_order_acquire)) {
         if (trace_session_.mStartTimestamp.QuadPart != 0) {
-            streamer_.SetStartQpc(trace_session_.mStartTimestamp.QuadPart);
             if (pBroadcaster) {
                 pBroadcaster->SetStartQpc(trace_session_.mStartTimestamp.QuadPart);
             }
@@ -273,47 +257,8 @@ void RealtimePresentMonSession::AddPresents(
             break;
         }
 
-        // Look up the swapchain this present belongs to.
-        auto processInfo = GetProcessInfo(presentEvent->ProcessId);
-        if (!processInfo->mTargetProcess) {
+        if (!IsProcessTracked(presentEvent->ProcessId)) {
             continue;
-        }
-
-        PresentMonPowerTelemetryInfo power_telemetry = {};
-        std::bitset<static_cast<size_t>(GpuTelemetryCapBits::gpu_telemetry_count)>
-            gpu_telemetry_cap_bits = {};
-        if (telemetry_container_) {
-            auto current_adapters = telemetry_container_->GetPowerTelemetryAdapters();
-            if (current_adapters.size() != 0 &&
-                current_telemetry_adapter_id_ < current_adapters.size()) {
-                auto current_telemetry_adapter =
-                    current_adapters.at(current_telemetry_adapter_id_).get();
-                if (auto data = current_telemetry_adapter->GetClosest(
-                    presentEvent->PresentStartTime)) {
-                    power_telemetry = *data;
-                }
-                gpu_telemetry_cap_bits = current_telemetry_adapter
-                    ->GetPowerTelemetryCapBits();
-            }
-        }
-
-        CpuTelemetryInfo cpu_telemetry = {};
-        std::bitset<static_cast<size_t>(CpuTelemetryCapBits::cpu_telemetry_count)>
-            cpu_telemetry_cap_bits = {};
-        if (cpu_) {
-            if (auto data = cpu_->GetClosest(presentEvent->PresentStartTime)) {
-                cpu_telemetry = *data;
-            }
-            cpu_telemetry_cap_bits = cpu_->GetCpuTelemetryCapBits();
-        }
-
-        auto result = processInfo->mSwapChain.emplace(
-            presentEvent->SwapChainAddress, SwapChainData());
-        auto chain = &result.first->second;
-        if (result.second) {
-            chain->mPresentHistoryCount = 0;
-            chain->mLastPresentQPC = 0;
-            chain->mLastDisplayedPresentQPC = 0;
         }
 
         // Remove Repeated flips if they are in Application->Repeated or Repeated->Application sequences.
@@ -333,23 +278,8 @@ void RealtimePresentMonSession::AddPresents(
             }
         }
 
-        streamer_.ProcessPresentEvent(
-            presentEvent.get(), &power_telemetry, &cpu_telemetry,
-            chain->mLastPresentQPC, chain->mLastDisplayedPresentQPC,
-            processInfo->mModuleName, gpu_telemetry_cap_bits,
-            cpu_telemetry_cap_bits);
-
         pBroadcaster->Broadcast(*presentEvent);
 
-        chain->mLastPresentQPC = presentEvent->PresentStartTime;
-        if (presentEvent->FinalState == PresentResult::Presented) {
-            chain->mLastDisplayedPresentQPC = presentEvent->Displayed.empty() ? 0 : presentEvent->Displayed[0].second;
-        }
-        else if (chain->mLastDisplayedPresentQPC == chain->mLastPresentQPC) {
-            chain->mLastDisplayedPresentQPC = 0;
-        }
-
-        chain->mPresentHistoryCount += 1;
     }
 
     *presentEventIndex = i;
@@ -512,15 +442,6 @@ void RealtimePresentMonSession::Output() {
             }
         }
 
-        // Process handles
-        std::lock_guard<std::mutex> lock(process_mutex_);
-        for (auto& pair : processes_) {
-            auto processInfo = &pair.second;
-            if (processInfo->mHandle != NULL) {
-                CloseHandle(processInfo->mHandle);
-            }
-        }
-        processes_.clear();
     }
     catch (...) {
         pmlog_error(util::ReportException());
@@ -539,62 +460,18 @@ void RealtimePresentMonSession::StopOutputThread() {
     }
 }
 
-ProcessInfo* RealtimePresentMonSession::GetProcessInfo(uint32_t processId) {
-    std::lock_guard<std::mutex> lock(process_mutex_);
-    auto result = processes_.emplace(processId, ProcessInfo());
-    auto processInfo = &result.first->second;
-    auto newProcess = result.second;
-
-    if (newProcess) {
-        // Try to open a limited handle into the process in order to query its
-        // name and also periodically check if it has terminated.  This will
-        // fail (with GetLastError() == ERROR_ACCESS_DENIED) if the process was
-        // run on another account, unless we're running with SeDebugPrivilege.
-        auto pProcessName = L"<error>";
-        wchar_t path[MAX_PATH];
-        const auto handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
-        if (handle) {
-            auto numChars = (DWORD)std::size(path);
-            if (QueryFullProcessImageNameW(handle, 0, path, &numChars)) {
-                pProcessName = PathFindFileNameW(path);
-            }
-        }
-
-        InitProcessInfo(processInfo, processId, handle, pProcessName);
-    }
-
-    return processInfo;
-}
-
-void RealtimePresentMonSession::InitProcessInfo(ProcessInfo* processInfo, uint32_t processId,
-    HANDLE handle,
-    std::wstring const& processName) {
-    processInfo->mHandle = handle;
-    processInfo->mModuleName = processName;
-    processInfo->mTargetProcess = true;
-
-    target_process_count_ += 1;
-}
 
 void RealtimePresentMonSession::UpdateProcesses(
     std::vector<ProcessEvent> const& processEvents,
     std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses) {
     for (auto const& processEvent : processEvents) {
-        if (processEvent.IsStartEvent) {
-            // This event is a new process starting, the pid should not already be
-            // in processes_.
-            std::lock_guard<std::mutex> lock(process_mutex_);
-            auto result = processes_.emplace(processEvent.ProcessId, ProcessInfo());
-            auto processInfo = &result.first->second;
-            auto newProcess = result.second;
-            if (newProcess) {
-                InitProcessInfo(processInfo, processEvent.ProcessId, NULL,
-                    processEvent.ImageFileName);
-            }
+        if (!IsProcessTracked(processEvent.ProcessId)) {
+            continue;
         }
-        else {
+        if (!processEvent.IsStartEvent) {
             // Note any process termination in terminatedProcess, to be handled
             // once the present event stream catches up to the termination time.
+            MarkProcessExited(processEvent.ProcessId);
             terminatedProcesses->emplace_back(processEvent.ProcessId,
                 processEvent.QpcTime);
         }
@@ -602,53 +479,21 @@ void RealtimePresentMonSession::UpdateProcesses(
 }
 
 void RealtimePresentMonSession::HandleTerminatedProcess(uint32_t processId) {
-    std::lock_guard<std::mutex> lock(process_mutex_);
-    auto iter = processes_.find(processId);
-    if (iter == processes_.end()) {
-        return;  // shouldn't happen.
+    // TODO(megalvan): Need to figure this out
+    // Close this process' CSV.
+    // CloseOutputCsv(processInfo);
+    MarkProcessExited(processId);
+    if (!HasLiveTrackedProcesses() && evtStreamingStarted_) {
+        evtStreamingStarted_.Reset();
     }
-
-    auto processInfo = &iter->second;
-    if (processInfo->mTargetProcess) {
-        // TODO(megalvan): Need to figure this out
-        // Close this process' CSV.
-        // CloseOutputCsv(processInfo);
-
-        target_process_count_ -= 1;
-    }
-    processes_.erase(std::move(iter));
-    streamer_.StopStreaming(processId);
 }
 
 // Check if any realtime processes terminated and add them to the terminated
 // list.
 //
-// We assume that the process terminated now, which is wrong but conservative
-// and functionally ok because no other process should start with the same PID
-// as long as we're still holding a handle to it.
+// Note: handle-based polling of target process lifetime is intentionally
+// handled outside of the session layer.
 void RealtimePresentMonSession::CheckForTerminatedRealtimeProcesses(
     std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses) {
-    std::lock_guard<std::mutex> lock(process_mutex_);
-    for (auto& pair : processes_) {
-        auto processId = pair.first;
-        auto processInfo = &pair.second;
-
-        DWORD exitCode = 0;
-        if (processInfo->mHandle != NULL &&
-            GetExitCodeProcess(processInfo->mHandle, &exitCode) &&
-            exitCode != STILL_ACTIVE) {
-            uint64_t qpc = 0;
-            QueryPerformanceCounter(reinterpret_cast<LARGE_INTEGER*>(&qpc));
-            terminatedProcesses->emplace_back(processId, qpc);
-            CloseHandle(processInfo->mHandle);
-            processInfo->mHandle = NULL;
-            // The tracked process has terminated. As multiple clients could be
-            // tracking this process call stop streaming until the streamer
-            // returns false and no longer holds an NSM for the process.
-            streamer_.StopStreaming(processId);
-            if ((streamer_.NumActiveStreams() == 0) && evtStreamingStarted_) {
-                evtStreamingStarted_.Reset();
-            }
-        }
-    }
+    (void)terminatedProcesses;
 }
