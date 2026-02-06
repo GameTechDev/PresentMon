@@ -3518,7 +3518,6 @@ void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
         ULONGLONG elapsed = ::GetTickCount64() - startMs;
         if (elapsed >= timeoutMs) {
             pmlog_warn("Timed out waiting for event processing to quiesce; skipping present tracking reset");
-            OutputDebugStringA("PMTraceConsumer::ResetPresentTrackingData: Timed out waiting for event processing to quiesce; skipping present tracking reset\n");
             return;
         }
         DWORD remaining = timeoutMs - (DWORD)elapsed;
@@ -3536,7 +3535,8 @@ void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
         }
     }
 
-    OutputDebugStringA("PMTraceConsumer::ResetPresentTrackingData: Event processing quiesced; proceeding with present tracking reset\n");
+    pmlog_info("Present tracking reset: Event processing quiesced; proceeding with present tracking reset shrink ="
+        + std::to_string(shrink));
     // Now it is safe to clear the state
     {
         std::lock_guard<std::mutex> lock(mPresentEventMutex);
@@ -3620,8 +3620,6 @@ void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
     new (&mGpuTrace) GpuTrace(this);
     mNvTraceConsumer.~NVTraceConsumer();
     new (&mNvTraceConsumer) NVTraceConsumer();
-
-    OutputDebugStringA(std::format("PMTraceConsumer::ResetPresentTrackingData: Present tracking reset complete (shrink={})\n", shrink).c_str());
 }
 
 PMTraceConsumer::EventProcessingScope::EventProcessingScope(PMTraceConsumer& consumer)
