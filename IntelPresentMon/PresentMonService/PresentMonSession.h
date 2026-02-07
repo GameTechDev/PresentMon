@@ -46,8 +46,6 @@ public:
     std::string GetCpuName();
     double GetCpuPowerLimit();
     pmon::test::service::Status GetTestingStatus() const;
-
-    PM_STATUS SelectAdapter(uint32_t adapter_id);
     PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> period_ms);
     PM_STATUS SetEtwFlushPeriod(std::optional<uint32_t> periodMs);
     std::optional<uint32_t> GetEtwFlushPeriod();
@@ -69,8 +67,6 @@ protected:
 
     pwr::cpu::CpuTelemetry* cpu_ = nullptr;
     PowerTelemetryContainer* telemetry_container_ = nullptr;
-
-    uint32_t current_telemetry_adapter_id_ = 0;
 
     // Set the initial telemetry period to 16ms
     static constexpr uint32_t default_gpu_telemetry_period_ms_ = 16;

@@ -85,7 +85,6 @@ namespace pmon::svc::acts
         std::map<uint32_t, TrackedTarget> trackedPids;
         // etl recording functionality support
         std::set<uint32_t> etwLogSessionIds;
-        std::optional<uint32_t> requestedAdapterId;
         std::optional<uint32_t> requestedTelemetryPeriodMs;
         std::optional<uint32_t> requestedEtwFlushPeriodMs;
         std::string clientBuildId;

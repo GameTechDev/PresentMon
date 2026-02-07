@@ -14,7 +14,7 @@ namespace pwr::intel
 	class IntelPowerTelemetryAdapter : public PowerTelemetryAdapter
 	{
 	public:
-		IntelPowerTelemetryAdapter(ctl_device_adapter_handle_t handle);
+		IntelPowerTelemetryAdapter(uint32_t deviceId, ctl_device_adapter_handle_t handle);
 		PresentMonPowerTelemetryInfo Sample() noexcept override;
 		PM_DEVICE_VENDOR GetVendor() const noexcept override;
 		std::string GetName() const noexcept override;

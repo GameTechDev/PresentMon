@@ -35,16 +35,15 @@ namespace p2c::pmon
 		std::optional<uint32_t> GetEtwFlushPeriod();
 		// std::wstring GetCpuName() const;
 		std::vector<AdapterInfo> EnumerateAdapters() const;
-		void SetAdapter(uint32_t id);
 		void SetEtlLogging(bool active);
 		std::optional<uint32_t> GetPid() const;
 		const pmapi::ProcessTracker& GetTracker() const;
 		std::shared_ptr<RawFrameDataWriter> MakeRawFrameDataWriter(std::wstring path, std::optional<std::wstring> statsPath,
 			uint32_t pid);
-		std::optional<uint32_t> GetSelectedAdapter() const;
 		const pmapi::intro::Root& GetIntrospectionRoot() const;
 		pmapi::Session& GetSession();
 	private:
+		uint32_t GetDefaultGpuDeviceId_() const;
 		double window = -1.;
 		uint32_t telemetrySamplePeriod = 0;
 		std::optional<uint32_t> etwFlushPeriodMs;
@@ -52,6 +51,5 @@ namespace p2c::pmon
 		std::unique_ptr<pmapi::Session> pSession;
 		std::shared_ptr<pmapi::intro::Root> pIntrospectionRoot;
 		pmapi::ProcessTracker processTracker;
-		std::optional<uint32_t> selectedAdapter;
 	};
 }

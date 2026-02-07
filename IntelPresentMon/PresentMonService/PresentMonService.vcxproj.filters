@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="ActionServer.cpp" />
@@ -36,7 +36,6 @@
     <ClInclude Include="acts\GetStaticCpuMetrics.h" />
     <ClInclude Include="acts\EnumerateAdapters.h" />
     <ClInclude Include="acts\SetTelemetryPeriod.h" />
-    <ClInclude Include="acts\SelectAdapter.h" />
     <ClInclude Include="acts\StopTracking.h" />
     <ClInclude Include="AllActions.h" />
     <ClInclude Include="ActionExecutionContext.h" />

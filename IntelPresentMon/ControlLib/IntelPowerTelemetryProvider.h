@@ -10,13 +10,14 @@
 #include "igcl_api.h"
 #include "PresentMonPowerTelemetry.h"
 #include "PowerTelemetryProvider.h"
+#include "DeviceIdAllocator.h"
 
 namespace pwr::intel
 {
     class IntelPowerTelemetryProvider : public PowerTelemetryProvider
     {
     public:
-        IntelPowerTelemetryProvider();
+        explicit IntelPowerTelemetryProvider(DeviceIdAllocator& allocator);
         IntelPowerTelemetryProvider(const IntelPowerTelemetryProvider& t) = delete;
         IntelPowerTelemetryProvider& operator=(const IntelPowerTelemetryProvider& t) = delete;
         ~IntelPowerTelemetryProvider() override;

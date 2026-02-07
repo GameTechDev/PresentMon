@@ -5,7 +5,6 @@
 #include "acts/GetStaticCpuMetrics.h" 
 #include "acts/OpenSession.h" 
 #include "acts/ReportMetricUse.h" 
-#include "acts/SelectAdapter.h" 
 #include "acts/SetEtwFlushPeriod.h" 
 #include "acts/SetTelemetryPeriod.h" 
 #include "acts/StartEtlLogging.h" 

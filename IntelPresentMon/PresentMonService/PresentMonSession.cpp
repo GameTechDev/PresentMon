@@ -21,7 +21,6 @@ pmon::test::service::Status PresentMonSession::GetTestingStatus() const
     return pmon::test::service::Status{
         .trackedPids = std::move(trackedPids),
         .frameStorePids = std::move(frameStorePids),
-        .activeAdapterId = current_telemetry_adapter_id_,
         .telemetryPeriodMs = gpu_telemetry_period_ms_,
         .etwFlushPeriodMs = etw_flush_period_ms_,
     };
@@ -56,16 +55,6 @@ double PresentMonSession::GetCpuPowerLimit() {
     else {
         return 0.;
     }
-}
-
-PM_STATUS PresentMonSession::SelectAdapter(uint32_t adapter_id) {
-    if (telemetry_container_) {
-        if (adapter_id > telemetry_container_->GetPowerTelemetryAdapters().size()) {
-            return PM_STATUS_INVALID_ADAPTER_ID;
-        }
-        current_telemetry_adapter_id_ = adapter_id;
-    }
-    return PM_STATUS::PM_STATUS_SUCCESS;
 }
 
 PM_STATUS PresentMonSession::SetGpuTelemetryPeriod(std::optional<uint32_t> period_ms)

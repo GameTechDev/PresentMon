@@ -12,6 +12,7 @@ namespace pwr::nv
 	{
 	public:
 		NvidiaPowerTelemetryAdapter(
+            uint32_t deviceId,
 			const NvapiWrapper* pNvapi,
 			const NvmlWrapper* pNvml,
 			NvPhysicalGpuHandle hGpuNvapi,

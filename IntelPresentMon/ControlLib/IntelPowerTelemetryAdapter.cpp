@@ -71,8 +71,9 @@ namespace pwr::intel
 
     // public interface functions
 
-    IntelPowerTelemetryAdapter::IntelPowerTelemetryAdapter(ctl_device_adapter_handle_t handle)
+    IntelPowerTelemetryAdapter::IntelPowerTelemetryAdapter(uint32_t deviceId, ctl_device_adapter_handle_t handle)
         :
+        PowerTelemetryAdapter(deviceId),
         deviceHandle{ handle }
     {
         properties = {

@@ -11,13 +11,14 @@
 #include "PowerTelemetryProvider.h"
 #include "NvapiWrapper.h"
 #include "NvmlWrapper.h"
+#include "DeviceIdAllocator.h"
 
 namespace pwr::nv
 {
     class NvidiaPowerTelemetryProvider : public PowerTelemetryProvider
     {
     public:
-        NvidiaPowerTelemetryProvider();
+        explicit NvidiaPowerTelemetryProvider(DeviceIdAllocator& allocator);
         const std::vector<std::shared_ptr<PowerTelemetryAdapter>>& GetAdapters() noexcept override;
         uint32_t GetAdapterCount() const noexcept override;
 

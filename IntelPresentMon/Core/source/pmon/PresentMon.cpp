@@ -85,17 +85,6 @@ namespace p2c::pmon
 		}
 		return infos;
 	}
-	void PresentMon::SetAdapter(uint32_t id)
-	{
-		pmlog_info(std::format("Set active adapter to [{}]", id));
-		if (id == 0) {
-			pmlog_warn("Adapter was set to id 0; resetting");
-			selectedAdapter.reset();
-		}
-		else {
-			selectedAdapter = id;
-		}
-	}
 	void PresentMon::SetEtlLogging(bool active)
 	{
 		pmlog_info("Setting etl logging").pmwatch(active);
@@ -136,12 +125,8 @@ namespace p2c::pmon
 
 		constexpr bool omitUnavailableColumns = false;
 		// make the frame data writer
-		return std::make_shared<RawFrameDataWriter>(std::move(path), processTracker, selectedAdapter.value_or(1),
+		return std::make_shared<RawFrameDataWriter>(std::move(path), processTracker, GetDefaultGpuDeviceId_(),
 			*pSession, std::move(statsPath), *pIntrospectionRoot, omitUnavailableColumns);
-	}
-	std::optional<uint32_t> PresentMon::GetSelectedAdapter() const
-	{
-		return selectedAdapter;
 	}
 	const pmapi::intro::Root& PresentMon::GetIntrospectionRoot() const
 	{
@@ -160,5 +145,15 @@ namespace p2c::pmon
 	std::optional<uint32_t> PresentMon::GetEtwFlushPeriod()
 	{
 		return etwFlushPeriodMs;
+	}
+
+	uint32_t PresentMon::GetDefaultGpuDeviceId_() const
+	{
+		for (const auto& device : pIntrospectionRoot->GetDevices()) {
+			if (device.GetType() == PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
+				return device.GetId();
+			}
+		}
+		return 0;
 	}
 }

@@ -355,15 +355,16 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
             }
             pmon::util::QpcTimer timer;
             ptc->Repopulate();
-            for (auto&& [i, adapter] : ptc->GetPowerTelemetryAdapters() | vi::enumerate) {
+            for (auto&& adapter : ptc->GetPowerTelemetryAdapters()) {
+                const auto deviceId = adapter->GetDeviceId();
                 // refresh 2x here as workaround/kludge because Intel provider misreports 1st sample
                 adapter->Sample();
                 const auto sample = adapter->Sample();
-                pComms->RegisterGpuDevice(adapter->GetVendor(), adapter->GetName(),
+                pComms->RegisterGpuDevice(deviceId, adapter->GetVendor(), adapter->GetName(),
                     ipc::intro::ConvertBitset(adapter->GetPowerTelemetryCapBits()));
                 // after registering, we know that at least the store is available even
                 // if the introspection itself is not complete
-                auto& gpuStore = pComms->GetGpuDataStore(uint32_t(i + 1));
+                auto& gpuStore = pComms->GetGpuDataStore(deviceId);
                 // TODO: replace this placeholder routine for populating statics
                 gpuStore.statics.name = adapter->GetName().c_str();
                 gpuStore.statics.vendor = adapter->GetVendor();
@@ -395,8 +396,8 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                 else {
                     // if any of our gpu telemetry devices are active enter polling loop
                     bool hasActive = false;
-                    for (auto&& [i, ad] : ptc->GetPowerTelemetryAdapters() | vi::enumerate) {
-                        const auto deviceId = uint32_t(i) + 1;
+                    for (auto&& adapter : ptc->GetPowerTelemetryAdapters()) {
+                        const auto deviceId = adapter->GetDeviceId();
                         if (pm->CheckDeviceMetricUsage(deviceId)) {
                             pmlog_dbg("detected gpu active").pmwatch(deviceId);
                             hasActive = true;
@@ -417,16 +418,18 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                         // TODO: log error here or inside of repopulate
                         ptc->Repopulate();
                     }
-                    // poll all gpu adapter devices
-                    // TODO: only poll devices that are actually active
+                    // poll all gpu adapter devices, skipping inactive devices
                     auto& adapters = ptc->GetPowerTelemetryAdapters();
-                    for (size_t idx = 0; idx < adapters.size(); ++idx) {
-                        auto& adapter = adapters[idx];
+                    for (auto&& adapter : adapters) {
+                        const auto deviceId = adapter->GetDeviceId();
+                        if (!pm->CheckDeviceMetricUsage(deviceId)) {
+                            continue;
+                        }
                         // Get the newest sample from the provider
                         const auto sample = adapter->Sample();
 
                         // Retrieve the matching GPU store.
-                        auto& store = pComms->GetGpuDataStore(uint32_t(idx + 1));
+                        auto& store = pComms->GetGpuDataStore(deviceId);
 
                         PopulateGpuTelemetryRings_(store, sample);
                     }
@@ -436,13 +439,8 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                     waiter.Wait();
                     // conditions for ending active poll and returning to idle state
                     // go dormant if no gpu devices are in use
-                    bool anyUsed = false;
-                    for (size_t idx = 0; idx < adapters.size(); ++idx) {
-                        if (pm->CheckDeviceMetricUsage(uint32_t(idx + 1))) {
-                            anyUsed = true;
-                            break;
-                        }
-                    }
+                    const bool anyUsed = std::ranges::any_of(adapters,
+                        [&](const auto& adapter) { return pm->CheckDeviceMetricUsage(adapter->GetDeviceId()); });
                     if (!anyUsed) {
                         break;
                     }

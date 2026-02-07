@@ -36,7 +36,6 @@ public:
 	std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> EnumerateAdapters();
 	std::string GetCpuName() { return pSession_->GetCpuName(); }
 	double GetCpuPowerLimit() { return pSession_->GetCpuPowerLimit(); }
-	PM_STATUS SelectAdapter(uint32_t adapter_id);
 	PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> telemetryPeriodRequestsMs)
 	{
 		return pSession_->SetGpuTelemetryPeriod(telemetryPeriodRequestsMs);

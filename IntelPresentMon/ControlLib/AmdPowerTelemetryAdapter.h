@@ -18,7 +18,7 @@ int operator>>(AmdResultGrabber, AmdCheckerToken) noexcept;
 
 class AmdPowerTelemetryAdapter : public PowerTelemetryAdapter {
  public:
-  AmdPowerTelemetryAdapter(const Adl2Wrapper* adl_wrapper, std::string adl_adapter_name, 
+  AmdPowerTelemetryAdapter(uint32_t deviceId, const Adl2Wrapper* adl_wrapper, std::string adl_adapter_name, 
                            int adl_adapter_index, int overdrive_version);
   PresentMonPowerTelemetryInfo Sample() noexcept override;
   PM_DEVICE_VENDOR GetVendor() const noexcept override;

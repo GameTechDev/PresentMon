@@ -44,12 +44,6 @@ std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> PresentMon::EnumerateAd
 	return pSession_->EnumerateAdapters();
 }
 
-PM_STATUS PresentMon::SelectAdapter(uint32_t adapter_id)
-{
-	// Only the real time trace uses the control libary interface
-	return pSession_->SelectAdapter(adapter_id);
-}
-
 void PresentMon::StartPlayback()
 {
 	if (auto pPlaybackSession = dynamic_cast<MockPresentMonSession*>(pSession_.get())) {

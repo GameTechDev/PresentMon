@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <bitset>
+#include <cstdint>
 #include "PresentMonPowerTelemetry.h"
 #include "../PresentMonAPI2/PresentMonAPI.h"
 
@@ -22,12 +23,17 @@ namespace pwr
         virtual std::string GetName() const noexcept = 0;
         virtual uint64_t GetDedicatedVideoMemory() const noexcept = 0;
         virtual uint64_t GetVideoMemoryMaxBandwidth() const noexcept = 0;
-        virtual double GetSustainedPowerLimit() const noexcept = 0;        
+        virtual double GetSustainedPowerLimit() const noexcept = 0;
+        uint32_t GetDeviceId() const noexcept;
         void SetTelemetryCapBit(GpuTelemetryCapBits telemetryCapBit) noexcept;
         SetTelemetryCapBitset GetPowerTelemetryCapBits();
         bool HasTelemetryCapBit(GpuTelemetryCapBits bit) const;
-       private:
+    protected:
+        explicit PowerTelemetryAdapter(uint32_t deviceId) noexcept;
+
+    private:
         // data
         SetTelemetryCapBitset gpuTelemetryCapBits_{};
+        const uint32_t deviceId_ = 0;
     };
 }

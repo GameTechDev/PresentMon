@@ -25,9 +25,10 @@ int operator>>(AmdResultGrabber g, AmdCheckerToken) noexcept {
 }
 
 AmdPowerTelemetryAdapter::AmdPowerTelemetryAdapter(
-    const Adl2Wrapper* adl2_wrapper, std::string adl_adapter_name,
+    uint32_t deviceId, const Adl2Wrapper* adl2_wrapper, std::string adl_adapter_name,
     int adl_adapter_index, int overdrive_version)
-    : adl2_(adl2_wrapper),
+    : PowerTelemetryAdapter(deviceId),
+      adl2_(adl2_wrapper),
       name_(std::move(adl_adapter_name)),
       adl_adapter_index_(adl_adapter_index),
       overdrive_version_(overdrive_version) {}

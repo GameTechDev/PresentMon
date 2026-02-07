@@ -16,14 +16,13 @@ namespace pmon::test
 			// new ipc tracking
 			std::set<uint32_t> trackedPids;
 			std::set<uint32_t> frameStorePids;
-			uint32_t activeAdapterId;
 			uint32_t telemetryPeriodMs;
 			std::optional<uint32_t> etwFlushPeriodMs;
 
 			template <class Archive>
 			void serialize(Archive& ar)
 			{
-				ar(trackedPids, frameStorePids, activeAdapterId, telemetryPeriodMs, etwFlushPeriodMs);
+				ar(trackedPids, frameStorePids, telemetryPeriodMs, etwFlushPeriodMs);
 			}
 		};
 	}

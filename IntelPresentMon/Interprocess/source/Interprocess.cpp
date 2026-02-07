@@ -60,12 +60,11 @@ namespace pmon::ipc
             {
                 return *pRoot_;
             }
-            void RegisterGpuDevice(PM_DEVICE_VENDOR vendor,
+            void RegisterGpuDevice(uint32_t deviceId, PM_DEVICE_VENDOR vendor,
                 std::string deviceName,
                 const MetricCapabilities& caps) override
             {
                 auto lck = LockIntrospectionMutexExclusive_();
-                const auto deviceId = nextDeviceIndex_++;
                 pmlog_dbg("GPU metric capabilities")
                     .pmwatch(deviceId)
                     .pmwatch(deviceName)
@@ -292,7 +291,6 @@ namespace pmon::ipc
             ShmUniquePtr<bip::interprocess_sharable_mutex> pIntroMutex_;
             ShmUniquePtr<bip::interprocess_semaphore> pIntroSemaphore_;
             ShmUniquePtr<intro::IntrospectionRoot> pRoot_;
-            uint32_t nextDeviceIndex_ = 1;
             bool introGpuComplete_ = false;
             bool introCpuComplete_ = false;
 

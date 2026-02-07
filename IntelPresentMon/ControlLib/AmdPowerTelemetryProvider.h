@@ -9,11 +9,12 @@
 #include "PresentMonPowerTelemetry.h"
 #include "PowerTelemetryProvider.h"
 #include "Adl2Wrapper.h"
+#include "DeviceIdAllocator.h"
 
 namespace pwr::amd {
 class AmdPowerTelemetryProvider : public PowerTelemetryProvider {
  public:
-  AmdPowerTelemetryProvider();
+  explicit AmdPowerTelemetryProvider(DeviceIdAllocator& allocator);
   AmdPowerTelemetryProvider(const AmdPowerTelemetryProvider& t) = delete;
   AmdPowerTelemetryProvider& operator=(const AmdPowerTelemetryProvider& t) = delete;
   ~AmdPowerTelemetryProvider() override;
