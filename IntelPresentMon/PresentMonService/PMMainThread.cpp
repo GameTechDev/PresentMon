@@ -331,7 +331,7 @@ static void PopulateGpuTelemetryRings_(
 
 
 void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
-	PowerTelemetryContainer* const ptc, ipc::ServiceComms* const pComms, bool newActivation)
+	PowerTelemetryContainer* const ptc, ipc::ServiceComms* const pComms)
 {
     using util::win::WaitAnyEvent;
     using util::win::WaitAnyEventFor;
@@ -387,41 +387,25 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
         {
             IntervalWaiter waiter{ 0.016 };
             while (true) {
-                if (newActivation) {
-                    pmlog_dbg("(re)starting gpu idle wait (new)");
-                    if (WaitAnyEvent(pm->GetDeviceUsageEvent(), srv->GetServiceStopHandle()) == 1) {
-                        pmlog_dbg("gpu telemetry received exit code, thread exiting");
-                        return;
-                    }
-                    else {
-                        // if any of our gpu telemetry devices are active enter polling loop
-                        bool hasActive = false;
-                        for (auto&& [i, ad] : ptc->GetPowerTelemetryAdapters() | vi::enumerate) {
-                            const auto deviceId = uint32_t(i) + 1;
-                            if (pm->CheckDeviceMetricUsage(deviceId)) {
-                                pmlog_dbg("detected gpu active").pmwatch(deviceId);
-                                hasActive = true;
-                                break;
-                            }
-                        }
-                        if (!hasActive) {
-                            pmlog_dbg("received device usage event, but no gpu tele device was active");
-                            continue;
-                        }
-                    }
+                pmlog_dbg("(re)starting gpu idle wait");
+                if (WaitAnyEvent(pm->GetDeviceUsageEvent(), srv->GetServiceStopHandle()) == 1) {
+                    pmlog_dbg("gpu telemetry received exit code, thread exiting");
+                    return;
                 }
                 else {
-                    // TODO: remove legacy branch here
-                    pmlog_dbg("(re)starting gpu idle wait (legacy)");
-                    const HANDLE events[]{
-                      pm->GetStreamingStartHandle(),
-                      srv->GetServiceStopHandle(),
-                    };
-                    auto waitResult = WaitForMultipleObjects((DWORD)std::size(events), events, FALSE, INFINITE);
-                    // TODO: check for wait result error
-                    // if events[1] was signalled, that means service is stopping so exit thread
-                    if ((waitResult - WAIT_OBJECT_0) == 1) {
-                        return;
+                    // if any of our gpu telemetry devices are active enter polling loop
+                    bool hasActive = false;
+                    for (auto&& [i, ad] : ptc->GetPowerTelemetryAdapters() | vi::enumerate) {
+                        const auto deviceId = uint32_t(i) + 1;
+                        if (pm->CheckDeviceMetricUsage(deviceId)) {
+                            pmlog_dbg("detected gpu active").pmwatch(deviceId);
+                            hasActive = true;
+                            break;
+                        }
+                    }
+                    if (!hasActive) {
+                        pmlog_dbg("received device usage event, but no gpu tele device was active");
+                        continue;
                     }
                 }
                 // otherwise we assume streaming has started and we begin the polling loop
@@ -451,26 +435,16 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                     waiter.SetInterval(pm->GetGpuTelemetryPeriod() / 1000.);
                     waiter.Wait();
                     // conditions for ending active poll and returning to idle state
-                    if (newActivation) {
-                        // go dormant if no gpu devices are in use
-                        bool anyUsed = false;
-                        for (size_t idx = 0; idx < adapters.size(); ++idx) {
-                            if (pm->CheckDeviceMetricUsage(uint32_t(idx + 1))) {
-                                anyUsed = true;
-                                break;
-                            }
-                        }
-                        if (!anyUsed) {
+                    // go dormant if no gpu devices are in use
+                    bool anyUsed = false;
+                    for (size_t idx = 0; idx < adapters.size(); ++idx) {
+                        if (pm->CheckDeviceMetricUsage(uint32_t(idx + 1))) {
+                            anyUsed = true;
                             break;
                         }
                     }
-                    else {
-                        // go dormant if there are no active streams left
-                        // TODO: consider race condition here if client stops and starts streams rapidly
-                        // TODO: remove this legacy branch
-                        if (!pm->HasLiveTargets()) {
-                            break;
-                        }
+                    if (!anyUsed) {
+                        break;
                     }
                 }
             }
@@ -482,7 +456,7 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
 }
 
 void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::ServiceComms* pComms,
-	pwr::cpu::CpuTelemetry* const cpu, bool newActivation) noexcept
+	pwr::cpu::CpuTelemetry* const cpu) noexcept
 {
     using util::win::WaitAnyEvent;
     using util::win::WaitAnyEventFor;
@@ -501,35 +475,19 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
 
         IntervalWaiter waiter{ 0.016 };
         while (true) {
-            if (newActivation) {
-                pmlog_dbg("(re)starting system idle wait (new)");
-                if (WaitAnyEvent(pm->GetDeviceUsageEvent(), srv->GetServiceStopHandle()) == 1) {
-                    pmlog_dbg("system telemetry received exit code, thread exiting");
-                    return;
-                }
-                else {
-                    // if system telemetry metrics active enter active polling loop
-                    if (pm->CheckDeviceMetricUsage(ipc::kSystemDeviceId)) {
-                        pmlog_dbg("detected system active");
-                    }
-                    else {
-                        pmlog_dbg("received device usage event, but system tele device was not active");
-                        continue;
-                    }
-                }
+            pmlog_dbg("(re)starting system idle wait");
+            if (WaitAnyEvent(pm->GetDeviceUsageEvent(), srv->GetServiceStopHandle()) == 1) {
+                pmlog_dbg("system telemetry received exit code, thread exiting");
+                return;
             }
             else {
-                // TODO: remove legacy branch here
-                pmlog_dbg("(re)starting system idle wait (legacy)");
-                const HANDLE events[]{
-                  pm->GetStreamingStartHandle(),
-                  srv->GetServiceStopHandle(),
-                };
-                auto waitResult = WaitForMultipleObjects((DWORD)std::size(events), events, FALSE, INFINITE);
-                // TODO: check for wait result error
-                // if events[1] was signalled, that means service is stopping so exit thread
-                if ((waitResult - WAIT_OBJECT_0) == 1) {
-                    return;
+                // if system telemetry metrics active enter active polling loop
+                if (pm->CheckDeviceMetricUsage(ipc::kSystemDeviceId)) {
+                    pmlog_dbg("detected system active");
+                }
+                else {
+                    pmlog_dbg("received device usage event, but system tele device was not active");
+                    continue;
                 }
             }
             while (!WaitAnyEventFor(0ms, srv->GetServiceStopHandle())) {
@@ -567,18 +525,8 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
                 waiter.SetInterval(pm->GetGpuTelemetryPeriod() / 1000.);
                 waiter.Wait();
                 // conditions for ending active poll and returning to idle state
-                if (newActivation) {
-                    if (!pm->CheckDeviceMetricUsage(ipc::kSystemDeviceId)) {
-                        break;
-                    }
-                }
-                else {
-                    // go dormant if there are no active streams left
-                    // TODO: consider race condition here if client stops and starts streams rapidly
-                    // TODO: remove this legacy branch
-                    if (!pm->HasLiveTargets()) {
-                        break;
-                    }
+                if (!pm->CheckDeviceMetricUsage(ipc::kSystemDeviceId)) {
+                    break;
                 }
             }
         }
@@ -675,7 +623,7 @@ void PresentMonMainThread(Service* const pSvc)
 
         try {
             gpuTelemetryThread = std::jthread{ PowerTelemetryThreadEntry_, pSvc, &pm, &ptc,
-                pComms.get(), opt.newTelemetryActivation };
+                pComms.get() };
         }
         catch (...) {
             LOG(ERROR) << "failed creating gpu(power) telemetry thread" << std::endl;
@@ -725,7 +673,7 @@ void PresentMonMainThread(Service* const pSvc)
             systemStore.statics.cpuPowerLimit = cpu->GetCpuPowerLimit();
             systemStore.statics.cpuVendor = vendor;
             cpuTelemetryThread = std::jthread{ CpuTelemetryThreadEntry_, pSvc, &pm, pComms.get(),
-                cpu.get(), opt.newTelemetryActivation };
+                cpu.get() };
         } else {
             // We were unable to determine the cpu.
             pComms->RegisterCpuDevice(PM_DEVICE_VENDOR_UNKNOWN, "UNKNOWN_CPU",

@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <numeric>
 #include <algorithm>
+#include <unordered_set>
 #include "../CommonUtilities/mt/Thread.h"
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/Qpc.h"
@@ -141,7 +142,18 @@ namespace pmon::mid
     {
         pmlog_dbg("Registering dynamic query").pmwatch(queryElements.size()).pmwatch(windowSizeMs).pmwatch(metricOffsetMs);
         const auto qpcPeriod = util::GetTimestampPeriodSeconds();
-        return new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms_, *this };
+        auto* query = new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms_, *this };
+        RegisterMetricUsage_(query, queryElements);
+        return query;
+    }
+
+    void Middleware::FreeDynamicQuery(const PM_DYNAMIC_QUERY* pQuery)
+    {
+        if (pQuery == nullptr) {
+            return;
+        }
+        UnregisterMetricUsage_(pQuery);
+        delete pQuery;
     }
 
     void Middleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId,
@@ -203,11 +215,13 @@ namespace pmon::mid
     {
         auto pQuery = new PM_FRAME_QUERY{ queryElements, *this, *pComms_, GetIntrospectionRoot_() };
         blobSize = (uint32_t)pQuery->GetBlobSize();
+        RegisterMetricUsage_(pQuery, queryElements);
         return pQuery;
     }
 
     void mid::Middleware::FreeFrameEventQuery(const PM_FRAME_QUERY* pQuery)
     {
+        UnregisterMetricUsage_(pQuery);
         delete const_cast<PM_FRAME_QUERY*>(pQuery);
     }
 
@@ -255,5 +269,51 @@ namespace pmon::mid
         else {
             return *it->second;
         }
+    }
+
+    void Middleware::RegisterMetricUsage_(const void* queryHandle, std::span<const PM_QUERY_ELEMENT> queryElements)
+    {
+        if (queryHandle == nullptr) {
+            pmlog_warn("Attempting to register metric usage with null query handle");
+            return;
+        }
+        std::vector<QueryMetricKey> keys;
+        keys.reserve(queryElements.size());
+        for (const auto& element : queryElements) {
+            keys.push_back(QueryMetricKey{
+                .metric = element.metric,
+                .deviceId = element.deviceId,
+                .arrayIndex = element.arrayIndex,
+            });
+        }
+        queryMetricUsage_[queryHandle] = std::move(keys);
+        UpdateMetricUsage_();
+    }
+
+    void Middleware::UnregisterMetricUsage_(const void* queryHandle)
+    {
+        if (queryHandle == nullptr) {
+            pmlog_warn("Attempting to unregister metric usage with null query handle");
+            return;
+        }
+        if (queryMetricUsage_.erase(queryHandle) > 0) {
+            UpdateMetricUsage_();
+        }
+    }
+
+    void Middleware::UpdateMetricUsage_()
+    {
+        std::unordered_set<svc::acts::MetricUse> usage;
+        const auto& introRoot = GetIntrospectionRoot_();
+        for (const auto& [handle, elements] : queryMetricUsage_) {
+            for (const auto& element : elements) {
+                usage.insert(svc::acts::MetricUse{
+                    .metricId = element.metric,
+                    .deviceId = element.deviceId,
+                    .arrayIdx = element.arrayIndex,
+                });
+            }
+        }
+        pActionClient_->DispatchSync(svc::acts::ReportMetricUse::Params{ std::move(usage) });
     }
 }

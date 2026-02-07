@@ -135,7 +135,7 @@ namespace InterimBroadcasterTests
     public:
         TEST_METHOD_INITIALIZE(Setup)
         {
-            fixture_.Setup({ "--new-telemetry-activation"s });
+            fixture_.Setup();
         }
         TEST_METHOD_CLEANUP(Cleanup)
         {
@@ -353,7 +353,7 @@ namespace InterimBroadcasterTests
     public:
         TEST_METHOD_INITIALIZE(Setup)
         {
-            fixture_.Setup({"--new-telemetry-activation"s});
+            fixture_.Setup();
         }
         TEST_METHOD_CLEANUP(Cleanup)
         {
@@ -582,7 +582,7 @@ namespace InterimBroadcasterTests
     public:
         TEST_METHOD_INITIALIZE(Setup)
         {
-            fixture_.Setup({ "--new-telemetry-activation"s });
+            fixture_.Setup();
         }
         TEST_METHOD_CLEANUP(Cleanup)
         {
@@ -993,8 +993,7 @@ namespace InterimBroadcasterTests
         TEST_METHOD_INITIALIZE(Setup)
         {
             fixture_.Setup({
-                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P00HeaWin2080.etl)"s,
-                "--disable-legacy-backpressure"s
+                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P00HeaWin2080.etl)"s
             });
         }
         TEST_METHOD_CLEANUP(Cleanup)
@@ -1109,7 +1108,6 @@ namespace InterimBroadcasterTests
         {
             fixture_.Setup({
                 "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P01TimeSpyDemoFS2080.etl)"s,
-                "--disable-legacy-backpressure"s,
                 "--frame-ring-samples"s, "32"s,
             });
         }
@@ -1169,8 +1167,7 @@ namespace InterimBroadcasterTests
         TEST_METHOD_INITIALIZE(Setup)
         {
             fixture_.Setup({
-                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P01TimeSpyDemoFS2080.etl)"s,
-                "--disable-legacy-backpressure"s
+                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P01TimeSpyDemoFS2080.etl)"s
                 });
         }
         TEST_METHOD_CLEANUP(Cleanup)

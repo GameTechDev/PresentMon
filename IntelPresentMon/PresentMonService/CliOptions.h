@@ -43,8 +43,6 @@ namespace clio
 
 	private: Group gt_{ this, "Testing", "Automated testing features" }; public:
 		Flag enableTestControl{ this, "--enable-test-control", "Enable test control over stdio" };
-		Flag disableLegacyBackpressure{ this, "--disable-legacy-backpressure", "Disable backpressure to enable testing of new IPC" };
-		Flag newTelemetryActivation{ this, "--new-telemetry-activation", "Enable the new telemetry activation via metric usage tracking" };
 
 		static constexpr const char* description = "Intel PresentMon service for frame and system performance measurement";
 		static constexpr const char* name = "PresentMonService.exe";
