@@ -132,7 +132,6 @@
     <ClInclude Include="PresentMonPowerTelemetry.h" />
     <ClInclude Include="PowerTelemetryProviderFactory.h" />
     <ClInclude Include="SignatureComparison.h" />
-    <ClInclude Include="TelemetryHistory.h" />
     <ClInclude Include="WmiCpu.h" />
   </ItemGroup>
   <ItemGroup>

@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #define NOMINMAX
 #include <Windows.h>
@@ -29,11 +29,6 @@ namespace pwr::nv
 
 
 
-    const PresentMonPowerTelemetryInfo& NvidiaPowerTelemetryAdapter::GetNewest() const noexcept
-    {
-        return *std::prev(history.end());
-    }
-
     uint64_t NvidiaPowerTelemetryAdapter::GetDedicatedVideoMemory() const noexcept {
         uint64_t video_mem_size = 0;
         nvmlMemory_t mem{};
@@ -55,7 +50,7 @@ namespace pwr::nv
         return 0.f;
     }
 
-    bool NvidiaPowerTelemetryAdapter::Sample() noexcept
+    PresentMonPowerTelemetryInfo NvidiaPowerTelemetryAdapter::Sample() noexcept
     {
         LARGE_INTEGER qpc;
         QueryPerformanceCounter(&qpc);
@@ -197,17 +192,7 @@ namespace pwr::nv
             }
         }
 
-        // insert telemetry into history
-        std::lock_guard lock{ historyMutex };
-        history.Push(info);
-
-        return true;
-    }
-
-    std::optional<PresentMonPowerTelemetryInfo> NvidiaPowerTelemetryAdapter::GetClosest(uint64_t qpc) const noexcept
-    {
-        std::lock_guard lock{ historyMutex };
-        return history.GetNearest(qpc);
+        return info;
     }
 
     PM_DEVICE_VENDOR NvidiaPowerTelemetryAdapter::GetVendor() const noexcept

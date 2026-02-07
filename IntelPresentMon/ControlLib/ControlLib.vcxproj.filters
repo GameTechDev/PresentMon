@@ -74,7 +74,6 @@
     <ClInclude Include="PowerTelemetryProvider.h" />
     <ClInclude Include="PowerTelemetryProviderFactory.h" />
     <ClInclude Include="PresentMonPowerTelemetry.h" />
-    <ClInclude Include="TelemetryHistory.h" />
     <ClInclude Include="Exceptions.h" />
     <ClInclude Include="ctlpvttemp_api.h">
       <Filter>Intel</Filter>

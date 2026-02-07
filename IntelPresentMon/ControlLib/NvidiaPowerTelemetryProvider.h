@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #define NOMINMAX
@@ -9,7 +9,6 @@
 #include <optional>
 #include "PresentMonPowerTelemetry.h"
 #include "PowerTelemetryProvider.h"
-#include "TelemetryHistory.h"
 #include "NvapiWrapper.h"
 #include "NvmlWrapper.h"
 

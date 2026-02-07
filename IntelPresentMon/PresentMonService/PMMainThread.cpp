@@ -344,7 +344,7 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
         }
 
         // we first wait for a client control connection before populating telemetry container
-        // after populating, we sample each adapter to gather availability information
+        // after populating, we refresh each adapter to gather availability information
         // this is deferred until client connection in order to increase the probability that
         // telemetry metric availability is accurately assessed
         {
@@ -356,9 +356,9 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
             pmon::util::QpcTimer timer;
             ptc->Repopulate();
             for (auto&& [i, adapter] : ptc->GetPowerTelemetryAdapters() | vi::enumerate) {
-                // sample 2x here as workaround/kludge because Intel provider misreports 1st sample
+                // refresh 2x here as workaround/kludge because Intel provider misreports 1st sample
                 adapter->Sample();
-                adapter->Sample();
+                const auto sample = adapter->Sample();
                 pComms->RegisterGpuDevice(adapter->GetVendor(), adapter->GetName(),
                     ipc::intro::ConvertBitset(adapter->GetPowerTelemetryCapBits()));
                 // after registering, we know that at least the store is available even
@@ -374,7 +374,6 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                 // TODO: make this fully static
                 // infer number of fans by the size of the telemetry ring array for fan speed
                 const auto nFans = gpuStore.telemetryData.ArraySize(PM_METRIC_GPU_FAN_SPEED);
-                auto& sample = adapter->GetNewest();
                 for (size_t i = 0; i < nFans; i++) {
                     gpuStore.statics.maxFanSpeedRpm.push_back(sample.max_fan_speed_rpm[i]);
                 }
@@ -439,10 +438,8 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                     auto& adapters = ptc->GetPowerTelemetryAdapters();
                     for (size_t idx = 0; idx < adapters.size(); ++idx) {
                         auto& adapter = adapters[idx];
-                        adapter->Sample();
-
                         // Get the newest sample from the provider
-                        const auto& sample = adapter->GetNewest();
+                        const auto sample = adapter->Sample();
 
                         // Retrieve the matching GPU store.
                         auto& store = pComms->GetGpuDataStore(uint32_t(idx + 1));
@@ -537,11 +534,10 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
             }
             while (!WaitAnyEventFor(0ms, srv->GetServiceStopHandle())) {
                 // TODO:streamer replace this flow with a call that populates rings of a store
-                cpu->Sample();
                 // placeholder routine shim to translate cpu tranfer struct into rings
                 // replace with a direct mapping on PM_METRIC that obviates the switch
                 auto& store = pComms->GetSystemDataStore();
-                auto& sample = cpu->GetNewest();
+                const auto sample = cpu->Sample();
                 for (auto&& [metric, ringVariant] : store.telemetryData.Rings()) {
                     // all cpu telemetry is double
                     auto& ringVect = std::get<ipc::TelemetryMap::HistoryRingVect<double>>(ringVariant);
@@ -700,7 +696,7 @@ void PresentMonMainThread(Service* const pSvc)
 
         if (cpu) {
             pm.SetCpu(cpu);
-            // sample once to populate the cap bits
+            // refresh once to populate the cap bits
             cpu->Sample();
             // determine vendor based on device name
             // TODO: move this logic either into system (CPU) provider or

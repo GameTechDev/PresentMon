@@ -1,8 +1,7 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 
-#include <optional>
 #include <bitset>
 #include <vector>
 #include <Wbemidl.h>
@@ -16,10 +15,7 @@ namespace pwr::cpu {
 class CpuTelemetry {
  public:
   virtual ~CpuTelemetry() = default;
-  virtual bool Sample() noexcept = 0;
-  virtual const CpuTelemetryInfo& GetNewest() const noexcept = 0;
-  virtual std::optional<CpuTelemetryInfo> GetClosest(
-      uint64_t qpc) const noexcept = 0;
+  virtual CpuTelemetryInfo Sample() noexcept = 0;
   void SetTelemetryCapBit(CpuTelemetryCapBits telemetryCapBit) noexcept
   {
       cpuTelemetryCapBits_.set(static_cast<size_t>(telemetryCapBit));
@@ -32,9 +28,6 @@ class CpuTelemetry {
   std::string GetCpuName();
   double GetCpuPowerLimit() { return 0.; }
   
-  // constants
-  static constexpr size_t defaultHistorySize = 300;
-  // data
  private:
 
   bool ExecuteWQLProcessorNameQuery(std::wstring& processor_name);

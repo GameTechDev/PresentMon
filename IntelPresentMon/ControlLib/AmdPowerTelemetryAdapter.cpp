@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "AmdPowerTelemetryAdapter.h"
 #include "Logging.h"
@@ -53,11 +53,6 @@ bool AmdPowerTelemetryAdapter::GetVideoMemoryInfo(uint64_t& gpu_mem_size, uint64
   return success;
 }
 
-
-const PresentMonPowerTelemetryInfo& AmdPowerTelemetryAdapter::GetNewest() const noexcept
-{
-    return *std::prev(history_.end());
-}
 
 bool AmdPowerTelemetryAdapter::GetSustainedPowerLimit(double& sustainedPowerLimit) const noexcept {
   sustainedPowerLimit = 0.f;
@@ -120,7 +115,7 @@ double AmdPowerTelemetryAdapter::GetSustainedPowerLimit() const noexcept {
   return sustainedPowerLimit;
 }
 
-bool AmdPowerTelemetryAdapter::Sample() noexcept {
+PresentMonPowerTelemetryInfo AmdPowerTelemetryAdapter::Sample() noexcept {
   LARGE_INTEGER qpc;
   QueryPerformanceCounter(&qpc);
 
@@ -160,11 +155,8 @@ bool AmdPowerTelemetryAdapter::Sample() noexcept {
     }
   }
 
-  // Insert telemetry into history
-  std::lock_guard lock{history_mutex_};
-  history_.Push(info);
-
-  return sample_return;
+  (void)sample_return;
+  return info;
 }
 
 bool AmdPowerTelemetryAdapter::Overdrive5Sample(
@@ -465,12 +457,6 @@ bool AmdPowerTelemetryAdapter::Overdrive8Sample(
   } else {
     return false;
   }
-}
-
-std::optional<PresentMonPowerTelemetryInfo> AmdPowerTelemetryAdapter::GetClosest(
-    uint64_t qpc) const noexcept {
-  std::lock_guard<std::mutex> lock(history_mutex_);
-  return history_.GetNearest(qpc);
 }
 
 PM_DEVICE_VENDOR AmdPowerTelemetryAdapter::GetVendor() const noexcept {

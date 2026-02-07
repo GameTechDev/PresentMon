@@ -1,13 +1,11 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #define NOMINMAX
 #include <Windows.h>
 #include "igcl_api.h"
 #include "PowerTelemetryAdapter.h"
-#include "TelemetryHistory.h"
 #include "ctlpvttemp_api.h"
-#include <mutex>
 #include <optional>
 #include <variant>
 
@@ -17,9 +15,7 @@ namespace pwr::intel
 	{
 	public:
 		IntelPowerTelemetryAdapter(ctl_device_adapter_handle_t handle);
-		bool Sample() noexcept override;
-		std::optional<PresentMonPowerTelemetryInfo> GetClosest(uint64_t qpc) const noexcept override;
-		const PresentMonPowerTelemetryInfo& GetNewest() const noexcept override;
+		PresentMonPowerTelemetryInfo Sample() noexcept override;
 		PM_DEVICE_VENDOR GetVendor() const noexcept override;
 		std::string GetName() const noexcept override;
         uint64_t GetDedicatedVideoMemory() const noexcept override;
@@ -38,7 +34,8 @@ namespace pwr::intel
 			ctl_mem_state_t& memory_state,
 			ctl_mem_bandwidth_t& memory_bandwidth,
 			std::optional<double> gpu_sustained_power_limit_mw,
-			uint64_t qpc);
+			uint64_t qpc,
+			PresentMonPowerTelemetryInfo& sample);
 
 		ctl_result_t EnumerateMemoryModules();
 
@@ -70,7 +67,6 @@ namespace pwr::intel
 			const ctl_mem_bandwidth_t& mem_bandwidth,
 			PresentMonPowerTelemetryInfo& pm_gpu_power_telemetry_info);
 
-		void SavePmPowerTelemetryData(PresentMonPowerTelemetryInfo& pm_gpu_power_telemetry_info);
 		template<class T>
         ctl_result_t SaveTelemetry(
             const T& power_telemetry,
@@ -97,8 +93,6 @@ namespace pwr::intel
 		ctl_device_adapter_properties_t properties{};
 		std::vector<ctl_mem_handle_t> memoryModules;
 		std::vector<ctl_pwr_handle_t> powerDomains;
-		mutable std::mutex historyMutex;
-		TelemetryHistory<PresentMonPowerTelemetryInfo> history{ PowerTelemetryAdapter::defaultHistorySize };
 		SampleVariantType previousSampleVariant;
 		bool useV1PowerTelemetry = true;
 		bool useNewBandwidthTelemetry = true;

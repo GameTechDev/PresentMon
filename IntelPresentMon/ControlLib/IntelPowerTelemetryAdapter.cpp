@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "IntelPowerTelemetryAdapter.h"
 #include "Logging.h"
@@ -151,13 +151,16 @@ namespace pwr::intel
         }
     }
 
-    bool IntelPowerTelemetryAdapter::Sample() noexcept
+    PresentMonPowerTelemetryInfo IntelPowerTelemetryAdapter::Sample() noexcept
     {
-        pmlog_verb(v::tele_gpu)("Sample called").pmwatch(GetName());
+        pmlog_verb(v::tele_gpu)("Telemetry update called").pmwatch(GetName());
 
         LARGE_INTEGER qpc;
         QueryPerformanceCounter(&qpc);
         bool success = true;
+        PresentMonPowerTelemetryInfo sample{
+            .qpc = (uint64_t)qpc.QuadPart,
+        };
 
         decltype(previousSampleVariant) currentSampleVariant;
 
@@ -253,7 +256,7 @@ namespace pwr::intel
             }
             else {
                 success = GatherSampleData(*currentSample, memory_state,
-                    memory_bandwidth, gpu_sustained_power_limit_mw, (uint64_t)qpc.QuadPart) && success;
+                    memory_bandwidth, gpu_sustained_power_limit_mw, (uint64_t)qpc.QuadPart, sample) && success;
             }
         }
         else {
@@ -265,26 +268,12 @@ namespace pwr::intel
             }
             else {
                 success = GatherSampleData(*currentSample, memory_state,
-                    memory_bandwidth, gpu_sustained_power_limit_mw, (uint64_t)qpc.QuadPart) && success;
+                    memory_bandwidth, gpu_sustained_power_limit_mw, (uint64_t)qpc.QuadPart, sample) && success;
             }
         }
 
-        return success;
-    }
-
-    std::optional<PresentMonPowerTelemetryInfo> IntelPowerTelemetryAdapter::GetClosest(uint64_t qpc) const noexcept
-    {
-        std::lock_guard<std::mutex> lock(historyMutex);
-        const auto nearest = history.GetNearest(qpc);
-        if constexpr (PMLOG_BUILD_LEVEL_ >= pmon::util::log::Level::Verbose) {
-            if (!nearest) {
-                pmlog_verb(v::tele_gpu)("Empty telemetry info sample returned").pmwatch(GetName()).pmwatch(qpc);
-            }
-            else {
-                pmlog_verb(v::tele_gpu)("Nearest telemetry info sampled").pmwatch(GetName()).pmwatch(qpc).pmwatch(ref::DumpStatic(*nearest));
-            }
-        }
-        return nearest;
+        (void)success;
+        return sample;
     }
 
     PM_DEVICE_VENDOR IntelPowerTelemetryAdapter::GetVendor() const noexcept
@@ -387,7 +376,8 @@ namespace pwr::intel
         ctl_mem_state_t& memory_state,
         ctl_mem_bandwidth_t& memory_bandwidth,
         std::optional<double> gpu_sustained_power_limit_mw,
-        uint64_t qpc)
+        uint64_t qpc,
+        PresentMonPowerTelemetryInfo& sample)
     {
         bool success = true;
 
@@ -398,33 +388,33 @@ namespace pwr::intel
             IGCL_ERR(result);
         }
 
-        PresentMonPowerTelemetryInfo pm_gpu_power_telemetry_info{ .qpc = qpc };
+        sample.qpc = qpc;
 
         if (previousSampleVariant.index()) {
 
             if (const auto result = GetGPUPowerTelemetryData(
-                currentSample, pm_gpu_power_telemetry_info); result != CTL_RESULT_SUCCESS)
+                currentSample, sample); result != CTL_RESULT_SUCCESS)
             {
                 success = false;
                 IGCL_ERR(result);
             }
 
             if (const auto result = GetVramPowerTelemetryData(
-                currentSample, pm_gpu_power_telemetry_info); result != CTL_RESULT_SUCCESS)
+                currentSample, sample); result != CTL_RESULT_SUCCESS)
             {
                 success = false;
                 IGCL_ERR(result);
             }
 
             if (const auto result = GetFanPowerTelemetryData(currentSample,
-                pm_gpu_power_telemetry_info); result != CTL_RESULT_SUCCESS)
+                sample); result != CTL_RESULT_SUCCESS)
             {
                 success = false;
                 IGCL_ERR(result);
             }
 
             if (const auto result = GetPsuPowerTelemetryData(
-                currentSample, pm_gpu_power_telemetry_info); result != CTL_RESULT_SUCCESS)
+                currentSample, sample); result != CTL_RESULT_SUCCESS)
             {
                 success = false;
                 IGCL_ERR(result);
@@ -433,21 +423,20 @@ namespace pwr::intel
             // Get memory state and bandwidth data
             if (memoryModules.size() > 0) {
                 GetMemStateTelemetryData(memory_state,
-                    pm_gpu_power_telemetry_info);
+                    sample);
                 GetMemBandwidthData(memory_bandwidth,
-                    pm_gpu_power_telemetry_info);
+                    sample);
             }
 
             // Save and convert the gpu sustained power limit
-            pm_gpu_power_telemetry_info.gpu_sustained_power_limit_w =
+            sample.gpu_sustained_power_limit_w =
                 gpu_sustained_power_limit_mw.value_or(0.) / 1000.;
             if (gpu_sustained_power_limit_mw) {
                 SetTelemetryCapBit(GpuTelemetryCapBits::gpu_sustained_power_limit);                
             }
 
-            // Save off the calculated PresentMon power telemetry values. These are
-            // saved off for clients to extrace out timing information based on QPC
-            SavePmPowerTelemetryData(pm_gpu_power_telemetry_info);
+            pmlog_verb(v::tele_gpu)("Gathered telemetry info sample")
+                .pmwatch(GetName()).pmwatch(ref::DumpStatic(sample));
         }
 
         // Save off the raw control library data for calculating time delta
@@ -914,11 +903,6 @@ namespace pwr::intel
     }
 
 
-    const PresentMonPowerTelemetryInfo& IntelPowerTelemetryAdapter::GetNewest() const noexcept
-    {
-        return *std::prev(history.end());
-    }
-
     ctl_result_t IntelPowerTelemetryAdapter::GetPowerTelemetryItemUsage(
         const ctl_oc_telemetry_item_t& current_telemetry_item,
         const ctl_oc_telemetry_item_t& previous_telemetry_item,
@@ -983,13 +967,6 @@ namespace pwr::intel
         }
 
         return CTL_RESULT_SUCCESS;
-    }
-
-    void IntelPowerTelemetryAdapter::SavePmPowerTelemetryData(PresentMonPowerTelemetryInfo& info)
-    {
-        pmlog_verb(v::tele_gpu)("Saving gathered telemetry info to history").pmwatch(GetName()).pmwatch(ref::DumpStatic(info));
-        std::lock_guard<std::mutex> lock(historyMutex);
-        history.Push(info);
     }
 
     }
