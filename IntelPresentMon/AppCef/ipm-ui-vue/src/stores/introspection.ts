@@ -12,6 +12,7 @@ export const useIntrospectionStore = defineStore('introspection', () => {
   const stats = ref<Stat[]>([]);
   const units = ref<Unit[]>([]);
   const systemDeviceId = ref<number>(0);
+  const defaultAdapterId = ref<number>(0);
 
   // === Computed ===
   const metricOptions = computed<MetricOption[]>(() => {
@@ -26,12 +27,13 @@ export const useIntrospectionStore = defineStore('introspection', () => {
 
   // === Actions ===
   async function load() {
-    if (metrics.value.length === 0 || systemDeviceId.value === 0) {
+    if (metrics.value.length === 0 || systemDeviceId.value === 0 || defaultAdapterId.value === 0) {
       const intro = await Api.introspect();
       metrics.value = intro.metrics;
       stats.value = intro.stats;
       units.value = intro.units;
       systemDeviceId.value = intro.systemDeviceId;
+      defaultAdapterId.value = intro.defaultAdapterId;
     }
   }
 
@@ -41,6 +43,7 @@ export const useIntrospectionStore = defineStore('introspection', () => {
     stats,
     units,
     systemDeviceId,
+    defaultAdapterId,
     metricOptions,
     load
   };

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
 #include <IntelPresentMon/PresentMonAPIWrapperCommon/Introspection.h>
 #include <IntelPresentMon/PresentMonAPIWrapperCommon/EnumMap.h>
@@ -98,6 +98,8 @@ namespace pmapi
     {
         friend StaticQueryResult PollStatic(const Session& session, const ProcessTracker& process,
             PM_METRIC metric, uint32_t deviceId, uint32_t arrayIndex);
+        friend StaticQueryResult PollStatic(const Session& session,
+            PM_METRIC metric, uint32_t deviceId, uint32_t arrayIndex);
     public:
         // access this result as a specific static data type
         // this will perform the conversion based on the runtime information about the metric's type
@@ -127,6 +129,8 @@ namespace pmapi
         // although NRVO should prevent this from being called, it's not standard guarantee
         // so we still need the copy ctor
         StaticQueryResult(const StaticQueryResult&) = default;
+        static StaticQueryResult PollStatic_(const Session& session, uint32_t pid,
+            PM_METRIC metric, uint32_t deviceId, uint32_t arrayIndex);
         // data
         // 260 bytes is the maximum possible size for query element data
         static constexpr size_t blobSize_ = 260;
@@ -140,5 +144,9 @@ namespace pmapi
     // function returns a smart StaticQueryResult object that can automatically interpret
     // query result data blobs and convert to the desired type when conversion is possible
     StaticQueryResult PollStatic(const Session& session, const ProcessTracker& process,
+        PM_METRIC metric, uint32_t deviceId = 0, uint32_t arrayIndex = 0);
+
+    // overload without process tracker (uses pid 0)
+    StaticQueryResult PollStatic(const Session& session,
         PM_METRIC metric, uint32_t deviceId = 0, uint32_t arrayIndex = 0);
 }

@@ -450,7 +450,11 @@ namespace p2c::kern
                     return std::nullopt;
                 }
             }();
-            pWriter = { pm->MakeRawFrameDataWriter(std::move(fullPath), std::move(fullStatsPath), proc.pid) };
+            const auto frameAdapterId = (pSpec->frameQueryAdapterId && *pSpec->frameQueryAdapterId > 0)
+                ? pSpec->frameQueryAdapterId
+                : std::optional<uint32_t>{};
+            pWriter = { pm->MakeRawFrameDataWriter(std::move(fullPath), std::move(fullStatsPath), proc.pid,
+                frameAdapterId) };
         }
         else if (!active && pWriter) {
             pWriter.reset();

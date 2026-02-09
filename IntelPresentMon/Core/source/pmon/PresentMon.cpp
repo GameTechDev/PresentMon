@@ -5,6 +5,7 @@
 #include <Core/source/infra/util/FolderResolver.h>
 #include <PresentMonAPI2/PresentMonAPI.h>
 #include <PresentMonAPIWrapper/PresentMonAPIWrapper.h>
+#include <PresentMonAPIWrapper/StaticQuery.h>
 #include <PresentMonAPIWrapperCommon/EnumMap.h>
 #include "RawFrameDataWriter.h"
 
@@ -118,14 +119,15 @@ namespace p2c::pmon
 		return processTracker;
 	}
 	std::shared_ptr<RawFrameDataWriter> PresentMon::MakeRawFrameDataWriter(std::wstring path,
-		std::optional<std::wstring> statsPath, uint32_t pid)
+		std::optional<std::wstring> statsPath, uint32_t pid, std::optional<uint32_t> gpuDeviceIdOverride)
 	{
 		// flush any buffered present events before starting capture
 		processTracker.FlushFrames();
 
 		constexpr bool omitUnavailableColumns = false;
+		const uint32_t activeDeviceId = gpuDeviceIdOverride.value_or(GetDefaultGpuDeviceId());
 		// make the frame data writer
-		return std::make_shared<RawFrameDataWriter>(std::move(path), processTracker, GetDefaultGpuDeviceId_(),
+		return std::make_shared<RawFrameDataWriter>(std::move(path), processTracker, activeDeviceId,
 			*pSession, std::move(statsPath), *pIntrospectionRoot, omitUnavailableColumns);
 	}
 	const pmapi::intro::Root& PresentMon::GetIntrospectionRoot() const
@@ -135,6 +137,18 @@ namespace p2c::pmon
 	pmapi::Session& PresentMon::GetSession()
 	{
 		return *pSession;
+	}
+
+	uint32_t PresentMon::GetDefaultGpuDeviceId() const
+	{
+		if (cachedDefaultGpuDeviceId_.has_value()) {
+			return *cachedDefaultGpuDeviceId_;
+		}
+		const auto deviceId = ComputeDefaultGpuDeviceId_();
+		if (deviceId != 0) {
+			cachedDefaultGpuDeviceId_ = deviceId;
+		}
+		return deviceId;
 	}
 	void PresentMon::SetEtwFlushPeriod(std::optional<uint32_t> periodMs)
 	{
@@ -147,13 +161,46 @@ namespace p2c::pmon
 		return etwFlushPeriodMs;
 	}
 
-	uint32_t PresentMon::GetDefaultGpuDeviceId_() const
+	uint32_t PresentMon::ComputeDefaultGpuDeviceId_() const
 	{
-		for (const auto& device : pIntrospectionRoot->GetDevices()) {
-			if (device.GetType() == PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
-				return device.GetId();
+		const auto& intro = *pIntrospectionRoot;
+		uint32_t bestId = 0;
+		uint64_t bestMem = 0;
+
+		for (const auto& device : intro.GetDevices()) {
+			if (device.GetType() != PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
+				continue;
+			}
+			uint64_t memSize = 0;
+			bool hasValue = false;
+			try {
+				memSize = pmapi::PollStatic(*pSession,
+					PM_METRIC_GPU_MEM_SIZE, device.GetId(), 0).As<uint64_t>();
+				hasValue = true;
+			}
+			catch (...) {
+				hasValue = false;
+			}
+
+			if (hasValue) {
+				if (memSize > bestMem) {
+					bestMem = memSize;
+					bestId = device.GetId();
+				}
+			}
+			else if (bestId == 0) {
+				bestId = device.GetId();
 			}
 		}
-		return 0;
+
+		if (bestId == 0) {
+			for (const auto& device : intro.GetDevices()) {
+				if (device.GetType() == PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
+					return device.GetId();
+				}
+			}
+		}
+
+		return bestId;
 	}
 }

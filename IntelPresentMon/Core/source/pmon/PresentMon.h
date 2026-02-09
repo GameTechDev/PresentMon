@@ -39,14 +39,16 @@ namespace p2c::pmon
 		std::optional<uint32_t> GetPid() const;
 		const pmapi::ProcessTracker& GetTracker() const;
 		std::shared_ptr<RawFrameDataWriter> MakeRawFrameDataWriter(std::wstring path, std::optional<std::wstring> statsPath,
-			uint32_t pid);
+			uint32_t pid, std::optional<uint32_t> gpuDeviceIdOverride);
+		uint32_t GetDefaultGpuDeviceId() const;
 		const pmapi::intro::Root& GetIntrospectionRoot() const;
 		pmapi::Session& GetSession();
 	private:
-		uint32_t GetDefaultGpuDeviceId_() const;
+		uint32_t ComputeDefaultGpuDeviceId_() const;
 		double window = -1.;
 		uint32_t telemetrySamplePeriod = 0;
 		std::optional<uint32_t> etwFlushPeriodMs;
+		mutable std::optional<uint32_t> cachedDefaultGpuDeviceId_;
 		pmapi::EtlLogger etlLogger;
 		std::unique_ptr<pmapi::Session> pSession;
 		std::shared_ptr<pmapi::intro::Root> pIntrospectionRoot;

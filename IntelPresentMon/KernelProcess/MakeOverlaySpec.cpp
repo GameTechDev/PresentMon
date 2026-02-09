@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MakeOverlaySpec.h"
 #include "../Core/source/gfx/layout/style/RawAttributeHelpers.h"
@@ -45,6 +45,9 @@ namespace kproc
             .generateStats = pref.generateStats,
             .enableFlashInjection = pref.enableFlashInjection,
         });
+        if (pref.adapterId && *pref.adapterId > 0) {
+            pSpec->frameQueryAdapterId = uint32_t(*pref.adapterId);
+        }
 
         // style sheets
         {

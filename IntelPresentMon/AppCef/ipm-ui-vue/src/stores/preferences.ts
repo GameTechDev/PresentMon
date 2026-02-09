@@ -118,6 +118,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
     // we need to get a non-proxy object for the  call
     const widgets = deepToRaw(loadout.widgets);
     const systemDeviceId = intro.systemDeviceId;
+    const defaultAdapterId = intro.defaultAdapterId;
     for (const widget of widgets) {
       // Filter out the widgetMetrics that do not meet the condition, modify those that do
       widget.metrics = widget.metrics.filter(widgetMetric => {
@@ -135,10 +136,9 @@ export const usePreferencesStore = defineStore('preferences', () => {
             widgetMetric.metric.deviceId = systemDeviceId;
           }
           else {
-            // if no specific adapter id set, assume adapter id = 1 is active
-            const adapterId = preferences.value.adapterId !== null ? preferences.value.adapterId : 1;
+            const adapterId = preferences.value.adapterId !== null ? preferences.value.adapterId : defaultAdapterId;
             // Set adapter id for this query element to the active one if available
-            if (metric.availableDeviceIds.includes(adapterId)) {
+            if (adapterId !== 0 && metric.availableDeviceIds.includes(adapterId)) {
               widgetMetric.metric.deviceId = adapterId;
             } else { // if active adapter id is not available drop this widgetMetric
               return false;

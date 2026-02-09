@@ -54,10 +54,11 @@ export class Api {
     static async loadEnvVars(): Promise<EnvVars> {
         return await this.invokeEndpointFuture('loadEnvVars', {});
     }
-    static async introspect(): Promise<{metrics: Metric[], stats: Stat[], units: Unit[], systemDeviceId: number}> {
+    static async introspect(): Promise<{metrics: Metric[], stats: Stat[], units: Unit[], systemDeviceId: number, defaultAdapterId: number}> {
         const introData = await this.invokeEndpointFuture('Introspect', {});
         if (!Array.isArray(introData.metrics) || !Array.isArray(introData.stats) ||
-            !Array.isArray(introData.units) || typeof introData.systemDeviceId !== 'number') {
+            !Array.isArray(introData.units) || typeof introData.systemDeviceId !== 'number' ||
+            typeof introData.defaultAdapterId !== 'number') {
             console.log("error intro call");
             throw new Error('Bad member type returned from introspect');
         }

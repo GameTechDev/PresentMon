@@ -102,6 +102,16 @@ namespace p2c::kern
         return pm->GetIntrospectionRoot();
     }
 
+    uint32_t Kernel::GetDefaultGpuDeviceId() const
+    {
+        HandleMarshalledException_();
+        std::lock_guard g{ mtx };
+        if (!pm) {
+            return 0;
+        }
+        return pm->GetDefaultGpuDeviceId();
+    }
+
     std::vector<pmon::AdapterInfo> Kernel::EnumerateAdapters() const
     {
         HandleMarshalledException_();

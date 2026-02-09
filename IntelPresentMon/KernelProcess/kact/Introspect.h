@@ -84,12 +84,14 @@ namespace ACT_NS
             std::vector<Stat> stats;
             std::vector<Unit> units;
             uint32_t systemDeviceId;
+            uint32_t defaultAdapterId;
 
             template<class A> void serialize(A& ar) {
                 ar(CEREAL_NVP(metrics),
                     CEREAL_NVP(stats),
                     CEREAL_NVP(units),
-                    CEREAL_NVP(systemDeviceId));
+                    CEREAL_NVP(systemDeviceId),
+                    CEREAL_NVP(defaultAdapterId));
             }
         };
 
@@ -125,6 +127,7 @@ namespace ACT_NS
             // generate the response
             Response res;
             res.systemDeviceId = ::pmon::ipc::kSystemDeviceId;
+            res.defaultAdapterId = (*ctx.ppKernel)->GetDefaultGpuDeviceId();
 
             // reserve space for the actual number of metrics
             res.metrics.reserve(rn::distance(intro.GetMetrics() | vi::filter(filterPred)));
