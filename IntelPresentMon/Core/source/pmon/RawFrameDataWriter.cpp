@@ -6,6 +6,8 @@
 #include <PresentMonAPIWrapperCommon/EnumMap.h>
 #include <format>
 #include <array>
+#include <charconv>
+#include <string_view>
 #include "RawFrameDataMetricList.h"
 #include "../cli/CliOptions.h"
 
@@ -16,6 +18,99 @@ namespace p2c::pmon
 
     namespace
     {
+        struct MetricSpec_
+        {
+            std::string symbol;
+            std::optional<uint32_t> index;
+            std::optional<uint32_t> deviceId;
+        };
+
+        bool TryParseUInt32_(std::string_view text, uint32_t& value)
+        {
+            if (text.empty()) {
+                return false;
+            }
+            const auto* start = text.data();
+            const auto* end = start + text.size();
+            auto [ptr, ec] = std::from_chars(start, end, value);
+            return ec == std::errc{} && ptr == end;
+        }
+
+        bool TryParseMetricSpec_(std::string_view input, MetricSpec_& out, std::string& error)
+        {
+            out = {};
+            if (input.empty()) {
+                error = "metric is empty";
+                return false;
+            }
+
+            const size_t colonPos = input.find(':');
+            const size_t bracketPos = input.find('[');
+
+            if (colonPos != std::string_view::npos &&
+                bracketPos != std::string_view::npos &&
+                colonPos < bracketPos) {
+                error = "device id must follow array index";
+                return false;
+            }
+
+            size_t symbolEnd = input.size();
+            if (bracketPos != std::string_view::npos) {
+                symbolEnd = bracketPos;
+            }
+            else if (colonPos != std::string_view::npos) {
+                symbolEnd = colonPos;
+            }
+
+            if (symbolEnd == 0) {
+                error = "missing metric symbol";
+                return false;
+            }
+
+            out.symbol.assign(input.substr(0, symbolEnd));
+
+            if (bracketPos != std::string_view::npos) {
+                const size_t closeBracket = input.find(']', bracketPos + 1);
+                if (closeBracket == std::string_view::npos) {
+                    error = "missing closing bracket";
+                    return false;
+                }
+                if (colonPos != std::string_view::npos && closeBracket > colonPos) {
+                    error = "device id must follow array index";
+                    return false;
+                }
+                const auto indexText = input.substr(bracketPos + 1, closeBracket - bracketPos - 1);
+                uint32_t indexValue = 0;
+                if (!TryParseUInt32_(indexText, indexValue)) {
+                    error = "invalid array index";
+                    return false;
+                }
+                out.index = indexValue;
+                if (colonPos == std::string_view::npos) {
+                    if (closeBracket + 1 != input.size()) {
+                        error = "unexpected characters after array index";
+                        return false;
+                    }
+                }
+                else if (closeBracket + 1 != colonPos) {
+                    error = "unexpected characters after array index";
+                    return false;
+                }
+            }
+
+            if (colonPos != std::string_view::npos) {
+                const auto devText = input.substr(colonPos + 1);
+                uint32_t devValue = 0;
+                if (!TryParseUInt32_(devText, devValue)) {
+                    error = "invalid device id";
+                    return false;
+                }
+                out.deviceId = devValue;
+            }
+
+            return true;
+        }
+
         std::vector<RawFrameQueryElementDefinition> MakeMetricList_(std::vector<std::string> metricSymbols,
             uint32_t activeDeviceId, const pmapi::intro::Root& introRoot)
         {
@@ -31,8 +126,21 @@ namespace p2c::pmon
             std::vector<RawFrameQueryElementDefinition> elements;
             elements.reserve(metricSymbols.size());
             for (auto& metricSymbol : metricSymbols) {
+                MetricSpec_ metricSpec{};
+                std::string parseError;
+                if (!TryParseMetricSpec_(metricSymbol, metricSpec, parseError)) {
+                    pmlog_error("Failed to parse metric spec")
+                        .pmwatch(metricSymbol)
+                        .pmwatch(parseError);
+                    continue;
+                }
                 try {
-                    const auto metricId = metricLookup.at(metricSymbol);
+                    const auto metricIt = metricLookup.find(metricSpec.symbol);
+                    if (metricIt == metricLookup.end()) {
+                        pmlog_error("Unknown metric symbol").pmwatch(metricSpec.symbol);
+                        continue;
+                    }
+                    const auto metricId = metricIt->second;
                     const auto& metric = introRoot.FindMetric(metricId);
                     // make sure metric is valid for a frame query
                     if (metric.GetType() == PM_METRIC_TYPE_DYNAMIC) {
@@ -41,9 +149,11 @@ namespace p2c::pmon
                     const auto& deviceInfos = metric.GetDeviceMetricInfo();
                     const bool isGraphicsAdapter = !deviceInfos.empty() &&
                         deviceInfos.front().GetDevice().GetType() == PM_DEVICE_TYPE_GRAPHICS_ADAPTER;
+                    const uint32_t deviceId = metricSpec.deviceId.value_or(isGraphicsAdapter ? activeDeviceId : 0);
                     elements.push_back(RawFrameQueryElementDefinition{
-                        .metricId = metricLookup.at(metricSymbol),
-                        .deviceId = isGraphicsAdapter ? activeDeviceId : 0,
+                        .metricId = metricId,
+                        .deviceId = deviceId,
+                        .index = metricSpec.index,
                     });
                 }
                 catch (...) {

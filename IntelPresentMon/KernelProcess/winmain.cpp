@@ -1,4 +1,4 @@
-#include "../CommonUtilities/win/WinAPI.h"
+﻿#include "../CommonUtilities/win/WinAPI.h"
 #include "../Core/source/kernel/Kernel.h"
 #include "../Core/source/infra/util/FolderResolver.h"
 #include "../CommonUtilities/log/IdentificationTable.h"
@@ -452,6 +452,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				.telemetrySamplingPeriodMs = *opt.capTelemetryPeriod,
 				.hideAlways = true,
 			});
+			if (opt.capDefaultAdapterId && *opt.capDefaultAdapterId > 0) {
+				pSpec->frameQueryAdapterId = *opt.capDefaultAdapterId;
+			}
 			std::cout << "Starting capture..." << std::endl;
 			kernel.PushSpec(std::move(pSpec));
 			kernel.SetCapture(true);

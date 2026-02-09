@@ -53,8 +53,9 @@ namespace p2c::cli
 		Option<std::string> capTargetName{ this, "--target-name", {}, "Main module name of the process to track" };
 		Option<double> capDuration{ this, "--duration", 10., "How long to capture for in seconds" };
 		Option<uint32_t> capTelemetryPeriod{ this, "--telemetry-period", 100, "Time between GPU/CPU telemetry samples in ms" };
+		Option<uint32_t> capDefaultAdapterId{ this, "--default-adapter", {}, "Default GPU adapter id used when no device id is specified in --metrics" };
 		Option<std::string> capOutput{ this, "--output", {}, "Name of the output CSV file, optionally with absolute or relative path" };
-		Option<std::vector<std::string>> capMetrics{ this, "--metrics", {}, "List of metrics to capture as columns in the output CSV file" };
+		Option<std::vector<std::string>> capMetrics{ this, "--metrics", {}, "List of metrics to capture as columns in the output CSV file. Format: PM_METRIC_XXX[INDEX]:DEVICEID (index and device id optional)." };
 
 	Subcommand subcList{ this, "list", "List entities for use with PresentMon SDK/headless CLI" }; public:
 	private: Group glists_{ this, "Standard", "Standard options for the list subcommand" }; public:
