@@ -1,4 +1,4 @@
-﻿#include <memory>
+#include <memory>
 #include <crtdbg.h>
 #include <unordered_map>
 #include "../PresentMonMiddleware/Middleware.h"
@@ -132,11 +132,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmOpenSessionWithPipe(PM_SESSION_HANDLE* pHandl
 		pmlog_info("Middleware successfully opened session with service");
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 // public endpoints
@@ -151,11 +147,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmCloseSession(PM_SESSION_HANDLE handle)
 		DestroyMiddleware_(handle);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmStartTrackingProcess(PM_SESSION_HANDLE handle, uint32_t processId)
@@ -164,11 +156,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStartTrackingProcess(PM_SESSION_HANDLE handle
 		LookupMiddleware_(handle).StartTracking(processId);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmStartPlaybackTracking(PM_SESSION_HANDLE handle, uint32_t processId, uint32_t isBackpressured)
@@ -177,11 +165,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStartPlaybackTracking(PM_SESSION_HANDLE handl
 		LookupMiddleware_(handle).StartPlaybackTracking(processId, isBackpressured != 0);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmStopTrackingProcess(PM_SESSION_HANDLE handle, uint32_t processId)
@@ -190,11 +174,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStopTrackingProcess(PM_SESSION_HANDLE handle,
 		LookupMiddleware_(handle).StopTracking(processId);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmGetIntrospectionRoot(PM_SESSION_HANDLE handle, const PM_INTROSPECTION_ROOT** ppInterface)
@@ -214,11 +194,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetIntrospectionRoot(PM_SESSION_HANDLE handle
 		*ppInterface = pIntro;
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmFreeIntrospectionRoot(const PM_INTROSPECTION_ROOT* pInterface)
@@ -235,11 +211,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFreeIntrospectionRoot(const PM_INTROSPECTION_
 		free(const_cast<PM_INTROSPECTION_ROOT*>(pInterface));
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE handle, uint32_t deviceId, uint32_t timeMs)
@@ -248,11 +220,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE h
 		LookupMiddleware_(handle).SetTelemetryPollingPeriod(deviceId, timeMs);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, uint32_t periodMs)
@@ -261,11 +229,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, u
 		LookupMiddleware_(handle).SetEtwFlushPeriod(periodMs ? std::optional{ periodMs } : std::nullopt);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmFlushFrames(PM_SESSION_HANDLE handle, uint32_t processId)
@@ -274,11 +238,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFlushFrames(PM_SESSION_HANDLE handle, uint32_
 		LookupMiddleware_(handle).FlushFrames(processId);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmRegisterDynamicQuery(PM_SESSION_HANDLE sessionHandle, PM_DYNAMIC_QUERY_HANDLE* pQueryHandle,
@@ -299,11 +259,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmRegisterDynamicQuery(PM_SESSION_HANDLE sessio
 		*pQueryHandle = queryHandle;
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmFreeDynamicQuery(PM_DYNAMIC_QUERY_HANDLE handle)
@@ -318,11 +274,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFreeDynamicQuery(PM_DYNAMIC_QUERY_HANDLE hand
 		mid.FreeDynamicQuery(handle);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQuery(PM_DYNAMIC_QUERY_HANDLE handle, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains)
@@ -343,11 +295,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQuery(PM_DYNAMIC_QUERY_HANDLE hand
 		LookupMiddleware_(handle).PollDynamicQuery(handle, processId, pBlob, numSwapChains);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQueryWithTimestamp(PM_DYNAMIC_QUERY_HANDLE handle, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains, uint64_t nowTimestamp)
@@ -368,11 +316,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQueryWithTimestamp(PM_DYNAMIC_QUER
 		LookupMiddleware_(handle).PollDynamicQuery(handle, processId, pBlob, numSwapChains, nowTimestamp);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmPollStaticQuery(PM_SESSION_HANDLE sessionHandle, const PM_QUERY_ELEMENT* pElement, uint32_t processId, uint8_t* pBlob)
@@ -389,11 +333,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmPollStaticQuery(PM_SESSION_HANDLE sessionHand
 		LookupMiddleware_(sessionHandle).PollStaticQuery(*pElement, processId, pBlob);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmRegisterFrameQuery(PM_SESSION_HANDLE sessionHandle, PM_FRAME_QUERY_HANDLE* pQueryHandle, PM_QUERY_ELEMENT* pElements, uint64_t numElements, uint32_t* pBlobSize)
@@ -420,11 +360,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmRegisterFrameQuery(PM_SESSION_HANDLE sessionH
 		*pQueryHandle = queryHandle;
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmConsumeFrames(PM_FRAME_QUERY_HANDLE handle, uint32_t processId, uint8_t* pBlob, uint32_t* pNumFramesToRead)
@@ -445,10 +381,10 @@ PRESENTMON_API2_EXPORT PM_STATUS pmConsumeFrames(PM_FRAME_QUERY_HANDLE handle, u
 		const auto code = util::GeneratePmStatus();
 		if (code == PM_STATUS_INVALID_PID) {
 			// invalid pid is an exception that happens at the end of a normal workflow, so don't flag as error
-			pmlog_info(util::ReportException()).code(code);
+			pmlog_info(util::ReportException()).code(code).diag();
 		}
 		else {
-			pmlog_error(util::ReportException()).code(code);
+			pmlog_error(util::ReportException()).code(code).diag();
 		}
 		return code;
 	}
@@ -462,11 +398,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFreeFrameQuery(PM_FRAME_QUERY_HANDLE handle)
 		mid.FreeFrameEventQuery(handle);
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmGetApiVersion(PM_VERSION* pVersion)
@@ -486,11 +418,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStopPlayback_(PM_SESSION_HANDLE handle)
 		mid.StopPlayback();
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE* pEtlHandle,
@@ -501,11 +429,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM
 		*pEtlHandle = mid.StartEtlLogging();
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, PM_ETL_HANDLE etlHandle,
@@ -526,9 +450,5 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, P
 		pOutputFilePathBuffer[path.size()] = '\0';
 		return PM_STATUS_SUCCESS;
 	}
-	catch (...) {
-		const auto code = util::GeneratePmStatus();
-		pmlog_error(util::ReportException()).code(code);
-		return code;
-	}
+	pmcatch_report_diag(true);
 }

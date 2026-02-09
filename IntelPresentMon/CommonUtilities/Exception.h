@@ -67,4 +67,5 @@ namespace pmon::util
 #define pmquell(stat) try { stat; } catch (...) {}
 
 #define pmcatch_report catch (...) { pmlog_error(::pmon::util::ReportException()); }
+#define pmcatch_report_diag(should_return) catch (...) { const auto code = ::pmon::util::GeneratePmStatus(); pmlog_error(::pmon::util::ReportException()).code(code).diag(); if constexpr (should_return) { return code; } }
 }

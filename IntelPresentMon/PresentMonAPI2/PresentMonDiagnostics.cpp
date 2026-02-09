@@ -20,7 +20,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticSetup(const PM_DIAGNOSTIC_CONFIGURA
 	try {
 		log::SetupDiagnosticChannel(pConfig);
 		return PM_STATUS_SUCCESS;
-	} pmcatch_report;
+	} pmcatch_report_diag(true);
 	return PM_STATUS_FAILURE;
 }
 
@@ -30,8 +30,8 @@ PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetQueuedMessageCount()
 		if (auto pDiag = log::GetDiagnostics()) {
 			return pDiag->GetQueuedMessageCount();
 		}
-	} pmcatch_report;
-	return PM_STATUS_FAILURE;
+	} pmcatch_report_diag(false);
+	return 0;
 }
 
 PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetMaxQueuedMessages()
@@ -40,7 +40,7 @@ PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetMaxQueuedMessages()
 		if (auto pDiag = log::GetDiagnostics()) {
 			return pDiag->GetMaxQueuedMessages();
 		}
-	} pmcatch_report;
+	} pmcatch_report_diag(false);
 	return 0;
 }
 
@@ -51,7 +51,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticSetMaxQueuedMessages(uint32_t max)
 			pDiag->SetMaxQueuedMessages(max);
 			return PM_STATUS_SUCCESS;
 		}
-	} pmcatch_report;
+	} pmcatch_report_diag(true);
 	return PM_STATUS_FAILURE;
 }
 
@@ -61,7 +61,7 @@ PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetDiscardedMessageCount()
 		if (auto pDiag = log::GetDiagnostics()) {
 			return pDiag->GetDiscardedMessageCount();
 		}
-	} pmcatch_report;
+	} pmcatch_report_diag(false);
 	return 0;
 }
 
@@ -79,7 +79,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticDequeueMessage(PM_DIAGNOSTIC_MESSAG
 				return PM_STATUS_SUCCESS;
 			}
 		}
-	} pmcatch_report;
+	} pmcatch_report_diag(true);
 	return PM_STATUS_FAILURE;
 }
 
@@ -92,7 +92,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticEnqueueMessage(const PM_DIAGNOSTIC_
 				return PM_STATUS_SUCCESS;
 			}
 		}
-	} pmcatch_report;
+	} pmcatch_report_diag(true);
 	return PM_STATUS_FAILURE;
 }
 
@@ -103,7 +103,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticFreeMessage(PM_DIAGNOSTIC_MESSAGE* 
 			delete pMessage;
 			return PM_STATUS_SUCCESS;
 		}
-	} pmcatch_report;
+	} pmcatch_report_diag(true);
 	return PM_STATUS_FAILURE;
 }
 
@@ -113,7 +113,7 @@ PRESENTMON_API2_EXPORT PM_DIAGNOSTIC_WAKE_REASON pmDiagnosticWaitForMessage(uint
 		if (auto pDiag = log::GetDiagnostics()) {
 			return pDiag->WaitForMessage(timeoutMs);
 		}
-	} pmcatch_report;
+	} pmcatch_report_diag(false);
 	return PM_DIAGNOSTIC_WAKE_REASON_ERROR;
 }
 
@@ -124,7 +124,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticUnblockWaitingThread()
 			pDiag->UnblockWaitingThread();
 			return PM_STATUS_SUCCESS;
 		}
-	} pmcatch_report;
+	} pmcatch_report_diag(true);
 	return PM_STATUS_FAILURE;
 }
 
