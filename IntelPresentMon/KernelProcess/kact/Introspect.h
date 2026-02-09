@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
 #include "KernelExecutionContext.h"
 #include <format>
@@ -113,9 +113,12 @@ namespace ACT_NS
 
             // filter predicate to only pick up metrics usable in dynamic queries (plus hardcoded blacklist)
             const auto filterPred = [](const pmapi::intro::MetricView& m) {
+                const auto id = m.GetId();
                 const auto type = m.GetType();
                 return
-                    (m.GetId() != PM_METRIC_GPU_LATENCY)
+                    (id != PM_METRIC_GPU_LATENCY) &&
+                    (id != PM_METRIC_SESSION_START_QPC) &&
+                    (id != PM_METRIC_SWAP_CHAIN_ADDRESS)
                     &&
                     (
                         type == PM_METRIC_TYPE_DYNAMIC ||
