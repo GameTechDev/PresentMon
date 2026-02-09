@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2017-2024 Intel Corporation
+// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "RawFrameDataWriter.h"
 #include <CommonUtilities/Exception.h>
@@ -180,9 +180,13 @@ namespace p2c::pmon
                 bool available = false;
                 for (auto&& dmi : metric.GetDeviceMetricInfo()) {
                     if (auto devId = dmi.GetDevice().GetId(); devId == checkDeviceId || devId == 0) {
-                        if (dmi.IsAvailable() && dmi.GetArraySize() > 0) {
-                            available = true;
-                            break;
+                        const auto arraySize = dmi.GetArraySize();
+                        if (dmi.IsAvailable() && arraySize > 0) {
+                            if (!element.index.has_value() ||
+                                *element.index < arraySize) {
+                                available = true;
+                                break;
+                            }
                         }
                     }
                 }
