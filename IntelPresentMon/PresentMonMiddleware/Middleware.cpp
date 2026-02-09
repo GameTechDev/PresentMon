@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2017-2024 Intel Corporation
+// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Middleware.h"
 #include <string>
@@ -159,6 +159,9 @@ namespace pmon::mid
     void Middleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId,
         uint8_t* pBlob, uint32_t* numSwapChains, std::optional<uint64_t> nowTimestamp)
     {
+        if (pQuery == nullptr) {
+            throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pQuery pointer is null.");
+        }
         if (numSwapChains == nullptr) {
             throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "numSwapChains pointer is null.");
         }
@@ -189,6 +192,9 @@ namespace pmon::mid
 
     void Middleware::PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob)
     {
+        if (pBlob == nullptr) {
+            throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pBlob pointer is null.");
+        }
         const ipc::StaticMetricValue value = [&]() {
             if (element.deviceId == ipc::kSystemDeviceId) {
                 return pComms_->GetSystemDataStore().FindStaticMetric(element.metric);
@@ -227,6 +233,12 @@ namespace pmon::mid
 
     void mid::Middleware::ConsumeFrameEvents(const PM_FRAME_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t& numFrames)
     {
+        if (pQuery == nullptr) {
+            throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pQuery pointer is null.");
+        }
+        if (numFrames > 0 && pBlob == nullptr) {
+            throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pBlob pointer is null.");
+        }
         const auto framesToCopy = numFrames;
         numFrames = 0;
         if (framesToCopy == 0) {

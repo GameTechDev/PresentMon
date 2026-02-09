@@ -29,7 +29,7 @@ namespace pmon::ipc::act
                 if (header.identifier != "OpenSession") {
                     assert(bool(stx.remotePid));
                     if (!stx.remotePid) {
-                        pmlog_warn("Received action without a valid session opened");
+                        pmlog_warn("Received action without a valid session opened").diag();
                     }
                 }
                 // lookup the command by identifier and execute it with remaining buffer contents
