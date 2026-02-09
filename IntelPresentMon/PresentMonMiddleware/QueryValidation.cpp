@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2017-2024 Intel Corporation
+// Copyright (C) 2017-2024 Intel Corporation
 #include "QueryValidation.h"
 #include "../PresentMonAPIWrapperCommon/Introspection.h"
 #include "../PresentMonAPIWrapperCommon/Exception.h"
@@ -158,6 +158,7 @@ namespace
         PM_METRIC metric;
         uint32_t arrayIndex;
         PM_STAT stat;
+        uint32_t deviceId;
     };
 
     struct QueryKeyHasher_
@@ -167,6 +168,7 @@ namespace
             uint64_t h = (uint64_t)key.metric;
             h = (h * 1315423911u) ^ (uint64_t)key.arrayIndex;
             h = (h * 1315423911u) ^ (uint64_t)key.stat;
+            h = (h * 1315423911u) ^ (uint64_t)key.deviceId;
             return (size_t)h;
         }
     };
@@ -177,7 +179,8 @@ namespace
         {
             return lhs.metric == rhs.metric &&
                 lhs.arrayIndex == rhs.arrayIndex &&
-                lhs.stat == rhs.stat;
+                lhs.stat == rhs.stat &&
+                lhs.deviceId == rhs.deviceId;
         }
     };
 
@@ -233,6 +236,7 @@ namespace pmon::mid
                 .metric = q.metric,
                 .arrayIndex = q.arrayIndex,
                 .stat = q.stat,
+                .deviceId = q.deviceId,
             };
             if (auto it = seenKeys.find(key); it != seenKeys.end()) {
                 pmlog_error("Duplicate query element")
