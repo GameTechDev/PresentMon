@@ -78,8 +78,8 @@ namespace pwr::intel
     {
         properties = {
             .Size = sizeof(ctl_device_adapter_properties_t),
-            .pDeviceID = &deviceId,
-            .device_id_size = sizeof(deviceId),
+            .pDeviceID = &deviceLuid,
+            .device_id_size = sizeof(deviceLuid),
         };
 
         if (auto result = ctlGetDeviceProperties(deviceHandle, &properties);

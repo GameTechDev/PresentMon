@@ -89,7 +89,7 @@ namespace pwr::intel
 			GpuTelemetryCapBits telemetry_cap_bit);
 		// data
 		ctl_device_adapter_handle_t deviceHandle = nullptr;
-		LUID deviceId; // pointed to by a device_adapter_properties member, written to by igcl api
+		LUID deviceLuid; // pointed to by a device_adapter_properties member, written to by igcl api
 		ctl_device_adapter_properties_t properties{};
 		std::vector<ctl_mem_handle_t> memoryModules;
 		std::vector<ctl_pwr_handle_t> powerDomains;
