@@ -26,6 +26,7 @@
 #include "../PresentMonAPI2Loader/Loader.h"
 #include "Utils.h"
 #include "DynamicQuerySample.h"
+#include "DynamicQueryNoTargetSample.h"
 #include "FrameQuerySample.h"
 #include "IntrospectionSample.h"
 #include "CheckMetricSample.h"
@@ -341,9 +342,7 @@ int main(int argc, char* argv[])
             if (opt.controlPipe) {
                 return std::make_unique<pmapi::Session>(*opt.controlPipe);
             }
-            else {
-                return std::make_unique<pmapi::Session>();
-            }
+            return std::make_unique<pmapi::Session>();
         };
 
         // determine requested mode to run the sample app in
@@ -360,6 +359,8 @@ int main(int argc, char* argv[])
             return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, false);
         case clio::Mode::AddGpuMetric:
             return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, true);
+        case clio::Mode::DynamicQueryNoTargetAll:
+            return DynamicQueryNoTargetSample(ConnectSession(), *opt.windowSize, *opt.metricOffset);
         case clio::Mode::WrapperStaticQuery:
             return WrapperStaticQuerySample(ConnectSession());
         case clio::Mode::MetricList:

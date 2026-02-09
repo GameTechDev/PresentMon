@@ -12,6 +12,7 @@ namespace clio
 	{
 		Introspection,
 		DynamicQuery,
+		DynamicQueryNoTargetAll,
 		FrameQuery,
 		CsvFrameQuery,
 		CheckMetric,
@@ -47,6 +48,7 @@ namespace clio
 		Option<unsigned int> processId{ this, "--process-id", 0, "Process Id to use for polling or frame data capture" };
 		Option<std::string> processName{ this, "--process-name", "", "Name of process to use for polling or frame data capture" };
 		Option<std::string> metric{ this, "--metric", "", "PM_METRIC, ex. PM_METRIC_PRESENTED_FPS" };
+		Option<unsigned int> defaultAdapterId{ this, "--default-adapter-id", 0, "GPU device id to use for system-wide dynamic polling" };
 		Option<unsigned int> telemetryPeriodMs{ this, "--telemetry-period-ms", {}, "Telemetry period in milliseconds" };
 		Option<unsigned int> etwFlushPeriodMs{ this, "--etw-flush-period-ms", {}, "ETW manual flush period in milliseconds" };
 		Option<double> runTime{ this, "--run-time", 10., "How long to capture for, in seconds" };
