@@ -1,7 +1,9 @@
-﻿#pragma once
+#pragma once
 #include <optional>
 #include <string>
 #include <memory>
+#include "../../ControlLib/PresentMonPowerTelemetry.h"
+#include "../../ControlLib/CpuTelemetryInfo.h"
 #include "../../PresentMonAPI2/PresentMonAPI.h"
 #include "DataStores.h"
 #include "OwnedDataSegment.h"
@@ -20,7 +22,7 @@ namespace pmon::ipc
 	public:
 		virtual ~ServiceComms() = default;
 		virtual intro::IntrospectionRoot& GetIntrospectionRoot() = 0;
-		virtual void RegisterGpuDevice(uint32_t deviceId, PM_DEVICE_VENDOR vendor, std::string deviceName, const MetricCapabilities& caps) = 0;
+		virtual void RegisterGpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const GpuTelemetryBitset& gpuCaps) = 0;
 		virtual void FinalizeGpuDevices() = 0;
 		virtual void RegisterCpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const MetricCapabilities& caps) = 0;
 		virtual const ShmNamer& GetNamer() const = 0;

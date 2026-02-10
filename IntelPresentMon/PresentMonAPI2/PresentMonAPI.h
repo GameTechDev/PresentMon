@@ -316,12 +316,19 @@ extern "C" {
 		PM_INTROSPECTION_OBJARRAY* pKeys;
 	};
 
+	struct PM_INTROSPECTION_DEVICE_LUID
+	{
+		const uint8_t* pData;
+		uint32_t size;
+	};
+
 	struct PM_INTROSPECTION_DEVICE
 	{
 		uint32_t id;
 		PM_DEVICE_TYPE type;
 		PM_DEVICE_VENDOR vendor;
 		PM_INTROSPECTION_STRING* pName;
+		PM_INTROSPECTION_DEVICE_LUID* pLuid;
 	};
 
 	struct PM_INTROSPECTION_DEVICE_METRIC_INFO

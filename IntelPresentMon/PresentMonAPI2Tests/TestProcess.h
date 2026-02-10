@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "../CommonUtilities/win/WinAPI.h"
@@ -16,6 +16,7 @@
 #include <optional>
 #include <sstream>
 #include <filesystem>
+#include <chrono>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace as = boost::asio;
@@ -92,7 +93,7 @@ public:
 	TestProcess& operator=(const TestProcess&) = delete;
 	TestProcess(TestProcess&& other) noexcept = delete;
 	TestProcess& operator=(TestProcess&& other) noexcept = delete;
-	virtual ~TestProcess() = default;
+	virtual ~TestProcess() noexcept = default;
 
 	void Murder()
 	{
@@ -107,6 +108,19 @@ public:
 	void Wait()
 	{
 		process_.wait();
+	}
+	bool WaitForExit(std::chrono::milliseconds timeout)
+	{
+		if (!process_.running()) {
+			return true;
+		}
+		const auto waitResult = WaitForSingleObject(process_.native_handle(),
+			static_cast<DWORD>(timeout.count()));
+		if (waitResult == WAIT_OBJECT_0) {
+			process_.wait();
+			return true;
+		}
+		return false;
 	}
 	std::string Command(const std::string& command)
 	{
@@ -170,7 +184,10 @@ public:
 	~ConnectedTestProcess() override
 	{
 		if (process_.running()) {
-			Quit();
+			try { Quit(); }
+			catch (...) {
+				Logger::WriteMessage(util::ReportException("ConnectedTestProcess dtor").first.c_str());
+			}
 		}
 	}
 protected:
@@ -295,7 +312,7 @@ public:
 	CommonTestFixture& operator=(const CommonTestFixture&) = delete;
 	CommonTestFixture(CommonTestFixture&&) = delete;
 	CommonTestFixture& operator=(CommonTestFixture&&) = delete;
-	virtual ~CommonTestFixture() = default;
+	virtual ~CommonTestFixture() noexcept = default;
 
 	void Setup(std::vector<std::string> args = {})
 	{
@@ -323,6 +340,10 @@ public:
 			ioctxRunThread_.join();
 		}
 		logManager_.reset();
+	}
+	void StopService()
+	{
+		StopService_(GetCommonArgs());
 	}
 	void RebootService(std::optional<std::vector<std::string>> newArgs = {})
 	{

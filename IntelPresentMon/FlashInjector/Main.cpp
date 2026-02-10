@@ -32,73 +32,83 @@ namespace pmon::util::log
 
 int main(int argc, char** argv)
 {
-    // Initial logging
-    LOGI << "Injector process started" << std::endl;
+    try {
+        // Initial logging
+        LOGI << "Injector process started" << std::endl;
 
-    // Initialize arguments
-    if (auto res = clio::Options::Init(argc, argv, true)) {
-        return *res;
-    }
-    auto& opts = clio::Options::Get();
-
-    stdfs::path injectorPath;
-    {
-        std::vector<char> buffer(MAX_PATH);
-        auto size = GetModuleFileNameA(NULL, buffer.data(), static_cast<DWORD>(buffer.size()));
-        if (size == 0) {
-            LOGE << "Failed to get this executable path." << std::endl;;
+        // Initialize arguments
+        if (auto res = clio::Options::Init(argc, argv, true)) {
+            return *res;
         }
-        injectorPath = std::string(buffer.begin(), buffer.begin() + size);
-        injectorPath = injectorPath.parent_path();
-    }
+        auto& opts = clio::Options::Get();
 
-    // DLL to inject
-    const stdfs::path libraryPath = injectorPath / std::format("FlashInjectorLibrary-{}.dll", PM_BUILD_PLATFORM);
+        stdfs::path injectorPath;
+        {
+            std::vector<char> buffer(MAX_PATH);
+            auto size = GetModuleFileNameA(NULL, buffer.data(), static_cast<DWORD>(buffer.size()));
+            if (size == 0) {
+                LOGE << "Failed to get this executable path." << std::endl;;
+            }
+            injectorPath = std::string(buffer.begin(), buffer.begin() + size);
+            injectorPath = injectorPath.parent_path();
+        }
 
-    const bool weAre32Bit = PM_BUILD_PLATFORM == "Win32"s;
+        // DLL to inject
+        const stdfs::path libraryPath = injectorPath / std::format("FlashInjectorLibrary-{}.dll", PM_BUILD_PLATFORM);
 
-    if (!stdfs::exists(libraryPath)) {
-        LOGE << "Cannot find library: " << libraryPath << std::endl;;
-        exit(1);
-    }
+        const bool weAre32Bit = PM_BUILD_PLATFORM == "Win32"s;
 
-    LOGI << "Waiting for processes that match executable name..." << std::endl;
+        if (!stdfs::exists(libraryPath)) {
+            LOGE << "Cannot find library: " << libraryPath << std::endl;;
+            exit(1);
+        }
 
-    std::mutex targetModuleNameMtx;
-    std::string targetModuleName;
-    // thread whose sole job is to read from stdin without blocking the main thread
-    std::thread{ [&] {
-        std::string line;
+        LOGI << "Waiting for processes that match executable name..." << std::endl;
+
+        std::mutex targetModuleNameMtx;
+        std::string targetModuleName;
+        // thread whose sole job is to read from stdin without blocking the main thread
+        std::thread{ [&] {
+            std::string line;
+            while (true) {
+                std::getline(std::cin, line);
+                std::lock_guard lk{ targetModuleNameMtx };
+                targetModuleName = str::ToLower(line);
+            }
+        } }.detach();
+
+        // keep a set of processes already attached so we don't attempt multiple attachments per process
+        std::unordered_set<DWORD> processesAttached;
         while (true) {
-            std::getline(std::cin, line);
-            std::lock_guard lk{ targetModuleNameMtx };
-            targetModuleName = str::ToLower(line);
-        }
-    } }.detach();
-
-    // keep a set of processes already attached so we don't attempt multiple attachments per process
-    std::unordered_set<DWORD> processesAttached;
-    while (true) {
-        // atomic load target name and skip if empty string
-        const auto tgt = [&] { std::lock_guard lk{ targetModuleNameMtx }; return targetModuleName; }();
-        if (!tgt.empty()) {
-            for (auto&& [processId, processName] : LibraryInject::GetProcessNames()) {
-                const auto processNameLower = str::ToLower(processName);
-                if (processNameLower == tgt && !processesAttached.contains(processId)) {
-                    auto hProcTarget = win::OpenProcess(processId, PROCESS_QUERY_LIMITED_INFORMATION);
-                    if (win::ProcessIs32Bit(hProcTarget) == weAre32Bit) {
-                        LibraryInject::Attach(processId, libraryPath);
-                        LOGI << "    Injected DLL to process with PID: " << processId << std::endl;
-                        processesAttached.insert(processId);
-                        // inform kernel of attachment so it can connect the action client
-                        std::cout << processId << std::endl;
+            // atomic load target name and skip if empty string
+            const auto tgt = [&] { std::lock_guard lk{ targetModuleNameMtx }; return targetModuleName; }();
+            if (!tgt.empty()) {
+                for (auto&& [processId, processName] : LibraryInject::GetProcessNames()) {
+                    const auto processNameLower = str::ToLower(processName);
+                    if (processNameLower == tgt && !processesAttached.contains(processId)) {
+                        auto hProcTarget = win::OpenProcess(processId, PROCESS_QUERY_LIMITED_INFORMATION);
+                        if (win::ProcessIs32Bit(hProcTarget) == weAre32Bit) {
+                            LibraryInject::Attach(processId, libraryPath);
+                            LOGI << "    Injected DLL to process with PID: " << processId << std::endl;
+                            processesAttached.insert(processId);
+                            // inform kernel of attachment so it can connect the action client
+                            std::cout << processId << std::endl;
+                        }
                     }
                 }
             }
+            // check for new processes only every N ms to reduce CPU load
+            std::this_thread::sleep_for(40ms);
         }
-        // check for new processes only every N ms to reduce CPU load
-        std::this_thread::sleep_for(40ms);
-    }
 
-    return 0;
+        return 0;
+    }
+    catch (const std::exception& e) {
+        LOGE << "Exception in Main: " << e.what() << std::endl;
+        return -1;
+    }
+    catch (...) {
+        LOGE << "Exception in Main: Unidentified error" << std::endl;
+        return -1;
+    }
 }

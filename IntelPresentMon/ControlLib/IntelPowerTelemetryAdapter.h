@@ -21,6 +21,7 @@ namespace pwr::intel
         uint64_t GetDedicatedVideoMemory() const noexcept override;
 		uint64_t GetVideoMemoryMaxBandwidth() const noexcept override;
 		double GetSustainedPowerLimit() const noexcept override;
+		uint64_t GetAdapterId() const noexcept override;
 
 		// types
 		class NonGraphicsDeviceException : public std::exception {};

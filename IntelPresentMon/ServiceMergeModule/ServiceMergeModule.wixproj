@@ -1,4 +1,5 @@
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\..\Version.props" Condition="Exists('..\..\Version.props') and '$(VersionPropsImported)'==''" />
   <PropertyGroup>
     <!-- Build a MERGE MODULE -->
     <OutputType>Module</OutputType>
@@ -9,7 +10,7 @@
     <WixToolPath>$(WIX)bin\</WixToolPath>
     <WixTargetsPath>$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
     <!-- If your wixlib expects a specific DirectoryRef Id -->
-    <DefineConstants>PM.ServiceDirId=service_folder</DefineConstants>
+    <DefineConstants>PM.ServiceDirId=service_folder;ProductVersion=$(PresentMonProductVersion)</DefineConstants>
     <ProjectGuid>{dc72c6b9-ca78-46c4-9962-e927b7a8d607}</ProjectGuid>
   </PropertyGroup>
   <ItemGroup>

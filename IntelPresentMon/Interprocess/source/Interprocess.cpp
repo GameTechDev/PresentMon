@@ -1,4 +1,4 @@
-﻿#include "../../CommonUtilities/win/WinAPI.h"
+#include "../../CommonUtilities/win/WinAPI.h"
 #include "Interprocess.h"
 #include "IntrospectionTransfer.h"
 #include "IntrospectionPopulators.h"
@@ -61,8 +61,8 @@ namespace pmon::ipc
                 return *pRoot_;
             }
             void RegisterGpuDevice(uint32_t deviceId, PM_DEVICE_VENDOR vendor,
-                std::string deviceName,
-                const MetricCapabilities& caps) override
+                std::string deviceName, const MetricCapabilities& caps,
+                std::span<const uint8_t> luidBytes) override
             {
                 auto lck = LockIntrospectionMutexExclusive_();
                 pmlog_dbg("GPU metric capabilities")
@@ -71,7 +71,7 @@ namespace pmon::ipc
                     .pmwatch(caps.ToString(26));
                 intro::PopulateGpuDevice(
                     shm_.get_segment_manager(), *pRoot_,
-                    deviceId, vendor, deviceName, caps
+                    deviceId, vendor, deviceName, caps, luidBytes
                 );
                 const DataStoreSizingInfo sizing{ pRoot_.get().get(), &caps, telemetryRingSamples_ };
                 const auto segmentName = namer_.MakeGpuName(deviceId);
@@ -189,6 +189,7 @@ namespace pmon::ipc
                         ++it;
                     }
                 }
+			void RegisterGpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const GpuTelemetryBitset& gpuCaps, std::span<const uint8_t> luidBytes) override
 
                 return pFrameData;
             }

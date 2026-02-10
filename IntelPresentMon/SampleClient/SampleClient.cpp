@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include <string>
@@ -33,6 +33,7 @@
 #include "WrapperStaticQuery.h"
 #include "MetricListSample.h"
 #include "MultiClient.h"
+#include "ServiceCrashClient.h"
 #include "EtlLogger.h"
 #include "IpcComponentServer.h"
 #include "PacedPlayback.h"
@@ -315,7 +316,6 @@ void IntrospectAllDynamicOptions()
     }
 }
 
-
 int main(int argc, char* argv[])
 {
     try {
@@ -371,6 +371,8 @@ int main(int argc, char* argv[])
             return FrameQuerySample(ConnectSession(), true);
         case clio::Mode::MultiClient:
             return MultiClientTest(ConnectSession());
+        case clio::Mode::ServiceCrashClient:
+            return ServiceCrashClientTest(ConnectSession());
         case clio::Mode::EtlLogger:
             return EtlLoggerTest(ConnectSession());
         case clio::Mode::PacedPlayback:
@@ -385,12 +387,14 @@ int main(int argc, char* argv[])
             IntrospectAllDynamicOptions(); break;
         case clio::Mode::IpcComponentServer:
             IpcComponentServer(); break;
+        case clio::Mode::IntrospectionDevices:
+            IntrospectAllDevices(ConnectSession()); break;
         default:
             throw std::runtime_error{ "unknown sample client mode" };
         }
     }
     catch (...) {
-        const auto exr = pmon::util::ReportException();
+        const auto exr = pmon::util::ReportException("Exception caught in SampleClient main");
         std::cout << "Error: " << exr.first << std::endl;
         pmlog_error(exr);
         return -1;

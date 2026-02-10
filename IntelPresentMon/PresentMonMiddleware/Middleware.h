@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "../CommonUtilities/win/WinAPI.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../PresentMonAPI2/PresentMonAPI.h"
@@ -68,5 +68,6 @@ namespace pmon::mid
 		std::map<uint32_t, std::unique_ptr<FrameMetricsSource>> frameMetricsSources_;
 		// Query handles mapped to their metric usage keys
 		std::unordered_map<const void*, std::vector<QueryMetricKey>> queryMetricUsage_;
+		virtual bool ServiceConnected() const { return false; }
 	};
 }

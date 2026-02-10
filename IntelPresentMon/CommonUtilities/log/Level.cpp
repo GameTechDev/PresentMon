@@ -6,12 +6,12 @@ using namespace std::literals;
 
 namespace pmon::util::log
 {
-	std::string GetLevelName(Level lv) noexcept
+	std::string GetLevelName(Level lv)
 	{
 		return std::string{ reflect::enum_name(lv) };
 	}
 
-	std::map<std::string, Level> GetLevelMapNarrow() noexcept
+	std::map<std::string, Level> GetLevelMapNarrow()
 	{
 		using namespace pmon::util::str;
 		std::map<std::string, Level> map;

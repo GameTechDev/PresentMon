@@ -2377,6 +2377,12 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
         }
     }
 
+    // Remove the app frame data for this present
+    auto ii = mPresentByAppFrameId.find(std::make_pair(appFrameId, processId));
+    if (ii != mPresentByAppFrameId.end()) {
+        mPresentByAppFrameId.erase(ii);
+    }
+
     // Prune out old PC Latency timing data to prevent memory leaks.
     // This is critical because PCL data accumulates for every frame and the
     // PCLStatsShutdown event (the only other cleanup mechanism) is app-controlled.
@@ -2758,7 +2764,15 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
                 });
                 mLatestPingTimestampByProcessId.erase(event.ProcessId);
             }
-
+            // Clean up App Timing data as well...
+            if (mTrackAppTiming) {
+                std::erase_if(mAppTimingDataByAppFrameId, [&event](const auto& p) {
+                    return p.second.ProcessId == event.ProcessId;
+                });
+                std::erase_if(mPresentByAppFrameId, [&event](const auto& p) {
+                    return p.first.second == event.ProcessId;
+                });
+            }
             break;
         }
         default:
@@ -2786,12 +2800,20 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             event.ProcessId    = desc[0].GetData<uint32_t>();
             event.IsStartEvent = false;
 
-            // Clean up PC Latency tracking data for this process to prevent memory leaks.
+            // Clean up PC Latency and AppTiming tracking data for this process to prevent memory leaks.
             if (mTrackPcLatency) {
                 std::erase_if(mPclTimingDataByPclFrameId, [&event](const auto& p) {
                     return p.first.second == event.ProcessId;
                 });
                 mLatestPingTimestampByProcessId.erase(event.ProcessId);
+            }
+            if (mTrackAppTiming) {
+                std::erase_if(mAppTimingDataByAppFrameId, [&event](const auto& p) {
+                    return p.second.ProcessId == event.ProcessId;
+                    });
+                std::erase_if(mPresentByAppFrameId, [&event](const auto& p) {
+                    return p.first.second == event.ProcessId;
+                    });
             }
         } else {
             return;

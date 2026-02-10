@@ -195,7 +195,7 @@ namespace pmon::util::file
                 Remove();
             }
             catch (...) {
-                pmlog_error("failed removing secure subdir");
+                pmquell(pmlog_error("failed removing secure subdir").pmwatch(path_.string()));
             }
         }
     }

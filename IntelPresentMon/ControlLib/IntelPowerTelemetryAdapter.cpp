@@ -345,6 +345,15 @@ namespace pwr::intel
         return gpuSustainedPowerLimit / 1000.;
     }
 
+    uint64_t IntelPowerTelemetryAdapter::GetAdapterId() const noexcept
+    {
+        // LUID is a struct with LowPart (DWORD) and HighPart (LONG)
+        // We pack it into a uint64_t
+        uint64_t id = 0;
+        id |= (uint64_t)deviceId.LowPart;
+        id |= (uint64_t)deviceId.HighPart << 32;
+        return id;
+    }
     // private implementation functions
 
     ctl_result_t IntelPowerTelemetryAdapter::EnumerateMemoryModules()

@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 
@@ -24,6 +24,7 @@ namespace pwr
         virtual uint64_t GetDedicatedVideoMemory() const noexcept = 0;
         virtual uint64_t GetVideoMemoryMaxBandwidth() const noexcept = 0;
         virtual double GetSustainedPowerLimit() const noexcept = 0;
+        virtual uint64_t GetAdapterId() const noexcept { return 0; }
         uint32_t GetDeviceId() const noexcept;
         void SetTelemetryCapBit(GpuTelemetryCapBits telemetryCapBit) noexcept;
         SetTelemetryCapBitset GetPowerTelemetryCapBits();

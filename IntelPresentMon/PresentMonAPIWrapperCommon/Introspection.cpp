@@ -123,7 +123,39 @@ namespace pmapi::intro
         return { pRoot, pBase->pKeys, (int64_t)pBase->pKeys->size };
     }
 
+    uint32_t DeviceLuidView::GetSize() const
+    {
+        return pBase ? pBase->size : 0u;
+    }
 
+    const void* DeviceLuidView::GetData() const
+    {
+        if (!pBase || pBase->size == 0) {
+            return nullptr;
+        }
+        return pBase->pData;
+    }
+
+    bool DeviceLuidView::IsEmpty() const
+    { 
+        return GetSize() == 0;
+    }
+
+    const DeviceLuidView::SelfType* DeviceLuidView::operator->() const
+    {
+        return this;
+    }
+
+    const DeviceLuidView::BaseType* DeviceLuidView::GetBasePtr() const
+    {
+        return pBase;
+    }
+
+    DeviceLuidView::DeviceLuidView(const class Root* pRoot_, const BaseType* pBase_)
+        :
+        pRoot{ pRoot_ },
+        pBase{ pBase_ }
+    {}
 
     EnumKeyView DeviceView::IntrospectType() const
     {
@@ -153,6 +185,12 @@ namespace pmapi::intro
     std::string DeviceView::GetName() const
     {
         return pBase->pName->pData;
+    }
+
+    DeviceLuidView DeviceView::GetLuid() const
+    {
+        static const PM_INTROSPECTION_DEVICE_LUID empty{ nullptr, 0 };
+        return DeviceLuidView{ pRoot, pBase->pLuid ? pBase->pLuid : &empty };
     }
 
     const DeviceView::SelfType* DeviceView::operator->() const

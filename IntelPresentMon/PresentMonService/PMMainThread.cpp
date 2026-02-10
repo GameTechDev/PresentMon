@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Logging.h"
 #include "Service.h"
@@ -359,6 +359,8 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                 const auto deviceId = adapter->GetDeviceId();
                 // refresh 2x here as workaround/kludge because Intel provider misreports 1st sample
                 adapter->Sample();
+                uint64_t luid = adapter->GetAdapterId();
+                ????&&&^^^
                 const auto sample = adapter->Sample();
                 pComms->RegisterGpuDevice(deviceId, adapter->GetVendor(), adapter->GetName(),
                     ipc::intro::ConvertBitset(adapter->GetPowerTelemetryCapBits()));

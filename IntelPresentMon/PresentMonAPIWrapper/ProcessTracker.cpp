@@ -7,7 +7,11 @@
 
 namespace pmapi
 {
-    ProcessTracker::~ProcessTracker() { Reset(); }
+    ProcessTracker::~ProcessTracker()
+    {
+        try { Reset(); }
+        catch (...) {}
+    }
 
     ProcessTracker::ProcessTracker(ProcessTracker&& other) noexcept
     {

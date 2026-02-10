@@ -57,6 +57,40 @@ namespace pmon::mid
             pmlog_info(std::format("Opened session with server, pid = [{}]", res.servicePid));
             EstablishSession_(res.servicePid);
         }
+        template<class Params>
+        auto DispatchSync(Params&& params)
+        {
+            // convert action client ipc error into presentmon api error
+            try {
+                return ClientBase::DispatchSync(std::forward<Params>(params));
+            }
+            catch (const ipc::act::ServerDroppedError& e) {
+                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN);
+                throw util::Except<ipc::PmStatusError>(PM_STATUS_SESSION_NOT_OPEN, e.GetNote());
+            }
+        }
+        template<class Params>
+        void DispatchDetached(Params&& params)
+        {
+            // convert action client ipc error into presentmon api error
+            try {
+                ClientBase::DispatchDetached(std::forward<Params>(params));
+            }
+            catch (const ipc::act::ServerDroppedError& e) {
+                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN).raise<ipc::PmStatusError>();
+            }
+        }
+        template<class Params>
+        void DispatchWithContinuation(Params&& params, std::function<void(ResponseFromParams<Params>&&, std::exception_ptr)> cont)
+        {
+            // convert action client ipc error into presentmon api error
+            try {
+                ClientBase::DispatchWithContinuation(std::forward<Params>(params), std::move(cont));
+            }
+            catch (const ipc::act::ServerDroppedError& e) {
+                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN).raise<ipc::PmStatusError>();
+            }
+        }
         const std::string& GetShmPrefix() const
         {
             return shmPrefix_;

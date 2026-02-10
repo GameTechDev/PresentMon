@@ -13,6 +13,10 @@ namespace pmapi
         EtlLogger() = default;
         // stops tracking the associated process
         ~EtlLogger();
+        // non-copyable copy ctor
+        EtlLogger(const EtlLogger&) = delete;
+        // non-copyable assignment
+        EtlLogger& operator=(const EtlLogger&) = delete;
         // move ctor
         EtlLogger(EtlLogger&& other) noexcept;
         // move assignment

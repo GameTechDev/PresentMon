@@ -7,7 +7,11 @@
 
 namespace pmapi
 {
-    DynamicQuery::~DynamicQuery() { Reset(); }
+    DynamicQuery::~DynamicQuery()
+    {
+        try { Reset(); }
+        catch (...) {}
+    }
 
     DynamicQuery::DynamicQuery(DynamicQuery&& other) noexcept
     {

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -7,6 +7,25 @@
 
 namespace pmon::util
 {
+    template<typename T>
+    concept IsIntegralOrEnum = std::is_integral_v<std::remove_cvref_t<T>> ||
+        std::is_enum_v<std::remove_cvref_t<T>>;
+
+    template<typename T, bool IsEnum = std::is_enum_v<std::remove_cvref_t<T>>>
+    struct EnumOrIntegralUnderlyingImpl
+    {
+        using type = std::remove_cvref_t<T>;
+    };
+
+    template<typename T>
+    struct EnumOrIntegralUnderlyingImpl<T, true>
+    {
+        using type = std::underlying_type_t<std::remove_cvref_t<T>>;
+    };
+
+    template<typename T>
+    using EnumOrIntegralUnderlying = typename EnumOrIntegralUnderlyingImpl<T>::type;
+
     // Helper: DependentFalse for static_assert in templates.
     template<typename T>
     struct DependentFalseT : std::false_type {};

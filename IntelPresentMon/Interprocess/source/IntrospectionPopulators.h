@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "../../PresentMonAPI2/PresentMonAPI.h"
 #include "SharedMemoryTypes.h"
 #include "MetricCapabilities.h"
@@ -12,7 +12,7 @@ namespace pmon::ipc::intro
 	void PopulateMetrics(ShmSegmentManager* pSegmentManager, struct IntrospectionRoot& root);
 	void PopulateUnits(ShmSegmentManager* pSegmentManager, struct IntrospectionRoot& root);
 	void PopulateGpuDevice(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root, uint32_t deviceId,
-		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const MetricCapabilities& caps);
+		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const MetricCapabilities& caps, std::span<const uint8_t> luidBytes);
 	void PopulateCpu(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root,
 		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const MetricCapabilities& caps);
 }

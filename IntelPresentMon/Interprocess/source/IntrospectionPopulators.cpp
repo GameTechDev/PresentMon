@@ -1,4 +1,4 @@
-﻿#include "IntrospectionHelpers.h"
+#include "IntrospectionHelpers.h"
 #include "IntrospectionMetadata.h"
 #include "IntrospectionTransfer.h"
 #include "IntrospectionCapsLookup.h"
@@ -96,12 +96,13 @@ namespace pmon::ipc::intro
 	}
 
 	void PopulateGpuDevice(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root, uint32_t deviceId,
-		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const MetricCapabilities& caps)
+		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const MetricCapabilities& caps, std::span<const uint8_t> luidBytes)
 	{
 		// add the device
 		auto charAlloc = pSegmentManager->get_allocator<char>();
+        auto pLuid = ShmMakeUnique<IntrospectionDeviceLuid>(pSegmentManager, luidBytes, pSegmentManager);
 		root.AddDevice(ShmMakeUnique<IntrospectionDevice>(pSegmentManager, deviceId,
-			PM_DEVICE_TYPE_GRAPHICS_ADAPTER, vendor, ShmString{ deviceName.c_str(), charAlloc }));
+			PM_DEVICE_TYPE_GRAPHICS_ADAPTER, vendor, ShmString{ deviceName.c_str(), charAlloc, std::move(pLuid) }));
 
 		// add the device metrics
 		PopulateDeviceMetrics_(root, caps, deviceId);

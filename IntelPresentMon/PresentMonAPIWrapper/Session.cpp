@@ -42,7 +42,10 @@ namespace pmapi
         return *this;
     }
 
-    Session::~Session() { Reset(); }
+    Session::~Session()
+    {
+        try { Reset(); } catch (...) {}
+    }
 
     void Session::Reset() noexcept
     {
