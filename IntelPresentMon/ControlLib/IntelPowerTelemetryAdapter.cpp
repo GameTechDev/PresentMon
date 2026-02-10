@@ -86,7 +86,8 @@ namespace pwr::intel
             result != CTL_RESULT_SUCCESS) {
             throw std::runtime_error{ "Failure to get device properties" };
         }
-        pmlog_verb(v::tele_gpu)("Device properties").pmwatch(ref::DumpGenerated(properties));
+        pmlog_verb(v::tele_gpu)("Device properties").pmwatch(ref::DumpGenerated(properties))
+            .pmwatch(deviceLuid.HighPart).pmwatch(deviceLuid.LowPart);
 
         if (properties.device_type != CTL_DEVICE_TYPE_GRAPHICS) {
             throw NonGraphicsDeviceException{};
