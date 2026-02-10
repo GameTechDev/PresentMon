@@ -102,7 +102,7 @@ namespace pmon::ipc::intro
 		auto charAlloc = pSegmentManager->get_allocator<char>();
         auto pLuid = ShmMakeUnique<IntrospectionDeviceLuid>(pSegmentManager, luidBytes, pSegmentManager);
 		root.AddDevice(ShmMakeUnique<IntrospectionDevice>(pSegmentManager, deviceId,
-			PM_DEVICE_TYPE_GRAPHICS_ADAPTER, vendor, ShmString{ deviceName.c_str(), charAlloc, std::move(pLuid) }));
+			PM_DEVICE_TYPE_GRAPHICS_ADAPTER, vendor, ShmString{ deviceName.c_str(), charAlloc }, std::move(pLuid)));
 
 		// add the device metrics
 		PopulateDeviceMetrics_(root, caps, deviceId);
@@ -113,8 +113,10 @@ namespace pmon::ipc::intro
 	{
 		// add the device
 		auto charAlloc = pSegmentManager->get_allocator<char>();
+		// construct empty LUID object (size = 0 means no LUID)
+		auto pLuid = ShmMakeUnique<intro::IntrospectionDeviceLuid>(pSegmentManager, std::span<const uint8_t>{}, pSegmentManager);
 		root.AddDevice(ShmMakeUnique<IntrospectionDevice>(pSegmentManager, ::pmon::ipc::kSystemDeviceId,
-			PM_DEVICE_TYPE_SYSTEM, vendor, ShmString{ "System", charAlloc}));
+			PM_DEVICE_TYPE_SYSTEM, vendor, ShmString{ "System", charAlloc}, std::move(pLuid)));
 		PopulateDeviceMetrics_(root, caps, ::pmon::ipc::kSystemDeviceId);
 	}
 

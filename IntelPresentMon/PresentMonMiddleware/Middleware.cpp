@@ -271,6 +271,11 @@ namespace pmon::mid
         return pActionClient_->DispatchSync(FinishEtlLogging::Params{ etlLogSessionHandle }).etlFilePath;
     }
 
+    bool Middleware::ServiceConnected() const
+    {
+        return pActionClient_->IsRunning();
+    }
+
     FrameMetricsSource& Middleware::GetFrameMetricSource_(uint32_t pid) const
     {        
         if (auto it = frameMetricsSources_.find(pid);

@@ -359,11 +359,19 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                 const auto deviceId = adapter->GetDeviceId();
                 // refresh 2x here as workaround/kludge because Intel provider misreports 1st sample
                 adapter->Sample();
-                uint64_t luid = adapter->GetAdapterId();
-                ????&&&^^^
                 const auto sample = adapter->Sample();
+                // populate luid information for adapter (currently intel-only)
+                uint64_t luid = adapter->GetAdapterId();
+                std::span<const uint8_t> luidBytes;
+                if (luid == 0) {
+                    // if we have no LUID, send empty span
+                    luidBytes = std::span<const uint8_t>{};
+                }
+                else {
+                    luidBytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(&luid), sizeof(luid));
+                }
                 pComms->RegisterGpuDevice(deviceId, adapter->GetVendor(), adapter->GetName(),
-                    ipc::intro::ConvertBitset(adapter->GetPowerTelemetryCapBits()));
+                    ipc::intro::ConvertBitset(adapter->GetPowerTelemetryCapBits()), luidBytes);
                 // after registering, we know that at least the store is available even
                 // if the introspection itself is not complete
                 auto& gpuStore = pComms->GetGpuDataStore(deviceId);

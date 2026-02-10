@@ -44,6 +44,7 @@ namespace pmon::mid
 		void StopPlayback();
 		uint32_t StartEtlLogging();
 		std::string FinishEtlLogging(uint32_t etlLogSessionHandle);
+		bool ServiceConnected() const;
 	private:
 		struct QueryMetricKey
 		{
@@ -68,6 +69,5 @@ namespace pmon::mid
 		std::map<uint32_t, std::unique_ptr<FrameMetricsSource>> frameMetricsSources_;
 		// Query handles mapped to their metric usage keys
 		std::unordered_map<const void*, std::vector<QueryMetricKey>> queryMetricUsage_;
-		virtual bool ServiceConnected() const { return false; }
 	};
 }

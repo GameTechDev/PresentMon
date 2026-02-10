@@ -350,8 +350,8 @@ namespace pwr::intel
         // LUID is a struct with LowPart (DWORD) and HighPart (LONG)
         // We pack it into a uint64_t
         uint64_t id = 0;
-        id |= (uint64_t)deviceId.LowPart;
-        id |= (uint64_t)deviceId.HighPart << 32;
+        id |= (uint64_t)deviceLuid.LowPart;
+        id |= (uint64_t)deviceLuid.HighPart << 32;
         return id;
     }
     // private implementation functions

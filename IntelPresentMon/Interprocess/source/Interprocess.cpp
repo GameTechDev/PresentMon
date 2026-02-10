@@ -189,8 +189,6 @@ namespace pmon::ipc
                         ++it;
                     }
                 }
-			void RegisterGpuDevice(PM_DEVICE_VENDOR vendor, std::string deviceName, const GpuTelemetryBitset& gpuCaps, std::span<const uint8_t> luidBytes) override
-
                 return pFrameData;
             }
             std::shared_ptr<OwnedDataSegment<FrameDataStore>>
@@ -257,10 +255,12 @@ namespace pmon::ipc
                 intro::PopulateEnums(pSegmentManager, *pRoot_);
                 intro::PopulateMetrics(pSegmentManager, *pRoot_);
                 intro::PopulateUnits(pSegmentManager, *pRoot_);
+                // construct empty LUID object (size = 0 means no LUID)
+                auto pLuid = ShmMakeUnique<intro::IntrospectionDeviceLuid>(pSegmentManager, std::span<const uint8_t>{}, pSegmentManager);
                 pRoot_->AddDevice(ShmMakeUnique<intro::IntrospectionDevice>(
                     pSegmentManager,
                     0, PM_DEVICE_TYPE_INDEPENDENT, PM_DEVICE_VENDOR_UNKNOWN,
-                    ShmString{ "Device-independent", charAlloc }
+                    ShmString{ "Device-independent", charAlloc }, std::move(pLuid)
                 ));
             }
             void FinalizeIntrospection_()
