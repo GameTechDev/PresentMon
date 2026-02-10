@@ -1,9 +1,9 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import Sortable from 'sortablejs';
 import { useIntrospectionStore } from '@/stores/introspection';
 import type { Widget } from '@/core/widget';
 import LoadoutRow from '@/components/LoadoutRow.vue';
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useLoadoutStore } from '@/stores/loadout';
 import { useNotificationsStore } from '@/stores/notifications';
 import { Api } from '@/core/api';
@@ -15,29 +15,85 @@ const loadout = useLoadoutStore()
 const notes = useNotificationsStore()
 
 const activeAdapterId = ref<number|null>(null);
+// Sortable instance used to manage drag-and-drop reordering for widget rows.
+// This is created on mount and destroyed on unmount to avoid stale DOM references.
 let sort: Sortable|null = null;
+
+// Convert Sortable event indices into validated array indices.
+// Sortable can report undefined (no drop), negative indices (drag outside),
+// or out-of-range indices when the drop target is not inside the container.
+// allowEnd controls whether we accept an index equal to length (append).
+const getSortableIndex = (value: number | null | undefined, length: number, allowEnd: boolean): number | null => {
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    return null;
+  }
+  if (value < 0) {
+    return null;
+  }
+  if (allowEnd) {
+    return value <= length ? value : null;
+  }
+  return value < length ? value : null;
+};
+
+// Restore DOM order to match the store order when a drag ends in an invalid state.
+// This avoids the UI showing a different order than the canonical loadout data.
+const resetSortOrder = () => {
+  if (!sort) {
+    return;
+  }
+  const order = loadout.widgets.map(w => String(w.key));
+  if (order.length === 0) {
+    return;
+  }
+  sort.sort(order);
+};
 
 onMounted(() => {
   // hook up the Sortable.js drag and drop machinery to our elements
   sort = new Sortable(document.querySelector('#sortable-row-container')!, {
+    // Allow only the widget rows (not the add button or other elements) to be draggable.
     draggable: '.sortable-row',
+    // Require dragging from the grip icon to avoid accidental drags while editing fields.
     handle: '.sortable-handle',
+    // Use the fallback drag implementation so we control visuals consistently across browsers.
     forceFallback: true,
+    // Identify each row by data-id so Sortable can reorder by stable widget keys.
+    dataIdAttr: 'data-id',
+    // Maintain a grabbing cursor on the dragged element for consistent feedback.
     onChoose: e => e.target.classList.add('sortable-grabbing'),
     onUnchoose: e => e.target.classList.remove('sortable-grabbing'),
     onStart: e => e.target.classList.add('sortable-grabbing'),
     onEnd: e => {
+        // Always clear the grabbing cursor and attempt to apply the reorder.
         e.target.classList.remove('sortable-grabbing')
         dragReorder(e)
     },
   })
 })
 
+// Apply the reorder to the store if indices are valid, otherwise revert DOM order.
 const dragReorder = (e: Sortable.SortableEvent) => {
-  if (e.oldIndex !== undefined && e.newIndex !== undefined) {
-    loadout.moveWidget(e.oldIndex, e.newIndex)
+  const length = loadout.widgets.length;
+  // oldIndex must be a valid index into the current list (no "append" allowed).
+  const from = getSortableIndex(e.oldIndex, length, false);
+  // newIndex allows append, but still must be within bounds.
+  const to = getSortableIndex(e.newIndex, length, true);
+  if (from === null || to === null || from === to) {
+    resetSortOrder();
+    return;
   }
+  // Delegate to the store to ensure any other logic stays centralized.
+  loadout.moveWidget(from, to);
 }
+
+onUnmounted(() => {
+  // Destroy Sortable on teardown to avoid handlers firing on a stale DOM.
+  if (sort) {
+    sort.destroy();
+    sort = null;
+  }
+});
 
 async function save() {
   try {
@@ -82,15 +138,15 @@ const removeWidget = (widgetIdx:number) => {
 
     <v-row class="mt-5 loadout-table" id="sortable-row-container">
     <loadout-row
-        v-for="(w, i) in loadout.widgets" :key="w.key" :stats="intro.stats"
+        v-for="(w, i) in loadout.widgets" :key="w.key" :data-id="w.key" :stats="intro.stats"
         :widgetIdx="i" :widgets="loadout.widgets" :metrics="intro.metrics" 
         :metricOptions="intro.metricOptions" :adapterId="activeAdapterId" :locked="false" 
         @delete="removeWidget" 
     ></loadout-row>
+    </v-row>
     <div class="add-btn-row">
         <v-btn @click="addWidget()" class="add-btn" variant="tonal" height="48" color="white">Add New Widget</v-btn>
     </div>
-    </v-row>
 
     <v-row>
     <v-col cols="6" style="text-align: center"><v-btn @click="save()" variant="tonal" color="white">Save</v-btn></v-col>
