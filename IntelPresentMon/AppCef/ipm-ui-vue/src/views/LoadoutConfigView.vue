@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import Sortable from 'sortablejs';
 import { useIntrospectionStore } from '@/stores/introspection';
 import type { Widget } from '@/core/widget';
@@ -244,6 +244,7 @@ const removeWidget = (widgetIdx:number) => {
   width: 100%;
   display: flex;
   justify-content: center;
+  margin-top: 12px;
 }
 .sortable-grabbing * {
   cursor: grabbing !important;
