@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include <fstream>
@@ -62,7 +62,7 @@ namespace EtlTests
 		auto frameQuery = pSession->RegisterFrameQuery(queryElements);
 		auto blobs = frameQuery.MakeBlobContainer(numberOfBlobs);
 
-		processTracker = pSession->TrackProcess(processId);
+		processTracker = pSession->TrackProcess(processId, true, true);
 
 		using Clock = std::chrono::high_resolution_clock;
 		const auto start = Clock::now();
@@ -125,15 +125,14 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -150,14 +149,13 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -193,14 +191,13 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 
 			oChild.emplace("PresentMonService.exe"s,
 				//"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -232,7 +229,7 @@ namespace EtlTests
 			auto frameQuery = pSession->RegisterFrameQuery(queryElements);
 			auto blobs = frameQuery.MakeBlobContainer(8);
 
-			processTracker = pSession->TrackProcess(processId);
+			processTracker = pSession->TrackProcess(processId, true, true);
 
 			using Clock = std::chrono::high_resolution_clock;
 			const auto start = Clock::now();
@@ -264,7 +261,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
@@ -274,8 +271,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				//"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -313,7 +309,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
@@ -323,8 +319,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -362,7 +357,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
@@ -372,8 +367,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -411,7 +405,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
@@ -421,8 +415,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -460,7 +453,7 @@ namespace EtlTests
 			std::optional<std::ofstream> debugCsv; // Empty optional
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
@@ -470,8 +463,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -509,7 +501,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
@@ -519,8 +511,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -558,7 +549,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
@@ -568,8 +559,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -607,7 +597,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
@@ -617,8 +607,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -663,7 +652,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
@@ -673,8 +662,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -712,7 +700,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
@@ -722,8 +710,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -767,7 +754,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_1.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_1.csv";
 
@@ -777,8 +764,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -816,7 +802,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_1.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_1.csv";
 
@@ -826,8 +812,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -865,7 +850,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_1.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_1.csv";
 
@@ -875,8 +860,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -914,7 +898,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_2.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_2.csv";
 
@@ -924,8 +908,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -963,7 +946,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_2.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_2.csv";
 
@@ -973,8 +956,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1012,7 +994,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_2.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_2.csv";
 
@@ -1022,8 +1004,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1061,7 +1042,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_2.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_2.csv";
 
@@ -1071,8 +1052,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1110,7 +1090,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_3.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_3.csv";
 
@@ -1120,8 +1100,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1159,7 +1138,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_3.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_3.csv";
 
@@ -1169,8 +1148,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1208,7 +1186,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_3.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_3.csv";
 
@@ -1218,8 +1196,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1264,7 +1241,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_3.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_3.csv";
 
@@ -1274,8 +1251,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1313,7 +1289,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_4.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_4.csv";
 
@@ -1323,8 +1299,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1364,7 +1339,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_4.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_4.csv";
 
@@ -1374,8 +1349,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1413,7 +1387,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_4.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_4.csv";
 
@@ -1423,8 +1397,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1469,7 +1442,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_4.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_4.csv";
 
@@ -1479,8 +1452,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1520,7 +1492,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_4.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_4.csv";
 
@@ -1530,8 +1502,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1571,7 +1542,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_5.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_5.csv";
 
@@ -1581,8 +1552,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1620,7 +1590,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "F:\\EtlTesting\\test_case_6.etl";
 			const auto goldCsvName = L"F:\\EtlTesting\\test_case_6.csv";
 
@@ -1632,8 +1602,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "60000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1671,7 +1640,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "F:\\EtlTesting\\test_case_7.etl";
 			const auto goldCsvName = L"F:\\EtlTesting\\test_case_7.csv";
 
@@ -1683,8 +1652,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "60000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1727,7 +1695,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "F:\\EtlTesting\\test_case_8.etl";
 			const auto goldCsvName = L"F:\\EtlTesting\\test_case_8.csv";
 
@@ -1739,8 +1707,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "60000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1778,7 +1745,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "F:\\EtlTesting\\test_case_9.etl";
 			const auto goldCsvName = L"F:\\EtlTesting\\test_case_9.csv";
 
@@ -1789,8 +1756,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "60000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1831,7 +1797,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "F:\\EtlTesting\\test_case_10.etl";
 			const auto goldCsvName = L"F:\\EtlTesting\\test_case_10.csv";
 
@@ -1843,8 +1809,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "60000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1885,7 +1850,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "F:\\EtlTesting\\test_case_11.etl";
 			const auto goldCsvName = L"F:\\EtlTesting\\test_case_11.csv";
 
@@ -1897,8 +1862,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "60000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
@@ -1938,7 +1902,7 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "F:\\EtlTesting\\test_case_12.etl";
 			const auto goldCsvName = L"F:\\EtlTesting\\test_case_12.csv";
 
@@ -1954,8 +1918,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				//"--timed-stop"s, "60000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 
