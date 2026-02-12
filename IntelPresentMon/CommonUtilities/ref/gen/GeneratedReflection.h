@@ -10,8 +10,7 @@
 #include "../GeneratedReflectionHelpers.h"
 
 // target includes
-#include <IntelPresentMon/ControlLib/igcl_api.h>
-#include <IntelPresentMon/ControlLib/ctlpvttemp_api.h>
+#include "../../../../IntelPresentMon/ControlLib/igcl_api.h"
 
 namespace pmon::util::ref::gen
 {
@@ -308,6 +307,7 @@ namespace pmon::util::ref::gen
 				<< " .pci_subsys_id = " << s.pci_subsys_id
 				<< " .pci_subsys_vendor_id = " << s.pci_subsys_vendor_id
 				<< " .adapter_bdf = " << DumpGenerated(s.adapter_bdf)
+				<< " .num_xe_cores = " << s.num_xe_cores
 				<< " .reserved = " << s.reserved
 				<< " }";
 			return oss.str();
@@ -1006,19 +1006,6 @@ namespace pmon::util::ref::gen
 				<< " }";
 			return oss.str();
 		};
-		dumpers[typeid(_ctl_mux_properties_t)] = [](const void* pStruct) {
-			const auto& s = *static_cast<const _ctl_mux_properties_t*>(pStruct);
-			std::ostringstream oss;
-			oss << std::boolalpha << "struct _ctl_mux_properties_t {"
-				<< " .Size = " << s.Size
-				<< " .Version = " << (int)s.Version
-				<< " .MuxId = " << (int)s.MuxId
-				<< " .Count = " << s.Count
-				<< " .phDisplayOutputs = " << (s.phDisplayOutputs ? std::format("0x{:016X}", reinterpret_cast<std::uintptr_t>(s.phDisplayOutputs)) : "null"s)
-				<< " .IndexOfDisplayOutputOwningMux = " << (int)s.IndexOfDisplayOutputOwningMux
-				<< " }";
-			return oss.str();
-		};
 		dumpers[typeid(_ctl_intel_arc_sync_profile_params_t)] = [](const void* pStruct) {
 			const auto& s = *static_cast<const _ctl_intel_arc_sync_profile_params_t*>(pStruct);
 			std::ostringstream oss;
@@ -1234,6 +1221,28 @@ namespace pmon::util::ref::gen
 				<< " }";
 			return oss.str();
 		};
+		dumpers[typeid(_ctl_ecc_properties_t)] = [](const void* pStruct) {
+			const auto& s = *static_cast<const _ctl_ecc_properties_t*>(pStruct);
+			std::ostringstream oss;
+			oss << std::boolalpha << "struct _ctl_ecc_properties_t {"
+				<< " .Size = " << s.Size
+				<< " .Version = " << (int)s.Version
+				<< " .isSupported = " << s.isSupported
+				<< " .canControl = " << s.canControl
+				<< " }";
+			return oss.str();
+		};
+		dumpers[typeid(_ctl_ecc_state_desc_t)] = [](const void* pStruct) {
+			const auto& s = *static_cast<const _ctl_ecc_state_desc_t*>(pStruct);
+			std::ostringstream oss;
+			oss << std::boolalpha << "struct _ctl_ecc_state_desc_t {"
+				<< " .Size = " << s.Size
+				<< " .Version = " << (int)s.Version
+				<< " .currentEccState = " << DumpGenerated(s.currentEccState)
+				<< " .pendingEccState = " << DumpGenerated(s.pendingEccState)
+				<< " }";
+			return oss.str();
+		};
 		dumpers[typeid(_ctl_engine_properties_t)] = [](const void* pStruct) {
 			const auto& s = *static_cast<const _ctl_engine_properties_t*>(pStruct);
 			std::ostringstream oss;
@@ -1311,6 +1320,31 @@ namespace pmon::util::ref::gen
 				<< " .mode = " << DumpGenerated(s.mode)
 				<< " .speedFixed = " << DumpGenerated(s.speedFixed)
 				<< " .speedTable = " << DumpGenerated(s.speedTable)
+				<< " }";
+			return oss.str();
+		};
+		dumpers[typeid(_ctl_firmware_properties_t)] = [](const void* pStruct) {
+			const auto& s = *static_cast<const _ctl_firmware_properties_t*>(pStruct);
+			std::ostringstream oss;
+			oss << std::boolalpha << "struct _ctl_firmware_properties_t {"
+				<< " .Size = " << s.Size
+				<< " .Version = " << (int)s.Version
+				<< " .name = " << s.name
+				<< " .version = " << s.version
+				<< " .FirmwareConfig = " << s.FirmwareConfig
+				<< " .reserved = " << s.reserved
+				<< " }";
+			return oss.str();
+		};
+		dumpers[typeid(_ctl_firmware_component_properties_t)] = [](const void* pStruct) {
+			const auto& s = *static_cast<const _ctl_firmware_component_properties_t*>(pStruct);
+			std::ostringstream oss;
+			oss << std::boolalpha << "struct _ctl_firmware_component_properties_t {"
+				<< " .Size = " << s.Size
+				<< " .Version = " << (int)s.Version
+				<< " .name = " << s.name
+				<< " .version = " << s.version
+				<< " .reserved = " << s.reserved
 				<< " }";
 			return oss.str();
 		};
@@ -1667,6 +1701,9 @@ namespace pmon::util::ref::gen
 				<< " .vramVoltageOffset = " << DumpGenerated(s.vramVoltageOffset)
 				<< " .powerLimit = " << DumpGenerated(s.powerLimit)
 				<< " .temperatureLimit = " << DumpGenerated(s.temperatureLimit)
+				<< " .vramMemSpeedLimit = " << DumpGenerated(s.vramMemSpeedLimit)
+				<< " .gpuVFCurveVoltageLimit = " << DumpGenerated(s.gpuVFCurveVoltageLimit)
+				<< " .gpuVFCurveFrequencyLimit = " << DumpGenerated(s.gpuVFCurveFrequencyLimit)
 				<< " }";
 			return oss.str();
 		};
@@ -1735,6 +1772,15 @@ namespace pmon::util::ref::gen
 				<< " .gpuTemperaturePercent = " << DumpGenerated(s.gpuTemperaturePercent)
 				<< " .vramReadBandwidth = " << DumpGenerated(s.vramReadBandwidth)
 				<< " .vramWriteBandwidth = " << DumpGenerated(s.vramWriteBandwidth)
+				<< " }";
+			return oss.str();
+		};
+		dumpers[typeid(_ctl_voltage_frequency_point_t)] = [](const void* pStruct) {
+			const auto& s = *static_cast<const _ctl_voltage_frequency_point_t*>(pStruct);
+			std::ostringstream oss;
+			oss << std::boolalpha << "struct _ctl_voltage_frequency_point_t {"
+				<< " .Voltage = " << s.Voltage
+				<< " .Frequency = " << s.Frequency
 				<< " }";
 			return oss.str();
 		};
@@ -1873,86 +1919,13 @@ namespace pmon::util::ref::gen
 				<< " }";
 			return oss.str();
 		};
-		dumpers[typeid(_ctl_voltage_frequency_point_t)] = [](const void* pStruct) {
-			const auto& s = *static_cast<const _ctl_voltage_frequency_point_t*>(pStruct);
-			std::ostringstream oss;
-			oss << std::boolalpha << "struct _ctl_voltage_frequency_point_t {"
-				<< " .Voltage = " << s.Voltage
-				<< " .Frequency = " << s.Frequency
-				<< " }";
-			return oss.str();
-		};
-		dumpers[typeid(_ctl_oc_properties2_t)] = [](const void* pStruct) {
-			const auto& s = *static_cast<const _ctl_oc_properties2_t*>(pStruct);
-			std::ostringstream oss;
-			oss << std::boolalpha << "struct _ctl_oc_properties2_t {"
-				<< " .Size = " << s.Size
-				<< " .Version = " << (int)s.Version
-				<< " .bSupported = " << s.bSupported
-				<< " .gpuFrequencyOffset = " << DumpGenerated(s.gpuFrequencyOffset)
-				<< " .gpuVoltageOffset = " << DumpGenerated(s.gpuVoltageOffset)
-				<< " .vramFrequencyOffset = " << DumpGenerated(s.vramFrequencyOffset)
-				<< " .vramVoltageOffset = " << DumpGenerated(s.vramVoltageOffset)
-				<< " .powerLimit = " << DumpGenerated(s.powerLimit)
-				<< " .temperatureLimit = " << DumpGenerated(s.temperatureLimit)
-				<< " .vramMemSpeedLimit = " << DumpGenerated(s.vramMemSpeedLimit)
-				<< " .gpuVFCurveVoltageLimit = " << DumpGenerated(s.gpuVFCurveVoltageLimit)
-				<< " .gpuVFCurveFrequencyLimit = " << DumpGenerated(s.gpuVFCurveFrequencyLimit)
-				<< " }";
-			return oss.str();
-		};
-		dumpers[typeid(_ctl_power_telemetry2_t)] = [](const void* pStruct) {
-			const auto& s = *static_cast<const _ctl_power_telemetry2_t*>(pStruct);
-			std::ostringstream oss;
-			oss << std::boolalpha << "struct _ctl_power_telemetry2_t {"
-				<< " .Size = " << s.Size
-				<< " .Version = " << (int)s.Version
-				<< " .timeStamp = " << DumpGenerated(s.timeStamp)
-				<< " .gpuEnergyCounter = " << DumpGenerated(s.gpuEnergyCounter)
-				<< " .gpuVoltage = " << DumpGenerated(s.gpuVoltage)
-				<< " .gpuCurrentClockFrequency = " << DumpGenerated(s.gpuCurrentClockFrequency)
-				<< " .gpuCurrentTemperature = " << DumpGenerated(s.gpuCurrentTemperature)
-				<< " .globalActivityCounter = " << DumpGenerated(s.globalActivityCounter)
-				<< " .renderComputeActivityCounter = " << DumpGenerated(s.renderComputeActivityCounter)
-				<< " .mediaActivityCounter = " << DumpGenerated(s.mediaActivityCounter)
-				<< " .gpuPowerLimited = " << s.gpuPowerLimited
-				<< " .gpuTemperatureLimited = " << s.gpuTemperatureLimited
-				<< " .gpuCurrentLimited = " << s.gpuCurrentLimited
-				<< " .gpuVoltageLimited = " << s.gpuVoltageLimited
-				<< " .gpuUtilizationLimited = " << s.gpuUtilizationLimited
-				<< " .vramEnergyCounter = " << DumpGenerated(s.vramEnergyCounter)
-				<< " .vramVoltage = " << DumpGenerated(s.vramVoltage)
-				<< " .vramCurrentClockFrequency = " << DumpGenerated(s.vramCurrentClockFrequency)
-				<< " .vramCurrentEffectiveFrequency = " << DumpGenerated(s.vramCurrentEffectiveFrequency)
-				<< " .vramReadBandwidthCounter = " << DumpGenerated(s.vramReadBandwidthCounter)
-				<< " .vramWriteBandwidthCounter = " << DumpGenerated(s.vramWriteBandwidthCounter)
-				<< " .vramCurrentTemperature = " << DumpGenerated(s.vramCurrentTemperature)
-				<< " .vramPowerLimited = " << s.vramPowerLimited
-				<< " .vramTemperatureLimited = " << s.vramTemperatureLimited
-				<< " .vramCurrentLimited = " << s.vramCurrentLimited
-				<< " .vramVoltageLimited = " << s.vramVoltageLimited
-				<< " .vramUtilizationLimited = " << s.vramUtilizationLimited
-				<< " .totalCardEnergyCounter = " << DumpGenerated(s.totalCardEnergyCounter)
-				<< " .psu = " << DumpArray_<ctl_psu_info_t, 5, false>(s.psu)
-				<< " .fanSpeed = " << DumpArray_<ctl_oc_telemetry_item_t, 5, false>(s.fanSpeed)
-				<< " .gpuVrTemp = " << DumpGenerated(s.gpuVrTemp)
-				<< " .vramVrTemp = " << DumpGenerated(s.vramVrTemp)
-				<< " .saVrTemp = " << DumpGenerated(s.saVrTemp)
-				<< " .gpuEffectiveClock = " << DumpGenerated(s.gpuEffectiveClock)
-				<< " .gpuOverVoltagePercent = " << DumpGenerated(s.gpuOverVoltagePercent)
-				<< " .gpuPowerPercent = " << DumpGenerated(s.gpuPowerPercent)
-				<< " .gpuTemperaturePercent = " << DumpGenerated(s.gpuTemperaturePercent)
-				<< " .vramReadBandwidth = " << DumpGenerated(s.vramReadBandwidth)
-				<< " .vramWriteBandwidth = " << DumpGenerated(s.vramWriteBandwidth)
-				<< " }";
-			return oss.str();
-		};
 
 		// enums
 		dumpers[typeid(_ctl_init_flag_t)] = [](const void* pEnum) {
 			const auto& e = *static_cast<const _ctl_init_flag_t*>(pEnum);
 			switch (e) {
 			case _ctl_init_flag_t::CTL_INIT_FLAG_USE_LEVEL_ZERO: return "CTL_INIT_FLAG_USE_LEVEL_ZERO"s;
+			case _ctl_init_flag_t::CTL_INIT_FLAG_IGSC_FUL: return "CTL_INIT_FLAG_IGSC_FUL"s;
 			case _ctl_init_flag_t::CTL_INIT_FLAG_MAX: return "CTL_INIT_FLAG_MAX"s;
 			default: return "{ unknown }"s;
 			}
@@ -2017,6 +1990,8 @@ namespace pmon::util::ref::gen
 			case _ctl_result_t::CTL_RESULT_ERROR_LOAD: return "CTL_RESULT_ERROR_LOAD"s;
 			case _ctl_result_t::CTL_RESULT_ERROR_UNKNOWN: return "CTL_RESULT_ERROR_UNKNOWN"s;
 			case _ctl_result_t::CTL_RESULT_ERROR_RETRY_OPERATION: return "CTL_RESULT_ERROR_RETRY_OPERATION"s;
+			case _ctl_result_t::CTL_RESULT_ERROR_IGSC_LOADER: return "CTL_RESULT_ERROR_IGSC_LOADER"s;
+			case _ctl_result_t::CTL_RESULT_ERROR_RESTRICTED_APPLICATION: return "CTL_RESULT_ERROR_RESTRICTED_APPLICATION"s;
 			case _ctl_result_t::CTL_RESULT_ERROR_CORE_START: return "CTL_RESULT_ERROR_CORE_START"s;
 			case _ctl_result_t::CTL_RESULT_ERROR_CORE_OVERCLOCK_NOT_SUPPORTED: return "CTL_RESULT_ERROR_CORE_OVERCLOCK_NOT_SUPPORTED"s;
 			case _ctl_result_t::CTL_RESULT_ERROR_CORE_OVERCLOCK_VOLTAGE_OUTSIDE_RANGE: return "CTL_RESULT_ERROR_CORE_OVERCLOCK_VOLTAGE_OUTSIDE_RANGE"s;
@@ -2027,6 +2002,11 @@ namespace pmon::util::ref::gen
 			case _ctl_result_t::CTL_RESULT_ERROR_CORE_OVERCLOCK_RESET_REQUIRED: return "CTL_RESULT_ERROR_CORE_OVERCLOCK_RESET_REQUIRED"s;
 			case _ctl_result_t::CTL_RESULT_ERROR_CORE_OVERCLOCK_WAIVER_NOT_SET: return "CTL_RESULT_ERROR_CORE_OVERCLOCK_WAIVER_NOT_SET"s;
 			case _ctl_result_t::CTL_RESULT_ERROR_CORE_OVERCLOCK_DEPRECATED_API: return "CTL_RESULT_ERROR_CORE_OVERCLOCK_DEPRECATED_API"s;
+			case _ctl_result_t::CTL_RESULT_ERROR_CORE_LED_GET_STATE_NOT_SUPPORTED_FOR_I2C_LED: return "CTL_RESULT_ERROR_CORE_LED_GET_STATE_NOT_SUPPORTED_FOR_I2C_LED"s;
+			case _ctl_result_t::CTL_RESULT_ERROR_CORE_LED_SET_STATE_NOT_SUPPORTED_FOR_I2C_LED: return "CTL_RESULT_ERROR_CORE_LED_SET_STATE_NOT_SUPPORTED_FOR_I2C_LED"s;
+			case _ctl_result_t::CTL_RESULT_ERROR_CORE_LED_TOO_FREQUENT_SET_REQUESTS: return "CTL_RESULT_ERROR_CORE_LED_TOO_FREQUENT_SET_REQUESTS"s;
+			case _ctl_result_t::CTL_RESULT_ERROR_CORE_OVERCLOCK_VRAM_MEMORY_SPEED_OUTSIDE_RANGE: return "CTL_RESULT_ERROR_CORE_OVERCLOCK_VRAM_MEMORY_SPEED_OUTSIDE_RANGE"s;
+			case _ctl_result_t::CTL_RESULT_ERROR_CORE_OVERCLOCK_INVALID_CUSTOM_VF_CURVE: return "CTL_RESULT_ERROR_CORE_OVERCLOCK_INVALID_CUSTOM_VF_CURVE"s;
 			case _ctl_result_t::CTL_RESULT_ERROR_CORE_END: return "CTL_RESULT_ERROR_CORE_END"s;
 			case _ctl_result_t::CTL_RESULT_ERROR_3D_START: return "CTL_RESULT_ERROR_3D_START"s;
 			case _ctl_result_t::CTL_RESULT_ERROR_3D_END: return "CTL_RESULT_ERROR_3D_END"s;
@@ -2233,6 +2213,8 @@ namespace pmon::util::ref::gen
 			case _ctl_3d_feature_t::CTL_3D_FEATURE_VRR_WINDOWED_BLT: return "CTL_3D_FEATURE_VRR_WINDOWED_BLT"s;
 			case _ctl_3d_feature_t::CTL_3D_FEATURE_GLOBAL_OR_PER_APP: return "CTL_3D_FEATURE_GLOBAL_OR_PER_APP"s;
 			case _ctl_3d_feature_t::CTL_3D_FEATURE_LOW_LATENCY: return "CTL_3D_FEATURE_LOW_LATENCY"s;
+			case _ctl_3d_feature_t::CTL_3D_FEATURE_FRAME_GENERATION: return "CTL_3D_FEATURE_FRAME_GENERATION"s;
+			case _ctl_3d_feature_t::CTL_3D_FEATURE_PREBUILT_SHADER_DOWNLOAD: return "CTL_3D_FEATURE_PREBUILT_SHADER_DOWNLOAD"s;
 			case _ctl_3d_feature_t::CTL_3D_FEATURE_MAX: return "CTL_3D_FEATURE_MAX"s;
 			default: return "{ unknown }"s;
 			}
@@ -2536,6 +2518,16 @@ namespace pmon::util::ref::gen
 			default: return "{ unknown }"s;
 			}
 		};
+		dumpers[typeid(_ctl_ecc_state_t)] = [](const void* pEnum) {
+			const auto& e = *static_cast<const _ctl_ecc_state_t*>(pEnum);
+			switch (e) {
+			case _ctl_ecc_state_t::CTL_ECC_STATE_ECC_DEFAULT_STATE: return "CTL_ECC_STATE_ECC_DEFAULT_STATE"s;
+			case _ctl_ecc_state_t::CTL_ECC_STATE_ECC_ENABLED_STATE: return "CTL_ECC_STATE_ECC_ENABLED_STATE"s;
+			case _ctl_ecc_state_t::CTL_ECC_STATE_ECC_DISABLED_STATE: return "CTL_ECC_STATE_ECC_DISABLED_STATE"s;
+			case _ctl_ecc_state_t::CTL_ECC_STATE_MAX: return "CTL_ECC_STATE_MAX"s;
+			default: return "{ unknown }"s;
+			}
+		};
 		dumpers[typeid(_ctl_engine_group_t)] = [](const void* pEnum) {
 			const auto& e = *static_cast<const _ctl_engine_group_t*>(pEnum);
 			switch (e) {
@@ -2751,6 +2743,7 @@ namespace pmon::util::ref::gen
 			case _ctl_gaming_flip_mode_flag_t::CTL_GAMING_FLIP_MODE_FLAG_SMOOTH_SYNC: return "CTL_GAMING_FLIP_MODE_FLAG_SMOOTH_SYNC"s;
 			case _ctl_gaming_flip_mode_flag_t::CTL_GAMING_FLIP_MODE_FLAG_SPEED_FRAME: return "CTL_GAMING_FLIP_MODE_FLAG_SPEED_FRAME"s;
 			case _ctl_gaming_flip_mode_flag_t::CTL_GAMING_FLIP_MODE_FLAG_CAPPED_FPS: return "CTL_GAMING_FLIP_MODE_FLAG_CAPPED_FPS"s;
+			case _ctl_gaming_flip_mode_flag_t::CTL_GAMING_FLIP_MODE_FLAG_VSYNC_OFF_IGNORE_ALLOW_LIST: return "CTL_GAMING_FLIP_MODE_FLAG_VSYNC_OFF_IGNORE_ALLOW_LIST"s;
 			case _ctl_gaming_flip_mode_flag_t::CTL_GAMING_FLIP_MODE_FLAG_MAX: return "CTL_GAMING_FLIP_MODE_FLAG_MAX"s;
 			default: return "{ unknown }"s;
 			}
@@ -2880,6 +2873,10 @@ namespace pmon::util::ref::gen
 			case _ctl_i2c_flag_t::CTL_I2C_FLAG_SPEED_SLOW: return "CTL_I2C_FLAG_SPEED_SLOW"s;
 			case _ctl_i2c_flag_t::CTL_I2C_FLAG_SPEED_FAST: return "CTL_I2C_FLAG_SPEED_FAST"s;
 			case _ctl_i2c_flag_t::CTL_I2C_FLAG_SPEED_BIT_BASH: return "CTL_I2C_FLAG_SPEED_BIT_BASH"s;
+			case _ctl_i2c_flag_t::CTL_I2C_FLAG_DRIVER_OVERRIDE: return "CTL_I2C_FLAG_DRIVER_OVERRIDE"s;
+			case _ctl_i2c_flag_t::CTL_I2C_FLAG_START: return "CTL_I2C_FLAG_START"s;
+			case _ctl_i2c_flag_t::CTL_I2C_FLAG_STOP: return "CTL_I2C_FLAG_STOP"s;
+			case _ctl_i2c_flag_t::CTL_I2C_FLAG_RESTART: return "CTL_I2C_FLAG_RESTART"s;
 			case _ctl_i2c_flag_t::CTL_I2C_FLAG_MAX: return "CTL_I2C_FLAG_MAX"s;
 			default: return "{ unknown }"s;
 			}
@@ -3016,6 +3013,15 @@ namespace pmon::util::ref::gen
 			case _ctl_display_setting_flag_t::CTL_DISPLAY_SETTING_FLAG_PICTURE_AR: return "CTL_DISPLAY_SETTING_FLAG_PICTURE_AR"s;
 			case _ctl_display_setting_flag_t::CTL_DISPLAY_SETTING_FLAG_AUDIO: return "CTL_DISPLAY_SETTING_FLAG_AUDIO"s;
 			case _ctl_display_setting_flag_t::CTL_DISPLAY_SETTING_FLAG_MAX: return "CTL_DISPLAY_SETTING_FLAG_MAX"s;
+			default: return "{ unknown }"s;
+			}
+		};
+		dumpers[typeid(_ctl_firmware_config_flag_t)] = [](const void* pEnum) {
+			const auto& e = *static_cast<const _ctl_firmware_config_flag_t*>(pEnum);
+			switch (e) {
+			case _ctl_firmware_config_flag_t::CTL_FIRMWARE_CONFIG_FLAG_IS_DEVICE_LINK_SPEED_DOWNGRADE_CAPABLE: return "CTL_FIRMWARE_CONFIG_FLAG_IS_DEVICE_LINK_SPEED_DOWNGRADE_CAPABLE"s;
+			case _ctl_firmware_config_flag_t::CTL_FIRMWARE_CONFIG_FLAG_IS_DEVICE_LINK_SPEED_DOWNGRADE_ACTIVE: return "CTL_FIRMWARE_CONFIG_FLAG_IS_DEVICE_LINK_SPEED_DOWNGRADE_ACTIVE"s;
+			case _ctl_firmware_config_flag_t::CTL_FIRMWARE_CONFIG_FLAG_MAX: return "CTL_FIRMWARE_CONFIG_FLAG_MAX"s;
 			default: return "{ unknown }"s;
 			}
 		};
