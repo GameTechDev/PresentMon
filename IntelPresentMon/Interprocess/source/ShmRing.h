@@ -89,7 +89,7 @@ namespace pmon::ipc
 				const size_t serial = nextWriteSerial_;
 				// once we have looped around the vector, we need to maintain a buffer
 				// to help avoid the client reading partially-updated data (data race)
-				return { nextWriteSerial_ - data_.size() + ReadBufferSize, nextWriteSerial_ };
+				return { serial - data_.size() + ReadBufferSize, serial };
 			}
 		}
 		void MarkNextRead(size_t serial) const
