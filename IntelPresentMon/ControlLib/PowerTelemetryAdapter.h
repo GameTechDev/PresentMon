@@ -4,8 +4,8 @@
 
 #include <string>
 #include <vector>
-#include <optional>
 #include <bitset>
+#include <cstdint>
 #include "PresentMonPowerTelemetry.h"
 #include "../PresentMonAPI2/PresentMonAPI.h"
 
@@ -18,22 +18,23 @@ namespace pwr
         using SetTelemetryCapBitset = std::bitset<static_cast<size_t>(GpuTelemetryCapBits::gpu_telemetry_count)>;
         // functions
         virtual ~PowerTelemetryAdapter() = default;
-        virtual bool Sample() noexcept = 0;
-        virtual std::optional<PresentMonPowerTelemetryInfo> GetClosest(uint64_t qpc) const noexcept = 0;
+        virtual PresentMonPowerTelemetryInfo Sample() noexcept = 0;
         virtual PM_DEVICE_VENDOR GetVendor() const noexcept = 0;
         virtual std::string GetName() const noexcept = 0;
         virtual uint64_t GetDedicatedVideoMemory() const noexcept = 0;
         virtual uint64_t GetVideoMemoryMaxBandwidth() const noexcept = 0;
         virtual double GetSustainedPowerLimit() const noexcept = 0;
         virtual uint64_t GetAdapterId() const noexcept { return 0; }
+        uint32_t GetDeviceId() const noexcept;
         void SetTelemetryCapBit(GpuTelemetryCapBits telemetryCapBit) noexcept;
         SetTelemetryCapBitset GetPowerTelemetryCapBits();
         bool HasTelemetryCapBit(GpuTelemetryCapBits bit) const;
-        // constants
-        static constexpr size_t defaultHistorySize = 300;
+    protected:
+        explicit PowerTelemetryAdapter(uint32_t deviceId) noexcept;
 
-       private:
+    private:
         // data
         SetTelemetryCapBitset gpuTelemetryCapBits_{};
+        const uint32_t deviceId_ = 0;
     };
 }

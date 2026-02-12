@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include <string>
@@ -26,6 +26,7 @@
 #include "../PresentMonAPI2Loader/Loader.h"
 #include "Utils.h"
 #include "DynamicQuerySample.h"
+#include "DynamicQueryNoTargetSample.h"
 #include "FrameQuerySample.h"
 #include "IntrospectionSample.h"
 #include "CheckMetricSample.h"
@@ -34,7 +35,9 @@
 #include "MultiClient.h"
 #include "ServiceCrashClient.h"
 #include "EtlLogger.h"
+#include "IpcComponentServer.h"
 #include "PacedPlayback.h"
+#include "PacedFramePlayback.h"
 #include "LogDemo.h"
 #include "DiagnosticDemo.h"
 #include "LogSetup.h"
@@ -62,8 +65,7 @@ void RunPlaybackFrameQuery()
         "PresentMonService.exe"s,
         // "--timed-stop"s, "10000"s,
         "--control-pipe"s, pipeName,
-        "--nsm-prefix"s, "pmon_nsm_tt_"s,
-        "--intro-nsm"s, "svc-intro-tt"s,
+        "--shm-name-prefix"s, "pm-tt-shm"s,
         "--etw-session-name"s, "svc-sesh-tt"s,
         bp::args(dargs),
     };
@@ -92,7 +94,7 @@ void RunPlaybackFrameQuery()
         // track the pid we know to be active in the ETL (1268 for dwm in gold_0)
         pid = opt.processId.AsOptional().value_or(1268);
     }
-    auto tracker = api.TrackProcess(pid);
+    auto tracker = api.TrackProcess(pid, true, false);
     std::this_thread::sleep_for(500ms);
 
     uint32_t frameCount = 0;
@@ -148,8 +150,7 @@ void RunPlaybackDynamicQuery()
         "PresentMonService.exe"s,
         // "--timed-stop"s, "10000"s,
         "--control-pipe"s, pipeName,
-        "--nsm-prefix"s, "pmon_nsm_tt_"s,
-        "--intro-nsm"s, "svc-intro-tt"s,
+        "--shm-name-prefix"s, "pm-tt-shm"s,
         "--etw-session-name"s, "svc-sesh-tt"s,
         bp::args(dargs),
     };
@@ -172,7 +173,7 @@ void RunPlaybackDynamicQuery()
     PM_END_FIXED_QUERY query{ api, 200., 50., 1, 1 };
 
     // track the pid we know to be active in the ETL (1268 for dwm in gold_0)
-    auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268));
+    auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268), true, false);
 
     pmon::util::IntervalWaiter waiter{ 0.1 };
 
@@ -223,8 +224,7 @@ void RunPlaybackDynamicQueryN()
             "PresentMonService.exe"s,
             // "--timed-stop"s, "10000"s,
             "--control-pipe"s, pipeName,
-            "--nsm-prefix"s, "pmon_nsm_tt_"s,
-            "--intro-nsm"s, "svc-intro-tt"s,
+            "--shm-name-prefix"s, "pm-tt-shm"s,
             "--etw-session-name"s, "svc-sesh-tt"s,
             bp::args(dargs),
         };
@@ -247,7 +247,7 @@ void RunPlaybackDynamicQueryN()
         PM_END_FIXED_QUERY query{ api, 200., 50., 1, 1 };
 
         // track the pid we know to be active in the ETL (1268 for dwm in gold_0)
-        auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268));
+        auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268), true, false);
 
         pmon::util::IntervalWaiter waiter{ 0.1 };
 
@@ -288,8 +288,7 @@ void IntrospectAllDynamicOptions()
     bp::child svc{
         "PresentMonService.exe"s,
         "--control-pipe"s, pipeName,
-        "--nsm-prefix"s, "pmon_nsm_tt_"s,
-        "--intro-nsm"s, "svc-intro-tt"s,
+        "--shm-name-prefix"s, "pm-tt-shm"s,
         "--etw-session-name"s, "svc-sesh-tt"s,
     };
 
@@ -343,9 +342,7 @@ int main(int argc, char* argv[])
             if (opt.controlPipe) {
                 return std::make_unique<pmapi::Session>(*opt.controlPipe);
             }
-            else {
-                return std::make_unique<pmapi::Session>();
-            }
+            return std::make_unique<pmapi::Session>();
         };
 
         // determine requested mode to run the sample app in
@@ -362,6 +359,8 @@ int main(int argc, char* argv[])
             return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, false);
         case clio::Mode::AddGpuMetric:
             return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, true);
+        case clio::Mode::DynamicQueryNoTargetAll:
+            return DynamicQueryNoTargetSample(ConnectSession(), *opt.windowSize, *opt.metricOffset);
         case clio::Mode::WrapperStaticQuery:
             return WrapperStaticQuerySample(ConnectSession());
         case clio::Mode::MetricList:
@@ -378,12 +377,16 @@ int main(int argc, char* argv[])
             return EtlLoggerTest(ConnectSession());
         case clio::Mode::PacedPlayback:
             return PacedPlaybackTest(ConnectSession());
+        case clio::Mode::PacedFramePlayback:
+            return PacedFramePlaybackTest(ConnectSession());
         case clio::Mode::PlaybackDynamicQuery:
             RunPlaybackDynamicQueryN(); break;
         case clio::Mode::PlaybackFrameQuery:
             RunPlaybackFrameQuery(); break;
         case clio::Mode::IntrospectAllDynamicOptions:
             IntrospectAllDynamicOptions(); break;
+        case clio::Mode::IpcComponentServer:
+            IpcComponentServer(); break;
         case clio::Mode::IntrospectionDevices:
             IntrospectAllDevices(ConnectSession()); break;
         default:

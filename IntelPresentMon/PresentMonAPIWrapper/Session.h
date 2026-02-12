@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
 #include "ProcessTracker.h"
 #include "FrameQuery.h"
@@ -51,7 +51,8 @@ namespace pmapi
         // see PresentMonAPIWrapperCommon/Introspection.h for details about introspection data available
         std::shared_ptr<intro::Root> GetIntrospectionRoot(bool forceRefresh = false) const;
         // begin tracking a process, necessary to consume frame data or query metrics involving that process
-        ProcessTracker TrackProcess(uint32_t pid);
+        // set isPlayback and isBackpressured when tracking ETL playback
+        ProcessTracker TrackProcess(uint32_t pid, bool isPlayback = false, bool isBackpressured = false);
         // register (build/compile) a dynamic query used to poll metrics
         DynamicQuery RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> elements, double winSizeMs = 1000, double metricOffsetMs = 1020);
         // register (build/compile) a frame query used to consume frame events

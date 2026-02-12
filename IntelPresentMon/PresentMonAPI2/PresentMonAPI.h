@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #ifdef PRESENTMONAPI2_EXPORTS
@@ -10,7 +10,7 @@
 #include <cstdint>
 
 #define PM_API_VERSION_MAJOR 3
-#define PM_API_VERSION_MINOR 2
+#define PM_API_VERSION_MINOR 3
 
 #define PM_MAX_PATH 260
 
@@ -42,6 +42,8 @@ extern "C" {
 		PM_STATUS_MIDDLEWARE_VERSION_LOW,
 		PM_STATUS_MIDDLEWARE_VERSION_HIGH,
 		PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH,
+		PM_STATUS_QUERY_MALFORMED,
+		PM_STATUS_MODE_MISMATCH,
 	};
 
 	enum PM_METRIC
@@ -135,6 +137,9 @@ extern "C" {
 		PM_METRIC_BETWEEN_APP_START,
 		PM_METRIC_PRESENTED_FRAME_TIME,
 		PM_METRIC_FLIP_DELAY,
+		PM_METRIC_PROCESS_ID,
+		PM_METRIC_SESSION_START_QPC,
+		PM_METRIC_COUNT_, // sentry to mark end of metric list; not an actual query metric
 	};
 
 	enum PM_METRIC_TYPE
@@ -253,6 +258,7 @@ extern "C" {
 	{
 		PM_DEVICE_TYPE_INDEPENDENT,
 		PM_DEVICE_TYPE_GRAPHICS_ADAPTER,
+		PM_DEVICE_TYPE_SYSTEM,
 	};
 
 	enum PM_METRIC_AVAILABILITY
@@ -403,6 +409,9 @@ extern "C" {
 	PRESENTMON_API2_EXPORT PM_STATUS pmCloseSession(PM_SESSION_HANDLE handle);
 	// command the service to process and make available frame/metric data for the specified process id
 	PRESENTMON_API2_EXPORT PM_STATUS pmStartTrackingProcess(PM_SESSION_HANDLE handle, uint32_t process_id);
+	// command the service to process and make available frame/metric data for playback of the specified process id
+	// isBackpressured controls whether playback uses backpressured frame rings
+	PRESENTMON_API2_EXPORT PM_STATUS pmStartPlaybackTracking(PM_SESSION_HANDLE handle, uint32_t process_id, uint32_t isBackpressured);
 	// command the service to cease processing and exporting frame/metric data for the specified process id
 	PRESENTMON_API2_EXPORT PM_STATUS pmStopTrackingProcess(PM_SESSION_HANDLE handle, uint32_t process_id);
 	// allocate and populate a tree data structure describing the available metrics, devices, etc.
@@ -417,12 +426,16 @@ extern "C" {
 	// a value of zero indicates to use current service setting (default or value requested by other client)
 	PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, uint32_t periodMs);
 #define PM_ETW_FLUSH_PERIOD_MAX 1000
+	// flush any buffered frame event data for the specified process on this session
+	PRESENTMON_API2_EXPORT PM_STATUS pmFlushFrames(PM_SESSION_HANDLE handle, uint32_t processId);
 	// register a dynamic query used for polling metric data with (optional) statistic processing such as average or percentile
 	PRESENTMON_API2_EXPORT PM_STATUS pmRegisterDynamicQuery(PM_SESSION_HANDLE sessionHandle, PM_DYNAMIC_QUERY_HANDLE* pHandle, PM_QUERY_ELEMENT* pElements, uint64_t numElements, double windowSizeMs, double metricOffsetMs);
 	// free the resources associated with a registered dynamic query
 	PRESENTMON_API2_EXPORT PM_STATUS pmFreeDynamicQuery(PM_DYNAMIC_QUERY_HANDLE handle);
 	// poll a dynamic query, writing the query poll results into the specified memory blob (byte buffer)
 	PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQuery(PM_DYNAMIC_QUERY_HANDLE handle, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains);
+	// poll a dynamic query, writing the query poll results into the specified memory blob (byte buffer) using the provided now timestamp
+	PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQueryWithTimestamp(PM_DYNAMIC_QUERY_HANDLE handle, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains, uint64_t nowTimestamp);
 	// query a static metric immediately, writing the result into the specified memory blob (byte buffer)
 	PRESENTMON_API2_EXPORT PM_STATUS pmPollStaticQuery(PM_SESSION_HANDLE sessionHandle, const PM_QUERY_ELEMENT* pElement, uint32_t processId, uint8_t* pBlob);
 	// register a frame query used for consuming desired metrics from a queue of frame events

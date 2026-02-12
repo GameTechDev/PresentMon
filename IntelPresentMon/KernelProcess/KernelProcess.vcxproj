@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -172,7 +172,6 @@
     <ClInclude Include="kact\KernelExecutionContext.h" />
     <ClInclude Include="kact\OpenSession.h" />
     <ClInclude Include="kact\PushSpecification.h" />
-    <ClInclude Include="kact\SetAdapter.h" />
     <ClInclude Include="kact\SetCapture.h" />
     <ClInclude Include="kact\SetEtlLogging.h" />
     <ClInclude Include="MakeOverlaySpec.h" />

@@ -1,26 +1,46 @@
-#pragma once
+﻿#pragma once
 #include <vector>
 #include <bitset>
 #include <map>
+#include <span>
+#include <optional>
+#include <memory>
+#include "MetricBinding.h"
+#include "DynamicQueryWindow.h"
 #include "../PresentMonAPI2/PresentMonAPI.h"
-#include "../ControlLib/CpuTelemetryInfo.h"
-#include "../ControlLib/PresentMonPowerTelemetry.h"
+#include "../CommonUtilities/Qpc.h"
+
+
+namespace pmon::mid
+{
+	class MetricBinding;
+	class FrameMetricsSource;
+}
+
+namespace pmon::ipc
+{
+	class MiddlewareComms;
+}
 
 struct PM_DYNAMIC_QUERY
 {
-	std::vector<PM_QUERY_ELEMENT> elements;
-	size_t GetBlobSize() const
-	{
-		return elements.back().dataOffset + elements.back().dataSize;
-	}
-	// Data used to track what should be accumulated
-	bool accumFpsData = false;
-	std::bitset<static_cast<size_t>(GpuTelemetryCapBits::gpu_telemetry_count)> accumGpuBits;
-	std::bitset<static_cast<size_t>(CpuTelemetryCapBits::cpu_telemetry_count)> accumCpuBits;
-	// Data used to calculate the requested metrics
-	double windowSizeMs = 0;
-	double metricOffsetMs = 0.;
-	size_t queryCacheSize = 0;
-	std::optional<uint32_t> cachedGpuInfoIndex;
+public:
+	PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double windowSizeMs, double windowOffsetMs,
+		double qpcPeriodSeconds, pmon::ipc::MiddlewareComms& comms, pmon::mid::Middleware& middleware);
+	size_t GetBlobSize() const;
+	bool HasFrameMetrics() const;
+	uint32_t Poll(uint8_t* pBlobBase, pmon::ipc::MiddlewareComms& comms,
+		uint64_t nowTimestamp, pmon::mid::FrameMetricsSource* frameSource, uint32_t processId, uint32_t maxSwapChains) const;
+
+private:
+	// functions
+	pmon::mid::DynamicQueryWindow GenerateQueryWindow_(int64_t nowTimestamp) const;
+	// data
+	std::vector<std::unique_ptr<pmon::mid::MetricBinding>> ringMetricPtrs_;
+	size_t blobSize_;
+	bool hasFrameMetrics_ = false;
+	// window parameters; these could theoretically be independent of query but current API couples them
+	int64_t windowSizeQpc_ = 0;
+	int64_t windowOffsetQpc_ = 0;
 };
 

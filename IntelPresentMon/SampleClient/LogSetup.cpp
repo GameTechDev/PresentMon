@@ -1,4 +1,4 @@
-#include "../CommonUtilities/log/Log.h"
+﻿#include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/log/Channel.h"
 #include "../CommonUtilities/log/MsvcDebugDriver.h"
 #include "../CommonUtilities/log/BasicFileDriver.h"
@@ -82,6 +82,12 @@ namespace p2sam
 			if (opt.logLevel) {
 				GlobalPolicy::Get().SetLogLevel(*opt.logLevel);
 				getters.getGlobalPolicy().SetLogLevel(*opt.logLevel);
+			}
+			if (opt.logVerboseModules) {
+				for (auto mod : *opt.logVerboseModules) {
+					GlobalPolicy::Get().ActivateVerboseModule(mod);
+					getters.getGlobalPolicy().ActivateVerboseModule(mod);
+				}
 			}
 			if (opt.logTraceLevel) {
 				GlobalPolicy::Get().SetTraceLevel(*opt.logTraceLevel);

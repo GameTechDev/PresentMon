@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #define NOMINMAX
@@ -9,16 +9,16 @@
 #include <optional>
 #include "PresentMonPowerTelemetry.h"
 #include "PowerTelemetryProvider.h"
-#include "TelemetryHistory.h"
 #include "NvapiWrapper.h"
 #include "NvmlWrapper.h"
+#include "DeviceIdAllocator.h"
 
 namespace pwr::nv
 {
     class NvidiaPowerTelemetryProvider : public PowerTelemetryProvider
     {
     public:
-        NvidiaPowerTelemetryProvider();
+        explicit NvidiaPowerTelemetryProvider(DeviceIdAllocator& allocator);
         const std::vector<std::shared_ptr<PowerTelemetryAdapter>>& GetAdapters() noexcept override;
         uint32_t GetAdapterCount() const noexcept override;
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include <format>
 #include "WmiCpu.h"
@@ -48,7 +48,7 @@ WmiCpu::WmiCpu() {
   // Most counters require two sample values to display a formatted value.
   // PDH stores the current sample value and the previously collected
   // sample value. This call retrieves the first value that will be used
-  // by PdhGetFormattedCounterValue in the Sample() call.
+  // by PdhGetFormattedCounterValue in the next data collection.
   if (const auto result = PdhCollectQueryData(query_.get());
       result != ERROR_SUCCESS) {
     throw std::runtime_error{
@@ -72,22 +72,27 @@ WmiCpu::WmiCpu() {
   // next_sample_qpc_.QuadPart += frequency_.QuadPart;
 }
 
-bool WmiCpu::Sample() noexcept {
+
+CpuTelemetryInfo WmiCpu::Sample() noexcept {
   DWORD counter_type;
 
   LARGE_INTEGER qpc;
   QueryPerformanceCounter(&qpc);
-  if (qpc.QuadPart < next_sample_qpc_.QuadPart) {
-    return true;
-  }
+  const bool should_collect = qpc.QuadPart >= next_sample_qpc_.QuadPart;
 
   CpuTelemetryInfo info{
       .qpc = (uint64_t)qpc.QuadPart,
   };
 
-  if (const auto result = PdhCollectQueryData(query_.get());
-      result != ERROR_SUCCESS) {
-    return false;
+  if (should_collect) {
+    if (const auto result = PdhCollectQueryData(query_.get());
+        result != ERROR_SUCCESS) {
+      LOG(INFO) << "PdhCollectQueryData failed. Result:" << result << std::endl;
+    } else {
+      // Update the next sample qpc based on the current sample qpc
+      // and adding in the frequency
+      next_sample_qpc_.QuadPart = qpc.QuadPart + frequency_.QuadPart;
+    }
   }
 
   // Sample cpu clock. This is an approximation using the frequency and then
@@ -133,21 +138,7 @@ bool WmiCpu::Sample() noexcept {
     }
   }
 
-  // insert telemetry into history
-  std::lock_guard lock{history_mutex_};
-  history_.Push(info);
-
-  // Update the next sample qpc based on the current sample qpc
-  // and adding in the frequency
-  next_sample_qpc_.QuadPart = qpc.QuadPart + frequency_.QuadPart;
-
-  return true;
-}
-
-std::optional<CpuTelemetryInfo> WmiCpu::GetClosest(uint64_t qpc)
-      const noexcept {
-  std::lock_guard lock{history_mutex_};
-  return history_.GetNearest(qpc);
+  return info;
 }
 
 }

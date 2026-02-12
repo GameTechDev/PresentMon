@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "PresentMon.h"
 
@@ -12,44 +12,36 @@
 #include <span>
 #include "../CommonUtilities/win/Privileges.h"
 
-PresentMon::PresentMon(bool isRealtime)
+PresentMon::PresentMon(svc::FrameBroadcaster& broadcaster,
+	bool isRealtime)
 	:
-	etwLogger_{ util::win::WeAreElevated() }
+	broadcaster_{ broadcaster },
+	etwLogger_{ util::win::WeAreElevated() },
+	isRealtime_{ isRealtime }
 {
 	if (isRealtime) {
-		pSession_ = std::make_unique<RealtimePresentMonSession>();
+		pSession_ = std::make_unique<RealtimePresentMonSession>(broadcaster);
 	}
 	else {
-		pSession_ = std::make_unique<MockPresentMonSession>();
+		pSession_ = std::make_unique<MockPresentMonSession>(broadcaster);
 	}
 }
 
 PresentMon::~PresentMon()
 {
 	pSession_->CheckTraceSessions(true);
+	pmlog_dbg("PresentMon object destructor finishing");
 }
 
-PM_STATUS PresentMon::StartStreaming(uint32_t client_process_id, uint32_t target_process_id,
-	std::string& nsm_file_name)
+PM_STATUS PresentMon::UpdateTracking(const std::unordered_set<uint32_t>& trackedPids)
 {
-	return pSession_->StartStreaming(client_process_id, target_process_id, nsm_file_name);
-}
-
-void PresentMon::StopStreaming(uint32_t client_process_id, uint32_t target_process_id)
-{
-	return pSession_->StopStreaming(client_process_id, target_process_id);
+	return pSession_->UpdateTracking(trackedPids);
 }
 
 std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> PresentMon::EnumerateAdapters()
 {
 	// Only the real time trace uses the control libary interface
 	return pSession_->EnumerateAdapters();
-}
-
-PM_STATUS PresentMon::SelectAdapter(uint32_t adapter_id)
-{
-	// Only the real time trace uses the control libary interface
-	return pSession_->SelectAdapter(adapter_id);
 }
 
 void PresentMon::StartPlayback()

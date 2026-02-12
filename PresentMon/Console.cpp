@@ -273,28 +273,28 @@ void UpdateConsole(uint32_t processId, ProcessInfo const& processInfo)
 
         ConsolePrint(L"    %016llX", address);
 
-        if (chain.mLastPresent != nullptr) {
+        if (chain.mUnifiedSwapChain.swapChain.lastPresent.has_value()) {
             ConsolePrint(L" (%hs): SyncInterval=%d Flags=%d CPU=%.3fms (%.1f fps)",
-                RuntimeToString(chain.mLastPresent->Runtime),
-                chain.mLastPresent->SyncInterval,
-                chain.mLastPresent->PresentFlags,
-                chain.mAvgCPUDuration,
-                CalculateFPSForPrintf(chain.mAvgCPUDuration));
+                RuntimeToString(chain.mUnifiedSwapChain.swapChain.lastPresent.value().runtime),
+                chain.mUnifiedSwapChain.swapChain.lastPresent.value().syncInterval,
+                chain.mUnifiedSwapChain.swapChain.lastPresent.value().presentFlags,
+                chain.mUnifiedSwapChain.avgCPUDuration,
+                CalculateFPSForPrintf(chain.mUnifiedSwapChain.avgCPUDuration));
 
             if (args.mTrackDisplay) {
                 ConsolePrint(L" Display=%.3fms (%.1f fps)",
-                    chain.mAvgDisplayedTime,
-                    CalculateFPSForPrintf(chain.mAvgDisplayedTime));
+                    chain.mUnifiedSwapChain.avgDisplayedTime,
+                    CalculateFPSForPrintf(chain.mUnifiedSwapChain.avgDisplayedTime));
             }
 
             if (args.mTrackGPU) {
-                ConsolePrint(L" GPU=%.3fms", chain.mAvgGPUDuration);
+                ConsolePrint(L" GPU=%.3fms", chain.mUnifiedSwapChain.avgGPUDuration);
             }
 
             if (args.mTrackDisplay) {
                 ConsolePrint(L" Latency=%.3fms %hs",
-                    chain.mAvgDisplayLatency,
-                    PresentModeToString(chain.mLastPresent->PresentMode));
+                    chain.mUnifiedSwapChain.avgDisplayLatency,
+                    PresentModeToString(chain.mUnifiedSwapChain.swapChain.lastPresent.value().presentMode));
             }
         }
 

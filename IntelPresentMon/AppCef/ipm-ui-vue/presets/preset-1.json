@@ -13,7 +13,7 @@
                   "metricId": 3,
                   "arrayIndex": 0,
                   "deviceId": 0,
-                  "statId": 7,
+                  "statId": 0,
                   "desiredUnitId": 0
                },
                "lineColor": {
@@ -658,7 +658,7 @@
                   "metricId": 48,
                   "arrayIndex": 0,
                   "deviceId": 0,
-                  "statId": 1,
+                  "statId": 0,
                   "desiredUnitId": 0
                },
                "lineColor": {

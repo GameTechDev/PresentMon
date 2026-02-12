@@ -23,15 +23,15 @@ namespace pmon::util
 			pmlog_error(ReportException("Failed creating timer"));
 		}
 	}
-	void PrecisionWaiter::Wait(double seconds, bool alertable) noexcept
+	double PrecisionWaiter::Wait(double seconds, bool alertable) noexcept
 	{
-		WaitWithBuffer(seconds, defaultWaitBuffer_, alertable);
+		return WaitWithBuffer(seconds, defaultWaitBuffer_, alertable);
 	}
-	void PrecisionWaiter::WaitUnbuffered(double seconds, bool alertable) noexcept
+	double PrecisionWaiter::WaitUnbuffered(double seconds, bool alertable) noexcept
 	{
-		WaitWithBuffer(seconds, 0., alertable);
+		return WaitWithBuffer(seconds, 0., alertable);
 	}
-	void PrecisionWaiter::WaitWithBuffer(double seconds, double buffer, bool alertable) noexcept
+	double PrecisionWaiter::WaitWithBuffer(double seconds, double buffer, bool alertable) noexcept
 	{
 		try {
 			if (waitableTimer_) {
@@ -61,10 +61,10 @@ namespace pmon::util
 				}
 				// spin wait for the remainder buffer time
 				if (buffer > 0.) {
-					qpcTimer_.SpinWaitUntil(seconds);
+					return qpcTimer_.SpinWaitUntil(seconds);
 				}
 				// return so we don't do the fallback Sleep() wait
-				return;
+				return 0.;
 			}
 		}
 		catch (...) {
@@ -75,6 +75,7 @@ namespace pmon::util
 			// fall through to the fallback
 		}
 		// fallback if we fail high performance timing
-		Sleep(DWORD(seconds * 1000.f));
+		Sleep(DWORD(seconds * 1000.));
+		return 0.;
 	}
 }

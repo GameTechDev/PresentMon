@@ -1,4 +1,4 @@
-#include "PowerTelemetryContainer.h"
+﻿#include "PowerTelemetryContainer.h"
 #include "../ControlLib/Exceptions.h"
 #include <algorithm>
 #include <ranges>
@@ -15,7 +15,7 @@ bool PowerTelemetryContainer::Repopulate() {
 		for (int iVendor = 0; iVendor < int(PM_DEVICE_VENDOR_UNKNOWN); iVendor++) {
 			try {
 				if (auto pProvider = pwr::PowerTelemetryProviderFactory::Make(
-					PM_DEVICE_VENDOR(iVendor))) {
+					PM_DEVICE_VENDOR(iVendor), device_id_allocator_)) {
 					telemetry_providers_.push_back(std::move(pProvider));
 				}
 			}

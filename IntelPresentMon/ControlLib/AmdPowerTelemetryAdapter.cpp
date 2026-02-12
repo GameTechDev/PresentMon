@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "AmdPowerTelemetryAdapter.h"
 #include "Logging.h"
@@ -25,9 +25,10 @@ int operator>>(AmdResultGrabber g, AmdCheckerToken) noexcept {
 }
 
 AmdPowerTelemetryAdapter::AmdPowerTelemetryAdapter(
-    const Adl2Wrapper* adl2_wrapper, std::string adl_adapter_name,
+    uint32_t deviceId, const Adl2Wrapper* adl2_wrapper, std::string adl_adapter_name,
     int adl_adapter_index, int overdrive_version)
-    : adl2_(adl2_wrapper),
+    : PowerTelemetryAdapter(deviceId),
+      adl2_(adl2_wrapper),
       name_(std::move(adl_adapter_name)),
       adl_adapter_index_(adl_adapter_index),
       overdrive_version_(overdrive_version) {}
@@ -52,6 +53,7 @@ bool AmdPowerTelemetryAdapter::GetVideoMemoryInfo(uint64_t& gpu_mem_size, uint64
     
   return success;
 }
+
 
 bool AmdPowerTelemetryAdapter::GetSustainedPowerLimit(double& sustainedPowerLimit) const noexcept {
   sustainedPowerLimit = 0.f;
@@ -114,7 +116,7 @@ double AmdPowerTelemetryAdapter::GetSustainedPowerLimit() const noexcept {
   return sustainedPowerLimit;
 }
 
-bool AmdPowerTelemetryAdapter::Sample() noexcept {
+PresentMonPowerTelemetryInfo AmdPowerTelemetryAdapter::Sample() noexcept {
   LARGE_INTEGER qpc;
   QueryPerformanceCounter(&qpc);
 
@@ -154,11 +156,8 @@ bool AmdPowerTelemetryAdapter::Sample() noexcept {
     }
   }
 
-  // Insert telemetry into history
-  std::lock_guard lock{history_mutex_};
-  history_.Push(info);
-
-  return sample_return;
+  (void)sample_return;
+  return info;
 }
 
 bool AmdPowerTelemetryAdapter::Overdrive5Sample(
@@ -459,12 +458,6 @@ bool AmdPowerTelemetryAdapter::Overdrive8Sample(
   } else {
     return false;
   }
-}
-
-std::optional<PresentMonPowerTelemetryInfo> AmdPowerTelemetryAdapter::GetClosest(
-    uint64_t qpc) const noexcept {
-  std::lock_guard<std::mutex> lock(history_mutex_);
-  return history_.GetNearest(qpc);
 }
 
 PM_DEVICE_VENDOR AmdPowerTelemetryAdapter::GetVendor() const noexcept {

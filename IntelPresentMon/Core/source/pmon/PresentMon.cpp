@@ -1,35 +1,17 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "PresentMon.h"
 #include <Core/source/infra/Logging.h>
 #include <Core/source/infra/util/FolderResolver.h>
 #include <PresentMonAPI2/PresentMonAPI.h>
 #include <PresentMonAPIWrapper/PresentMonAPIWrapper.h>
+#include <PresentMonAPIWrapper/StaticQuery.h>
 #include <PresentMonAPIWrapperCommon/EnumMap.h>
 #include "RawFrameDataWriter.h"
 
 namespace p2c::pmon
 {
 	using namespace ::pmapi;
-
-	class FrameEventFlusher
-	{
-	public:
-		FrameEventFlusher(Session& sesh)
-		{
-			// register minimal query used for flushing frame events
-			std::array queryElements{ PM_QUERY_ELEMENT{ PM_METRIC_PRESENT_MODE, PM_STAT_MID_POINT } };
-			query_ = sesh.RegisterFrameQuery(queryElements);
-			blobs_ = query_.MakeBlobContainer(50);
-		}
-		void Flush(ProcessTracker& tracker)
-		{
-			query_.ForEachConsume(tracker, blobs_, [](auto) {});
-		}
-	private:
-		FrameQuery query_;
-		BlobContainer blobs_;
-	};
 
 	PresentMon::PresentMon(std::optional<std::string> namedPipeName, double window_in, double offset_in, uint32_t telemetrySamplePeriodMs_in)
 	{
@@ -56,8 +38,6 @@ namespace p2c::pmon
 		SetGpuTelemetryPeriod(telemetrySamplePeriodMs_in);
 		SetEtwFlushPeriod(std::nullopt);
 
-		// create flusher used to clear out piled-up old frame events before capture
-		pFlusher = std::make_unique<FrameEventFlusher>(*pSession);
 	}
 	PresentMon::~PresentMon() = default;
 	void PresentMon::StartTracking(uint32_t pid_)
@@ -106,17 +86,6 @@ namespace p2c::pmon
 		}
 		return infos;
 	}
-	void PresentMon::SetAdapter(uint32_t id)
-	{
-		pmlog_info(std::format("Set active adapter to [{}]", id));
-		if (id == 0) {
-			pmlog_warn("Adapter was set to id 0; resetting");
-			selectedAdapter.reset();
-		}
-		else {
-			selectedAdapter = id;
-		}
-	}
 	void PresentMon::SetEtlLogging(bool active)
 	{
 		pmlog_info("Setting etl logging").pmwatch(active);
@@ -150,18 +119,16 @@ namespace p2c::pmon
 		return processTracker;
 	}
 	std::shared_ptr<RawFrameDataWriter> PresentMon::MakeRawFrameDataWriter(std::wstring path,
-		std::optional<std::wstring> statsPath, uint32_t pid, std::wstring procName)
+		std::optional<std::wstring> statsPath, uint32_t pid, std::optional<uint32_t> gpuDeviceIdOverride)
 	{
 		// flush any buffered present events before starting capture
-		pFlusher->Flush(processTracker);
+		processTracker.FlushFrames();
 
+		constexpr bool omitUnavailableColumns = false;
+		const uint32_t activeDeviceId = gpuDeviceIdOverride.value_or(GetDefaultGpuDeviceId());
 		// make the frame data writer
-		return std::make_shared<RawFrameDataWriter>(std::move(path), processTracker, std::move(procName),
-			selectedAdapter.value_or(1), *pSession, std::move(statsPath), *pIntrospectionRoot);
-	}
-	std::optional<uint32_t> PresentMon::GetSelectedAdapter() const
-	{
-		return selectedAdapter;
+		return std::make_shared<RawFrameDataWriter>(std::move(path), processTracker, activeDeviceId,
+			*pSession, std::move(statsPath), *pIntrospectionRoot, omitUnavailableColumns);
 	}
 	const pmapi::intro::Root& PresentMon::GetIntrospectionRoot() const
 	{
@@ -170,6 +137,18 @@ namespace p2c::pmon
 	pmapi::Session& PresentMon::GetSession()
 	{
 		return *pSession;
+	}
+
+	uint32_t PresentMon::GetDefaultGpuDeviceId() const
+	{
+		if (cachedDefaultGpuDeviceId_.has_value()) {
+			return *cachedDefaultGpuDeviceId_;
+		}
+		const auto deviceId = ComputeDefaultGpuDeviceId_();
+		if (deviceId != 0) {
+			cachedDefaultGpuDeviceId_ = deviceId;
+		}
+		return deviceId;
 	}
 	void PresentMon::SetEtwFlushPeriod(std::optional<uint32_t> periodMs)
 	{
@@ -180,5 +159,48 @@ namespace p2c::pmon
 	std::optional<uint32_t> PresentMon::GetEtwFlushPeriod()
 	{
 		return etwFlushPeriodMs;
+	}
+
+	uint32_t PresentMon::ComputeDefaultGpuDeviceId_() const
+	{
+		const auto& intro = *pIntrospectionRoot;
+		uint32_t bestId = 0;
+		uint64_t bestMem = 0;
+
+		for (const auto& device : intro.GetDevices()) {
+			if (device.GetType() != PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
+				continue;
+			}
+			uint64_t memSize = 0;
+			bool hasValue = false;
+			try {
+				memSize = pmapi::PollStatic(*pSession,
+					PM_METRIC_GPU_MEM_SIZE, device.GetId(), 0).As<uint64_t>();
+				hasValue = true;
+			}
+			catch (...) {
+				hasValue = false;
+			}
+
+			if (hasValue) {
+				if (memSize > bestMem) {
+					bestMem = memSize;
+					bestId = device.GetId();
+				}
+			}
+			else if (bestId == 0) {
+				bestId = device.GetId();
+			}
+		}
+
+		if (bestId == 0) {
+			for (const auto& device : intro.GetDevices()) {
+				if (device.GetType() == PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
+					return device.GetId();
+				}
+			}
+		}
+
+		return bestId;
 	}
 }

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
 #include <IntelPresentMon/Interprocess/source/IntrospectionDataTypeMapping.h>
 #include <IntelPresentMon/CommonUtilities/str/String.h>
@@ -52,6 +52,9 @@ namespace pmapi
 		const uint8_t* PeekActiveBlob() const;
 		// get index of the current active blob
 		size_t GetActiveBlobIndex() const;
+		// begin tracking a process using the session associated with this fixed query
+		// set isPlayback and isBackpressured when tracking ETL playback
+		ProcessTracker TrackProcess(uint32_t pid, bool isPlayback = false, bool isBackpressured = false);
 	protected:
 		friend class FixedQueryElement;
 		// functions

@@ -1,7 +1,9 @@
-﻿#pragma once
+#pragma once
 #include "../CommonUtilities/cli/CliFramework.h"
 #include "../CommonUtilities/log/Level.h"
+#include "../CommonUtilities/log/Verbose.h"
 #include "../CommonUtilities/ref/StaticReflection.h"
+#include <cstddef>
 #include <format>
 
 namespace clio
@@ -10,6 +12,7 @@ namespace clio
 	{
 		Introspection,
 		DynamicQuery,
+		DynamicQueryNoTargetAll,
 		FrameQuery,
 		CsvFrameQuery,
 		CheckMetric,
@@ -25,6 +28,8 @@ namespace clio
 		ServiceCrashClient,
 		EtlLogger,
 		PacedPlayback,
+		PacedFramePlayback,
+		IpcComponentServer,
 		IntrospectionDevices,
 		Count,
 	};
@@ -38,7 +43,6 @@ namespace clio
 		Option<int> submode{ this, "--submode", 0, "Which submode option to run for the given mode" };
 	private: Group gc_{ this, "Connection", "Control client connection" }; public:
 		Option<std::string> controlPipe{ this, "--control-pipe", "", "Name of the named pipe to use for the client-service control channel" };
-		Option<std::string> introNsm{ this, "--intro-nsm", "", "Name of the NSM used for introspection data" };
 		Option<std::string> middlewareDllPath{ this, "--middleware-dll-path", "", "Override middleware DLL path discovery with custom path" };
 	private: Group gs_{ this, "Sampling", "Control sampling / targeting behavior" }; public:
 		Option<double> metricOffset{ this, "--metric-offset", 1064., "Offset from top for frame data. Used in --dynamic-query-sample" };
@@ -46,12 +50,14 @@ namespace clio
 		Option<unsigned int> processId{ this, "--process-id", 0, "Process Id to use for polling or frame data capture" };
 		Option<std::string> processName{ this, "--process-name", "", "Name of process to use for polling or frame data capture" };
 		Option<std::string> metric{ this, "--metric", "", "PM_METRIC, ex. PM_METRIC_PRESENTED_FPS" };
+		Option<unsigned int> defaultAdapterId{ this, "--default-adapter-id", 0, "GPU device id to use for system-wide dynamic polling" };
 		Option<unsigned int> telemetryPeriodMs{ this, "--telemetry-period-ms", {}, "Telemetry period in milliseconds" };
 		Option<unsigned int> etwFlushPeriodMs{ this, "--etw-flush-period-ms", {}, "ETW manual flush period in milliseconds" };
 		Option<double> runTime{ this, "--run-time", 10., "How long to capture for, in seconds" };
 		Option<double> runStart{ this, "--run-start", 1., "How many seconds to delay before beginning run" };
 		Option<double> pollPeriod{ this, "--poll-period", 0.1, "Period in seconds for polling the API query" };
 		Option<std::string> outputPath{ this, "--output-path", {}, "Full path to output to" };
+		Option<size_t> frameLimit{ this, "--frame-limit", 0, "Maximum number of frames to capture (0 for unlimited)" };
 	private: Group gl_{ this, "Logging", "Control logging behavior" }; public:
 		Option<log::Level> logLevel{ this, "--log-level", log::Level::Error, "Severity to log at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };
 		Option<log::Level> logTraceLevel{ this, "--log-trace-level", log::Level::Error, "Severity to print stacktrace at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };
@@ -60,11 +66,16 @@ namespace clio
 		Option<std::string> logAllowList{ this, "--log-allow-list", "", "Path to log allow list (with trace overrides)", CLI::ExistingFile };
 		Option<std::string> logFolder{ this, "--log-folder", "", "Folder to create log file(s) in" };
 		Flag logNamePid{ this, "--log-name-pid", "Append PID to the log file name" };
+		Option<std::vector<log::V>> logVerboseModules{ this, "--log-verbose-modules", {}, "Verbose logging modules to enable", CLI::CheckedTransformer{ log::GetVerboseModuleMapNarrow(), CLI::ignore_case } };
 	private: Group gv_{ this, "Service", "Control service options" }; public:
 		Flag servicePacePlayback{ this, "--service-pace-playback", "Pace ETL playback on the service" };
 		Option<std::string> serviceEtlPath{ this, "--service-etl-path", "", "Path of the ETL file to pass to the service for playback" };
 	private: Group gt_{ this, "Testing", "Control testing support options" }; public:
 		Flag testExpectError{ this, "--test-expect-error", "Indicates to test modes that fail state is being tested" };
+		Option<size_t> ipcSystemRingCapacity{ this, "--ipc-system-ring-capacity", 32,
+			"System telemetry ring capacity for the IPC component server" };
+		Option<size_t> ipcSystemSamplesPerPush{ this, "--ipc-system-samples-per-push", 12,
+			"Samples per push batch for the IPC component server" };
 
 		static constexpr const char* description = "Minimal Sample Client for Intel PresentMon service";
 		static constexpr const char* name = "SampleClient.exe";

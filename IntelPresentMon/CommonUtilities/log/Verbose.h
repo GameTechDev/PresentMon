@@ -13,6 +13,10 @@ namespace pmon::util::log
 		core_hotkey,
 		core_window,
 		etwq,
+		kact,
+		ipc_sto,
+		ipc_ring,
+		met_use,
 		Count
 	};
 

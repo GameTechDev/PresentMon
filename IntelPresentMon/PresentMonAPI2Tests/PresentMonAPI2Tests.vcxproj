@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -97,8 +97,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="EtlLoggerTests.cpp" />
+    <ClCompile Include="InterimBroadcasterTests.cpp" />
+    <ClCompile Include="IpcComponentTests.cpp" />
+    <ClCompile Include="IpcMcIntegrationTests.cpp" />
     <ClCompile Include="ModuleInit.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
+    <ClCompile Include="PacedFrameTests.cpp" />
     <ClCompile Include="PacedPollingTests.cpp" />
     <ClCompile Include="WrapperIntrospectionTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />
@@ -109,8 +113,14 @@
     <ProjectReference Include="..\CommonUtilities\CommonUtilities.vcxproj">
       <Project>{08a704d8-ca1c-45e9-8ede-542a1a43b53e}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\Interprocess\Interprocess.vcxproj">
+      <Project>{ca23d648-daef-4f06-81d5-fe619bd31f0b}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\PresentMonAPI2Loader\PresentMonAPI2Loader.vcxproj">
       <Project>{8f86d067-2437-46fc-8f82-4d7155ceced7}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\PresentMonAPI2\PresentMonAPI2.vcxproj">
+      <Project>{5ddba061-53a0-4835-8aaf-943f403f924f}</Project>
     </ProjectReference>
     <ProjectReference Include="..\PresentMonAPIWrapper\PresentMonAPIWrapper.vcxproj">
       <Project>{cee032ed-b0d3-47f8-bdae-d46757b0061b}</Project>
@@ -129,6 +139,7 @@
     <ClInclude Include="CsvHelper.h" />
     <ClInclude Include="Folders.h" />
     <ClInclude Include="JobManager.h" />
+    <ClInclude Include="Logging.h" />
     <ClInclude Include="TestCommands.h" />
     <ClInclude Include="StatusComparison.h" />
     <ClInclude Include="TestProcess.h" />

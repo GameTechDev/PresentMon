@@ -30,9 +30,11 @@ namespace pmon::svc::acts
 			uint32_t servicePid;
 			std::string serviceBuildId;
 			std::string serviceBuildConfig;
+			std::string shmPrefix;
+			std::string shmSalt;
 
 			template<class A> void serialize(A& ar) {
-				ar(serviceBuildId, serviceBuildConfig);
+				ar(servicePid, serviceBuildId, serviceBuildConfig, shmPrefix, shmSalt);
 			}
 		};
 	private:
@@ -48,7 +50,9 @@ namespace pmon::svc::acts
 			return Response{
 				.servicePid = GetCurrentProcessId(),
 				.serviceBuildId = bid::BuildIdShortHash(),
-				.serviceBuildConfig = bid::BuildIdConfig()
+				.serviceBuildConfig = bid::BuildIdConfig(),
+				.shmPrefix = ctx.pPmon->GetBroadcaster().GetNamer().GetPrefix(),
+				.shmSalt = ctx.pPmon->GetBroadcaster().GetNamer().GetSalt(),
 			};
 		}
 	};

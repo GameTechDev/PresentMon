@@ -27,6 +27,7 @@
 #include "GpuTrace.hpp"
 #include "TraceConsumer.hpp"
 #include "NvidiaTraceConsumer.hpp"
+#include "PresentEventEnums.hpp"
 #include "../IntelPresentMon/CommonUtilities/Hash.h"
 
 // PresentMode represents the different paths a present can take on windows.
@@ -91,45 +92,6 @@
 //     -> DxgKrnl_PresentHistory_Start (use model field for classification, get token ptr)
 //     -> DxgKrnl_PresentHistory_Info (by token ptr)
 //     -> Assume DWM will compose this buffer on next present (missing InFrame event), follow windowed blit paths to screen time
-
-enum class PresentMode {
-    Unknown = 0,
-    Hardware_Legacy_Flip = 1,
-    Hardware_Legacy_Copy_To_Front_Buffer = 2,
-    Hardware_Independent_Flip = 3,
-    Composed_Flip = 4,
-    Composed_Copy_GPU_GDI = 5,
-    Composed_Copy_CPU_GDI = 6,
-    Hardware_Composed_Independent_Flip = 8,
-};
-
-enum class PresentResult {
-    Unknown = 0,
-    Presented = 1,
-    Discarded = 2,
-};
-
-enum class Runtime {
-    Other = 0,
-    DXGI = 1,
-    D3D9 = 2,
-};
-
-enum class InputDeviceType {
-    None = 0,
-    Unknown = 1,
-    Mouse = 2,
-    Keyboard = 3,
-};
-
-enum class FrameType {
-    NotSet = 0,
-    Unspecified = 1,
-    Application = 2,
-    Repeated = 3,
-    Intel_XEFG = 50,
-    AMD_AFMF = 100,
-};
 
 struct InputData {
     uint64_t Time;

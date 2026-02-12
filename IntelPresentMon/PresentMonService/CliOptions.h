@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../CommonUtilities/cli/CliFramework.h"
 #include "../CommonUtilities/log/Level.h"
 #include "../CommonUtilities/log/Verbose.h"
@@ -17,8 +17,11 @@ namespace clio
 	private: Group gc_{ this, "Connection", "Control client connection" }; public:
 		Option<std::string> etwSessionName{ this, "--etw-session-name", "PMService", "Name to use when creating the ETW session" };
 		Option<std::string> controlPipe{ this, "--control-pipe", "", "Name of the named pipe to use for the client-service control channel" };
-		Option<std::string> nsmPrefix{ this, "--nsm-prefix", "", "Prefix to use when naming named shared memory segments created for frame data circular buffers" };
-		Option<std::string> introNsm{ this, "--intro-nsm", "", "Name of the NSM used for introspection data" };
+		Option<std::string> shmNamePrefix{ this, "--shm-name-prefix", R"(Global\pm_svc_shm)", "Prefix to use when naming shared memory segments" };
+
+	private: Group gs_{ this, "Shared Memory", "Shared memory ring sizing" }; public:
+		Option<size_t> frameRingSamples{ this, "--frame-ring-samples", 1000, "Number of frame samples to retain per target" };
+		Option<size_t> telemetryRingSamples{ this, "--telemetry-ring-samples", 1500, "Number of telemetry samples to retain per ring" };
 
 	private: Group gd_{ this, "Debugging", "Aids in debugging this tool" }; public:
 		Flag debug{ this, "--debug,-d", "Stall service by running in a loop after startup waiting for debugger to connect" };

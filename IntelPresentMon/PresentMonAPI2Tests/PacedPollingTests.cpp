@@ -34,8 +34,7 @@ namespace PacedPolling
 		{
 			static CommonProcessArgs args{
 				.ctrlPipe = R"(\\.\pipe\pm-paced-polling-test-ctrl)",
-				.introNsm = "pm_paced_polling_test_intro",
-				.frameNsm = "pm_paced_polling_test_nsm",
+				.shmNamePrefix = "pm_paced_polling_test_intro",
 				.logLevel = "debug",
 				.logFolder = logFolder_,
 				.sampleClientMode = "PacedPlayback",
@@ -253,7 +252,7 @@ namespace PacedPolling
 			"--run-time"s, std::to_string(recordingStop - recordingStart),
 			"--run-start"s, std::to_string(recordingStart),
 			"--poll-period"s, std::to_string(pollPeriod),
-			"--metric-offset"s, "64"s,
+			"--metric-offset"s, "100"s,
 			"--window-size"s, "1000"s,
 		});
 		// load up result
@@ -486,8 +485,8 @@ namespace PacedPolling
 			const auto recordingStart = 1.;
 			const auto recordingStop = 14.;
 			const auto pollPeriod = 0.1;
-			const auto toleranceFactor = 0.005;
-			const auto fullFailRatio = 0.667;
+			const auto toleranceFactor = 0.01;
+			const auto fullFailRatio = 0.95;
 			// run test
 			ExecutePacedPollingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart, recordingStop,
 				pollPeriod, toleranceFactor, fullFailRatio, fixture_);

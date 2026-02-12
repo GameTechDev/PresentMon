@@ -4,6 +4,14 @@
 #include <format>
 #include <memory>
 #include <sstream>
+#include <exception>
+#if __has_include(<cereal/archives/json.hpp>)
+#include <cereal/cereal.hpp>
+#include <cereal/archives/json.hpp>
+#define PMLOG_HAS_CEREAL_JSON 1
+#else
+#define PMLOG_HAS_CEREAL_JSON 0
+#endif
 #include "TimePoint.h"
 #include "PanicLogger.h"
 
@@ -53,6 +61,28 @@ namespace pmon::util::log
 			}
 			catch (...) { pmlog_panic_("Failed to format watch in EntryBuilder"); }
 			return *this;
+		}
+		template<typename T>
+		EntryBuilder& serialize(const char* symbol, const T& value) noexcept
+		{
+#if PMLOG_HAS_CEREAL_JSON
+			try {
+				std::ostringstream os;
+				auto opts = cereal::JSONOutputArchive::Options::Default();
+				cereal::JSONOutputArchive ar(os, opts);
+				ar(cereal::make_nvp(symbol, value));
+				return watch(symbol, os.str());
+			}
+			catch (const std::exception& e) {
+				return watch(symbol, std::string("JSON serialization failed: ") + e.what());
+			}
+			catch (...) {
+				return watch(symbol, std::string("JSON serialization failed"));
+			}
+#else
+			(void)value;
+			return watch(symbol, std::string("JSON serialization unavailable (cereal not built)"));
+#endif
 		}
 		template<typename E>
 		[[noreturn]] EntryBuilder& raise()

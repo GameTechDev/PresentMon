@@ -1,7 +1,8 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "../ControlLib/PowerTelemetryProviderFactory.h"
+#include "../ControlLib/DeviceIdAllocator.h"
 
 class PowerTelemetryContainer {
  public:
@@ -13,4 +14,5 @@ class PowerTelemetryContainer {
  private:
   std::vector<std::unique_ptr<pwr::PowerTelemetryProvider>> telemetry_providers_;
   std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> telemetry_adapters_;
+  pwr::DeviceIdAllocator device_id_allocator_;
 };

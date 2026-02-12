@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
@@ -25,8 +25,7 @@ namespace EtlLoggerTests
 		{
 			static CommonProcessArgs args{
 				.ctrlPipe = R"(\\.\pipe\pm-etllog-test-ctrl)",
-				.introNsm = "pm_etllog_test_intro",
-				.frameNsm = "pm_etllog_test_nsm",
+				.shmNamePrefix = "pm_etllog_test_intro",
 				.logLevel = "debug",
 				.logFolder = logFolder_,
 				.sampleClientMode = "EtlLogger",
@@ -53,7 +52,8 @@ namespace EtlLoggerTests
 		{
 			// verify initial status
 			const auto status = fixture_.service->QueryStatus();
-			Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+			Assert::AreEqual(0ull, status.trackedPids.size());
+			Assert::AreEqual(0ull, status.frameStorePids.size());
 			Assert::AreEqual(16u, status.telemetryPeriodMs);
 			Assert::IsTrue((bool)status.etwFlushPeriodMs);
 			Assert::AreEqual(1000u, *status.etwFlushPeriodMs);

@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "IntelPowerTelemetryProvider.h"
 #include "IntelPowerTelemetryAdapter.h"
@@ -12,7 +12,7 @@ using v = log::V;
 
 namespace pwr::intel
 {
-    IntelPowerTelemetryProvider::IntelPowerTelemetryProvider()
+    IntelPowerTelemetryProvider::IntelPowerTelemetryProvider(DeviceIdAllocator& allocator)
     {
         // TODO(megalvan): Currently using the default Id of all zeros. Do we need
         // to obtain a legit application Id or is default fine?
@@ -57,7 +57,7 @@ namespace pwr::intel
         for (auto& handle : handles)
         {
             try {
-                adapterPtrs.push_back(std::make_shared<IntelPowerTelemetryAdapter>(handle));
+                adapterPtrs.push_back(std::make_shared<IntelPowerTelemetryAdapter>(allocator.Next(), handle));
             }
             catch (const IntelPowerTelemetryAdapter::NonGraphicsDeviceException&) {}
             catch (const std::exception& e) { TELE_ERR(e.what()); }

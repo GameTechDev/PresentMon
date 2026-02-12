@@ -1,8 +1,7 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
 #include "../ActionExecutionContext.h"
 #include <format>
-#include <ranges>
 
 #define ACT_NAME EnumerateAdapters
 #define ACT_EXEC_CTX ActionExecutionContext
@@ -12,9 +11,8 @@
 namespace pmon::svc::acts
 {
 	using namespace ipc::act;
-	namespace rn = std::ranges;
-	namespace vi = rn::views;
 
+	// TODO: remove this action, it is redundant in light of Introspection
 	class ACT_NAME : public ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>
 	{
 	public:
@@ -46,9 +44,9 @@ namespace pmon::svc::acts
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
 			Response out;
-			for (auto&&[i, adapter] : ctx.pPmon->EnumerateAdapters() | vi::enumerate) {
+			for (auto&& adapter : ctx.pPmon->EnumerateAdapters()) {
 				out.adapters.push_back(Response::Adapter{
-					.id = (uint32_t)i,
+					.id = adapter->GetDeviceId(),
 					.vendor = adapter->GetVendor(),
 					.name = adapter->GetName(),
 					.gpuSustainedPowerLimit = adapter->GetSustainedPowerLimit(),
