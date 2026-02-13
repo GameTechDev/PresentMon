@@ -78,6 +78,7 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
 
     // Stop transition: targets went from some->none; providers currently enabled
     if(!isActive && providersEnabled) {
+        pmlog_info("All targets inactive: Disabling ETW Providers");
         StopProvidersAndResetConsumer(true);
         if (evtStreamingStarted_) {
             evtStreamingStarted_.Reset();
@@ -97,9 +98,10 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
             // Allow event processing before enabling providers
             pm_consumer_->SetEventProcessingEnabled(true);
         }
-
+        pmlog_info("Active targets detected: Enabling ETW Providers");
         auto const providerStatus = trace_session_.StartProviders();
         if (providerStatus != ERROR_SUCCESS) {
+            pmlog_info("Enabling of ETW Providers failed");
             StopProvidersAndResetConsumer(true);
             evtStreamingStarted_.Reset();
             {
