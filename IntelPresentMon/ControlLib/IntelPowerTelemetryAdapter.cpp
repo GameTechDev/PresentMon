@@ -84,6 +84,7 @@ namespace pwr::intel
 
         if (auto result = ctlGetDeviceProperties(deviceHandle, &properties);
             result != CTL_RESULT_SUCCESS) {
+            IGCL_ERR(result);
             throw std::runtime_error{ "Failure to get device properties" };
         }
         pmlog_verb(v::tele_gpu)("Device properties").pmwatch(ref::DumpGenerated(properties))
@@ -113,11 +114,11 @@ namespace pwr::intel
                 pmlog_verb(v::tele_gpu)("Power domains enumerated").pmwatch(GetName()).pmwatch(ref::DumpGenerated(powerDomains));
             }
             else {
-                pmlog_error("ctlEnumPowerDomains failed enumeration").code(result).pmwatch(GetName());
+                pmlog_warn("ctlEnumPowerDomains failed enumeration").code(result).pmwatch(GetName());
             }
         }
         else {
-            pmlog_error("ctlEnumPowerDomains failed to get count").code(result).pmwatch(GetName());
+            pmlog_warn("ctlEnumPowerDomains failed to get count").code(result).pmwatch(GetName());
         }
 
         // enumerate fans
@@ -130,7 +131,7 @@ namespace pwr::intel
                         if (hFan) {
                             ctl_fan_properties_t props{ .Size = sizeof(ctl_fan_properties_t) };
                             if (auto res = ctlFanGetProperties(hFan, &props); res != CTL_RESULT_SUCCESS) {
-                                pmlog_error(std::format("failed to get properties for fan #{}", iFan)).code(res);
+                                pmlog_warn(std::format("failed to get properties for fan #{}", iFan)).code(res);
                                 maxFanSpeedsRpm_.push_back(0);
                             }
                             pmlog_verb(v::tele_gpu)("Got fan properties").pmwatch(GetName()).pmwatch(iFan)
@@ -144,12 +145,12 @@ namespace pwr::intel
                     }
                 }
                 else {
-                    pmlog_error("failed getting fan handles").code(res);
+                    pmlog_warn("failed getting fan handles").code(res);
                 }
             }
         }
         else {
-            pmlog_error("failed getting fan count").code(res);
+            pmlog_warn("failed getting fan count").code(res);
         }
     }
 
@@ -171,7 +172,7 @@ namespace pwr::intel
         if (const auto result = ctlPowerTelemetryGet(deviceHandle, &currentSample);
             result != CTL_RESULT_SUCCESS) {
             success = false;
-            IGCL_ERR(result);
+            IGCL_WARN(result);
         }
         pmlog_verb(v::tele_gpu)("get power telemetry V1").pmwatch(GetName()).pmwatch(ref::DumpGenerated(currentSample));
 
@@ -188,7 +189,7 @@ namespace pwr::intel
             if (const auto result = ctlMemoryGetState(memoryModules[0], &memory_state);
                 result != CTL_RESULT_SUCCESS) {
                 success = false;
-                IGCL_ERR(result);
+                IGCL_WARN(result);
             }
             else {
                 hasMemoryState = true;
@@ -198,7 +199,7 @@ namespace pwr::intel
             if (const auto result = ctlMemoryGetBandwidth(memoryModules[0], &memory_bandwidth);
                 result != CTL_RESULT_SUCCESS) {
                 success = false;
-                IGCL_ERR(result);
+                IGCL_WARN(result);
             }
             else {
                 hasMemoryBandwidth = true;
@@ -221,7 +222,7 @@ namespace pwr::intel
             }
             else {
                 success = false;
-                IGCL_ERR(result);
+                IGCL_WARN(result);
             }
         }
 
@@ -252,7 +253,7 @@ namespace pwr::intel
                 video_mem_size = memory_state.size;
             }
             else {
-                IGCL_ERR(result);
+                IGCL_WARN(result);
             }
             pmlog_verb(v::tele_gpu)("get memory state").pmwatch(GetName()).pmwatch(ref::DumpGenerated(memory_state));
         }
@@ -272,7 +273,7 @@ namespace pwr::intel
                 videoMemMaxBandwidth = memoryBandwidth.maxBandwidth;
             }
             else {
-                IGCL_ERR(result);
+                IGCL_WARN(result);
             }
             pmlog_verb(v::tele_gpu)("get memory bandwidth").pmwatch(GetName()).pmwatch(ref::DumpGenerated(memoryBandwidth));
         }
@@ -293,7 +294,7 @@ namespace pwr::intel
                     .pmwatch(ref::DumpGenerated(limits));
             }
             else {
-                IGCL_ERR(result);
+                IGCL_WARN(result);
             }
         }
         // Control lib returns back in milliwatts
@@ -319,7 +320,7 @@ namespace pwr::intel
         if (auto result = ctlEnumMemoryModules(deviceHandle, &memory_module_count,
             nullptr); result != CTL_RESULT_SUCCESS)
         {
-            pmlog_error("ctlEnumMemoryModules getting count").code(result).pmwatch(GetName());
+            pmlog_warn("ctlEnumMemoryModules getting count").code(result).pmwatch(GetName());
             return result;
         }
         memoryModules.resize(size_t(memory_module_count));
@@ -327,7 +328,7 @@ namespace pwr::intel
         if (auto result = ctlEnumMemoryModules(deviceHandle, &memory_module_count,
             memoryModules.data()); result != CTL_RESULT_SUCCESS)
         {
-            pmlog_error("ctlEnumMemoryModules getting module data").code(result).pmwatch(GetName());
+            pmlog_warn("ctlEnumMemoryModules getting module data").code(result).pmwatch(GetName());
             memoryModules.clear();
             return result;
         }
@@ -351,7 +352,7 @@ namespace pwr::intel
             result != CTL_RESULT_SUCCESS)
         {
             success = false;
-            IGCL_ERR(result);
+            IGCL_WARN(result);
         }
 
         sample.qpc = qpc;
@@ -362,28 +363,28 @@ namespace pwr::intel
                 currentSample, sample); result != CTL_RESULT_SUCCESS)
             {
                 success = false;
-                IGCL_ERR(result);
+                IGCL_WARN(result);
             }
 
             if (const auto result = GetVramPowerTelemetryData(
                 currentSample, sample); result != CTL_RESULT_SUCCESS)
             {
                 success = false;
-                IGCL_ERR(result);
+                IGCL_WARN(result);
             }
 
             if (const auto result = GetFanPowerTelemetryData(currentSample,
                 sample); result != CTL_RESULT_SUCCESS)
             {
                 success = false;
-                IGCL_ERR(result);
+                IGCL_WARN(result);
             }
 
             if (const auto result = GetPsuPowerTelemetryData(
                 currentSample, sample); result != CTL_RESULT_SUCCESS)
             {
                 success = false;
-                IGCL_ERR(result);
+                IGCL_WARN(result);
             }
 
             // Get memory state and bandwidth data
@@ -415,7 +416,7 @@ namespace pwr::intel
             result != CTL_RESULT_SUCCESS)
         {
             success = false;
-            IGCL_ERR(result);
+            IGCL_WARN(result);
         }
 
         return success;
