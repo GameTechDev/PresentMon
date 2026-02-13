@@ -28,7 +28,9 @@ namespace pwr::intel
 		// functions
 		bool GatherSampleData(ctl_power_telemetry_t& currentSample,
 			ctl_mem_state_t& memory_state,
+			bool has_memory_state,
 			ctl_mem_bandwidth_t& memory_bandwidth,
+			bool has_memory_bandwidth,
 			std::optional<double> gpu_sustained_power_limit_mw,
 			uint64_t qpc,
 			PresentMonPowerTelemetryInfo& sample);

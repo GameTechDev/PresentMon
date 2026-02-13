@@ -181,6 +181,8 @@ namespace pwr::intel
             .Size = sizeof(ctl_mem_bandwidth_t),
             .Version = 1,
         };
+        bool hasMemoryState = false;
+        bool hasMemoryBandwidth = false;
         // Question: why are we only using the first element of memoryModules here?
         if (memoryModules.size() > 0) {
             if (const auto result = ctlMemoryGetState(memoryModules[0], &memory_state);
@@ -188,12 +190,18 @@ namespace pwr::intel
                 success = false;
                 IGCL_ERR(result);
             }
+            else {
+                hasMemoryState = true;
+            }
             pmlog_verb(v::tele_gpu)("get memory state").pmwatch(GetName()).pmwatch(ref::DumpGenerated(memory_state));
             
             if (const auto result = ctlMemoryGetBandwidth(memoryModules[0], &memory_bandwidth);
                 result != CTL_RESULT_SUCCESS) {
                 success = false;
                 IGCL_ERR(result);
+            }
+            else {
+                hasMemoryBandwidth = true;
             }
             pmlog_verb(v::tele_gpu)("get memory bandwidth").pmwatch(GetName()).pmwatch(ref::DumpGenerated(memory_bandwidth));
         }
@@ -217,8 +225,8 @@ namespace pwr::intel
             }
         }
 
-        success = GatherSampleData(currentSample, memory_state,
-            memory_bandwidth, gpu_sustained_power_limit_mw, (uint64_t)qpc.QuadPart, sample) && success;
+        success = GatherSampleData(currentSample, memory_state, hasMemoryState,
+            memory_bandwidth, hasMemoryBandwidth, gpu_sustained_power_limit_mw, (uint64_t)qpc.QuadPart, sample) && success;
 
         (void)success;
         return sample;
@@ -330,7 +338,9 @@ namespace pwr::intel
 
     bool IntelPowerTelemetryAdapter::GatherSampleData(ctl_power_telemetry_t& currentSample,
         ctl_mem_state_t& memory_state,
+        bool has_memory_state,
         ctl_mem_bandwidth_t& memory_bandwidth,
+        bool has_memory_bandwidth,
         std::optional<double> gpu_sustained_power_limit_mw,
         uint64_t qpc,
         PresentMonPowerTelemetryInfo& sample)
@@ -378,10 +388,14 @@ namespace pwr::intel
 
             // Get memory state and bandwidth data
             if (memoryModules.size() > 0) {
-                GetMemStateTelemetryData(memory_state,
-                    sample);
-                GetMemBandwidthData(memory_bandwidth,
-                    sample);
+                if (has_memory_state) {
+                    GetMemStateTelemetryData(memory_state,
+                        sample);
+                }
+                if (has_memory_bandwidth) {
+                    GetMemBandwidthData(memory_bandwidth,
+                        sample);
+                }
             }
 
             // Save and convert the gpu sustained power limit
