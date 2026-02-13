@@ -32,7 +32,7 @@ void RealtimePresentMonSession::StopProvidersAndResetConsumer(bool shrink)
         pm_consumer_->SetEventProcessingEnabled(false);
     }
 
-    trace_session_.StopProviders(); // idempotent per your note
+    trace_session_.StopProviders();
 
     if (pm_consumer_) {
         pm_consumer_->ResetPresentTrackingData(shrink);
@@ -52,7 +52,7 @@ bool RealtimePresentMonSession::IsEventSignaled(pmon::util::win::Event const& e)
 
     // Wait 0ms: returns index of signaled handle, or nullopt on timeout.
     auto r = WaitOnMultipleEvents(std::span<Event::HandleType>(&h, 1), false, 0);
-    return r.has_value(); // only one handle => signaled if it returned 0
+    return r.has_value();
 }
 
 PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uint32_t>& trackedPids) {
