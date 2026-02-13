@@ -51,8 +51,8 @@ private:
 
     void CheckForTerminatedRealtimeProcesses(
         std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses);
-
-    void OnStreamStopped();
+    void StopProvidersAndResetConsumer(bool shrink);
+    bool IsEventSignaled(pmon::util::win::Event const& e);
 
     // data
     std::wstring pm_session_name_;

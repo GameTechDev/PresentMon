@@ -24,28 +24,72 @@ bool RealtimePresentMonSession::IsTraceSessionActive() {
     return session_active_.load(std::memory_order_acquire);
 }
 
+// Transitions the session to an inactive state without tearing down the ETW session.
+// Safe to call multiple times.
+void RealtimePresentMonSession::StopProvidersAndResetConsumer(bool shrink)
+{
+    if (pm_consumer_) {
+        pm_consumer_->SetEventProcessingEnabled(false);
+    }
+
+    trace_session_.StopProviders(); // idempotent per your note
+
+    if (pm_consumer_) {
+        pm_consumer_->ResetPresentTrackingData(shrink);
+    }
+
+    if (evtStreamingStarted_) {
+        evtStreamingStarted_.Reset();
+    }
+}
+
+bool RealtimePresentMonSession::IsEventSignaled(pmon::util::win::Event const& e)
+{
+    using namespace pmon::util::win;
+
+    Event::HandleType h = e.Get();
+    if (h == nullptr) return false;
+
+    // Wait 0ms: returns index of signaled handle, or nullopt on timeout.
+    auto r = WaitOnMultipleEvents(std::span<Event::HandleType>(&h, 1), false, 0);
+    return r.has_value(); // only one handle => signaled if it returned 0
+}
+
 PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uint32_t>& trackedPids) {
-    const bool wasActive = HasLiveTargets();
+    // Ensure ETW session exists (StartTraceW done once; providers may be off).
+    if (!IsTraceSessionActive()) {
+        // If the session isn't active, then we need to start it before we can update tracking.
+        auto const status = StartEtwSession();
+        if (status != PM_STATUS_SUCCESS) {
+            return status;
+        }
+    }
+
+    // Snapshot state so we can rollback tracking on failure.
     std::unordered_map<uint32_t, bool> previousState;
     {
         std::lock_guard lock(tracked_processes_mutex_);
         previousState = tracked_pid_live_;
     }
+
     SyncTrackedPidState(trackedPids);
     const bool isActive = HasLiveTargets();
-    if (isActive && (!wasActive || !IsTraceSessionActive())) {
-        // If the etw session is not active for some reason attempt to start it.
-        // This will only happen if the session was stopped or failed to start
-        // during initialization
-        auto status = StartEtwSession();
-        if (status != PM_STATUS_SUCCESS) {
-            {
-                std::lock_guard lock(tracked_processes_mutex_);
-                tracked_pid_live_ = std::move(previousState);
-            }
-            return status;
+    bool const providersEnabled = IsEventSignaled(evtStreamingStarted_);
+
+    // Stop transition: targets went from some->none; providers currently enabled
+    if(!isActive && providersEnabled) {
+        StopProvidersAndResetConsumer(true);
+        if (evtStreamingStarted_) {
+            evtStreamingStarted_.Reset();
         }
-        // Enable app/PCL tracking before enabling providers so any immediately-arriving
+        return PM_STATUS::PM_STATUS_SUCCESS;
+    }
+
+    // Start transition: targets went from none->some; providers currently disabled
+    // This also handles the case where there was a StartProviders failure for some
+    // reason.
+    if (isActive && !providersEnabled) {
+        // Enable present tracking before enabling providers so any immediately-arriving
         // events are accounted for by the quiesce logic on StopStreaming.
         if (pm_consumer_) {
             // Drop any lingering present tracking state from previous streams
@@ -56,27 +100,19 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
 
         auto const providerStatus = trace_session_.StartProviders();
         if (providerStatus != ERROR_SUCCESS) {
+            StopProvidersAndResetConsumer(true);
+            evtStreamingStarted_.Reset();
             {
                 std::lock_guard lock(tracked_processes_mutex_);
                 tracked_pid_live_ = std::move(previousState);
-            }            
+            }
             return PM_STATUS::PM_STATUS_FAILURE;
         }
-    }
-    if (isActive && evtStreamingStarted_) {
         evtStreamingStarted_.Set();
+        return PM_STATUS::PM_STATUS_SUCCESS;
     }
-    if (!isActive) {
-        if (evtStreamingStarted_) {
-            evtStreamingStarted_.Reset();
-        }
-        trace_session_.StopProviders();
 
-        if (pm_consumer_) {
-            // Drop any present correlation state that would otherwise linger until providers are re-enabled.
-            pm_consumer_->ResetPresentTrackingData(true);
-        }
-    }
+    // No transition: either active with providers enabled, or inactive with providers disabled
     return PM_STATUS::PM_STATUS_SUCCESS;
 }
 
@@ -84,10 +120,6 @@ bool RealtimePresentMonSession::CheckTraceSessions(bool forceTerminate) {
     if (forceTerminate) {
         StopEtwSession();
         ClearTrackedProcesses();
-        return true;
-    }
-    if (!HasLiveTargets() && (IsTraceSessionActive() == true)) {
-        StopEtwSession();
         return true;
     }
     return false;
@@ -507,9 +539,6 @@ void RealtimePresentMonSession::UpdateProcesses(
 }
 
 void RealtimePresentMonSession::HandleTerminatedProcess(uint32_t processId) {
-    // TODO(megalvan): Need to figure this out
-    // Close this process' CSV.
-    // CloseOutputCsv(processInfo);
     MarkProcessExited(processId);
     if (!HasLiveTrackedProcesses() && evtStreamingStarted_) {
         evtStreamingStarted_.Reset();
