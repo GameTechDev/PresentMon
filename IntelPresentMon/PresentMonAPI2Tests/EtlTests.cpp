@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include <fstream>
@@ -1784,13 +1784,13 @@ namespace EtlTests
 				debugCsv->close();
 			}
 		}
-		TEST_METHOD(Tc010MarvelOnNvPcl1FgOnExt)
+		TEST_METHOD(Tc010NarakaBladepoint)
 		{
 			using namespace std::string_literals;
 			using namespace std::chrono_literals;
 
-			const uint32_t processId = 42132;
-			const std::string processName = "Marvel-Win64-Shipping.exe";
+			const uint32_t processId = 9888;
+			const std::string processName = "NarakaBladepoint.exe";
 			std::optional<std::ofstream> debugCsv; // Empty optional
 
 			bp::ipstream out; // Stream for reading the process's output
@@ -1842,8 +1842,8 @@ namespace EtlTests
 			using namespace std::string_literals;
 			using namespace std::chrono_literals;
 
-			const uint32_t processId = 12524;
-			const std::string processName = "Cyberpunk2077.exe";
+			const uint32_t processId = 1524;
+			const std::string processName = "NarakaBladepoint.exe";
 			std::optional<std::ofstream> debugCsv; // Empty optional
 
 			bp::ipstream out; // Stream for reading the process's output
@@ -1894,8 +1894,8 @@ namespace EtlTests
 			using namespace std::string_literals;
 			using namespace std::chrono_literals;
 
-			const uint32_t processId = 24412;
-			const std::string processName = "Marvel-Win64-Shipping.exe";
+			const uint32_t processId = 10168;
+			const std::string processName = "F1_24.exe";
 			std::optional<std::ofstream> debugCsv; // Empty optional
 
 			bp::ipstream out; // Stream for reading the process's output

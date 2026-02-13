@@ -56,16 +56,17 @@ namespace pmon::util::metrics
 
             bool isFirstProviderSimTime =
                 chain.animationErrorSource == AnimationErrorSource::CpuStart &&
+                chain.firstAppSimStartTime == 0 &&
                 (present.appSimStartTime != 0 || present.pclSimStartTime != 0);
             if (isFirstProviderSimTime) {
                 // Seed only: no animation time yet. UpdateAfterPresent will flip us
                 // into AppProvider/PCL and latch firstAppSimStartTime.
-                return std::nullopt;
+                return 0.0;
             }
 
             uint64_t currentSimStart = CalculateAnimationErrorSimStartTime(chain, present, chain.animationErrorSource);
             if (currentSimStart == 0) {
-                return std::nullopt;
+                return 0.0;
             }
 
             return CalculateAnimationTime(qpc, chain.firstAppSimStartTime, currentSimStart);

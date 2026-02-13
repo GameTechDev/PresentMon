@@ -324,6 +324,22 @@ size_t countDecimalPlaces(double value) {
     return count;
 }
 
+bool ValidateFrameType(PM_FRAME_TYPE gold, PM_FRAME_TYPE test) {
+    // Gold FrameType may be NotSet, Repeated or Application. If Gold is one of NotSet, Unspecified or Repeated test must match. If Gold is
+    // Application, test can be Application, NotSet, or Repeated. The reason for this is if the gold file was generated from PresentMon version
+    // that had DEBUG_FRAME_TYPE defined.
+    if (gold == PM_FRAME_TYPE_NOT_SET || gold == PM_FRAME_TYPE_UNSPECIFIED || gold == PM_FRAME_TYPE_REPEATED) {
+        return test == gold;
+    }
+    else if (gold == PM_FRAME_TYPE_APPLICATION) {
+        return test == PM_FRAME_TYPE_APPLICATION || test == PM_FRAME_TYPE_NOT_SET || test == PM_FRAME_TYPE_REPEATED;
+    }
+    else {
+        return gold == test;
+    }
+
+}
+
 template<typename T>
 bool Validate(const T& param1, const T& param2) {
     if constexpr (std::is_same<T, double>::value) {
@@ -617,7 +633,7 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
                 columnsMatch = Validate(v2MetricRow_.presentMode, presentMode);
                 break;
             case Header_FrameType:
-                columnsMatch = Validate(v2MetricRow_.frameType, frameType);
+                columnsMatch = ValidateFrameType(v2MetricRow_.frameType, frameType);
                 break;
             case Header_TimeInSeconds:
                 columnsMatch = Validate(v2MetricRow_.presentStartQPC, timeQpc);

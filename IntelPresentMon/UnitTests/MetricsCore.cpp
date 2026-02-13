@@ -4521,9 +4521,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             const ComputedMetrics& result = metricsVector[0];
 
-            // Assert: msAnimationTime should be nullopt
-            Assert::IsFalse(result.metrics.msAnimationTime.has_value(),
-                L"msAnimationTime should be nullopt when appSimStartTime is 0 on first frame");
+            // Assert: msAnimationTime should have value a value of zero
+            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+                L"msAnimationTime should have a value of zero");
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime.value());
 
             // Assert: firstAppSimStartTime in state should remain 0
             Assert::AreEqual(uint64_t(0), state.firstAppSimStartTime,
@@ -4578,9 +4579,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), metricsVector.size());
             const ComputedMetrics& result = metricsVector[0];
 
-            // Assert: msAnimationTime shouldn't have a value (first frame with valid app sim start)
-            Assert::IsFalse(result.metrics.msAnimationTime.has_value(),
-                L"msAnimationTime should not have a value on first valid app sim start");
+            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+                L"msAnimationTime should have a value");
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime.value(),
+                L"msAnimationTime should be 0 on first frame with CpuStart source and no history");
 
             // Assert: State should be updated
             Assert::AreEqual(uint64_t(100), state.firstAppSimStartTime,
@@ -4711,10 +4713,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto metrics1 = ComputeMetricsForPresent(qpc, frame1, &next1, state);
             Assert::AreEqual(size_t(1), metrics1.size());
 
-            // First displayed app frame seeds state; animation time is not reported yet.
-            Assert::IsFalse(
+            Assert::IsTrue(
                 metrics1[0].metrics.msAnimationTime.has_value(),
-                L"First AppProvider frame should seed firstAppSimStartTime but not report msAnimationTime yet.");
+                L"First AppProvider frame should seed firstAppSimStartTime and animation time should be zero");
+            Assert::AreEqual(double(0.0), metrics1[0].metrics.msAnimationTime.value(),
+                L"msAnimationTime should be 0 on first frame with CpuStart source and no history");
 
             // After processing frame1, the chain should have latched sim start and
             // switched to AppProvider.
@@ -4945,9 +4948,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             const ComputedMetrics& result = metricsVector[0];
 
-            // Assert: msAnimationTime should be nullopt
-            Assert::IsFalse(result.metrics.msAnimationTime.has_value(),
-                L"msAnimationTime should be nullopt when pclSimStartTime is 0 on first frame");
+            // Assert: msAnimationTime should be zero
+            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+                L"msAnimationTime should be 0 whentransitioning");
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime.value());
 
             // Assert: firstAppSimStartTime in state should remain 0
             Assert::AreEqual(uint64_t(0), state.firstAppSimStartTime,
@@ -5002,9 +5006,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), metricsVector.size());
             const ComputedMetrics& result = metricsVector[0];
 
-            // Assert: msAnimationTime shouldn't have a value (first frame with valid pcl sim start)
-            Assert::IsFalse(result.metrics.msAnimationTime.has_value(),
-                L"msAnimationTime should not have a value on first valid pcl sim start");
+            // Assert: msAnimationTime should have a value of zero
+            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+                L"msAnimationTime should have a value");
 
             // Assert: State should be updated
             Assert::AreEqual(uint64_t(100), state.firstAppSimStartTime,
@@ -5135,10 +5139,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto metrics1 = ComputeMetricsForPresent(qpc, frame1, &next1, state);
             Assert::AreEqual(size_t(1), metrics1.size());
 
-            // First displayed app frame seeds state; animation time is not reported yet.
-            Assert::IsFalse(
+            // First displayed app frame seeds state; animation time is reported as zero.
+            Assert::IsTrue(
                 metrics1[0].metrics.msAnimationTime.has_value(),
-                L"First PCLatecny frame should seed firstAppSimStartTime but not report msAnimationTime yet.");
+                L"msAnimationTime should report a value even when transitioning");
 
             // After processing frame1, the chain should have latched sim start and
             // switched to PCLatency.
@@ -5265,10 +5269,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto metrics1 = ComputeMetricsForPresent(qpc, frame1, &next1, chain);
             Assert::AreEqual(size_t(1), metrics1.size());
 
-            // First displayed frame just seeds animation state; no animation time yet
-            Assert::IsFalse(
+            // First displayed frame seeds animation state; animation time will be reported
+            // still as we are transitioning to PCLatency.
+            Assert::IsTrue(
                 metrics1[0].metrics.msAnimationTime.has_value(),
-                L"First PCL-driven displayed frame should only seed state; no animation time reported yet.");
+                L"Animation Time will be reported");
+            Assert::AreEqual(double(0.0), metrics1[0].metrics.msAnimationTime.value());
 
             Assert::AreEqual(uint64_t(100), chain.firstAppSimStartTime);
             Assert::AreEqual(uint64_t(100), chain.lastDisplayedSimStartTime);
@@ -5395,9 +5401,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             const ComputedMetrics& result = metricsVector[0];
 
-            // Assert: msAnimationTime should be nullopt (no PCL data, no fallback)
-            Assert::IsFalse(result.metrics.msAnimationTime.has_value(),
-                L"msAnimationTime should be nullopt when pclSimStartTime is 0");
+            // Assert: msAnimationTime should be zero
+            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+                L"msAnimationTime should be 0 whentransitioning");
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime.value());
 
             // Assert: State should remain PCLatency
             Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::PCLatency,
@@ -5460,10 +5467,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             const ComputedMetrics& result = metricsVector[0];
 
-            // Assert: msAnimationTime should be nullopt (cpuStart = 0)
-            Assert::IsFalse(result.metrics.msAnimationTime.has_value(),
-                L"msAnimationTime should be nullopt when no prior frame history exists");
-
+            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+                L"msAnimationTime should have a value");
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime.value(),
+                L"msAnimationTime should be 0 on first frame with CpuStart source and no history");
             // Assert: State should not be updated
             Assert::AreEqual(uint64_t(0), state.firstAppSimStartTime,
                 L"State: firstAppSimStartTime should remain 0 (no valid CPU start available)");
@@ -6285,7 +6292,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
             Assert::IsFalse(results[0].metrics.msAnimationError.has_value());
-            Assert::IsFalse(results[0].metrics.msAnimationTime.has_value());
+            Assert::IsTrue(results[0].metrics.msAnimationTime.has_value());
         }
 
         TEST_METHOD(AnimationError_BackwardsScreenTime_ErrorStillComputed)
@@ -6520,8 +6527,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // no animation error or time yet.
             Assert::IsFalse(p1_metrics.msAnimationError.has_value(),
                 L"P1 should not report animation error; it seeds the animation state.");
-            Assert::IsFalse(p1_metrics.msAnimationTime.has_value(),
-                L"P1 should not report animation time; it seeds the animation state.");
+            Assert::IsTrue(p1_metrics.msAnimationTime.has_value(),
+                L"P1 should report back 0.0.");
+            Assert::AreEqual(double(0.0), p1_metrics.msAnimationTime.value());
 
             // UpdateAfterPresent should have run for P1 and switched to AppProvider:
             Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
@@ -6717,8 +6725,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // It should only seed animation state; no error/time yet.
             Assert::IsFalse(p1_metrics.msAnimationError.has_value(),
                 L"P1 should not report animation error; it seeds the animation state.");
-            Assert::IsFalse(p1_metrics.msAnimationTime.has_value(),
-                L"P1 should not report animation time; it seeds the animation state.");
+            Assert::IsTrue(p1_metrics.msAnimationTime.has_value(),
+                L"P1 should have an animation time of 0.0.");
+            Assert::AreEqual(double(0.0), p1_metrics.msAnimationTime.value());
 
             // After finalizing P1, we must now be in AppProvider mode with anchors from P1.
             Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,

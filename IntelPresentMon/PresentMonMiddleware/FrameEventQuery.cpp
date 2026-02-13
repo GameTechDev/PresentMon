@@ -134,37 +134,50 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 	const util::metrics::FrameMetrics& frameMetrics) const
 {
 	const auto pFrameMemberBytes = reinterpret_cast<const uint8_t*>(&frameMetrics) + cmd.frameMetricsOffset;
-	// metrics relating to display decay to NaN when frame was dropped/not displayed at all
-	if (frameMetrics.isDroppedFrame && (
+
+	const auto isDisplayMetric =
 		cmd.metricId == PM_METRIC_DISPLAYED_TIME ||
 		cmd.metricId == PM_METRIC_DISPLAY_LATENCY ||
 		cmd.metricId == PM_METRIC_UNTIL_DISPLAYED ||
-		cmd.metricId == PM_METRIC_BETWEEN_DISPLAY_CHANGE)) {
+        cmd.metricId == PM_METRIC_BETWEEN_DISPLAY_CHANGE;
+
+	// display metrics that are dropped should be NaN
+	if (frameMetrics.isDroppedFrame && isDisplayMetric) {
 		*reinterpret_cast<double*>(pBlobBytes + cmd.blobOffset) =
 			std::numeric_limits<double>::quiet_NaN();
 		return;
 	}
+
 	// Write frame metric into the blob, preserving optional<...> semantics.
 	// For optional<double>, nullopt maps to NaN for downstream compatibility.
 	const auto WriteValue = [&]<typename T>() {
 		auto& blobValue = *reinterpret_cast<T*>(pBlobBytes + cmd.blobOffset);
 		if (!cmd.isOptional) {
 			blobValue = *reinterpret_cast<const T*>(pFrameMemberBytes);
-			return;
-		}
-		const auto& optValue = *reinterpret_cast<const std::optional<T>*>(pFrameMemberBytes);
-		if (optValue) {
-			blobValue = *optValue;
 		}
 		else {
-			if constexpr (std::is_same_v<T, double>) {
-				blobValue = std::numeric_limits<double>::quiet_NaN();
+			const auto& optValue = *reinterpret_cast<const std::optional<T>*>(pFrameMemberBytes);
+			if (optValue) {
+				blobValue = *optValue;
 			}
 			else {
-				blobValue = T{};
+				if constexpr (std::is_same_v<T, double>) {
+					blobValue = std::numeric_limits<double>::quiet_NaN();
+				}
+				else {
+					blobValue = T{};
+				}
 			}
 		}
+
+		// Additional display-metric specific logic if the value is zero and not-dropped
+		if constexpr (std::is_same_v<T, double>) {
+			if (isDisplayMetric && blobValue == 0.0) {
+				blobValue = std::numeric_limits<double>::quiet_NaN();
+			}
+        }
 	};
+
 	switch (cmd.gatherType) {
 	case PM_DATA_TYPE_UINT64:
 		WriteValue.template operator()<uint64_t>();
