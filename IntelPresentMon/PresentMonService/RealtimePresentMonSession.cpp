@@ -38,21 +38,7 @@ void RealtimePresentMonSession::StopProvidersAndResetConsumer(bool shrink)
         pm_consumer_->ResetPresentTrackingData(shrink);
     }
 
-    if (evtStreamingStarted_) {
-        evtStreamingStarted_.Reset();
-    }
-}
-
-bool RealtimePresentMonSession::IsEventSignaled(pmon::util::win::Event const& e)
-{
-    using namespace pmon::util::win;
-
-    Event::HandleType h = e.Get();
-    if (h == nullptr) return false;
-
-    // Wait 0ms: returns index of signaled handle, or nullopt on timeout.
-    auto r = WaitOnMultipleEvents(std::span<Event::HandleType>(&h, 1), false, 0);
-    return r.has_value();
+    evtStreamingStarted_.Reset();
 }
 
 PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uint32_t>& trackedPids) {
@@ -74,15 +60,13 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
 
     SyncTrackedPidState(trackedPids);
     const bool isActive = HasLiveTargets();
-    bool const providersEnabled = IsEventSignaled(evtStreamingStarted_);
+    bool const providersEnabled = (bool)util::win::WaitAnyEventFor(0ms, evtStreamingStarted_);
 
     // Stop transition: targets went from some->none; providers currently enabled
     if(!isActive && providersEnabled) {
         pmlog_info("All targets inactive: Disabling ETW Providers");
         StopProvidersAndResetConsumer(true);
-        if (evtStreamingStarted_) {
-            evtStreamingStarted_.Reset();
-        }
+        evtStreamingStarted_.Reset();
         return PM_STATUS::PM_STATUS_SUCCESS;
     }
 
@@ -244,9 +228,7 @@ void RealtimePresentMonSession::StopEtwSession() {
         // PHASE 2: Safe cleanup after threads have finished
         std::lock_guard<std::mutex> lock(session_mutex_);
 
-        if (evtStreamingStarted_) {
-            evtStreamingStarted_.Reset();
-        }
+        evtStreamingStarted_.Reset();
 
         if (pm_consumer_) {
             pm_consumer_.reset();
@@ -542,7 +524,7 @@ void RealtimePresentMonSession::UpdateProcesses(
 
 void RealtimePresentMonSession::HandleTerminatedProcess(uint32_t processId) {
     MarkProcessExited(processId);
-    if (!HasLiveTrackedProcesses() && evtStreamingStarted_) {
+    if (!HasLiveTrackedProcesses()) {
         evtStreamingStarted_.Reset();
     }
 }
