@@ -74,6 +74,11 @@ namespace logsetup
 			auto& pol = GlobalPolicy::Get();
 			// get the channel
 			auto pChannel = GetDefaultChannel();
+			// enable colorized stdio only for child/console mode
+			if (asApp) {
+				const bool enableColorizedStdioLog = !opt.disableColorizedStdioLog;
+				pChannel->AttachComponent(std::make_shared<StdioDriver>(std::make_shared<TextFormatter>(), true, enableColorizedStdioLog), "drv:std");
+			}
 			// configure logging based on command line
 			if (opt.logLevel || reg.logLevel.Exists()) {
 				pol.SetLogLevel(opt.logLevel ? *opt.logLevel : reg.logLevel);

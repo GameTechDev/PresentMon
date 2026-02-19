@@ -75,9 +75,6 @@
     <ClInclude Include="PowerTelemetryProviderFactory.h" />
     <ClInclude Include="PresentMonPowerTelemetry.h" />
     <ClInclude Include="Exceptions.h" />
-    <ClInclude Include="ctlpvttemp_api.h">
-      <Filter>Intel</Filter>
-    </ClInclude>
     <ClInclude Include="IgclErrorCodeProvider.h">
       <Filter>Intel</Filter>
     </ClInclude>
@@ -121,9 +118,6 @@
     </ClCompile>
     <ClCompile Include="PowerTelemetryProviderFactory.cpp" />
     <ClCompile Include="CpuTelemetry.cpp" />
-    <ClCompile Include="ctlpvttempWrapper.cpp">
-      <Filter>Intel</Filter>
-    </ClCompile>
     <ClCompile Include="PowerTelemetryAdapter.cpp" />
     <ClCompile Include="IgclErrorCodeProvider.cpp">
       <Filter>Intel</Filter>

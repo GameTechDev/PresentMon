@@ -1,5 +1,5 @@
 //===========================================================================
-//Copyright (C) 2022-23 Intel Corporation
+//Copyright (C) 2025 Intel Corporation
 //
 // 
 //
@@ -190,8 +190,8 @@ ctlClose(
     }
 
     // special code - only for ctlClose()
-	// might get CTL_RESULT_SUCCESS_STILL_OPEN_BY_ANOTHER_CALLER
-	// if its open by another caller do not free the instance handle 
+    // might get CTL_RESULT_SUCCESS_STILL_OPEN_BY_ANOTHER_CALLER
+    // if its open by another caller do not free the instance handle 
     if( result == CTL_RESULT_SUCCESS)
     {
         if (NULL != hinstLib)
@@ -245,12 +245,12 @@ ctlSetRuntimePath(
     }
 
     // special code - only for ctlSetRuntimePath()
-	// might get CTL_RESULT_SUCCESS_STILL_OPEN_BY_ANOTHER_CALLER
-	// if its open by another caller do not free the instance handle 
+    // might get CTL_RESULT_SUCCESS_STILL_OPEN_BY_ANOTHER_CALLER
+    // if its open by another caller do not free the instance handle 
     else if (pArgs->pRuntimePath)
     {
         // this is a case where the caller app is interested in loading a RT directly
-	// IMPORTANT NOTE: Free pArgs and pArgs->pRuntimePath only after ctlInit() call
+    // IMPORTANT NOTE: Free pArgs and pArgs->pRuntimePath only after ctlInit() call
         pRuntimeArgs = pArgs;
         result = CTL_RESULT_SUCCESS;
     }
@@ -890,7 +890,8 @@ ctlSetCurrentSharpness(
 * @brief I2C Access
 * 
 * @details
-*     - Interface to access I2C using display handle as identifier.
+*     - Interface to access I2C using display handle as identifier.  I2C
+*       driver override flags are supported only for HDMI displays.
 * 
 * @returns
 *     - CTL_RESULT_SUCCESS
@@ -1771,135 +1772,6 @@ ctlGetIntelArcSyncInfoForMonitor(
 
 
 /**
-* @brief Enumerate Display MUX Devices on this system across adapters
-* 
-* @details
-*     - The application enumerates all MUX devices in the system
-* 
-* @returns
-*     - CTL_RESULT_SUCCESS
-*     - CTL_RESULT_ERROR_UNINITIALIZED
-*     - CTL_RESULT_ERROR_DEVICE_LOST
-*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
-*         + `nullptr == hAPIHandle`
-*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
-*         + `nullptr == pCount`
-*         + `nullptr == phMuxDevices`
-*     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
-*/
-ctl_result_t CTL_APICALL
-ctlEnumerateMuxDevices(
-    ctl_api_handle_t hAPIHandle,                    ///< [in][release] Applications should pass the Control API handle returned
-                                                    ///< by the CtlInit function 
-    uint32_t* pCount,                               ///< [in,out][release] pointer to the number of MUX device instances. If
-                                                    ///< input count is zero, then the api will update the value with the total
-                                                    ///< number of MUX devices available and return the Count value. If input
-                                                    ///< count is non-zero, then the api will only retrieve the number of MUX Devices.
-                                                    ///< If count is larger than the number of MUX devices available, then the
-                                                    ///< api will update the value with the correct number of MUX devices available.
-    ctl_mux_output_handle_t* phMuxDevices           ///< [out][range(0, *pCount)] array of MUX device instance handles
-    )
-{
-    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
-    
-
-    HINSTANCE hinstLibPtr = GetLoaderHandle();
-
-    if (NULL != hinstLibPtr)
-    {
-        ctl_pfnEnumerateMuxDevices_t pfnEnumerateMuxDevices = (ctl_pfnEnumerateMuxDevices_t)GetProcAddress(hinstLibPtr, "ctlEnumerateMuxDevices");
-        if (pfnEnumerateMuxDevices)
-        {
-            result = pfnEnumerateMuxDevices(hAPIHandle, pCount, phMuxDevices);
-        }
-    }
-
-    return result;
-}
-
-
-/**
-* @brief Get Display Mux properties
-* 
-* @details
-*     - Get the propeties of the Mux device
-* 
-* @returns
-*     - CTL_RESULT_SUCCESS
-*     - CTL_RESULT_ERROR_UNINITIALIZED
-*     - CTL_RESULT_ERROR_DEVICE_LOST
-*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
-*         + `nullptr == hMuxDevice`
-*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
-*         + `nullptr == pMuxProperties`
-*     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
-*/
-ctl_result_t CTL_APICALL
-ctlGetMuxProperties(
-    ctl_mux_output_handle_t hMuxDevice,             ///< [in] MUX device instance handle
-    ctl_mux_properties_t* pMuxProperties            ///< [in,out] MUX device properties
-    )
-{
-    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
-    
-
-    HINSTANCE hinstLibPtr = GetLoaderHandle();
-
-    if (NULL != hinstLibPtr)
-    {
-        ctl_pfnGetMuxProperties_t pfnGetMuxProperties = (ctl_pfnGetMuxProperties_t)GetProcAddress(hinstLibPtr, "ctlGetMuxProperties");
-        if (pfnGetMuxProperties)
-        {
-            result = pfnGetMuxProperties(hMuxDevice, pMuxProperties);
-        }
-    }
-
-    return result;
-}
-
-
-/**
-* @brief Switch Mux output
-* 
-* @details
-*     - Switches the MUX output
-* 
-* @returns
-*     - CTL_RESULT_SUCCESS
-*     - CTL_RESULT_ERROR_UNINITIALIZED
-*     - CTL_RESULT_ERROR_DEVICE_LOST
-*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
-*         + `nullptr == hMuxDevice`
-*         + `nullptr == hInactiveDisplayOutput`
-*     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
-*/
-ctl_result_t CTL_APICALL
-ctlSwitchMux(
-    ctl_mux_output_handle_t hMuxDevice,             ///< [in] MUX device instance handle
-    ctl_display_output_handle_t hInactiveDisplayOutput  ///< [out] Input selection for this MUX, which if active will drive the
-                                                    ///< output of this MUX device. This should be one of the display output
-                                                    ///< handles reported under this MUX device's properties.
-    )
-{
-    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
-    
-
-    HINSTANCE hinstLibPtr = GetLoaderHandle();
-
-    if (NULL != hinstLibPtr)
-    {
-        ctl_pfnSwitchMux_t pfnSwitchMux = (ctl_pfnSwitchMux_t)GetProcAddress(hinstLibPtr, "ctlSwitchMux");
-        if (pfnSwitchMux)
-        {
-            result = pfnSwitchMux(hMuxDevice, hInactiveDisplayOutput);
-        }
-    }
-
-    return result;
-}
-
-
-/**
 * @brief Get Intel Arc Sync profile
 * 
 * @details
@@ -2514,6 +2386,139 @@ ctlGetSetDisplaySettings(
 
 
 /**
+* @brief Get ECC properties.
+* 
+* @details
+*     - The application may call this function from simultaneous threads.
+*     - The implementation of this function should be lock-free.
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDAhandle`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pProperties`
+*/
+ctl_result_t CTL_APICALL
+ctlEccGetProperties(
+    ctl_device_adapter_handle_t hDAhandle,          ///< [in][release] Handle to display adapter
+    ctl_ecc_properties_t* pProperties               ///< [in,out] Will contain ECC properties.
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnEccGetProperties_t pfnEccGetProperties = (ctl_pfnEccGetProperties_t)GetProcAddress(hinstLibPtr, "ctlEccGetProperties");
+        if (pfnEccGetProperties)
+        {
+            result = pfnEccGetProperties(hDAhandle, pProperties);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Get ECC state.
+* 
+* @details
+*     - The application may call this function from simultaneous threads.
+*     - The implementation of this function should be lock-free.
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDAhandle`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pState`
+*     - CTL_RESULT_ERROR_INVALID_ENUMERATION
+*         + `::CTL_ECC_STATE_ECC_DISABLED_STATE < pState->currentEccState`
+*         + `::CTL_ECC_STATE_ECC_DISABLED_STATE < pState->pendingEccState`
+*/
+ctl_result_t CTL_APICALL
+ctlEccGetState(
+    ctl_device_adapter_handle_t hDAhandle,          ///< [in][release] Handle to display adapter
+    ctl_ecc_state_desc_t* pState                    ///< [in,out] Will contain the current ECC state and pending ECC state to
+                                                    ///< be applied from previous ctlEccSetState() call.
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnEccGetState_t pfnEccGetState = (ctl_pfnEccGetState_t)GetProcAddress(hinstLibPtr, "ctlEccGetState");
+        if (pfnEccGetState)
+        {
+            result = pfnEccGetState(hDAhandle, pState);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Set ECC state. Setting CTL_ECC_STATE_ECC_DEFAULT_STATE will reset the
+*        ECC state to the factory settings.
+* 
+* @details
+*     - The application may call this function from simultaneous threads.
+*     - The implementation of this function should be lock-free.
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDAhandle`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pState`
+*     - CTL_RESULT_ERROR_INVALID_ENUMERATION
+*         + `::CTL_ECC_STATE_ECC_DISABLED_STATE < pState->currentEccState`
+*         + `::CTL_ECC_STATE_ECC_DISABLED_STATE < pState->pendingEccState`
+*/
+ctl_result_t CTL_APICALL
+ctlEccSetState(
+    ctl_device_adapter_handle_t hDAhandle,          ///< [in][release] Handle to display adapter
+    ctl_ecc_state_desc_t* pState                    ///< [in,out] Will contain the new ECC state and pending ECC state from
+                                                    ///< ctlEccSetState() call.
+                                                    ///< New ECC State can be set only if isSupported is true and canControl is true.
+                                                    ///< ctlEccGetState() can be called to determine if the currentEccState is
+                                                    ///< not equal to pendingEccState, then system reboot is needed for the
+                                                    ///< pendingEccState to be applied.
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnEccSetState_t pfnEccSetState = (ctl_pfnEccSetState_t)GetProcAddress(hinstLibPtr, "ctlEccSetState");
+        if (pfnEccSetState)
+        {
+            result = pfnEccSetState(hDAhandle, pState);
+        }
+    }
+
+    return result;
+}
+
+
+/**
 * @brief Get handle of engine groups
 * 
 * @details
@@ -2947,6 +2952,195 @@ ctlFanGetState(
         if (pfnFanGetState)
         {
             result = pfnFanGetState(hFan, units, pSpeed);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Get base firmware properties
+* 
+* @details
+*     - The application gets properties of base firmware
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceAdapter`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pProperties`
+*     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
+*/
+ctl_result_t CTL_APICALL
+ctlGetFirmwareProperties(
+    ctl_device_adapter_handle_t hDeviceAdapter,     ///< [in][release] handle to control device adapter
+    ctl_firmware_properties_t* pProperties          ///< [in,out] Pointer to an array that will hold properties of the base
+                                                    ///< firmware.
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnGetFirmwareProperties_t pfnGetFirmwareProperties = (ctl_pfnGetFirmwareProperties_t)GetProcAddress(hinstLibPtr, "ctlGetFirmwareProperties");
+        if (pfnGetFirmwareProperties)
+        {
+            result = pfnGetFirmwareProperties(hDeviceAdapter, pProperties);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Get handle of various firmware components
+* 
+* @details
+*     - The application enumerates all firmware components on an Intel
+*       Discrete Graphics device.
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceAdapter`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pCount`
+*     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
+*     - ::CTL_RESULT_ERROR_INVALID_NULL_HANDLE - "Invalid handle"
+*     - ::CTL_RESULT_ERROR_KMD_CALL - "KMD call failed"
+*/
+ctl_result_t CTL_APICALL
+ctlEnumerateFirmwareComponents(
+    ctl_device_adapter_handle_t hDeviceAdapter,     ///< [in][release] handle to control device adapter
+    uint32_t* pCount,                               ///< [in,out] pointer to the number of components of this type.
+                                                    ///< if count is zero, then the driver shall update the value with the
+                                                    ///< total number of components of this type that are available.
+                                                    ///< if count is greater than the number of components of this type that
+                                                    ///< are available, then the driver shall update the value with the correct
+                                                    ///< number of components.
+    ctl_firmware_component_handle_t* phFirmware     ///< [in,out][optional][release][range(0, *pCount)] array of handle of
+                                                    ///< firmware components.
+                                                    ///< If count is less than the number of firmware components that are
+                                                    ///< available, then the driver shall only retrieve that number of firmware
+                                                    ///< component handles.
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnEnumerateFirmwareComponents_t pfnEnumerateFirmwareComponents = (ctl_pfnEnumerateFirmwareComponents_t)GetProcAddress(hinstLibPtr, "ctlEnumerateFirmwareComponents");
+        if (pfnEnumerateFirmwareComponents)
+        {
+            result = pfnEnumerateFirmwareComponents(hDeviceAdapter, pCount, phFirmware);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Get firmware component properties
+* 
+* @details
+*     - The application gets properties of individual firmware components
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hFirmware`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pProperties`
+*     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
+*     - ::CTL_RESULT_ERROR_INVALID_NULL_HANDLE - "Invalid handle"
+*     - ::CTL_RESULT_ERROR_KMD_CALL - "KMD call failed"
+*/
+ctl_result_t CTL_APICALL
+ctlGetFirmwareComponentProperties(
+    ctl_firmware_component_handle_t hFirmware,      ///< [in] Handle for the firmware component.
+    ctl_firmware_component_properties_t* pProperties///< [in,out] Pointer to an array that will hold properties of the firmware
+                                                    ///< component.
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnGetFirmwareComponentProperties_t pfnGetFirmwareComponentProperties = (ctl_pfnGetFirmwareComponentProperties_t)GetProcAddress(hinstLibPtr, "ctlGetFirmwareComponentProperties");
+        if (pfnGetFirmwareComponentProperties)
+        {
+            result = pfnGetFirmwareComponentProperties(hFirmware, pProperties);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Allows/Blocks discrete graphics device firmware's capability to train
+*        PCI-E link at higher speeds on compatible compatible hosts
+* 
+* @details
+*     - This API allows caller to allow/block a compatible discrete graphics
+*       card's firmware train PCIE links at higher speeds on compatible hosts.
+*     - System needs to be powered off and restarted for the new state to take
+*       affect. The new state will not be applied on only a warm reboot of the
+*       system.
+*     - This is a reserved capability. By default, this capability will not be
+*       enabled, need application to activate it, please contact Intel for
+*       activation.
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceAdapter`
+*     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
+*     - ::CTL_RESULT_ERROR_INVALID_NULL_HANDLE - "Invalid handle"
+*     - ::CTL_RESULT_ERROR_KMD_CALL - "KMD call failed"
+*/
+ctl_result_t CTL_APICALL
+ctlAllowPCIeLinkSpeedUpdate(
+    ctl_device_adapter_handle_t hDeviceAdapter,     ///< [in][release] handle to control device adapter
+    bool AllowPCIeLinkSpeedUpdate                   ///< [in] When set configures the device firmware to train PCI-E link at
+                                                    ///< higher speeds, else this will block the device firmware from training
+                                                    ///< at higher PCI-E link speeds on compatible hosts.
+                                                    ///< This API modifies a flash persistant setting of the device firmware to
+                                                    ///< allow/block training PCI-E link at higher speeds.
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnAllowPCIeLinkSpeedUpdate_t pfnAllowPCIeLinkSpeedUpdate = (ctl_pfnAllowPCIeLinkSpeedUpdate_t)GetProcAddress(hinstLibPtr, "ctlAllowPCIeLinkSpeedUpdate");
+        if (pfnAllowPCIeLinkSpeedUpdate)
+        {
+            result = pfnAllowPCIeLinkSpeedUpdate(hDeviceAdapter, AllowPCIeLinkSpeedUpdate);
         }
     }
 
@@ -3400,6 +3594,9 @@ ctlLedGetState(
 * @details
 *     - The application may call this function from simultaneous threads.
 *     - The implementation of this function should be lock-free.
+*     - This API is rate-limited by 500 milliseconds, If this API is called
+*       too frequently ::CTL_ERROR_CORE_LED_TOO_FREQUENT_SET_REQUESTS error
+*       will be returned
 * 
 * @returns
 *     - CTL_RESULT_SUCCESS
@@ -4532,6 +4729,626 @@ ctlOverclockResetToDefault(
         if (pfnOverclockResetToDefault)
         {
             result = pfnOverclockResetToDefault(hDeviceHandle);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Get the Current Overclock GPU Frequency Offset
+* 
+* @details
+*     - Determine the current frequency offset in effect (refer to
+*       ::ctlOverclockGpuFrequencyOffsetSetV2() for details).
+*     - The unit of the value returned is given in
+*       ::ctl_oc_properties_t::gpuFrequencyOffset::units returned from
+*       ::ctlOverclockGetProperties()
+*     - The unit of the value returned can be different for different
+*       generation of graphics product
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceHandle`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pOcFrequencyOffset`
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockGpuFrequencyOffsetGetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double* pOcFrequencyOffset                      ///< [in,out] Current GPU Overclock Frequency Offset in units given in
+                                                    ///< ::ctl_oc_properties_t::gpuFrequencyOffset::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockGpuFrequencyOffsetGetV2_t pfnOverclockGpuFrequencyOffsetGetV2 = (ctl_pfnOverclockGpuFrequencyOffsetGetV2_t)GetProcAddress(hinstLibPtr, "ctlOverclockGpuFrequencyOffsetGetV2");
+        if (pfnOverclockGpuFrequencyOffsetGetV2)
+        {
+            result = pfnOverclockGpuFrequencyOffsetGetV2(hDeviceHandle, pOcFrequencyOffset);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Set the Overclock Frequency Offset for the GPU
+* 
+* @details
+*     - The purpose of this function is to increase/decrease the frequency
+*       offset at which typical workloads will run within the same thermal
+*       budget.
+*     - The frequency offset is expressed in units given in
+*       ::ctl_oc_properties_t::gpuFrequencyOffset::units returned from
+*       ::ctlOverclockGetProperties()
+*     - The actual operating frequency for each workload is not guaranteed to
+*       change exactly by the specified offset.
+*     - For positive frequency offsets, the factory maximum frequency may
+*       increase by up to the specified amount.
+*     - Specifying large values for the frequency offset can lead to
+*       instability. It is recommended that changes are made in small
+*       increments and stability/performance measured running intense GPU
+*       workloads before increasing further.
+*     - This setting is not persistent through system reboots or driver
+*       resets/hangs. It is up to the overclock application to reapply the
+*       settings in those cases.
+*     - This setting can cause system/device instability. It is up to the
+*       overclock application to detect if the system has rebooted
+*       unexpectedly or the device was restarted. When this occurs, the
+*       application should not reapply the overclock settings automatically
+*       but instead return to previously known good settings or notify the
+*       user that the settings are not being applied.
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceHandle`
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockGpuFrequencyOffsetSetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double ocFrequencyOffset                        ///< [in] The GPU Overclocking Frequency Offset Desired in units given in
+                                                    ///< ::ctl_oc_properties_t::gpuFrequencyOffset::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockGpuFrequencyOffsetSetV2_t pfnOverclockGpuFrequencyOffsetSetV2 = (ctl_pfnOverclockGpuFrequencyOffsetSetV2_t)GetProcAddress(hinstLibPtr, "ctlOverclockGpuFrequencyOffsetSetV2");
+        if (pfnOverclockGpuFrequencyOffsetSetV2)
+        {
+            result = pfnOverclockGpuFrequencyOffsetSetV2(hDeviceHandle, ocFrequencyOffset);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Get the Current Overclock Voltage Offset for the GPU
+* 
+* @details
+*     - Determine the current maximum voltage offset in effect on the hardware
+*       (refer to ::ctlOverclockGpuMaxVoltageOffsetSetV2 for details).
+*     - The unit of the value returned is given in
+*       ::ctl_oc_properties_t::gpuVoltageOffset::units returned from
+*       ::ctlOverclockGetProperties()
+*     - The unit of the value returned can be different for different
+*       generation of graphics product
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceHandle`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pOcMaxVoltageOffset`
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockGpuMaxVoltageOffsetGetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double* pOcMaxVoltageOffset                     ///< [in,out] Current Overclock GPU Voltage Offset in Units given in
+                                                    ///< ::ctl_oc_properties_t::gpuVoltageOffset::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockGpuMaxVoltageOffsetGetV2_t pfnOverclockGpuMaxVoltageOffsetGetV2 = (ctl_pfnOverclockGpuMaxVoltageOffsetGetV2_t)GetProcAddress(hinstLibPtr, "ctlOverclockGpuMaxVoltageOffsetGetV2");
+        if (pfnOverclockGpuMaxVoltageOffsetGetV2)
+        {
+            result = pfnOverclockGpuMaxVoltageOffsetGetV2(hDeviceHandle, pOcMaxVoltageOffset);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Set the Overclock Voltage Offset for the GPU
+* 
+* @details
+*     - The purpose of this function is to attempt to run the GPU up to higher
+*       voltages beyond the part warrantee limits. This can permit running at
+*       even higher frequencies than can be obtained using the frequency
+*       offset setting, but at the risk of reducing the lifetime of the part.
+*     - The voltage offset is expressed in units given in
+*       ::ctl_oc_properties_t::gpuVoltageOffset::units returned from
+*       ::ctlOverclockGetProperties()
+*     - The overclock waiver must be set before calling this function
+*       otherwise error will be returned.
+*     - There is no guarantee that a workload can operate at the higher
+*       frequencies permitted by this setting. Significantly more heat will be
+*       generated at these high frequencies/voltages which will necessitate a
+*       good cooling solution.
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceHandle`
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockGpuMaxVoltageOffsetSetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double ocMaxVoltageOffset                       ///< [in] The Overclocking Maximum Voltage Desired in units given in
+                                                    ///< ::ctl_oc_properties_t::gpuVoltageOffset::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockGpuMaxVoltageOffsetSetV2_t pfnOverclockGpuMaxVoltageOffsetSetV2 = (ctl_pfnOverclockGpuMaxVoltageOffsetSetV2_t)GetProcAddress(hinstLibPtr, "ctlOverclockGpuMaxVoltageOffsetSetV2");
+        if (pfnOverclockGpuMaxVoltageOffsetSetV2)
+        {
+            result = pfnOverclockGpuMaxVoltageOffsetSetV2(hDeviceHandle, ocMaxVoltageOffset);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Get the current Overclock Vram Memory Speed
+* 
+* @details
+*     - The purpose of this function is to return the current VRAM Memory
+*       Speed
+*     - The unit of the value returned is given in
+*       ::ctl_oc_properties_t::vramMemSpeedLimit::units returned from
+*       ::ctlOverclockGetProperties()
+*     - The unit of the value returned can be different for different
+*       generation of graphics product
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceHandle`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pOcVramMemSpeedLimit`
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockVramMemSpeedLimitGetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double* pOcVramMemSpeedLimit                    ///< [in,out] The current VRAM Memory Speed in units given in
+                                                    ///< ::ctl_oc_properties_t::vramMemSpeedLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockVramMemSpeedLimitGetV2_t pfnOverclockVramMemSpeedLimitGetV2 = (ctl_pfnOverclockVramMemSpeedLimitGetV2_t)GetProcAddress(hinstLibPtr, "ctlOverclockVramMemSpeedLimitGetV2");
+        if (pfnOverclockVramMemSpeedLimitGetV2)
+        {
+            result = pfnOverclockVramMemSpeedLimitGetV2(hDeviceHandle, pOcVramMemSpeedLimit);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Set the desired Overclock Vram Memory Speed
+* 
+* @details
+*     - The purpose of this function is to increase/decrease the Speed of
+*       VRAM.
+*     - The Memory Speed is expressed in units given in
+*       ::ctl_oc_properties_t::vramMemSpeedLimit::units returned from
+*       ::ctlOverclockGetProperties() with a minimum step size given by
+*       ::ctlOverclockGetProperties().
+*     - The actual Memory Speed for each workload is not guaranteed to change
+*       exactly by the specified offset.
+*     - This setting is not persistent through system reboots or driver
+*       resets/hangs. It is up to the overclock application to reapply the
+*       settings in those cases.
+*     - This setting can cause system/device instability. It is up to the
+*       overclock application to detect if the system has rebooted
+*       unexpectedly or the device was restarted. When this occurs, the
+*       application should not reapply the overclock settings automatically
+*       but instead return to previously known good settings or notify the
+*       user that the settings are not being applied.
+*     - If the memory controller doesn't support changes to memory speed on
+*       the fly, one of the following return codes will be given:
+*     - CTL_RESULT_ERROR_RESET_DEVICE_REQUIRED: The requested memory overclock
+*       will be applied when the device is reset or the system is rebooted. In
+*       this case, the overclock software should check if the overclock
+*       request was applied after the reset/reboot. If it was and when the
+*       overclock application shuts down gracefully and if the overclock
+*       application wants the setting to be persistent, the application should
+*       request the same overclock settings again so that they will be applied
+*       on the next reset/reboot. If this is not done, then every time the
+*       device is reset and overclock is requested, the device needs to be
+*       reset a second time.
+*     - CTL_RESULT_ERROR_FULL_REBOOT_REQUIRED: The requested memory overclock
+*       will be applied when the system is rebooted. In this case, the
+*       overclock software should check if the overclock request was applied
+*       after the reboot. If it was and when the overclock application shuts
+*       down gracefully and if the overclock application wants the setting to
+*       be persistent, the application should request the same overclock
+*       settings again so that they will be applied on the next reset/reboot.
+*       If this is not done and the overclock setting is requested after the
+*       reboot has occurred, a second reboot will be required.
+*     - CTL_RESULT_ERROR_UNSUPPORTED_FEATURE: The Memory Speed Get / Set
+*       Feature is currently not available or Unsupported in current platform
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceHandle`
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockVramMemSpeedLimitSetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double ocVramMemSpeedLimit                      ///< [in] The desired Memory Speed in units given in
+                                                    ///< ::ctl_oc_properties_t::vramMemSpeedLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockVramMemSpeedLimitSetV2_t pfnOverclockVramMemSpeedLimitSetV2 = (ctl_pfnOverclockVramMemSpeedLimitSetV2_t)GetProcAddress(hinstLibPtr, "ctlOverclockVramMemSpeedLimitSetV2");
+        if (pfnOverclockVramMemSpeedLimitSetV2)
+        {
+            result = pfnOverclockVramMemSpeedLimitSetV2(hDeviceHandle, ocVramMemSpeedLimit);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Get the Current Sustained power limit
+* 
+* @details
+*     - The purpose of this function is to read the current sustained power
+*       limit.
+*     - The unit of the value returned is given in
+*       ::ctl_oc_properties_t::powerLimit::units returned from
+*       ::ctlOverclockGetProperties()
+*     - The unit of the value returned can be different for different
+*       generation of graphics product
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceHandle`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pSustainedPowerLimit`
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockPowerLimitGetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double* pSustainedPowerLimit                    ///< [in,out] The current Sustained Power limit in Units given in
+                                                    ///< ::ctl_oc_properties_t::powerLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockPowerLimitGetV2_t pfnOverclockPowerLimitGetV2 = (ctl_pfnOverclockPowerLimitGetV2_t)GetProcAddress(hinstLibPtr, "ctlOverclockPowerLimitGetV2");
+        if (pfnOverclockPowerLimitGetV2)
+        {
+            result = pfnOverclockPowerLimitGetV2(hDeviceHandle, pSustainedPowerLimit);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Set the Sustained power limit
+* 
+* @details
+*     - The purpose of this function is to set the maximum sustained power
+*       limit. If the average GPU power averaged over a few seconds exceeds
+*       this value, the frequency of the GPU will be throttled.
+*     - Set a value of 0 to disable this power limit. In this case, the GPU
+*       frequency will not throttle due to average power but may hit other
+*       limits.
+*     - The unit of the PowerLimit to be set is given in
+*       ::ctl_oc_properties_t::powerLimit::units returned from
+*       ::ctlOverclockGetProperties()
+*     - The unit of the value returned can be different for different
+*       generation of graphics product
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceHandle`
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockPowerLimitSetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double sustainedPowerLimit                      ///< [in] The desired sustained power limit in Units given in
+                                                    ///< ::ctl_oc_properties_t::powerLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockPowerLimitSetV2_t pfnOverclockPowerLimitSetV2 = (ctl_pfnOverclockPowerLimitSetV2_t)GetProcAddress(hinstLibPtr, "ctlOverclockPowerLimitSetV2");
+        if (pfnOverclockPowerLimitSetV2)
+        {
+            result = pfnOverclockPowerLimitSetV2(hDeviceHandle, sustainedPowerLimit);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Get the current temperature limit
+* 
+* @details
+*     - The purpose of this function is to read the current thermal limit used
+*       for Overclocking
+*     - The unit of the value returned is given in
+*       ::ctl_oc_properties_t::temperatureLimit::units returned from
+*       ::ctlOverclockGetProperties()
+*     - The unit of the value returned can be different for different
+*       generation of graphics product
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceHandle`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pTemperatureLimit`
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockTemperatureLimitGetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double* pTemperatureLimit                       ///< [in,out] The current temperature limit in Units given in
+                                                    ///< ::ctl_oc_properties_t::temperatureLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockTemperatureLimitGetV2_t pfnOverclockTemperatureLimitGetV2 = (ctl_pfnOverclockTemperatureLimitGetV2_t)GetProcAddress(hinstLibPtr, "ctlOverclockTemperatureLimitGetV2");
+        if (pfnOverclockTemperatureLimitGetV2)
+        {
+            result = pfnOverclockTemperatureLimitGetV2(hDeviceHandle, pTemperatureLimit);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Set the temperature limit
+* 
+* @details
+*     - The purpose of this function is to change the maximum thermal limit.
+*       When the GPU temperature exceeds this value, the GPU frequency will be
+*       throttled.
+*     - The unit of the value to be set is given in
+*       ::ctl_oc_properties_t::temperatureLimit::units returned from
+*       ::ctlOverclockGetProperties()
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceHandle`
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockTemperatureLimitSetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double temperatureLimit                         ///< [in] The desired temperature limit in Units given in
+                                                    ///< ::ctl_oc_properties_t::temperatureLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockTemperatureLimitSetV2_t pfnOverclockTemperatureLimitSetV2 = (ctl_pfnOverclockTemperatureLimitSetV2_t)GetProcAddress(hinstLibPtr, "ctlOverclockTemperatureLimitSetV2");
+        if (pfnOverclockTemperatureLimitSetV2)
+        {
+            result = pfnOverclockTemperatureLimitSetV2(hDeviceHandle, temperatureLimit);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Read VF Curve
+* 
+* @details
+*     - Read the Voltage-Frequency Curve
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceAdapter`
+*     - CTL_RESULT_ERROR_INVALID_ENUMERATION
+*         + `::CTL_VF_CURVE_TYPE_LIVE < VFCurveType`
+*         + `::CTL_VF_CURVE_DETAILS_ELABORATE < VFCurveDetail`
+*     - CTL_RESULT_ERROR_UNKNOWN - "Unknown Error"
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockReadVFCurve(
+    ctl_device_adapter_handle_t hDeviceAdapter,     ///< [in][release] Handle to control device adapter
+    ctl_vf_curve_type_t VFCurveType,                ///< [in] Type of Curve to read
+    ctl_vf_curve_details_t VFCurveDetail,           ///< [in] Detail of Curve to read
+    uint32_t * pNumPoints,                          ///< [in][out] Number of points in the custom VF curve. If the NumPoints is
+                                                    ///< zero, then the api will update the value with total number of Points
+                                                    ///< based on requested VFCurveType and VFCurveDetail. If the NumPoints is
+                                                    ///< non-zero, then the api will read and update the VF points in
+                                                    ///< pVFCurveTable buffer provided. If the NumPoints doesn't match what the
+                                                    ///< api returned in the first call, it will return an error.
+    ctl_voltage_frequency_point_t * pVFCurveTable   ///< [in][out] Pointer to array of VF points, to copy the VF curve being
+                                                    ///< read
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockReadVFCurve_t pfnOverclockReadVFCurve = (ctl_pfnOverclockReadVFCurve_t)GetProcAddress(hinstLibPtr, "ctlOverclockReadVFCurve");
+        if (pfnOverclockReadVFCurve)
+        {
+            result = pfnOverclockReadVFCurve(hDeviceAdapter, VFCurveType, VFCurveDetail, pNumPoints, pVFCurveTable);
+        }
+    }
+
+    return result;
+}
+
+
+/**
+* @brief Write Custom VF curve
+* 
+* @details
+*     - Modify the Voltage-Frequency Curve used by GPU
+*     - Valid Voltage-Frequency Curve shall have Voltage and Frequency Points
+*       in increasing order
+*     - Recommended to create Custom V-F Curve from reading Current V-F Curve
+*       using ::ctlOverclockReadVFCurve (Read-Modify-Write)
+*     - If Custom V-F curve write request is Successful, the Applied VF Curve
+*       might be slightly different than what is originally requested,
+*       recommended to update the UI by reading the V-F curve again using
+*       ctlOverclockReadVFCurve (with ctl_vf_curve_type_t::LIVE as input)
+*     - The overclock waiver must be set before calling this function
+*       otherwise error will be returned.
+* 
+* @returns
+*     - CTL_RESULT_SUCCESS
+*     - CTL_RESULT_ERROR_UNINITIALIZED
+*     - CTL_RESULT_ERROR_DEVICE_LOST
+*     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+*         + `nullptr == hDeviceAdapter`
+*     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+*         + `nullptr == pCustomVFCurveTable`
+*     - CTL_RESULT_ERROR_UNKNOWN - "Unknown Error"
+*/
+ctl_result_t CTL_APICALL
+ctlOverclockWriteCustomVFCurve(
+    ctl_device_adapter_handle_t hDeviceAdapter,     ///< [in][release] Handle to control device adapter
+    uint32_t NumPoints,                             ///< [in] Number of points in the custom VF curve
+    ctl_voltage_frequency_point_t* pCustomVFCurveTable  ///< [in] Pointer to an array of VF Points containing 'NumPoints' Custom VF
+                                                    ///< points
+    )
+{
+    ctl_result_t result = CTL_RESULT_ERROR_NOT_INITIALIZED;
+    
+
+    HINSTANCE hinstLibPtr = GetLoaderHandle();
+
+    if (NULL != hinstLibPtr)
+    {
+        ctl_pfnOverclockWriteCustomVFCurve_t pfnOverclockWriteCustomVFCurve = (ctl_pfnOverclockWriteCustomVFCurve_t)GetProcAddress(hinstLibPtr, "ctlOverclockWriteCustomVFCurve");
+        if (pfnOverclockWriteCustomVFCurve)
+        {
+            result = pfnOverclockWriteCustomVFCurve(hDeviceAdapter, NumPoints, pCustomVFCurveTable);
         }
     }
 

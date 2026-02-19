@@ -5,9 +5,7 @@
 #include <Windows.h>
 #include "igcl_api.h"
 #include "PowerTelemetryAdapter.h"
-#include "ctlpvttemp_api.h"
 #include <optional>
-#include <variant>
 
 namespace pwr::intel
 {
@@ -27,38 +25,32 @@ namespace pwr::intel
 		class NonGraphicsDeviceException : public std::exception {};
 
 	private:
-		// types
-		using SampleVariantType = std::variant<std::monostate, ctl_power_telemetry_t, ctl_power_telemetry2_t>;
 		// functions
-		template<class T>
-		bool GatherSampleData(T& currentSample,
+		bool GatherSampleData(ctl_power_telemetry_t& currentSample,
 			ctl_mem_state_t& memory_state,
+			bool has_memory_state,
 			ctl_mem_bandwidth_t& memory_bandwidth,
+			bool has_memory_bandwidth,
 			std::optional<double> gpu_sustained_power_limit_mw,
 			uint64_t qpc,
 			PresentMonPowerTelemetryInfo& sample);
 
 		ctl_result_t EnumerateMemoryModules();
 
-		template<class T>
-		ctl_result_t GetTimeDelta(const T& power_telemetry);
+		ctl_result_t GetTimeDelta(const ctl_power_telemetry_t& power_telemetry);
 
 		// TODO: meld these into the sample function
-		template<class T>
 		ctl_result_t GetGPUPowerTelemetryData(
-			const T& power_telemetry,
+			const ctl_power_telemetry_t& power_telemetry,
 			PresentMonPowerTelemetryInfo& pm_gpu_power_telemetry_info);
-		template<class T>
 		ctl_result_t GetVramPowerTelemetryData(
-			const T& power_telemetry,
+			const ctl_power_telemetry_t& power_telemetry,
 			PresentMonPowerTelemetryInfo& pm_gpu_power_telemetry_info);
-		template<class T>
 		ctl_result_t GetFanPowerTelemetryData(
-			const T& power_telemetry,
+			const ctl_power_telemetry_t& power_telemetry,
 			PresentMonPowerTelemetryInfo& pm_gpu_power_telemetry_info);
-		template<class T>
 		ctl_result_t GetPsuPowerTelemetryData(
-			const T& power_telemetry,
+			const ctl_power_telemetry_t& power_telemetry,
 			PresentMonPowerTelemetryInfo& pm_gpu_power_telemetry_info);
 
 		void GetMemStateTelemetryData(
@@ -68,10 +60,8 @@ namespace pwr::intel
 			const ctl_mem_bandwidth_t& mem_bandwidth,
 			PresentMonPowerTelemetryInfo& pm_gpu_power_telemetry_info);
 
-		template<class T>
         ctl_result_t SaveTelemetry(
-            const T& power_telemetry,
-            const ctl_mem_bandwidth_t& mem_bandwidth);
+            const ctl_power_telemetry_t& power_telemetry);
 
 		// TODO: put these as part of the telemetry data object
 		ctl_result_t GetInstantaneousPowerTelemetryItem(
@@ -94,8 +84,7 @@ namespace pwr::intel
 		ctl_device_adapter_properties_t properties{};
 		std::vector<ctl_mem_handle_t> memoryModules;
 		std::vector<ctl_pwr_handle_t> powerDomains;
-		SampleVariantType previousSampleVariant;
-		bool useV1PowerTelemetry = true;
+		std::optional<ctl_power_telemetry_t> previousSample;
 		bool useNewBandwidthTelemetry = true;
 		double time_delta_ = 0.f;
 		// in V0 api readbandwidth occasionally returns what appears to be an invalid counter value
