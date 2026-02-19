@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "../CommonUtilities/cli/CliFramework.h"
 #include "../CommonUtilities/log/Level.h"
 #include "../CommonUtilities/log/Verbose.h"
@@ -35,6 +35,7 @@ namespace clio
 		Option<std::string> logDir{ this, "--log-dir", "", "Enable logging to a file in the specified directory" };
 		Option<std::string> logPipeName{ this, "--log-pipe-name", pmon::gid::defaultLogPipeBaseName, "Name of the pipe to connect to for log IPC" };
 		Flag enableStdioLog{ this, "--enable-stdio-log", "Enable logging to stderr" };
+		Flag disableColorizedStdioLog{ this, "--disable-colorized-stdio-log", "Disable colorized stderr logging in console mode" };
 		Flag enableDebuggerLog{ this, "--enable-debugger-log", "Enable logging to system debugger" };
 		Flag disableIpcLog{ this, "--disable-ipc-log", "Disable logging to named pipe connection" };
 		Option<Level> logLevel{ this, "--log-level", Level::Error, "Severity to log at", logLevelTf_ };
