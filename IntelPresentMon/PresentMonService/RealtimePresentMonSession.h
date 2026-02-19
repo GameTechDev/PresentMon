@@ -22,8 +22,8 @@ public:
 
 private:
     // functions
-    PM_STATUS StartTraceSession();
-    void StopTraceSession();
+    PM_STATUS StartEtwSession();
+    void StopEtwSession();
 
     void DequeueAnalyzedInfo(
         std::vector<ProcessEvent>* processEvents,
@@ -51,6 +51,7 @@ private:
 
     void CheckForTerminatedRealtimeProcesses(
         std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses);
+    void StopProvidersAndResetConsumer(bool shrink);
 
     // data
     std::wstring pm_session_name_;

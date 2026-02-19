@@ -12,6 +12,7 @@ struct EtwStatus {
     ULONG mEtwTotalBuffers;
     ULONG mEtwEventsLost;
     ULONG mEtwBuffersLost;
+    ULONG mNumOverflowedPresents;
 };
 
 struct PMTraceSession {
@@ -36,6 +37,7 @@ struct PMTraceSession {
     uint64_t mStartFileTime = 0;
     TimestampType mTimestampType = TIMESTAMP_TYPE_QPC;
 
+    GUID mSessionGuid = {};
     TRACEHANDLE mSessionHandle = 0;                         // invalid session handles are 0
     TRACEHANDLE mTraceHandle = INVALID_PROCESSTRACE_HANDLE; // invalid trace handles are INVALID_PROCESSTRACE_HANDLE
 
@@ -49,9 +51,12 @@ struct PMTraceSession {
     // Cached ETW status for CSV output (updated periodically via QueryEtwStatus)
     mutable EtwStatus mCachedEtwStatus = {};
 
-    ULONG Start(wchar_t const* etlPath,      // If nullptr, start a live/realtime tracing session
-                wchar_t const* sessionName); // Required session name
+    ULONG Start(wchar_t const* etlPath,        // If nullptr, start a live/realtime tracing session
+                wchar_t const* sessionName,    // Required session name
+                bool enableProviders = true);  // Enable providers on start
     void Stop();
+    ULONG StartProviders();
+    void StopProviders();
 
     double TimestampDeltaToMilliSeconds(uint64_t timestampDelta) const;
     double TimestampDeltaToMilliSeconds(uint64_t timestampFrom, uint64_t timestampTo) const;

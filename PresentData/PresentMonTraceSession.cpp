@@ -284,6 +284,7 @@ void DisableProviders(TRACEHANDLE sessionHandle)
     status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Kernel_Process::GUID, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
     status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Win32k::GUID,         EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
     status = EnableTraceEx2(sessionHandle, &NvidiaDisplayDriver_Events::GUID,       EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
+    status = EnableTraceEx2(sessionHandle, &Nvidia_PCL::GUID,                       EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
 }
 
 template<
@@ -296,6 +297,11 @@ void CALLBACK EventRecordCallback(EVENT_RECORD* pEventRecord)
 {
     auto session = (PMTraceSession*) pEventRecord->UserContext;
     const auto& hdr = pEventRecord->EventHeader;
+
+    PMTraceConsumer::EventProcessingScope processingScope(*session->mPMConsumer);
+    if (!processingScope) {
+        return;
+    }
 
     if constexpr (!IS_REALTIME_SESSION) {
         if (session->mStartTimestamp.QuadPart == 0) {
@@ -458,7 +464,8 @@ ULONG CALLBACK BufferCallback(EVENT_TRACE_LOGFILE* pLogFile)
 
 ULONG PMTraceSession::Start(
     wchar_t const* etlPath,
-    wchar_t const* sessionName)
+    wchar_t const* sessionName,
+    bool enableProviders)
 {
     assert(mPMConsumer != nullptr);
     assert(mSessionHandle == 0);
@@ -487,10 +494,15 @@ ULONG PMTraceSession::Start(
             return status;
         }
 
-        status = EnableProviders(mSessionHandle, sessionProps.Wnode.Guid, mPMConsumer);
-        if (status != ERROR_SUCCESS) {
-            Stop();
-            return status;
+        // Set the session GUID
+        mSessionGuid = sessionProps.Wnode.Guid;
+
+        if (enableProviders) {
+            status = EnableProviders(mSessionHandle, sessionProps.Wnode.Guid, mPMConsumer);
+            if (status != ERROR_SUCCESS) {
+                Stop();
+                return status;
+            }
         }
     }
 
@@ -679,6 +691,7 @@ bool PMTraceSession::QueryEtwStatus(EtwStatus* status) const
     mCachedEtwStatus.mEtwTotalBuffers = sessionProps.NumberOfBuffers;
     mCachedEtwStatus.mEtwEventsLost = sessionProps.EventsLost;
     mCachedEtwStatus.mEtwBuffersLost = sessionProps.LogBuffersLost + sessionProps.RealTimeBuffersLost;
+    mCachedEtwStatus.mNumOverflowedPresents = mPMConsumer->mNumOverflowedPresents;
 
     if (sessionProps.NumberOfBuffers > 0) {
         mCachedEtwStatus.mEtwBufferFillPct = 100.0 * mCachedEtwStatus.mEtwBuffersInUse / sessionProps.NumberOfBuffers;
@@ -692,6 +705,16 @@ bool PMTraceSession::QueryEtwStatus(EtwStatus* status) const
     }
 
     return true;
+}
+
+ULONG PMTraceSession::StartProviders()
+{
+    return EnableProviders(mSessionHandle, mSessionGuid, mPMConsumer);
+}
+
+void PMTraceSession::StopProviders()
+{
+    DisableProviders(mSessionHandle);
 }
 
 ULONG EnableProvidersListing(
