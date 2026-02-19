@@ -19,6 +19,4 @@ namespace pwr::log
     }
 }
 
-#define IGCL_ERR(ec) pmlog_error("IGCL").code(ec)
-#define IGCL_WARN(ec) pmlog_warn("IGCL").code(ec)
 #define TELE_ERR(msg) pmlog_error(msg)
