@@ -13,6 +13,14 @@
         <!-- Handle in-use files by scheduling for reboot (user will see FilesInUse dialog) -->
         <Property Id="MSIRESTARTMANAGERCONTROL" Value="DisableShutdown" />
         <Property Id="REBOOT" Value="ReallySuppress" />
+        <Property Id="LOCALAPPDATAPRESENTMONFOLDER">
+            <RegistrySearch
+                Id="SearchLocalAppDataPresentMonFolder"
+                Root="HKCU"
+                Key="Software\Intel\PresentMon"
+                Name="LocalAppDataPresentMonFolder"
+                Type="raw" />
+        </Property>
 
         <MajorUpgrade
             Schedule="afterInstallValidate"
@@ -96,11 +104,19 @@
                       Property="REINSTALLMODE"
                       Value="amus"
                       Execute="immediate" />
+        <CustomAction Id="SetLocalAppDataPresentMonFolder"
+                      Property="LOCALAPPDATAPRESENTMONFOLDER"
+                      Value="[LocalAppDataFolder]Intel\PresentMon"
+                      Execute="immediate" />
 
         <InstallExecuteSequence>
             <!-- Always set REINSTALLMODE to handle file replacement -->
             <Custom Action="SetReinstallMode" Before="CostInitialize">1</Custom>
+            <Custom Action="SetLocalAppDataPresentMonFolder" Before="CostInitialize">NOT LOCALAPPDATAPRESENTMONFOLDER</Custom>
         </InstallExecuteSequence>
+        <InstallUISequence>
+            <Custom Action="SetLocalAppDataPresentMonFolder" Before="CostInitialize">NOT LOCALAPPDATAPRESENTMONFOLDER</Custom>
+        </InstallUISequence>
     </Product>
 
     <Fragment>
@@ -229,11 +245,11 @@
                     Key="Software\Intel\PresentMon"
                     Name="LocalAppDataPresentMonFolder"
                     Type="string"
-                    Value="[LocalAppDataFolder]Intel\PresentMon"
+                    Value="[LOCALAPPDATAPRESENTMONFOLDER]"
                     KeyPath="yes"/>
                 <util:RemoveFolderEx
-                    On="uninstall"
-                    Property="LOCALAPPDATAFOLDER" />
+                    On="both"
+                    Property="LOCALAPPDATAPRESENTMONFOLDER" />
             </Component>
             <Component
                 Id="pm_license"
