@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: MIT
 import { compareVersions } from "./signature";
 import { type LoadoutFile, signature } from "./loadout";
-import { WidgetType } from "./widget";
-import { type Readout, migrateReadout } from "./readout";
-import { type Graph, migrateGraph } from "./graph";
 
 interface Migration {
     version: string;
@@ -12,6 +9,14 @@ interface Migration {
 }
 
 const migrations: Migration[] = [
+    {
+        version: "0.13.0",
+        migrate: (_file: LoadoutFile): void => {
+            const e = new Error("Loadout file version too old to migrate (<0.13.0).");
+            (e as { noticeOverride?: boolean }).noticeOverride = true;
+            throw e;
+        },
+    },
     {
         version: "0.14.0",
         migrate: (file: LoadoutFile): void => {
@@ -49,7 +54,7 @@ const migrations: Migration[] = [
                         statFixCount++;
                     }
 
-                    if (qmet.metricId === PM_METRIC_CPU_POWER_LIMIT && qmet.statId !== PM_STAT_NONE) {
+                    if (qmet.metricId === PM_METRIC_CPU_POWER_LIMIT) {
                         qmet.statId = PM_STAT_NONE;
                         statFixCount++;
                     }
@@ -75,18 +80,6 @@ export function migrateLoadout(file: LoadoutFile): void {
     if (compareVersions(sourceVersion, signature.version) === 0) {
         console.warn(`migrateLoadout called but version up to date ${sourceVersion}`);
         return;
-    }
-
-    for (const widget of file.widgets) {
-        if (widget.widgetType === WidgetType.Graph) {
-            migrateGraph(widget as Graph, sourceVersion);
-        }
-        else if (widget.widgetType === WidgetType.Readout) {
-            migrateReadout(widget as Readout, sourceVersion);
-        }
-        else {
-            console.error("Unrecognized widget type in migrateLoadout");
-        }
     }
 
     for (const migration of migrations) {
