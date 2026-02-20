@@ -3,8 +3,8 @@
   <PropertyGroup Label="UserMacros">
     <VersionPropsImported>true</VersionPropsImported>
     <!-- PresentMonVersion should be "dev" on main branch, and the version number (e.g., 2.1.0) on release branches. -->
-    <PresentMonVersion Condition="'$(PresentMonVersion)'==''">2.4.1</PresentMonVersion>
-    <PresentMonFileVersion Condition="'$(PresentMonFileVersion)'==''">2.4.1.0</PresentMonFileVersion>
+    <PresentMonVersion Condition="'$(PresentMonVersion)'==''">2.5.0</PresentMonVersion>
+    <PresentMonFileVersion Condition="'$(PresentMonFileVersion)'==''">2.5.0.0</PresentMonFileVersion>
     <PresentMonProductVersion Condition="'$(PresentMonProductVersion)'==''">$(PresentMonFileVersion)</PresentMonProductVersion>
     <PresentMonCopyright Condition="'$(PresentMonCopyright)'==''">Copyright (C) 2017-$([System.DateTime]::UtcNow.Year)</PresentMonCopyright>
   </PropertyGroup>
