@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <map>
 
@@ -17,6 +17,7 @@ namespace pmon::util::log
 		ipc_sto,
 		ipc_ring,
 		met_use,
+		chrome,
 		Count
 	};
 

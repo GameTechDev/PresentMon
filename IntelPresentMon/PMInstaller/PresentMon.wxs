@@ -65,7 +65,7 @@
                     Description="!(loc.feature_presentmon_cli_path_description)"
                     Level="200"
                     Absent="allow">
-                    <ComponentRef Id="pm_app_cli_path_environment" />
+                    <ComponentGroupRef Id="pm_app_cli_path" />
                 </Feature>
             </Feature>
             <Feature
@@ -359,24 +359,6 @@
                     KeyPath="yes">
                 </File>
             </Component>
-            <Component
-                Id="pm_app_cli_path_environment"
-                Guid="149B4A34-E489-4E5A-A236-9DDDC70C9D6A">
-                <RegistryValue
-                    Root="HKLM"
-                    Key="Software\Intel\PresentMon"
-                    Name="CliPathEnvironmentInstalled"
-                    Type="integer"
-                    Value="1"
-                    KeyPath="yes" />
-                <Environment
-                    Id="pm_app_cli_path_environment_var"
-                    Name="PATH"
-                    Action="set"
-                    Part="last"
-                    System="yes"
-                    Value="[pm_app_pathed_folder]" />
-			</Component>
 			<Component
                 Id="pm_app_target_block_list_txt"
                 Guid="203B303F-A097-4B1E-BFA0-895794F192C1">
@@ -455,6 +437,28 @@
                     Source="$(var.PresentMon.TargetDir)pathed\presentmon-cli.bat"
                     KeyPath="yes">
                 </File>
+            </Component>
+        </ComponentGroup>
+        <ComponentGroup
+            Id="pm_app_cli_path"
+            Directory="pm_app_folder">
+            <Component
+                Id="pm_app_cli_path_environment"
+                Guid="149B4A34-E489-4E5A-A236-9DDDC70C9D6A">
+                <RegistryValue
+                    Root="HKLM"
+                    Key="Software\Intel\PresentMon"
+                    Name="CliPathEnvironmentInstalled"
+                    Type="integer"
+                    Value="1"
+                    KeyPath="yes" />
+                <Environment
+                    Id="pm_app_cli_path_environment_var"
+                    Name="PATH"
+                    Action="set"
+                    Part="last"
+                    System="yes"
+                    Value="[pm_app_pathed_folder]" />
             </Component>
         </ComponentGroup>
         <ComponentGroup

@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "NanoCefBrowserClient.h"
 #include "NanoCefProcessHandler.h"
@@ -235,7 +235,13 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             CefString(&settings.cache_path).FromWString(folderResolver.Resolve(infra::util::FolderResolver::Folder::App, L"cef-cache"));
             const auto logFilePath = folderResolver.ResolveLogPath("cef-debug.log");
             CefString(&settings.log_file).FromWString(logFilePath.wstring());
-            settings.log_severity = ToCefLogLevel(util::log::GlobalPolicy::Get().GetLogLevel());
+            const auto logLevel = util::log::GlobalPolicy::Get().GetLogLevel();
+            auto cefLogSeverity = ToCefLogLevel(logLevel);
+            if (logLevel == util::log::Level::Verbose &&
+                !util::log::GlobalPolicy::Get().CheckVerboseModule(util::log::V::chrome)) {
+                cefLogSeverity = ToCefLogLevel(util::log::Level::Debug);
+            }
+            settings.log_severity = cefLogSeverity;
             CefInitialize(main_args, settings, app.get(), nullptr);
         }
         auto hwndBrowser = CreateBrowserWindow(hInstance, nCmdShow);
