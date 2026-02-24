@@ -65,6 +65,13 @@ namespace p2c::cli
 		Flag listFilterFrame{ this, "--filter-frame,-f", "Filter to only metrics available for use with frame event capture" };
 		Flag listFilterDynamic{ this, "--filter-dynamic,-y", "Filter to only metrics available for use with dynamic polling" };
 		Option<std::string> listSearch{ this, "--search", {}, "Substring to filter metric results on (case-insensitive)" };
+
+	Subcommand subcShow{ this, "show", "Show static CLI diagnostic information" }; public:
+	private: Group gshows_{ this, "Standard", "Standard options for the show subcommand" }; public:
+		Flag showVerboseModules{ this, "--verbose-modules", "List names of all verbose modules" };
+		Option<std::vector<std::string>> showVerboseBitset{ this, "--verbose-bitset", {}, "List verbose module names and output their ORed module-bitset hex value", [](CLI::Option* pOption) {
+			pOption->expected(1, -1);
+		} };
 	
 
 		static constexpr const char* description = "PresentMon performance overlay and trace capture application";

@@ -170,6 +170,32 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				return -1;
 			}
 		}
+		if (opt.subcShow.Active()) {
+			if (!opt.showVerboseModules && !opt.showVerboseBitset) {
+				std::cerr << "Must specify one of --verbose-modules or --verbose-bitset for show" << std::endl;
+				return -1;
+			}
+			if (opt.showVerboseModules) {
+				for (int i = 0; i < int(util::log::V::Count); i++) {
+					std::cout << util::log::GetVerboseModuleName(util::log::V(i)) << "\n";
+				}
+			}
+			if (opt.showVerboseBitset) {
+				const auto verboseModuleMap = util::log::GetVerboseModuleMapNarrow();
+				uint64_t verboseBitset = 0;
+				for (const auto& moduleNameRaw : *opt.showVerboseBitset) {
+					const auto moduleName = util::str::ToLower(moduleNameRaw);
+					const auto it = verboseModuleMap.find(moduleName);
+					if (it == verboseModuleMap.end() || it->second == util::log::V::Count) {
+						std::cerr << std::format("Unknown verbose module '{}'", moduleNameRaw) << std::endl;
+						return -1;
+					}
+					verboseBitset |= (1ull << uint64_t(it->second));
+				}
+				std::cout << std::format("0x{:X}", verboseBitset) << std::endl;
+			}
+			return 0;
+		}
 		// pause process to allow for attaching debugger
 		if (opt.waitForDebugger) {
 			while (!IsDebuggerPresent()) {
