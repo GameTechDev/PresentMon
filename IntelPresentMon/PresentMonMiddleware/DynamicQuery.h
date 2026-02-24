@@ -5,6 +5,7 @@
 #include <span>
 #include <optional>
 #include <memory>
+#include <unordered_map>
 #include "MetricBinding.h"
 #include "DynamicQueryWindow.h"
 #include "../PresentMonAPI2/PresentMonAPI.h"
@@ -33,6 +34,12 @@ public:
 		uint64_t nowTimestamp, pmon::mid::FrameMetricsSource* frameSource, uint32_t processId, uint32_t maxSwapChains) const;
 
 private:
+	struct IntegrityTrackingState_
+	{
+		std::optional<uint64_t> lastPresentQpcOlderThanWindow;
+		uint64_t windowNewestEdgeQpc = 0;
+	};
+
 	// functions
 	pmon::mid::DynamicQueryWindow GenerateQueryWindow_(int64_t nowTimestamp) const;
 	// data
@@ -40,7 +47,12 @@ private:
 	size_t blobSize_;
 	bool hasFrameMetrics_ = false;
 	// window parameters; these could theoretically be independent of query but current API couples them
+	double windowOffsetMs_ = 0.0;
+	double qpcPeriodSeconds_ = 0.0;
 	int64_t windowSizeQpc_ = 0;
 	int64_t windowOffsetQpc_ = 0;
+	// window integrity validation data
+	bool useIntegrityTracking_ = true;
+	mutable std::unordered_map<uint64_t, IntegrityTrackingState_> swapToIntegrityState_;
 };
 

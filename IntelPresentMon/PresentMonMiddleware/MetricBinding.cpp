@@ -160,7 +160,7 @@ namespace pmon::mid
                 (void)processId;
 
                 if (pSwapChain == nullptr) {
-                    // TODO: consider logging (debug or verbose) that empty chain was processed
+                    pmlog_dbg("Poll called on FrameMetricBinding with null swap chain").every(30);
                     auto forEachFunc = [](uint64_t, uint64_t, auto&&) {};
                     auto nearestFunc = [](uint64_t) -> const util::metrics::FrameMetrics* {
                         return nullptr;

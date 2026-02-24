@@ -5,9 +5,9 @@
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../CommonUtilities/Hash.h"
+#include "../CommonUtilities/log/Log.h"
 #include <unordered_map>
 #include <algorithm>
-#include <limits>
 
 using namespace pmon;
 using namespace mid;
@@ -47,6 +47,8 @@ namespace std
 PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double windowSizeMs,
 	double windowOffsetMs, double qpcPeriodSeconds, ipc::MiddlewareComms& comms, pmon::mid::Middleware& middleware)
 	:
+	windowOffsetMs_{ windowOffsetMs },
+	qpcPeriodSeconds_{ qpcPeriodSeconds },
 	windowSizeQpc_{ int64_t((windowSizeMs / 1000.) / qpcPeriodSeconds) },
 	windowOffsetQpc_{ int64_t((windowOffsetMs / 1000.) / qpcPeriodSeconds) }
 {
@@ -134,28 +136,126 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 	}
 
 	const auto window = GenerateQueryWindow_(nowTimestamp);
+
+	// Validate any carry-over gap from the previous poll before polling this window.
+	if (useIntegrityTracking_ && frameSource != nullptr) {
+		for (auto& entry : swapToIntegrityState_) {
+			auto& tracking = entry.second;
+			// No gap pending for this swap chain.
+			if (!tracking.lastPresentQpcOlderThanWindow.has_value()) {
+				continue;
+			}
+
+			const SwapChainState* pSwapChain = frameSource->FindSwapChainState(entry.first);
+			// Skip validation until frame data is available.
+			if (pSwapChain == nullptr || pSwapChain->Empty()) {
+				continue;
+			}
+
+			const uint64_t intervalStart = *tracking.lastPresentQpcOlderThanWindow;
+			const uint64_t intervalEnd = tracking.windowNewestEdgeQpc;
+			// Degenerate range: clear stale tracking state.
+			if (intervalStart >= intervalEnd) {
+				tracking.lastPresentQpcOlderThanWindow = std::nullopt;
+				tracking.windowNewestEdgeQpc = 0;
+				pmlog_warn("degenerate range").pmwatch(intervalStart).pmwatch(intervalEnd);
+				continue;
+			}
+
+			// newest frame in swap tells us whether we can retire current gap
+			const uint64_t latestPresentQpc = pSwapChain->At(pSwapChain->Size() - 1u).presentStartQpc;
+			// search for first (oldest) frame in swap AFTER the gap start, to validate violation(s)
+			const uint64_t searchStart = intervalStart + 1u;
+			const size_t firstLateIndex = pSwapChain->LowerBoundIndex(searchStart);
+
+			// Defer judgement until the capture has advanced beyond the old window edge.
+			if (latestPresentQpc <= intervalEnd) {
+				// New frame(s) inside the old gap are a violation; move the start up to shrink the gap.
+				if (latestPresentQpc > intervalStart && firstLateIndex < pSwapChain->Size()) {
+					const uint64_t firstLateQpc = pSwapChain->At(firstLateIndex).presentStartQpc;
+					const size_t lateFrameCount = pSwapChain->CountInTimestampRange(searchStart, latestPresentQpc);
+					if (lateFrameCount > 0 && firstLateQpc <= latestPresentQpc) {
+						// Additional offset needed to place window edge on the first late-arriving frame.
+						const double captureGapMs = double(intervalEnd - firstLateQpc) * qpcPeriodSeconds_ * 1000.0;
+						pmlog_warn("Dynamic query stats window integrity violation detected")
+							.pmwatch(processId)
+							.pmwatch(windowOffsetMs_)
+							.pmwatch(captureGapMs)
+							.pmwatch(lateFrameCount)
+							.diag();
+					}
+				}
+				if (latestPresentQpc > intervalStart) {
+					tracking.lastPresentQpcOlderThanWindow = latestPresentQpc;
+				}
+
+				// Keep extending the pending gap to the newest edge of the current window.
+				tracking.windowNewestEdgeQpc = std::max(tracking.windowNewestEdgeQpc, window.newest);
+				continue;
+			}
+
+			// A frame past the old window edge exists, so the previous gap can be judged definitively.
+			if (firstLateIndex < pSwapChain->Size()) {
+				const uint64_t firstLateQpc = pSwapChain->At(firstLateIndex).presentStartQpc;
+				if (firstLateQpc <= intervalEnd) {
+					const size_t lateFrameCount = pSwapChain->CountInTimestampRange(searchStart, intervalEnd);
+					if (lateFrameCount > 0) {
+						// Additional offset needed to place window edge on the first late-arriving frame.
+						const double captureGapMs = double(intervalEnd - firstLateQpc) * qpcPeriodSeconds_ * 1000.0;
+						pmlog_warn("Dynamic query stats window integrity violation detected")
+							.pmwatch(processId)
+							.pmwatch(windowOffsetMs_)
+							.pmwatch(captureGapMs)
+							.pmwatch(lateFrameCount)
+							.diag();
+					}
+				}
+			}
+
+			// Previous window check is complete for this swap chain.
+			tracking.lastPresentQpcOlderThanWindow = std::nullopt;
+			tracking.windowNewestEdgeQpc = 0;
+		}
+	}
+
 	std::vector<uint64_t> swapChainAddresses;
 	if (frameSource != nullptr) {
 		swapChainAddresses = frameSource->GetSwapChainAddressesInTimestampRange(window.oldest, window.newest);
 	}
 
-	auto pollOnce = [&](const SwapChainState* pSwapChain, uint8_t* pBlob) {
+	auto pollOnce = [&](const SwapChainState* pSwapChain, uint64_t swapChainAddress, uint8_t* pBlob) {
+		if (useIntegrityTracking_ && pSwapChain != nullptr && !pSwapChain->Empty()) {
+			// Track the latest known present and whether the window extends beyond it.
+			const uint64_t latestPresentQpc = pSwapChain->At(pSwapChain->Size() - 1u).presentStartQpc;
+			auto& tracking = swapToIntegrityState_[swapChainAddress];
+			if (latestPresentQpc < window.newest) {
+				// Start or refresh pending validation for the open gap [latest+1, window.newest].
+				tracking.lastPresentQpcOlderThanWindow = latestPresentQpc;
+				tracking.windowNewestEdgeQpc = window.newest;
+			}
+			else {
+				// No gap remains when we already have data at or beyond the window edge.
+				tracking.lastPresentQpcOlderThanWindow = std::nullopt;
+				tracking.windowNewestEdgeQpc = 0;
+			}
+		}
 		for (auto& pRing : ringMetricPtrs_) {
 			pRing->Poll(window, pBlob, comms, pSwapChain, processId);
 		}
 	};
 
 	if (swapChainAddresses.empty()) {
-		pollOnce(nullptr, pBlobBase);
+		pollOnce(nullptr, 0, pBlobBase);
 		return 1;
 	}
 
 	const uint32_t swapChainsToPoll = (uint32_t)std::min<size_t>(swapChainAddresses.size(), maxSwapChains);
 	for (uint32_t i = 0; i < swapChainsToPoll; ++i) {
+		const uint64_t swapChainAddress = swapChainAddresses[i];
 		const SwapChainState* pSwapChain = frameSource != nullptr
-			? frameSource->FindSwapChainState(swapChainAddresses[i])
+			? frameSource->FindSwapChainState(swapChainAddress)
 			: nullptr;
-		pollOnce(pSwapChain, pBlobBase);
+		pollOnce(pSwapChain, swapChainAddress, pBlobBase);
 		pBlobBase += blobSize_;
 	}
 
