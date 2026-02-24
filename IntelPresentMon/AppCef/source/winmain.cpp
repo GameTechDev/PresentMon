@@ -8,6 +8,7 @@
 #include <Core/source/infra/util/FolderResolver.h>
 #include "util/CliOptions.h"
 #include <CommonUtilities/log/IdentificationTable.h>
+#include <CommonUtilities/str/String.h>
 #include <Versioning/BuildId.h>
 #include <CommonUtilities/win/Utilities.h>
 #include <dwmapi.h>
@@ -180,6 +181,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     if (opt.filesWorking) {
         infra::util::FolderResolver::SetDevMode();
     }
+    if (opt.logFolder) {
+        infra::util::FolderResolver::SetLogPathOverride(str::ToWide(*opt.logFolder));
+    }
 
     // create logging system and ensure cleanup before main ext
     client::util::LogChannelManager zLogMan_;
@@ -229,12 +233,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             settings.remote_debugging_port = is_debug || opt.enableChromiumDebug ? 9009 : 0;
             settings.background_color = CefColorSetARGB(255, 0, 0, 0);
             CefString(&settings.cache_path).FromWString(folderResolver.Resolve(infra::util::FolderResolver::Folder::App, L"cef-cache"));
-            if (opt.logFolder) {
-                CefString(&settings.log_file).FromString(*opt.logFolder + "\\cef-debug.log");
-            }
-            else {
-                CefString(&settings.log_file).FromWString(folderResolver.Resolve(infra::util::FolderResolver::Folder::App, L"logs\\cef-debug.log"));
-            }
+            const auto logFilePath = folderResolver.ResolveLogPath("cef-debug.log");
+            CefString(&settings.log_file).FromWString(logFilePath.wstring());
             settings.log_severity = ToCefLogLevel(util::log::GlobalPolicy::Get().GetLogLevel());
             CefInitialize(main_args, settings, app.get(), nullptr);
         }

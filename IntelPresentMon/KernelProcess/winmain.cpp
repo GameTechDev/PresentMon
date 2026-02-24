@@ -24,6 +24,7 @@
 #include <boost/process/v2/windows/as_user_launcher.hpp>
 #include <ranges>
 #include <iostream>
+#include <filesystem>
 
 
 using namespace pmon;
@@ -155,6 +156,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			return *err;
 		}
 		const auto& opt = cli::Options::Get();
+		if (opt.logFolder) {
+			infra::util::FolderResolver::SetLogPathOverride(util::str::ToWide(*opt.logFolder));
+		}
 		// do some post validation here
 		if (opt.subcCapture.Active()) {
 			// make sure target is specified
@@ -171,9 +175,19 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			}
 		}
 		if (opt.subcShow.Active()) {
-			if (!opt.showVerboseModules && !opt.showVerboseBitset) {
-				std::cerr << "Must specify one of --verbose-modules or --verbose-bitset for show" << std::endl;
+			if (!opt.showVerboseModules && !opt.showVerboseBitset && !opt.showLogFolder) {
+				std::cerr << "Must specify one of --log-folder, --verbose-modules, or --verbose-bitset for show" << std::endl;
 				return -1;
+			}
+			if (opt.showLogFolder) {
+				const auto logPath = infra::util::FolderResolver::Get().ResolveLogPath();
+				std::error_code ec;
+				std::filesystem::create_directories(logPath, ec);
+				if (ec) {
+					std::cerr << "Failed to create log folder: " << logPath << std::endl;
+					return -1;
+				}
+				util::win::ExplorePath(logPath);
 			}
 			if (opt.showVerboseModules) {
 				for (int i = 0; i < int(util::log::V::Count); i++) {

@@ -68,6 +68,7 @@ namespace p2c::cli
 
 	Subcommand subcShow{ this, "show", "Show static CLI diagnostic information" }; public:
 	private: Group gshows_{ this, "Standard", "Standard options for the show subcommand" }; public:
+		Flag showLogFolder{ this, "--log-folder", "Open the default appdata log folder in Explorer" };
 		Flag showVerboseModules{ this, "--verbose-modules", "List names of all verbose modules" };
 		Option<std::vector<std::string>> showVerboseBitset{ this, "--verbose-bitset", {}, "Compute ORed module-bitset hex value for given module names", [](CLI::Option* pOption) {
 			pOption->expected(1, -1);

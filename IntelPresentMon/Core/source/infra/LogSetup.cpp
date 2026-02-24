@@ -109,15 +109,8 @@ namespace p2c
 			// shortcut for command line
 			const auto& opt = cli::Options::Get();
 
-			// determine log folder path
-			std::filesystem::path logFolder;
-			if (opt.logFolder) {
-				logFolder = *opt.logFolder;
-			}
-			else {
-				logFolder = infra::util::FolderResolver::Get().Resolve(
-					infra::util::FolderResolver::Folder::App, L"logs\\");
-			}
+			// determine log folder path through resolver (possibly with override)
+			const auto logFolder = infra::util::FolderResolver::Get().ResolveLogPath();
 			// always enable the logfile for client
 			const auto logfilePathClient = std::filesystem::path{ logFolder } / "pmlog.txt";
 			pChan->AttachComponent(std::make_shared<BasicFileDriver>(std::make_shared<TextFormatter>(),

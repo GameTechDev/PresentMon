@@ -117,6 +117,14 @@ namespace p2c::infra::util
 		return ResolvePath(f, std::filesystem::path{ path }).wstring();
 	}
 
+	std::filesystem::path FolderResolver::ResolveLogPath(std::filesystem::path path) const
+	{
+		if (logPathOverride && !logPathOverride->empty()) {
+			return AppendRelativePath_(*logPathOverride, path);
+		}
+		return AppendRelativePath_(ResolvePath(Folder::App, logsSubdirectory), path);
+	}
+
 	std::filesystem::path FolderResolver::ResolvePath(Folder f, std::filesystem::path path) const
 	{
 		switch (f) {
@@ -160,5 +168,15 @@ namespace p2c::infra::util
 	void FolderResolver::SetDevMode()
 	{
 		useDevMode = true;
+	}
+
+	void FolderResolver::SetLogPathOverride(std::filesystem::path path)
+	{
+		if (path.empty()) {
+			logPathOverride.reset();
+		}
+		else {
+			logPathOverride = std::move(path);
+		}
 	}
 }
