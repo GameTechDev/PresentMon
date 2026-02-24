@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <cstdint>
@@ -152,6 +152,7 @@ namespace pmon::util::metrics {
         FrameType frameType = {};
 
         // Present Metadata
+        uint32_t frameId = 0;
         uint64_t swapChainAddress = 0;
         Runtime runtime = {};
         int32_t syncInterval = 0;
