@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -23,6 +23,7 @@
     <ClInclude Include="cnr\FixedVector.h" />
     <ClInclude Include="Exception.h" />
     <ClInclude Include="file\FileUtils.h" />
+    <ClInclude Include="file\PathUtils.h" />
     <ClInclude Include="file\SecureSubdirectory.h" />
     <ClInclude Include="file\TempFile.h" />
     <ClInclude Include="IntervalWaiter.h" />
@@ -124,6 +125,7 @@
     <ClCompile Include="cli\CliFramework.cpp" />
     <ClCompile Include="Exception.cpp" />
     <ClCompile Include="file\FileUtils.cpp" />
+    <ClCompile Include="file\PathUtils.cpp" />
     <ClCompile Include="file\SecureSubdirectory.cpp" />
     <ClCompile Include="file\TempFile.cpp" />
     <ClCompile Include="IntervalWaiter.cpp" />

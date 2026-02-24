@@ -1,4 +1,4 @@
-﻿#include "../CommonUtilities/win/WinAPI.h"
+#include "../CommonUtilities/win/WinAPI.h"
 #include "../Core/source/kernel/Kernel.h"
 #include "../Core/source/infra/util/FolderResolver.h"
 #include "../CommonUtilities/log/IdentificationTable.h"
@@ -14,6 +14,7 @@
 #include <Core/source/cli/CliOptions.h>
 #include <PresentMonAPI2Loader/Loader.h>
 #include <Core/source/infra/LogSetup.h>
+#include <CommonUtilities/file/PathUtils.h>
 #include <CommonUtilities/win/Utilities.h>
 #include <CommonUtilities/win/Privileges.h>
 #include <CommonUtilities/win/ProcessMapBuilder.h>
@@ -21,7 +22,6 @@
 #include <Shobjidl.h>
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/windows/as_user_launcher.hpp>
-#include <array>
 #include <ranges>
 #include <iostream>
 
@@ -254,7 +254,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				args.append_range(*opt.logVerboseModules | vi::transform(util::log::GetVerboseModuleName));
 			}
 			// launch service child process
-			svcChild = bp2::windows::default_launcher{}(ioctx, "PresentMonService.exe"s, std::move(args));
+			// WORKAROUND: keep a relative exe name while forcing install-dir cwd for child startup.
+			// Remove this when our Boost.Process version no longer breaks cli args for absolute exe paths.
+			{
+				::pmon::util::file::ScopedWorkingDirectory setInstallWorkingDirectory{
+					infra::util::FolderResolver::ResolveInstallPath()
+				};
+				svcChild = bp2::windows::default_launcher{}(ioctx, "PresentMonService.exe"s, std::move(args));
+			}
 			// wait for pipe availability of service api
 			if (!::pmon::util::win::WaitForNamedPipe(*opt.controlPipe + "-in", 1500000)) {
 				pmlog_error("timeout waiting for child service control pipe to go online");
@@ -416,6 +423,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			});
 			// launch the CEF browser process, which in turn launches all the other processes in the CEF process constellation
 			auto cefChild = [&] {
+				// WORKAROUND: keep a relative exe name while forcing install-dir cwd for child startup.
+				// Remove this when our Boost.Process version no longer breaks cli args for absolute exe paths.
+				::pmon::util::file::ScopedWorkingDirectory setInstallWorkingDirectory{
+					infra::util::FolderResolver::ResolveInstallPath()
+				};
 				if (util::win::WeAreElevated()) {
 					try {
 						pmlog_info("detected elevation, attempting integrity downgrade");
