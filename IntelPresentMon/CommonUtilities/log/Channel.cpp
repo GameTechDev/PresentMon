@@ -67,6 +67,7 @@ namespace pmon::util::log
 		{
 			std::binary_semaphore semaphore{ 0 };
 			void WaitUntilProcessed() { semaphore.acquire(); }
+			bool WaitUntilProcessedFor(std::chrono::milliseconds timeout) { return semaphore.try_acquire_for(timeout); }
 		};
 		struct FlushPacket_ : public Packet_
 		{
@@ -303,6 +304,13 @@ namespace pmon::util::log
 			pPacket->WaitUntilProcessed();
 		}
 		template<class P, typename ...Args>
+		bool ChannelInternal_::EnqueuePacketWaitFor(std::chrono::milliseconds timeout, Args&& ...args)
+		{
+			auto pPacket = std::make_shared<P>(std::forward<Args>(args)...);
+			Queue_(this).enqueue(pPacket);
+			return pPacket->WaitUntilProcessedFor(timeout);
+		}
+		template<class P, typename ...Args>
 		void ChannelInternal_::EnqueuePacketAsync(Args&& ...args)
 		{
 			Queue_(this).enqueue(std::make_shared<P>(std::forward<Args>(args)...));
@@ -368,6 +376,21 @@ namespace pmon::util::log
 	void Channel::Flush()
 	{
 		EnqueuePacketWait<FlushPacket_>();
+	}
+	bool Channel::TryFlushFor(std::chrono::milliseconds timeout) noexcept
+	{
+		try {
+			// avoid self-deadlock if a flush attempt occurs from within the worker thread
+			if (IsWorkerThread()) {
+				ChannelInternal_::Flush();
+				return true;
+			}
+			return EnqueuePacketWaitFor<FlushPacket_>(timeout);
+		}
+		catch (...) {
+			pmlog_panic_("Exception thrown in Channel::TryFlushFor");
+		}
+		return false;
 	}
 	void Channel::AttachComponent(std::shared_ptr<IChannelComponent> pComponent, std::string tag)
 	{

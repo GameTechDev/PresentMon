@@ -3,6 +3,7 @@
 #include <span>
 #include <vector>
 #include <memory>
+#include <chrono>
 #include "../mt/Thread.h"
 #include <atomic>
 
@@ -37,6 +38,8 @@ namespace pmon::util::log
 			void EnqueueEntryWait(const Entry&);
 			template<class P, typename...Args>
 			void EnqueuePacketWait(Args&&...args);
+			template<class P, typename...Args>
+			bool EnqueuePacketWaitFor(std::chrono::milliseconds timeout, Args&&...args);
 			template<class P, typename...Args>
 			void EnqueuePacketAsync(Args&&...args);
 		protected:
@@ -77,6 +80,7 @@ namespace pmon::util::log
 		void Submit(Entry&&) noexcept override;
 		void Submit(const Entry&) noexcept override;
 		void Flush() override;
+		bool TryFlushFor(std::chrono::milliseconds timeout) noexcept override;
 		void AttachComponent(std::shared_ptr<IChannelComponent>, std::string = {}) override;
 		std::shared_ptr<IChannelComponent> GetComponent(std::string tag) const override;
 		void FlushEntryPointExit() override;
