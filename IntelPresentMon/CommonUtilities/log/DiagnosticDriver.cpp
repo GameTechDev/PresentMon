@@ -188,7 +188,9 @@ namespace pmon::util::log
 			.nSubsystems{ 0 },
 			.enableTimestamp{ false },
 			.enableTrace{ PM_DIAGNOSTIC_LEVEL_NONE },
-			.enableLocation{ false }
+			.enableLocation{ false },
+			.disableDiagnosticFilter{ false },
+			.verboseModuleBitset{ 0 }
 		}
 	{}
 	DiagnosticMessage::DiagnosticMessage(const PM_DIAGNOSTIC_MESSAGE& msg)

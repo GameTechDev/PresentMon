@@ -3,6 +3,7 @@
 #include "../CommonUtilities/log/DiagnosticDriver.h"
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/Exception.h"
+#include "../Interprocess/source/PmStatusError.h"
 #include "../PresentMonMiddleware/LogSetup.h"
 #include <filesystem>
 #include "Internal.h"
@@ -18,6 +19,9 @@ log::Level GetLogLevel_(PM_DIAGNOSTIC_LEVEL dl) noexcept
 PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticSetup(const PM_DIAGNOSTIC_CONFIGURATION* pConfig)
 {
 	try {
+		if (!pConfig) {
+			throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pConfig pointer is null.");
+		}
 		log::SetupDiagnosticChannel(pConfig);
 		return PM_STATUS_SUCCESS;
 	} pmcatch_report_diag(true);

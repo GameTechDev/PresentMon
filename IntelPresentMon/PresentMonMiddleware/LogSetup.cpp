@@ -148,6 +148,7 @@ namespace pmon::util::log
 			InjectDefaultChannel(MakeDiagnosticChannel_(pDiagnostics_));
 			// set global logging policy based on the configuration
 			GlobalPolicy::Get().SetLogLevel((Level)pConfig->filterLevel);
+			GlobalPolicy::Get().StoreVerboseModules(pConfig->verboseModuleBitset);
 			if (!pConfig->enableTrace) {
 				GlobalPolicy::Get().SetTraceLevel(Level::None);
 			}
