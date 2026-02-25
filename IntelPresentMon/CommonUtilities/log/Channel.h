@@ -33,12 +33,17 @@ namespace pmon::util::log
 			void RemoveComponentByTagBlocking(const std::string&);
 			void EnqueueEntry(Entry&&);
 			void EnqueueEntry(const Entry&);
+			void EnqueueEntryWait(Entry&&);
+			void EnqueueEntryWait(const Entry&);
 			template<class P, typename...Args>
 			void EnqueuePacketWait(Args&&...args);
 			template<class P, typename...Args>
 			void EnqueuePacketAsync(Args&&...args);
 		protected:
-			ChannelInternal_(std::vector<std::pair<std::string, std::shared_ptr<IChannelComponent>>> components);
+			ChannelInternal_(std::vector<std::pair<std::string, std::shared_ptr<IChannelComponent>>> components,
+				bool synchronousMode);
+			bool IsWorkerThread() const noexcept;
+			bool IsSynchronousModeEnabled() const noexcept;
 		private:
 			// functions
 			void AttachComponent_(std::shared_ptr<IChannelComponent>, std::string);
@@ -51,6 +56,8 @@ namespace pmon::util::log
 			std::vector<std::pair<std::string, std::shared_ptr<IPolicy>>> policyPtrs_;
 			std::vector<std::pair<std::string, std::shared_ptr<IChannelObject>>> objectPtrs_;
 			std::shared_ptr<void> pEntryQueue_;
+			const bool synchronousMode_;
+			std::atomic<uint32_t> workerTid_ = 0;
 			mt::Thread worker_;
 		};
 	}
@@ -61,7 +68,9 @@ namespace pmon::util::log
 	class Channel : public IChannel, private ChannelInternal_
 	{
 	public:
-		Channel(std::vector<std::pair<std::string, std::shared_ptr<IChannelComponent>>> componentPtrs = {});
+		explicit Channel(bool synchronousMode);
+		Channel(std::vector<std::pair<std::string, std::shared_ptr<IChannelComponent>>> componentPtrs = {},
+			bool synchronousMode = false);
 		Channel(const Channel&) = delete;
 		Channel& operator=(const Channel&) = delete;
 		~Channel();
