@@ -57,6 +57,22 @@
       "Command": "--enable-diagnostic"
     },
     {
+      "Id": "5ef261e6-17dc-4857-a3ff-ec2ca69def00",
+      "Command": "--log-synchronous"
+    },
+    {
+      "Id": "74a354bc-8acb-46e2-89fd-1a40d089a2d1",
+      "Command": "--log-flush-on-crash"
+    },
+    {
+      "Id": "159d4f89-6346-472d-8be1-bb96ca18f95b",
+      "Command": "--log-synchronous"
+    },
+    {
+      "Id": "10a75017-6bcf-4ace-b091-85a4a3af0e57",
+      "Command": "--log-flush-on-crash"
+    },
+    {
       "Id": "907ff44e-4734-41ba-8eb1-1ee21d94bfcf",
       "Command": "--log-allow-list \"b stak.txt\""
     },

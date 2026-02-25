@@ -3,6 +3,7 @@
 #include <CommonUtilities/log/MsvcDebugDriver.h>
 #include <CommonUtilities/log/BasicFileDriver.h>
 #include <CommonUtilities/log/StdioDriver.h>
+#include <CommonUtilities/log/DiagnosticDriver.h>
 #include <CommonUtilities/log/MarshallDriver.h>
 #include <CommonUtilities/log/NamedPipeMarshallSender.h>
 #include <CommonUtilities/log/TextFormatter.h>
@@ -17,6 +18,7 @@
 #include <CommonUtilities/win/HrErrorCodeProvider.h>
 #include <CommonUtilities/str/String.h>
 #include <CommonUtilities/log/PanicLogger.h>
+#include <CommonUtilities/log/CrashFlushHooks.h>
 #include <PresentMonAPIWrapperCommon/PmErrorCodeProvider.h>
 #include <PresentMonAPI2/Internal.h>
 #include <PresentMonAPI2/PresentMonDiagnostics.h>
@@ -38,8 +40,15 @@ namespace pmon::util::log
 		std::shared_ptr<IChannel> MakeChannel()
 		{
 			GlobalPolicy::Get().SetSubsystem(Subsystem::IntelPresentmon);
+			bool synchronousMode = false;
+			bool enableDiagnostics = false;
+			try {
+				synchronousMode = *::p2c::cli::Options::Get().logSynchronous;
+				enableDiagnostics = *::p2c::cli::Options::Get().enableDiagnostic;
+			}
+			catch (...) {}
 			// channel (use custom deleter to ensure deletion in this module's heap)
-			auto pChannel = std::shared_ptr<IChannel>{ new Channel{}, [](Channel* p) { delete p; } };
+			auto pChannel = std::shared_ptr<IChannel>{ new Channel{ synchronousMode }, [](Channel* p) { delete p; } };
 			// error resolver
 			auto pErrorResolver = std::make_shared<ErrorCodeResolver>();
 			pErrorResolver->AddProvider(std::make_unique<win::HrErrorCodeProvider>());
@@ -54,7 +63,9 @@ namespace pmon::util::log
 			const auto pFormatter = std::make_shared<TextFormatter>();
 			// attach drivers
 			// TODO: test if cwd is writeable, if not write to some other location (temp?)
-			pChannel->AttachComponent(std::make_shared<MsvcDebugDriver>(pFormatter), "drv:dbg");
+			if (!enableDiagnostics) {
+				pChannel->AttachComponent(std::make_shared<MsvcDebugDriver>(pFormatter), "drv:dbg");
+			}
 			const auto pFileStrategy = std::make_shared<SimpleFileStrategy>("pm-early-log.txt");
 			pChannel->AttachComponent(std::make_shared<BasicFileDriver>(pFormatter, pFileStrategy), "drv:file");
 
@@ -108,6 +119,9 @@ namespace p2c
 			pOriginalInvalidParameterHandler_ = _set_invalid_parameter_handler(InvalidParameterHandler_);
 			// shortcut for command line
 			const auto& opt = cli::Options::Get();
+			const bool enableDiagnostics = *opt.enableDiagnostic;
+			const bool enableCrashFlush = *opt.logFlushOnCrash;
+			const bool linkMiddlewareLogs = *opt.logMiddlewareCopy || enableDiagnostics;
 
 			// determine log folder path
 			std::filesystem::path logFolder;
@@ -125,7 +139,7 @@ namespace p2c
 			auto&& pol = GlobalPolicy::Get();
 			// connect dll channel and id table to exe, get access to global settings in dll
 			LoggingSingletons getters;
-			if (opt.logMiddlewareCopy) {
+			if (linkMiddlewareLogs) {
 				getters = pmLinkLogging_(pChan, []() -> IdentificationTable& {
 					return IdentificationTable::Get_(); });
 			}
@@ -170,8 +184,32 @@ namespace p2c
 					pmquell(getters.getLineTable().IngestList_(*opt.logAllowList, false));
 				}
 			}
+
+			if (enableCrashFlush) {
+				InstallCrashFlushHooks();
+			}
+			else {
+				UninstallCrashFlushHooks();
+			}
+
+			if (enableDiagnostics) {
+				PM_DIAGNOSTIC_CONFIGURATION diagConfig{};
+				diagConfig.filterLevel = (PM_DIAGNOSTIC_LEVEL)pol.GetLogLevel();
+				diagConfig.outputFlags = PM_DIAGNOSTIC_OUTPUT_FLAGS_DEBUGGER;
+				diagConfig.enableTimestamp = true;
+				diagConfig.enableTrace = pol.GetTraceLevel() != Level::None;
+				diagConfig.enableLocation = false;
+				diagConfig.disableDiagnosticFilter = true;
+				diagConfig.enableSynchronousLogging = *opt.logSynchronous;
+				diagConfig.enableFlushOnCrash = enableCrashFlush;
+
+				// diagnostics own debugger output when enabled, keep non-debugger channels active
+				pChan->AttachComponent(std::shared_ptr<IChannelComponent>{}, "drv:dbg");
+				pChan->AttachComponent(std::make_shared<DiagnosticDriver>(&diagConfig), "drv:diag");
+			}
+
 			// enable logfile for middleware if we're not doing the copy connection
-			if (!opt.logMiddlewareCopy) {
+			if (!linkMiddlewareLogs) {
 				if (auto sta = pmSetupFileLogging_((logFolder / "pmlog-mid.txt").string().c_str(),
 					(PM_DIAGNOSTIC_LEVEL)pol.GetLogLevel(),
 					(PM_DIAGNOSTIC_LEVEL)pol.GetTraceLevel(),
