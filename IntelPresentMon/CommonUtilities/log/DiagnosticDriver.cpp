@@ -190,7 +190,9 @@ namespace pmon::util::log
 			.enableTrace{ PM_DIAGNOSTIC_LEVEL_NONE },
 			.enableLocation{ false },
 			.disableDiagnosticFilter{ false },
-			.verboseModuleBitset{ 0 }
+			.verboseModuleBitset{ 0 },
+			.enableSynchronousLogging{ false },
+			.enableFlushOnCrash{ false }
 		}
 	{}
 	DiagnosticMessage::DiagnosticMessage(const PM_DIAGNOSTIC_MESSAGE& msg)

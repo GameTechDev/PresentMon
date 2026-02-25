@@ -11,6 +11,7 @@
 #include "../PresentMonAPIWrapperCommon/PmErrorCodeProvider.h"
 #include "../CommonUtilities/log/CopyDriver.h"
 #include "../CommonUtilities/log/DiagnosticDriver.h"
+#include "../CommonUtilities/log/CrashFlushHooks.h"
 #include "LogSetup.h"
 #include <memory>
 
@@ -93,11 +94,12 @@ namespace pmon::util::log
 			}
 		}
 		// create a channel that outputs via the diagnostic layer
-		std::shared_ptr<IChannel> MakeDiagnosticChannel_(std::shared_ptr<DiagnosticDriver> pDiag) noexcept
+		std::shared_ptr<IChannel> MakeDiagnosticChannel_(std::shared_ptr<DiagnosticDriver> pDiag,
+			bool synchronousMode) noexcept
 		{
 			try {
 				// channel
-				auto pChannel = std::make_shared<Channel>();
+				auto pChannel = std::make_shared<Channel>(synchronousMode);
 				// error resolver
 				pChannel->AttachComponent(MakeErrorCodePolicy_());
 				// make and add the line-tracking policy
@@ -145,12 +147,18 @@ namespace pmon::util::log
 		try {
 			pDiagnostics_ = std::make_shared<log::DiagnosticDriver>(pConfig);
 			// attach to existing channel if present
-			InjectDefaultChannel(MakeDiagnosticChannel_(pDiagnostics_));
+			InjectDefaultChannel(MakeDiagnosticChannel_(pDiagnostics_, pConfig->enableSynchronousLogging));
 			// set global logging policy based on the configuration
 			GlobalPolicy::Get().SetLogLevel((Level)pConfig->filterLevel);
 			GlobalPolicy::Get().StoreVerboseModules(pConfig->verboseModuleBitset);
 			if (!pConfig->enableTrace) {
 				GlobalPolicy::Get().SetTraceLevel(Level::None);
+			}
+			if (pConfig->enableFlushOnCrash) {
+				InstallCrashFlushHooks();
+			}
+			else {
+				UninstallCrashFlushHooks();
 			}
 		}
 		catch (...) {
