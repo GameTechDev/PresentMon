@@ -321,6 +321,7 @@ namespace pmon::mid
     void Middleware::UpdateMetricUsage_()
     {
         std::unordered_set<svc::acts::MetricUse> usage;
+        // TODO: remove intro here as it is not necessary
         const auto& introRoot = GetIntrospectionRoot_();
         for (const auto& [handle, elements] : queryMetricUsage_) {
             for (const auto& element : elements) {

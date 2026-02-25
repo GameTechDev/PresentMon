@@ -187,6 +187,48 @@ namespace IpcMcIntegrationTests
         }
     }
 
+    static bool IsMetricAvailableForDevice_(const pmapi::intro::Root& intro, PM_METRIC metricId, uint32_t deviceId, uint32_t arrayIndex = 0)
+    {
+        const auto metric = intro.FindMetric(metricId);
+        for (auto info : metric.GetDeviceMetricInfo()) {
+            if (info.GetDevice().GetId() != deviceId) {
+                continue;
+            }
+            return info.IsAvailable() && info.GetArraySize() > arrayIndex;
+        }
+        return false;
+    }
+
+    static std::optional<PM_METRIC> FindGpuDynamicMetric_(const pmapi::intro::Root& intro, uint32_t gpuDeviceId)
+    {
+        static constexpr PM_METRIC preferredMetrics[] = {
+            PM_METRIC_GPU_UTILIZATION,
+            PM_METRIC_GPU_TEMPERATURE,
+            PM_METRIC_GPU_POWER,
+        };
+        for (const auto metric : preferredMetrics) {
+            if (IsMetricAvailableForDevice_(intro, metric, gpuDeviceId, 0)) {
+                return metric;
+            }
+        }
+        for (auto metric : intro.GetMetrics()) {
+            if (metric.GetType() != PM_METRIC_TYPE_DYNAMIC &&
+                metric.GetType() != PM_METRIC_TYPE_DYNAMIC_FRAME) {
+                continue;
+            }
+            for (auto info : metric.GetDeviceMetricInfo()) {
+                if (info.GetDevice().GetId() != gpuDeviceId) {
+                    continue;
+                }
+                if (info.IsAvailable() && info.GetArraySize() > 0) {
+                    return metric.GetId();
+                }
+                break;
+            }
+        }
+        return std::nullopt;
+    }
+
     static void LogFrameQueryResults_(const pmapi::intro::Root& intro, const std::vector<PM_QUERY_ELEMENT>& elements, const uint8_t* pBlob)
     {
         for (const auto& element : elements) {
@@ -196,6 +238,51 @@ namespace IpcMcIntegrationTests
                 metricView.Introspect().GetSymbol(),
                 value).c_str());
         }
+    }
+
+    struct DynamicPairPollSummary_
+    {
+        uint32_t gpuPollsWithData = 0;
+        uint32_t cpuPollsWithData = 0;
+    };
+
+    static DynamicPairPollSummary_ PollDynamicQueryPairAndLog_(
+        const pmapi::intro::Root& intro,
+        const char* phaseLabel,
+        pmapi::DynamicQuery& gpuQuery,
+        const std::vector<PM_QUERY_ELEMENT>& gpuElements,
+        pmapi::DynamicQuery& cpuQuery,
+        const std::vector<PM_QUERY_ELEMENT>& cpuElements,
+        uint32_t pollCount,
+        std::chrono::milliseconds interval)
+    {
+        auto gpuBlobs = gpuQuery.MakeBlobContainer(8);
+        auto cpuBlobs = cpuQuery.MakeBlobContainer(8);
+        DynamicPairPollSummary_ summary{};
+
+        for (uint32_t i = 0; i < pollCount; ++i) {
+            gpuQuery.Poll(gpuBlobs);
+            const auto gpuCount = gpuBlobs.GetNumBlobsPopulated();
+            Logger::WriteMessage(std::format("{} poll {} gpu blobs={}\n", phaseLabel, i, gpuCount).c_str());
+            if (gpuCount > 0) {
+                ++summary.gpuPollsWithData;
+                Logger::WriteMessage(std::format("{} poll {} gpu values:\n", phaseLabel, i).c_str());
+                LogFrameQueryResults_(intro, gpuElements, gpuBlobs[0]);
+            }
+
+            cpuQuery.Poll(cpuBlobs);
+            const auto cpuCount = cpuBlobs.GetNumBlobsPopulated();
+            Logger::WriteMessage(std::format("{} poll {} cpu blobs={}\n", phaseLabel, i, cpuCount).c_str());
+            if (cpuCount > 0) {
+                ++summary.cpuPollsWithData;
+                Logger::WriteMessage(std::format("{} poll {} cpu values:\n", phaseLabel, i).c_str());
+                LogFrameQueryResults_(intro, cpuElements, cpuBlobs[0]);
+            }
+
+            std::this_thread::sleep_for(interval);
+        }
+
+        return summary;
     }
 
     TEST_CLASS(IpcMcIntegrationTests)
@@ -409,6 +496,95 @@ namespace IpcMcIntegrationTests
             }
 
             Assert::IsTrue(failedMappings == 0, L"FrameMetricsMemberMap missing universal non-static metrics");
+        }
+    };
+
+    TEST_CLASS(MultiSessionDynamicQueryTests)
+    {
+        TestFixture fixture_;
+
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup();
+        }
+
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+
+        TEST_METHOD(RegisterAndPollDynamicQueriesAcrossSessionTeardown)
+        {
+            pmapi::Session session1{ fixture_.GetCommonArgs().ctrlPipe };
+            auto intro1 = session1.GetIntrospectionRoot();
+            Assert::IsTrue((bool)intro1);
+
+            const auto gpuDeviceId = FindFirstGpuDeviceId_(*intro1);
+            Assert::IsTrue(gpuDeviceId.has_value(), L"No GPU device found");
+            const auto gpuMetric = FindGpuDynamicMetric_(*intro1, *gpuDeviceId);
+            Assert::IsTrue(gpuMetric.has_value(), L"No dynamic GPU metric available");
+            Assert::IsTrue(IsMetricAvailableForDevice_(*intro1, PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId, 0),
+                L"CPU utilization metric unavailable for system device");
+
+            Logger::WriteMessage(std::format("Using gpu metric {} on device {}\n",
+                intro1->FindMetric(*gpuMetric).Introspect().GetSymbol(),
+                *gpuDeviceId).c_str());
+
+            std::vector<PM_QUERY_ELEMENT> gpuElements{
+                PM_QUERY_ELEMENT{
+                    .metric = *gpuMetric,
+                    .stat = PM_STAT_AVG,
+                    .deviceId = *gpuDeviceId,
+                    .arrayIndex = 0,
+                    .dataOffset = 0,
+                    .dataSize = 0,
+                },
+            };
+            std::vector<PM_QUERY_ELEMENT> cpuElements{
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_CPU_UTILIZATION,
+                    .stat = PM_STAT_AVG,
+                    .deviceId = ipc::kSystemDeviceId,
+                    .arrayIndex = 0,
+                    .dataOffset = 0,
+                    .dataSize = 0,
+                },
+            };
+
+            session1.SetTelemetryPollingPeriod(*gpuDeviceId, 100);
+            session1.SetTelemetryPollingPeriod(ipc::kSystemDeviceId, 100);
+
+            auto gpuQuery1 = session1.RegisterDynamicQuery(gpuElements);
+            auto cpuQuery1 = session1.RegisterDynamicQuery(cpuElements);
+
+            std::this_thread::sleep_for(150ms);
+            const auto firstPass = PollDynamicQueryPairAndLog_(*intro1, "session1", gpuQuery1, gpuElements, cpuQuery1, cpuElements, 4, 100ms);
+            Logger::WriteMessage(std::format("session1 summary: gpu_with_data={}, cpu_with_data={}\n",
+                firstPass.gpuPollsWithData, firstPass.cpuPollsWithData).c_str());
+
+            pmapi::Session session2{ fixture_.GetCommonArgs().ctrlPipe };
+            auto intro2 = session2.GetIntrospectionRoot();
+            Assert::IsTrue((bool)intro2);
+
+            gpuQuery1.Reset();
+            cpuQuery1.Reset();
+            session1.Reset();
+            Logger::WriteMessage("Session1 destroyed after session2 creation\n");
+
+            session2.SetTelemetryPollingPeriod(*gpuDeviceId, 100);
+            session2.SetTelemetryPollingPeriod(ipc::kSystemDeviceId, 100);
+
+            auto gpuQuery2 = session2.RegisterDynamicQuery(gpuElements);
+            auto cpuQuery2 = session2.RegisterDynamicQuery(cpuElements);
+
+            std::this_thread::sleep_for(150ms);
+            const auto secondPass = PollDynamicQueryPairAndLog_(*intro2, "session2", gpuQuery2, gpuElements, cpuQuery2, cpuElements, 4, 100ms);
+            Logger::WriteMessage(std::format("session2 summary: gpu_with_data={}, cpu_with_data={}\n",
+                secondPass.gpuPollsWithData, secondPass.cpuPollsWithData).c_str());
+
+            Assert::IsTrue(secondPass.gpuPollsWithData > 0, L"Expected GPU dynamic query to return data in second session");
+            Assert::IsTrue(secondPass.cpuPollsWithData > 0, L"Expected CPU dynamic query to return data in second session");
         }
     };
 }
