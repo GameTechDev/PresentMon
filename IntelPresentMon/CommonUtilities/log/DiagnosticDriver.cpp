@@ -146,10 +146,10 @@ namespace pmon::util::log
 			auto level = GetLevelName((Level)pMsg->level);
 			auto sys = GetSubsystemName((Subsystem)pMsg->system);
 			if (pMsg->pTimestamp) {
-				formattedMsg = std::format("[PMON:{} {}] {{{}}} {}\n", sys, level, pMsg->pTimestamp, pMsg->pText);
+				formattedMsg = std::format("[PMON:{} @{}] <{}:{}> {{{}}} {}\n", sys, level, pMsg->pid, pMsg->tid, pMsg->pTimestamp, pMsg->pText);
 			}
 			else {
-				formattedMsg = std::format("[PMON:{} {}] {}\n", sys, level, pMsg->pText);
+				formattedMsg = std::format("[PMON:{} @{}] <{}:{}> {}\n", sys, level, pMsg->pid, pMsg->tid, pMsg->pText);
 			}
 		} };
 		// output formatted string directly to active media
