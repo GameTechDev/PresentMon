@@ -34,10 +34,19 @@ public:
 		uint64_t nowTimestamp, pmon::mid::FrameMetricsSource* frameSource, uint32_t processId, uint32_t maxSwapChains) const;
 
 private:
+	struct PendingIntegrityGap_
+	{
+		uint64_t lastPresentQpcOlderThanWindow = 0;
+		pmon::mid::DynamicQueryWindow pollWindow;
+		uint64_t pollTimestampQpc = 0;
+		uint32_t observedViolationFrameCount = 0;
+		uint32_t loggedViolationCount = 0;
+	};
+
 	struct IntegrityTrackingState_
 	{
-		std::optional<uint64_t> lastPresentQpcOlderThanWindow;
-		uint64_t windowNewestEdgeQpc = 0;
+		std::optional<PendingIntegrityGap_> pendingGap;
+		std::optional<uint64_t> newestLoggedViolationPresentQpc;
 	};
 
 	// functions
