@@ -143,10 +143,6 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 	if (useIntegrityTracking_ && frameSource != nullptr) {
 		for (auto it = swapToIntegrityState_.begin(); it != swapToIntegrityState_.end();) {
 			auto& tracking = it->second;
-			if (!tracking.pendingGap.has_value()) {
-				it = swapToIntegrityState_.erase(it);
-				continue;
-			}
 
 			const SwapChainState* pSwapChain = frameSource->FindSwapChainState(it->first);
 			// Skip validation until frame data is available.
@@ -156,7 +152,7 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 			}
 
 			const uint64_t latestPresentQpc = pSwapChain->At(pSwapChain->Size() - 1u).presentStartQpc;
-			auto& gap = *tracking.pendingGap;
+			auto& gap = tracking.pendingGap;
 			const uint64_t intervalStart = gap.lastPresentQpcOlderThanWindow;
 			const uint64_t intervalEnd = gap.pollWindow.newest;
 			bool retireGap = latestPresentQpc > intervalEnd;
@@ -246,14 +242,13 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 			// Persist a new pending gap for this poll when the window extends beyond latest known data.
 			const uint64_t latestPresentQpc = pSwapChain->At(pSwapChain->Size() - 1u).presentStartQpc;
 			if (latestPresentQpc < window.newest) {
-				auto& tracking = swapToIntegrityState_[swapChainAddress];
-				if (!tracking.pendingGap.has_value()) {
-					tracking.pendingGap = PendingIntegrityGap_{
+				swapToIntegrityState_.try_emplace(swapChainAddress, IntegrityTrackingState_{
+					.pendingGap = PendingIntegrityGap_{
 						.lastPresentQpcOlderThanWindow = latestPresentQpc,
 						.pollWindow = window,
 						.pollTimestampQpc = nowTimestamp,
-					};
-				}
+					},
+				});
 			}
 		}
 		for (auto& pRing : ringMetricPtrs_) {

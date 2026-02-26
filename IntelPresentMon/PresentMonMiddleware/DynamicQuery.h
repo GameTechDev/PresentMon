@@ -45,7 +45,7 @@ private:
 
 	struct IntegrityTrackingState_
 	{
-		std::optional<PendingIntegrityGap_> pendingGap;
+		PendingIntegrityGap_ pendingGap;
 		std::optional<uint64_t> newestLoggedViolationPresentQpc;
 	};
 
