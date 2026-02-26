@@ -475,6 +475,86 @@ namespace IpcMcIntegrationTests
             Assert::IsTrue(!gpuName.empty(), L"GPU name static metric was empty");
         }
 
+        TEST_METHOD(DynamicQueryWithoutTrackedProcessRejectsFrameMetric)
+        {
+            pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
+            auto intro = session.GetIntrospectionRoot();
+            Assert::IsTrue((bool)intro);
+
+            const auto gpuDeviceId = FindFirstGpuDeviceId_(*intro);
+            Assert::IsTrue(gpuDeviceId.has_value(), L"No GPU device found");
+
+            std::vector<PM_QUERY_ELEMENT> elements{
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_CPU_UTILIZATION,
+                    .stat = PM_STAT_AVG,
+                    .deviceId = ipc::kSystemDeviceId,
+                    .arrayIndex = 0,
+                    .dataOffset = 0,
+                    .dataSize = 0,
+                },
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_GPU_TEMPERATURE,
+                    .stat = PM_STAT_AVG,
+                    .deviceId = *gpuDeviceId,
+                    .arrayIndex = 0,
+                    .dataOffset = 0,
+                    .dataSize = 0,
+                },
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_GPU_POWER,
+                    .stat = PM_STAT_AVG,
+                    .deviceId = *gpuDeviceId,
+                    .arrayIndex = 0,
+                    .dataOffset = 0,
+                    .dataSize = 0,
+                },
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_CPU_NAME,
+                    .stat = PM_STAT_NONE,
+                    .deviceId = ipc::kSystemDeviceId,
+                    .arrayIndex = 0,
+                    .dataOffset = 0,
+                    .dataSize = 0,
+                },
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_GPU_NAME,
+                    .stat = PM_STAT_NONE,
+                    .deviceId = *gpuDeviceId,
+                    .arrayIndex = 0,
+                    .dataOffset = 0,
+                    .dataSize = 0,
+                },
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_CPU_FRAME_TIME,
+                    .stat = PM_STAT_AVG,
+                    .deviceId = ipc::kUniversalDeviceId,
+                    .arrayIndex = 0,
+                    .dataOffset = 0,
+                    .dataSize = 0,
+                },
+            };
+
+            Logger::WriteMessage(
+                "Polling pid=0 with metrics including frame data: cpu_frame_time\n");
+
+            auto query = session.RegisterDynamicQuery(elements, 1000.0, 0.0);
+            auto blobs = query.MakeBlobContainer(4);
+
+            bool gotExpectedException = false;
+            try {
+                query.Poll(blobs);
+            }
+            catch (const pmapi::ApiErrorException& e) {
+                gotExpectedException = true;
+                Logger::WriteMessage(std::format(
+                    "Poll threw ApiErrorException as expected; status={}\n", (int)e.GetCode()).c_str());
+            }
+
+            Assert::IsTrue(gotExpectedException,
+                L"Expected pid=0 dynamic poll to fail when frame metric is included");
+        }
+
         TEST_METHOD(UniversalNonStaticMetricsMapToFrameMetrics)
         {
             pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
