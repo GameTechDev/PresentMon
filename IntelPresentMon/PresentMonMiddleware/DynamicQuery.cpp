@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <string>
 #include <format>
+#include <sstream>
 
 using namespace pmon;
 using namespace mid;
@@ -44,6 +45,32 @@ namespace std
 			return pmon::util::hash::HashCombine(pmon::util::hash::HashCombine(h0, h1), h2);
 		}
 	};
+}
+
+static std::string BuildPollSnapshotCsv_(const FrameMetricsSource::PollSnapshotData& snapshots)
+{
+	std::ostringstream os;
+	os << "source,swap_chain_address,frame_id,present_qpc,display_qpc\n";
+
+	for (const auto& ipcSnapshot : snapshots.ipcStoreSnapshots) {
+		os << "ipc_store,"
+			<< ipcSnapshot.swapChainAddress << ","
+			<< ipcSnapshot.snapshot.frameId << ","
+			<< ipcSnapshot.snapshot.presentQpc << ","
+			<< ipcSnapshot.snapshot.displayQpc << "\n";
+	}
+
+	for (const auto& swapSnapshots : snapshots.swapChainSnapshots) {
+		for (const auto& frameSnapshot : swapSnapshots.snapshots) {
+			os << "swap_chain_frame_metrics,"
+				<< swapSnapshots.swapChainAddress << ","
+				<< frameSnapshot.frameId << ","
+				<< frameSnapshot.presentQpc << ","
+				<< frameSnapshot.displayQpc << "\n";
+		}
+	}
+
+	return os.str();
 }
 
 PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double windowSizeMs,
@@ -101,6 +128,11 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 		qel.dataOffset = blobCursor;
 		binding->AddMetricStat(qel, introRoot);
 		blobCursor = qel.dataOffset + qel.dataSize;
+		if (!cpuFrameTimeAvgOffset_.has_value() &&
+			qel.metric == PM_METRIC_CPU_FRAME_TIME &&
+			qel.stat == PM_STAT_AVG) {
+			cpuFrameTimeAvgOffset_ = size_t(qel.dataOffset);
+		}
 	}
 
 	for (auto& binding : ringMetricPtrs_) {
@@ -128,6 +160,16 @@ DynamicQueryWindow PM_DYNAMIC_QUERY::GenerateQueryWindow_(int64_t nowTimestamp) 
 	const auto newest = nowTimestamp - windowOffsetQpc_;
 	const auto oldest = newest - windowSizeQpc_;
 	return { .oldest = uint64_t(oldest), .newest = uint64_t(newest)};
+}
+
+bool PM_DYNAMIC_QUERY::HasZeroCpuFrameTimeAverage_(const uint8_t* pBlobBase) const
+{
+	if (pBlobBase == nullptr || !cpuFrameTimeAvgOffset_.has_value()) {
+		return false;
+	}
+
+	const auto* pValue = reinterpret_cast<const double*>(pBlobBase + *cpuFrameTimeAvgOffset_);
+	return *pValue == 0.0;
 }
 
 uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
@@ -237,6 +279,29 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 		swapChainAddresses = frameSource->GetSwapChainAddressesInTimestampRange(window.oldest, window.newest);
 	}
 
+	std::optional<FrameMetricsSource::PollSnapshotData> pollSnapshots;
+	if (enableSnapshotDumpOnZeroCpuFrameTimeAverage_ && frameSource != nullptr && cpuFrameTimeAvgOffset_.has_value()) {
+		pollSnapshots = frameSource->CapturePollSnapshotData();
+	}
+
+	std::vector<uint64_t> zeroCpuFrameTimeAvgSwapChains;
+	zeroCpuFrameTimeAvgSwapChains.reserve(4u);
+
+	auto dumpSnapshotsIfNeeded = [&]() {
+		if (!pollSnapshots || zeroCpuFrameTimeAvgSwapChains.empty()) {
+			return;
+		}
+
+		pmlog_warn("Dynamic query detected zero CPU frame time average and dumped poll snapshots")
+			.pmwatch(processId)
+			.pmwatch(nowTimestamp)
+			.pmwatch(zeroCpuFrameTimeAvgSwapChains.size())
+			.pmwatch(pollSnapshots->ipcStoreSnapshots.size())
+			.pmwatch(pollSnapshots->swapChainSnapshots.size())
+			.watch("poll_snapshot_csv", BuildPollSnapshotCsv_(*pollSnapshots))
+			.diag();
+	};
+
 	auto pollOnce = [&](const SwapChainState* pSwapChain, uint64_t swapChainAddress, uint8_t* pBlob) {
 		if (useIntegrityTracking_ && pSwapChain != nullptr && !pSwapChain->Empty()) {
 			// Persist a new pending gap for this poll when the window extends beyond latest known data.
@@ -254,10 +319,15 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 		for (auto& pRing : ringMetricPtrs_) {
 			pRing->Poll(window, pBlob, comms, pSwapChain, processId);
 		}
+		if (enableSnapshotDumpOnZeroCpuFrameTimeAverage_ && cpuFrameTimeAvgOffset_.has_value() &&
+			HasZeroCpuFrameTimeAverage_(pBlob)) {
+			zeroCpuFrameTimeAvgSwapChains.push_back(swapChainAddress);
+		}
 	};
 
 	if (swapChainAddresses.empty()) {
 		pollOnce(nullptr, 0, pBlobBase);
+		dumpSnapshotsIfNeeded();
 		return 1;
 	}
 
@@ -270,6 +340,8 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 		pollOnce(pSwapChain, swapChainAddress, pBlobBase);
 		pBlobBase += blobSize_;
 	}
+
+	dumpSnapshotsIfNeeded();
 
 	return swapChainsToPoll;
 }

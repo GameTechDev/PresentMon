@@ -51,10 +51,13 @@ private:
 
 	// functions
 	pmon::mid::DynamicQueryWindow GenerateQueryWindow_(int64_t nowTimestamp) const;
+	bool HasZeroCpuFrameTimeAverage_(const uint8_t* pBlobBase) const;
 	// data
 	std::vector<std::unique_ptr<pmon::mid::MetricBinding>> ringMetricPtrs_;
+	std::optional<size_t> cpuFrameTimeAvgOffset_;
 	size_t blobSize_;
 	bool hasFrameMetrics_ = false;
+	bool enableSnapshotDumpOnZeroCpuFrameTimeAverage_ = true;
 	// window parameters; these could theoretically be independent of query but current API couples them
 	double windowOffsetMs_ = 0.0;
 	double qpcPeriodSeconds_ = 0.0;

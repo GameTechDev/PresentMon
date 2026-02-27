@@ -68,6 +68,31 @@ namespace pmon::mid
 	class FrameMetricsSource
 	{
 	public:
+		struct FrameSnapshot
+		{
+			uint32_t frameId = 0;
+			uint64_t presentQpc = 0;
+			uint64_t displayQpc = 0;
+		};
+
+		struct SwapChainSnapshots
+		{
+			uint64_t swapChainAddress = 0;
+			std::vector<FrameSnapshot> snapshots;
+		};
+
+		struct IpcStoreSnapshot
+		{
+			uint64_t swapChainAddress = 0;
+			FrameSnapshot snapshot;
+		};
+
+		struct PollSnapshotData
+		{
+			std::vector<IpcStoreSnapshot> ipcStoreSnapshots;
+			std::vector<SwapChainSnapshots> swapChainSnapshots;
+		};
+
 		FrameMetricsSource(ipc::MiddlewareComms& comms, uint32_t processId, size_t perSwapChainCapacity);
 		~FrameMetricsSource();
 
@@ -79,6 +104,7 @@ namespace pmon::mid
 		void Update();
 		std::vector<util::metrics::FrameMetrics> Consume(size_t maxFrames);
 		void Flush();
+		PollSnapshotData CapturePollSnapshotData() const;
 		std::vector<uint64_t> GetSwapChainAddressesInTimestampRange(uint64_t start, uint64_t end) const;
 		const SwapChainState* FindSwapChainState(uint64_t swapChainAddress) const;
 		const util::QpcConverter& GetQpcConverter() const;
