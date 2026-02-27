@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Middleware.h"
 #include <string>
@@ -9,8 +9,10 @@
 #include <numeric>
 #include <algorithm>
 #include <unordered_set>
+#include <type_traits>
 #include "../CommonUtilities/mt/Thread.h"
 #include "../CommonUtilities/log/Log.h"
+#include "../CommonUtilities/log/Verbose.h"
 #include "../CommonUtilities/Qpc.h"
 #include "../Interprocess/source/IntrospectionTransfer.h"
 #include "../Interprocess/source/IntrospectionHelpers.h"
@@ -30,10 +32,117 @@ namespace pmon::mid
 {
     using namespace ipc::intro;
     using namespace util;
+    using v = util::log::V;
     namespace rn = std::ranges;
     namespace vi = std::views;
 
     static constexpr size_t kFrameMetricsPerSwapChainCapacity = 4096u;
+
+    namespace
+    {
+        const char* GetQueryTypeName_(PM_METRIC_TYPE queryType) noexcept
+        {
+            switch (queryType) {
+            case PM_METRIC_TYPE_DYNAMIC:
+                return "dynamic";
+            case PM_METRIC_TYPE_FRAME_EVENT:
+                return "frame";
+            default:
+                return "unknown";
+            }
+        }
+
+        std::string GetMetricSymbol_(const pmapi::intro::Root& introRoot, PM_METRIC metric)
+        {
+            try {
+                return introRoot.FindMetric(metric).Introspect().GetSymbol();
+            }
+            catch (...) {
+                return "UnknownMetric";
+            }
+        }
+
+        std::string GetStatSymbol_(const pmapi::intro::Root& introRoot, PM_STAT stat)
+        {
+            try {
+                return introRoot.FindEnumKey(PM_ENUM_STAT, int(stat)).GetSymbol();
+            }
+            catch (...) {
+                return "UnknownStat";
+            }
+        }
+
+        std::string GetDeviceName_(const pmapi::intro::Root& introRoot, uint32_t deviceId)
+        {
+            if (deviceId == ipc::kUniversalDeviceId) {
+                return "Universal";
+            }
+            if (deviceId == ipc::kSystemDeviceId) {
+                return "System";
+            }
+            try {
+                return introRoot.FindDevice(deviceId).GetName();
+            }
+            catch (...) {
+                return "UnknownDevice";
+            }
+        }
+
+        const auto DescribePointerArg_ = []<typename T>(const T* p, bool dereferenceScalar = true) -> std::string
+        {
+            if (!p) {
+                return "null";
+            }
+            using U = std::remove_cv_t<T>;
+            constexpr bool isCharLike = std::is_same_v<U, char> || std::is_same_v<U, signed char> || std::is_same_v<U, unsigned char>;
+            if constexpr ((std::is_integral_v<U> && !isCharLike) || std::is_floating_point_v<U>) {
+                if (dereferenceScalar) {
+                    if constexpr (std::is_integral_v<U>) {
+                        if constexpr (std::is_signed_v<U>) {
+                            return std::to_string((long long)*p);
+                        }
+                        else {
+                            return std::to_string((unsigned long long)*p);
+                        }
+                    }
+                    else {
+                        return std::to_string((double)*p);
+                    }
+                }
+            }
+            return "set";
+        };
+
+        void LogQueryRegistration_(PM_METRIC_TYPE queryType, const pmapi::intro::Root& introRoot,
+            const void* queryHandle, std::span<const PM_QUERY_ELEMENT> queryElements)
+        {
+            pmlog_dbg("Registered query")
+                .watch("query_type", GetQueryTypeName_(queryType))
+                .pmwatch(queryHandle)
+                .pmwatch(queryElements.size());
+
+            for (size_t elementIndex = 0; elementIndex < queryElements.size(); ++elementIndex) {
+                const auto& qel = queryElements[elementIndex];
+                const auto metricSymbol = GetMetricSymbol_(introRoot, qel.metric);
+                const auto statSymbol = GetStatSymbol_(introRoot, qel.stat);
+                const auto deviceName = GetDeviceName_(introRoot, qel.deviceId);
+
+                pmlog_dbg("Registered query element")
+                    .watch("query_type", GetQueryTypeName_(queryType))
+                    .pmwatch(queryHandle)
+                    .pmwatch(elementIndex)
+                    .pmwatch((int)qel.metric)
+                    .watch("metric_symbol", metricSymbol)
+                    .pmwatch((int)qel.stat)
+                    .watch("stat_symbol", statSymbol)
+                    .pmwatch(qel.deviceId)
+                    .watch("device_name", deviceName)
+                    .pmwatch(qel.arrayIndex)
+                    .pmwatch(qel.dataOffset)
+                    .pmwatch(qel.dataSize);
+            }
+        }
+    }
 
 	Middleware::Middleware(std::optional<std::string> pipeNameOverride)
 	{
@@ -140,10 +249,10 @@ namespace pmon::mid
     PM_DYNAMIC_QUERY* Middleware::RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements,
         double windowSizeMs, double metricOffsetMs)
     {
-        pmlog_dbg("Registering dynamic query").pmwatch(queryElements.size()).pmwatch(windowSizeMs).pmwatch(metricOffsetMs);
         const auto qpcPeriod = util::GetTimestampPeriodSeconds();
         auto* query = new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms_, *this };
         RegisterMetricUsage_(query, queryElements);
+        LogQueryRegistration_(PM_METRIC_TYPE_DYNAMIC, GetIntrospectionRoot_(), query, queryElements);
         return query;
     }
 
@@ -159,6 +268,15 @@ namespace pmon::mid
     void Middleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId,
         uint8_t* pBlob, uint32_t* numSwapChains, std::optional<uint64_t> nowTimestamp)
     {
+        const auto requestedSwapChains = numSwapChains ? *numSwapChains : 0u;
+        pmlog_verb(v::middleware)("Middleware poll dynamic query")
+            .pmwatch(pQuery)
+            .pmwatch(processId)
+            .watch("numSwapChains", DescribePointerArg_(numSwapChains))
+            .pmwatch(requestedSwapChains)
+            .pmwatch(nowTimestamp.has_value())
+            .pmwatch(nowTimestamp.value_or(0ull));
+
         if (pQuery == nullptr) {
             throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pQuery pointer is null.");
         }
@@ -188,10 +306,23 @@ namespace pmon::mid
 
         const auto now = nowTimestamp.value_or((uint64_t)util::GetCurrentTimestamp());
         *numSwapChains = pQuery->Poll(pBlob, *pComms_, now, pFrameSource, processId, maxSwapChains);
+
+        pmlog_verb(v::middleware)("Middleware poll dynamic query complete")
+            .pmwatch(pQuery)
+            .pmwatch(processId)
+            .pmwatch(*numSwapChains);
     }
 
     void Middleware::PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob)
     {
+        pmlog_verb(v::middleware)("Middleware poll static query")
+            .pmwatch(processId)
+            .pmwatch((int)element.metric)
+            .pmwatch((int)element.stat)
+            .pmwatch(element.deviceId)
+            .pmwatch(element.arrayIndex)
+            .watch("pBlob", DescribePointerArg_(pBlob, false));
+
         if (pBlob == nullptr) {
             throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pBlob pointer is null.");
         }
@@ -222,6 +353,7 @@ namespace pmon::mid
         auto pQuery = new PM_FRAME_QUERY{ queryElements, *this, *pComms_, GetIntrospectionRoot_() };
         blobSize = (uint32_t)pQuery->GetBlobSize();
         RegisterMetricUsage_(pQuery, queryElements);
+        LogQueryRegistration_(PM_METRIC_TYPE_FRAME_EVENT, GetIntrospectionRoot_(), pQuery, queryElements);
         return pQuery;
     }
 
@@ -233,6 +365,13 @@ namespace pmon::mid
 
     void mid::Middleware::ConsumeFrameEvents(const PM_FRAME_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t& numFrames)
     {
+        const auto requestedFrames = numFrames;
+        pmlog_verb(v::middleware)("Middleware consume frame events")
+            .pmwatch(pQuery)
+            .pmwatch(processId)
+            .watch("pBlob", DescribePointerArg_(pBlob, false))
+            .pmwatch(requestedFrames);
+
         if (pQuery == nullptr) {
             throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pQuery pointer is null.");
         }
@@ -254,6 +393,11 @@ namespace pmon::mid
         }
 
         numFrames = uint32_t(frames.size());
+
+        pmlog_verb(v::middleware)("Middleware consume frame events complete")
+            .pmwatch(pQuery)
+            .pmwatch(processId)
+            .pmwatch(numFrames);
     }
 
     void Middleware::StopPlayback()

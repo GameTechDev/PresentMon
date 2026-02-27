@@ -5,6 +5,7 @@
 #include <memory>
 #include <sstream>
 #include <exception>
+#include <type_traits>
 #if __has_include(<cereal/archives/json.hpp>)
 #include <cereal/cereal.hpp>
 #include <cereal/archives/json.hpp>
@@ -52,11 +53,33 @@ namespace pmon::util::log
 		EntryBuilder& watch(const char* symbol, const T& value) noexcept
 		{
 			try {
-				if (note_.empty()) {
-					note_ += std::format("   {} => {}", symbol, value);
+				using D = std::remove_cvref_t<T>;
+				if constexpr (std::is_pointer_v<D> && !std::is_function_v<std::remove_pointer_t<D>>) {
+					using P = std::remove_cv_t<std::remove_pointer_t<D>>;
+					if constexpr (std::is_same_v<P, char>) {
+						if (note_.empty()) {
+							note_ += std::format("   {} => {}", symbol, value);
+						}
+						else {
+							note_ += std::format("\n     {} => {}", symbol, value);
+						}
+					}
+					else {
+						if (note_.empty()) {
+							note_ += std::format("   {} => {}", symbol, static_cast<const void*>(value));
+						}
+						else {
+							note_ += std::format("\n     {} => {}", symbol, static_cast<const void*>(value));
+						}
+					}
 				}
 				else {
-					note_ += std::format("\n     {} => {}", symbol, value);
+					if (note_.empty()) {
+						note_ += std::format("   {} => {}", symbol, value);
+					}
+					else {
+						note_ += std::format("\n     {} => {}", symbol, value);
+					}
 				}
 			}
 			catch (...) { pmlog_panic_("Failed to format watch in EntryBuilder"); }

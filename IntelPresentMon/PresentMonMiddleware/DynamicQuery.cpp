@@ -182,7 +182,7 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 	const auto window = GenerateQueryWindow_(nowTimestamp);
 
 	// Validate any pending gaps from previous polls before polling this window.
-	if (useIntegrityTracking_ && frameSource != nullptr) {
+	if (frameSource != nullptr) {
 		for (auto it = swapToIntegrityState_.begin(); it != swapToIntegrityState_.end();) {
 			auto& tracking = it->second;
 
@@ -201,7 +201,7 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 
 			// Degenerate range: retire stale tracking state.
 			if (intervalStart >= intervalEnd) {
-				pmlog_warn("degenerate range").pmwatch(intervalStart).pmwatch(intervalEnd);
+				pmlog_dbg("degenerate range").pmwatch(intervalStart).pmwatch(intervalEnd);
 				retireGap = true;
 			}
 			else {
@@ -248,7 +248,7 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 											});
 										tracking.newestLoggedViolationPresentQpc = newestViolatingPresentQpc;
 										++gap.loggedViolationCount;
-										pmlog_warn("Dynamic query stats window integrity violation detected")
+										pmlog_dbg("Dynamic query stats window integrity violation detected")
 											.pmwatch(processId)
 											.pmwatch(windowOffsetMs_)
 											.pmwatch(captureGapMs)
@@ -279,8 +279,11 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 		swapChainAddresses = frameSource->GetSwapChainAddressesInTimestampRange(window.oldest, window.newest);
 	}
 
+	const bool snapshotDumpEnabled = util::log::GlobalPolicy::Get().GetLogLevel() >= util::log::Level::Verbose &&
+		util::log::GlobalPolicy::VCheck(util::log::V::middleware);
+
 	std::optional<FrameMetricsSource::PollSnapshotData> pollSnapshots;
-	if (enableSnapshotDumpOnZeroCpuFrameTimeAverage_ && frameSource != nullptr && cpuFrameTimeAvgOffset_.has_value()) {
+	if (snapshotDumpEnabled && frameSource != nullptr && cpuFrameTimeAvgOffset_.has_value()) {
 		pollSnapshots = frameSource->CapturePollSnapshotData();
 	}
 
@@ -303,7 +306,7 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 	};
 
 	auto pollOnce = [&](const SwapChainState* pSwapChain, uint64_t swapChainAddress, uint8_t* pBlob) {
-		if (useIntegrityTracking_ && pSwapChain != nullptr && !pSwapChain->Empty()) {
+		if (pSwapChain != nullptr && !pSwapChain->Empty()) {
 			// Persist a new pending gap for this poll when the window extends beyond latest known data.
 			const uint64_t latestPresentQpc = pSwapChain->At(pSwapChain->Size() - 1u).presentStartQpc;
 			if (latestPresentQpc < window.newest) {
@@ -319,7 +322,7 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 		for (auto& pRing : ringMetricPtrs_) {
 			pRing->Poll(window, pBlob, comms, pSwapChain, processId);
 		}
-		if (enableSnapshotDumpOnZeroCpuFrameTimeAverage_ && cpuFrameTimeAvgOffset_.has_value() &&
+		if (snapshotDumpEnabled && cpuFrameTimeAvgOffset_.has_value() &&
 			HasZeroCpuFrameTimeAverage_(pBlob)) {
 			zeroCpuFrameTimeAvgSwapChains.push_back(swapChainAddress);
 		}

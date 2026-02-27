@@ -17,6 +17,7 @@ namespace pmon::util::log
 		ipc_sto,
 		ipc_ring,
 		met_use,
+		middleware,
 		chrome,
 		Count
 	};

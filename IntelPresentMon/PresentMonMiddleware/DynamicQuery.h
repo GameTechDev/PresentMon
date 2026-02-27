@@ -57,14 +57,12 @@ private:
 	std::optional<size_t> cpuFrameTimeAvgOffset_;
 	size_t blobSize_;
 	bool hasFrameMetrics_ = false;
-	bool enableSnapshotDumpOnZeroCpuFrameTimeAverage_ = true;
 	// window parameters; these could theoretically be independent of query but current API couples them
 	double windowOffsetMs_ = 0.0;
 	double qpcPeriodSeconds_ = 0.0;
 	int64_t windowSizeQpc_ = 0;
 	int64_t windowOffsetQpc_ = 0;
 	// window integrity validation data
-	bool useIntegrityTracking_ = true;
 	mutable std::unordered_map<uint64_t, IntegrityTrackingState_> swapToIntegrityState_;
 };
 
