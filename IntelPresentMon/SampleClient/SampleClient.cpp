@@ -41,6 +41,7 @@
 #include "LogDemo.h"
 #include "DiagnosticDemo.h"
 #include "LogSetup.h"
+#include "LoggingCrashTest.h"
 
 #include "../CommonUtilities/IntervalWaiter.h"
 #include "../CommonUtilities/pipe/Pipe.h"
@@ -318,87 +319,109 @@ void IntrospectAllDynamicOptions()
 
 int main(int argc, char* argv[])
 {
-    try {
-        // command line options initialization
-        if (auto e = clio::Options::Init(argc, argv, true)) {
-            pmlog_error(clio::Options::GetDiagnostics()).no_trace();
-            std::cerr << clio::Options::GetDiagnostics() << std::endl;
-            return *e;
-        }
-        auto& opt = clio::Options::Get();
+	try {
+		// command line options initialization
+		if (auto e = clio::Options::Init(argc, argv, true)) {
+			pmlog_error(clio::Options::GetDiagnostics()).no_trace();
+			std::cerr << clio::Options::GetDiagnostics() << std::endl;
+			return *e;
+		}
+	}
+	catch (...) {
+		const auto exr = pmon::util::ReportException("Exception caught during SampleClient option initialization");
+		std::cout << "Error: " << exr.first << std::endl;
+		pmlog_error(exr);
+		return -1;
+	}
 
-        // use the middleware in the dev path esp. if we are running debug build
-        // important to do this before any intra-process log linking occurs
-        if (opt.middlewareDllPath) {
-            pmLoaderSetPathToMiddlewareDll_(opt.middlewareDllPath->c_str());
-        }
+	auto& opt = clio::Options::Get();
+	const auto mode = *opt.mode;
 
-        // setup logging, including middleware intra-process cross-module link
-        p2sam::LogChannelManager zLogMan_;
-        p2sam::ConfigureLogging();
+	// crash logging mode intentionally runs without top-level exception handling
+	if (mode == clio::Mode::LoggingCrashTest) {
+		if (opt.middlewareDllPath) {
+			pmLoaderSetPathToMiddlewareDll_(opt.middlewareDllPath->c_str());
+		}
 
-        // helper for connecting a pmapi session
-        const auto ConnectSession = [&] {
-            if (opt.controlPipe) {
-                return std::make_unique<pmapi::Session>(*opt.controlPipe);
-            }
-            return std::make_unique<pmapi::Session>();
-        };
+		p2sam::LogChannelManager zLogMan_;
+		p2sam::ConfigureLogging();
 
-        // determine requested mode to run the sample app in
-        switch (*opt.mode) {
-        case clio::Mode::LogDemo:
-            RunLogDemo(*opt.submode); break;
-        case clio::Mode::DiagnosticsDemo:
-            RunDiagnosticDemo(*opt.submode); break;
-        case clio::Mode::Introspection:
-            return IntrospectionSample(ConnectSession());
-        case clio::Mode::CheckMetric:
-            return CheckMetricSample(ConnectSession());
-        case clio::Mode::DynamicQuery:
-            return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, false);
-        case clio::Mode::AddGpuMetric:
-            return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, true);
-        case clio::Mode::DynamicQueryNoTargetAll:
-            return DynamicQueryNoTargetSample(ConnectSession(), *opt.windowSize, *opt.metricOffset);
-        case clio::Mode::WrapperStaticQuery:
-            return WrapperStaticQuerySample(ConnectSession());
-        case clio::Mode::MetricList:
-            return MetricListSample(ConnectSession());
-        case clio::Mode::FrameQuery:
-            return FrameQuerySample(ConnectSession(), false);
-        case clio::Mode::CsvFrameQuery:
-            return FrameQuerySample(ConnectSession(), true);
-        case clio::Mode::MultiClient:
-            return MultiClientTest(ConnectSession());
-        case clio::Mode::ServiceCrashClient:
-            return ServiceCrashClientTest(ConnectSession());
-        case clio::Mode::EtlLogger:
-            return EtlLoggerTest(ConnectSession());
-        case clio::Mode::PacedPlayback:
-            return PacedPlaybackTest(ConnectSession());
-        case clio::Mode::PacedFramePlayback:
-            return PacedFramePlaybackTest(ConnectSession());
-        case clio::Mode::PlaybackDynamicQuery:
-            RunPlaybackDynamicQueryN(); break;
-        case clio::Mode::PlaybackFrameQuery:
-            RunPlaybackFrameQuery(); break;
-        case clio::Mode::IntrospectAllDynamicOptions:
-            IntrospectAllDynamicOptions(); break;
-        case clio::Mode::IpcComponentServer:
-            IpcComponentServer(); break;
-        case clio::Mode::IntrospectionDevices:
-            IntrospectAllDevices(ConnectSession()); break;
-        default:
-            throw std::runtime_error{ "unknown sample client mode" };
-        }
-    }
-    catch (...) {
-        const auto exr = pmon::util::ReportException("Exception caught in SampleClient main");
-        std::cout << "Error: " << exr.first << std::endl;
-        pmlog_error(exr);
-        return -1;
-    }
+		return RunLoggingCrashTest(*opt.submode);
+	}
 
-    return 0;
+	try {
+		// use the middleware in the dev path esp. if we are running debug build
+		// important to do this before any intra-process log linking occurs
+		if (opt.middlewareDllPath) {
+			pmLoaderSetPathToMiddlewareDll_(opt.middlewareDllPath->c_str());
+		}
+
+		// setup logging, including middleware intra-process cross-module link
+		p2sam::LogChannelManager zLogMan_;
+		p2sam::ConfigureLogging();
+
+		// helper for connecting a pmapi session
+		const auto ConnectSession = [&] {
+			if (opt.controlPipe) {
+				return std::make_unique<pmapi::Session>(*opt.controlPipe);
+			}
+			return std::make_unique<pmapi::Session>();
+		};
+
+		// determine requested mode to run the sample app in
+		switch (mode) {
+		case clio::Mode::LogDemo:
+			RunLogDemo(*opt.submode); break;
+		case clio::Mode::DiagnosticsDemo:
+			RunDiagnosticDemo(*opt.submode); break;
+		case clio::Mode::Introspection:
+			return IntrospectionSample(ConnectSession());
+		case clio::Mode::CheckMetric:
+			return CheckMetricSample(ConnectSession());
+		case clio::Mode::DynamicQuery:
+			return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, false);
+		case clio::Mode::AddGpuMetric:
+			return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, true);
+		case clio::Mode::DynamicQueryNoTargetAll:
+			return DynamicQueryNoTargetSample(ConnectSession(), *opt.windowSize, *opt.metricOffset);
+		case clio::Mode::WrapperStaticQuery:
+			return WrapperStaticQuerySample(ConnectSession());
+		case clio::Mode::MetricList:
+			return MetricListSample(ConnectSession());
+		case clio::Mode::FrameQuery:
+			return FrameQuerySample(ConnectSession(), false);
+		case clio::Mode::CsvFrameQuery:
+			return FrameQuerySample(ConnectSession(), true);
+		case clio::Mode::MultiClient:
+			return MultiClientTest(ConnectSession());
+		case clio::Mode::ServiceCrashClient:
+			return ServiceCrashClientTest(ConnectSession());
+		case clio::Mode::EtlLogger:
+			return EtlLoggerTest(ConnectSession());
+		case clio::Mode::PacedPlayback:
+			return PacedPlaybackTest(ConnectSession());
+		case clio::Mode::PacedFramePlayback:
+			return PacedFramePlaybackTest(ConnectSession());
+		case clio::Mode::PlaybackDynamicQuery:
+			RunPlaybackDynamicQueryN(); break;
+		case clio::Mode::PlaybackFrameQuery:
+			RunPlaybackFrameQuery(); break;
+		case clio::Mode::IntrospectAllDynamicOptions:
+			IntrospectAllDynamicOptions(); break;
+		case clio::Mode::IpcComponentServer:
+			IpcComponentServer(); break;
+		case clio::Mode::IntrospectionDevices:
+			IntrospectAllDevices(ConnectSession()); break;
+		default:
+			throw std::runtime_error{ "unknown sample client mode" };
+		}
+	}
+	catch (...) {
+		const auto exr = pmon::util::ReportException("Exception caught in SampleClient main");
+		std::cout << "Error: " << exr.first << std::endl;
+		pmlog_error(exr);
+		return -1;
+	}
+
+	return 0;
 }

@@ -29,6 +29,7 @@
     <ClInclude Include="IntervalWaiter.h" />
     <ClInclude Include="log\ChannelFlusher.h" />
     <ClInclude Include="log\CopyDriver.h" />
+    <ClInclude Include="log\CrashFlushHooks.h" />
     <ClInclude Include="log\DiagnosticDriver.h" />
     <ClInclude Include="log\ErrorCode.h" />
     <ClInclude Include="log\EntryMarshallInjector.h" />
@@ -131,6 +132,7 @@
     <ClCompile Include="IntervalWaiter.cpp" />
     <ClCompile Include="log\ChannelFlusher.cpp" />
     <ClCompile Include="log\CopyDriver.cpp" />
+    <ClCompile Include="log\CrashFlushHooks.cpp" />
     <ClCompile Include="log\DiagnosticDriver.cpp" />
     <ClCompile Include="log\EntryMarshallInjector.cpp" />
     <ClCompile Include="Hash.cpp" />
