@@ -12,6 +12,7 @@
 #include <format>
 #include <sstream>
 #include <cstdint>
+#include <chrono>
 
 using namespace pmon;
 using namespace mid;
@@ -72,6 +73,21 @@ static std::string BuildPollSnapshotCsv_(const FrameMetricsSource::PollSnapshotD
 	}
 
 	return os.str();
+}
+
+static bool IsFrameTimeOrFpsMetric_(PM_METRIC metric)
+{
+	switch (metric) {
+	case PM_METRIC_CPU_FRAME_TIME:
+	case PM_METRIC_DISPLAYED_FRAME_TIME:
+	case PM_METRIC_PRESENTED_FRAME_TIME:
+	case PM_METRIC_DISPLAYED_FPS:
+	case PM_METRIC_APPLICATION_FPS:
+	case PM_METRIC_PRESENTED_FPS:
+		return true;
+	default:
+		return false;
+	}
 }
 
 static uint64_t GetTargetStartQpc_(ipc::MiddlewareComms& comms, uint32_t processId)
@@ -151,10 +167,10 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 		qel.dataOffset = blobCursor;
 		binding->AddMetricStat(qel, introRoot);
 		blobCursor = qel.dataOffset + qel.dataSize;
-		if (!cpuFrameTimeAvgOffset_.has_value() &&
-			qel.metric == PM_METRIC_CPU_FRAME_TIME &&
-			qel.stat == PM_STAT_AVG) {
-			cpuFrameTimeAvgOffset_ = size_t(qel.dataOffset);
+		if (!frameTimeOrFpsOffset_.has_value() &&
+			IsFrameTimeOrFpsMetric_(qel.metric) &&
+			qel.dataSize == sizeof(double)) {
+			frameTimeOrFpsOffset_ = size_t(qel.dataOffset);
 		}
 	}
 
@@ -185,13 +201,13 @@ DynamicQueryWindow PM_DYNAMIC_QUERY::GenerateQueryWindow_(int64_t nowTimestamp) 
 	return { .oldest = uint64_t(oldest), .newest = uint64_t(newest)};
 }
 
-bool PM_DYNAMIC_QUERY::HasZeroCpuFrameTimeAverage_(const uint8_t* pBlobBase) const
+bool PM_DYNAMIC_QUERY::HasZeroTrackedFrameTimeOrFpsValue_(const uint8_t* pBlobBase) const
 {
-	if (pBlobBase == nullptr || !cpuFrameTimeAvgOffset_.has_value()) {
+	if (pBlobBase == nullptr || !frameTimeOrFpsOffset_.has_value()) {
 		return false;
 	}
 
-	const auto* pValue = reinterpret_cast<const double*>(pBlobBase + *cpuFrameTimeAvgOffset_);
+	const auto* pValue = reinterpret_cast<const double*>(pBlobBase + *frameTimeOrFpsOffset_);
 	return *pValue == 0.0;
 }
 
@@ -324,24 +340,33 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 		util::log::GlobalPolicy::VCheck(util::log::V::middleware);
 
 	std::optional<FrameMetricsSource::PollSnapshotData> pollSnapshots;
-	if (snapshotDumpEnabled && frameSource != nullptr && cpuFrameTimeAvgOffset_.has_value()) {
+	if (snapshotDumpEnabled && frameSource != nullptr && frameTimeOrFpsOffset_.has_value()) {
 		pollSnapshots = frameSource->CapturePollSnapshotData();
 	}
 
-	std::vector<uint64_t> zeroCpuFrameTimeAvgSwapChains;
-	zeroCpuFrameTimeAvgSwapChains.reserve(4u);
+	bool sawZeroFrameTimeOrFpsValue = false;
+	const uint64_t targetStartQpc = GetTargetStartQpc_(comms, processId);
+	const std::string elapsedSinceTargetStartSecondsText =
+		BuildElapsedSinceTargetStartText_(targetStartQpc, nowTimestamp, qpcPeriodSeconds_);
 
 	auto dumpSnapshotsIfNeeded = [&]() {
-		if (!pollSnapshots || zeroCpuFrameTimeAvgSwapChains.empty()) {
+		if (!pollSnapshots || !sawZeroFrameTimeOrFpsValue) {
 			return;
 		}
+		size_t totalSwapChainFrameSnapshots = 0;
+		for (const auto& swapChainSnapshots : pollSnapshots->swapChainSnapshots) {
+			totalSwapChainFrameSnapshots += swapChainSnapshots.snapshots.size();
+		}
 
-		pmlog_warn("Dynamic query detected zero CPU frame time average and dumped poll snapshots")
+		pmlog_verb(util::log::V::middleware)("Dynamic query detected zero frame time/FPS metric and dumped poll snapshots")
+			.every(std::chrono::milliseconds{ 500 })
 			.pmwatch(processId)
 			.pmwatch(nowTimestamp)
-			.pmwatch(zeroCpuFrameTimeAvgSwapChains.size())
+			.watch("queryHandle", reinterpret_cast<void*>(const_cast<PM_DYNAMIC_QUERY*>(this)))
+			.watch("elapsed_since_target_start_s", elapsedSinceTargetStartSecondsText)
 			.pmwatch(pollSnapshots->ipcStoreSnapshots.size())
 			.pmwatch(pollSnapshots->swapChainSnapshots.size())
+			.watch("total_swap_chain_frame_snapshots", totalSwapChainFrameSnapshots)
 			.watch("poll_snapshot_csv", BuildPollSnapshotCsv_(*pollSnapshots))
 			.diag();
 	};
@@ -375,9 +400,9 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 		for (auto& pRing : ringMetricPtrs_) {
 			pRing->Poll(window, pBlob, comms, pSwapChain, processId);
 		}
-		if (snapshotDumpEnabled && cpuFrameTimeAvgOffset_.has_value() &&
-			HasZeroCpuFrameTimeAverage_(pBlob)) {
-			zeroCpuFrameTimeAvgSwapChains.push_back(swapChainAddress);
+		if (snapshotDumpEnabled && frameTimeOrFpsOffset_.has_value() &&
+			HasZeroTrackedFrameTimeOrFpsValue_(pBlob)) {
+			sawZeroFrameTimeOrFpsValue = true;
 		}
 	};
 

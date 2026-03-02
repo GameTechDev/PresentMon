@@ -55,10 +55,10 @@ private:
 	void ValidatePendingIntegrityWindows_(pmon::mid::FrameMetricsSource* frameSource,
 		pmon::ipc::MiddlewareComms& comms,
 		uint32_t processId, uint64_t nowTimestamp) const;
-	bool HasZeroCpuFrameTimeAverage_(const uint8_t* pBlobBase) const;
+	bool HasZeroTrackedFrameTimeOrFpsValue_(const uint8_t* pBlobBase) const;
 	// data
 	std::vector<std::unique_ptr<pmon::mid::MetricBinding>> ringMetricPtrs_;
-	std::optional<size_t> cpuFrameTimeAvgOffset_;
+	std::optional<size_t> frameTimeOrFpsOffset_;
 	size_t blobSize_;
 	bool hasFrameMetrics_ = false;
 	// window parameters; these could theoretically be independent of query but current API couples them
