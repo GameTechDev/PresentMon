@@ -11,6 +11,7 @@
 #include <string>
 #include <format>
 #include <sstream>
+#include <cstdint>
 
 using namespace pmon;
 using namespace mid;
@@ -71,6 +72,28 @@ static std::string BuildPollSnapshotCsv_(const FrameMetricsSource::PollSnapshotD
 	}
 
 	return os.str();
+}
+
+static uint64_t GetTargetStartQpc_(ipc::MiddlewareComms& comms, uint32_t processId)
+{
+	const int64_t startQpcSigned = comms.GetFrameDataStore(processId).bookkeeping.startQpc;
+	return startQpcSigned > 0 ? static_cast<uint64_t>(startQpcSigned) : 0u;
+}
+
+static std::string BuildElapsedSinceTargetStartText_(uint64_t targetStartQpc, uint64_t nowTimestamp, double qpcPeriodSeconds)
+{
+	if (targetStartQpc == 0u || nowTimestamp == 0u) {
+		return "NA";
+	}
+
+	const double elapsedSeconds = double(int64_t(nowTimestamp) - int64_t(targetStartQpc)) * qpcPeriodSeconds;
+	return std::format("{:.4f}", elapsedSeconds);
+}
+
+static std::string BuildRelativeMillisecondsText_(uint64_t referenceQpc, uint64_t sampleQpc, double qpcPeriodSeconds)
+{
+	const double deltaMs = double(int64_t(referenceQpc) - int64_t(sampleQpc)) * qpcPeriodSeconds * 1000.0;
+	return std::format("{:.4f}", deltaMs);
 }
 
 PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double windowSizeMs,
@@ -173,11 +196,16 @@ bool PM_DYNAMIC_QUERY::HasZeroCpuFrameTimeAverage_(const uint8_t* pBlobBase) con
 }
 
 void PM_DYNAMIC_QUERY::ValidatePendingIntegrityWindows_(FrameMetricsSource* frameSource,
+	ipc::MiddlewareComms& comms,
 	uint32_t processId, uint64_t nowTimestamp) const
 {
 	if (frameSource == nullptr) {
 		return;
 	}
+
+	const uint64_t targetStartQpc = GetTargetStartQpc_(comms, processId);
+	const std::string elapsedSinceTargetStartSecondsText =
+		BuildElapsedSinceTargetStartText_(targetStartQpc, nowTimestamp, qpcPeriodSeconds_);
 
 	for (auto it = swapToIntegrityState_.begin(); it != swapToIntegrityState_.end();) {
 		const uint64_t swapChainAddress = it->first;
@@ -251,13 +279,14 @@ void PM_DYNAMIC_QUERY::ValidatePendingIntegrityWindows_(FrameMetricsSource* fram
 			++tracking.loggedViolationCount;
 			pmlog_dbg("Dynamic query stats window integrity violation detected")
 				.pmwatch(processId)
-				.pmwatch(swapChainAddress)
+				.watch("swapChainAddress", reinterpret_cast<void*>(static_cast<uintptr_t>(swapChainAddress)))
 				.pmwatch(pendingWindow.windowSequence)
 				.pmwatch(windowOffsetMs_)
 				.pmwatch(captureGapMs)
 				.pmwatch(elapsedSinceWindowPollMs)
 				.pmwatch(lateFrameCount)
 				.pmwatch(tracking.loggedViolationCount)
+				.watch("elapsed_since_target_start_s", elapsedSinceTargetStartSecondsText)
 				.pmwatch(violatingFramesText)
 				.diag();
 		}
@@ -283,7 +312,7 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 
 	// Validate pending windows from previous polls before polling this window.
 	if (integrityCheckEnabled) {
-		ValidatePendingIntegrityWindows_(frameSource, processId, nowTimestamp);
+		ValidatePendingIntegrityWindows_(frameSource, comms, processId, nowTimestamp);
 	}
 
 	std::vector<uint64_t> swapChainAddresses;
@@ -333,7 +362,7 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 				});
 				pmlog_verb(util::log::V::middleware)("Dynamic query integrity potential violation window opened")
 					.pmwatch(processId)
-					.pmwatch(swapChainAddress)
+					.watch("swapChainAddress", reinterpret_cast<void*>(static_cast<uintptr_t>(swapChainAddress)))
 					.pmwatch(windowSequence)
 					.pmwatch(nowTimestamp)
 					.pmwatch(window.oldest)
@@ -353,6 +382,18 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 	};
 
 	if (swapChainAddresses.empty()) {
+		if (frameSource != nullptr) {
+			const uint64_t targetStartQpc = GetTargetStartQpc_(comms, processId);
+			const std::string elapsedSinceTargetStartSecondsText =
+				BuildElapsedSinceTargetStartText_(targetStartQpc, nowTimestamp, qpcPeriodSeconds_);
+			pmlog_dbg("Dynamic query poll found no swap chains in window")
+				.watch("queryHandle", std::format("0x{:x}", reinterpret_cast<uintptr_t>(this)))
+				.pmwatch(processId)
+				.watch("window_oldest_ms_from_now", BuildRelativeMillisecondsText_(nowTimestamp, window.oldest, qpcPeriodSeconds_))
+				.watch("window_newest_ms_from_now", BuildRelativeMillisecondsText_(nowTimestamp, window.newest, qpcPeriodSeconds_))
+				.watch("elapsed_since_target_start_s", elapsedSinceTargetStartSecondsText)
+				.diag();
+		}
 		pollOnce(nullptr, 0, pBlobBase);
 		dumpSnapshotsIfNeeded();
 		return 1;

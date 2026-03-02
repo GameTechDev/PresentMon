@@ -53,6 +53,7 @@ private:
 	// functions
 	pmon::mid::DynamicQueryWindow GenerateQueryWindow_(int64_t nowTimestamp) const;
 	void ValidatePendingIntegrityWindows_(pmon::mid::FrameMetricsSource* frameSource,
+		pmon::ipc::MiddlewareComms& comms,
 		uint32_t processId, uint64_t nowTimestamp) const;
 	bool HasZeroCpuFrameTimeAverage_(const uint8_t* pBlobBase) const;
 	// data
