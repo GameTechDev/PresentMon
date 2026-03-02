@@ -12,6 +12,8 @@
 
 namespace pmon::mid
 {
+    using namespace std::literals;
+
     namespace
     {
         template<typename T>
@@ -160,7 +162,7 @@ namespace pmon::mid
                 (void)processId;
 
                 if (pSwapChain == nullptr) {
-                    pmlog_dbg("Poll called on FrameMetricBinding with null swap chain").every(30);
+                    pmlog_dbg("Poll called on FrameMetricBinding with null swap chain").every(1s);
                     auto forEachFunc = [](uint64_t, uint64_t, auto&&) {};
                     auto nearestFunc = [](uint64_t) -> const util::metrics::FrameMetrics* {
                         return nullptr;

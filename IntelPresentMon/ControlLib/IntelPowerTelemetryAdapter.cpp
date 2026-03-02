@@ -5,6 +5,7 @@
 #include "../CommonUtilities/Math.h"
 #include "../CommonUtilities/ref/GeneratedReflection.h"
 #include "../CommonUtilities/ref/StaticReflection.h"
+#include <chrono>
 #include <regex>
 #include <ranges>
 
@@ -186,7 +187,7 @@ namespace pwr::intel
         if (const auto result = ctlPowerTelemetryGet(deviceHandle, &currentSample);
             result != CTL_RESULT_SUCCESS) {
             success = false;
-            pmlog_warn("ctlPowerTelemetryGet failed").code(result).every(600)
+            pmlog_warn("ctlPowerTelemetryGet failed").code(result).every(std::chrono::seconds{ 60 })
                 .pmwatch(GetName()).pmwatch(GetDeviceId());
         }
         pmlog_verb(v::tele_gpu)("ctlPowerTelemetryGet output")
@@ -205,7 +206,7 @@ namespace pwr::intel
             if (const auto result = ctlMemoryGetState(memoryModules[0], &memory_state);
                 result != CTL_RESULT_SUCCESS) {
                 success = false;
-                pmlog_warn("ctlMemoryGetState failed").code(result).every(600)
+                pmlog_warn("ctlMemoryGetState failed").code(result).every(std::chrono::seconds{ 60 })
                     .pmwatch(GetName()).pmwatch(GetDeviceId());
             }
             else {
@@ -217,7 +218,7 @@ namespace pwr::intel
             if (const auto result = ctlMemoryGetBandwidth(memoryModules[0], &memory_bandwidth);
                 result != CTL_RESULT_SUCCESS) {
                 success = false;
-                pmlog_warn("ctlMemoryGetBandwidth failed").code(result).every(600)
+                pmlog_warn("ctlMemoryGetBandwidth failed").code(result).every(std::chrono::seconds{ 60 })
                     .pmwatch(GetName()).pmwatch(GetDeviceId());
             }
             else {
@@ -242,7 +243,7 @@ namespace pwr::intel
             }
             else {
                 success = false;
-                pmlog_warn("ctlPowerGetLimits failed").code(result).every(600)
+                pmlog_warn("ctlPowerGetLimits failed").code(result).every(std::chrono::seconds{ 60 })
                     .pmwatch(GetName()).pmwatch(GetDeviceId());
             }
         }
@@ -382,7 +383,7 @@ namespace pwr::intel
             result != CTL_RESULT_SUCCESS)
         {
             success = false;
-            pmlog_warn("ctlPowerTelemetryGet timestamp delta processing failed").code(result).every(600)
+            pmlog_warn("ctlPowerTelemetryGet timestamp delta processing failed").code(result).every(std::chrono::seconds{ 60 })
                 .pmwatch(GetName()).pmwatch(GetDeviceId());
         }
 
@@ -395,7 +396,7 @@ namespace pwr::intel
             {
                 success = false;
                 pmlog_warn("ctlPowerTelemetryGet GPU field processing failed")
-                    .code(result).every(600).pmwatch(GetName()).pmwatch(GetDeviceId());
+                    .code(result).every(std::chrono::seconds{ 60 }).pmwatch(GetName()).pmwatch(GetDeviceId());
             }
 
             if (const auto result = GetVramPowerTelemetryData(
@@ -403,7 +404,7 @@ namespace pwr::intel
             {
                 success = false;
                 pmlog_warn("ctlPowerTelemetryGet VRAM field processing failed")
-                    .code(result).every(600).pmwatch(GetName()).pmwatch(GetDeviceId());
+                    .code(result).every(std::chrono::seconds{ 60 }).pmwatch(GetName()).pmwatch(GetDeviceId());
             }
 
             if (const auto result = GetFanPowerTelemetryData(currentSample,
@@ -411,7 +412,7 @@ namespace pwr::intel
             {
                 success = false;
                 pmlog_warn("ctlPowerTelemetryGet fan field processing failed")
-                    .code(result).every(600).pmwatch(GetName()).pmwatch(GetDeviceId());
+                    .code(result).every(std::chrono::seconds{ 60 }).pmwatch(GetName()).pmwatch(GetDeviceId());
             }
 
             if (const auto result = GetPsuPowerTelemetryData(
@@ -419,7 +420,7 @@ namespace pwr::intel
             {
                 success = false;
                 pmlog_warn("ctlPowerTelemetryGet PSU field processing failed")
-                    .code(result).every(600).pmwatch(GetName()).pmwatch(GetDeviceId());
+                    .code(result).every(std::chrono::seconds{ 60 }).pmwatch(GetName()).pmwatch(GetDeviceId());
             }
 
             // Get memory state and bandwidth data
@@ -451,7 +452,7 @@ namespace pwr::intel
             result != CTL_RESULT_SUCCESS)
         {
             success = false;
-            pmlog_warn("ctlPowerTelemetryGet sample cache update failed").code(result).every(600)
+            pmlog_warn("ctlPowerTelemetryGet sample cache update failed").code(result).every(std::chrono::seconds{ 60 })
                 .pmwatch(GetName()).pmwatch(GetDeviceId());
         }
 

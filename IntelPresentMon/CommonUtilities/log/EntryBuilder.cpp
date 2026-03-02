@@ -1,4 +1,4 @@
-#include "EntryBuilder.h"
+﻿#include "EntryBuilder.h"
 #include "IChannel.h"
 #include "../str/String.h"
 #include "../win/WinAPI.h"
@@ -119,6 +119,20 @@ namespace pmon::util::log
 			rateControl_ = {
 				.type = includeFirst ? RateControl::Type::EveryAndFirst : RateControl::Type::Every,
 				.parameter = n,
+			};
+		}
+		else {
+			rateControl_ = {};
+		}
+		return *this;
+	}
+	EntryBuilder& EntryBuilder::every(std::chrono::nanoseconds duration, bool includeFirst) noexcept
+	{
+		assert(duration.count() > 0);
+		if (duration > std::chrono::nanoseconds::zero()) {
+			rateControl_ = {
+				.type = includeFirst ? RateControl::Type::EveryDurationAndFirst : RateControl::Type::EveryDuration,
+				.duration = duration,
 			};
 		}
 		else {

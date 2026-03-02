@@ -133,6 +133,7 @@ namespace pmon::util::log
 		EntryBuilder& hr() noexcept;
 		EntryBuilder& hr(uint32_t) noexcept;
 		EntryBuilder& every(int n, bool includeFirst = true) noexcept;
+		EntryBuilder& every(std::chrono::nanoseconds duration, bool includeFirst = true) noexcept;
 		EntryBuilder& first(int n) noexcept;
 		EntryBuilder& after(int n) noexcept;
 		EntryBuilder& hitcount() noexcept;
