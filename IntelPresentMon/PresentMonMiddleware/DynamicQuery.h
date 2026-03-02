@@ -51,6 +51,8 @@ private:
 
 	// functions
 	pmon::mid::DynamicQueryWindow GenerateQueryWindow_(int64_t nowTimestamp) const;
+	void ValidatePendingIntegrityGaps_(pmon::mid::FrameMetricsSource* frameSource,
+		uint32_t processId, uint64_t nowTimestamp) const;
 	bool HasZeroCpuFrameTimeAverage_(const uint8_t* pBlobBase) const;
 	// data
 	std::vector<std::unique_ptr<pmon::mid::MetricBinding>> ringMetricPtrs_;

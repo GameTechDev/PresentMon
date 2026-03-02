@@ -169,7 +169,6 @@ PRESENTMON_API2_EXPORT PM_STATUS pmOpenSessionWithPipe(PM_SESSION_HANDLE* pHandl
 		pMiddleware = std::make_shared<Middleware>(pipe ? std::optional<std::string>{ pipe } : std::nullopt);
 		*pHandle = reinterpret_cast<PM_SESSION_HANDLE>(pMiddleware.get());
 		handleMap_[*pHandle] = std::move(pMiddleware);
-		pmlog_dbg("pmOpenSessionWithPipe complete").pmwatch(*pHandle);
 		pmlog_info("Middleware successfully opened session with service");
 		return PM_STATUS_SUCCESS;
 	}
@@ -240,7 +239,6 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetIntrospectionRoot(PM_SESSION_HANDLE handle
 		// change as well
 		// AddHandleMapping_(handle, pIntro);
 		*ppInterface = pIntro;
-		pmlog_dbg("pmGetIntrospectionRoot complete").pmwatch(handle).watch("interface_out", DescribePointerArg_(*ppInterface, false));
 		return PM_STATUS_SUCCESS;
 	}
 	pmcatch_report_diag(true);
@@ -317,7 +315,6 @@ PRESENTMON_API2_EXPORT PM_STATUS pmRegisterDynamicQuery(PM_SESSION_HANDLE sessio
 			{pElements, numElements}, windowSizeMs, metricOffsetMs);
 		AddHandleMapping_(sessionHandle, queryHandle);
 		*pQueryHandle = queryHandle;
-		pmlog_dbg("pmRegisterDynamicQuery complete").pmwatch(sessionHandle).pmwatch(queryHandle).pmwatch(*pQueryHandle);
 		return PM_STATUS_SUCCESS;
 	}
 	pmcatch_report_diag(true);
@@ -362,7 +359,6 @@ PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQuery(PM_DYNAMIC_QUERY_HANDLE hand
 			return PM_STATUS_BAD_ARGUMENT;
 		}
 		LookupMiddlewareCheckDropped_(handle).PollDynamicQuery(handle, processId, pBlob, numSwapChains);
-		pmlog_verb(v::middleware)("pmPollDynamicQuery complete").pmwatch(handle).pmwatch(processId).pmwatch(*numSwapChains);
 		return PM_STATUS_SUCCESS;
 	}
 	pmcatch_report_diag(true);
@@ -392,7 +388,6 @@ PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQueryWithTimestamp(PM_DYNAMIC_QUER
 			return PM_STATUS_BAD_ARGUMENT;
 		}
 		LookupMiddleware_(handle).PollDynamicQuery(handle, processId, pBlob, numSwapChains, nowTimestamp);
-		pmlog_verb(v::middleware)("pmPollDynamicQueryWithTimestamp complete").pmwatch(handle).pmwatch(processId).pmwatch(*numSwapChains);
 		return PM_STATUS_SUCCESS;
 	}
 	pmcatch_report_diag(true);
@@ -461,7 +456,6 @@ PRESENTMON_API2_EXPORT PM_STATUS pmRegisterFrameQuery(PM_SESSION_HANDLE sessionH
 		const auto queryHandle = LookupMiddlewareCheckDropped_(sessionHandle).RegisterFrameEventQuery({ pElements, numElements }, *pBlobSize);
 		AddHandleMapping_(sessionHandle, queryHandle);
 		*pQueryHandle = queryHandle;
-		pmlog_dbg("pmRegisterFrameQuery complete").pmwatch(sessionHandle).pmwatch(queryHandle).pmwatch(*pQueryHandle).pmwatch(*pBlobSize);
 		return PM_STATUS_SUCCESS;
 	}
 	pmcatch_report_diag(true);
@@ -486,7 +480,6 @@ PRESENTMON_API2_EXPORT PM_STATUS pmConsumeFrames(PM_FRAME_QUERY_HANDLE handle, u
 			return PM_STATUS_BAD_ARGUMENT;
 		}
 		LookupMiddlewareCheckDropped_(handle).ConsumeFrameEvents(handle, processId, pBlob, *pNumFramesToRead);
-		pmlog_verb(v::middleware)("pmConsumeFrames complete").pmwatch(handle).pmwatch(processId).pmwatch(*pNumFramesToRead);
 		return PM_STATUS_SUCCESS;
 	}
 	catch (...) {
@@ -522,7 +515,6 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetApiVersion(PM_VERSION* pVersion)
 		return PM_STATUS_BAD_ARGUMENT;
 	}
 	*pVersion = pmon::bid::GetApiVersion();
-	pmlog_dbg("pmGetApiVersion complete").pmwatch(pVersion->major).pmwatch(pVersion->minor).pmwatch(pVersion->patch);
 	return PM_STATUS_SUCCESS;
 }
 
@@ -547,7 +539,6 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStartEtlLogging(PM_SESSION_HANDLE session, PM
 			.pmwatch(reserved2);
 		auto& mid = LookupMiddlewareCheckDropped_(session);
 		*pEtlHandle = mid.StartEtlLogging();
-		pmlog_dbg("pmStartEtlLogging complete").pmwatch(session).pmwatch(*pEtlHandle);
 		return PM_STATUS_SUCCESS;
 	}
 	pmcatch_report_diag(true);
@@ -574,7 +565,6 @@ PRESENTMON_API2_EXPORT PM_STATUS pmFinishEtlLogging(PM_SESSION_HANDLE session, P
 		}
 		rn::copy(path, pOutputFilePathBuffer);
 		pOutputFilePathBuffer[path.size()] = '\0';
-		pmlog_dbg("pmFinishEtlLogging complete").pmwatch(session).pmwatch(etlHandle).pmwatch(path.size());
 		return PM_STATUS_SUCCESS;
 	}
 	pmcatch_report_diag(true);

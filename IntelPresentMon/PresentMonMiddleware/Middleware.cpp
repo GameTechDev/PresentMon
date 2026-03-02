@@ -12,7 +12,6 @@
 #include <type_traits>
 #include "../CommonUtilities/mt/Thread.h"
 #include "../CommonUtilities/log/Log.h"
-#include "../CommonUtilities/log/Verbose.h"
 #include "../CommonUtilities/Qpc.h"
 #include "../Interprocess/source/IntrospectionTransfer.h"
 #include "../Interprocess/source/IntrospectionHelpers.h"
@@ -32,7 +31,6 @@ namespace pmon::mid
 {
     using namespace ipc::intro;
     using namespace util;
-    using v = util::log::V;
     namespace rn = std::ranges;
     namespace vi = std::views;
 
@@ -88,31 +86,6 @@ namespace pmon::mid
             }
         }
 
-        const auto DescribePointerArg_ = []<typename T>(const T* p, bool dereferenceScalar = true) -> std::string
-        {
-            if (!p) {
-                return "null";
-            }
-            using U = std::remove_cv_t<T>;
-            constexpr bool isCharLike = std::is_same_v<U, char> || std::is_same_v<U, signed char> || std::is_same_v<U, unsigned char>;
-            if constexpr ((std::is_integral_v<U> && !isCharLike) || std::is_floating_point_v<U>) {
-                if (dereferenceScalar) {
-                    if constexpr (std::is_integral_v<U>) {
-                        if constexpr (std::is_signed_v<U>) {
-                            return std::to_string((long long)*p);
-                        }
-                        else {
-                            return std::to_string((unsigned long long)*p);
-                        }
-                    }
-                    else {
-                        return std::to_string((double)*p);
-                    }
-                }
-            }
-            return "set";
-        };
-
         void LogQueryRegistration_(PM_METRIC_TYPE queryType, const pmapi::intro::Root& introRoot,
             const void* queryHandle, std::span<const PM_QUERY_ELEMENT> queryElements)
         {
@@ -131,11 +104,8 @@ namespace pmon::mid
                     .watch("query_type", GetQueryTypeName_(queryType))
                     .pmwatch(queryHandle)
                     .pmwatch(elementIndex)
-                    .pmwatch((int)qel.metric)
                     .watch("metric_symbol", metricSymbol)
-                    .pmwatch((int)qel.stat)
                     .watch("stat_symbol", statSymbol)
-                    .pmwatch(qel.deviceId)
                     .watch("device_name", deviceName)
                     .pmwatch(qel.arrayIndex)
                     .pmwatch(qel.dataOffset)
@@ -268,15 +238,6 @@ namespace pmon::mid
     void Middleware::PollDynamicQuery(const PM_DYNAMIC_QUERY* pQuery, uint32_t processId,
         uint8_t* pBlob, uint32_t* numSwapChains, std::optional<uint64_t> nowTimestamp)
     {
-        const auto requestedSwapChains = numSwapChains ? *numSwapChains : 0u;
-        pmlog_verb(v::middleware)("Middleware poll dynamic query")
-            .pmwatch(pQuery)
-            .pmwatch(processId)
-            .watch("numSwapChains", DescribePointerArg_(numSwapChains))
-            .pmwatch(requestedSwapChains)
-            .pmwatch(nowTimestamp.has_value())
-            .pmwatch(nowTimestamp.value_or(0ull));
-
         if (pQuery == nullptr) {
             throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pQuery pointer is null.");
         }
@@ -306,23 +267,10 @@ namespace pmon::mid
 
         const auto now = nowTimestamp.value_or((uint64_t)util::GetCurrentTimestamp());
         *numSwapChains = pQuery->Poll(pBlob, *pComms_, now, pFrameSource, processId, maxSwapChains);
-
-        pmlog_verb(v::middleware)("Middleware poll dynamic query complete")
-            .pmwatch(pQuery)
-            .pmwatch(processId)
-            .pmwatch(*numSwapChains);
     }
 
     void Middleware::PollStaticQuery(const PM_QUERY_ELEMENT& element, uint32_t processId, uint8_t* pBlob)
     {
-        pmlog_verb(v::middleware)("Middleware poll static query")
-            .pmwatch(processId)
-            .pmwatch((int)element.metric)
-            .pmwatch((int)element.stat)
-            .pmwatch(element.deviceId)
-            .pmwatch(element.arrayIndex)
-            .watch("pBlob", DescribePointerArg_(pBlob, false));
-
         if (pBlob == nullptr) {
             throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pBlob pointer is null.");
         }
@@ -365,13 +313,6 @@ namespace pmon::mid
 
     void mid::Middleware::ConsumeFrameEvents(const PM_FRAME_QUERY* pQuery, uint32_t processId, uint8_t* pBlob, uint32_t& numFrames)
     {
-        const auto requestedFrames = numFrames;
-        pmlog_verb(v::middleware)("Middleware consume frame events")
-            .pmwatch(pQuery)
-            .pmwatch(processId)
-            .watch("pBlob", DescribePointerArg_(pBlob, false))
-            .pmwatch(requestedFrames);
-
         if (pQuery == nullptr) {
             throw Except<ipc::PmStatusError>(PM_STATUS_BAD_ARGUMENT, "pQuery pointer is null.");
         }
@@ -393,11 +334,6 @@ namespace pmon::mid
         }
 
         numFrames = uint32_t(frames.size());
-
-        pmlog_verb(v::middleware)("Middleware consume frame events complete")
-            .pmwatch(pQuery)
-            .pmwatch(processId)
-            .pmwatch(numFrames);
     }
 
     void Middleware::StopPlayback()
