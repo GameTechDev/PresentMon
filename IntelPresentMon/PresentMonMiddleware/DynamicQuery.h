@@ -5,6 +5,7 @@
 #include <span>
 #include <optional>
 #include <memory>
+#include <deque>
 #include <unordered_map>
 #include "MetricBinding.h"
 #include "DynamicQueryWindow.h"
@@ -34,24 +35,24 @@ public:
 		uint64_t nowTimestamp, pmon::mid::FrameMetricsSource* frameSource, uint32_t processId, uint32_t maxSwapChains) const;
 
 private:
-	struct PendingIntegrityGap_
+	struct PendingIntegrityWindow_
 	{
+		uint64_t windowSequence = 0;
 		uint64_t lastPresentQpcOlderThanWindow = 0;
 		pmon::mid::DynamicQueryWindow pollWindow;
 		uint64_t pollTimestampQpc = 0;
-		uint32_t observedViolationFrameCount = 0;
-		uint32_t loggedViolationCount = 0;
 	};
 
 	struct IntegrityTrackingState_
 	{
-		PendingIntegrityGap_ pendingGap;
-		std::optional<uint64_t> newestLoggedViolationPresentQpc;
+		std::deque<PendingIntegrityWindow_> pendingWindows;
+		uint32_t loggedViolationCount = 0;
+		uint64_t nextWindowSequence = 1;
 	};
 
 	// functions
 	pmon::mid::DynamicQueryWindow GenerateQueryWindow_(int64_t nowTimestamp) const;
-	void ValidatePendingIntegrityGaps_(pmon::mid::FrameMetricsSource* frameSource,
+	void ValidatePendingIntegrityWindows_(pmon::mid::FrameMetricsSource* frameSource,
 		uint32_t processId, uint64_t nowTimestamp) const;
 	bool HasZeroCpuFrameTimeAverage_(const uint8_t* pBlobBase) const;
 	// data

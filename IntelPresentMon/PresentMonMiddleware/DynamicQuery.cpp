@@ -172,7 +172,7 @@ bool PM_DYNAMIC_QUERY::HasZeroCpuFrameTimeAverage_(const uint8_t* pBlobBase) con
 	return *pValue == 0.0;
 }
 
-void PM_DYNAMIC_QUERY::ValidatePendingIntegrityGaps_(FrameMetricsSource* frameSource,
+void PM_DYNAMIC_QUERY::ValidatePendingIntegrityWindows_(FrameMetricsSource* frameSource,
 	uint32_t processId, uint64_t nowTimestamp) const
 {
 	if (frameSource == nullptr) {
@@ -180,88 +180,89 @@ void PM_DYNAMIC_QUERY::ValidatePendingIntegrityGaps_(FrameMetricsSource* frameSo
 	}
 
 	for (auto it = swapToIntegrityState_.begin(); it != swapToIntegrityState_.end();) {
+		const uint64_t swapChainAddress = it->first;
 		auto& tracking = it->second;
+		if (tracking.pendingWindows.empty()) {
+			it = swapToIntegrityState_.erase(it);
+			continue;
+		}
 
-		const SwapChainState* pSwapChain = frameSource->FindSwapChainState(it->first);
-		// Skip validation until frame data is available.
+		const SwapChainState* pSwapChain = frameSource->FindSwapChainState(swapChainAddress);
+		// Skip validation until frame data is available for this swap chain.
 		if (pSwapChain == nullptr || pSwapChain->Empty()) {
 			++it;
 			continue;
 		}
 
 		const uint64_t latestPresentQpc = pSwapChain->At(pSwapChain->Size() - 1u).presentStartQpc;
-		auto& gap = tracking.pendingGap;
-		const uint64_t intervalStart = gap.lastPresentQpcOlderThanWindow;
-		const uint64_t intervalEnd = gap.pollWindow.newest;
-		bool retireGap = latestPresentQpc > intervalEnd;
+		while (!tracking.pendingWindows.empty() &&
+			latestPresentQpc > tracking.pendingWindows.front().pollWindow.newest) {
+			const auto pendingWindow = tracking.pendingWindows.front();
+			tracking.pendingWindows.pop_front();
 
-		// Degenerate range: retire stale tracking state.
-		if (intervalStart >= intervalEnd) {
-			pmlog_dbg("degenerate range").pmwatch(intervalStart).pmwatch(intervalEnd);
-			retireGap = true;
-		}
-		else {
-			const uint64_t searchStart = intervalStart + 1u;
-			const uint64_t validationEnd = std::min(intervalEnd, latestPresentQpc);
-			if (validationEnd >= searchStart) {
-				const size_t lateFrameCountRaw = pSwapChain->CountInTimestampRange(searchStart, validationEnd);
-				if (lateFrameCountRaw > gap.observedViolationFrameCount) {
-					const size_t firstLateIndex = pSwapChain->LowerBoundIndex(searchStart);
-					if (firstLateIndex < pSwapChain->Size()) {
-						const uint64_t firstLateQpc = pSwapChain->At(firstLateIndex).presentStartQpc;
-						if (firstLateQpc <= validationEnd) {
-							const size_t lastLateExclusive = pSwapChain->UpperBoundIndex(validationEnd);
-							if (lastLateExclusive != 0u) {
-								const uint64_t newestViolatingPresentQpc = pSwapChain->At(lastLateExclusive - 1u).presentStartQpc;
-								const bool hasNewViolatingFrame = !tracking.newestLoggedViolationPresentQpc.has_value() ||
-									newestViolatingPresentQpc > *tracking.newestLoggedViolationPresentQpc;
-								gap.observedViolationFrameCount = static_cast<uint32_t>(lateFrameCountRaw);
-								if (hasNewViolatingFrame) {
-									// Additional offset needed to place window edge on the first late-arriving frame.
-									const double captureGapMs = double(intervalEnd - firstLateQpc) * qpcPeriodSeconds_ * 1000.0;
-									const double elapsedSinceWindowPollMs = double(int64_t(nowTimestamp) - int64_t(gap.pollTimestampQpc)) * qpcPeriodSeconds_ * 1000.0;
-									const uint32_t lateFrameCount = static_cast<uint32_t>(lateFrameCountRaw);
-									std::string violatingFramesText;
-									violatingFramesText.reserve(static_cast<size_t>(lateFrameCount) * 128u);
-									uint32_t violatingFrameLineNumber = 1u;
-									pSwapChain->ForEachInTimestampRange(searchStart, validationEnd,
-										[&](const util::metrics::FrameMetrics& frame) {
-											const auto qpcDeltaMs = [&](uint64_t referenceQpc, uint64_t sampleQpc) {
-												return double(int64_t(referenceQpc) - int64_t(sampleQpc)) * qpcPeriodSeconds_ * 1000.0;
-											};
-											violatingFramesText += "\n    ";
-											violatingFramesText += std::to_string(violatingFrameLineNumber++);
-											violatingFramesText += ") [" + std::to_string(frame.frameId);
-											violatingFramesText += "] ";
-											violatingFramesText += std::format("pres_then={:.3f}, ", qpcDeltaMs(gap.pollTimestampQpc, frame.presentStartQpc));
-											violatingFramesText += "disp_then=";
-											if (frame.screenTimeQpc == 0u) {
-												violatingFramesText += "NA";
-											}
-											else {
-												violatingFramesText += std::format("{:.3f}", qpcDeltaMs(gap.pollTimestampQpc, frame.screenTimeQpc));
-											}
-										});
-									tracking.newestLoggedViolationPresentQpc = newestViolatingPresentQpc;
-									++gap.loggedViolationCount;
-									pmlog_dbg("Dynamic query stats window integrity violation detected")
-										.pmwatch(processId)
-										.pmwatch(windowOffsetMs_)
-										.pmwatch(captureGapMs)
-										.pmwatch(elapsedSinceWindowPollMs)
-										.pmwatch(lateFrameCount)
-										.pmwatch(gap.loggedViolationCount)
-										.pmwatch(violatingFramesText)
-										.diag();
-								}
-							}
-						}
-					}
-				}
+			const uint64_t intervalStart = pendingWindow.lastPresentQpcOlderThanWindow;
+			const uint64_t intervalEnd = pendingWindow.pollWindow.newest;
+			if (intervalStart >= intervalEnd) {
+				continue;
 			}
+
+			const uint64_t searchStart = intervalStart + 1u;
+			const size_t lateFrameCountRaw = pSwapChain->CountInTimestampRange(searchStart, intervalEnd);
+			if (lateFrameCountRaw == 0u) {
+				continue;
+			}
+
+			const size_t firstLateIndex = pSwapChain->LowerBoundIndex(searchStart);
+			if (firstLateIndex >= pSwapChain->Size()) {
+				continue;
+			}
+
+			const uint64_t firstLateQpc = pSwapChain->At(firstLateIndex).presentStartQpc;
+			if (firstLateQpc > intervalEnd) {
+				continue;
+			}
+
+			// Additional offset needed to place window edge on the first late-arriving frame.
+			const double captureGapMs = double(intervalEnd - firstLateQpc) * qpcPeriodSeconds_ * 1000.0;
+			const double elapsedSinceWindowPollMs = double(int64_t(nowTimestamp) - int64_t(pendingWindow.pollTimestampQpc)) * qpcPeriodSeconds_ * 1000.0;
+			const uint32_t lateFrameCount = static_cast<uint32_t>(lateFrameCountRaw);
+			std::string violatingFramesText;
+			violatingFramesText.reserve(static_cast<size_t>(lateFrameCount) * 128u);
+			uint32_t violatingFrameLineNumber = 1u;
+			pSwapChain->ForEachInTimestampRange(searchStart, intervalEnd,
+				[&](const util::metrics::FrameMetrics& frame) {
+					const auto qpcDeltaMs = [&](uint64_t referenceQpc, uint64_t sampleQpc) {
+						return double(int64_t(referenceQpc) - int64_t(sampleQpc)) * qpcPeriodSeconds_ * 1000.0;
+					};
+					violatingFramesText += "\n    ";
+					violatingFramesText += std::to_string(violatingFrameLineNumber++);
+					violatingFramesText += ") [" + std::to_string(frame.frameId);
+					violatingFramesText += "] ";
+					violatingFramesText += std::format("pres_then={:.3f}, ", qpcDeltaMs(pendingWindow.pollTimestampQpc, frame.presentStartQpc));
+					violatingFramesText += "disp_then=";
+					if (frame.screenTimeQpc == 0u) {
+						violatingFramesText += "NA";
+					}
+					else {
+						violatingFramesText += std::format("{:.3f}", qpcDeltaMs(pendingWindow.pollTimestampQpc, frame.screenTimeQpc));
+					}
+				});
+
+			++tracking.loggedViolationCount;
+			pmlog_dbg("Dynamic query stats window integrity violation detected")
+				.pmwatch(processId)
+				.pmwatch(swapChainAddress)
+				.pmwatch(pendingWindow.windowSequence)
+				.pmwatch(windowOffsetMs_)
+				.pmwatch(captureGapMs)
+				.pmwatch(elapsedSinceWindowPollMs)
+				.pmwatch(lateFrameCount)
+				.pmwatch(tracking.loggedViolationCount)
+				.pmwatch(violatingFramesText)
+				.diag();
 		}
 
-		if (retireGap) {
+		if (tracking.pendingWindows.empty()) {
 			it = swapToIntegrityState_.erase(it);
 		}
 		else {
@@ -280,9 +281,9 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 	const auto window = GenerateQueryWindow_(nowTimestamp);
 	const bool integrityCheckEnabled = util::log::GlobalPolicy::Get().GetLogLevel() >= util::log::Level::Debug;
 
-	// Validate any pending gaps from previous polls before polling this window.
+	// Validate pending windows from previous polls before polling this window.
 	if (integrityCheckEnabled) {
-		ValidatePendingIntegrityGaps_(frameSource, processId, nowTimestamp);
+		ValidatePendingIntegrityWindows_(frameSource, processId, nowTimestamp);
 	}
 
 	std::vector<uint64_t> swapChainAddresses;
@@ -318,16 +319,28 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 
 	auto pollOnce = [&](const SwapChainState* pSwapChain, uint64_t swapChainAddress, uint8_t* pBlob) {
 		if (integrityCheckEnabled && pSwapChain != nullptr && !pSwapChain->Empty()) {
-			// Persist a new pending gap for this poll when the window extends beyond latest known data.
+			// Track every poll window that extends beyond known data for this swap chain.
 			const uint64_t latestPresentQpc = pSwapChain->At(pSwapChain->Size() - 1u).presentStartQpc;
 			if (latestPresentQpc < window.newest) {
-				swapToIntegrityState_.try_emplace(swapChainAddress, IntegrityTrackingState_{
-					.pendingGap = PendingIntegrityGap_{
-						.lastPresentQpcOlderThanWindow = latestPresentQpc,
-						.pollWindow = window,
-						.pollTimestampQpc = nowTimestamp,
-					},
+				const auto trackingIt = swapToIntegrityState_.try_emplace(swapChainAddress).first;
+				auto& tracking = trackingIt->second;
+				const uint64_t windowSequence = tracking.nextWindowSequence++;
+				tracking.pendingWindows.push_back(PendingIntegrityWindow_{
+					.windowSequence = windowSequence,
+					.lastPresentQpcOlderThanWindow = latestPresentQpc,
+					.pollWindow = window,
+					.pollTimestampQpc = nowTimestamp,
 				});
+				pmlog_verb(util::log::V::middleware)("Dynamic query integrity potential violation window opened")
+					.pmwatch(processId)
+					.pmwatch(swapChainAddress)
+					.pmwatch(windowSequence)
+					.pmwatch(nowTimestamp)
+					.pmwatch(window.oldest)
+					.pmwatch(window.newest)
+					.pmwatch(latestPresentQpc)
+					.pmwatch(tracking.pendingWindows.size())
+					.diag();
 			}
 		}
 		for (auto& pRing : ringMetricPtrs_) {
