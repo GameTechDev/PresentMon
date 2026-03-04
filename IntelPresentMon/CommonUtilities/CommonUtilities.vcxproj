@@ -71,6 +71,7 @@
     <ClInclude Include="log\Verbose.h" />
     <ClInclude Include="Macro.h" />
     <ClInclude Include="Math.h" />
+    <ClInclude Include="SampleStatistics.h" />
     <ClInclude Include="mc\FrameMetricsMemberMap.h" />
     <ClInclude Include="mc\MetricsCalculator.h" />
     <ClInclude Include="mc\MetricsCalculatorInternal.h" />

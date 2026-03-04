@@ -75,8 +75,6 @@ public:
 	}
 	void FlushEvents()
 	{
-		// TODO: remove this temporary logging!!
-		pmlog_dbg("Flushing%");
 		pSession_->FlushEvents();
 	}
 	auto GetTestingStatus() const

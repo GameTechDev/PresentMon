@@ -240,6 +240,9 @@
     <ClInclude Include="Math.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SampleStatistics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="win\MessageBox.h">
       <Filter>Header Files</Filter>
     </ClInclude>

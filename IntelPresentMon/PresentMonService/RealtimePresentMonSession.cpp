@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Logging.h"
 #include "RealtimePresentMonSession.h"
@@ -12,6 +12,10 @@
 using namespace pmon;
 using namespace std::literals;
 using v = util::log::V;
+
+namespace {
+    constexpr double kEtwLatencyStatsWindowSeconds = 10.0;
+}
 
 RealtimePresentMonSession::RealtimePresentMonSession(svc::FrameBroadcaster& broadcaster)
 {
@@ -204,6 +208,8 @@ PM_STATUS RealtimePresentMonSession::StartEtwSession() {
         trace_session_.mPMConsumer->mDeferralTimeLimit = trace_session_.mTimestampFrequency.QuadPart * 2;
     }
 
+    ResetFrameLatencyStats_();
+
     // Mark session as active (atomic operation)
     session_active_.store(true, std::memory_order_release);
 
@@ -217,6 +223,7 @@ void RealtimePresentMonSession::StopEtwSession() {
     // PHASE 1: Signal shutdown and wait for threads to observe it
     // this also enforces "only_once" semantics for multiple stop callers
     if (session_active_.exchange(false, std::memory_order_acq_rel)) {
+        ResetFrameLatencyStats_();
 
         // Stop the trace session to stop new events from coming in
         trace_session_.Stop();
@@ -227,7 +234,6 @@ void RealtimePresentMonSession::StopEtwSession() {
 
         // PHASE 2: Safe cleanup after threads have finished
         std::lock_guard<std::mutex> lock(session_mutex_);
-
         evtStreamingStarted_.Reset();
 
         if (pm_consumer_) {
@@ -270,33 +276,7 @@ void RealtimePresentMonSession::AddPresents(
         }
     }
 
-    // logging of ETW latency
-    if (util::log::GlobalPolicy::VCheck(v::etwq)) {
-        pmlog_(util::log::Level::Verbose).note(std::format("Processing [{}] frames", presentEvents.size()));
-        const auto per = util::GetTimestampPeriodSeconds();
-        const auto now = util::GetCurrentTimestamp();
-        for (auto& p : presentEvents) {
-            if (p->PresentStartTime == 0) {
-                pmlog_(util::log::Level::Verbose).note(
-                    std::format("Frame [{}] present lag: n/a (present start time: 0)", p->FrameId));
-                continue;
-            }
-
-            const auto presentLag = util::TimestampDeltaToSeconds(p->PresentStartTime, now, per);
-            if (p->FinalState == PresentResult::Presented && !p->Displayed.empty()) {
-                // TODO: Presents can now have multiple displayed frames if we are tracking
-                // frame types. For now take the first displayed frame for logging stats
-                const auto displayLag = util::TimestampDeltaToSeconds(p->Displayed[0].second, now, per);
-                pmlog_(util::log::Level::Verbose).note(
-                    std::format("Frame [{}] present lag: {} ms, display lag: {} ms",
-                        p->FrameId, presentLag * 1000., displayLag * 1000.));
-            }
-            else {
-                pmlog_(util::log::Level::Verbose).note(
-                    std::format("Frame [{}] present lag: {} ms", p->FrameId, presentLag * 1000.));
-            }
-        }
-    }
+    ProcessEtwLatencyLogging_(presentEvents);
 
     for (auto n = presentEvents.size(); i < n; ++i) {
         auto& presentEvent = presentEvents[i];
@@ -340,6 +320,112 @@ void RealtimePresentMonSession::AddPresents(
     }
 
     *presentEventIndex = i;
+}
+
+void RealtimePresentMonSession::ProcessEtwLatencyLogging_(
+    std::vector<std::shared_ptr<PresentEvent>> const& presentEvents)
+{
+    const auto etwqVerboseEnabled = util::log::GlobalPolicy::VCheck(v::etwq);
+    const auto etwqStatsEnabled = util::log::GlobalPolicy::Get().GetLogLevel() >= util::log::Level::Debug;
+    if (!etwqVerboseEnabled && !etwqStatsEnabled) {
+        return;
+    }
+
+    if (etwqVerboseEnabled) {
+        pmlog_(util::log::Level::Verbose).note(std::format("Processing [{}] frames", presentEvents.size()));
+    }
+
+    const auto periodSeconds = util::GetTimestampPeriodSeconds();
+    const auto now = util::GetCurrentTimestamp();
+
+    if (etwqStatsEnabled && frameLatencyStatsWindowStartQpc_ == 0) {
+        frameLatencyStatsWindowStartQpc_ = now;
+    }
+
+    for (auto& p : presentEvents) {
+        if (p->PresentStartTime == 0) {
+            if (etwqVerboseEnabled) {
+                pmlog_(util::log::Level::Verbose).note(
+                    std::format("Frame [{}] present lag: n/a (present start time: 0)", p->FrameId));
+            }
+            continue;
+        }
+
+        const auto presentLagMs = util::TimestampDeltaToSeconds(p->PresentStartTime, now, periodSeconds) * 1000.0;
+
+        if (etwqVerboseEnabled) {
+            if (p->FinalState == PresentResult::Presented && !p->Displayed.empty()) {
+                // TODO: Presents can now have multiple displayed frames if we are tracking
+                // frame types. For now take the first displayed frame for logging stats.
+                const auto displayLagMs = util::TimestampDeltaToSeconds(p->Displayed[0].second, now, periodSeconds) * 1000.0;
+                pmlog_(util::log::Level::Verbose).note(
+                    std::format("Frame [{}] present lag: {} ms, display lag: {} ms",
+                        p->FrameId, presentLagMs, displayLagMs));
+            }
+            else {
+                pmlog_(util::log::Level::Verbose).note(
+                    std::format("Frame [{}] present lag: {} ms", p->FrameId, presentLagMs));
+            }
+        }
+
+        if (p->FinalState != PresentResult::Presented || p->Displayed.empty()) {
+            continue;
+        }
+
+        // TODO: Presents can now have multiple displayed frames if we are tracking
+        // frame types. For now take the first displayed frame for logging stats.
+        const auto lagMs = util::TimestampDeltaToSeconds(p->Displayed[0].second, now, periodSeconds) * 1000.0;
+
+        if (etwqStatsEnabled) {
+            frameLatencyStatsMs_.AddSample(lagMs);
+        }
+    }
+
+    if (etwqStatsEnabled) {
+        FlushFrameLatencyStatsWindow_(now, periodSeconds);
+    }
+}
+
+void RealtimePresentMonSession::FlushFrameLatencyStatsWindow_(int64_t now, double periodSeconds)
+{
+    if (frameLatencyStatsWindowStartQpc_ == 0) {
+        return;
+    }
+
+    const auto elapsedSeconds = util::TimestampDeltaToSeconds(frameLatencyStatsWindowStartQpc_, now, periodSeconds);
+    if (elapsedSeconds < kEtwLatencyStatsWindowSeconds) {
+        return;
+    }
+
+    frameLatencyStatsMs_.Prepare();
+    const auto count = frameLatencyStatsMs_.GetSampleCount();
+    if (count > 0) {
+        pmlog_(util::log::Level::Debug).note(std::format(
+            "ETW latency stats [{} frames] avg={:.3f} ms min={:.3f} ms p01={:.3f} ms p05={:.3f} ms p10={:.3f} ms p50={:.3f} ms p90={:.3f} ms p95={:.3f} ms p99={:.3f} ms max={:.3f} ms",
+            count,
+            frameLatencyStatsMs_.GetMean(),
+            frameLatencyStatsMs_.GetPercentile(0.00),
+            frameLatencyStatsMs_.GetPercentile(0.01),
+            frameLatencyStatsMs_.GetPercentile(0.05),
+            frameLatencyStatsMs_.GetPercentile(0.10),
+            frameLatencyStatsMs_.GetPercentile(0.50),
+            frameLatencyStatsMs_.GetPercentile(0.90),
+            frameLatencyStatsMs_.GetPercentile(0.95),
+            frameLatencyStatsMs_.GetPercentile(0.99),
+            frameLatencyStatsMs_.GetPercentile(1.00)));
+    }
+    else {
+        pmlog_(util::log::Level::Debug).note("ETW latency stats [0 frames]");
+    }
+
+    frameLatencyStatsMs_.Reset();
+    frameLatencyStatsWindowStartQpc_ = now;
+}
+
+void RealtimePresentMonSession::ResetFrameLatencyStats_()
+{
+    frameLatencyStatsMs_.Reset();
+    frameLatencyStatsWindowStartQpc_ = 0;
 }
 
 void RealtimePresentMonSession::ProcessEvents(

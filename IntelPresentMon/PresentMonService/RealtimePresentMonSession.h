@@ -1,7 +1,8 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "PresentMonSession.h"
+#include "../CommonUtilities/SampleStatistics.h"
 #include "../CommonUtilities/win/Event.h"
 
 class RealtimePresentMonSession : public PresentMonSession
@@ -32,6 +33,10 @@ private:
         std::vector<std::shared_ptr<PresentEvent>> const& presentEvents,
         size_t* presentEventIndex, bool recording, bool checkStopQpc,
         uint64_t stopQpc, bool* hitStopQpc);
+    void ProcessEtwLatencyLogging_(
+        std::vector<std::shared_ptr<PresentEvent>> const& presentEvents);
+    void FlushFrameLatencyStatsWindow_(int64_t now, double periodSeconds);
+    void ResetFrameLatencyStats_();
     void ProcessEvents(
         std::vector<ProcessEvent>* processEvents,
         std::vector<std::shared_ptr<PresentEvent>>* presentEvents,
@@ -65,6 +70,8 @@ private:
 
     // Event for when streaming has started
     pmon::util::win::Event evtStreamingStarted_;
+    pmon::util::SampleStatistics<double> frameLatencyStatsMs_;
+    int64_t frameLatencyStatsWindowStartQpc_ = 0;
 
     mutable std::mutex session_mutex_;
     std::atomic<bool> session_active_{false};  // Lock-free session state for hot path queries
