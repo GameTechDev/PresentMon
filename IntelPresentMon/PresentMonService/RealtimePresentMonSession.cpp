@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Logging.h"
 #include "RealtimePresentMonSession.h"
@@ -131,7 +131,7 @@ void RealtimePresentMonSession::FlushEvents()
 
 void RealtimePresentMonSession::ResetEtwFlushPeriod()
 {
-    etw_flush_period_ms_ = default_realtime_etw_flush_period_ms_;
+    etw_flush_period_ms_ = std::nullopt;
 }
 
 PM_STATUS RealtimePresentMonSession::StartEtwSession() {

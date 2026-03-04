@@ -103,8 +103,7 @@ namespace InterimBroadcasterTests
             Assert::AreEqual(0ull, status.trackedPids.size());
             Assert::AreEqual(0ull, status.frameStorePids.size());
             Assert::AreEqual(16u, status.telemetryPeriodMs);
-            Assert::IsTrue((bool)status.etwFlushPeriodMs);
-            Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+            Assert::IsFalse((bool)status.etwFlushPeriodMs);
         }
         // verify action system can connect
         TEST_METHOD(ActionConnect)

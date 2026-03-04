@@ -71,10 +71,7 @@ protected:
     // Set the initial telemetry period to 16ms
     static constexpr uint32_t default_gpu_telemetry_period_ms_ = 16;
     uint32_t gpu_telemetry_period_ms_ = default_gpu_telemetry_period_ms_;
-    // initial default etw flush period for realtime is 1000ms
-    // realtime trace sessions always manually flush
-    static constexpr uint32_t default_realtime_etw_flush_period_ms_ = 1000;
-    // empty optional means automatic flushing active
+    // empty optional means manual ETW flushing is disabled
     std::atomic<std::optional<uint32_t>> etw_flush_period_ms_;
 
     svc::FrameBroadcaster* pBroadcaster = nullptr;
