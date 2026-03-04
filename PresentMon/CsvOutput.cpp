@@ -148,6 +148,8 @@ void WriteCsvHeader<FrameMetrics1>(FILE* fp)
     fwprintf(fp, L"Application"
                  L",ProcessID"
                  L",SwapChainAddress"
+                 L",VidPnSourceId"
+                 L",LayerIndex"
                  L",Runtime"
                  L",SyncInterval"
                  L",PresentFlags"
@@ -206,10 +208,20 @@ void WriteCsvRow<FrameMetrics1>(
     FrameMetrics1 const& metrics)
 {
     auto const& args = GetCommandLineArgs();
+    uint32_t vidPnSourceId = 0xFFFFFFFF;
+    uint32_t layerIndex = 0xFFFFFFFF;
 
-    fwprintf(fp, L"%s,%d,0x%016llX,%hs,%d,%d,%hs", processInfo.mModuleName.c_str(),
+    if (!p.PresentIds.empty()) {
+        auto pr = p.PresentIds.begin();
+        vidPnSourceId = uint32_t(pr->first >> 32);
+        layerIndex = uint32_t(pr->first & 0xffffffff);
+    }
+
+    fwprintf(fp, L"%s,%d,0x%016llX,%d,%d,%hs,%d,%d,%hs", processInfo.mModuleName.c_str(),
                                                    p.ProcessId,
                                                    p.SwapChainAddress,
+                                                   vidPnSourceId,
+                                                   layerIndex,
                                                    RuntimeToString(p.Runtime),
                                                    p.SyncInterval,
                                                    p.PresentFlags,
