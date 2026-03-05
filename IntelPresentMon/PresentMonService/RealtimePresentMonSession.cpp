@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Logging.h"
 #include "RealtimePresentMonSession.h"
@@ -12,10 +12,6 @@
 using namespace pmon;
 using namespace std::literals;
 using v = util::log::V;
-
-namespace {
-    constexpr double kEtwLatencyStatsWindowSeconds = 10.0;
-}
 
 RealtimePresentMonSession::RealtimePresentMonSession(svc::FrameBroadcaster& broadcaster)
 {
@@ -41,6 +37,9 @@ void RealtimePresentMonSession::StopProvidersAndResetConsumer(bool shrink)
     if (pm_consumer_) {
         pm_consumer_->ResetPresentTrackingData(shrink);
     }
+
+    ResetFrameLatencyStats_();
+    trace_session_.ResetEtwEventLatencyStats();
 
     evtStreamingStarted_.Reset();
 }
@@ -209,6 +208,7 @@ PM_STATUS RealtimePresentMonSession::StartEtwSession() {
     }
 
     ResetFrameLatencyStats_();
+    trace_session_.ResetEtwEventLatencyStats();
 
     // Mark session as active (atomic operation)
     session_active_.store(true, std::memory_order_release);
@@ -231,6 +231,7 @@ void RealtimePresentMonSession::StopEtwSession() {
         // Wait for threads to exit their critical sections and finish
         WaitForConsumerThreadToExit();
         StopOutputThread();
+        trace_session_.ResetEtwEventLatencyStats();
 
         // PHASE 2: Safe cleanup after threads have finished
         std::lock_guard<std::mutex> lock(session_mutex_);
@@ -337,7 +338,6 @@ void RealtimePresentMonSession::ProcessEtwLatencyLogging_(
 
     const auto periodSeconds = util::GetTimestampPeriodSeconds();
     const auto now = util::GetCurrentTimestamp();
-
     if (etwqStatsEnabled && frameLatencyStatsWindowStartQpc_ == 0) {
         frameLatencyStatsWindowStartQpc_ = now;
     }
@@ -385,7 +385,7 @@ void RealtimePresentMonSession::FlushFrameLatencyStatsWindow_(int64_t now, doubl
     }
 
     const auto elapsedSeconds = util::TimestampDeltaToSeconds(frameLatencyStatsWindowStartQpc_, now, periodSeconds);
-    if (elapsedSeconds < kEtwLatencyStatsWindowSeconds) {
+    if (elapsedSeconds < 10.0) {
         return;
     }
 
@@ -393,7 +393,7 @@ void RealtimePresentMonSession::FlushFrameLatencyStatsWindow_(int64_t now, doubl
     const auto count = frameLatencyStatsMs_.GetSampleCount();
     if (count > 0) {
         pmlog_(util::log::Level::Debug).note(std::format(
-            "ETW latency stats [{} frames] avg={:.3f} ms min={:.3f} ms p01={:.3f} ms p05={:.3f} ms p10={:.3f} ms p50={:.3f} ms p90={:.3f} ms p95={:.3f} ms p99={:.3f} ms max={:.3f} ms",
+            "ETW frame latency stats [{} frames] avg={:.3f} ms min={:.3f} ms p01={:.3f} ms p05={:.3f} ms p10={:.3f} ms p50={:.3f} ms p90={:.3f} ms p95={:.3f} ms p99={:.3f} ms max={:.3f} ms",
             count,
             frameLatencyStatsMs_.GetMean(),
             frameLatencyStatsMs_.GetPercentile(0.00),

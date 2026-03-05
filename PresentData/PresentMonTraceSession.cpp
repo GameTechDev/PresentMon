@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -20,9 +20,9 @@
 #include "ETW/Intel_PresentMon.h"
 #include "ETW/NV_DD.h"
 #include "ETW/Nvidia_PCL.h"
+#include <format>
 
 namespace {
-
 struct TraceProperties : public EVENT_TRACE_PROPERTIES {
     wchar_t mSessionName[MAX_PATH];
 };
@@ -303,6 +303,10 @@ void CALLBACK EventRecordCallback(EVENT_RECORD* pEventRecord)
         return;
     }
 
+    if constexpr (IS_REALTIME_SESSION) {
+        session->ProcessEtwEventLatencyStats(hdr.TimeStamp.QuadPart);
+    }
+
     if constexpr (!IS_REALTIME_SESSION) {
         if (session->mStartTimestamp.QuadPart == 0) {
             session->mStartTimestamp = hdr.TimeStamp;
@@ -473,6 +477,7 @@ ULONG PMTraceSession::Start(
     mStartTimestamp.QuadPart = 0;
     mContinueProcessingBuffers = TRUE;
     mIsRealtimeSession = etlPath == nullptr;
+    ResetEtwEventLatencyStats();
     mPMConsumer->mIsRealtimeSession = mIsRealtimeSession;
 
     // If we're not reading an ETL, start a realtime trace session with the
@@ -705,6 +710,70 @@ bool PMTraceSession::QueryEtwStatus(EtwStatus* status) const
     }
 
     return true;
+}
+
+void PMTraceSession::ProcessEtwEventLatencyStats(uint64_t eventQpcTimestamp)
+{
+    const auto statsEnabled = pmon::util::log::GlobalPolicy::Get().GetLogLevel() >= pmon::util::log::Level::Debug;
+    if (!statsEnabled) {
+        if (mEtwEventLatencyStatsWindowStartQpc != 0) {
+            ResetEtwEventLatencyStats();
+        }
+        return;
+    }
+
+    if (eventQpcTimestamp == 0) {
+        return;
+    }
+
+    const auto now = pmon::util::GetCurrentTimestamp();
+    if (mEtwEventLatencyStatsWindowStartQpc == 0) {
+        mEtwEventLatencyStatsWindowStartQpc = now;
+    }
+
+    const auto periodSeconds = pmon::util::GetTimestampPeriodSeconds();
+    const auto eventLagMs = pmon::util::TimestampDeltaToSeconds(
+        static_cast<int64_t>(eventQpcTimestamp),
+        now,
+        periodSeconds) * 1000.0;
+    mEtwEventLatencyStatsMs.AddSample(eventLagMs);
+
+    const auto elapsedSeconds = pmon::util::TimestampDeltaToSeconds(
+        mEtwEventLatencyStatsWindowStartQpc,
+        now,
+        periodSeconds);
+    if (elapsedSeconds < 10.0) {
+        return;
+    }
+
+    mEtwEventLatencyStatsMs.Prepare();
+    const auto count = mEtwEventLatencyStatsMs.GetSampleCount();
+    if (count > 0) {
+        pmlog_(pmon::util::log::Level::Debug).note(std::format(
+            "ETW event latency stats [{} events] avg={:.3f} ms min={:.3f} ms p01={:.3f} ms p05={:.3f} ms p10={:.3f} ms p50={:.3f} ms p90={:.3f} ms p95={:.3f} ms p99={:.3f} ms max={:.3f} ms",
+            count,
+            mEtwEventLatencyStatsMs.GetMean(),
+            mEtwEventLatencyStatsMs.GetPercentile(0.00),
+            mEtwEventLatencyStatsMs.GetPercentile(0.01),
+            mEtwEventLatencyStatsMs.GetPercentile(0.05),
+            mEtwEventLatencyStatsMs.GetPercentile(0.10),
+            mEtwEventLatencyStatsMs.GetPercentile(0.50),
+            mEtwEventLatencyStatsMs.GetPercentile(0.90),
+            mEtwEventLatencyStatsMs.GetPercentile(0.95),
+            mEtwEventLatencyStatsMs.GetPercentile(0.99),
+            mEtwEventLatencyStatsMs.GetPercentile(1.00)));
+    } else {
+        pmlog_(pmon::util::log::Level::Debug).note("ETW event latency stats [0 events]");
+    }
+
+    mEtwEventLatencyStatsMs.Reset();
+    mEtwEventLatencyStatsWindowStartQpc = now;
+}
+
+void PMTraceSession::ResetEtwEventLatencyStats()
+{
+    mEtwEventLatencyStatsMs.Reset();
+    mEtwEventLatencyStatsWindowStartQpc = 0;
 }
 
 ULONG PMTraceSession::StartProviders()
