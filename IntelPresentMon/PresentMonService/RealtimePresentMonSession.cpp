@@ -368,16 +368,8 @@ void RealtimePresentMonSession::ProcessEtwLatencyLogging_(
             }
         }
 
-        if (p->FinalState != PresentResult::Presented || p->Displayed.empty()) {
-            continue;
-        }
-
-        // TODO: Presents can now have multiple displayed frames if we are tracking
-        // frame types. For now take the first displayed frame for logging stats.
-        const auto lagMs = util::TimestampDeltaToSeconds(p->Displayed[0].second, now, periodSeconds) * 1000.0;
-
         if (etwqStatsEnabled) {
-            frameLatencyStatsMs_.AddSample(lagMs);
+            frameLatencyStatsMs_.AddSample(presentLagMs);
         }
     }
 
