@@ -13,12 +13,22 @@
 #include <sstream>
 #include <cstdint>
 #include <chrono>
+#include <cassert>
+#include <cstring>
 
 using namespace pmon;
 using namespace mid;
 
 namespace
 {
+	constexpr uint64_t kFrameMetricCacheValueMaxSize_ = sizeof(uint64_t);
+	static_assert(sizeof(double) <= kFrameMetricCacheValueMaxSize_);
+	static_assert(sizeof(int32_t) <= kFrameMetricCacheValueMaxSize_);
+	static_assert(sizeof(uint32_t) <= kFrameMetricCacheValueMaxSize_);
+	static_assert(sizeof(uint64_t) <= kFrameMetricCacheValueMaxSize_);
+	static_assert(sizeof(bool) <= kFrameMetricCacheValueMaxSize_);
+	static_assert(sizeof(int) <= kFrameMetricCacheValueMaxSize_);
+
 	struct TelemetryBindingKey_
 	{
 		uint32_t deviceId;
@@ -133,6 +143,7 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 		const auto metricView = introRoot.FindMetric(qel.metric);
 		const auto metricType = metricView.GetType();
 		const bool isStaticMetric = metricType == PM_METRIC_TYPE_STATIC;
+		const bool isFrameMetric = !isStaticMetric && qel.deviceId == ipc::kUniversalDeviceId;
 		if (isStaticMetric) {
 			auto bindingPtr = MakeStaticMetricBinding(qel, middleware);
 			binding = bindingPtr.get();
@@ -167,6 +178,20 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 		qel.dataOffset = blobCursor;
 		binding->AddMetricStat(qel, introRoot);
 		blobCursor = qel.dataOffset + qel.dataSize;
+		if (isFrameMetric) {
+			assert(qel.dataSize <= kFrameMetricCacheValueMaxSize_);
+			if (qel.dataSize > kFrameMetricCacheValueMaxSize_) {
+				pmlog_warn("Frame metric cache registration skipped due to unsupported value size")
+					.pmwatch(qel.dataSize)
+					.diag();
+			}
+			else {
+				frameMetricCacheEntries_.push_back(FrameMetricCacheEntry_{
+					.dataOffset = qel.dataOffset,
+					.dataSize = static_cast<uint8_t>(qel.dataSize),
+				});
+			}
+		}
 		if (!frameTimeOrFpsOffset_.has_value() &&
 			IsFrameTimeOrFpsMetric_(qel.metric) &&
 			qel.dataSize == sizeof(double)) {
@@ -209,6 +234,34 @@ bool PM_DYNAMIC_QUERY::HasZeroTrackedFrameTimeOrFpsValue_(const uint8_t* pBlobBa
 
 	const auto* pValue = reinterpret_cast<const double*>(pBlobBase + *frameTimeOrFpsOffset_);
 	return *pValue == 0.0;
+}
+
+void PM_DYNAMIC_QUERY::UpdateFrameMetricCache_(const uint8_t* pBlobBase) const
+{
+	if (pBlobBase == nullptr) {
+		return;
+	}
+
+	for (auto& entry : frameMetricCacheEntries_) {
+		if (entry.dataSize == 0u) {
+			continue;
+		}
+		std::memcpy(entry.bytes.data(), pBlobBase + entry.dataOffset, size_t(entry.dataSize));
+	}
+}
+
+void PM_DYNAMIC_QUERY::PopulateFrameMetricCache_(uint8_t* pBlobBase) const
+{
+	if (pBlobBase == nullptr) {
+		return;
+	}
+
+	for (const auto& entry : frameMetricCacheEntries_) {
+		if (entry.dataSize == 0u) {
+			continue;
+		}
+		std::memcpy(pBlobBase + entry.dataOffset, entry.bytes.data(), size_t(entry.dataSize));
+	}
 }
 
 void PM_DYNAMIC_QUERY::ValidatePendingIntegrityWindows_(FrameMetricsSource* frameSource,
@@ -372,6 +425,8 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 	};
 
 	auto pollOnce = [&](const SwapChainState* pSwapChain, uint64_t swapChainAddress, uint8_t* pBlob) {
+		const bool hasFrameSamples = pSwapChain != nullptr &&
+			pSwapChain->CountInTimestampRange(window.oldest, window.newest) > 0;
 		if (integrityCheckEnabled && pSwapChain != nullptr && !pSwapChain->Empty()) {
 			// Track every poll window that extends beyond known data for this swap chain.
 			const uint64_t latestPresentQpc = pSwapChain->At(pSwapChain->Size() - 1u).presentStartQpc;
@@ -399,6 +454,12 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 		}
 		for (auto& pRing : ringMetricPtrs_) {
 			pRing->Poll(window, pBlob, comms, pSwapChain, processId);
+		}
+		if (hasFrameSamples) {
+			UpdateFrameMetricCache_(pBlob);
+		}
+		else {
+			PopulateFrameMetricCache_(pBlob);
 		}
 		if (snapshotDumpEnabled && frameTimeOrFpsOffset_.has_value() &&
 			HasZeroTrackedFrameTimeOrFpsValue_(pBlob)) {

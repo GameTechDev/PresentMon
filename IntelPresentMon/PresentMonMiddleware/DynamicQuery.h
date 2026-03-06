@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <array>
 #include <vector>
 #include <bitset>
 #include <map>
@@ -50,14 +51,24 @@ private:
 		uint64_t nextWindowSequence = 1;
 	};
 
+	struct FrameMetricCacheEntry_
+	{
+		uint64_t dataOffset = 0;
+		uint8_t dataSize = 0;
+		std::array<uint8_t, sizeof(uint64_t)> bytes{};
+	};
+
 	// functions
 	pmon::mid::DynamicQueryWindow GenerateQueryWindow_(int64_t nowTimestamp) const;
 	void ValidatePendingIntegrityWindows_(pmon::mid::FrameMetricsSource* frameSource,
 		pmon::ipc::MiddlewareComms& comms,
 		uint32_t processId, uint64_t nowTimestamp) const;
 	bool HasZeroTrackedFrameTimeOrFpsValue_(const uint8_t* pBlobBase) const;
+	void UpdateFrameMetricCache_(const uint8_t* pBlobBase) const;
+	void PopulateFrameMetricCache_(uint8_t* pBlobBase) const;
 	// data
 	std::vector<std::unique_ptr<pmon::mid::MetricBinding>> ringMetricPtrs_;
+	mutable std::vector<FrameMetricCacheEntry_> frameMetricCacheEntries_;
 	std::optional<size_t> frameTimeOrFpsOffset_;
 	size_t blobSize_;
 	bool hasFrameMetrics_ = false;
