@@ -1,4 +1,4 @@
-#include "LinePolicy.h"
+﻿#include "LinePolicy.h"
 #include "Entry.h"
 #include "LineTable.h"
 #include <format>
@@ -40,8 +40,17 @@ namespace pmon::util::log
 			case Entry::RateControl::Type::EveryAndFirst:
 				if ((e.hitCount_ - 1) % e.rateControl_.parameter) return false;
 				break;
+			case Entry::RateControl::Type::EveryDuration:
+				if (!te.CheckTimeThrottle(e.rateControl_.duration, false)) return false;
+				break;
+			case Entry::RateControl::Type::EveryDurationAndFirst:
+				if (!te.CheckTimeThrottle(e.rateControl_.duration, true)) return false;
+				break;
 			case Entry::RateControl::Type::First:
 				if (e.hitCount_ > e.rateControl_.parameter) return false;
+				break;
+			case Entry::RateControl::Type::Hitcount:
+			case Entry::RateControl::Type::None:
 				break;
 			}
 		}

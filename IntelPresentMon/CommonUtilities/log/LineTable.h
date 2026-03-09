@@ -1,6 +1,8 @@
-#pragma once
+﻿#pragma once
 #include <chrono>
 #include <atomic>
+#include <cstdint>
+#include <limits>
 #include <shared_mutex>
 #include <unordered_map>
 
@@ -27,11 +29,35 @@ namespace pmon::util::log
 			{
 				return ++hitCount_;
 			}
+			bool CheckTimeThrottle(std::chrono::nanoseconds duration, bool includeFirst)
+			{
+				using Clock = std::chrono::steady_clock;
+				const auto nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+					Clock::now().time_since_epoch()).count();
+
+				auto lastPassNs = lastPassTimestampNs_.load(std::memory_order_relaxed);
+				if (lastPassNs == kUninitializedTimestampNs_) {
+					if (lastPassTimestampNs_.compare_exchange_strong(lastPassNs, nowNs, std::memory_order_relaxed)) {
+						return includeFirst;
+					}
+				}
+
+				while (true) {
+					if ((nowNs - lastPassNs) < duration.count()) {
+						return false;
+					}
+					if (lastPassTimestampNs_.compare_exchange_weak(lastPassNs, nowNs, std::memory_order_relaxed)) {
+						return true;
+					}
+				}
+			}
 			uint32_t PeekHit() const
 			{
 				return hitCount_;
 			}
+			static constexpr int64_t kUninitializedTimestampNs_ = std::numeric_limits<int64_t>::min();
 			std::atomic<uint32_t> hitCount_ = 0;
+			std::atomic<int64_t> lastPassTimestampNs_ = kUninitializedTimestampNs_;
 			bool isListed_ = false;
 			TraceOverride traceOverride_ = TraceOverride::None;
 		};

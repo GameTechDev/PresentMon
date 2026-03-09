@@ -5,11 +5,27 @@
 #include <chrono>
 #include <thread>
 #include "objbase.h"
+#include <shellapi.h>
 
 #pragma comment(lib, "ole32.lib")
 
 namespace pmon::util::win
 {
+	namespace
+	{
+		HRESULT ShellExecuteCodeToHr_(INT_PTR code)
+		{
+			if (code == 0) {
+				return E_OUTOFMEMORY;
+			}
+			if (code > 0 && code <= 32) {
+				return HRESULT_FROM_WIN32((DWORD)code);
+			}
+			const auto err = GetLastError();
+			return err ? HRESULT_FROM_WIN32(err) : E_FAIL;
+		}
+	}
+
 	std::string GetErrorDescription(HRESULT hr) noexcept
 	{
 		try {
@@ -166,5 +182,13 @@ namespace pmon::util::win
 		wchar_t buf[64];
 		int len = StringFromGUID2(guid, buf, 64);
 		return std::wstring(buf, len > 0 ? len - 1 : 0); // drop trailing null
+	}
+
+	void ExplorePath(const std::filesystem::path& path)
+	{
+		const auto result = (INT_PTR)ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWDEFAULT);
+		if (result <= 32) {
+			throw Except<HrError>(ShellExecuteCodeToHr_(result), "failed to open file system path in shell");
+		}
 	}
 }

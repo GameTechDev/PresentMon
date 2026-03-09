@@ -118,6 +118,7 @@ namespace pmon::util::metrics
             : qpc.DurationMilliSeconds(present.presentStartTime - present.inputTime);
 
         // Copy metadata
+        out.frameId = present.frameId;
         out.swapChainAddress = present.swapChainAddress;
         out.runtime = present.runtime;
         out.syncInterval = present.syncInterval;

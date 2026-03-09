@@ -25,7 +25,7 @@ namespace p2c::cli
 		Option<std::string> etwSessionName{ this, "--etw-session-name", "pm-child-etw-session", "ETW session name when lauching service as child" };
 		Flag svcAsChild{ this, "--svc-as-child", "Launch service as child console app" };
 		Flag traceExceptions{ this, "--trace-exceptions", "Add stack trace to all thrown exceptions (including SEH exceptions)" };
-		Flag enableDiagnostic{ this, "--enable-diagnostic", "Enable debug diagnostic layer forwarding (duplicates exiisting log entries)" };
+		Flag enableDiagnostic{ this, "--enable-diagnostic", "Enable diagnostics output (debugger only) and disable normal debugger log output" };
 		Flag filesWorking{ this, "--files-working", "Use the working directory for file storage" };
 		Flag waitForDebugger{ this, "--wait-for-debugger", "On entry wait for debugger to be attached, then break" };
 
@@ -38,6 +38,8 @@ namespace p2c::cli
 		Option<std::string> logSvcPipe{ this, "--log-svc-pipe", ::pmon::gid::defaultLogPipeBaseName, "Base name of pipe to use when connecting to service IPC log" };
 		Flag logSvcPipeEnable{ this, "--log-svc-pipe-enable", "Enable pipe connection to service IPC log stream" };
 		Flag logMiddlewareCopy{ this, "--log-middleware-copy", "Copy log entries from middleware channel to this client" };
+		Flag logSynchronous{ this, "--log-synchronous", "Enable synchronous logging (submit waits for processing and flush)" };
+		Flag logFlushOnCrash{ this, "--log-flush-on-crash", "Install best-effort crash/terminate log flush hooks" };
 		Option<std::vector<log::V>> logVerboseModules{ this, "--log-verbose-modules", {}, "Verbose logging modules to enable", logVmodTf_ };
 
 	private: Group gu_{ this, "CEF UI", "Options to pass thru to the CEF UI system" }; public:
@@ -65,6 +67,14 @@ namespace p2c::cli
 		Flag listFilterFrame{ this, "--filter-frame,-f", "Filter to only metrics available for use with frame event capture" };
 		Flag listFilterDynamic{ this, "--filter-dynamic,-y", "Filter to only metrics available for use with dynamic polling" };
 		Option<std::string> listSearch{ this, "--search", {}, "Substring to filter metric results on (case-insensitive)" };
+
+	Subcommand subcShow{ this, "show", "Show static CLI diagnostic information" }; public:
+	private: Group gshows_{ this, "Standard", "Standard options for the show subcommand" }; public:
+		Flag showLogFolder{ this, "--log-folder", "Open the default appdata log folder in Explorer" };
+		Flag showVerboseModules{ this, "--verbose-modules", "List names of all verbose modules" };
+		Option<std::vector<std::string>> showVerboseBitset{ this, "--verbose-bitset", {}, "Compute ORed module-bitset hex value for given module names", [](CLI::Option* pOption) {
+			pOption->expected(1, -1);
+		} };
 	
 
 		static constexpr const char* description = "PresentMon performance overlay and trace capture application";

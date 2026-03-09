@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "SchemeHandlerFactory.h"
 #include "SchemeFileHandler.h"
+#include <Core/source/infra/util/FolderResolver.h>
 #include <include/cef_parser.h>
 #include <format>
 #include "util/Logging.h"
@@ -12,12 +13,11 @@
 #define IS_DEBUG true
 #endif
 
-
 namespace p2c::client::cef
 {
     SchemeHandlerFactory::SchemeHandlerFactory(SchemeMode mode, bool hardFail, std::string localHost, std::string localPort, std::string webRoot)
         :
-        baseDir_{ std::filesystem::current_path() / "ipm-ui-vue\\" },
+        baseDir_{ infra::util::FolderResolver::ResolveInstallPath() / "ipm-ui-vue" },
         mode_{ mode },
         hardFail_{ hardFail },
         localHost_{ std::move(localHost) },
