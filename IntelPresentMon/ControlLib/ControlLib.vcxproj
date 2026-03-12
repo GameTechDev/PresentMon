@@ -132,6 +132,9 @@
     <ClInclude Include="PresentMonPowerTelemetry.h" />
     <ClInclude Include="PowerTelemetryProviderFactory.h" />
     <ClInclude Include="SignatureComparison.h" />
+    <ClInclude Include="TelemetryCoordinator.h" />
+    <ClInclude Include="TelemetryDeviceFingerprint.h" />
+    <ClInclude Include="TelemetryProvider.h" />
     <ClInclude Include="WmiCpu.h" />
   </ItemGroup>
   <ItemGroup>
@@ -150,9 +153,14 @@
     <ClCompile Include="SignatureComparison.cpp" />
     <ClCompile Include="AmdPowerTelemetryProvider.cpp" />
     <ClCompile Include="CpuTelemetry.cpp" />
+    <ClCompile Include="TelemetryCoordinator.cpp" />
+    <ClCompile Include="TelemetryDeviceFingerprint.cpp" />
     <ClCompile Include="WmiCpu.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Interprocess\Interprocess.vcxproj">
+      <Project>{ca23d648-daef-4f06-81d5-fe619bd31f0b}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\PresentMonUtils\PresentMonUtils.vcxproj" Condition="Exists('..\PresentMonUtils\PresentMonUtils.vcxproj')">
       <Project>{66e9f6c5-28db-4218-81b9-31e0e146ecc0}</Project>
     </ProjectReference>
