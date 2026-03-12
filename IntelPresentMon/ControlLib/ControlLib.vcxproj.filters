@@ -78,6 +78,9 @@
     <ClInclude Include="IgclErrorCodeProvider.h">
       <Filter>Intel</Filter>
     </ClInclude>
+    <ClInclude Include="TelemetryCoordinator.h" />
+    <ClInclude Include="TelemetryDeviceFingerprint.h" />
+    <ClInclude Include="TelemetryProvider.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="NvapiWrapper.cpp">
@@ -122,5 +125,7 @@
     <ClCompile Include="IgclErrorCodeProvider.cpp">
       <Filter>Intel</Filter>
     </ClCompile>
+    <ClCompile Include="TelemetryCoordinator.cpp" />
+    <ClCompile Include="TelemetryDeviceFingerprint.cpp" />
   </ItemGroup>
 </Project>

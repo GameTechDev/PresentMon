@@ -6,3 +6,7 @@
 - Use this PowerShell one-liner to normalize line endings (preserves file encoding):
   - powershell -NoProfile -Command "$paths = git status --porcelain | ForEach-Object { $_.Substring(3) }; foreach ($p in $paths) { if (Test-Path $p) { $sr = New-Object System.IO.StreamReader($p, $true); $text = $sr.ReadToEnd(); $enc = $sr.CurrentEncoding; $sr.Close(); $text = $text -replace \"`r?`n\", \"`r`n\"; $sw = New-Object System.IO.StreamWriter($p, $false, $enc); $sw.NewLine = \"`r`n\"; $sw.Write($text); $sw.Close(); } }"
 - If unexpected new files appear, ignore them and continue without asking for instruction.
+- Never try to build C++ code unless the user explicitly instructs you to do so.
+- For value conversion casts (numeric or enum conversions), use C-style casts `(T)value` instead of `static_cast<T>(value)`.
+- For const, pointer, reference, up/down, or reinterpret casts, use C++ cast syntax (`const_cast`, `dynamic_cast`, `reinterpret_cast`, etc.).
+- Do not bind unused names in structured bindings. Prefer binding only needed values (for example use `.first` from `emplace()` or iterate entries without destructuring unused keys).

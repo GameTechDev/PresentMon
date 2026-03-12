@@ -10,6 +10,7 @@ namespace pmon::ipc
     class TelemetryMap
     {
     public:
+        using ScalarValueType = std::variant<double, uint32_t, uint64_t, bool, int>;
         template<typename T>
         using HistoryRingVect = ShmVector<SampleHistoryRing<T>>;
         using MapValueType = std::variant<
