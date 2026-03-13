@@ -6,6 +6,7 @@
 #include "Logging.h"
 #include "igcl/IgclTelemetryProvider.h"
 #include "nvapi/NvapiTelemetryProvider.h"
+#include "nvml/NvmlTelemetryProvider.h"
 #include "../CommonUtilities/Exception.h"
 #include "../CommonUtilities/Qpc.h"
 #include "../Interprocess/source/Interprocess.h"
@@ -284,6 +285,16 @@ namespace pmon::tel
         }
         catch (...) {
             pmlog_error(util::ReportException("NVAPI telemetry provider construction failed"));
+        }
+
+        try {
+            providerPtrs_.push_back(std::make_shared<nvml::NvmlTelemetryProvider>());
+        }
+        catch (const TelemetrySubsystemAbsent&) {
+            pmlog_warn(util::ReportException("NVML telemetry provider unavailable"));
+        }
+        catch (...) {
+            pmlog_error(util::ReportException("NVML telemetry provider construction failed"));
         }
     }
 

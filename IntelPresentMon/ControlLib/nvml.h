@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 
@@ -95,6 +95,7 @@ union nvmlValue_t {
 // Opaque nvml device handle
 typedef struct _nvmlDevice_t* nvmlDevice_t;
 
+#define NVML_DEVICE_NAME_BUFFER_SIZE 64
 #define NVML_DEVICE_PCI_BUS_ID_BUFFER_SIZE 32
 #define NVML_DEVICE_PCI_BUS_ID_BUFFER_V2_SIZE 16
 

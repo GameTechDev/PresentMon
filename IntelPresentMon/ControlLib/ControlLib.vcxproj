@@ -123,6 +123,7 @@
     <ClInclude Include="nvapi.h" />
     <ClInclude Include="NvapiWrapper.h" />
     <ClInclude Include="nvapi\NvapiTelemetryProvider.h" />
+    <ClInclude Include="nvml\NvmlTelemetryProvider.h" />
     <ClInclude Include="nvapi_interface_table.h" />
     <ClInclude Include="NvidiaPowerTelemetryAdapter.h" />
     <ClInclude Include="NvidiaPowerTelemetryProvider.h" />
@@ -154,6 +155,7 @@
     <ClCompile Include="igcl\IgclTelemetryProvider.cpp" />
     <ClCompile Include="NvapiWrapper.cpp" />
     <ClCompile Include="nvapi\NvapiTelemetryProvider.cpp" />
+    <ClCompile Include="nvml\NvmlTelemetryProvider.cpp" />
     <ClCompile Include="NvidiaPowerTelemetryAdapter.cpp" />
     <ClCompile Include="NvidiaPowerTelemetryProvider.cpp" />
     <ClCompile Include="NvmlWrapper.cpp" />
