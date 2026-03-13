@@ -6834,7 +6834,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // - P2 (displayed, no own click) uses the stored click from P1
             //
             // Expected:
-            // - P1: msClickToPhotonLatency == nullopt
+            // - P1: msClickToPhotonLatency is missing (stored internally as NaN)
             // - After P1: state.lastReceivedNotDisplayedMouseClickTime == 400'000
             // - P2: msClickToPhotonLatency uses stored click (400'000 -> 1'000'000)
             // - After P2: state.lastReceivedNotDisplayedMouseClickTime == 0 (consumed)
@@ -6872,8 +6872,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Assertions for P1
             Assert::AreEqual(size_t(1), p1_results.size());
-            Assert::IsFalse(HasMetricValue(p1_results[0].metrics.msClickToPhotonLatency),
-                L"P1 (dropped) should not have msClickToPhotonLatency");
+            Assert::IsTrue(IsMissingFrameMetricValue(p1_results[0].metrics.msClickToPhotonLatency),
+                L"P1 (dropped) should store missing click-to-photon as NaN");
             Assert::AreEqual(uint64_t(400'000), state.lastReceivedNotDisplayedMouseClickTime,
                 L"P1's click should be stored as pending");
 
@@ -6909,8 +6909,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // - P3 (displayed, no own input) uses the last stored input (450'000)
             //
             // Expected:
-            // - P1: msAllInputPhotonLatency == nullopt, state stores 300'000
-            // - P2: msAllInputPhotonLatency == nullopt, state updates to 450'000
+            // - P1: msAllInputPhotonLatency is missing (stored internally as NaN), state stores 300'000
+            // - P2: msAllInputPhotonLatency is missing (stored internally as NaN), state updates to 450'000
             // - P3: msAllInputPhotonLatency uses 450'000 (last wins)
 
             QpcConverter qpc(10'000'000, 0);
@@ -6953,16 +6953,16 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // P1 arrives (dropped)
             auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
             Assert::AreEqual(size_t(1), p1_results.size());
-            Assert::IsFalse(HasMetricValue(p1_results[0].metrics.msAllInputPhotonLatency),
-                L"P1 (dropped) should not have msAllInputPhotonLatency");
+            Assert::IsTrue(IsMissingFrameMetricValue(p1_results[0].metrics.msAllInputPhotonLatency),
+                L"P1 (dropped) should store missing all-input-to-photon as NaN");
             Assert::AreEqual(uint64_t(300'000), state.lastReceivedNotDisplayedAllInputTime,
                 L"P1's input should be stored");
 
             // P2 arrives (dropped, overrides P1)
             auto p2_results = ComputeMetricsForPresent(qpc, p2, nullptr, state);
             Assert::AreEqual(size_t(1), p2_results.size());
-            Assert::IsFalse(HasMetricValue(p2_results[0].metrics.msAllInputPhotonLatency),
-                L"P2 (dropped) should not have msAllInputPhotonLatency");
+            Assert::IsTrue(IsMissingFrameMetricValue(p2_results[0].metrics.msAllInputPhotonLatency),
+                L"P2 (dropped) should store missing all-input-to-photon as NaN");
             Assert::AreEqual(uint64_t(450'000), state.lastReceivedNotDisplayedAllInputTime,
                 L"P2's input should override P1's stored input (last wins)");
 
@@ -8731,6 +8731,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
             Assert::AreEqual(size_t(1), p0_results.size());
+            Assert::IsTrue(IsMissingFrameMetricValue(p0_results[0].metrics.msInstrumentedInputTime),
+                L"Dropped provider input should remain missing until a displayed frame consumes it.");
             Assert::AreEqual(pendingInputTime, chain.lastReceivedNotDisplayedAppProviderInputTime,
                 L"Dropped provider input should be cached until a displayed frame consumes it.");
 
@@ -8831,7 +8833,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             //   - P1 is the next displayed Application frame (screenTime = 80'000) without its own sample.
             //   - P2 finalizes P1.
             //
-            // QPC expectation: since no pending sample exists, msInstrumentedInputTime for P1 must be nullopt.
+            // QPC expectation: since no pending sample exists, msInstrumentedInputTime for P1 must be missing (NaN).
             //
             // Call pattern: Case 2/3 for both P0 and P1 (since both are displayed frames).
             //
@@ -8871,8 +8873,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, chain);
             Assert::AreEqual(size_t(1), p1_final.size());
             const auto& m1 = p1_final[0].metrics;
-            Assert::IsFalse(HasMetricValue(m1.msInstrumentedInputTime),
-                L"P1 should not report instrumented input latency because no app-frame pending sample existed.");
+            Assert::IsTrue(IsMissingFrameMetricValue(m1.msInstrumentedInputTime),
+                L"P1 should report missing instrumented input latency as NaN when no app-frame sample exists.");
 
             auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, chain);
             Assert::AreEqual(size_t(0), p2_phase1.size());
