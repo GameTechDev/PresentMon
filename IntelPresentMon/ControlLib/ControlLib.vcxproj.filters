@@ -81,7 +81,7 @@
     <ClInclude Include="TelemetryCoordinator.h" />
     <ClInclude Include="TelemetryDeviceFingerprint.h" />
     <ClInclude Include="TelemetryProvider.h" />
-    <ClInclude Include="TelemetryCache.h" />
+    <ClInclude Include="EndpointCache.h" />
     <ClInclude Include="igcl\IgclTelemetryProvider.h">
       <Filter>Intel</Filter>
     </ClInclude>

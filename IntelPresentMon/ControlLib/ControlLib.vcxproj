@@ -130,7 +130,7 @@
     <ClInclude Include="PowerTelemetryAdapter.h" />
     <ClInclude Include="PowerTelemetryProvider.h" />
     <ClInclude Include="igcl_api.h" />
-    <ClInclude Include="TelemetryCache.h" />
+    <ClInclude Include="EndpointCache.h" />
     <ClInclude Include="igcl\IgclTelemetryProvider.h" />
     <ClInclude Include="IntelPowerTelemetryProvider.h" />
     <ClInclude Include="PresentMonPowerTelemetry.h" />
