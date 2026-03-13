@@ -416,7 +416,7 @@ namespace InterimBroadcasterTests
 
             {
                 // build metric use set from above store results
-                std::unordered_set<svc::acts::MetricUse> uses;
+                std::unordered_set<svc::MetricUse> uses;
                 for (auto&& [met, siz] : storeRings) {
                     if (siz > 0) {
                         uses.insert({ met, ipc::kSystemDeviceId, 0 });
@@ -671,7 +671,7 @@ namespace InterimBroadcasterTests
                         
             {
                 // build metric use set from above introspection results
-                std::unordered_set<svc::acts::MetricUse> uses;
+                std::unordered_set<svc::MetricUse> uses;
                 for (auto&& [met, siz] : introspectionAvailability) {
                     if (siz > 0) {
                         uses.insert({ met, TargetDeviceID, 0 });

@@ -4,8 +4,8 @@
 #include "PresentMonSession.h"
 #include "EtwLogger.h"
 #include "FrameBroadcaster.h"
+#include "MetricUse.h"
 #include "../CommonUtilities/win/Event.h"
-#include "../CommonUtilities/Hash.h"
 #include <memory>
 #include <span>
 #include <unordered_set>
@@ -14,12 +14,16 @@
 #include <source_location>
 #include <utility>
 #include <cstdint>
+#include <optional>
+#include <atomic>
 
 using namespace pmon;
 
 class PresentMon
 {
 public:
+	using DeviceMetricUsage = svc::DeviceMetricUse;
+
 	PresentMon(svc::FrameBroadcaster& broadcaster, bool isRealtime);
 	~PresentMon();
 
@@ -93,21 +97,61 @@ public:
 	{
 		return !isRealtime_;
 	}
-	bool CheckDeviceMetricUsage(uint32_t deviceId) const
+	bool CheckDeviceMetricUsage(std::optional<uint32_t> deviceId,
+		std::optional<PM_METRIC> metricId = std::nullopt,
+		std::optional<uint32_t> arrayIdx = std::nullopt) const
 	{
-		std::shared_lock lk{ metricDeviceUsageMtx_ };
-		return metricDeviceUsage_.contains(deviceId);
-	}
-	void SetDeviceMetricUsage(std::unordered_set<uint32_t> usage)
-	{
-		// we need exclusive lock to prevent concurrent access to usage data while being modified
-		{
-			std::lock_guard lk{ metricDeviceUsageMtx_ };
-			metricDeviceUsage_ = std::move(usage);
+		const auto usageData = metricDeviceUsage_.load(std::memory_order_acquire);
+		if (!usageData) {
+			return false;
 		}
+
+		const auto selectionMatches = [&](const std::unordered_set<svc::MetricUse>& selection) -> bool {
+			if (!metricId) {
+				// array index without metric is not a valid query form
+				if (arrayIdx) {
+					return false;
+				}
+				return !selection.empty();
+			}
+			for (const auto& metricUse : selection) {
+				if (metricUse.metricId != *metricId) {
+					continue;
+				}
+				if (!arrayIdx || metricUse.arrayIdx == *arrayIdx) {
+					return true;
+				}
+			}
+			return false;
+		};
+
+		if (deviceId) {
+			if (auto it = usageData->find(*deviceId); it != usageData->end()) {
+				return selectionMatches(it->second);
+			}
+			return false;
+		}
+
+		for (const auto& usageEntry : *usageData) {
+			if (selectionMatches(usageEntry.second)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	std::shared_ptr<const DeviceMetricUsage> GetDeviceMetricUsageSnapshot() const
+	{
+		return metricDeviceUsage_.load(std::memory_order_acquire);
+	}
+	void SetDeviceMetricUsage(std::shared_ptr<const DeviceMetricUsage> usage)
+	{
+		if (!usage) {
+			usage = std::make_shared<DeviceMetricUsage>();
+		}
+		metricDeviceUsage_.store(std::move(usage), std::memory_order_release);
 		// keep shared lock now to prevent modification to event set while we are iterating it
 		// if this were non-shared, it would cause the listeners to block immediately on wake
-		std::shared_lock lk2{ metricDeviceUsageMtx_ };
+		std::shared_lock lk2{ deviceUsageEvtMtx_ };
 		for (auto& kv : deviceUsageEvts_) {
 			kv.second.Set();
 		}
@@ -116,13 +160,13 @@ public:
 	{
 		const DeviceUsageEvtKey key{ loc.file_name(), (uint32_t)loc.line() };
 		{
-			std::shared_lock lk{ metricDeviceUsageMtx_ };
+			std::shared_lock lk{ deviceUsageEvtMtx_ };
 			if (auto it = deviceUsageEvts_.find(key); it != deviceUsageEvts_.end()) {
 				return it->second.Get();
 			}
 		}
 		// get non-shared lock for modification purposes (add new event)
-		std::lock_guard lk2{ metricDeviceUsageMtx_ };
+		std::lock_guard lk2{ deviceUsageEvtMtx_ };
 		auto it = deviceUsageEvts_.emplace(key, util::win::Event{ false, false }).first;
 		return it->second.Get();
 	}
@@ -133,8 +177,9 @@ private:
 	svc::EtwLogger etwLogger_;
 	std::unique_ptr<PresentMonSession> pSession_;
 	bool isRealtime_ = true;
-	mutable std::shared_mutex metricDeviceUsageMtx_;
-	std::unordered_set<uint32_t> metricDeviceUsage_;
+	std::atomic<std::shared_ptr<const DeviceMetricUsage>> metricDeviceUsage_{
+		std::make_shared<DeviceMetricUsage>() };
+	mutable std::shared_mutex deviceUsageEvtMtx_;
 	using DeviceUsageEvtKey = std::pair<const char*, uint32_t>;
 	mutable std::unordered_map<DeviceUsageEvtKey, util::win::Event> deviceUsageEvts_;
 };
