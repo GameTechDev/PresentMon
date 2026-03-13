@@ -1,4 +1,4 @@
-# PresentMon Console Application
+﻿# PresentMon Console Application
 
 The PresentMon/ directory contains source for a standalone console application that uses the
 *PresentMon SDK* to capture and analyze graphics applications, outputting data to the console and/or
@@ -29,6 +29,7 @@ A binary of the console application is provided in the release, e.g.:
 | `--exclude_dropped`            | Exclude frames that were not displayed to the screen from the CSV output. |
 | `--v1_metrics`                 | Output a CSV using PresentMon 1.x metrics. |
 | `--v2_metrics`                 | Output a CSV using PresentMon 2.x metrics. |
+| `--write_display_metadata`     | Write VidPnSourceId, LayerIndex, and PresentId columns to CSV output. |
 
 | Recording Options              |     |
 | ------------------------------ | --- |
@@ -85,6 +86,8 @@ Default metrics include:
 | *Application*          | The name of the process that generated the frame. |
 | *ProcessID*            | The process ID of the process that generated the frame. |
 | *SwapChainAddress*     | The address of the swap chain used to present the frame. |
+| *VidPnSourceId*        | The display source identifier associated with the reported present.  This column is written when `--write_display_metadata` is used. |
+| *LayerIndex*           | The display layer index associated with the reported present.  This column is written when `--write_display_metadata` is used. |
 | *PresentRuntime*       | The API used to present the frame. |
 | *SyncInterval*         | The sync interval provided by the application when presenting the frame. Note: this value may be modified later by the driver, e.g., based on control panel overrides. |
 | *PresentFlags*         | The present flags provided by the application when presenting the frame. |
@@ -114,6 +117,7 @@ Default metrics include:
 | *MsBetweenSimulationStart* | The time between the start of simulation processing of the previous frame and this one, in milliseconds. |
 | *MsPCLatency*          | Time between PC receiving input and frame being sent to the display, in milliseconds. |
 | *MsBetweenAppStart*    | How long it took from the start of this frame until the CPU started working on the next frame, in milliseconds. |
+| *PresentId*            | The present identifier associated with the reported VidPnSourceId and LayerIndex pair.  This column is written when `--write_display_metadata` is used. |
 
 Some metrics are enabled or disabled depending on the command line options:
 
@@ -121,6 +125,7 @@ Some metrics are enabled or disabled depending on the command line options:
 | -------------------- | --------------- | ---------------- |
 | `--track_frame_type` | *FrameType*     | |
 | `--track_gpu_video`  | *VideoBusy*     | |
+| `--write_display_metadata` | *VidPnSourceId<br>LayerIndex<br>PresentId* | |
 | `--no_track_gpu`     |                 | *GPULatency<br>GPUBusy<br>GPUWait<br>VideoBusy*  |
 | `--no_track_input`   |                 | *ClickToPhotonLatency* |
 | `--no_track_display`<br>(requires `--no_track_gpu` and `--no_track_input` as well) | | *AllowsTearing<br>PresentMode<br>DisplayLatency<br>DisplayedTime* |

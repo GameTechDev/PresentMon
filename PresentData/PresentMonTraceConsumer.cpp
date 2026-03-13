@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -1394,7 +1394,10 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
                         // the present ids to it.
                         if (present != nullptr) {
                             VerboseTraceBeforeModifyingPresent(present.get());
-                            present->PresentIds.emplace(vidPnLayerId, PresentId[i]);
+                            auto inserted = present->PresentIds.emplace(vidPnLayerId, PresentId[i]);
+                            if (inserted.second) {
+                                present->ReportedPresentIds.push_back({ vidPnLayerId, PresentId[i] });
+                            }
                             mPresentByVidPnLayerId.emplace(vidPnLayerId, present);
                         }
 
