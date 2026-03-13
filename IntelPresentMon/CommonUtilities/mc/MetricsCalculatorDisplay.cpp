@@ -49,7 +49,7 @@ namespace pmon::util::metrics
         }
 
         
-        std::optional<double> ComputeMsFlipDelay(
+        double ComputeMsFlipDelay(
             const QpcConverter& qpc,
             const FrameData& present,
             bool isDisplayed)
@@ -57,7 +57,7 @@ namespace pmon::util::metrics
             if (isDisplayed && present.flipDelay != 0) {
                 return qpc.DurationMilliSeconds(present.flipDelay);
             }
-            return std::nullopt;
+            return MissingFrameMetricValue();
         }
 
 
@@ -75,7 +75,7 @@ namespace pmon::util::metrics
         }
 
 
-        std::optional<double> ComputeMsReadyTimeToDisplayLatency(
+        double ComputeMsReadyTimeToDisplayLatency(
             const QpcConverter& qpc,
             const FrameData& present,
             bool isDisplayed,
@@ -84,7 +84,7 @@ namespace pmon::util::metrics
             if (isDisplayed && present.readyTime != 0) {
                 return qpc.DeltaUnsignedMilliSeconds(present.readyTime, screenTime);
             }
-            return std::nullopt;
+            return MissingFrameMetricValue();
         }
 
 

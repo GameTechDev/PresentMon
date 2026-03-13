@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -6,6 +6,11 @@
 
 static FILE* gGlobalOutputCsv = nullptr;
 static uint32_t gRecordingCount = 1;
+
+static bool HasFrameMetricValue(double value)
+{
+    return !pmon::util::metrics::IsMissingFrameMetricValue(value);
+}
 
 void IncrementRecordingCount()
 {
@@ -920,8 +925,8 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
         }
 
         // MsBetweenSimulationStart
-        if (metrics.msBetweenSimStarts.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msBetweenSimStarts.value());
+        if (HasFrameMetricValue(metrics.msBetweenSimStarts)) {
+            fwprintf(fp, L",%.4lf", metrics.msBetweenSimStarts);
         }
         else {
             fwprintf(fp, L",NA");
@@ -956,8 +961,8 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
             }
         }
         if (args.mTrackPcLatency) {
-            if (metrics.msPcLatency.has_value()) {
-                fwprintf(fp, L",%.4lf", metrics.msPcLatency.value());
+            if (HasFrameMetricValue(metrics.msPcLatency)) {
+                fwprintf(fp, L",%.4lf", metrics.msPcLatency);
             }
             else {
                 fwprintf(fp, L",NA");
@@ -1017,42 +1022,42 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
                     metrics.msDisplayedTime);
             }
         }
-        if (metrics.msAnimationError.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAnimationError.value());
+        if (HasFrameMetricValue(metrics.msAnimationError)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationError);
         }
         else {
             fwprintf(fp, L",NA");
         }
-        if (metrics.msAnimationTime.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAnimationTime.value());
+        if (HasFrameMetricValue(metrics.msAnimationTime)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationTime);
         }
         else {
             fwprintf(fp, L",NA");
         }
-        if (metrics.msFlipDelay.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msFlipDelay.value());
+        if (HasFrameMetricValue(metrics.msFlipDelay)) {
+            fwprintf(fp, L",%.4lf", metrics.msFlipDelay);
         }
         else {
             fwprintf(fp, L",NA");
         }
     }
     if (args.mTrackInput) {
-        if (metrics.msAllInputPhotonLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAllInputPhotonLatency.value());
+        if (HasFrameMetricValue(metrics.msAllInputPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msAllInputPhotonLatency);
         }
         else {
             fwprintf(fp, L",NA");
         }
-        if (metrics.msClickToPhotonLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msClickToPhotonLatency.value());
+        if (HasFrameMetricValue(metrics.msClickToPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msClickToPhotonLatency);
         }
         else {
             fwprintf(fp, L",NA");
         }
     }
     if (args.mTrackAppTiming) {
-        if (metrics.msInstrumentedLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msInstrumentedLatency.value());
+        if (HasFrameMetricValue(metrics.msInstrumentedLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msInstrumentedLatency);
         }
         else {
             fwprintf(fp, L",NA");
@@ -1137,8 +1142,8 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
         }
 
         // MsBetweenSimulationStart
-        if (metrics.msBetweenSimStarts.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msBetweenSimStarts.value());
+        if (HasFrameMetricValue(metrics.msBetweenSimStarts)) {
+            fwprintf(fp, L",%.4lf", metrics.msBetweenSimStarts);
         }
         else {
             fwprintf(fp, L",NA");
@@ -1173,8 +1178,8 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
             }
         }
         if (args.mTrackPcLatency) {
-            if (metrics.msPcLatency.has_value()) {
-                fwprintf(fp, L",%.4lf", metrics.msPcLatency.value());
+            if (HasFrameMetricValue(metrics.msPcLatency)) {
+                fwprintf(fp, L",%.4lf", metrics.msPcLatency);
             }
             else {
                 fwprintf(fp, L",NA");
@@ -1234,14 +1239,14 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
                     metrics.msDisplayedTime);
             }
         }
-        if (metrics.msAnimationError.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAnimationError.value());
+        if (HasFrameMetricValue(metrics.msAnimationError)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationError);
         }
         else {
             fwprintf(fp, L",NA");
         }
-        if (metrics.msAnimationTime.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAnimationTime.value());
+        if (HasFrameMetricValue(metrics.msAnimationTime)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationTime);
         }
         else {
             if (metrics.msDisplayedTime == 0.0 || (metrics.frameType != FrameType::Application && metrics.frameType != FrameType::NotSet)) {
@@ -1251,30 +1256,30 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
                 fwprintf(fp, L",%.4lf", 0.0);
             }
         }
-        if (metrics.msFlipDelay.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msFlipDelay.value());
+        if (HasFrameMetricValue(metrics.msFlipDelay)) {
+            fwprintf(fp, L",%.4lf", metrics.msFlipDelay);
         }
         else {
             fwprintf(fp, L",NA");
         }
     }
     if (args.mTrackInput) {
-        if (metrics.msAllInputPhotonLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAllInputPhotonLatency.value());
+        if (HasFrameMetricValue(metrics.msAllInputPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msAllInputPhotonLatency);
         }
         else {
             fwprintf(fp, L",NA");
         }
-        if (metrics.msClickToPhotonLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msClickToPhotonLatency.value());
+        if (HasFrameMetricValue(metrics.msClickToPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msClickToPhotonLatency);
         }
         else {
             fwprintf(fp, L",NA");
         }
     }
     if (args.mTrackAppTiming) {
-        if (metrics.msInstrumentedLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msInstrumentedLatency.value());
+        if (HasFrameMetricValue(metrics.msInstrumentedLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msInstrumentedLatency);
         }
         else {
             fwprintf(fp, L",NA");

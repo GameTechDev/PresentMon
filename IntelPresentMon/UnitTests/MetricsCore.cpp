@@ -15,6 +15,14 @@ using namespace pmon::util;
 
 namespace MetricsCoreTests
 {
+    namespace
+    {
+        bool HasMetricValue(double value)
+        {
+            return !IsMissingFrameMetricValue(value);
+        }
+    }
+
     // ============================================================================
     // SECTION 1: Core Types & Foundation
     // ============================================================================
@@ -1986,9 +1994,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
 
-            if (m.msFlipDelay.has_value()) {
-                Assert::AreEqual(0.0, m.msFlipDelay.value(), 0.0001);
-            }
+            Assert::IsFalse(HasMetricValue(m.msFlipDelay),
+                L"msFlipDelay should be missing for a non-displayed frame.");
         }
 
         TEST_METHOD(Displayed_WithFlipDelay_ReturnsFlipDelayInMs)
@@ -2012,9 +2019,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
 
-            if (m.msFlipDelay.has_value()) {
+            if (HasMetricValue(m.msFlipDelay)) {
                 double expected = qpc.DurationMilliSeconds(100'000);
-                Assert::AreEqual(expected, m.msFlipDelay.value(), 0.0001);
+                Assert::AreEqual(expected, m.msFlipDelay, 0.0001);
             }
         }
 
@@ -2039,9 +2046,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
 
-            if (m.msFlipDelay.has_value()) {
-                Assert::AreEqual(0.0, m.msFlipDelay.value(), 0.0001);
-            }
+            Assert::IsFalse(HasMetricValue(m.msFlipDelay),
+                L"msFlipDelay should be missing when flipDelay is zero.");
         }
 
         TEST_METHOD(DisplayedWithGeneratedFrame_AlsoIncludesFlipDelay)
@@ -2065,9 +2071,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
 
-            if (m.msFlipDelay.has_value()) {
+            if (HasMetricValue(m.msFlipDelay)) {
                 double expected = qpc.DurationMilliSeconds(50'000);
-                Assert::AreEqual(expected, m.msFlipDelay.value(), 0.0001);
+                Assert::AreEqual(expected, m.msFlipDelay, 0.0001);
             }
         }
     };
@@ -2224,10 +2230,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             uint64_t expectedEffectiveFlipDelaySecond = 100'000 + (5'500'000 - 5'000'000);
             double expectedMsFlipDelaySecond = qpc.DurationMilliSeconds(expectedEffectiveFlipDelaySecond);
 
-            Assert::IsTrue(secondMetrics.msFlipDelay.has_value(),
+            Assert::IsTrue(HasMetricValue(secondMetrics.msFlipDelay),
                 L"msFlipDelay should be set for displayed frame");
-            if (secondMetrics.msFlipDelay.has_value()) {
-                Assert::AreEqual(expectedMsFlipDelaySecond, secondMetrics.msFlipDelay.value(), 0.0001,
+            if (HasMetricValue(secondMetrics.msFlipDelay)) {
+                Assert::AreEqual(expectedMsFlipDelaySecond, secondMetrics.msFlipDelay, 0.0001,
                     L"NV2 should adjust second's flipDelay to account for screenTime catch-up");
             }
         }
@@ -2269,10 +2275,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // No adjustment to flipDelay: should use original 75'000
             double expectedMsFlipDelay = qpc.DurationMilliSeconds(75'000);
 
-            Assert::IsTrue(metrics.msFlipDelay.has_value(),
+            Assert::IsTrue(HasMetricValue(metrics.msFlipDelay),
                 L"msFlipDelay should be set for displayed frame");
-            if (metrics.msFlipDelay.has_value()) {
-                Assert::AreEqual(expectedMsFlipDelay, metrics.msFlipDelay.value(), 0.0001,
+            if (HasMetricValue(metrics.msFlipDelay)) {
+                Assert::AreEqual(expectedMsFlipDelay, metrics.msFlipDelay, 0.0001,
                     L"No collapse: flipDelay should remain at original value");
             }
         }
@@ -2324,10 +2330,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // flipDelay should remain at original 50'000
             double expectedMsFlipDelay = qpc.DurationMilliSeconds(50'000);
 
-            Assert::IsTrue(secondMetrics.msFlipDelay.has_value(),
+            Assert::IsTrue(HasMetricValue(secondMetrics.msFlipDelay),
                 L"msFlipDelay should be set for displayed frame");
-            if (secondMetrics.msFlipDelay.has_value()) {
-                Assert::AreEqual(expectedMsFlipDelay, secondMetrics.msFlipDelay.value(), 0.0001,
+            if (HasMetricValue(secondMetrics.msFlipDelay)) {
+                Assert::AreEqual(expectedMsFlipDelay, secondMetrics.msFlipDelay, 0.0001,
                     L"NV2: when no collapse, flipDelay should remain unchanged");
             }
         }
@@ -2361,9 +2367,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"NV1 should adjust current screenTime to lastDisplayedScreenTime");
 
             const uint64_t expectedFlipDelay = 100'000 + (5'500'000 - 5'000'000);
-            Assert::IsTrue(m.msFlipDelay.has_value(), L"msFlipDelay should be set for displayed frame");
-            if (m.msFlipDelay.has_value()) {
-                Assert::AreEqual(qpc.DurationMilliSeconds(expectedFlipDelay), m.msFlipDelay.value(), 0.0001,
+            Assert::IsTrue(HasMetricValue(m.msFlipDelay), L"msFlipDelay should be set for displayed frame");
+            if (HasMetricValue(m.msFlipDelay)) {
+                Assert::AreEqual(qpc.DurationMilliSeconds(expectedFlipDelay), m.msFlipDelay, 0.0001,
                     L"NV1 should adjust current flipDelay to account for screenTime catch-up");
             }
 
@@ -2535,8 +2541,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // msReadyTimeToDisplayLatency = screenTime - readyTime = 2'000'000 - 1'500'000 = 500'000 ticks = 0.05 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'000'000);
-            Assert::IsTrue(m.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(expected, m.msReadyTimeToDisplayLatency.value(), 0.0001);
+            Assert::IsTrue(HasMetricValue(m.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expected, m.msReadyTimeToDisplayLatency, 0.0001);
         }
 
         TEST_METHOD(ReadyTimeToDisplay_ReadyTimeEqualsScreenTime)
@@ -2563,14 +2569,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
 
-            Assert::IsTrue(m.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(0.0, m.msReadyTimeToDisplayLatency.value(), 0.0001);
+            Assert::IsTrue(HasMetricValue(m.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(0.0, m.msReadyTimeToDisplayLatency, 0.0001);
         }
 
         TEST_METHOD(ReadyTimeToDisplay_NotDisplayed_ReturnsZero)
         {
             // Scenario: Frame with no displayed entries.
-            // Expected: msReadyTimeToDisplayLatency = 0.0 ms
+            // Expected: msReadyTimeToDisplayLatency is missing.
 
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
@@ -2586,14 +2592,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
 
-            Assert::IsFalse(m.msReadyTimeToDisplayLatency.has_value());
+            Assert::IsFalse(HasMetricValue(m.msReadyTimeToDisplayLatency));
         }
 
         TEST_METHOD(ReadyTimeToDisplay_ReadyTimeZero)
         {
-            // Scenario: Ready time not set (edge case, readyTime = 0).
+            // Scenario: Ready time is set to a non-zero value before screen time.
             // readyTime = 70'000, screenTime = 2'000'000
-            // Expected: msReadyTimeToDisplayLatency ≈ 0.2 ms (2'000'000 ticks)
+            // Expected: msReadyTimeToDisplayLatency ≈ 0.193 ms
 
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
@@ -2615,8 +2621,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // msReadyTimeToDisplayLatency = 2'000'000 - 70'000 = 1'930'000 ticks = 0.193 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(70'000, 2'000'000);
-            Assert::IsTrue(m.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(expected, m.msReadyTimeToDisplayLatency.value(), 0.0001);
+            Assert::IsTrue(HasMetricValue(m.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expected, m.msReadyTimeToDisplayLatency, 0.0001);
         }
     };
 
@@ -2717,20 +2723,20 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Display 0: readyTime = 1'500'000, screenTime = 2'000'000 → 0.05 ms
             double expected0 = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'000'000);
-            Assert::IsTrue(results[0].metrics.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(expected0, results[0].metrics.msReadyTimeToDisplayLatency.value(), 0.0001);
+            Assert::IsTrue(HasMetricValue(results[0].metrics.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expected0, results[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
 
             // Display 0: readyTime = 1'500'000, screenTime = 2'000'000 → 0.05 ms
             double expected1 = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'100'000);
-            Assert::IsTrue(results[1].metrics.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(expected1, results[1].metrics.msReadyTimeToDisplayLatency.value(), 0.0001);
+            Assert::IsTrue(HasMetricValue(results[1].metrics.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expected1, results[1].metrics.msReadyTimeToDisplayLatency, 0.0001);
 
             // Second call with next: process [2]
             auto results2 = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results2.size());
             double expected2 = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'200'000);
-            Assert::IsTrue(results2[0].metrics.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(expected2, results2[0].metrics.msReadyTimeToDisplayLatency.value(), 0.0001);
+            Assert::IsTrue(HasMetricValue(results2[0].metrics.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expected2, results2[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
         }
     };
 
@@ -2788,8 +2794,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedDisplayLatency = qpc.DeltaUnsignedMilliSeconds(1'000'000, 4'000'000);
             Assert::AreEqual(expectedDisplayLatency, results1[0].metrics.msDisplayLatency, 0.0001);
             double expectedFlipDelay = qpc.DurationMilliSeconds(frame.flipDelay);
-            Assert::IsTrue(results1[0].metrics.msFlipDelay.has_value());
-            Assert::AreEqual(expectedFlipDelay, results1[0].metrics.msFlipDelay.value(), 0.0001);
+            Assert::IsTrue(HasMetricValue(results1[0].metrics.msFlipDelay));
+            Assert::AreEqual(expectedFlipDelay, results1[0].metrics.msFlipDelay, 0.0001);
 
             auto results2 = ComputeMetricsForPresent(qpc, next1, &next2, chain);
             Assert::AreEqual(size_t(1), results1.size());
@@ -2800,8 +2806,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedDisplayLatency2 = qpc.DeltaUnsignedMilliSeconds(1'050'000, 4'000'000);
             Assert::AreEqual(expectedDisplayLatency2, results2[0].metrics.msDisplayLatency, 0.0001);
             double expectedFlipDelay2 = qpc.DurationMilliSeconds(1'030'000);
-            Assert::IsTrue(results2[0].metrics.msFlipDelay.has_value());
-            Assert::AreEqual(expectedFlipDelay2, results2[0].metrics.msFlipDelay.value(), 0.0001);
+            Assert::IsTrue(HasMetricValue(results2[0].metrics.msFlipDelay));
+            Assert::AreEqual(expectedFlipDelay2, results2[0].metrics.msFlipDelay, 0.0001);
         }
 
         TEST_METHOD(ReadyTimeToDisplay_NvCollapsed_UsesAdjustedScreenTime)
@@ -2850,16 +2856,16 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // No adjust of first frame ready time = 4'000'000 - 1'100'000 = 2'900'000 ticks = 0.29 ms
             double expectedReadyTimeLatency = qpc.DeltaUnsignedMilliSeconds(1'100'000, 4'000'000);
-            Assert::IsTrue(results1[0].metrics.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(expectedReadyTimeLatency, results1[0].metrics.msReadyTimeToDisplayLatency.value(), 0.0001);
+            Assert::IsTrue(HasMetricValue(results1[0].metrics.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expectedReadyTimeLatency, results1[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
 
             auto results2 = ComputeMetricsForPresent(qpc, next1, &next2, chain);
             Assert::AreEqual(size_t(1), results1.size());
 
             // After NV adjustment: ready time latency = 4'000'000 - 2'100'000 = 1'900'000 ticks = 0.19 ms
             double expectedReadyTimeLatency2 = qpc.DeltaUnsignedMilliSeconds(2'100'000, 4'000'000);
-            Assert::IsTrue(results2[0].metrics.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(expectedReadyTimeLatency2, results2[0].metrics.msReadyTimeToDisplayLatency.value(), 0.0001);
+            Assert::IsTrue(HasMetricValue(results2[0].metrics.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expectedReadyTimeLatency2, results2[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
         }
     };
 
@@ -4522,9 +4528,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const ComputedMetrics& result = metricsVector[0];
 
             // Assert: msAnimationTime should have value a value of zero
-            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime),
                 L"msAnimationTime should have a value of zero");
-            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime.value());
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime, 0.0001);
 
             // Assert: firstAppSimStartTime in state should remain 0
             Assert::AreEqual(uint64_t(0), state.firstAppSimStartTime,
@@ -4579,9 +4585,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), metricsVector.size());
             const ComputedMetrics& result = metricsVector[0];
 
-            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime),
                 L"msAnimationTime should have a value");
-            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime.value(),
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime, 0.0001,
                 L"msAnimationTime should be 0 on first frame with CpuStart source and no history");
 
             // Assert: State should be updated
@@ -4652,9 +4658,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const ComputedMetrics& result = metricsVector[0];
 
             // Assert: msAnimationTime should be 0.005 ms
-            Assert::IsTrue(result.metrics.msAnimationTime.has_value());
+            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime));
             double expectedMs = qpc.DeltaUnsignedMilliSeconds(100, 150);
-            Assert::AreEqual(expectedMs, result.metrics.msAnimationTime.value(), 0.0001,
+            Assert::AreEqual(expectedMs, result.metrics.msAnimationTime, 0.0001,
                 L"msAnimationTime should reflect elapsed time from first app sim start");
 
             // Assert: firstAppSimStartTime unchanged
@@ -4714,9 +4720,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), metrics1.size());
 
             Assert::IsTrue(
-                metrics1[0].metrics.msAnimationTime.has_value(),
+                HasMetricValue(metrics1[0].metrics.msAnimationTime),
                 L"First AppProvider frame should seed firstAppSimStartTime and animation time should be zero");
-            Assert::AreEqual(double(0.0), metrics1[0].metrics.msAnimationTime.value(),
+            Assert::AreEqual(double(0.0), metrics1[0].metrics.msAnimationTime, 0.0001,
                 L"msAnimationTime should be 0 on first frame with CpuStart source and no history");
 
             // After processing frame1, the chain should have latched sim start and
@@ -4749,13 +4755,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto metrics2 = ComputeMetricsForPresent(qpc, frame2, &next2, state);
             Assert::AreEqual(size_t(1), metrics2.size());
             Assert::IsTrue(
-                metrics2[0].metrics.msAnimationTime.has_value(),
+                HasMetricValue(metrics2[0].metrics.msAnimationTime),
                 L"Second displayed app frame should report msAnimationTime.");
 
             double expected2 = qpc.DeltaUnsignedMilliSeconds(100, 150);
             Assert::AreEqual(
                 expected2,
-                metrics2[0].metrics.msAnimationTime.value(),
+                metrics2[0].metrics.msAnimationTime,
                 0.0001,
                 L"Frame 2's msAnimationTime should be relative to firstAppSimStartTime (100 → 150).");
 
@@ -4786,13 +4792,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto metrics3 = ComputeMetricsForPresent(qpc, frame3, &next3, state);
             Assert::AreEqual(size_t(1), metrics3.size());
             Assert::IsTrue(
-                metrics3[0].metrics.msAnimationTime.has_value(),
+                HasMetricValue(metrics3[0].metrics.msAnimationTime),
                 L"Third displayed app frame should report msAnimationTime.");
 
             double expected3 = qpc.DeltaUnsignedMilliSeconds(100, 250);
             Assert::AreEqual(
                 expected3,
-                metrics3[0].metrics.msAnimationTime.value(),
+                metrics3[0].metrics.msAnimationTime,
                 0.0001,
                 L"Frame 3's msAnimationTime should be relative to original firstAppSimStartTime (100 → 250).");
 
@@ -4840,9 +4846,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& droppedMetrics = droppedResults[0].metrics;
 
             // Discarded / not-displayed frame must NOT produce animation metrics.
-            Assert::IsFalse(droppedMetrics.msAnimationTime.has_value(),
+            Assert::IsFalse(HasMetricValue(droppedMetrics.msAnimationTime),
                 L"Discarded frame should not have msAnimationTime");
-            Assert::IsFalse(droppedMetrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(droppedMetrics.msAnimationError),
                 L"Discarded frame should not have msAnimationError");
 
             // And it must NOT disturb the animation anchors from prior displayed frames.
@@ -4878,13 +4884,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), displayedResults.size());
             const auto& displayedMetrics = displayedResults[0].metrics;
 
-            Assert::IsTrue(displayedMetrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(displayedMetrics.msAnimationTime),
                 L"Displayed app frame should have msAnimationTime");
 
             // Animation time should be based purely on the AppProvider sim times:
             // firstAppSimStartTime = 100, currentSim = 200.
             const double expected = qpc.DeltaUnsignedMilliSeconds(100, 200);
-            Assert::AreEqual(expected, displayedMetrics.msAnimationTime.value(), 0.0001);
+            Assert::AreEqual(expected, displayedMetrics.msAnimationTime, 0.0001);
 
             // After processing a displayed app frame via the Case 3 path,
             // state should now reflect that frame as the last displayed.
@@ -4949,9 +4955,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const ComputedMetrics& result = metricsVector[0];
 
             // Assert: msAnimationTime should be zero
-            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime),
                 L"msAnimationTime should be 0 whentransitioning");
-            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime.value());
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime, 0.0001);
 
             // Assert: firstAppSimStartTime in state should remain 0
             Assert::AreEqual(uint64_t(0), state.firstAppSimStartTime,
@@ -5007,7 +5013,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const ComputedMetrics& result = metricsVector[0];
 
             // Assert: msAnimationTime should have a value of zero
-            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime),
                 L"msAnimationTime should have a value");
 
             // Assert: State should be updated
@@ -5077,9 +5083,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const ComputedMetrics& result = metricsVector[0];
 
             // Assert: msAnimationTime should be 0.01 ms
-            Assert::IsTrue(result.metrics.msAnimationTime.has_value());
+            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime));
             double expectedMs = qpc.DeltaUnsignedMilliSeconds(100, 200);
-            Assert::AreEqual(expectedMs, result.metrics.msAnimationTime.value(), 0.0001,
+            Assert::AreEqual(expectedMs, result.metrics.msAnimationTime, 0.0001,
                 L"msAnimationTime should reflect elapsed time from first pcl sim start");
 
             // Assert: firstAppSimStartTime unchanged
@@ -5141,7 +5147,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // First displayed app frame seeds state; animation time is reported as zero.
             Assert::IsTrue(
-                metrics1[0].metrics.msAnimationTime.has_value(),
+                HasMetricValue(metrics1[0].metrics.msAnimationTime),
                 L"msAnimationTime should report a value even when transitioning");
 
             // After processing frame1, the chain should have latched sim start and
@@ -5174,13 +5180,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto metrics2 = ComputeMetricsForPresent(qpc, frame2, &next2, state);
             Assert::AreEqual(size_t(1), metrics2.size());
             Assert::IsTrue(
-                metrics2[0].metrics.msAnimationTime.has_value(),
+                HasMetricValue(metrics1[0].metrics.msAnimationTime),
                 L"Second displayed app frame should report msAnimationTime.");
-
+            Assert::AreEqual(double(0.0), metrics1[0].metrics.msAnimationTime, 0.0001);
             double expected2 = qpc.DeltaUnsignedMilliSeconds(100, 150);
             Assert::AreEqual(
                 expected2,
-                metrics2[0].metrics.msAnimationTime.value(),
+                metrics2[0].metrics.msAnimationTime,
                 0.0001,
                 L"Frame 2's msAnimationTime should be relative to firstAppSimStartTime (100 → 150).");
 
@@ -5211,13 +5217,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto metrics3 = ComputeMetricsForPresent(qpc, frame3, &next3, state);
             Assert::AreEqual(size_t(1), metrics3.size());
             Assert::IsTrue(
-                metrics3[0].metrics.msAnimationTime.has_value(),
+                HasMetricValue(metrics3[0].metrics.msAnimationTime),
                 L"Third displayed app frame should report msAnimationTime.");
 
             double expected3 = qpc.DeltaUnsignedMilliSeconds(100, 250);
             Assert::AreEqual(
                 expected3,
-                metrics3[0].metrics.msAnimationTime.value(),
+                metrics3[0].metrics.msAnimationTime,
                 0.0001,
                 L"Frame 3's msAnimationTime should be relative to original firstAppSimStartTime (100 → 250).");
 
@@ -5272,9 +5278,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // First displayed frame seeds animation state; animation time will be reported
             // still as we are transitioning to PCLatency.
             Assert::IsTrue(
-                metrics1[0].metrics.msAnimationTime.has_value(),
+                HasMetricValue(metrics1[0].metrics.msAnimationTime),
                 L"Animation Time will be reported");
-            Assert::AreEqual(double(0.0), metrics1[0].metrics.msAnimationTime.value());
+            Assert::AreEqual(double(0.0), metrics1[0].metrics.msAnimationTime, 0.0001);
 
             Assert::AreEqual(uint64_t(100), chain.firstAppSimStartTime);
             Assert::AreEqual(uint64_t(100), chain.lastDisplayedSimStartTime);
@@ -5295,7 +5301,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Not displayed → no animation time, and animation state should not advance
             Assert::IsFalse(
-                metrics2[0].metrics.msAnimationTime.has_value(),
+                HasMetricValue(metrics2[0].metrics.msAnimationTime),
                 L"Non-displayed frame should not report animation time.");
 
             Assert::AreEqual(uint64_t(100), chain.firstAppSimStartTime,
@@ -5324,13 +5330,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto metrics3 = ComputeMetricsForPresent(qpc, frame3, &next3, chain);
             Assert::AreEqual(size_t(1), metrics3.size());
             Assert::IsTrue(
-                metrics3[0].metrics.msAnimationTime.has_value(),
+                HasMetricValue(metrics3[0].metrics.msAnimationTime),
                 L"Displayed frame with valid PCL sim start should report animation time.");
 
             double expected3 = qpc.DeltaUnsignedMilliSeconds(100, 300);
             Assert::AreEqual(
                 expected3,
-                metrics3[0].metrics.msAnimationTime.value(),
+                metrics3[0].metrics.msAnimationTime,
                 0.0001,
                 L"Frame 3's msAnimationTime should be measured from Frame 1's PCL sim start, skipping Frame 2.");
 
@@ -5402,9 +5408,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const ComputedMetrics& result = metricsVector[0];
 
             // Assert: msAnimationTime should be zero
-            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime),
                 L"msAnimationTime should be 0 whentransitioning");
-            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime.value());
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime, 0.0001);
 
             // Assert: State should remain PCLatency
             Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::PCLatency,
@@ -5467,9 +5473,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             const ComputedMetrics& result = metricsVector[0];
 
-            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime),
                 L"msAnimationTime should have a value");
-            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime.value(),
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime, 0.0001,
                 L"msAnimationTime should be 0 on first frame with CpuStart source and no history");
             // Assert: State should not be updated
             Assert::AreEqual(uint64_t(0), state.firstAppSimStartTime,
@@ -5536,9 +5542,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const ComputedMetrics& result = metricsVector[0];
 
             // Assert: msAnimationTime should be 0 (first transition frame)
-            Assert::IsTrue(result.metrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime),
                 L"msAnimationTime should have a value on first valid CPU start");
-            Assert::AreEqual(0.0, result.metrics.msAnimationTime.value(), 0.0001,
+            Assert::AreEqual(0.0, result.metrics.msAnimationTime, 0.0001,
                 L"msAnimationTime should be 0 on first transition frame");
 
             // Assert: State should be updated with CPU start
@@ -5604,9 +5610,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), metrics1.size());
             const auto& m1 = metrics1[0].metrics;
 
-            Assert::IsTrue(m1.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(m1.msAnimationTime),
                 L"CpuStart animation should report msAnimationTime even without App/PCL provider.");
-            const double anim1 = m1.msAnimationTime.value();
+            const double anim1 = m1.msAnimationTime;
             Assert::IsTrue(anim1 > 0.0,
                 L"First CpuStart-driven frame should have a positive animation time relative to session/start anchor.");
 
@@ -5638,9 +5644,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), metrics2.size());
             const auto& m2 = metrics2[0].metrics;
 
-            Assert::IsTrue(m2.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(m2.msAnimationTime),
                 L"Second CpuStart-driven frame should also report msAnimationTime.");
-            const double anim2 = m2.msAnimationTime.value();
+            const double anim2 = m2.msAnimationTime;
 
             Assert::IsTrue(anim2 > anim1,
                 L"CpuStart-based animation time should increase across frames as CpuStart advances.");
@@ -5683,7 +5689,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
             Assert::AreEqual(size_t(1), results.size());
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
                 L"msAnimationError should be nullopt without prior displayed frame");
         }
 
@@ -5723,8 +5729,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto results2 = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
             Assert::AreEqual(size_t(1), results2.size());
-            Assert::IsTrue(results2[0].metrics.msAnimationError.has_value());
-            Assert::AreEqual(0.0, results2[0].metrics.msAnimationError.value(), 0.0001,
+            Assert::IsTrue(HasMetricValue(results2[0].metrics.msAnimationError));
+            Assert::AreEqual(0.0, results2[0].metrics.msAnimationError, 0.0001,
                 L"msAnimationError should be 0 when sim and display cadences match");
         }
 
@@ -5760,11 +5766,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
+            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationError));
             double simElapsed = qpc.DeltaUnsignedMilliSeconds(100, 140);     // 0.004 ms
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(1000, 1050); // 0.005 ms
             double expected = simElapsed - displayElapsed;  // -0.001 ms
-            Assert::AreEqual(expected, results[0].metrics.msAnimationError.value(), 0.0001);
+            Assert::AreEqual(expected, results[0].metrics.msAnimationError, 0.0001);
         }
 
         TEST_METHOD(AnimationError_AppProvider_TwoFrames_SimFasterThanDisplay)
@@ -5799,11 +5805,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
+            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationError));
             double simElapsed = qpc.DeltaUnsignedMilliSeconds(100, 160);     // 0.006 ms
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(1000, 1050); // 0.005 ms
             double expected = simElapsed - displayElapsed;  // +0.001 ms
-            Assert::AreEqual(expected, results[0].metrics.msAnimationError.value(), 0.0001);
+            Assert::AreEqual(expected, results[0].metrics.msAnimationError, 0.0001);
         }
 
         TEST_METHOD(AnimationError_AppProvider_BackwardsSimStartTime_Nullopt)
@@ -5838,7 +5844,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
                 L"msAnimationError should be nullopt when sim start goes backward");
         }
 
@@ -5874,7 +5880,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, swapChain);
 
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
                 L"msAnimationError should be nullopt without valid sim start time");
         }
 
@@ -5910,7 +5916,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value());
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError));
         }
 
         // Section C: Animation Error – PCLatency Source
@@ -5947,11 +5953,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
+            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationError));
             double simElapsed = qpc.DeltaUnsignedMilliSeconds(100, 140);     // 0.004 ms
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(1000, 1050); // 0.005 ms
             double expected = simElapsed - displayElapsed;  // -0.001 ms
-            Assert::AreEqual(expected, results[0].metrics.msAnimationError.value(), 0.0001);
+            Assert::AreEqual(expected, results[0].metrics.msAnimationError, 0.0001);
         }
 
         TEST_METHOD(AnimationError_PCLatency_CurrentPclSimStartZero_Nullopt)
@@ -5987,7 +5993,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
                 L"msAnimationError should be nullopt when PCL source unavailable");
         }
 
@@ -6012,7 +6018,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
                 L"msAnimationError should be nullopt on first valid PCL frame");
         }
 
@@ -6061,7 +6067,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto results = ComputeMetricsForPresent(qpc, frame3, &frame4, state);
 
             // Animation error computed using CPU start (source still CpuStart during calculation)
-            Assert::IsTrue(results[0].metrics.msAnimationError.has_value(),
+            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationError),
                 L"Animation error should be computed with CPU start before source switch");
             
             // After UpdateChain, source should have switched to PCLatency
@@ -6103,12 +6109,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
+            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationError));
             // Should use PCL: sim=50, display=50, error=0
             double simElapsed = qpc.DeltaUnsignedMilliSeconds(100, 150);  // PCL: 0.005 ms
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(1000, 1050);
             double expected = simElapsed - displayElapsed;  // 0.0 ms
-            Assert::AreEqual(expected, results[0].metrics.msAnimationError.value(), 0.0001,
+            Assert::AreEqual(expected, results[0].metrics.msAnimationError, 0.0001,
                 L"Should use PCL source, not app source");
         }
 
@@ -6157,11 +6163,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame4.displayed.PushBack({ FrameType::Application, 4000 });
             auto results = ComputeMetricsForPresent(qpc, frame3, &frame4, state);
 
-            Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
+            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationError));
             double simElapsed = qpc.DeltaUnsignedMilliSeconds(1100, 1300);    // 0.020 ms
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(2000, 2050); // 0.005 ms
             double expected = simElapsed - displayElapsed;  // 0.015 ms
-            Assert::AreEqual(expected, results[0].metrics.msAnimationError.value(), 0.0001);
+            Assert::AreEqual(expected, results[0].metrics.msAnimationError, 0.0001);
         }
 
         TEST_METHOD(AnimationError_CpuStart_Frame2DisplayIsGreaterThanFrame1Display)
@@ -6197,7 +6203,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             ComputeMetricsForPresent(qpc, frame1, nullptr, state);
             auto results = ComputeMetricsForPresent(qpc, frame1, &frame2, state);
 
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value());
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError));
         }
 
         TEST_METHOD(AnimationError_CpuStart_TransitionToAppProvider_Nullopt)
@@ -6231,7 +6237,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.displayed.PushBack({ FrameType::Application, 4000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
                 L"msAnimationError should be nullopt on source transition");
             Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
                 L"Source should auto-switch to AppProvider");
@@ -6263,9 +6269,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
             Assert::AreEqual(size_t(1), results.size());
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
                 L"msAnimationError should be nullopt for non-app frames");
-            Assert::IsFalse(results[0].metrics.msAnimationTime.has_value(),
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationTime),
                 L"msAnimationTime should be nullopt for non-app frames");
         }
 
@@ -6291,8 +6297,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value());
-            Assert::IsTrue(results[0].metrics.msAnimationTime.has_value());
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError));
+            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationTime));
         }
 
         TEST_METHOD(AnimationError_BackwardsScreenTime_ErrorStillComputed)
@@ -6327,7 +6333,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
                 L"Error should be nullopt with backwards screen time");
         }
 
@@ -6363,11 +6369,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
-            Assert::IsTrue(results[0].metrics.msAnimationError.has_value());
+            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationError));
             double simElapsed = qpc.DeltaUnsignedMilliSeconds(100, 500);    // 0.040 ms
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(1000, 1010); // 0.001 ms
             double expected = simElapsed - displayElapsed;  // 0.039 ms
-            Assert::AreEqual(expected, results[0].metrics.msAnimationError.value(), 0.0001,
+            Assert::AreEqual(expected, results[0].metrics.msAnimationError, 0.0001,
                 L"Large cadence mismatch should produce large positive error");
         }
 
@@ -6394,9 +6400,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
-            Assert::IsFalse(results[0].metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
                 L"msAnimationError should be nullopt for Repeated frame type");
-            Assert::IsFalse(results[0].metrics.msAnimationTime.has_value(),
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationTime),
                 L"msAnimationTime should be nullopt for Repeated frame type");
         }
 
@@ -6436,17 +6442,17 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(2), resultsPartial.size());
 
             // First display instance (Repeated) - no animation metrics
-            Assert::IsFalse(resultsPartial[0].metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(resultsPartial[0].metrics.msAnimationError),
                 L"Display [0] (Repeated) should not have animation error");
 
             // Second display instance (Application) - has animation metrics
-            Assert::IsTrue(resultsPartial[1].metrics.msAnimationError.has_value(),
+            Assert::IsTrue(HasMetricValue(resultsPartial[1].metrics.msAnimationError),
                 L"Display [1] (Application) should have animation error");
 
             double simElapsed = qpc.DeltaUnsignedMilliSeconds(100, 150);
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(1000, 2050);
             double expected = simElapsed - displayElapsed;
-            Assert::AreEqual(expected, resultsPartial[1].metrics.msAnimationError.value(), 0.0001);
+            Assert::AreEqual(expected, resultsPartial[1].metrics.msAnimationError, 0.0001);
         }
         TEST_METHOD(Animation_AppProvider_PendingSequence_P1P2P3)
         {
@@ -6525,11 +6531,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // P1 is the FIRST provider-driven frame, so it should only seed the state:
             // no animation error or time yet.
-            Assert::IsFalse(p1_metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(p1_metrics.msAnimationError),
                 L"P1 should not report animation error; it seeds the animation state.");
-            Assert::IsTrue(p1_metrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(p1_metrics.msAnimationTime),
                 L"P1 should report back 0.0.");
-            Assert::AreEqual(double(0.0), p1_metrics.msAnimationTime.value());
+            Assert::AreEqual(double(0.0), p1_metrics.msAnimationTime, 0.0001);
 
             // UpdateAfterPresent should have run for P1 and switched to AppProvider:
             Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
@@ -6574,17 +6580,17 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             //  => animationError  = 0.0 ms
             //  => animationTime   = (200 - 100) ticks from firstAppSimStartTime -> 0.01 ms
 
-            Assert::IsTrue(p2_metrics.msAnimationError.has_value(),
+            Assert::IsTrue(HasMetricValue(p2_metrics.msAnimationError),
                 L"P2 should report animation error.");
-            Assert::IsTrue(p2_metrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(p2_metrics.msAnimationTime),
                 L"P2 should report animation time.");
 
             double expectedError = 0.0;
-            Assert::AreEqual(expectedError, p2_metrics.msAnimationError.value(), 0.0001,
+            Assert::AreEqual(expectedError, p2_metrics.msAnimationError, 0.0001,
                 L"P2's msAnimationError should be 0.0 when sim and display deltas match.");
 
             double expectedAnim = qpc.DeltaUnsignedMilliSeconds(475'000, 575'000);
-            Assert::AreEqual(expectedAnim, p2_metrics.msAnimationTime.value(), 0.0001,
+            Assert::AreEqual(expectedAnim, p2_metrics.msAnimationTime, 0.0001,
                 L"P2's msAnimationTime should be based on firstAppSimStartTime (100) to current sim (200).");
 
             // After finalizing P2, chain state should now reflect P2 as "last displayed"
@@ -6687,9 +6693,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& p2_metrics = p2_results[0].metrics;
 
             // Discarded / not-displayed frame must NOT produce animation metrics.
-            Assert::IsFalse(p2_metrics.msAnimationTime.has_value(),
+            Assert::IsFalse(HasMetricValue(p2_metrics.msAnimationTime),
                 L"P2 (discarded) should not have msAnimationTime.");
-            Assert::IsFalse(p2_metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(p2_metrics.msAnimationError),
                 L"P2 (discarded) should not have msAnimationError.");
 
             // And it must NOT disturb animation anchors, since it's not displayed.
@@ -6723,11 +6729,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // P1 is the FIRST displayed frame with AppProvider sim start.
             // It should only seed animation state; no error/time yet.
-            Assert::IsFalse(p1_metrics.msAnimationError.has_value(),
+            Assert::IsFalse(HasMetricValue(p1_metrics.msAnimationError),
                 L"P1 should not report animation error; it seeds the animation state.");
-            Assert::IsTrue(p1_metrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(p1_metrics.msAnimationTime),
                 L"P1 should have an animation time of 0.0.");
-            Assert::AreEqual(double(0.0), p1_metrics.msAnimationTime.value());
+            Assert::AreEqual(double(0.0), p1_metrics.msAnimationTime, 0.0001);
 
             // After finalizing P1, we must now be in AppProvider mode with anchors from P1.
             Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
@@ -6804,11 +6810,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Assertions for P1
             Assert::AreEqual(size_t(1), p1_final.size());
-            Assert::IsTrue(p1_final[0].metrics.msClickToPhotonLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(p1_final[0].metrics.msClickToPhotonLatency),
                 L"P1 should have msClickToPhotonLatency");
 
             double expected = qpc.DeltaUnsignedMilliSeconds(400'000, 1'000'000);
-            Assert::AreEqual(expected, p1_final[0].metrics.msClickToPhotonLatency.value(), 0.0001,
+            Assert::AreEqual(expected, p1_final[0].metrics.msClickToPhotonLatency, 0.0001,
                 L"P1's click-to-photon should use its own click time");
 
             // Verify no pending click remains
@@ -6866,7 +6872,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Assertions for P1
             Assert::AreEqual(size_t(1), p1_results.size());
-            Assert::IsFalse(p1_results[0].metrics.msClickToPhotonLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(p1_results[0].metrics.msClickToPhotonLatency),
                 L"P1 (dropped) should not have msClickToPhotonLatency");
             Assert::AreEqual(uint64_t(400'000), state.lastReceivedNotDisplayedMouseClickTime,
                 L"P1's click should be stored as pending");
@@ -6880,11 +6886,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Assertions for P2
             Assert::AreEqual(size_t(1), p2_final.size());
-            Assert::IsTrue(p2_final[0].metrics.msClickToPhotonLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(p2_final[0].metrics.msClickToPhotonLatency),
                 L"P2 should have msClickToPhotonLatency using P1's stored click");
 
             double expected = qpc.DeltaUnsignedMilliSeconds(400'000, 1'000'000);
-            Assert::AreEqual(expected, p2_final[0].metrics.msClickToPhotonLatency.value(), 0.0001,
+            Assert::AreEqual(expected, p2_final[0].metrics.msClickToPhotonLatency, 0.0001,
                 L"P2's click-to-photon should use P1's stored click");
 
             // Optional: verify pending click is consumed
@@ -6947,7 +6953,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // P1 arrives (dropped)
             auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
             Assert::AreEqual(size_t(1), p1_results.size());
-            Assert::IsFalse(p1_results[0].metrics.msAllInputPhotonLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(p1_results[0].metrics.msAllInputPhotonLatency),
                 L"P1 (dropped) should not have msAllInputPhotonLatency");
             Assert::AreEqual(uint64_t(300'000), state.lastReceivedNotDisplayedAllInputTime,
                 L"P1's input should be stored");
@@ -6955,7 +6961,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // P2 arrives (dropped, overrides P1)
             auto p2_results = ComputeMetricsForPresent(qpc, p2, nullptr, state);
             Assert::AreEqual(size_t(1), p2_results.size());
-            Assert::IsFalse(p2_results[0].metrics.msAllInputPhotonLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(p2_results[0].metrics.msAllInputPhotonLatency),
                 L"P2 (dropped) should not have msAllInputPhotonLatency");
             Assert::AreEqual(uint64_t(450'000), state.lastReceivedNotDisplayedAllInputTime,
                 L"P2's input should override P1's stored input (last wins)");
@@ -6969,11 +6975,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Assertions for P3
             Assert::AreEqual(size_t(1), p3_final.size());
-            Assert::IsTrue(p3_final[0].metrics.msAllInputPhotonLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(p3_final[0].metrics.msAllInputPhotonLatency),
                 L"P3 should have msAllInputPhotonLatency using last stored input");
 
             double expected = qpc.DeltaUnsignedMilliSeconds(450'000, 1'000'000);
-            Assert::AreEqual(expected, p3_final[0].metrics.msAllInputPhotonLatency.value(), 0.0001,
+            Assert::AreEqual(expected, p3_final[0].metrics.msAllInputPhotonLatency, 0.0001,
                 L"P3's all-input-to-photon should use P2's input (last wins)");
         }
 
@@ -7033,11 +7039,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Assertions for P1
             Assert::AreEqual(size_t(1), p1_final.size());
-            Assert::IsTrue(p1_final[0].metrics.msAllInputPhotonLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(p1_final[0].metrics.msAllInputPhotonLatency),
                 L"P1 should have msAllInputPhotonLatency using its own input");
 
             double expected = qpc.DeltaUnsignedMilliSeconds(500'000, 1'000'000);
-            Assert::AreEqual(expected, p1_final[0].metrics.msAllInputPhotonLatency.value(), 0.0001,
+            Assert::AreEqual(expected, p1_final[0].metrics.msAllInputPhotonLatency, 0.0001,
                 L"P1's all-input-to-photon should use its own input (500'000), not pending (300'000)");
         }
 
@@ -7109,16 +7115,16 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), p2_final.size());
 
             // Verify P2 has animation time (sanity check we're in AppProvider mode)
-            Assert::IsTrue(p2_final[0].metrics.msAnimationTime.has_value(),
+            Assert::IsTrue(HasMetricValue(p2_final[0].metrics.msAnimationTime),
                 L"P2 should have msAnimationTime (AppProvider mode)");
 
             // Verify msInstrumentedInputTime is present
-            Assert::IsTrue(p2_final[0].metrics.msInstrumentedInputTime.has_value(),
+            Assert::IsTrue(HasMetricValue(p2_final[0].metrics.msInstrumentedInputTime),
                 L"P2 should have msInstrumentedInputTime");
 
             // Calculate expected: app input -> p2 screen
             double expectedInstr = qpc.DeltaUnsignedMilliSeconds(500'000, 1'100'000);
-            Assert::AreEqual(expectedInstr, p2_final[0].metrics.msInstrumentedInputTime.value(), 0.0001,
+            Assert::AreEqual(expectedInstr, p2_final[0].metrics.msInstrumentedInputTime, 0.0001,
                 L"msInstrumentedInputTime should be P2 app input time to P2 screen time");
         }
     };
@@ -7228,7 +7234,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& p0_metrics = p0_metrics_list[0].metrics;
 
             // Dropped frames never report PC latency directly.
-            Assert::IsFalse(p0_metrics.msPcLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(p0_metrics.msPcLatency),
                 L"P0: dropped frame should not report msPcLatency.");
 
             // Accumulator should have been initialized from Ping0 -> Sim0.
@@ -7262,7 +7268,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             const auto& p1_metrics = p1_metrics_list[0].metrics;
 
-            Assert::IsFalse(p1_metrics.msPcLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(p1_metrics.msPcLatency),
                 L"P1: dropped frame should not report msPcLatency.");
 
             // Accumulator should have grown: now includes SIM0->SIM1 as well.
@@ -7345,9 +7351,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // 1) PC Latency should be populated and positive for P2 when it finally
             //    reaches the screen after the dropped chain.
-            Assert::IsTrue(p2_metrics.msPcLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(p2_metrics.msPcLatency),
                 L"P2 (final): msPcLatency should be populated for the displayed frame completing the dropped PCL chain.");
-            Assert::IsTrue(p2_metrics.msPcLatency.value() > 0.0,
+            Assert::IsTrue(p2_metrics.msPcLatency > 0.0,
                 L"P2 (final): msPcLatency should be positive.");
 
             // 2) After completion, the accumulated input→frame-start time and the
@@ -7393,7 +7399,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(1), p0_results.size(),
                 L"P0 (dropped) should emit one metrics record.");
-            Assert::IsFalse(p0_results[0].metrics.msPcLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(p0_results[0].metrics.msPcLatency),
                 L"P0 should not report msPcLatency without PCL data.");
             Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"P0 should not modify accumulatedInput2FrameStartTime when there is no PCL data.");
@@ -7429,7 +7435,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
             Assert::AreEqual(size_t(1), p1_final.size(),
                 L"Finalizing P1 should emit exactly one metrics record.");
-            Assert::IsFalse(p1_final[0].metrics.msPcLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(p1_final[0].metrics.msPcLatency),
                 L"P1 final metrics should not report msPcLatency without PCL data.");
             Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Accumulated input-to-frame-start time must remain 0 after finalizing P1.");
@@ -7452,7 +7458,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p2_final = ComputeMetricsForPresent(qpc, p2, &p3, state);
             Assert::AreEqual(size_t(1), p2_final.size(),
                 L"Finalizing P2 should emit exactly one metrics record.");
-            Assert::IsFalse(p2_final[0].metrics.msPcLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(p2_final[0].metrics.msPcLatency),
                 L"P2 final metrics should not report msPcLatency without PCL data.");
             Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Accumulated input-to-frame-start time must still be 0 after P2.");
@@ -7496,9 +7502,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"P0 should emit metrics immediately when nextDisplayed == nullptr and two display samples exist.");
 
             const auto& p0_metrics = p0_results[0].metrics;
-            Assert::IsTrue(p0_metrics.msPcLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(p0_metrics.msPcLatency),
                 L"P0 should report msPcLatency for a direct PCL sample.");
-            Assert::IsTrue(p0_metrics.msPcLatency.value() > 0.0,
+            Assert::IsTrue(p0_metrics.msPcLatency > 0.0,
                 L"P0 msPcLatency should be positive.");
             Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Direct PCL sample should not touch accumulatedInput2FrameStartTime.");
@@ -7511,7 +7517,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"Input2FrameStartTimeEma should be seeded from the first Δ(PING,SIM).");
 
             double expectedLatency = expectedEma + qpc.DeltaSignedMilliSeconds(20'000, 50'000);
-            Assert::AreEqual(expectedLatency, p0_metrics.msPcLatency.value(), 0.0001,
+            Assert::AreEqual(expectedLatency, p0_metrics.msPcLatency, 0.0001,
                 L"msPcLatency should use pclSimStartTime (not lastSimStartTime) plus the seeded EMA.");
         }
 
@@ -7557,7 +7563,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
             Assert::AreEqual(size_t(1), p0_final.size(),
                 L"Finalizing P0 with nextDisplayed=P1 should emit exactly one metrics record.");
-            Assert::IsTrue(p0_final[0].metrics.msPcLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(p0_final[0].metrics.msPcLatency),
                 L"P0 should report msPcLatency when finalized.");
             double emaAfterP0 = state.Input2FrameStartTimeEma;
             Assert::IsTrue(emaAfterP0 > 0.0,
@@ -7579,7 +7585,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
             Assert::AreEqual(size_t(1), p1_final.size(),
                 L"Finalizing P1 should emit exactly one metrics record.");
-            Assert::IsTrue(p1_final[0].metrics.msPcLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(p1_final[0].metrics.msPcLatency),
                 L"P1 should report msPcLatency when finalized.");
             double emaAfterP1 = state.Input2FrameStartTimeEma;
             Assert::IsTrue(emaAfterP1 > 0.0,
@@ -7616,7 +7622,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(1), p0_results.size(),
                 L"Dropped frames should emit one metrics record immediately.");
-            Assert::IsFalse(p0_results[0].metrics.msPcLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(p0_results[0].metrics.msPcLatency),
                 L"Dropped frames must not report msPcLatency.");
 
             double expectedAccum = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000);
@@ -7649,7 +7655,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(1), p0_results.size());
-            Assert::IsFalse(p0_results[0].metrics.msPcLatency.has_value());
+            Assert::IsFalse(HasMetricValue(p0_results[0].metrics.msPcLatency));
             double accumAfterP0 = state.accumulatedInput2FrameStartTime;
 
             FrameData p1{};
@@ -7660,7 +7666,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
             Assert::AreEqual(size_t(1), p1_results.size(),
                 L"Second dropped frame should emit one metrics record.");
-            Assert::IsFalse(p1_results[0].metrics.msPcLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(p1_results[0].metrics.msPcLatency),
                 L"Dropped frames never report msPcLatency.");
             Assert::IsTrue(state.accumulatedInput2FrameStartTime > accumAfterP0,
                 L"Accumulator should grow when a sim-only dropped frame follows an existing chain.");
@@ -7688,7 +7694,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(1), p0_results.size());
-            Assert::IsFalse(p0_results[0].metrics.msPcLatency.has_value());
+            Assert::IsFalse(HasMetricValue(p0_results[0].metrics.msPcLatency));
             Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Accumulator should remain 0 when a sim-only drop has no pending chain.");
             Assert::AreEqual(uint64_t(25'000), state.lastReceivedNotDisplayedPclSimStart,
@@ -7728,7 +7734,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
             Assert::AreEqual(size_t(1), p0_final.size());
-            Assert::IsTrue(p0_final[0].metrics.msPcLatency.has_value());
+            Assert::IsTrue(HasMetricValue(p0_final[0].metrics.msPcLatency));
             double emaAfterP0 = state.Input2FrameStartTimeEma;
             Assert::IsTrue(emaAfterP0 > 0.0);
 
@@ -7742,9 +7748,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
             Assert::AreEqual(size_t(1), p1_final.size());
             const auto& p1_metrics = p1_final[0].metrics;
-            Assert::IsTrue(p1_metrics.msPcLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(p1_metrics.msPcLatency),
                 L"P1 should report msPcLatency despite missing pclInputPingTime.");
-            Assert::IsTrue(p1_metrics.msPcLatency.value() > 0.0,
+            Assert::IsTrue(p1_metrics.msPcLatency > 0.0,
                 L"P1 msPcLatency should stay positive.");
             Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"No dropped chain means the accumulator must stay zero.");
@@ -7788,7 +7794,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
             Assert::AreEqual(size_t(1), p0_final.size());
-            Assert::IsTrue(p0_final[0].metrics.msPcLatency.has_value());
+            Assert::IsTrue(HasMetricValue(p0_final[0].metrics.msPcLatency));
             double emaAfterP0 = state.Input2FrameStartTimeEma;
             uint64_t fallbackSimStart = state.lastSimStartTime;
             Assert::IsTrue(emaAfterP0 > 0.0,
@@ -7806,12 +7812,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
             Assert::AreEqual(size_t(1), p1_final.size());
             const auto& p1_metrics = p1_final[0].metrics;
-            Assert::IsTrue(p1_metrics.msPcLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(p1_metrics.msPcLatency),
                 L"P1 should still report msPcLatency using the fallback lastSimStartTime.");
             Assert::AreEqual(emaAfterP0, state.Input2FrameStartTimeEma, 0.0001,
                 L"EMA should remain unchanged when no new PCL sample exists.");
             double expectedLatency = emaAfterP0 + qpc.DeltaSignedMilliSeconds(fallbackSimStart, 90'000);
-            Assert::AreEqual(expectedLatency, p1_metrics.msPcLatency.value(), 0.0001,
+            Assert::AreEqual(expectedLatency, p1_metrics.msPcLatency, 0.0001,
                 L"msPcLatency should use the stored EMA plus the delta from lastSimStartTime to screen time.");
             Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Accumulator should remain zero in this scenario.");
@@ -7857,7 +7863,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto p2_results = ComputeMetricsForPresent(qpc, p2, nullptr, state);
             Assert::AreEqual(size_t(1), p2_results.size());
-            Assert::IsFalse(p2_results[0].metrics.msPcLatency.has_value());
+            Assert::IsFalse(HasMetricValue(p2_results[0].metrics.msPcLatency));
 
             double expectedAccum = qpc.DeltaUnsignedMilliSeconds(100'000, 120'000);
             Assert::AreEqual(expectedAccum, state.accumulatedInput2FrameStartTime, 0.0001,
@@ -7889,7 +7895,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             d0.finalState = PresentResult::Discarded;
             auto d0_results = ComputeMetricsForPresent(qpc, d0, nullptr, state);
             Assert::AreEqual(size_t(1), d0_results.size());
-            Assert::IsFalse(d0_results[0].metrics.msPcLatency.has_value());
+            Assert::IsFalse(HasMetricValue(d0_results[0].metrics.msPcLatency));
 
             FrameData d1{};
             d1.pclInputPingTime = 0;
@@ -7897,7 +7903,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             d1.finalState = PresentResult::Discarded;
             auto d1_results = ComputeMetricsForPresent(qpc, d1, nullptr, state);
             Assert::AreEqual(size_t(1), d1_results.size());
-            Assert::IsFalse(d1_results[0].metrics.msPcLatency.has_value());
+            Assert::IsFalse(HasMetricValue(d1_results[0].metrics.msPcLatency));
             double accumBeforeDisplayed = state.accumulatedInput2FrameStartTime;
             Assert::IsTrue(accumBeforeDisplayed > 0.0,
                 L"Incomplete chain should leave a non-zero accumulator.");
@@ -7919,9 +7925,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
             Assert::AreEqual(size_t(1), p0_final.size());
             const auto& p0_metrics = p0_final[0].metrics;
-            Assert::IsTrue(p0_metrics.msPcLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(p0_metrics.msPcLatency),
                 L"Displayed frame with direct PCL data must report msPcLatency.");
-            Assert::IsTrue(p0_metrics.msPcLatency.value() > 0.0,
+            Assert::IsTrue(p0_metrics.msPcLatency > 0.0,
                 L"msPcLatency should be positive for P0.");
 
             double expectedFirstEma = pmon::util::CalculateEma(0.0,
@@ -8058,21 +8064,21 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedBetween = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000); // 10'000 ticks
 
             // 1) Instrumented sleep
-            Assert::IsTrue(m0.msInstrumentedSleep.has_value(),
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedSleep),
                 L"P0: msInstrumentedSleep should have a value for valid AppSleepStart/End.");
-            Assert::AreEqual(expectedSleepMs, m0.msInstrumentedSleep.value(), 1e-6,
+            Assert::AreEqual(expectedSleepMs, m0.msInstrumentedSleep, 1e-6,
                 L"P0: msInstrumentedSleep did not match expected Δ(AppSleepStart, AppSleepEnd).");
 
             // 2) Instrumented GPU latency (start = AppSleepEndTime since it is non-zero)
-            Assert::IsTrue(m0.msInstrumentedGpuLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedGpuLatency),
                 L"P0: msInstrumentedGpuLatency should have a value when InstrumentedStartTime and gpuStartTime are valid.");
-            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency.value(), 1e-6,
+            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency, 1e-6,
                 L"P0: msInstrumentedGpuLatency did not match expected Δ(AppSleepEndTime, gpuStartTime).");
 
             // 3) Between sim starts: PCL sim (20'000) must win over App sim (100'000)
-            Assert::IsTrue(m0.msBetweenSimStarts.has_value(),
+            Assert::IsTrue(HasMetricValue(m0.msBetweenSimStarts),
                 L"P0: msBetweenSimStarts should have a value when lastSimStartTime and PclSimStartTime are non-zero.");
-            Assert::AreEqual(expectedBetween, m0.msBetweenSimStarts.value(), 1e-6,
+            Assert::AreEqual(expectedBetween, m0.msBetweenSimStarts, 1e-6,
                 L"P0: msBetweenSimStarts should be based on PCL sim start, not App sim start.");
         }
         TEST_METHOD(InstrumentedDisplay_AppFrame_FullData_ComputesAll)
@@ -8190,21 +8196,21 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(5'000, 30'000); // 25'000 ticks
 
             // Render latency
-            Assert::IsTrue(m0.msInstrumentedRenderLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedRenderLatency),
                 L"P0: msInstrumentedRenderLatency should have a value for a displayed app frame with AppRenderSubmitStartTime.");
-            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency.value(), 1e-6,
+            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6,
                 L"P0: msInstrumentedRenderLatency did not match expected Δ(AppRenderSubmitStartTime, screenTime).");
 
             // Ready-to-display latency
-            Assert::IsTrue(m0.msReadyTimeToDisplayLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency),
                 L"P0: msReadyTimeToDisplayLatency should have a value when ReadyTime and screenTime are valid.");
-            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency.value(), 1e-6,
+            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6,
                 L"P0: msReadyTimeToDisplayLatency did not match expected Δ(ReadyTime, screenTime).");
 
             // Total instrumented latency: from appSleepEndTime to screenTime
-            Assert::IsTrue(m0.msInstrumentedLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency),
                 L"P0: msInstrumentedLatency should have a value when there is a valid instrumented start time.");
-            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency.value(), 1e-6,
+            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency, 1e-6,
                 L"P0: msInstrumentedLatency did not match expected Δ(AppSleepEndTime, screenTime).");
         }
 
@@ -8274,19 +8280,19 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"P0 (final) should emit exactly one metrics record once nextDisplayed is provided.");
 
             const auto& m0 = p0_final[0].metrics;
-            Assert::IsFalse(m0.msInstrumentedSleep.has_value(),
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedSleep),
                 L"P0: Instrumented sleep must be absent when the app never emitted sleep markers.");
-            Assert::IsTrue(m0.msInstrumentedGpuLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedGpuLatency),
                 L"P0: GPU latency should fall back to AppSimStart when no sleep end exists.");
-            Assert::IsTrue(m0.msBetweenSimStarts.has_value(),
+            Assert::IsTrue(HasMetricValue(m0.msBetweenSimStarts),
                 L"P0: Between-sim-starts should use the stored lastSimStartTime when AppSimStart is valid.");
 
             double expectedGpuMs = qpc.DeltaUnsignedMilliSeconds(70'000, 90'000);
             double expectedBetweenMs = qpc.DeltaUnsignedMilliSeconds(40'000, 70'000);
 
-            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency.value(), 1e-6,
+            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency, 1e-6,
                 L"P0: msInstrumentedGpuLatency should measure Δ(AppSimStartTime, gpuStartTime).");
-            Assert::AreEqual(expectedBetweenMs, m0.msBetweenSimStarts.value(), 1e-6,
+            Assert::AreEqual(expectedBetweenMs, m0.msBetweenSimStarts, 1e-6,
                 L"P0: msBetweenSimStarts should use AppSimStart when no PCL sim exists.");
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
@@ -8340,11 +8346,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), p0_final.size());
 
             const auto& m0 = p0_final[0].metrics;
-            Assert::IsFalse(m0.msInstrumentedSleep.has_value(),
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedSleep),
                 L"P0: sleep metrics require both start and end markers.");
-            Assert::IsFalse(m0.msInstrumentedGpuLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedGpuLatency),
                 L"P0: GPU latency must remain off without an instrumented start time.");
-            Assert::IsFalse(m0.msBetweenSimStarts.has_value(),
+            Assert::IsFalse(HasMetricValue(m0.msBetweenSimStarts),
                 L"P0: between-sim-starts cannot be computed without a new sim start.");
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
@@ -8391,19 +8397,19 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedGpuMs = qpc.DeltaUnsignedMilliSeconds(25'000, 45'000);
             double expectedBetweenMs = qpc.DeltaUnsignedMilliSeconds(5'000, 30'000);
 
-            Assert::IsTrue(m0.msInstrumentedSleep.has_value());
-            Assert::AreEqual(expectedSleepMs, m0.msInstrumentedSleep.value(), 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedSleep));
+            Assert::AreEqual(expectedSleepMs, m0.msInstrumentedSleep, 1e-6);
 
-            Assert::IsTrue(m0.msInstrumentedGpuLatency.has_value());
-            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency.value(), 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedGpuLatency));
+            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency, 1e-6);
 
-            Assert::IsTrue(m0.msBetweenSimStarts.has_value());
-            Assert::AreEqual(expectedBetweenMs, m0.msBetweenSimStarts.value(), 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msBetweenSimStarts));
+            Assert::AreEqual(expectedBetweenMs, m0.msBetweenSimStarts, 1e-6);
 
-            Assert::IsFalse(m0.msInstrumentedRenderLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedRenderLatency),
                 L"Display-dependent metrics must stay off for non-displayed frames.");
-            Assert::IsFalse(m0.msReadyTimeToDisplayLatency.has_value());
-            Assert::IsFalse(m0.msInstrumentedLatency.has_value());
+            Assert::IsFalse(HasMetricValue(m0.msReadyTimeToDisplayLatency));
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedLatency));
         }
 
         TEST_METHOD(InstrumentedCpuGpu_NonAppFrame_Ignored)
@@ -8457,10 +8463,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), p0_final.size());
             const auto& m0 = p0_final[0].metrics;
 
-            Assert::IsFalse(m0.msInstrumentedSleep.has_value(),
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedSleep),
                 L"Non-app displays must not emit instrumented CPU metrics.");
-            Assert::IsFalse(m0.msInstrumentedGpuLatency.has_value());
-            Assert::IsFalse(m0.msBetweenSimStarts.has_value());
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedGpuLatency));
+            Assert::IsFalse(HasMetricValue(m0.msBetweenSimStarts));
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
             Assert::AreEqual(size_t(0), p1_phase1.size());
@@ -8503,13 +8509,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(80'000, 100'000);
             double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(50'000, 100'000);
 
-            Assert::IsFalse(m0.msInstrumentedRenderLatency.has_value(),
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedRenderLatency),
                 L"Render latency must remain off without appRenderSubmitStartTime.");
-            Assert::IsTrue(m0.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency.value(), 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
 
-            Assert::IsTrue(m0.msInstrumentedLatency.has_value());
-            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency.value(), 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency));
+            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency, 1e-6);
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
             Assert::AreEqual(size_t(0), p1_phase1.size());
@@ -8561,12 +8567,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(30'000, 60'000);
             double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(5'000, 60'000);
 
-            Assert::IsTrue(m0.msInstrumentedRenderLatency.has_value());
-            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency.value(), 1e-6);
-            Assert::IsTrue(m0.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency.value(), 1e-6);
-            Assert::IsTrue(m0.msInstrumentedLatency.has_value());
-            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency.value(), 1e-6,
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedRenderLatency));
+            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency));
+            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency, 1e-6,
                 L"Total latency should fall back to AppSimStartTime when sleep end is missing.");
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
@@ -8611,11 +8617,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedRenderMs = qpc.DeltaUnsignedMilliSeconds(12'000, 70'000);
             double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(32'000, 70'000);
 
-            Assert::IsTrue(m0.msInstrumentedRenderLatency.has_value());
-            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency.value(), 1e-6);
-            Assert::IsTrue(m0.msReadyTimeToDisplayLatency.has_value());
-            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency.value(), 1e-6);
-            Assert::IsFalse(m0.msInstrumentedLatency.has_value(),
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedRenderLatency));
+            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedLatency),
                 L"Total instrumented latency must stay off without an instrumented start.");
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
@@ -8656,8 +8662,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), p0_final.size());
             const auto& m0 = p0_final[0].metrics;
 
-            Assert::IsFalse(m0.msInstrumentedRenderLatency.has_value());
-            Assert::IsFalse(m0.msInstrumentedLatency.has_value());
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedRenderLatency));
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedLatency));
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
             Assert::AreEqual(size_t(0), p1_phase1.size());
@@ -8690,9 +8696,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), p0_results.size());
             const auto& m0 = p0_results[0].metrics;
 
-            Assert::IsFalse(m0.msInstrumentedRenderLatency.has_value());
-            Assert::IsFalse(m0.msReadyTimeToDisplayLatency.has_value());
-            Assert::IsFalse(m0.msInstrumentedLatency.has_value());
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedRenderLatency));
+            Assert::IsFalse(HasMetricValue(m0.msReadyTimeToDisplayLatency));
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedLatency));
         }
 
         TEST_METHOD(InstrumentedInput_DroppedAppFrame_PendingProviderInput_ConsumedOnDisplay)
@@ -8745,10 +8751,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), p1_final.size());
             const auto& m1 = p1_final[0].metrics;
 
-            Assert::IsTrue(m1.msInstrumentedInputTime.has_value(),
+            Assert::IsTrue(HasMetricValue(m1.msInstrumentedInputTime),
                 L"P1 should consume the cached provider input time once it is displayed.");
             double expectedInputMs = qpc.DeltaUnsignedMilliSeconds(pendingInputTime, 70'000);
-            Assert::AreEqual(expectedInputMs, m1.msInstrumentedInputTime.value(), 1e-6);
+            Assert::AreEqual(expectedInputMs, m1.msInstrumentedInputTime, 1e-6);
 
             Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime,
                 L"Pending provider input cache must be cleared after consumption.");
@@ -8806,8 +8812,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m1 = p1_final[0].metrics;
 
             double expectedInputMs = qpc.DeltaUnsignedMilliSeconds(directInputTime, 60'000);
-            Assert::IsTrue(m1.msInstrumentedInputTime.has_value());
-            Assert::AreEqual(expectedInputMs, m1.msInstrumentedInputTime.value(), 1e-6,
+            Assert::IsTrue(HasMetricValue(m1.msInstrumentedInputTime));
+            Assert::AreEqual(expectedInputMs, m1.msInstrumentedInputTime, 1e-6,
                 L"P1 must prefer its own input marker over pending values.");
 
             Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime);
@@ -8865,7 +8871,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, chain);
             Assert::AreEqual(size_t(1), p1_final.size());
             const auto& m1 = p1_final[0].metrics;
-            Assert::IsFalse(m1.msInstrumentedInputTime.has_value(),
+            Assert::IsFalse(HasMetricValue(m1.msInstrumentedInputTime),
                 L"P1 should not report instrumented input latency because no app-frame pending sample existed.");
 
             auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, chain);

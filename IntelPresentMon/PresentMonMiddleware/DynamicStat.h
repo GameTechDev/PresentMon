@@ -1,14 +1,49 @@
 ﻿#pragma once
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <span>
+#include <type_traits>
 #include "../PresentMonAPI2/PresentMonAPI.h"
 
 namespace pmon::mid
 {
     struct DynamicQueryWindow;
+
+    namespace detail
+    {
+        template<typename T>
+        struct DynamicStatSampleAdapter
+        {
+            static bool HasValue(const T& val)
+            {
+                if constexpr (std::is_floating_point_v<T>) {
+                    return !std::isnan(val);
+                }
+                else {
+                    return true;
+                }
+            }
+
+            static bool IsZero(const T& val)
+            {
+                return val == (T)0;
+            }
+
+            static double ToDouble(const T& val)
+            {
+                return (double)val;
+            }
+
+            static uint64_t ToUint64(const T& val)
+            {
+                return (uint64_t)val;
+            }
+        };
+
+    }
 
     template<typename T>
     class DynamicStat

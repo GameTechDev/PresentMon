@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MetricsCalculator.h"
 #include "MetricsCalculatorInternal.h"
@@ -11,7 +11,7 @@ namespace pmon::util::metrics
     namespace
     {
         // ---- Animation metrics ----
-        std::optional<double> ComputeAnimationError(
+        double ComputeAnimationError(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
             const FrameData& present,
@@ -20,7 +20,7 @@ namespace pmon::util::metrics
             uint64_t screenTime)
         {
             if (!isDisplayed || !isAppFrame) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             uint64_t currentSimStart = CalculateAnimationErrorSimStartTime(chain, present, chain.animationErrorSource);
@@ -29,21 +29,21 @@ namespace pmon::util::metrics
                 chain.lastDisplayedSimStartTime == 0 ||
                 currentSimStart <= chain.lastDisplayedSimStartTime ||
                 chain.lastDisplayedAppScreenTime == 0) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             double simElapsed = qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedSimStartTime, currentSimStart);
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedAppScreenTime, screenTime);
 
             if (simElapsed == 0.0 || displayElapsed == 0.0) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             return simElapsed - displayElapsed;
         }
 
 
-        std::optional<double> ComputeAnimationTime(
+        double ComputeAnimationTime(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
             const FrameData& present,
@@ -51,7 +51,7 @@ namespace pmon::util::metrics
             bool isAppFrame)
         {
             if (!isDisplayed || !isAppFrame) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             bool isFirstProviderSimTime =

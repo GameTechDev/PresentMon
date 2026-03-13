@@ -1,7 +1,9 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
+#include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include "../cnr/FixedVector.h"
@@ -11,6 +13,16 @@
 struct PresentEvent; // From PresentMonTraceConsumer
 
 namespace pmon::util::metrics {
+
+    inline double MissingFrameMetricValue()
+    {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    inline bool IsMissingFrameMetricValue(double value)
+    {
+        return std::isnan(value);
+    }
 
     // Metrics pipeline mode
     enum class MetricsVersion {
@@ -113,7 +125,7 @@ namespace pmon::util::metrics {
         double msUntilDisplayed = 0;
         double msBetweenDisplayChange = 0;
         uint64_t screenTimeQpc = 0;
-        std::optional<double> msReadyTimeToDisplayLatency;
+        double msReadyTimeToDisplayLatency = MissingFrameMetricValue();
         bool isDroppedFrame = false;
 
         // CPU Metrics (app frames only)
@@ -129,24 +141,24 @@ namespace pmon::util::metrics {
         double msGPUTime = 0;
 
         // Input Latency (optional, app+displayed only)
-        std::optional<double> msClickToPhotonLatency = {};
-        std::optional<double> msAllInputPhotonLatency = {};
-        std::optional<double> msInstrumentedInputTime;
+        double msClickToPhotonLatency = MissingFrameMetricValue();
+        double msAllInputPhotonLatency = MissingFrameMetricValue();
+        double msInstrumentedInputTime = MissingFrameMetricValue();
 
         // Animation (optional, app+displayed only)
-        std::optional<double> msAnimationError = {};
-        std::optional<double> msAnimationTime = {};
+        double msAnimationError = MissingFrameMetricValue();
+        double msAnimationTime = MissingFrameMetricValue();
 
         // Instrumented Metrics (optional)
-        std::optional<double> msInstrumentedLatency = {};
-        std::optional<double> msInstrumentedRenderLatency = {};
-        std::optional<double> msInstrumentedSleep = {};
-        std::optional<double> msInstrumentedGpuLatency = {};
-        std::optional<double> msPcLatency = {};
-        std::optional<double> msBetweenSimStarts = {};
+        double msInstrumentedLatency = MissingFrameMetricValue();
+        double msInstrumentedRenderLatency = MissingFrameMetricValue();
+        double msInstrumentedSleep = MissingFrameMetricValue();
+        double msInstrumentedGpuLatency = MissingFrameMetricValue();
+        double msPcLatency = MissingFrameMetricValue();
+        double msBetweenSimStarts = MissingFrameMetricValue();
 
         // PCLatency (optional)
-        std::optional<double> msFlipDelay = {};  // NVIDIA
+        double msFlipDelay = MissingFrameMetricValue();  // NVIDIA
 
         // Frame Classification
         FrameType frameType = {};

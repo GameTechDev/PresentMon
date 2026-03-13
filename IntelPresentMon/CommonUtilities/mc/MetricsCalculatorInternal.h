@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 
@@ -47,7 +47,7 @@ namespace pmon::util::metrics
         FrameMetrics& metrics,
         ComputedMetrics::StateDeltas& stateDeltas);
 
-    std::optional<double> CalculatePcLatency(
+    double CalculatePcLatency(
         const QpcConverter& qpc,
         const SwapChainCoreState& chain,
         const FrameData& present,

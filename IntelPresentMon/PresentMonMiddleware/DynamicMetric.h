@@ -70,7 +70,7 @@ namespace pmon::mid
         {
             const auto value = AdjustSample_(sample.*MemberPtr);
             // if samples has reserved size, it is needed
-            if (samples_.capacity()) {
+            if (samples_.capacity() && detail::DynamicStatSampleAdapter<T>::HasValue(value)) {
                 samples_.push_back(value);
             }
             for (auto* stat : needsUpdatePtrs_) {
