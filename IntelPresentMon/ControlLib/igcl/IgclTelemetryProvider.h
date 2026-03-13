@@ -4,7 +4,7 @@
 #define NOMINMAX
 #include <Windows.h>
 
-#include "../TelemetryCache.h"
+#include "../EndpointCache.h"
 #include "../TelemetryProvider.h"
 #include "igcl_api.h"
 
@@ -29,6 +29,28 @@ namespace pmon::tel::igcl
             int64_t requestQpc) override;
 
     private:
+        class TelemetrySampleBuffer_
+        {
+        public:
+            TelemetrySampleBuffer_() noexcept;
+            bool Matches(int64_t requestQpc) const noexcept;
+            ctl_power_telemetry_t& PrepareForWrite(int64_t requestQpc) noexcept;
+            const ctl_power_telemetry_t& Current() const noexcept;
+            const ctl_power_telemetry_t* Previous() const noexcept;
+            int64_t PreviousRequestQpc() const noexcept;
+
+        private:
+            static ctl_power_telemetry_t MakeEmptySample_() noexcept;
+
+        private:
+            ctl_power_telemetry_t samples_[2]{};
+            int64_t requestQpcs_[2]{};
+            uint32_t currentIndex_ = 0;
+            uint32_t previousIndex_ = 1;
+            bool hasCurrent_ = false;
+            bool hasPrevious_ = false;
+        };
+
         struct DeviceState_
         {
             ProviderDeviceId providerDeviceId = 0;
@@ -47,9 +69,7 @@ namespace pmon::tel::igcl
 
             bool useNewBandwidthTelemetry = true;
 
-            pmon::tele::EndpointCache<ctl_power_telemetry_t> telemetryEndpointCache{};
-            pmon::tele::EndpointCache<ctl_power_telemetry_t> previousTelemetryEndpointCache{};
-
+            TelemetrySampleBuffer_ telemetrySamples{};
             pmon::tele::EndpointCache<ctl_mem_state_t> memoryStateEndpointCache{};
 
             // Runtime telemetry workarounds carried over from the legacy Intel path.
@@ -68,15 +88,13 @@ namespace pmon::tel::igcl
         const ctl_power_telemetry_t& PollTelemetryEndpoint_(
             DeviceState_& device,
             int64_t requestQpc) const;
-        std::optional<ctl_mem_state_t> PollMemoryStateEndpoint_(
+        const ctl_mem_state_t* PollMemoryStateEndpoint_(
             DeviceState_& device,
             int64_t requestQpc) const;
         std::optional<ctl_mem_bandwidth_t> PollMemoryBandwidthEndpoint_(
-            DeviceState_& device,
-            int64_t requestQpc) const;
+            DeviceState_& device) const;
         std::optional<ctl_power_limits_t> PollPowerLimitsEndpoint_(
-            DeviceState_& device,
-            int64_t requestQpc) const;
+            DeviceState_& device) const;
 
         TelemetryMetricValue PollTelemetryMetric_(
             DeviceState_& device,

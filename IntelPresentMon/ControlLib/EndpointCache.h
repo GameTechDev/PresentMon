@@ -12,16 +12,15 @@ namespace pmon::tele
         T output{};
         int64_t requestQpc = 0;
 
-        bool HasValue(int64_t candidateRequestQpc) const noexcept
+        bool Matches(int64_t candidateRequestQpc) const noexcept
         {
             return requestQpc != 0 && candidateRequestQpc != 0 &&
                 requestQpc == candidateRequestQpc;
         }
 
-        void Store(int64_t newRequestQpc, const T& newOutput) noexcept
+        bool Empty() const noexcept
         {
-            output = newOutput;
-            requestQpc = newRequestQpc;
+            return requestQpc == 0;
         }
 
         void Clear() noexcept

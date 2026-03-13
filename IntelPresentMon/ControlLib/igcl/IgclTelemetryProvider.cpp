@@ -18,9 +18,57 @@ using v = log::V;
 
 namespace pmon::tel::igcl
 {
-    namespace
+    IgclTelemetryProvider::TelemetrySampleBuffer_::TelemetrySampleBuffer_() noexcept
+        : samples_{ MakeEmptySample_(), MakeEmptySample_() }
+    {}
+
+    bool IgclTelemetryProvider::TelemetrySampleBuffer_::Matches(int64_t requestQpc) const noexcept
     {
-        constexpr uint32_t kMaxFanCount_ = CTL_FAN_COUNT;
+        return hasCurrent_ && requestQpc != 0 && requestQpcs_[currentIndex_] == requestQpc;
+    }
+
+    ctl_power_telemetry_t& IgclTelemetryProvider::TelemetrySampleBuffer_::PrepareForWrite(int64_t requestQpc) noexcept
+    {
+        if (requestQpc != 0 && hasCurrent_ &&
+            requestQpcs_[currentIndex_] != 0 && requestQpcs_[currentIndex_] != requestQpc) {
+            previousIndex_ = currentIndex_;
+            currentIndex_ = currentIndex_ == 0 ? 1u : 0u;
+            hasPrevious_ = true;
+        }
+
+        hasCurrent_ = true;
+        requestQpcs_[currentIndex_] = requestQpc;
+        samples_[currentIndex_] = MakeEmptySample_();
+        return samples_[currentIndex_];
+    }
+
+    const ctl_power_telemetry_t& IgclTelemetryProvider::TelemetrySampleBuffer_::Current() const noexcept
+    {
+        return samples_[currentIndex_];
+    }
+
+    const ctl_power_telemetry_t* IgclTelemetryProvider::TelemetrySampleBuffer_::Previous() const noexcept
+    {
+        if (!hasPrevious_) {
+            return nullptr;
+        }
+        return &samples_[previousIndex_];
+    }
+
+    int64_t IgclTelemetryProvider::TelemetrySampleBuffer_::PreviousRequestQpc() const noexcept
+    {
+        if (!hasPrevious_) {
+            return 0;
+        }
+        return requestQpcs_[previousIndex_];
+    }
+
+    ctl_power_telemetry_t IgclTelemetryProvider::TelemetrySampleBuffer_::MakeEmptySample_() noexcept
+    {
+        return {
+            .Size = sizeof(ctl_power_telemetry_t),
+            .Version = 1,
+        };
     }
 
     IgclTelemetryProvider::IgclTelemetryProvider()
@@ -125,7 +173,7 @@ namespace pmon::tel::igcl
         case PM_METRIC_GPU_SUSTAINED_POWER_LIMIT:
         {
             ValidateScalarMetricIndex_(metricId, arrayIndex);
-            const auto limits = PollPowerLimitsEndpoint_(device, requestQpc);
+            const auto limits = PollPowerLimitsEndpoint_(device);
             if (!limits || !limits->sustainedPowerLimit.enabled) {
                 return 0.0;
             }
@@ -134,34 +182,34 @@ namespace pmon::tel::igcl
         case PM_METRIC_GPU_MEM_SIZE:
         {
             ValidateScalarMetricIndex_(metricId, arrayIndex);
-            const auto memState = PollMemoryStateEndpoint_(device, requestQpc);
-            if (!memState) {
+            const auto* pMemState = PollMemoryStateEndpoint_(device, requestQpc);
+            if (pMemState == nullptr) {
                 return (uint64_t)0;
             }
-            return (uint64_t)memState->size;
+            return (uint64_t)pMemState->size;
         }
         case PM_METRIC_GPU_MEM_USED:
         {
             ValidateScalarMetricIndex_(metricId, arrayIndex);
-            const auto memState = PollMemoryStateEndpoint_(device, requestQpc);
-            if (!memState) {
+            const auto* pMemState = PollMemoryStateEndpoint_(device, requestQpc);
+            if (pMemState == nullptr) {
                 return (uint64_t)0;
             }
-            return (uint64_t)(memState->size - memState->free);
+            return (uint64_t)(pMemState->size - pMemState->free);
         }
         case PM_METRIC_GPU_MEM_UTILIZATION:
         {
             ValidateScalarMetricIndex_(metricId, arrayIndex);
-            const auto memState = PollMemoryStateEndpoint_(device, requestQpc);
-            if (!memState || memState->size == 0) {
+            const auto* pMemState = PollMemoryStateEndpoint_(device, requestQpc);
+            if (pMemState == nullptr || pMemState->size == 0) {
                 return 0.0;
             }
-            return 100.0 * ((double)(memState->size - memState->free) / (double)memState->size);
+            return 100.0 * ((double)(pMemState->size - pMemState->free) / (double)pMemState->size);
         }
         case PM_METRIC_GPU_MEM_MAX_BANDWIDTH:
         {
             ValidateScalarMetricIndex_(metricId, arrayIndex);
-            const auto memBandwidth = PollMemoryBandwidthEndpoint_(device, requestQpc);
+            const auto memBandwidth = PollMemoryBandwidthEndpoint_(device);
             if (!memBandwidth) {
                 return (uint64_t)0;
             }
@@ -277,7 +325,7 @@ namespace pmon::tel::igcl
     void IgclTelemetryProvider::EnumerateFans_(DeviceState_& device) const
     {
         device.maxFanSpeedsRpm.clear();
-        device.maxFanSpeedsRpm.resize((size_t)kMaxFanCount_, 0);
+        device.maxFanSpeedsRpm.resize((size_t)CTL_FAN_COUNT, 0);
 
         uint32_t fanCount = 0;
         const auto enumCountResult = ctlEnumFans(device.handle, &fanCount, nullptr);
@@ -300,7 +348,7 @@ namespace pmon::tel::igcl
             return;
         }
 
-        const auto fanCountToRead = (uint32_t)std::min((size_t)fanCount, (size_t)kMaxFanCount_);
+        const auto fanCountToRead = (uint32_t)std::min((size_t)fanCount, (size_t)CTL_FAN_COUNT);
         for (uint32_t iFan = 0; iFan < fanCountToRead; ++iFan) {
             const auto hFan = fanHandles[(size_t)iFan];
             if (hFan == nullptr) {
@@ -332,26 +380,25 @@ namespace pmon::tel::igcl
         caps.Set(PM_METRIC_GPU_VENDOR, 1);
         caps.Set(PM_METRIC_GPU_NAME, 1);
 
-        const auto powerLimits = PollPowerLimitsEndpoint_(device, 0);
+        const auto powerLimits = PollPowerLimitsEndpoint_(device);
         if (powerLimits && powerLimits->sustainedPowerLimit.enabled) {
             caps.Set(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, 1);
         }
 
-        const auto memoryState = PollMemoryStateEndpoint_(device, 0);
-        if (memoryState) {
+        const auto* pMemoryState = PollMemoryStateEndpoint_(device, 0);
+        if (pMemoryState != nullptr) {
             caps.Set(PM_METRIC_GPU_MEM_SIZE, 1);
             caps.Set(PM_METRIC_GPU_MEM_USED, 1);
             caps.Set(PM_METRIC_GPU_MEM_UTILIZATION, 1);
-            (void)memoryState;
         }
 
-        const auto memoryBandwidth = PollMemoryBandwidthEndpoint_(device, 0);
+        const auto memoryBandwidth = PollMemoryBandwidthEndpoint_(device);
         if (memoryBandwidth) {
             caps.Set(PM_METRIC_GPU_MEM_MAX_BANDWIDTH, 1);
             device.gpuMemMaxBwCacheValueBps = memoryBandwidth->maxBandwidth;
         }
 
-        const auto sample = PollTelemetryEndpoint_(device, 0);
+        const auto& sample = PollTelemetryEndpoint_(device, 0);
 
         if (IsUsageTelemetryItemSupported_(sample.gpuEnergyCounter)) {
             caps.Set(PM_METRIC_GPU_POWER, 1);
@@ -435,11 +482,11 @@ namespace pmon::tel::igcl
         }
 
         device.fanSpeedCount = 0;
-        while (device.fanSpeedCount < kMaxFanCount_ &&
+        while (device.fanSpeedCount < CTL_FAN_COUNT &&
             IsInstantaneousTelemetryItemSupported_(sample.fanSpeed[(size_t)device.fanSpeedCount])) {
             ++device.fanSpeedCount;
         }
-        for (uint32_t iFan = device.fanSpeedCount; iFan < kMaxFanCount_; ++iFan) {
+        for (uint32_t iFan = device.fanSpeedCount; iFan < CTL_FAN_COUNT; ++iFan) {
             if (IsInstantaneousTelemetryItemSupported_(sample.fanSpeed[(size_t)iFan])) {
                 pmlog_warn("Detected sparse fan-speed telemetry population; assuming dense indices")
                     .pmwatch(device.fingerprint.deviceName)
@@ -480,19 +527,11 @@ namespace pmon::tel::igcl
         DeviceState_& device,
         int64_t requestQpc) const
     {
-        if (requestQpc != 0 && device.telemetryEndpointCache.requestQpc == requestQpc) {
-            return device.telemetryEndpointCache.output;
+        if (device.telemetrySamples.Matches(requestQpc)) {
+            return device.telemetrySamples.Current();
         }
 
-        if (requestQpc != 0 && device.telemetryEndpointCache.requestQpc != 0 &&
-            device.telemetryEndpointCache.requestQpc != requestQpc) {
-            device.previousTelemetryEndpointCache = device.telemetryEndpointCache;
-        }
-
-        ctl_power_telemetry_t currentSample{
-            .Size = sizeof(ctl_power_telemetry_t),
-            .Version = 1,
-        };
+        auto& currentSample = device.telemetrySamples.PrepareForWrite(requestQpc);
 
         pmlog_verb(v::tele_gpu)("telemetry poll tick")
             .pmwatch(device.fingerprint.deviceName)
@@ -511,53 +550,41 @@ namespace pmon::tel::igcl
             .pmwatch(device.providerDeviceId)
             .pmwatch(ref::DumpGenerated(currentSample));
 
-        device.telemetryEndpointCache.Store(requestQpc, currentSample);
-        return device.telemetryEndpointCache.output;
+        return device.telemetrySamples.Current();
     }
 
-    std::optional<ctl_mem_state_t> IgclTelemetryProvider::PollMemoryStateEndpoint_(
+    const ctl_mem_state_t* IgclTelemetryProvider::PollMemoryStateEndpoint_(
         DeviceState_& device,
         int64_t requestQpc) const
     {
-        if (device.memoryStateEndpointCache.HasValue(requestQpc)) {
-            if (device.memoryStateEndpointCache.output.Size == sizeof(ctl_mem_state_t)) {
-                return device.memoryStateEndpointCache.output;
-            }
-            return {};
+        auto& cache = device.memoryStateEndpointCache;
+        if (cache.Matches(requestQpc)) {
+            return cache.output.Size == sizeof(ctl_mem_state_t) ? &cache.output : nullptr;
         }
 
-        ctl_mem_state_t memoryState{ .Size = sizeof(ctl_mem_state_t) };
-        bool hasValue = false;
+        cache.output = { .Size = sizeof(ctl_mem_state_t) };
+        cache.requestQpc = requestQpc;
 
         if (!device.memoryModules.empty()) {
-            const auto result = ctlMemoryGetState(device.memoryModules[0], &memoryState);
-            if (result == CTL_RESULT_SUCCESS) {
-                hasValue = true;
-            }
-            else {
+            const auto result = ctlMemoryGetState(device.memoryModules[0], &cache.output);
+            if (result != CTL_RESULT_SUCCESS) {
                 pmlog_warn("ctlMemoryGetState failed").code(result).every(std::chrono::seconds{ 60 })
                     .pmwatch(device.fingerprint.deviceName);
+                cache.output.Size = 0;
             }
             pmlog_verb(v::tele_gpu)("ctlMemoryGetState output")
                 .pmwatch(device.fingerprint.deviceName)
                 .pmwatch(device.providerDeviceId)
-                .pmwatch(ref::DumpGenerated(memoryState));
+                .pmwatch(ref::DumpGenerated(cache.output));
         }
-
-        if (!hasValue) {
-            // Mark cached sample invalid while still memoizing the requestQpc.
-            memoryState.Size = 0;
+        else {
+            cache.output.Size = 0;
         }
-        device.memoryStateEndpointCache.Store(requestQpc, memoryState);
-        if (hasValue) {
-            return device.memoryStateEndpointCache.output;
-        }
-        return {};
+        return cache.output.Size == sizeof(ctl_mem_state_t) ? &cache.output : nullptr;
     }
 
     std::optional<ctl_mem_bandwidth_t> IgclTelemetryProvider::PollMemoryBandwidthEndpoint_(
-        DeviceState_& device,
-        int64_t requestQpc) const
+        DeviceState_& device) const
     {
         ctl_mem_bandwidth_t memoryBandwidth{
             .Size = sizeof(ctl_mem_bandwidth_t),
@@ -584,13 +611,11 @@ namespace pmon::tel::igcl
                 .pmwatch(ref::DumpGenerated(memoryBandwidth));
         }
 
-        (void)requestQpc;
         return {};
     }
 
     std::optional<ctl_power_limits_t> IgclTelemetryProvider::PollPowerLimitsEndpoint_(
-        DeviceState_& device,
-        int64_t requestQpc) const
+        DeviceState_& device) const
     {
         ctl_power_limits_t powerLimits{
             .Size = sizeof(ctl_power_limits_t),
@@ -611,7 +636,6 @@ namespace pmon::tel::igcl
             }
         }
 
-        (void)requestQpc;
         return {};
     }
 
@@ -622,15 +646,14 @@ namespace pmon::tel::igcl
         int64_t requestQpc) const
     {
         const auto& currentSample = PollTelemetryEndpoint_(device, requestQpc);
-        const auto& previousSampleCache = device.previousTelemetryEndpointCache;
-        const ctl_power_telemetry_t* pPreviousSample = nullptr;
+        const auto* pPreviousSample = device.telemetrySamples.Previous();
         double timeDelta = 0.0;
-        if (previousSampleCache.requestQpc != 0 &&
+        if (device.telemetrySamples.PreviousRequestQpc() != 0 &&
+            pPreviousSample != nullptr &&
             currentSample.timeStamp.type == CTL_DATA_TYPE_DOUBLE &&
-            previousSampleCache.output.timeStamp.type == CTL_DATA_TYPE_DOUBLE) {
-            pPreviousSample = &previousSampleCache.output;
+            pPreviousSample->timeStamp.type == CTL_DATA_TYPE_DOUBLE) {
             timeDelta = currentSample.timeStamp.value.datadouble -
-                previousSampleCache.output.timeStamp.value.datadouble;
+                pPreviousSample->timeStamp.value.datadouble;
         }
 
         double value = 0.0;
@@ -830,7 +853,7 @@ namespace pmon::tel::igcl
         case PM_METRIC_GPU_FAN_SPEED:
         {
             if (arrayIndex >= device.fanSpeedCount) {
-                throw Except<>{ "IGCL array index out of range" };
+                throw Except<>("IGCL array index out of range");
             }
             if (TryGetInstantaneousTelemetryItem_(currentSample.fanSpeed[(size_t)arrayIndex], value)) {
                 return value;
@@ -840,7 +863,7 @@ namespace pmon::tel::igcl
         case PM_METRIC_GPU_FAN_SPEED_PERCENT:
         {
             if (arrayIndex >= device.fanSpeedPercentCount) {
-                throw Except<>{ "IGCL array index out of range" };
+                throw Except<>("IGCL array index out of range");
             }
             if (!TryGetInstantaneousTelemetryItem_(currentSample.fanSpeed[(size_t)arrayIndex], value)) {
                 return 0.0;
