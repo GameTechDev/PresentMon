@@ -1,4 +1,4 @@
-#include "IgclErrorCodeProvider.h"
+﻿#include "IgclErrorCodeProvider.h"
 #include "../CommonUtilities/log/ErrorCode.h"
 #include "../CommonUtilities/ref/GeneratedReflection.h"
 #include "igcl_api.h"
