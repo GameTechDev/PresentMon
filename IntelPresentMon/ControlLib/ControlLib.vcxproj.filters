@@ -43,6 +43,9 @@
     <ClInclude Include="nvapi\NvapiTelemetryProvider.h">
       <Filter>Nvidia</Filter>
     </ClInclude>
+    <ClInclude Include="nvml\NvmlTelemetryProvider.h">
+      <Filter>Nvidia</Filter>
+    </ClInclude>
     <ClInclude Include="MacroHelpers.h">
       <Filter>Nvidia</Filter>
     </ClInclude>
@@ -96,6 +99,9 @@
       <Filter>Nvidia</Filter>
     </ClCompile>
     <ClCompile Include="nvapi\NvapiTelemetryProvider.cpp">
+      <Filter>Nvidia</Filter>
+    </ClCompile>
+    <ClCompile Include="nvml\NvmlTelemetryProvider.cpp">
       <Filter>Nvidia</Filter>
     </ClCompile>
     <ClCompile Include="NvidiaPowerTelemetryAdapter.cpp">

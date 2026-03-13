@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "nvml.h"
@@ -11,6 +11,7 @@
 #define NVW_NVML_ENDPOINT_LIST \
 X_(DeviceGetCount_v2, unsigned int*, deviceCount) \
 X_(DeviceGetHandleByIndex_v2, unsigned int, index, nvmlDevice_t*, device) \
+X_(DeviceGetName, nvmlDevice_t, device, char*, name, unsigned int, length) \
 X_(DeviceGetPciInfo_v3, nvmlDevice_t, device, nvmlPciInfo_t*, pci) \
 X_(DeviceGetClock, nvmlDevice_t, device, nvmlClockType_t, clockType, nvmlClockId_t, clockId, unsigned int*, clockMHz) \
 X_(DeviceGetMemoryInfo, nvmlDevice_t, device, nvmlMemory_t*, memory) \
