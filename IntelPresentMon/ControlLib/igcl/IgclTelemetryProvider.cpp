@@ -4,6 +4,7 @@
 
 #include "../Exceptions.h"
 #include "../Logging.h"
+#include "../../CommonUtilities/ref/GeneratedReflection.h"
 
 #include <algorithm>
 #include <chrono>
@@ -13,6 +14,7 @@
 
 using namespace pmon;
 using namespace util;
+using v = log::V;
 
 namespace pmon::tel::igcl
 {
@@ -36,6 +38,8 @@ namespace pmon::tel::igcl
             }
             throw Except<TelemetrySubsystemAbsent>("Unable to initialize Intel Graphics Control Library");
         }
+        pmlog_verb(v::tele_gpu)("ctlInit input args")
+            .pmwatch(ref::DumpGenerated(ctlInitArgs));
 
         std::vector<ctl_device_adapter_handle_t> handles{};
         {
@@ -45,6 +49,8 @@ namespace pmon::tel::igcl
                 pmlog_error("ctlEnumerateDevices(count) failed").code(enumCountResult);
                 throw std::runtime_error{ "IGCL device enumeration (count) failed" };
             }
+            pmlog_verb(v::tele_gpu)("ctlEnumerateDevices(count) output")
+                .pmwatch(count);
 
             handles.resize((size_t)count);
             const auto enumListResult = ctlEnumerateDevices(apiHandle_, &count, handles.data());
@@ -62,12 +68,12 @@ namespace pmon::tel::igcl
             }
 
             auto& device = emplaceResult.first->second;
+            device.providerDeviceId = providerDeviceId;
             if (!TryInitializeDevice_(device, handle)) {
                 devicesById_.erase(emplaceResult.first);
                 continue;
             }
 
-            device.providerDeviceId = providerDeviceId;
             device.caps = BuildCapsForDevice_(device);
             ++nextProviderDeviceId_;
         }
@@ -190,6 +196,12 @@ namespace pmon::tel::igcl
             pmlog_error("ctlGetDeviceProperties failed").code(propertiesResult);
             return false;
         }
+        pmlog_verb(v::tele_gpu)("ctlGetDeviceProperties output")
+            .pmwatch(device.properties.name)
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(ref::DumpGenerated(device.properties))
+            .pmwatch(device.deviceLuid.HighPart)
+            .pmwatch(device.deviceLuid.LowPart);
 
         if (device.properties.device_type != CTL_DEVICE_TYPE_GRAPHICS) {
             return false;
@@ -200,6 +212,10 @@ namespace pmon::tel::igcl
         device.fingerprint.deviceName = device.properties.name;
 
         device.isAlchemist = std::regex_search(device.fingerprint.deviceName, std::regex{ R"(Arc.*A\d{3})" });
+        pmlog_verb(v::tele_gpu)("Alchemist detection")
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.isAlchemist);
 
         EnumerateMemoryModules_(device);
         EnumeratePowerDomains_(device);
@@ -227,6 +243,10 @@ namespace pmon::tel::igcl
             device.memoryModules.clear();
             return;
         }
+        pmlog_verb(v::tele_gpu)("ctlEnumMemoryModules output")
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(ref::DumpGenerated(device.memoryModules));
     }
 
     void IgclTelemetryProvider::EnumeratePowerDomains_(DeviceState_& device) const
@@ -248,6 +268,10 @@ namespace pmon::tel::igcl
             device.powerDomains.clear();
             return;
         }
+        pmlog_verb(v::tele_gpu)("ctlEnumPowerDomains(output)")
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(ref::DumpGenerated(device.powerDomains));
     }
 
     void IgclTelemetryProvider::EnumerateFans_(DeviceState_& device) const
@@ -290,6 +314,11 @@ namespace pmon::tel::igcl
                     .pmwatch(device.fingerprint.deviceName).pmwatch(iFan);
                 continue;
             }
+            pmlog_verb(v::tele_gpu)("ctlFanGetProperties output")
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(iFan)
+                .pmwatch(ref::DumpGenerated(fanProperties));
 
             device.maxFanSpeedsRpm[(size_t)iFan] = fanProperties.maxRPM;
         }
@@ -465,6 +494,9 @@ namespace pmon::tel::igcl
             .Version = 1,
         };
 
+        pmlog_verb(v::tele_gpu)("telemetry poll tick")
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(device.providerDeviceId);
         const auto pollResult = ctlPowerTelemetryGet(device.handle, &currentSample);
         if (pollResult != CTL_RESULT_SUCCESS) {
             pmlog_warn("ctlPowerTelemetryGet failed").code(pollResult).every(std::chrono::seconds{ 60 })
@@ -474,6 +506,10 @@ namespace pmon::tel::igcl
                 .Version = 1,
             };
         }
+        pmlog_verb(v::tele_gpu)("ctlPowerTelemetryGet output")
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(ref::DumpGenerated(currentSample));
 
         device.telemetryEndpointCache.Store(requestQpc, currentSample);
         return device.telemetryEndpointCache.output;
@@ -502,6 +538,10 @@ namespace pmon::tel::igcl
                 pmlog_warn("ctlMemoryGetState failed").code(result).every(std::chrono::seconds{ 60 })
                     .pmwatch(device.fingerprint.deviceName);
             }
+            pmlog_verb(v::tele_gpu)("ctlMemoryGetState output")
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(ref::DumpGenerated(memoryState));
         }
 
         if (!hasValue) {
@@ -528,12 +568,20 @@ namespace pmon::tel::igcl
             const auto result = ctlMemoryGetBandwidth(device.memoryModules[0], &memoryBandwidth);
             if (result == CTL_RESULT_SUCCESS) {
                 device.gpuMemMaxBwCacheValueBps = memoryBandwidth.maxBandwidth;
+                pmlog_verb(v::tele_gpu)("ctlMemoryGetBandwidth output")
+                    .pmwatch(device.fingerprint.deviceName)
+                    .pmwatch(device.providerDeviceId)
+                    .pmwatch(ref::DumpGenerated(memoryBandwidth));
                 return memoryBandwidth;
             }
             else {
                 pmlog_warn("ctlMemoryGetBandwidth failed").code(result).every(std::chrono::seconds{ 60 })
                     .pmwatch(device.fingerprint.deviceName);
             }
+            pmlog_verb(v::tele_gpu)("ctlMemoryGetBandwidth output")
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(ref::DumpGenerated(memoryBandwidth));
         }
 
         (void)requestQpc;
@@ -551,6 +599,10 @@ namespace pmon::tel::igcl
         if (!device.powerDomains.empty()) {
             const auto result = ctlPowerGetLimits(device.powerDomains[0], &powerLimits);
             if (result == CTL_RESULT_SUCCESS) {
+                pmlog_verb(v::tele_gpu)("ctlPowerGetLimits output")
+                    .pmwatch(device.fingerprint.deviceName)
+                    .pmwatch(device.providerDeviceId)
+                    .pmwatch(ref::DumpGenerated(powerLimits));
                 return powerLimits;
             }
             else {
@@ -692,11 +744,17 @@ namespace pmon::tel::igcl
         case PM_METRIC_GPU_MEM_WRITE_BANDWIDTH:
             ValidateScalarMetricIndex_(metricId, arrayIndex);
             if (device.useNewBandwidthTelemetry) {
+                pmlog_verb(v::tele_gpu)("ctlPowerTelemetryGet VRAM bandwidth V1 path")
+                    .pmwatch(device.fingerprint.deviceName)
+                    .pmwatch(device.providerDeviceId);
                 if (TryGetInstantaneousTelemetryItem_(currentSample.vramWriteBandwidth, value)) {
                     return ConvertMegabytesPerSecondToBitsPerSecond_(value);
                 }
                 device.useNewBandwidthTelemetry = false;
             }
+            pmlog_verb(v::tele_gpu)("ctlPowerTelemetryGet VRAM bandwidth counter path")
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(device.providerDeviceId);
             if (pPreviousSample &&
                 TryGetUsageTelemetryItem_(
                     device,
@@ -711,11 +769,17 @@ namespace pmon::tel::igcl
         case PM_METRIC_GPU_MEM_READ_BANDWIDTH:
             ValidateScalarMetricIndex_(metricId, arrayIndex);
             if (device.useNewBandwidthTelemetry) {
+                pmlog_verb(v::tele_gpu)("ctlPowerTelemetryGet VRAM bandwidth V1 path")
+                    .pmwatch(device.fingerprint.deviceName)
+                    .pmwatch(device.providerDeviceId);
                 if (TryGetInstantaneousTelemetryItem_(currentSample.vramReadBandwidth, value)) {
                     return ConvertMegabytesPerSecondToBitsPerSecond_(value);
                 }
                 device.useNewBandwidthTelemetry = false;
             }
+            pmlog_verb(v::tele_gpu)("ctlPowerTelemetryGet VRAM bandwidth counter path")
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(device.providerDeviceId);
             if (pPreviousSample &&
                 TryGetUsageTelemetryItem_(
                     device,
