@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include <generated/version.h>
@@ -275,6 +275,7 @@ void PrintUsage()
         LR"(--exclude_dropped)",  LR"(Exclude frames that were not displayed to the screen from the CSV output.)",
         LR"(--v1_metrics)",       LR"(Output a CSV using PresentMon 1.x metrics.)",
         LR"(--v2_metrics)",       LR"(Output a CSV using PresentMon 2.x metrics.)",
+        LR"(--write_display_metadata)", LR"(Write VidPnSourceId, LayerIndex, and PresentId columns to CSV output.)",
 
         LR"(--Recording Options)", nullptr,
         LR"(--hotkey key)",       LR"(Use the specified key press to start and stop recording. 'key' is of the form MODIFIER+KEY, e.g., "ALT+SHIFT+F11".)",
@@ -408,6 +409,7 @@ bool ParseCommandLine(int argc, wchar_t** argv)
     args->mUseV1Metrics = false;
     args->mUseV2Metrics = false;
     args->mStopExistingSession = false;
+    args->mWriteDisplayMetadata = false;
     args->mWriteFrameId = false;
     args->mWriteDisplayTime = false;
     args->mDisableOfflineBackpressure = false;
@@ -446,6 +448,7 @@ bool ParseCommandLine(int argc, wchar_t** argv)
         else if (ParseArg(argv[i], L"exclude_dropped"))  { args->mExcludeDropped = true;                              continue; }
         else if (ParseArg(argv[i], L"v1_metrics"))       { args->mUseV1Metrics   = true;                              continue; }
         else if (ParseArg(argv[i], L"v2_metrics"))       { args->mUseV2Metrics   = true;                              continue; }
+        else if (ParseArg(argv[i], L"write_display_metadata")) { args->mWriteDisplayMetadata = true;                        continue; }
 
         // Recording options:
         else if (ParseArg(argv[i], L"hotkey"))           { if (ParseValue(argv, argc, &i) && AssignHotkey(argv[i], args)) continue; }
@@ -536,13 +539,14 @@ bool ParseCommandLine(int argc, wchar_t** argv)
     }
 
     // Ignore CSV-only options when --no_csv is used
-    if (csvOutputNone && (qpcTime || qpcmsTime || dtTime || args->mMultiCsv || args->mHotkeySupport)) {
+    if (csvOutputNone && (qpcTime || qpcmsTime || dtTime || args->mMultiCsv || args->mHotkeySupport || args->mWriteDisplayMetadata)) {
         PrintWarning(L"warning: ignoring CSV-related options due to --no_csv:");
         if (qpcTime)              { qpcTime              = false; PrintWarning(L" --qpc_time"); }
         if (qpcmsTime)            { qpcmsTime            = false; PrintWarning(L" --qpc_time_ms"); }
         if (dtTime)               { dtTime               = false; PrintWarning(L" --date_time"); }
         if (args->mMultiCsv)      { args->mMultiCsv      = false; PrintWarning(L" --multi_csv"); }
         if (args->mHotkeySupport) { args->mHotkeySupport = false; PrintWarning(L" --hotkey"); }
+        if (args->mWriteDisplayMetadata) { args->mWriteDisplayMetadata = false; PrintWarning(L" --write_display_metadata"); }
         PrintWarning(L"\n");
     }
 
@@ -590,6 +594,12 @@ bool ParseCommandLine(int argc, wchar_t** argv)
         PrintWarning(L"warning: ignoring --v1_metrics due to --v2_metrics.\n");
         args->mUseV1Metrics = false;
     }
+
+    if (args->mUseV1Metrics && args->mWriteDisplayMetadata) {
+        PrintWarning(L"warning: ignoring --write_display_metadata due to --v1_metrics.\n");
+        args->mWriteDisplayMetadata = false;
+    }
+
     // Enable verbose trace if requested, and disable Full or Simple console output
     #if PRESENTMON_ENABLE_DEBUG_TRACE
     if (verboseTrace) {

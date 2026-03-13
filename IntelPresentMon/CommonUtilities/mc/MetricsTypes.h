@@ -77,6 +77,9 @@ namespace pmon::util::metrics {
         int32_t syncInterval = 0;
         uint32_t presentFlags = 0;
 
+        uint64_t vidPnLayerId = 0;
+        uint64_t presentId = 0;
+
         // Metadata
         PresentResult finalState = {};
         bool supportsTearing = 0;
@@ -113,8 +116,10 @@ namespace pmon::util::metrics {
         double msUntilDisplayed = 0;
         double msBetweenDisplayChange = 0;
         uint64_t screenTimeQpc = 0;
-        std::optional<double> msReadyTimeToDisplayLatency;
+        std::optional<double> msReadyTimeToDisplayLatency = {};
         bool isDroppedFrame = false;
+        std::pair<uint32_t, uint32_t> displayId = {}; // {vidPnSourceId, layerIndex}
+        uint64_t presentId = 0;
 
         // CPU Metrics (app frames only)
         double msCPUBusy = 0;
@@ -131,7 +136,7 @@ namespace pmon::util::metrics {
         // Input Latency (optional, app+displayed only)
         std::optional<double> msClickToPhotonLatency = {};
         std::optional<double> msAllInputPhotonLatency = {};
-        std::optional<double> msInstrumentedInputTime;
+        std::optional<double> msInstrumentedInputTime = {};
 
         // Animation (optional, app+displayed only)
         std::optional<double> msAnimationError = {};
