@@ -115,6 +115,8 @@
     <ClInclude Include="CpuTelemetry.h" />
     <ClInclude Include="Exceptions.h" />
     <ClInclude Include="IgclErrorCodeProvider.h" />
+    <ClInclude Include="igcl\IgclErrorCodeProvider.h" />
+    <ClInclude Include="igcl\igcl_api.h" />
     <ClInclude Include="IntelPowerTelemetryAdapter.h" />
     <ClInclude Include="Logging.h" />
     <ClInclude Include="MacroHelpers.h" />
@@ -128,6 +130,8 @@
     <ClInclude Include="PowerTelemetryAdapter.h" />
     <ClInclude Include="PowerTelemetryProvider.h" />
     <ClInclude Include="igcl_api.h" />
+    <ClInclude Include="TelemetryCache.h" />
+    <ClInclude Include="igcl\IgclTelemetryProvider.h" />
     <ClInclude Include="IntelPowerTelemetryProvider.h" />
     <ClInclude Include="PresentMonPowerTelemetry.h" />
     <ClInclude Include="PowerTelemetryProviderFactory.h" />
@@ -140,10 +144,13 @@
   <ItemGroup>
     <ClCompile Include="AmdPowerTelemetryAdapter.cpp" />
     <ClCompile Include="Adl2Wrapper.cpp" />
-    <ClCompile Include="cApiWrapper.cpp" />
-    <ClCompile Include="IgclErrorCodeProvider.cpp" />
-    <ClCompile Include="IntelPowerTelemetryProvider.cpp" />
-    <ClCompile Include="IntelPowerTelemetryAdapter.cpp" />
+    <ClCompile Include="cApiWrapper_old.cpp" />
+    <ClCompile Include="IgclErrorCodeProvider_old.cpp" />
+    <ClCompile Include="igcl\cApiWrapper.cpp" />
+    <ClCompile Include="igcl\IgclErrorCodeProvider.cpp" />
+    <ClCompile Include="IntelPowerTelemetryProvider_old.cpp" />
+    <ClCompile Include="IntelPowerTelemetryAdapter_old.cpp" />
+    <ClCompile Include="igcl\IgclTelemetryProvider.cpp" />
     <ClCompile Include="NvapiWrapper.cpp" />
     <ClCompile Include="NvidiaPowerTelemetryAdapter.cpp" />
     <ClCompile Include="NvidiaPowerTelemetryProvider.cpp" />

@@ -81,6 +81,12 @@
     <ClInclude Include="TelemetryCoordinator.h" />
     <ClInclude Include="TelemetryDeviceFingerprint.h" />
     <ClInclude Include="TelemetryProvider.h" />
+    <ClInclude Include="TelemetryCache.h" />
+    <ClInclude Include="igcl\IgclTelemetryProvider.h">
+      <Filter>Intel</Filter>
+    </ClInclude>
+    <ClInclude Include="igcl\IgclErrorCodeProvider.h" />
+    <ClInclude Include="igcl\igcl_api.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="NvapiWrapper.cpp">
@@ -98,13 +104,13 @@
     <ClCompile Include="SignatureComparison.cpp">
       <Filter>Nvidia</Filter>
     </ClCompile>
-    <ClCompile Include="cApiWrapper.cpp">
+    <ClCompile Include="cApiWrapper_old.cpp">
       <Filter>Intel</Filter>
     </ClCompile>
-    <ClCompile Include="IntelPowerTelemetryAdapter.cpp">
+    <ClCompile Include="IntelPowerTelemetryAdapter_old.cpp">
       <Filter>Intel</Filter>
     </ClCompile>
-    <ClCompile Include="IntelPowerTelemetryProvider.cpp">
+    <ClCompile Include="IntelPowerTelemetryProvider_old.cpp">
       <Filter>Intel</Filter>
     </ClCompile>
     <ClCompile Include="WmiCpu.cpp">
@@ -122,10 +128,15 @@
     <ClCompile Include="PowerTelemetryProviderFactory.cpp" />
     <ClCompile Include="CpuTelemetry.cpp" />
     <ClCompile Include="PowerTelemetryAdapter.cpp" />
-    <ClCompile Include="IgclErrorCodeProvider.cpp">
+    <ClCompile Include="IgclErrorCodeProvider_old.cpp">
+      <Filter>Intel</Filter>
+    </ClCompile>
+    <ClCompile Include="igcl\IgclTelemetryProvider.cpp">
       <Filter>Intel</Filter>
     </ClCompile>
     <ClCompile Include="TelemetryCoordinator.cpp" />
     <ClCompile Include="TelemetryDeviceFingerprint.cpp" />
+    <ClCompile Include="igcl\cApiWrapper.cpp" />
+    <ClCompile Include="igcl\IgclErrorCodeProvider.cpp" />
   </ItemGroup>
 </Project>
