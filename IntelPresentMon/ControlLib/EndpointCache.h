@@ -14,8 +14,7 @@ namespace pmon::tele
 
         bool Matches(int64_t candidateRequestQpc) const noexcept
         {
-            return requestQpc != 0 && candidateRequestQpc != 0 &&
-                requestQpc == candidateRequestQpc;
+            return requestQpc == candidateRequestQpc;
         }
 
         bool Empty() const noexcept
