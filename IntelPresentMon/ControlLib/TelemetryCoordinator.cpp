@@ -1,8 +1,11 @@
 ﻿// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "TelemetryCoordinator.h"
+#include "Exceptions.h"
 #include "TelemetryDeviceFingerprint.h"
 #include "Logging.h"
+#include "igcl/IgclTelemetryProvider.h"
+#include "nvapi/NvapiTelemetryProvider.h"
 #include "../CommonUtilities/Exception.h"
 #include "../CommonUtilities/Qpc.h"
 #include "../Interprocess/source/Interprocess.h"
@@ -261,8 +264,27 @@ namespace pmon::tel
 
     void TelemetryCoordinator::TryCreateConcreteProviders_()
     {
-        // TODO: Add construction attempts for all concrete telemetry providers.
-        // TODO: Catch provider construction failures and continue with remaining providers.
+        providerPtrs_.clear();
+
+        try {
+            providerPtrs_.push_back(std::make_shared<igcl::IgclTelemetryProvider>());
+        }
+        catch (const TelemetrySubsystemAbsent&) {
+            pmlog_warn(util::ReportException("IGCL telemetry provider unavailable"));
+        }
+        catch (...) {
+            pmlog_error(util::ReportException("IGCL telemetry provider construction failed"));
+        }
+
+        try {
+            providerPtrs_.push_back(std::make_shared<nvapi::NvapiTelemetryProvider>());
+        }
+        catch (const TelemetrySubsystemAbsent&) {
+            pmlog_warn(util::ReportException("NVAPI telemetry provider unavailable"));
+        }
+        catch (...) {
+            pmlog_error(util::ReportException("NVAPI telemetry provider construction failed"));
+        }
     }
 
     void TelemetryCoordinator::BuildLogicalDevicesAndRoutes_()
