@@ -400,12 +400,12 @@ namespace pmon::mid
 
     void Middleware::UpdateMetricUsage_()
     {
-        std::unordered_set<svc::acts::MetricUse> usage;
+        std::unordered_set<svc::MetricUse> usage;
         // TODO: remove intro here as it is not necessary
         const auto& introRoot = GetIntrospectionRoot_();
         for (const auto& [handle, elements] : queryMetricUsage_) {
             for (const auto& element : elements) {
-                usage.insert(svc::acts::MetricUse{
+                usage.insert(svc::MetricUse{
                     .metricId = element.metric,
                     .deviceId = element.deviceId,
                     .arrayIdx = element.arrayIndex,

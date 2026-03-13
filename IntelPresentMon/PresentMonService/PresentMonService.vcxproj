@@ -152,6 +152,7 @@
     <ClInclude Include="LogSetup.h" />
     <ClInclude Include="MockPresentMonSession.h" />
     <ClInclude Include="LateStageReprojectionData.hpp" />
+    <ClInclude Include="MetricUse.h" />
     <ClInclude Include="ActionServer.h" />
     <ClInclude Include="PowerTelemetryContainer.h" />
     <ClInclude Include="PresentMon.h" />

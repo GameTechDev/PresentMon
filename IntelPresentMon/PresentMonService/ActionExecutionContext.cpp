@@ -58,20 +58,12 @@ namespace pmon::svc::acts
     }
     void ActionExecutionContext::UpdateMetricUsage() const
     {
-        std::unordered_set<MetricUse> aggregateMetricUsage;
-        std::unordered_set<uint32_t> deviceMetricUsage;
+        auto deviceMetricUsage = std::make_shared<PresentMon::DeviceMetricUsage>();
         auto&& allUsageSets = util::rng::MemberSlice(*pSessionMap, &SessionContextType::metricUsage);
         for (auto&& clientUsageSet : allUsageSets) {
             for (auto&& usage : clientUsageSet) {
-                aggregateMetricUsage.insert(usage);
-                deviceMetricUsage.insert(usage.deviceId);
+                (*deviceMetricUsage)[usage.deviceId].insert(usage);
             }
-        }
-        if (!hasLastAggregateMetricUsage || aggregateMetricUsage != lastAggregateMetricUsage) {
-            pmlog_verb(pmon::util::log::V::met_use)("Aggregate metric usage updated")
-                .serialize("aggregateMetricUsage", aggregateMetricUsage);
-            lastAggregateMetricUsage = aggregateMetricUsage;
-            hasLastAggregateMetricUsage = true;
         }
         pPmon->SetDeviceMetricUsage(std::move(deviceMetricUsage));
     }

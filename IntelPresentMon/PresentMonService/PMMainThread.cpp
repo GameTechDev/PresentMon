@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Logging.h"
 #include "Service.h"
@@ -405,10 +405,11 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                 }
                 else {
                     // if any of our gpu telemetry devices are active enter polling loop
+                    const auto deviceUsage = pm->GetDeviceMetricUsageSnapshot();
                     bool hasActive = false;
                     for (auto&& adapter : ptc->GetPowerTelemetryAdapters()) {
                         const auto deviceId = adapter->GetDeviceId();
-                        if (pm->CheckDeviceMetricUsage(deviceId)) {
+                        if (deviceUsage->contains(deviceId)) {
                             pmlog_dbg("detected gpu active").pmwatch(deviceId);
                             hasActive = true;
                             break;
@@ -430,9 +431,10 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                     }
                     // poll all gpu adapter devices, skipping inactive devices
                     auto& adapters = ptc->GetPowerTelemetryAdapters();
+                    const auto deviceUsage = pm->GetDeviceMetricUsageSnapshot();
                     for (auto&& adapter : adapters) {
                         const auto deviceId = adapter->GetDeviceId();
-                        if (!pm->CheckDeviceMetricUsage(deviceId)) {
+                        if (!deviceUsage->contains(deviceId)) {
                             continue;
                         }
                         // Get the newest sample from the provider
@@ -450,7 +452,7 @@ void PowerTelemetryThreadEntry_(Service* const srv, PresentMon* const pm,
                     // conditions for ending active poll and returning to idle state
                     // go dormant if no gpu devices are in use
                     const bool anyUsed = std::ranges::any_of(adapters,
-                        [&](const auto& adapter) { return pm->CheckDeviceMetricUsage(adapter->GetDeviceId()); });
+                        [&](const auto& adapter) { return deviceUsage->contains(adapter->GetDeviceId()); });
                     if (!anyUsed) {
                         break;
                     }
@@ -490,7 +492,8 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
             }
             else {
                 // if system telemetry metrics active enter active polling loop
-                if (pm->CheckDeviceMetricUsage(ipc::kSystemDeviceId)) {
+                const auto deviceUsage = pm->GetDeviceMetricUsageSnapshot();
+                if (deviceUsage->contains(ipc::kSystemDeviceId)) {
                     pmlog_dbg("detected system active");
                 }
                 else {
@@ -499,6 +502,10 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
                 }
             }
             while (!WaitAnyEventFor(0ms, srv->GetServiceStopHandle())) {
+                const auto deviceUsage = pm->GetDeviceMetricUsageSnapshot();
+                if (!deviceUsage->contains(ipc::kSystemDeviceId)) {
+                    break;
+                }
                 // TODO:streamer replace this flow with a call that populates rings of a store
                 // placeholder routine shim to translate cpu tranfer struct into rings
                 // replace with a direct mapping on PM_METRIC that obviates the switch
@@ -532,10 +539,6 @@ void CpuTelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Ser
                 // ms and SetInterval expects seconds.
                 waiter.SetInterval(pm->GetGpuTelemetryPeriod() / 1000.);
                 waiter.Wait();
-                // conditions for ending active poll and returning to idle state
-                if (!pm->CheckDeviceMetricUsage(ipc::kSystemDeviceId)) {
-                    break;
-                }
             }
         }
     }

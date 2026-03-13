@@ -10,3 +10,4 @@
 - For value conversion casts (numeric or enum conversions), use C-style casts `(T)value` instead of `static_cast<T>(value)`.
 - For const, pointer, reference, up/down, or reinterpret casts, use C++ cast syntax (`const_cast`, `dynamic_cast`, `reinterpret_cast`, etc.).
 - Do not bind unused names in structured bindings. Prefer binding only needed values (for example use `.first` from `emplace()` or iterate entries without destructuring unused keys).
+- Do not fully qualify namespaces when not needed by local scope (for example prefer `MetricUse` or `svc::MetricUse` over `pmon::svc::MetricUse` when already inside `pmon::svc::acts` or with suitable using scope).
