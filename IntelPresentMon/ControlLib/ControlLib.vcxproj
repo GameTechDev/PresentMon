@@ -110,6 +110,7 @@
     <ClInclude Include="AmdPowerTelemetryAdapter.h" />
     <ClInclude Include="AmdPowerTelemetryProvider.h" />
     <ClInclude Include="Adl2Wrapper.h" />
+    <ClInclude Include="adl\AmdTelemetryProvider.h" />
     <ClInclude Include="CpuTelemetryInfo.h" />
     <ClInclude Include="DllModule.h" />
     <ClInclude Include="CpuTelemetry.h" />
@@ -148,6 +149,7 @@
   <ItemGroup>
     <ClCompile Include="AmdPowerTelemetryAdapter.cpp" />
     <ClCompile Include="Adl2Wrapper.cpp" />
+    <ClCompile Include="adl\AmdTelemetryProvider.cpp" />
     <ClCompile Include="cApiWrapper_old.cpp" />
     <ClCompile Include="IgclErrorCodeProvider_old.cpp" />
     <ClCompile Include="igcl\cApiWrapper.cpp" />

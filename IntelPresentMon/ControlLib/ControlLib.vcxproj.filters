@@ -73,6 +73,9 @@
     <ClInclude Include="Adl2Wrapper.h">
       <Filter>Amd</Filter>
     </ClInclude>
+    <ClInclude Include="adl\AmdTelemetryProvider.h">
+      <Filter>Amd</Filter>
+    </ClInclude>
     <ClInclude Include="WmiCpu.h">
       <Filter>Intel</Filter>
     </ClInclude>
@@ -142,6 +145,9 @@
       <Filter>Amd</Filter>
     </ClCompile>
     <ClCompile Include="AmdPowerTelemetryProvider.cpp">
+      <Filter>Amd</Filter>
+    </ClCompile>
+    <ClCompile Include="adl\AmdTelemetryProvider.cpp">
       <Filter>Amd</Filter>
     </ClCompile>
     <ClCompile Include="PowerTelemetryProviderFactory.cpp" />
