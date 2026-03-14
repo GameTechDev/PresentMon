@@ -120,6 +120,7 @@
     <ClInclude Include="IntelPowerTelemetryAdapter.h" />
     <ClInclude Include="Logging.h" />
     <ClInclude Include="MacroHelpers.h" />
+    <ClInclude Include="MetricUse.h" />
     <ClInclude Include="nvapi.h" />
     <ClInclude Include="NvapiWrapper.h" />
     <ClInclude Include="nvapi\NvapiTelemetryProvider.h" />

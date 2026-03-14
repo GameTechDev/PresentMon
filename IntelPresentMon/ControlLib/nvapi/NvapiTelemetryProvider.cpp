@@ -4,6 +4,7 @@
 
 #include "../Exceptions.h"
 #include "../Logging.h"
+#include "../../CommonUtilities/Qpc.h"
 
 #include <algorithm>
 #include <chrono>
@@ -168,13 +169,14 @@ namespace pmon::tel::nvapi
     ipc::MetricCapabilities NvapiTelemetryProvider::BuildCapsForDevice_(DeviceState_& device) const
     {
         ipc::MetricCapabilities caps{};
+        const auto requestQpc = GetCurrentTimestamp();
 
         caps.Set(PM_METRIC_GPU_VENDOR, 1);
         caps.Set(PM_METRIC_GPU_NAME, 1);
 
         double value = 0.0;
 
-        if (const auto* pThermals = PollThermalEndpoint_(device, 0)) {
+        if (const auto* pThermals = PollThermalEndpoint_(device, requestQpc)) {
             if (TryGetThermalValue_(*pThermals, NVAPI_THERMAL_TARGET_GPU, true, value)) {
                 caps.Set(PM_METRIC_GPU_TEMPERATURE, 1);
             }
@@ -183,7 +185,7 @@ namespace pmon::tel::nvapi
             }
         }
 
-        if (const auto* pClocks = PollClockEndpoint_(device, 0)) {
+        if (const auto* pClocks = PollClockEndpoint_(device, requestQpc)) {
             if (TryGetClockValue_(*pClocks, NVAPI_GPU_PUBLIC_CLOCK_GRAPHICS, value)) {
                 caps.Set(PM_METRIC_GPU_FREQUENCY, 1);
             }
@@ -192,7 +194,7 @@ namespace pmon::tel::nvapi
             }
         }
 
-        if (const auto* pUtilization = PollUtilizationEndpoint_(device, 0)) {
+        if (const auto* pUtilization = PollUtilizationEndpoint_(device, requestQpc)) {
             if (TryGetUtilizationValue_(
                 *pUtilization, pwr::nv::NVAPI_GPU_UTILIZATION_DOMAIN_GPU, value)) {
                 caps.Set(PM_METRIC_GPU_UTILIZATION, 1);
@@ -203,7 +205,7 @@ namespace pmon::tel::nvapi
             }
         }
 
-        if (PollTachEndpoint_(device, 0) != nullptr) {
+        if (PollTachEndpoint_(device, requestQpc) != nullptr) {
             caps.Set(PM_METRIC_GPU_FAN_SPEED, 1);
         }
 

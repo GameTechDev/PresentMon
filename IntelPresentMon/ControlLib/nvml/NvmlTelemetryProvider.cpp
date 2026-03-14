@@ -4,6 +4,7 @@
 
 #include "../Exceptions.h"
 #include "../Logging.h"
+#include "../../CommonUtilities/Qpc.h"
 
 #include <chrono>
 
@@ -208,6 +209,7 @@ namespace pmon::tel::nvml
     ipc::MetricCapabilities NvmlTelemetryProvider::BuildCapsForDevice_(DeviceState_& device) const
     {
         ipc::MetricCapabilities caps{};
+        const auto requestQpc = GetCurrentTimestamp();
 
         caps.Set(PM_METRIC_GPU_VENDOR, 1);
         caps.Set(PM_METRIC_GPU_NAME, 1);
@@ -220,7 +222,7 @@ namespace pmon::tel::nvml
             caps.Set(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, 1);
         }
 
-        if (const auto* pMemoryInfo = PollMemoryInfoEndpoint_(device, 0)) {
+        if (const auto* pMemoryInfo = PollMemoryInfoEndpoint_(device, requestQpc)) {
             const auto totalBytes = GetLegacyTotalMemoryBytes_(*pMemoryInfo);
             if (totalBytes != 0) {
                 caps.Set(PM_METRIC_GPU_MEM_SIZE, 1);
@@ -237,7 +239,7 @@ namespace pmon::tel::nvml
         int64_t requestQpc) const
     {
         auto& cache = device.memoryInfoEndpointCache;
-        if (requestQpc != 0 && cache.Matches(requestQpc)) {
+        if (cache.Matches(requestQpc)) {
             return cache.output ? &*cache.output : nullptr;
         }
 

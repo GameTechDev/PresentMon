@@ -79,6 +79,7 @@
     <ClInclude Include="CpuTelemetry.h" />
     <ClInclude Include="CpuTelemetryInfo.h" />
     <ClInclude Include="Logging.h" />
+    <ClInclude Include="MetricUse.h" />
     <ClInclude Include="PowerTelemetryAdapter.h" />
     <ClInclude Include="PowerTelemetryProvider.h" />
     <ClInclude Include="PowerTelemetryProviderFactory.h" />

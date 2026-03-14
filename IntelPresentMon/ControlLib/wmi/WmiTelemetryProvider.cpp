@@ -221,10 +221,9 @@ namespace pmon::tel::wmi
         }
 
         device.qpcFrequency = GetTimestampFrequencyUint64();
+        // Seed the gate to "now" so the first post-init probe performs the
+        // second PDH collection needed for formatted CPU counters.
         device.nextSampleQpc = GetCurrentTimestamp();
-        if (device.qpcFrequency != 0) {
-            device.nextSampleQpc += (int64_t)device.qpcFrequency;
-        }
     }
 
     void WmiTelemetryProvider::PopulateFingerprintFromWmi_(DeviceState_& device) const
@@ -292,11 +291,12 @@ namespace pmon::tel::wmi
     ipc::MetricCapabilities WmiTelemetryProvider::BuildCapsForDevice_(DeviceState_& device) const
     {
         ipc::MetricCapabilities caps{};
+        const auto requestQpc = GetCurrentTimestamp();
 
         caps.Set(PM_METRIC_CPU_VENDOR, 1);
         caps.Set(PM_METRIC_CPU_NAME, 1);
 
-        const auto* pSample = PollCounterSampleEndpoint_(device, 0);
+        const auto* pSample = PollCounterSampleEndpoint_(device, requestQpc);
         if (pSample != nullptr && pSample->hasFrequency) {
             caps.Set(PM_METRIC_CPU_FREQUENCY, 1);
         }
@@ -312,7 +312,7 @@ namespace pmon::tel::wmi
         int64_t requestQpc) const
     {
         auto& cache = device.counterSampleEndpointCache;
-        if (requestQpc != 0 && cache.Matches(requestQpc)) {
+        if (cache.Matches(requestQpc)) {
             return &cache.output;
         }
 
