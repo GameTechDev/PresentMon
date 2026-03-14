@@ -268,45 +268,30 @@ namespace pmon::tel
     {
         providerPtrs_.clear();
 
-        try {
-            providerPtrs_.push_back(std::make_shared<wmi::WmiTelemetryProvider>());
-        }
-        catch (const TelemetrySubsystemAbsent&) {
-            pmlog_warn(util::ReportException("WMI telemetry provider unavailable"));
-        }
-        catch (...) {
-            pmlog_error(util::ReportException("WMI telemetry provider construction failed"));
-        }
+        const auto tryAddProvider = [this]<class ProviderT>(const char* missingMessage, const char* failureMessage) {
+            try {
+                providerPtrs_.push_back(std::make_shared<ProviderT>());
+            }
+            catch (const TelemetrySubsystemAbsent&) {
+                pmlog_dbg(util::ReportException(missingMessage));
+            }
+            catch (...) {
+                pmlog_error(util::ReportException(failureMessage));
+            }
+        };
 
-        try {
-            providerPtrs_.push_back(std::make_shared<igcl::IgclTelemetryProvider>());
-        }
-        catch (const TelemetrySubsystemAbsent&) {
-            pmlog_warn(util::ReportException("IGCL telemetry provider unavailable"));
-        }
-        catch (...) {
-            pmlog_error(util::ReportException("IGCL telemetry provider construction failed"));
-        }
-
-        try {
-            providerPtrs_.push_back(std::make_shared<nvapi::NvapiTelemetryProvider>());
-        }
-        catch (const TelemetrySubsystemAbsent&) {
-            pmlog_warn(util::ReportException("NVAPI telemetry provider unavailable"));
-        }
-        catch (...) {
-            pmlog_error(util::ReportException("NVAPI telemetry provider construction failed"));
-        }
-
-        try {
-            providerPtrs_.push_back(std::make_shared<nvml::NvmlTelemetryProvider>());
-        }
-        catch (const TelemetrySubsystemAbsent&) {
-            pmlog_warn(util::ReportException("NVML telemetry provider unavailable"));
-        }
-        catch (...) {
-            pmlog_error(util::ReportException("NVML telemetry provider construction failed"));
-        }
+        tryAddProvider.operator()<wmi::WmiTelemetryProvider>(
+            "WMI telemetry provider unavailable",
+            "WMI telemetry provider construction failed");
+        tryAddProvider.operator()<igcl::IgclTelemetryProvider>(
+            "IGCL telemetry provider unavailable",
+            "IGCL telemetry provider construction failed");
+        tryAddProvider.operator()<nvapi::NvapiTelemetryProvider>(
+            "NVAPI telemetry provider unavailable",
+            "NVAPI telemetry provider construction failed");
+        tryAddProvider.operator()<nvml::NvmlTelemetryProvider>(
+            "NVML telemetry provider unavailable",
+            "NVML telemetry provider construction failed");
     }
 
     void TelemetryCoordinator::BuildLogicalDevicesAndRoutes_()
