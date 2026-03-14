@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "WbemConnection.h"
 #include "Comdef.h"
@@ -62,6 +62,12 @@ namespace pmon::util::win::com
 			throw Except<Exception>();
 		}
 	}
+
+	IWbemServices* WbemConnection::GetServices() const noexcept
+	{
+		return pConnection.Get();
+	}
+
 	std::unique_ptr<WbemListener> WbemConnection::CreateListener_(WbemSink* pSink)
 	{
 		return std::make_unique<WbemListener>(pSink, pConnection);

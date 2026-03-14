@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "ComPtr.h"
@@ -16,6 +16,7 @@ namespace pmon::util::win::com
 	{
 	public:
 		WbemConnection();
+		IWbemServices* GetServices() const noexcept;
 		template<class T, class...P>
 		std::unique_ptr<WbemListener> MakeListener(P&&...params)
 		{
