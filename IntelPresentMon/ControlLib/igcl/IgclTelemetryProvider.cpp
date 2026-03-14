@@ -4,6 +4,7 @@
 
 #include "../Exceptions.h"
 #include "../Logging.h"
+#include "../../CommonUtilities/Qpc.h"
 #include "../../CommonUtilities/ref/GeneratedReflection.h"
 
 #include <algorithm>
@@ -24,13 +25,12 @@ namespace pmon::tel::igcl
 
     bool IgclTelemetryProvider::TelemetrySampleBuffer_::Matches(int64_t requestQpc) const noexcept
     {
-        return hasCurrent_ && requestQpc != 0 && requestQpcs_[currentIndex_] == requestQpc;
+        return hasCurrent_ && requestQpcs_[currentIndex_] == requestQpc;
     }
 
     ctl_power_telemetry_t& IgclTelemetryProvider::TelemetrySampleBuffer_::PrepareForWrite(int64_t requestQpc) noexcept
     {
-        if (requestQpc != 0 && hasCurrent_ &&
-            requestQpcs_[currentIndex_] != 0 && requestQpcs_[currentIndex_] != requestQpc) {
+        if (hasCurrent_ && requestQpcs_[currentIndex_] != requestQpc) {
             previousIndex_ = currentIndex_;
             currentIndex_ = currentIndex_ == 0 ? 1u : 0u;
             hasPrevious_ = true;
@@ -375,6 +375,7 @@ namespace pmon::tel::igcl
     ipc::MetricCapabilities IgclTelemetryProvider::BuildCapsForDevice_(DeviceState_& device) const
     {
         ipc::MetricCapabilities caps{};
+        const auto requestQpc = GetCurrentTimestamp();
 
         // Static capabilities can exist even if they do not route through dynamic polling.
         caps.Set(PM_METRIC_GPU_VENDOR, 1);
@@ -385,7 +386,7 @@ namespace pmon::tel::igcl
             caps.Set(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, 1);
         }
 
-        const auto* pMemoryState = PollMemoryStateEndpoint_(device, 0);
+        const auto* pMemoryState = PollMemoryStateEndpoint_(device, requestQpc);
         if (pMemoryState != nullptr) {
             caps.Set(PM_METRIC_GPU_MEM_SIZE, 1);
             caps.Set(PM_METRIC_GPU_MEM_USED, 1);
@@ -398,7 +399,7 @@ namespace pmon::tel::igcl
             device.gpuMemMaxBwCacheValueBps = memoryBandwidth->maxBandwidth;
         }
 
-        const auto& sample = PollTelemetryEndpoint_(device, 0);
+        const auto& sample = PollTelemetryEndpoint_(device, requestQpc);
 
         if (IsUsageTelemetryItemSupported_(sample.gpuEnergyCounter)) {
             caps.Set(PM_METRIC_GPU_POWER, 1);

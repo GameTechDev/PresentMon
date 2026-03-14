@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
+#include "MetricUse.h"
 #include "TelemetryProvider.h"
 #include <cstdint>
-#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -22,13 +22,15 @@ namespace pmon::tel
         // Constructs all known concrete providers, correlates logical devices,
         // and builds metric polling routes.
         TelemetryCoordinator();
+        // Registers logical CPU/GPU devices and per-device routed capabilities with IPC.
+        void RegisterDevicesToIpc(ipc::ServiceComms& comms) const;
         // Populates available static data into IPC device stores.
         void PopulateStaticsToIpc(ipc::ServiceComms& comms) const;
         // Returns aggregate availability across all routed logical devices.
         ipc::MetricCapabilities GetAvailability() const;
         // Polls routed telemetry metrics and pushes samples directly to IPC rings.
         size_t PollToIpc(
-            const std::span<const PM_QUERY_ELEMENT>& metricUse,
+            const svc::DeviceMetricUse& metricUse,
             ipc::ServiceComms& comms) const;
 
     private:
@@ -49,6 +51,10 @@ namespace pmon::tel
         void TryCreateConcreteProviders_();
         void BuildLogicalDevicesAndRoutes_();
         LogicalDevice_& GetOrCreateLogicalDevice_(const TelemetryDeviceFingerprint& fingerprint);
+        TelemetryDeviceFingerprint ResolveLogicalDeviceFingerprint_(
+            const LogicalDevice_& logicalDevice,
+            bool& haveFingerprint) const;
+        ipc::MetricCapabilities BuildRoutedCapabilities_(const LogicalDevice_& logicalDevice) const;
         static void PushValueToTelemetryMap_(
             ipc::TelemetryMap& telemetryMap,
             PM_METRIC metricId,

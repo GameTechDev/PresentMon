@@ -12,9 +12,11 @@
 #include "../CommonUtilities/Qpc.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../Interprocess/source/SystemDeviceId.h"
+#include "../Interprocess/source/metadata/MetricList.h"
 #include <algorithm>
 #include <functional>
 #include <limits>
+#include <span>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
@@ -29,6 +31,17 @@ namespace pmon::tel
             uint32_t arraySize = 0;
             uint32_t providerCoverageScore = 0;
         };
+
+        bool IsStaticMetric_(PM_METRIC metricId) noexcept
+        {
+            switch (metricId) {
+#define X_(id_, type_, ...) case id_: return type_ == PM_METRIC_TYPE_STATIC;
+                METRIC_LIST(X_)
+#undef X_
+            default:
+                return false;
+            }
+        }
     }
 
     TelemetryCoordinator::TelemetryCoordinator()
@@ -37,33 +50,57 @@ namespace pmon::tel
         BuildLogicalDevicesAndRoutes_();
     }
 
+    void TelemetryCoordinator::RegisterDevicesToIpc(ipc::ServiceComms& comms) const
+    {
+        bool cpuRegistered = false;
+
+        for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
+            bool haveFingerprint = false;
+            auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice, haveFingerprint);
+            auto caps = BuildRoutedCapabilities_(logicalDevice);
+
+            const auto vendor = haveFingerprint ? fingerprint.vendor : PM_DEVICE_VENDOR_UNKNOWN;
+            const auto name = haveFingerprint && !fingerprint.deviceName.empty() ?
+                fingerprint.deviceName : std::string{ "UNKNOWN_CPU" };
+
+            try {
+                if (logicalDeviceId != ipc::kSystemDeviceId) {
+                    comms.RegisterGpuDevice(
+                        logicalDeviceId,
+                        vendor,
+                        haveFingerprint && !fingerprint.deviceName.empty() ?
+                            fingerprint.deviceName : std::string{ "UNKNOWN_GPU" },
+                        caps,
+                        std::span<const uint8_t>{});
+                }
+                else {
+                    comms.RegisterCpuDevice(vendor, name, caps);
+                    cpuRegistered = true;
+                }
+            }
+            catch (...) {
+                pmlog_error(util::ReportException("RegisterDevicesToIpc failed for logical device"))
+                    .pmwatch(logicalDeviceId)
+                    .pmwatch((int)vendor)
+                    .pmwatch(haveFingerprint)
+                    .pmwatch(fingerprint.deviceName);
+            }
+        }
+
+        if (!cpuRegistered) {
+            comms.RegisterCpuDevice(PM_DEVICE_VENDOR_UNKNOWN, "UNKNOWN_CPU", {});
+        }
+        comms.FinalizeGpuDevices();
+    }
+
     void TelemetryCoordinator::PopulateStaticsToIpc(ipc::ServiceComms& comms) const
     {
         const auto requestQpc = util::GetCurrentTimestamp();
         // TODO: make static population dynamic by metric id and metadata instead of hardcoded checks.
         for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
-            TelemetryDeviceFingerprint providerFingerprint{};
             bool haveProviderFingerprint = false;
-            for (const auto& providerDevice : logicalDevice.providerDevices) {
-                const auto pProvider = providerDevice.pProvider.lock();
-                if (!pProvider) {
-                    pmlog_warn("Expired provider while resolving provider-device fingerprint for statics")
-                        .pmwatch(logicalDevice.logicalDeviceId)
-                        .pmwatch(providerDevice.providerDeviceId);
-                    continue;
-                }
-
-                try {
-                    providerFingerprint = pProvider->GetFingerPrint(providerDevice.providerDeviceId);
-                    haveProviderFingerprint = true;
-                    break;
-                }
-                catch (...) {
-                    pmlog_error(util::ReportException("Provider-device fingerprint query failed for statics"))
-                        .pmwatch(logicalDevice.logicalDeviceId)
-                        .pmwatch(providerDevice.providerDeviceId);
-                }
-            }
+            const auto providerFingerprint =
+                ResolveLogicalDeviceFingerprint_(logicalDevice, haveProviderFingerprint);
 
             try {
                 if (logicalDeviceId != ipc::kSystemDeviceId) {
@@ -142,68 +179,13 @@ namespace pmon::tel
     {
         ipc::MetricCapabilities availability;
 
-        for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
-            for (const auto& [metricId, providerDeviceIndex] : logicalDevice.routes) {
-                if (providerDeviceIndex >= logicalDevice.providerDevices.size()) {
-                    pmlog_error("Route points outside provider device list in GetAvailability")
-                        .pmwatch(logicalDeviceId)
-                        .pmwatch((int)metricId)
-                        .pmwatch(providerDeviceIndex)
-                        .pmwatch(logicalDevice.providerDevices.size());
-                    continue;
-                }
-
-                const auto& providerDevice = logicalDevice.providerDevices[providerDeviceIndex];
-                const auto pProvider = providerDevice.pProvider.lock();
-                if (!pProvider) {
-                    pmlog_error("Route provider expired in GetAvailability")
-                        .pmwatch(logicalDeviceId)
-                        .pmwatch((int)metricId)
-                        .pmwatch(providerDevice.providerDeviceId);
-                    continue;
-                }
-
-                TelemetryDeviceFingerprint providerFingerprint{};
-                bool haveProviderFingerprint = false;
-                try {
-                    providerFingerprint = pProvider->GetFingerPrint(providerDevice.providerDeviceId);
-                    haveProviderFingerprint = true;
-                    const auto capabilityMap = pProvider->GetCaps();
-                    const auto itDeviceCaps = capabilityMap.find(providerDevice.providerDeviceId);
-                    if (itDeviceCaps == capabilityMap.end()) {
-                        pmlog_error("Provider did not return caps for routed device in GetAvailability")
-                            .pmwatch(logicalDeviceId)
-                            .pmwatch((int)providerFingerprint.vendor)
-                            .pmwatch(providerFingerprint.deviceName)
-                            .pmwatch(providerDevice.providerDeviceId)
-                            .pmwatch((int)metricId);
-                        continue;
-                    }
-
-                    const auto arraySize = itDeviceCaps->second.Check(metricId);
-                    if (arraySize == 0) {
-                        pmlog_error("Provider caps missing routed metric in GetAvailability")
-                            .pmwatch(logicalDeviceId)
-                            .pmwatch((int)providerFingerprint.vendor)
-                            .pmwatch(providerFingerprint.deviceName)
-                            .pmwatch(providerDevice.providerDeviceId)
-                            .pmwatch((int)metricId);
-                        continue;
-                    }
-
-                    const auto existingSize = availability.Check(metricId);
-                    if (arraySize > existingSize) {
-                        availability.Set(metricId, arraySize);
-                    }
-                }
-                catch (...) {
-                    pmlog_error(util::ReportException("GetAvailability provider query failed"))
-                        .pmwatch(logicalDeviceId)
-                        .pmwatch((int)providerFingerprint.vendor)
-                        .pmwatch(providerFingerprint.deviceName)
-                        .pmwatch(haveProviderFingerprint)
-                        .pmwatch(providerDevice.providerDeviceId)
-                        .pmwatch((int)metricId);
+        for (const auto& entry : logicalDevicesById_) {
+            const auto& logicalDevice = entry.second;
+            const auto routedCaps = BuildRoutedCapabilities_(logicalDevice);
+            for (const auto& [metricId, arraySize] : routedCaps) {
+                const auto existingSize = availability.Check(metricId);
+                if (arraySize > existingSize) {
+                    availability.Set(metricId, arraySize);
                 }
             }
         }
@@ -212,52 +194,67 @@ namespace pmon::tel
     }
 
     size_t TelemetryCoordinator::PollToIpc(
-        const std::span<const PM_QUERY_ELEMENT>& metricUse,
+        const svc::DeviceMetricUse& metricUse,
         ipc::ServiceComms& comms) const
     {
         const auto requestQpc = util::GetCurrentTimestamp();
         size_t samplesWritten = 0;
 
-        for (const auto& use : metricUse) {
-            if (use.metric >= PM_METRIC_COUNT_) {
-                pmlog_warn("Invalid metric id in PollToIpc request")
-                    .pmwatch((int)use.metric)
-                    .pmwatch(use.deviceId)
-                    .pmwatch(use.arrayIndex);
+        for (const auto& [deviceId, deviceMetricUse] : metricUse) {
+            if (deviceId == 0) {
                 continue;
             }
 
-            const auto itLogical = logicalDevicesById_.find(use.deviceId);
+            const auto itLogical = logicalDevicesById_.find(deviceId);
             if (itLogical == logicalDevicesById_.end()) {
                 pmlog_warn("Unknown logical device id in PollToIpc request")
-                    .pmwatch(use.deviceId)
-                    .pmwatch((int)use.metric)
-                    .pmwatch(use.arrayIndex);
+                    .pmwatch(deviceId);
                 continue;
             }
 
             const auto& logicalDevice = itLogical->second;
-            try {
-                const auto value = PollMetricForRoute_(
-                    logicalDevice, use.metric, use.arrayIndex, requestQpc);
-                const auto qpc = (uint64_t)util::GetCurrentTimestamp();
-
-                if (logicalDevice.logicalDeviceId != ipc::kSystemDeviceId) {
-                    auto& store = comms.GetGpuDataStore(logicalDevice.logicalDeviceId);
-                    PushValueToTelemetryMap_(store.telemetryData, use.metric, use.arrayIndex, value, qpc);
+            for (const auto& use : deviceMetricUse) {
+                if (use.deviceId != deviceId) {
+                    pmlog_warn("Metric use device id did not match owning device bucket")
+                        .pmwatch(deviceId)
+                        .pmwatch(use.deviceId)
+                        .pmwatch((int)use.metricId)
+                        .pmwatch(use.arrayIdx);
+                    continue;
                 }
-                else {
-                    auto& store = comms.GetSystemDataStore();
-                    PushValueToTelemetryMap_(store.telemetryData, use.metric, use.arrayIndex, value, qpc);
+                if (use.metricId >= PM_METRIC_COUNT_) {
+                    pmlog_warn("Invalid metric id in PollToIpc request")
+                        .pmwatch((int)use.metricId)
+                        .pmwatch(deviceId)
+                        .pmwatch(use.arrayIdx);
+                    continue;
+                }
+                if (IsStaticMetric_(use.metricId)) {
+                    continue;
                 }
 
-                ++samplesWritten;
-            }
-            catch (...) {
-                pmlog_error(util::ReportException("PollToIpc failed while writing sample"))
-                    .pmwatch(logicalDevice.logicalDeviceId)
-                    .pmwatch((int)use.metric)
-                    .pmwatch(use.arrayIndex);
+                try {
+                    const auto value = PollMetricForRoute_(
+                        logicalDevice, use.metricId, use.arrayIdx, requestQpc);
+                    const auto qpc = (uint64_t)util::GetCurrentTimestamp();
+
+                    if (logicalDevice.logicalDeviceId != ipc::kSystemDeviceId) {
+                        auto& store = comms.GetGpuDataStore(logicalDevice.logicalDeviceId);
+                        PushValueToTelemetryMap_(store.telemetryData, use.metricId, use.arrayIdx, value, qpc);
+                    }
+                    else {
+                        auto& store = comms.GetSystemDataStore();
+                        PushValueToTelemetryMap_(store.telemetryData, use.metricId, use.arrayIdx, value, qpc);
+                    }
+
+                    ++samplesWritten;
+                }
+                catch (...) {
+                    pmlog_error(util::ReportException("PollToIpc failed while writing sample"))
+                        .pmwatch(logicalDevice.logicalDeviceId)
+                        .pmwatch((int)use.metricId)
+                        .pmwatch(use.arrayIdx);
+                }
             }
         }
 
@@ -466,6 +463,111 @@ namespace pmon::tel
         logicalDevice.logicalDeviceId = newId;
         auto itLogical = logicalDevicesById_.emplace(newId, std::move(logicalDevice)).first;
         return itLogical->second;
+    }
+
+    TelemetryDeviceFingerprint TelemetryCoordinator::ResolveLogicalDeviceFingerprint_(
+        const LogicalDevice_& logicalDevice,
+        bool& haveFingerprint) const
+    {
+        TelemetryDeviceFingerprint fingerprint{};
+        haveFingerprint = false;
+
+        for (const auto& providerDevice : logicalDevice.providerDevices) {
+            const auto pProvider = providerDevice.pProvider.lock();
+            if (!pProvider) {
+                pmlog_warn("Expired provider while resolving logical-device fingerprint")
+                    .pmwatch(logicalDevice.logicalDeviceId)
+                    .pmwatch(providerDevice.providerDeviceId);
+                continue;
+            }
+
+            try {
+                const auto providerFingerprint = pProvider->GetFingerPrint(providerDevice.providerDeviceId);
+                if (!haveFingerprint) {
+                    fingerprint = providerFingerprint;
+                    haveFingerprint = true;
+                }
+                else {
+                    MergeTelemetryDeviceFingerprint(fingerprint, providerFingerprint);
+                }
+            }
+            catch (...) {
+                pmlog_error(util::ReportException("Logical-device fingerprint query failed"))
+                    .pmwatch(logicalDevice.logicalDeviceId)
+                    .pmwatch(providerDevice.providerDeviceId);
+            }
+        }
+
+        return fingerprint;
+    }
+
+    ipc::MetricCapabilities TelemetryCoordinator::BuildRoutedCapabilities_(
+        const LogicalDevice_& logicalDevice) const
+    {
+        ipc::MetricCapabilities caps{};
+
+        for (const auto& [metricId, providerDeviceIndex] : logicalDevice.routes) {
+            if (providerDeviceIndex >= logicalDevice.providerDevices.size()) {
+                pmlog_error("Route points outside provider device list in BuildRoutedCapabilities")
+                    .pmwatch(logicalDevice.logicalDeviceId)
+                    .pmwatch((int)metricId)
+                    .pmwatch(providerDeviceIndex)
+                    .pmwatch(logicalDevice.providerDevices.size());
+                continue;
+            }
+
+            const auto& providerDevice = logicalDevice.providerDevices[providerDeviceIndex];
+            const auto pProvider = providerDevice.pProvider.lock();
+            if (!pProvider) {
+                pmlog_error("Route provider expired in BuildRoutedCapabilities")
+                    .pmwatch(logicalDevice.logicalDeviceId)
+                    .pmwatch((int)metricId)
+                    .pmwatch(providerDevice.providerDeviceId);
+                continue;
+            }
+
+            TelemetryDeviceFingerprint providerFingerprint{};
+            bool haveProviderFingerprint = false;
+            try {
+                providerFingerprint = pProvider->GetFingerPrint(providerDevice.providerDeviceId);
+                haveProviderFingerprint = true;
+                const auto capabilityMap = pProvider->GetCaps();
+                const auto itDeviceCaps = capabilityMap.find(providerDevice.providerDeviceId);
+                if (itDeviceCaps == capabilityMap.end()) {
+                    pmlog_error("Provider did not return caps for routed device")
+                        .pmwatch(logicalDevice.logicalDeviceId)
+                        .pmwatch((int)providerFingerprint.vendor)
+                        .pmwatch(providerFingerprint.deviceName)
+                        .pmwatch(providerDevice.providerDeviceId)
+                        .pmwatch((int)metricId);
+                    continue;
+                }
+
+                const auto arraySize = itDeviceCaps->second.Check(metricId);
+                if (arraySize == 0) {
+                    pmlog_error("Provider caps missing routed metric")
+                        .pmwatch(logicalDevice.logicalDeviceId)
+                        .pmwatch((int)providerFingerprint.vendor)
+                        .pmwatch(providerFingerprint.deviceName)
+                        .pmwatch(providerDevice.providerDeviceId)
+                        .pmwatch((int)metricId);
+                    continue;
+                }
+
+                caps.Set(metricId, arraySize);
+            }
+            catch (...) {
+                pmlog_error(util::ReportException("BuildRoutedCapabilities provider query failed"))
+                    .pmwatch(logicalDevice.logicalDeviceId)
+                    .pmwatch((int)providerFingerprint.vendor)
+                    .pmwatch(providerFingerprint.deviceName)
+                    .pmwatch(haveProviderFingerprint)
+                    .pmwatch(providerDevice.providerDeviceId)
+                    .pmwatch((int)metricId);
+            }
+        }
+
+        return caps;
     }
 
     void TelemetryCoordinator::PushValueToTelemetryMap_(
