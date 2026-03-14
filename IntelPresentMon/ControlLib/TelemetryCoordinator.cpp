@@ -7,6 +7,7 @@
 #include "igcl/IgclTelemetryProvider.h"
 #include "nvapi/NvapiTelemetryProvider.h"
 #include "nvml/NvmlTelemetryProvider.h"
+#include "wmi/WmiTelemetryProvider.h"
 #include "../CommonUtilities/Exception.h"
 #include "../CommonUtilities/Qpc.h"
 #include "../Interprocess/source/Interprocess.h"
@@ -266,6 +267,16 @@ namespace pmon::tel
     void TelemetryCoordinator::TryCreateConcreteProviders_()
     {
         providerPtrs_.clear();
+
+        try {
+            providerPtrs_.push_back(std::make_shared<wmi::WmiTelemetryProvider>());
+        }
+        catch (const TelemetrySubsystemAbsent&) {
+            pmlog_warn(util::ReportException("WMI telemetry provider unavailable"));
+        }
+        catch (...) {
+            pmlog_error(util::ReportException("WMI telemetry provider construction failed"));
+        }
 
         try {
             providerPtrs_.push_back(std::make_shared<igcl::IgclTelemetryProvider>());

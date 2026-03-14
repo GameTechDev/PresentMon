@@ -14,6 +14,9 @@
     <Filter Include="Nvidia">
       <UniqueIdentifier>{b9383b96-c78b-4e0f-bd7a-bb9eace086ef}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Wmi">
+      <UniqueIdentifier>{a6df2cb9-9e2a-46e5-8adb-ff8f258e2a36}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IntelPowerTelemetryAdapter.h">
@@ -93,6 +96,9 @@
     </ClInclude>
     <ClInclude Include="igcl\IgclErrorCodeProvider.h" />
     <ClInclude Include="igcl\igcl_api.h" />
+    <ClInclude Include="wmi\WmiTelemetryProvider.h">
+      <Filter>Wmi</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="NvapiWrapper.cpp">
@@ -150,5 +156,8 @@
     <ClCompile Include="TelemetryDeviceFingerprint.cpp" />
     <ClCompile Include="igcl\cApiWrapper.cpp" />
     <ClCompile Include="igcl\IgclErrorCodeProvider.cpp" />
+    <ClCompile Include="wmi\WmiTelemetryProvider.cpp">
+      <Filter>Wmi</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

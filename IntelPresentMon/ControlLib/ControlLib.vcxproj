@@ -142,6 +142,7 @@
     <ClInclude Include="TelemetryDeviceFingerprint.h" />
     <ClInclude Include="TelemetryProvider.h" />
     <ClInclude Include="WmiCpu.h" />
+    <ClInclude Include="wmi\WmiTelemetryProvider.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AmdPowerTelemetryAdapter.cpp" />
@@ -167,6 +168,7 @@
     <ClCompile Include="TelemetryCoordinator.cpp" />
     <ClCompile Include="TelemetryDeviceFingerprint.cpp" />
     <ClCompile Include="WmiCpu.cpp" />
+    <ClCompile Include="wmi\WmiTelemetryProvider.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Interprocess\Interprocess.vcxproj">
