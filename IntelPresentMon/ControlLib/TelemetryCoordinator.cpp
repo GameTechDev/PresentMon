@@ -118,7 +118,7 @@ namespace pmon::tel
                 adapter.name = "UNKNOWN_GPU";
             }
 
-            adapter.gpuMemorySize = QueryGpuMemorySize_(logicalDevice);
+            adapter.gpuMemorySize = QueryGpuMemorySize_(logicalDevice).value;
             const auto requestQpc = util::GetCurrentTimestamp();
             const auto populateStaticMetric = [&]<typename T>(PM_METRIC metricId, T& destination) {
                 if (metricId == PM_METRIC_GPU_MEM_SIZE) {
@@ -526,6 +526,11 @@ namespace pmon::tel
         struct GpuLogicalDeviceOrdering_
         {
             uint32_t oldId = 0;
+            std::string name{};
+            bool isIntegratedAdapter = false;
+            bool hasSustainedPowerLimit = false;
+            double sustainedPowerLimit = 0.0;
+            bool hasMemorySize = false;
             uint64_t gpuMemorySize = 0;
         };
 
@@ -536,19 +541,46 @@ namespace pmon::tel
             if (logicalDeviceId == ipc::kSystemDeviceId) {
                 continue;
             }
+            const auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice);
+            const auto powerInfo = QueryGpuSustainedPowerLimit_(logicalDevice);
+            const auto memInfo = QueryGpuMemorySize_(logicalDevice);
 
             gpuDevices.push_back(GpuLogicalDeviceOrdering_{
                 .oldId = logicalDeviceId,
-                .gpuMemorySize = QueryGpuMemorySize_(logicalDevice),
+                .name = GetDeviceNameOrUnknown_(fingerprint),
+                .isIntegratedAdapter = fingerprint.isIntegratedAdapter,
+                .hasSustainedPowerLimit = powerInfo.hasValue,
+                .sustainedPowerLimit = powerInfo.value,
+                .hasMemorySize = memInfo.hasValue,
+                .gpuMemorySize = memInfo.value,
             });
         }
 
-        std::sort(gpuDevices.begin(), gpuDevices.end(), [](const GpuLogicalDeviceOrdering_& lhs, const GpuLogicalDeviceOrdering_& rhs) {
-            if (lhs.gpuMemorySize != rhs.gpuMemorySize) {
-                return lhs.gpuMemorySize > rhs.gpuMemorySize;
-            }
-            return lhs.oldId < rhs.oldId;
-        });
+        const bool allHaveSustainedPowerLimit = !gpuDevices.empty() &&
+            std::ranges::all_of(gpuDevices, [](const GpuLogicalDeviceOrdering_& gpuDevice) {
+                return gpuDevice.hasSustainedPowerLimit;
+            });
+
+        std::sort(gpuDevices.begin(), gpuDevices.end(),
+            [allHaveSustainedPowerLimit](const GpuLogicalDeviceOrdering_& lhs, const GpuLogicalDeviceOrdering_& rhs) {
+                if (lhs.isIntegratedAdapter != rhs.isIntegratedAdapter) {
+                    return rhs.isIntegratedAdapter;
+                }
+                if (allHaveSustainedPowerLimit) {
+                    if (lhs.sustainedPowerLimit != rhs.sustainedPowerLimit) {
+                        return lhs.sustainedPowerLimit > rhs.sustainedPowerLimit;
+                    }
+                }
+                else {
+                    if (lhs.hasMemorySize != rhs.hasMemorySize) {
+                        return lhs.hasMemorySize > rhs.hasMemorySize;
+                    }
+                    if (lhs.gpuMemorySize != rhs.gpuMemorySize) {
+                        return lhs.gpuMemorySize > rhs.gpuMemorySize;
+                    }
+                }
+                return lhs.oldId < rhs.oldId;
+            });
 
         std::unordered_map<uint32_t, LogicalDevice_> reorderedLogicalDevices;
         reorderedLogicalDevices.reserve(logicalDevicesById_.size());
@@ -579,11 +611,16 @@ namespace pmon::tel
                         .pmwatch(nextGpuLogicalId);
                 }
                 pmlog_dbg(std::format(
-                    "GPU logical device id reassigned: name=\"{}\" oldId={} newId={} memorySize={}",
+                    "GPU logical device id reassigned: name=\"{}\" oldId={} newId={} integrated={} sustainedPowerLimit={} hasSustainedPowerLimit={} memorySize={} hasMemorySize={} rankingBasis={}",
                     name,
                     gpuDevice.oldId,
                     nextGpuLogicalId,
-                    gpuDevice.gpuMemorySize));
+                    gpuDevice.isIntegratedAdapter,
+                    gpuDevice.sustainedPowerLimit,
+                    gpuDevice.hasSustainedPowerLimit,
+                    gpuDevice.gpuMemorySize,
+                    gpuDevice.hasMemorySize,
+                    allHaveSustainedPowerLimit ? "sustainedPower" : "memory"));
             }
             nh.key() = nextGpuLogicalId;
             nh.mapped().logicalDeviceId = nextGpuLogicalId;
@@ -602,6 +639,10 @@ namespace pmon::tel
             uint32_t id = 0;
             PM_DEVICE_VENDOR vendor = PM_DEVICE_VENDOR_UNKNOWN;
             std::string name{};
+            bool isIntegratedAdapter = false;
+            bool hasSustainedPowerLimit = false;
+            double sustainedPowerLimit = 0.0;
+            bool hasMemorySize = false;
             uint64_t gpuMemorySize = 0;
         };
 
@@ -615,11 +656,17 @@ namespace pmon::tel
 
             FinalGpuOrderEntry_ entry{};
             entry.id = logicalDeviceId;
-            entry.gpuMemorySize = QueryGpuMemorySize_(logicalDevice);
+            const auto powerInfo = QueryGpuSustainedPowerLimit_(logicalDevice);
+            const auto memInfo = QueryGpuMemorySize_(logicalDevice);
+            entry.hasSustainedPowerLimit = powerInfo.hasValue;
+            entry.sustainedPowerLimit = powerInfo.value;
+            entry.hasMemorySize = memInfo.hasValue;
+            entry.gpuMemorySize = memInfo.value;
             try {
                 const auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice);
                 entry.vendor = fingerprint.vendor;
                 entry.name = GetDeviceNameOrUnknown_(fingerprint);
+                entry.isIntegratedAdapter = fingerprint.isIntegratedAdapter;
             }
             catch (...) {
                 pmlog_warn(util::ReportException("Failed resolving GPU fingerprint while logging final order"))
@@ -635,28 +682,36 @@ namespace pmon::tel
 
         std::ostringstream oss;
         oss << "Final GPU logical device ordering:";
+        oss << "\n  rankingBasis: " << (allHaveSustainedPowerLimit ? "sustainedPower" : "memory");
         for (size_t i = 0; i < finalGpuOrder.size(); ++i) {
             const auto& entry = finalGpuOrder[i];
             oss << "\n" << entry.name;
             oss << "\n  id: " << entry.id;
             oss << "\n  vendor: " << (int)entry.vendor;
+            oss << "\n  integrated: " << entry.isIntegratedAdapter;
+            oss << "\n  hasSustainedPowerLimit: " << entry.hasSustainedPowerLimit;
+            oss << "\n  sustainedPowerLimit: " << entry.sustainedPowerLimit;
+            oss << "\n  hasMemorySize: " << entry.hasMemorySize;
             oss << "\n  memorySize: " << entry.gpuMemorySize;
         }
         pmlog_dbg(oss.str());
     }
 
-    uint64_t TelemetryCoordinator::QueryGpuMemorySize_(const LogicalDevice_& logicalDevice) const
+    TelemetryCoordinator::GpuMemoryOrderingInfo_ TelemetryCoordinator::QueryGpuMemorySize_(const LogicalDevice_& logicalDevice) const
     {
+        GpuMemoryOrderingInfo_ out{};
         if (logicalDevice.logicalDeviceId == ipc::kSystemDeviceId ||
             !logicalDevice.routes.contains(PM_METRIC_GPU_MEM_SIZE)) {
-            return 0;
+            return out;
         }
 
         try {
             const auto value = PollMetricForRoute_(
                 logicalDevice, PM_METRIC_GPU_MEM_SIZE, 0, util::GetCurrentTimestamp());
             if (const auto pVal = std::get_if<uint64_t>(&value)) {
-                return *pVal;
+                out.hasValue = true;
+                out.value = *pVal;
+                return out;
             }
 
             throw util::Except<>("Type mismatch while querying GPU memory size");
@@ -664,7 +719,33 @@ namespace pmon::tel
         catch (...) {
             pmlog_error(util::ReportException("GPU memory size query failed while ordering logical devices"))
                 .pmwatch(logicalDevice.logicalDeviceId);
-            return 0;
+            return out;
+        }
+    }
+
+    TelemetryCoordinator::GpuPowerOrderingInfo_ TelemetryCoordinator::QueryGpuSustainedPowerLimit_(const LogicalDevice_& logicalDevice) const
+    {
+        GpuPowerOrderingInfo_ out{};
+        if (logicalDevice.logicalDeviceId == ipc::kSystemDeviceId ||
+            !logicalDevice.routes.contains(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT)) {
+            return out;
+        }
+
+        try {
+            const auto value = PollMetricForRoute_(
+                logicalDevice, PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, 0, util::GetCurrentTimestamp());
+            if (const auto pVal = std::get_if<double>(&value)) {
+                out.hasValue = true;
+                out.value = *pVal;
+                return out;
+            }
+
+            throw util::Except<>("Type mismatch while querying GPU sustained power limit");
+        }
+        catch (...) {
+            pmlog_error(util::ReportException("GPU sustained power limit query failed while ordering logical devices"))
+                .pmwatch(logicalDevice.logicalDeviceId);
+            return out;
         }
     }
 

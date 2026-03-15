@@ -15,6 +15,7 @@ namespace pmon::tel
         PM_DEVICE_TYPE deviceType = PM_DEVICE_TYPE_INDEPENDENT;
         PM_DEVICE_VENDOR vendor = PM_DEVICE_VENDOR_UNKNOWN;
         std::string deviceName;
+        bool isIntegratedAdapter = false;
 
         std::vector<uint8_t> luid;
         // Correlation fields aligned with NVIDIA matching.
