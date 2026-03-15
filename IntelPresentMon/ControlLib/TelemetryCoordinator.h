@@ -73,6 +73,8 @@ namespace pmon::tel
         // functions
         void TryCreateConcreteProviders_();
         void BuildLogicalDevicesAndRoutes_();
+        void ReassignGpuLogicalDeviceIdsByMemorySize_();
+        uint64_t QueryGpuMemorySize_(const LogicalDevice_& logicalDevice) const;
         LogicalDevice_& GetOrCreateLogicalDevice_(const TelemetryDeviceFingerprint& fingerprint);
         TelemetryDeviceFingerprint ResolveLogicalDeviceFingerprint_(const LogicalDevice_& logicalDevice) const;
         ipc::MetricCapabilities BuildRoutedCapabilities_(const LogicalDevice_& logicalDevice) const;

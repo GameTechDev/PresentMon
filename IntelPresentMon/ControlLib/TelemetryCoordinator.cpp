@@ -93,7 +93,6 @@ namespace pmon::tel
 
     std::vector<TelemetryCoordinator::AdapterInfo> TelemetryCoordinator::EnumerateAdapters() const
     {
-        const auto requestQpc = util::GetCurrentTimestamp();
         std::vector<AdapterInfo> adapters;
         adapters.reserve(logicalDevicesById_.size());
 
@@ -113,7 +112,15 @@ namespace pmon::tel
                 adapter.name = "UNKNOWN_GPU";
             }
 
+            adapter.gpuMemorySize = QueryGpuMemorySize_(logicalDevice);
+            const auto requestQpc = util::GetCurrentTimestamp();
             const auto populateStaticMetric = [&]<typename T>(PM_METRIC metricId, T& destination) {
+                if (metricId == PM_METRIC_GPU_MEM_SIZE) {
+                    if constexpr (std::is_same_v<T, uint64_t>) {
+                        destination = adapter.gpuMemorySize;
+                    }
+                    return;
+                }
                 if (!logicalDevice.routes.contains(metricId)) {
                     return;
                 }
@@ -135,7 +142,6 @@ namespace pmon::tel
             };
 
             populateStaticMetric(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, adapter.gpuSustainedPowerLimit);
-            populateStaticMetric(PM_METRIC_GPU_MEM_SIZE, adapter.gpuMemorySize);
             populateStaticMetric(PM_METRIC_GPU_MEM_MAX_BANDWIDTH, adapter.gpuMemoryMaxBandwidth);
 
             adapters.push_back(std::move(adapter));
@@ -506,6 +512,89 @@ namespace pmon::tel
             }
         }
 
+        ReassignGpuLogicalDeviceIdsByMemorySize_();
+    }
+
+    void TelemetryCoordinator::ReassignGpuLogicalDeviceIdsByMemorySize_()
+    {
+        struct GpuLogicalDeviceOrdering_
+        {
+            uint32_t oldId = 0;
+            uint64_t gpuMemorySize = 0;
+        };
+
+        std::vector<GpuLogicalDeviceOrdering_> gpuDevices;
+        gpuDevices.reserve(logicalDevicesById_.size());
+
+        for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
+            if (logicalDeviceId == ipc::kSystemDeviceId) {
+                continue;
+            }
+
+            gpuDevices.push_back(GpuLogicalDeviceOrdering_{
+                .oldId = logicalDeviceId,
+                .gpuMemorySize = QueryGpuMemorySize_(logicalDevice),
+            });
+        }
+
+        std::sort(gpuDevices.begin(), gpuDevices.end(), [](const GpuLogicalDeviceOrdering_& lhs, const GpuLogicalDeviceOrdering_& rhs) {
+            if (lhs.gpuMemorySize != rhs.gpuMemorySize) {
+                return lhs.gpuMemorySize > rhs.gpuMemorySize;
+            }
+            return lhs.oldId < rhs.oldId;
+        });
+
+        std::unordered_map<uint32_t, LogicalDevice_> reorderedLogicalDevices;
+        reorderedLogicalDevices.reserve(logicalDevicesById_.size());
+
+        if (const auto itSystem = logicalDevicesById_.find(ipc::kSystemDeviceId);
+            itSystem != logicalDevicesById_.end()) {
+            reorderedLogicalDevices.emplace(ipc::kSystemDeviceId, itSystem->second);
+        }
+
+        uint32_t nextGpuLogicalId = 1;
+        for (const auto& gpuDevice : gpuDevices) {
+            auto nh = logicalDevicesById_.extract(gpuDevice.oldId);
+            if (nh.empty()) {
+                pmlog_error("Failed extracting logical GPU device during renumber")
+                    .pmwatch(gpuDevice.oldId);
+                continue;
+            }
+
+            nh.key() = nextGpuLogicalId;
+            nh.mapped().logicalDeviceId = nextGpuLogicalId;
+            reorderedLogicalDevices.insert(std::move(nh));
+            ++nextGpuLogicalId;
+        }
+
+        logicalDevicesById_ = std::move(reorderedLogicalDevices);
+        nextLogicalDeviceId_ = std::max(nextGpuLogicalId, 1u);
+        if (nextLogicalDeviceId_ == ipc::kSystemDeviceId) {
+            ++nextLogicalDeviceId_;
+        }
+    }
+
+    uint64_t TelemetryCoordinator::QueryGpuMemorySize_(const LogicalDevice_& logicalDevice) const
+    {
+        if (logicalDevice.logicalDeviceId == ipc::kSystemDeviceId ||
+            !logicalDevice.routes.contains(PM_METRIC_GPU_MEM_SIZE)) {
+            return 0;
+        }
+
+        try {
+            const auto value = PollMetricForRoute_(
+                logicalDevice, PM_METRIC_GPU_MEM_SIZE, 0, util::GetCurrentTimestamp());
+            if (const auto pVal = std::get_if<uint64_t>(&value)) {
+                return *pVal;
+            }
+
+            throw util::Except<>("Type mismatch while querying GPU memory size");
+        }
+        catch (...) {
+            pmlog_error(util::ReportException("GPU memory size query failed while ordering logical devices"))
+                .pmwatch(logicalDevice.logicalDeviceId);
+            return 0;
+        }
     }
 
     TelemetryCoordinator::LogicalDevice_& TelemetryCoordinator::GetOrCreateLogicalDevice_(
