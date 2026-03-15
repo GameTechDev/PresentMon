@@ -74,9 +74,7 @@ namespace pmon::tel
         void TryCreateConcreteProviders_();
         void BuildLogicalDevicesAndRoutes_();
         LogicalDevice_& GetOrCreateLogicalDevice_(const TelemetryDeviceFingerprint& fingerprint);
-        TelemetryDeviceFingerprint ResolveLogicalDeviceFingerprint_(
-            const LogicalDevice_& logicalDevice,
-            bool& haveFingerprint) const;
+        TelemetryDeviceFingerprint ResolveLogicalDeviceFingerprint_(const LogicalDevice_& logicalDevice) const;
         ipc::MetricCapabilities BuildRoutedCapabilities_(const LogicalDevice_& logicalDevice) const;
         static void PushValueToTelemetryMap_(
             ipc::TelemetryMap& telemetryMap,

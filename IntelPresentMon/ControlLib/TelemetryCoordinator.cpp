@@ -15,6 +15,7 @@
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../Interprocess/source/metadata/MetricList.h"
 #include <algorithm>
+#include <format>
 #include <functional>
 #include <limits>
 #include <span>
@@ -43,6 +44,21 @@ namespace pmon::tel
                 return false;
             }
         }
+
+        std::string FormatAdapterLuid_(std::span<const uint8_t> adapterLuid)
+        {
+            if (adapterLuid.empty()) {
+                return "<EMPTY>";
+            }
+
+            std::string text{};
+            text.reserve(adapterLuid.size() * 3u - 1u);
+            for (size_t i = 0; i < adapterLuid.size(); ++i) {
+                text += std::format("{:02X}{}", adapterLuid[i], i != 0 ? " " : "");
+            }
+
+            return text;
+        }
     }
 
     TelemetryCoordinator::TelemetryCoordinator()
@@ -62,18 +78,13 @@ namespace pmon::tel
         const auto& logicalDevice = iLogicalDevice->second;
 
         CpuInfo cpuInfo{};
-        cpuInfo.name = "UNKNOWN_CPU";
-
-        bool haveFingerprint = false;
-        const auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice, haveFingerprint);
-        if (haveFingerprint) {
-            cpuInfo.vendor = fingerprint.vendor;
-            if (!fingerprint.deviceName.empty()) {
-                cpuInfo.name = fingerprint.deviceName;
-            }
+        const auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice);
+        cpuInfo.vendor = fingerprint.vendor;
+        if (!fingerprint.deviceName.empty()) {
+            cpuInfo.name = fingerprint.deviceName;
         }
         else {
-            pmlog_warn("No provider-device fingerprint available for CPU enumeration");
+            cpuInfo.name = "UNKNOWN_CPU";
         }
 
         if (logicalDevice.routes.contains(PM_METRIC_CPU_POWER_LIMIT)) {
@@ -108,19 +119,13 @@ namespace pmon::tel
 
             AdapterInfo adapter{};
             adapter.id = logicalDeviceId;
-            adapter.name = "UNKNOWN_GPU";
-
-            bool haveFingerprint = false;
-            const auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice, haveFingerprint);
-            if (haveFingerprint) {
-                adapter.vendor = fingerprint.vendor;
-                if (!fingerprint.deviceName.empty()) {
-                    adapter.name = fingerprint.deviceName;
-                }
+            const auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice);
+            adapter.vendor = fingerprint.vendor;
+            if (!fingerprint.deviceName.empty()) {
+                adapter.name = fingerprint.deviceName;
             }
             else {
-                pmlog_warn("No provider-device fingerprint available for adapter enumeration")
-                    .pmwatch(logicalDeviceId);
+                adapter.name = "UNKNOWN_GPU";
             }
 
             const auto populateStaticMetric = [&]<typename T>(PM_METRIC metricId, T& destination) {
@@ -166,12 +171,11 @@ namespace pmon::tel
         bool cpuRegistered = false;
 
         for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
-            bool haveFingerprint = false;
-            auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice, haveFingerprint);
+            auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice);
             auto caps = BuildRoutedCapabilities_(logicalDevice);
 
-            const auto vendor = haveFingerprint ? fingerprint.vendor : PM_DEVICE_VENDOR_UNKNOWN;
-            const auto name = haveFingerprint && !fingerprint.deviceName.empty() ?
+            const auto vendor = fingerprint.vendor;
+            const auto name = !fingerprint.deviceName.empty() ?
                 fingerprint.deviceName : std::string{ "UNKNOWN_CPU" };
 
             try {
@@ -179,10 +183,10 @@ namespace pmon::tel
                     comms.RegisterGpuDevice(
                         logicalDeviceId,
                         vendor,
-                        haveFingerprint && !fingerprint.deviceName.empty() ?
+                        !fingerprint.deviceName.empty() ?
                             fingerprint.deviceName : std::string{ "UNKNOWN_GPU" },
                         caps,
-                        std::span<const uint8_t>{});
+                        fingerprint.adapterLuid);
                 }
                 else {
                     comms.RegisterCpuDevice(vendor, name, caps);
@@ -193,7 +197,6 @@ namespace pmon::tel
                 pmlog_error(util::ReportException("RegisterDevicesToIpc failed for logical device"))
                     .pmwatch(logicalDeviceId)
                     .pmwatch((int)vendor)
-                    .pmwatch(haveFingerprint)
                     .pmwatch(fingerprint.deviceName);
             }
         }
@@ -209,21 +212,13 @@ namespace pmon::tel
         const auto requestQpc = util::GetCurrentTimestamp();
         // TODO: make static population dynamic by metric id and metadata instead of hardcoded checks.
         for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
-            bool haveProviderFingerprint = false;
-            const auto providerFingerprint =
-                ResolveLogicalDeviceFingerprint_(logicalDevice, haveProviderFingerprint);
+            const auto providerFingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice);
 
             try {
                 if (logicalDeviceId != ipc::kSystemDeviceId) {
                     auto& store = comms.GetGpuDataStore(logicalDevice.logicalDeviceId);
-                    if (haveProviderFingerprint) {
-                        store.statics.vendor = providerFingerprint.vendor;
-                        store.statics.name = providerFingerprint.deviceName.c_str();
-                    }
-                    else {
-                        pmlog_warn("No provider-device fingerprint available for GPU static identity")
-                            .pmwatch(logicalDevice.logicalDeviceId);
-                    }
+                    store.statics.vendor = providerFingerprint.vendor;
+                    store.statics.name = providerFingerprint.deviceName.c_str();
 
                     if (logicalDevice.routes.contains(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT)) {
                         const auto value = PollMetricForRoute_(
@@ -258,14 +253,8 @@ namespace pmon::tel
                 }
                 else {
                     auto& store = comms.GetSystemDataStore();
-                    if (haveProviderFingerprint) {
-                        store.statics.cpuVendor = providerFingerprint.vendor;
-                        store.statics.cpuName = providerFingerprint.deviceName.c_str();
-                    }
-                    else {
-                        pmlog_warn("No provider-device fingerprint available for system static identity")
-                            .pmwatch(logicalDevice.logicalDeviceId);
-                    }
+                    store.statics.cpuVendor = providerFingerprint.vendor;
+                    store.statics.cpuName = providerFingerprint.deviceName.c_str();
 
                     if (logicalDevice.routes.contains(PM_METRIC_CPU_POWER_LIMIT)) {
                         const auto value = PollMetricForRoute_(
@@ -423,6 +412,11 @@ namespace pmon::tel
                 const auto capabilityMap = pProvider->GetCaps();
                 for (const auto& [providerDeviceId, capabilities] : capabilityMap) {
                     const auto& fingerprint = pProvider->GetFingerPrint(providerDeviceId);
+                    pmlog_dbg("Provider device adapter LUID")
+                        .pmwatch((int)fingerprint.vendor)
+                        .pmwatch(fingerprint.deviceName)
+                        .pmwatch(providerDeviceId)
+                        .pmwatch(FormatAdapterLuid_(fingerprint.adapterLuid));
                     auto& logicalDevice = GetOrCreateLogicalDevice_(fingerprint);
                     const auto logicalDeviceId = logicalDevice.logicalDeviceId;
 
@@ -580,11 +574,10 @@ namespace pmon::tel
     }
 
     TelemetryDeviceFingerprint TelemetryCoordinator::ResolveLogicalDeviceFingerprint_(
-        const LogicalDevice_& logicalDevice,
-        bool& haveFingerprint) const
+        const LogicalDevice_& logicalDevice) const
     {
         TelemetryDeviceFingerprint fingerprint{};
-        haveFingerprint = false;
+        bool haveFingerprint = false;
 
         for (const auto& providerDevice : logicalDevice.providerDevices) {
             const auto pProvider = providerDevice.pProvider.lock();
@@ -602,6 +595,13 @@ namespace pmon::tel
                     haveFingerprint = true;
                 }
                 else {
+                    if (!fingerprint.adapterLuid.empty() &&
+                        !providerFingerprint.adapterLuid.empty() &&
+                        fingerprint.adapterLuid != providerFingerprint.adapterLuid) {
+                        pmlog_warn("Conflicting provider LUID while resolving logical-device fingerprint")
+                            .pmwatch(logicalDevice.logicalDeviceId)
+                            .pmwatch(providerDevice.providerDeviceId);
+                    }
                     MergeTelemetryDeviceFingerprint(fingerprint, providerFingerprint);
                 }
             }
@@ -610,6 +610,12 @@ namespace pmon::tel
                     .pmwatch(logicalDevice.logicalDeviceId)
                     .pmwatch(providerDevice.providerDeviceId);
             }
+        }
+
+        if (!haveFingerprint) {
+            pmlog_error("No provider-device fingerprint resolved for logical device")
+                .pmwatch(logicalDevice.logicalDeviceId);
+            throw util::Except<>("No provider-device fingerprint resolved for logical device");
         }
 
         return fingerprint;
@@ -641,10 +647,8 @@ namespace pmon::tel
             }
 
             TelemetryDeviceFingerprint providerFingerprint{};
-            bool haveProviderFingerprint = false;
             try {
                 providerFingerprint = pProvider->GetFingerPrint(providerDevice.providerDeviceId);
-                haveProviderFingerprint = true;
                 const auto capabilityMap = pProvider->GetCaps();
                 const auto itDeviceCaps = capabilityMap.find(providerDevice.providerDeviceId);
                 if (itDeviceCaps == capabilityMap.end()) {
@@ -675,7 +679,6 @@ namespace pmon::tel
                     .pmwatch(logicalDevice.logicalDeviceId)
                     .pmwatch((int)providerFingerprint.vendor)
                     .pmwatch(providerFingerprint.deviceName)
-                    .pmwatch(haveProviderFingerprint)
                     .pmwatch(providerDevice.providerDeviceId)
                     .pmwatch((int)metricId);
             }

@@ -58,7 +58,7 @@ namespace pmon::tel::igcl
             ipc::MetricCapabilities caps{};
 
             ctl_device_adapter_handle_t handle = nullptr;
-            LUID deviceLuid{};
+            std::vector<uint8_t> deviceLuid{};
             ctl_device_adapter_properties_t properties{};
             std::vector<ctl_mem_handle_t> memoryModules{};
             std::vector<ctl_pwr_handle_t> powerDomains{};

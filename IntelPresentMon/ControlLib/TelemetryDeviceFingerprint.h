@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace pmon::tel
 {
@@ -15,6 +16,7 @@ namespace pmon::tel
         PM_DEVICE_VENDOR vendor = PM_DEVICE_VENDOR_UNKNOWN;
         std::string deviceName;
 
+        std::vector<uint8_t> adapterLuid;
         // Correlation fields aligned with NVIDIA matching.
         std::optional<uint32_t> pciDeviceId;
         std::optional<uint32_t> pciSubSystemId;
