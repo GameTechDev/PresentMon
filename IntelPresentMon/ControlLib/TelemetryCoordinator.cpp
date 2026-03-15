@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <functional>
 #include <limits>
+#include <sstream>
 #include <span>
 #include <type_traits>
 #include <unordered_map>
@@ -42,6 +43,11 @@ namespace pmon::tel
             default:
                 return false;
             }
+        }
+
+        const char* GetDeviceNameOrUnknown_(const TelemetryDeviceFingerprint& fingerprint) noexcept
+        {
+            return fingerprint.deviceName.empty() ? "UNKNOWN_GPU" : fingerprint.deviceName.c_str();
         }
 
     }
@@ -561,6 +567,24 @@ namespace pmon::tel
                 continue;
             }
 
+            if (gpuDevice.oldId != nextGpuLogicalId) {
+                std::string name = "UNKNOWN_GPU";
+                try {
+                    const auto fingerprint = ResolveLogicalDeviceFingerprint_(nh.mapped());
+                    name = GetDeviceNameOrUnknown_(fingerprint);
+                }
+                catch (...) {
+                    pmlog_warn(util::ReportException("Failed resolving GPU fingerprint while logging ID reassignment"))
+                        .pmwatch(gpuDevice.oldId)
+                        .pmwatch(nextGpuLogicalId);
+                }
+                pmlog_dbg(std::format(
+                    "GPU logical device id reassigned: name=\"{}\" oldId={} newId={} memorySize={}",
+                    name,
+                    gpuDevice.oldId,
+                    nextGpuLogicalId,
+                    gpuDevice.gpuMemorySize));
+            }
             nh.key() = nextGpuLogicalId;
             nh.mapped().logicalDeviceId = nextGpuLogicalId;
             reorderedLogicalDevices.insert(std::move(nh));
@@ -572,6 +596,53 @@ namespace pmon::tel
         if (nextLogicalDeviceId_ == ipc::kSystemDeviceId) {
             ++nextLogicalDeviceId_;
         }
+
+        struct FinalGpuOrderEntry_
+        {
+            uint32_t id = 0;
+            PM_DEVICE_VENDOR vendor = PM_DEVICE_VENDOR_UNKNOWN;
+            std::string name{};
+            uint64_t gpuMemorySize = 0;
+        };
+
+        std::vector<FinalGpuOrderEntry_> finalGpuOrder;
+        finalGpuOrder.reserve(logicalDevicesById_.size());
+
+        for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
+            if (logicalDeviceId == ipc::kSystemDeviceId) {
+                continue;
+            }
+
+            FinalGpuOrderEntry_ entry{};
+            entry.id = logicalDeviceId;
+            entry.gpuMemorySize = QueryGpuMemorySize_(logicalDevice);
+            try {
+                const auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice);
+                entry.vendor = fingerprint.vendor;
+                entry.name = GetDeviceNameOrUnknown_(fingerprint);
+            }
+            catch (...) {
+                pmlog_warn(util::ReportException("Failed resolving GPU fingerprint while logging final order"))
+                    .pmwatch(logicalDeviceId);
+                entry.name = "UNKNOWN_GPU";
+            }
+            finalGpuOrder.push_back(std::move(entry));
+        }
+
+        std::sort(finalGpuOrder.begin(), finalGpuOrder.end(), [](const FinalGpuOrderEntry_& lhs, const FinalGpuOrderEntry_& rhs) {
+            return lhs.id < rhs.id;
+        });
+
+        std::ostringstream oss;
+        oss << "Final GPU logical device ordering:";
+        for (size_t i = 0; i < finalGpuOrder.size(); ++i) {
+            const auto& entry = finalGpuOrder[i];
+            oss << "\n" << entry.name;
+            oss << "\n  id: " << entry.id;
+            oss << "\n  vendor: " << (int)entry.vendor;
+            oss << "\n  memorySize: " << entry.gpuMemorySize;
+        }
+        pmlog_dbg(oss.str());
     }
 
     uint64_t TelemetryCoordinator::QueryGpuMemorySize_(const LogicalDevice_& logicalDevice) const
