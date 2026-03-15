@@ -235,21 +235,32 @@ namespace pmon::tel::igcl
         device.handle = handle;
         device.properties = {
             .Size = sizeof(ctl_device_adapter_properties_t),
-            .pDeviceID = &device.deviceLuid,
-            .device_id_size = sizeof(device.deviceLuid),
+            .pDeviceID = nullptr,
+            .device_id_size = 0,
         };
 
-        const auto propertiesResult = ctlGetDeviceProperties(device.handle, &device.properties);
+        auto propertiesResult = ctlGetDeviceProperties(device.handle, &device.properties);
         if (propertiesResult != CTL_RESULT_SUCCESS) {
-            pmlog_error("ctlGetDeviceProperties failed").code(propertiesResult);
+            pmlog_error("ctlGetDeviceProperties(size query) failed").code(propertiesResult);
+            return false;
+        }
+
+        device.deviceLuid.resize((size_t)device.properties.device_id_size);
+        device.properties = {
+            .Size = sizeof(ctl_device_adapter_properties_t),
+            .pDeviceID = device.deviceLuid.empty() ? nullptr : device.deviceLuid.data(),
+            .device_id_size = (uint32_t)device.deviceLuid.size(),
+        };
+
+        propertiesResult = ctlGetDeviceProperties(device.handle, &device.properties);
+        if (propertiesResult != CTL_RESULT_SUCCESS) {
+            pmlog_error("ctlGetDeviceProperties(data query) failed").code(propertiesResult);
             return false;
         }
         pmlog_verb(v::tele_gpu)("ctlGetDeviceProperties output")
             .pmwatch(device.properties.name)
             .pmwatch(device.providerDeviceId)
-            .pmwatch(ref::DumpGenerated(device.properties))
-            .pmwatch(device.deviceLuid.HighPart)
-            .pmwatch(device.deviceLuid.LowPart);
+            .pmwatch(ref::DumpGenerated(device.properties));
 
         if (device.properties.device_type != CTL_DEVICE_TYPE_GRAPHICS) {
             return false;
@@ -258,6 +269,9 @@ namespace pmon::tel::igcl
         device.fingerprint.deviceType = PM_DEVICE_TYPE_GRAPHICS_ADAPTER;
         device.fingerprint.vendor = PM_DEVICE_VENDOR_INTEL;
         device.fingerprint.deviceName = device.properties.name;
+        if (!device.deviceLuid.empty()) {
+            device.fingerprint.adapterLuid = device.deviceLuid;
+        }
 
         device.isAlchemist = std::regex_search(device.fingerprint.deviceName, std::regex{ R"(Arc.*A\d{3})" });
         pmlog_verb(v::tele_gpu)("Alchemist detection")
