@@ -3,7 +3,7 @@
 #pragma once
 #include <string>
 #include <format>
-#include "igcl_api.h"
+#include "igcl/igcl_api.h"
 #include "../CommonUtilities/log/Log.h"
 
 namespace pwr::log

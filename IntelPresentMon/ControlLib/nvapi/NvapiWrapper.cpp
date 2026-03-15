@@ -1,10 +1,11 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "NvapiWrapper.h"
 #include "nvapi_interface_table.h"
 #include <algorithm>
+#include <string>
 
-namespace pwr::nv
+namespace pmon::tel::nvapi
 {
 	NvapiWrapper::NvapiWrapper()
 	{
@@ -60,22 +61,6 @@ namespace pwr::nv
 			// TODO: log failure of this function
 			pUnload();
 		}
-	}
-
-	NvapiAdapterSignature NvapiWrapper::GetAdapterSignature(NvPhysicalGpuHandle adapter) const noexcept
-	{
-		NvapiAdapterSignature signature{};
-
-		// TODO: log failure
-		GPU_GetPCIIdentifiers(adapter,
-			&signature.deviceId, &signature.subSystemId,
-			&signature.revisionId, &signature.extDeviceId
-		);
-
-		// TODO log failure
-		GPU_GetBusId(adapter, &signature.busId);
-
-		return signature;
 	}
 
 	// definition of wrapper functions

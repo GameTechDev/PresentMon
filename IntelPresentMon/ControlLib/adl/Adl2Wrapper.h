@@ -1,9 +1,9 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "adl_sdk.h"
-#include "DllModule.h"
-#include "MacroHelpers.h"
+#include "../DllModule.h"
+#include "../MacroHelpers.h"
 
 
 // goals: single source of truth, automatic id lookup, parameter names in
@@ -67,7 +67,7 @@
   X_(OverdriveN_FanControl_Get, int, iAdapterIndex, ADLODNFanControl*,         \
      lpOdFanControl)
 
-namespace pwr::amd {
+namespace pmon::tel::adl {
 	class Adl2Wrapper {
 	public:
 		Adl2Wrapper();
@@ -91,4 +91,4 @@ namespace pwr::amd {
 		// Private endpoint pointer to shutdown ADL2
 		int (*ADL2_Main_Control_Destroy_ptr_)(ADL_CONTEXT_HANDLE) = nullptr;
 	};
-}  // namespace pwr::amd
+}  // namespace pmon::tel::adl

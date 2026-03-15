@@ -1,9 +1,9 @@
 ﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
+#include "../DllModule.h"
+#include "../MacroHelpers.h"
 #include "nvml.h"
-#include "DllModule.h"
-#include "MacroHelpers.h"
 
 // goals: single source of truth, automatic id lookup, parameter names in intellisense, easy updates
 // means: x-macros, macro length overload w/ pairwise operation (up to 6 params)
@@ -23,22 +23,13 @@ X_(DeviceGetEnforcedPowerLimit, nvmlDevice_t, device, unsigned int*, limit) \
 X_(DeviceGetPowerManagementLimit, nvmlDevice_t, device, unsigned int*, limit) \
 X_(DeviceGetViolationStatus, nvmlDevice_t, device, nvmlPerfPolicyType_t, perfPolicyType, nvmlViolationTime_t*, violTime)
 
-namespace pwr::nv
+namespace pmon::tel::nvml
 {
-	struct NvmlAdapterSignature
-	{
-		uint32_t busIdDomain;
-		uint32_t busIdBus;
-		uint32_t pciDeviceId;
-		uint32_t pciSubSystemId;
-	};
-
 	class NvmlWrapper
 	{
 	public:
 		NvmlWrapper();
 		~NvmlWrapper();
-		NvmlAdapterSignature GetAdapterSignature(nvmlDevice_t adapter) const;
 		static bool Ok(nvmlReturn_t sta) noexcept { return sta == nvmlReturn_t::NVML_SUCCESS; }
 		// endpoint wrapper functions
 #define X_(name, ...) nvmlReturn_t name(NVW_ARGS(__VA_ARGS__)) const noexcept;

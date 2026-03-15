@@ -3,8 +3,8 @@
 #pragma once
 
 #include "../EndpointCache.h"
-#include "../NvapiWrapper.h"
 #include "../TelemetryProvider.h"
+#include "NvapiWrapper.h"
 
 #include <cstdint>
 #include <memory>
@@ -76,11 +76,11 @@ namespace pmon::tel::nvapi
             double& value);
         static bool TryGetUtilizationValue_(
             const NV_GPU_DYNAMIC_PSTATES_INFO_EX& utilization,
-            pwr::nv::NVAPI_GPU_UTILIZATION_DOMAIN utilizationDomain,
+            NVAPI_GPU_UTILIZATION_DOMAIN utilizationDomain,
             double& value);
 
     private:
-        std::unique_ptr<pwr::nv::NvapiWrapper> pNvapi_{};
+        std::unique_ptr<NvapiWrapper> pNvapi_{};
         std::unordered_map<ProviderDeviceId, DeviceState_> devicesById_{};
         ProviderDeviceId nextProviderDeviceId_ = 1;
     };

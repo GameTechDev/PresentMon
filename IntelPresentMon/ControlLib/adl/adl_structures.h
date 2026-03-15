@@ -1,4 +1,4 @@
-//
+﻿//
 // Copyright (c) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
 //
 // MIT LICENSE:

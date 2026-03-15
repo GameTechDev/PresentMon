@@ -5,7 +5,7 @@
 
 using namespace pmon::util;
 
-namespace pwr::intel
+namespace pmon::tel::igcl
 {
 	std::type_index IgclErrorCodeProvider::GetTargetType() const
 	{

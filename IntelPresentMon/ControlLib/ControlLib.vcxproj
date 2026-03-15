@@ -107,70 +107,43 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="AmdPowerTelemetryAdapter.h" />
-    <ClInclude Include="AmdPowerTelemetryProvider.h" />
-    <ClInclude Include="Adl2Wrapper.h" />
+    <ClInclude Include="adl\adl_defines.h" />
+    <ClInclude Include="adl\adl_sdk.h" />
+    <ClInclude Include="adl\adl_structures.h" />
+    <ClInclude Include="adl\Adl2Wrapper.h" />
     <ClInclude Include="adl\AmdTelemetryProvider.h" />
-    <ClInclude Include="CpuTelemetryInfo.h" />
     <ClInclude Include="DllModule.h" />
-    <ClInclude Include="CpuTelemetry.h" />
     <ClInclude Include="Exceptions.h" />
-    <ClInclude Include="IgclErrorCodeProvider.h" />
     <ClInclude Include="igcl\IgclErrorCodeProvider.h" />
     <ClInclude Include="igcl\igcl_api.h" />
-    <ClInclude Include="IntelPowerTelemetryAdapter.h" />
     <ClInclude Include="Logging.h" />
     <ClInclude Include="MacroHelpers.h" />
-    <ClInclude Include="MetricUse.h" />
-    <ClInclude Include="nvapi.h" />
-    <ClInclude Include="NvapiWrapper.h" />
+    <ClInclude Include="nvapi\nvapi.h" />
+    <ClInclude Include="nvapi\NvapiWrapper.h" />
     <ClInclude Include="nvapi\NvapiTelemetryProvider.h" />
+    <ClInclude Include="nvapi\nvapi_interface_table.h" />
+    <ClInclude Include="nvml\NvmlWrapper.h" />
     <ClInclude Include="nvml\NvmlTelemetryProvider.h" />
-    <ClInclude Include="nvapi_interface_table.h" />
-    <ClInclude Include="NvidiaPowerTelemetryAdapter.h" />
-    <ClInclude Include="NvidiaPowerTelemetryProvider.h" />
-    <ClInclude Include="nvml.h" />
-    <ClInclude Include="NvmlWrapper.h" />
-    <ClInclude Include="PowerTelemetryAdapter.h" />
-    <ClInclude Include="PowerTelemetryProvider.h" />
-    <ClInclude Include="igcl_api.h" />
+    <ClInclude Include="nvml\nvml.h" />
     <ClInclude Include="EndpointCache.h" />
     <ClInclude Include="igcl\IgclTelemetryProvider.h" />
-    <ClInclude Include="IntelPowerTelemetryProvider.h" />
-    <ClInclude Include="PresentMonPowerTelemetry.h" />
-    <ClInclude Include="PowerTelemetryProviderFactory.h" />
-    <ClInclude Include="SignatureComparison.h" />
     <ClInclude Include="TelemetryCoordinator.h" />
     <ClInclude Include="TelemetryDeviceFingerprint.h" />
     <ClInclude Include="TelemetryProvider.h" />
-    <ClInclude Include="WmiCpu.h" />
     <ClInclude Include="wmi\WmiTelemetryProvider.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="AmdPowerTelemetryAdapter.cpp" />
-    <ClCompile Include="Adl2Wrapper.cpp" />
+    <ClCompile Include="adl\Adl2Wrapper.cpp" />
     <ClCompile Include="adl\AmdTelemetryProvider.cpp" />
-    <ClCompile Include="cApiWrapper_old.cpp" />
-    <ClCompile Include="IgclErrorCodeProvider_old.cpp" />
     <ClCompile Include="igcl\cApiWrapper.cpp" />
     <ClCompile Include="igcl\IgclErrorCodeProvider.cpp" />
-    <ClCompile Include="IntelPowerTelemetryProvider_old.cpp" />
-    <ClCompile Include="IntelPowerTelemetryAdapter_old.cpp" />
     <ClCompile Include="igcl\IgclTelemetryProvider.cpp" />
-    <ClCompile Include="NvapiWrapper.cpp" />
+    <ClCompile Include="nvapi\NvapiWrapper.cpp" />
     <ClCompile Include="nvapi\NvapiTelemetryProvider.cpp" />
+    <ClCompile Include="nvml\NvmlWrapper.cpp" />
     <ClCompile Include="nvml\NvmlTelemetryProvider.cpp" />
-    <ClCompile Include="NvidiaPowerTelemetryAdapter.cpp" />
-    <ClCompile Include="NvidiaPowerTelemetryProvider.cpp" />
-    <ClCompile Include="NvmlWrapper.cpp" />
-    <ClCompile Include="PowerTelemetryAdapter.cpp" />
-    <ClCompile Include="PowerTelemetryProviderFactory.cpp" />
-    <ClCompile Include="SignatureComparison.cpp" />
-    <ClCompile Include="AmdPowerTelemetryProvider.cpp" />
-    <ClCompile Include="CpuTelemetry.cpp" />
     <ClCompile Include="TelemetryCoordinator.cpp" />
     <ClCompile Include="TelemetryDeviceFingerprint.cpp" />
-    <ClCompile Include="WmiCpu.cpp" />
     <ClCompile Include="wmi\WmiTelemetryProvider.cpp" />
   </ItemGroup>
   <ItemGroup>

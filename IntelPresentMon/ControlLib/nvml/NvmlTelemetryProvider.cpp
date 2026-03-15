@@ -16,7 +16,7 @@ namespace pmon::tel::nvml
     NvmlTelemetryProvider::NvmlTelemetryProvider()
     {
         try {
-            pNvml_ = std::make_unique<pwr::nv::NvmlWrapper>();
+            pNvml_ = std::make_unique<NvmlWrapper>();
         }
         catch (...) {
             pmlog_error(util::ReportException("NVML wrapper construction failed"));
@@ -25,7 +25,7 @@ namespace pmon::tel::nvml
 
         unsigned int count = 0;
         const auto countResult = pNvml_->DeviceGetCount_v2(&count);
-        if (!pwr::nv::NvmlWrapper::Ok(countResult)) {
+        if (!NvmlWrapper::Ok(countResult)) {
             pmlog_error("nvmlDeviceGetCount_v2 failed").code(countResult);
             throw Except<>("NVML device count query failed");
         }
@@ -33,7 +33,7 @@ namespace pmon::tel::nvml
         for (unsigned int i = 0; i < count; ++i) {
             nvmlDevice_t handle = nullptr;
             const auto handleResult = pNvml_->DeviceGetHandleByIndex_v2(i, &handle);
-            if (!pwr::nv::NvmlWrapper::Ok(handleResult)) {
+            if (!NvmlWrapper::Ok(handleResult)) {
                 pmlog_warn("nvmlDeviceGetHandleByIndex_v2 failed").code(handleResult)
                     .pmwatch(i);
                 continue;
@@ -178,7 +178,7 @@ namespace pmon::tel::nvml
         char adapterName[NVML_DEVICE_NAME_BUFFER_SIZE]{};
         const auto nameResult = pNvml_->DeviceGetName(
             device.handle, adapterName, (unsigned int)NVML_DEVICE_NAME_BUFFER_SIZE);
-        if (!pwr::nv::NvmlWrapper::Ok(nameResult)) {
+        if (!NvmlWrapper::Ok(nameResult)) {
             pmlog_warn("nvmlDeviceGetName failed").code(nameResult)
                 .pmwatch(device.providerDeviceId);
         }
@@ -192,7 +192,7 @@ namespace pmon::tel::nvml
 
         nvmlPciInfo_t pciInfo{};
         const auto pciResult = pNvml_->DeviceGetPciInfo_v3(device.handle, &pciInfo);
-        if (pwr::nv::NvmlWrapper::Ok(pciResult)) {
+        if (NvmlWrapper::Ok(pciResult)) {
             device.fingerprint.pciDeviceId = pciInfo.pciDeviceId;
             device.fingerprint.pciSubSystemId = pciInfo.pciSubSystemId;
             device.fingerprint.pciBusId = pciInfo.bus;
@@ -248,7 +248,7 @@ namespace pmon::tel::nvml
 
         nvmlMemory_t memoryInfo{};
         const auto result = pNvml_->DeviceGetMemoryInfo(device.handle, &memoryInfo);
-        if (!pwr::nv::NvmlWrapper::Ok(result)) {
+        if (!NvmlWrapper::Ok(result)) {
             pmlog_warn("nvmlDeviceGetMemoryInfo failed").code(result).every(std::chrono::seconds{ 60 })
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
@@ -263,7 +263,7 @@ namespace pmon::tel::nvml
     {
         unsigned int powerMw = 0;
         const auto result = pNvml_->DeviceGetPowerUsage(device.handle, &powerMw);
-        if (!pwr::nv::NvmlWrapper::Ok(result)) {
+        if (!NvmlWrapper::Ok(result)) {
             pmlog_warn("nvmlDeviceGetPowerUsage failed").code(result).every(std::chrono::seconds{ 60 })
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
@@ -277,7 +277,7 @@ namespace pmon::tel::nvml
     {
         unsigned int limitMw = 0;
         const auto result = pNvml_->DeviceGetPowerManagementLimit(device.handle, &limitMw);
-        if (!pwr::nv::NvmlWrapper::Ok(result)) {
+        if (!NvmlWrapper::Ok(result)) {
             pmlog_warn("nvmlDeviceGetPowerManagementLimit failed").code(result).every(std::chrono::seconds{ 60 })
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);

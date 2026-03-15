@@ -15,7 +15,7 @@ namespace pmon::tel
         PM_DEVICE_VENDOR vendor = PM_DEVICE_VENDOR_UNKNOWN;
         std::string deviceName;
 
-        // Correlation fields aligned with NVIDIA legacy matching.
+        // Correlation fields aligned with NVIDIA matching.
         std::optional<uint32_t> pciDeviceId;
         std::optional<uint32_t> pciSubSystemId;
         std::optional<uint32_t> pciBusId;

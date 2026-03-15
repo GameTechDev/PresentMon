@@ -1,4 +1,4 @@
-#include "LogSetup.h"
+﻿#include "LogSetup.h"
 #include <chrono>
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/log/Channel.h"
@@ -16,7 +16,7 @@
 #include "../CommonUtilities/win/HrErrorCodeProvider.h"
 #include "../CommonUtilities/str/String.h"
 #include "../CommonUtilities/Exception.h"
-#include "../ControlLib/IgclErrorCodeProvider.h"
+#include "../ControlLib/igcl/IgclErrorCodeProvider.h"
 #include "../PresentMonAPIWrapperCommon/PmErrorCodeProvider.h"
 #include "CliOptions.h"
 #include "Registry.h"
@@ -33,7 +33,7 @@ namespace pmon::util::log
 			// error resolver
 			auto pErrorResolver = std::make_shared<ErrorCodeResolver>();
 			pErrorResolver->AddProvider(std::make_unique<win::HrErrorCodeProvider>());
-			pErrorResolver->AddProvider(std::make_unique<pwr::intel::IgclErrorCodeProvider>());
+			pErrorResolver->AddProvider(std::make_unique<pmon::tel::igcl::IgclErrorCodeProvider>());
 			pErrorResolver->AddProvider(std::make_unique<pmapi::PmErrorCodeProvider>());
 			// error resolving policy
 			auto pErrPolicy = std::make_shared<ErrorCodeResolvePolicy>();

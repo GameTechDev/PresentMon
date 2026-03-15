@@ -26,35 +26,21 @@ pmon::test::service::Status PresentMonSession::GetTestingStatus() const
     };
 }
 
-void PresentMonSession::SetCpu(const std::shared_ptr<pwr::cpu::CpuTelemetry>& pCpu) {
-    cpu_ = pCpu.get();
+std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> PresentMonSession::EnumerateAdapters() const {
+    return telemetry_adapters_;
 }
 
-std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> PresentMonSession::EnumerateAdapters() {
-    if (telemetry_container_) {
-        return telemetry_container_->GetPowerTelemetryAdapters();
-    }
-    else {
-        return {};
-    }
+void PresentMonSession::SetCpuStaticInfo(std::string cpuName, double cpuPowerLimit) {
+    cpu_name_ = std::move(cpuName);
+    cpu_power_limit_ = cpuPowerLimit;
 }
 
 std::string PresentMonSession::GetCpuName() {
-    if (cpu_) {
-        return cpu_->GetCpuName();
-    }
-    else {
-        return std::string{ "UNKOWN_CPU" };
-    }
+    return cpu_name_.empty() ? std::string{ "UNKOWN_CPU" } : cpu_name_;
 }
 
 double PresentMonSession::GetCpuPowerLimit() {
-    if (cpu_) {
-        return cpu_->GetCpuPowerLimit();
-    }
-    else {
-        return 0.;
-    }
+    return cpu_power_limit_;
 }
 
 PM_STATUS PresentMonSession::SetGpuTelemetryPeriod(std::optional<uint32_t> period_ms)
@@ -87,8 +73,9 @@ bool PresentMonSession::HasLiveTargets() const {
     return HasLiveTrackedProcesses();
 }
 
-void PresentMonSession::SetPowerTelemetryContainer(PowerTelemetryContainer* ptc) {
-    telemetry_container_ = ptc;
+void PresentMonSession::SetTelemetryAdapters(
+    std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> adapters) {
+    telemetry_adapters_ = std::move(adapters);
 }
 
 void PresentMonSession::SyncTrackedPidState(const std::unordered_set<uint32_t>& trackedPids)

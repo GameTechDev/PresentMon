@@ -17,7 +17,7 @@ namespace pmon::tel::nvapi
     NvapiTelemetryProvider::NvapiTelemetryProvider()
     {
         try {
-            pNvapi_ = std::make_unique<pwr::nv::NvapiWrapper>();
+            pNvapi_ = std::make_unique<NvapiWrapper>();
         }
         catch (const TelemetrySubsystemAbsent&) {
             throw;
@@ -33,7 +33,7 @@ namespace pmon::tel::nvapi
         if (enumResult == NVAPI_NVIDIA_DEVICE_NOT_FOUND) {
             return;
         }
-        if (!pwr::nv::NvapiWrapper::Ok(enumResult)) {
+        if (!NvapiWrapper::Ok(enumResult)) {
             pmlog_error("NvAPI_EnumPhysicalGPUs failed").code(enumResult);
             throw Except<>("NVAPI physical GPU enumeration failed");
         }
@@ -125,7 +125,7 @@ namespace pmon::tel::nvapi
 
         NvAPI_ShortString adapterName{};
         const auto fullNameResult = pNvapi_->GPU_GetFullName(device.handle, adapterName);
-        if (pwr::nv::NvapiWrapper::Ok(fullNameResult)) {
+        if (NvapiWrapper::Ok(fullNameResult)) {
             device.fingerprint.deviceName = adapterName;
         }
         else {
@@ -139,7 +139,7 @@ namespace pmon::tel::nvapi
         NvU32 extDeviceId = 0;
         const auto pciResult = pNvapi_->GPU_GetPCIIdentifiers(
             device.handle, &deviceId, &subSystemId, &revisionId, &extDeviceId);
-        if (pwr::nv::NvapiWrapper::Ok(pciResult)) {
+        if (NvapiWrapper::Ok(pciResult)) {
             device.fingerprint.pciDeviceId = deviceId;
             device.fingerprint.pciSubSystemId = subSystemId;
         }
@@ -151,7 +151,7 @@ namespace pmon::tel::nvapi
 
         NvU32 busId = 0;
         const auto busResult = pNvapi_->GPU_GetBusId(device.handle, &busId);
-        if (pwr::nv::NvapiWrapper::Ok(busResult)) {
+        if (NvapiWrapper::Ok(busResult)) {
             device.fingerprint.pciBusId = busId;
         }
         else {
@@ -196,11 +196,11 @@ namespace pmon::tel::nvapi
 
         if (const auto* pUtilization = PollUtilizationEndpoint_(device, requestQpc)) {
             if (TryGetUtilizationValue_(
-                *pUtilization, pwr::nv::NVAPI_GPU_UTILIZATION_DOMAIN_GPU, value)) {
+                *pUtilization, NVAPI_GPU_UTILIZATION_DOMAIN_GPU, value)) {
                 caps.Set(PM_METRIC_GPU_UTILIZATION, 1);
             }
             if (TryGetUtilizationValue_(
-                *pUtilization, pwr::nv::NVAPI_GPU_UTILIZATION_DOMAIN_VID, value)) {
+                *pUtilization, NVAPI_GPU_UTILIZATION_DOMAIN_VID, value)) {
                 caps.Set(PM_METRIC_GPU_MEDIA_UTILIZATION, 1);
             }
         }
@@ -228,7 +228,7 @@ namespace pmon::tel::nvapi
 
         const auto result = pNvapi_->GPU_GetThermalSettings(
             device.handle, NVAPI_THERMAL_TARGET_ALL, &cache.output);
-        if (!pwr::nv::NvapiWrapper::Ok(result)) {
+        if (!NvapiWrapper::Ok(result)) {
             pmlog_warn("NvAPI_GPU_GetThermalSettings failed").code(result).every(std::chrono::seconds{ 60 })
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
@@ -254,7 +254,7 @@ namespace pmon::tel::nvapi
         cache.requestQpc = requestQpc;
 
         const auto result = pNvapi_->GPU_GetAllClockFrequencies(device.handle, &cache.output);
-        if (!pwr::nv::NvapiWrapper::Ok(result)) {
+        if (!NvapiWrapper::Ok(result)) {
             pmlog_warn("NvAPI_GPU_GetAllClockFrequencies failed").code(result).every(std::chrono::seconds{ 60 })
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
@@ -280,7 +280,7 @@ namespace pmon::tel::nvapi
         cache.requestQpc = requestQpc;
 
         const auto result = pNvapi_->GPU_GetDynamicPstatesInfoEx(device.handle, &cache.output);
-        if (!pwr::nv::NvapiWrapper::Ok(result)) {
+        if (!NvapiWrapper::Ok(result)) {
             pmlog_warn("NvAPI_GPU_GetDynamicPstatesInfoEx failed").code(result).every(std::chrono::seconds{ 60 })
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
@@ -305,7 +305,7 @@ namespace pmon::tel::nvapi
 
         NvU32 tach = 0;
         const auto result = pNvapi_->GPU_GetTachReading(device.handle, &tach);
-        if (!pwr::nv::NvapiWrapper::Ok(result)) {
+        if (!NvapiWrapper::Ok(result)) {
             pmlog_warn("NvAPI_GPU_GetTachReading failed").code(result).every(std::chrono::seconds{ 60 })
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
@@ -382,7 +382,7 @@ namespace pmon::tel::nvapi
             const auto* pUtilization = PollUtilizationEndpoint_(device, requestQpc);
             if (pUtilization &&
                 TryGetUtilizationValue_(
-                    *pUtilization, pwr::nv::NVAPI_GPU_UTILIZATION_DOMAIN_GPU, value)) {
+                    *pUtilization, NVAPI_GPU_UTILIZATION_DOMAIN_GPU, value)) {
                 return value;
             }
             return 0.0;
@@ -393,7 +393,7 @@ namespace pmon::tel::nvapi
             const auto* pUtilization = PollUtilizationEndpoint_(device, requestQpc);
             if (pUtilization &&
                 TryGetUtilizationValue_(
-                    *pUtilization, pwr::nv::NVAPI_GPU_UTILIZATION_DOMAIN_VID, value)) {
+                    *pUtilization, NVAPI_GPU_UTILIZATION_DOMAIN_VID, value)) {
                 return value;
             }
             return 0.0;
@@ -457,7 +457,7 @@ namespace pmon::tel::nvapi
 
     bool NvapiTelemetryProvider::TryGetUtilizationValue_(
         const NV_GPU_DYNAMIC_PSTATES_INFO_EX& utilization,
-        pwr::nv::NVAPI_GPU_UTILIZATION_DOMAIN utilizationDomain,
+        NVAPI_GPU_UTILIZATION_DOMAIN utilizationDomain,
         double& value)
     {
         if ((size_t)utilizationDomain >= (size_t)NVAPI_MAX_GPU_UTILIZATIONS) {

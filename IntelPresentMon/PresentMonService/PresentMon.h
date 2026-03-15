@@ -37,7 +37,7 @@ public:
 	// Force stop trace sessions
 	void StopTraceSessions();
     PM_STATUS UpdateTracking(const std::unordered_set<uint32_t>& trackedPids);
-	std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> EnumerateAdapters();
+	std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> EnumerateAdapters() const;
 	std::string GetCpuName() { return pSession_->GetCpuName(); }
 	double GetCpuPowerLimit() { return pSession_->GetCpuPowerLimit(); }
 	PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> telemetryPeriodRequestsMs)
@@ -59,10 +59,9 @@ public:
 		// Only the real time trace sets ETW flush period
 		return pSession_->GetEtwFlushPeriod();
 	}
-	void SetCpu(const std::shared_ptr<pwr::cpu::CpuTelemetry>& pCpu)
+	void SetCpuStaticInfo(std::string cpuName, double cpuPowerLimit)
 	{
-		// Only the real time trace uses the control libary interface
-		pSession_->SetCpu(pCpu);
+		pSession_->SetCpuStaticInfo(std::move(cpuName), cpuPowerLimit);
 	}
 	HANDLE GetStreamingStartHandle()
 	{
@@ -72,10 +71,9 @@ public:
 	{
 		return pSession_->HasLiveTargets();
 	}
-	void SetPowerTelemetryContainer(PowerTelemetryContainer* ptc)
+	void SetTelemetryAdapters(std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> adapters)
 	{
-		// Only the real time trace session uses the control library interface
-		return pSession_->SetPowerTelemetryContainer(ptc);
+		pSession_->SetTelemetryAdapters(std::move(adapters));
 	}
 	void FlushEvents()
 	{
