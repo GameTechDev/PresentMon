@@ -16,11 +16,13 @@ namespace pmon::tel
         PM_DEVICE_VENDOR vendor = PM_DEVICE_VENDOR_UNKNOWN;
         std::string deviceName;
 
-        std::vector<uint8_t> adapterLuid;
+        std::vector<uint8_t> luid;
         // Correlation fields aligned with NVIDIA matching.
         std::optional<uint32_t> pciDeviceId;
         std::optional<uint32_t> pciSubSystemId;
         std::optional<uint32_t> pciBusId;
+
+        std::string LuidAsString() const;
     };
 
     bool TelemetryDeviceFingerprintMatches(

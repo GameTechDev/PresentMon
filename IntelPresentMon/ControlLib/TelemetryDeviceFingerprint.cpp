@@ -1,7 +1,8 @@
-﻿// Copyright (C) 2026 Intel Corporation
+// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "TelemetryDeviceFingerprint.h"
 #include <cctype>
+#include <format>
 
 namespace pmon::tel
 {
@@ -51,6 +52,20 @@ namespace pmon::tel
         return false;
     }
 
+    std::string TelemetryDeviceFingerprint::LuidAsString() const
+    {
+        if (luid.empty()) {
+            return "<EMPTY>";
+        }
+
+        std::string text{};
+        for (size_t i = 0; i < luid.size(); ++i) {
+            text += std::format("{}{:02X}", i != 0 ? " " : "", luid[i]);
+        }
+
+        return text;
+    }
+
     void MergeTelemetryDeviceFingerprint(
         TelemetryDeviceFingerprint& dst,
         const TelemetryDeviceFingerprint& src)
@@ -61,6 +76,10 @@ namespace pmon::tel
 
         if (dst.deviceName.empty() && !src.deviceName.empty()) {
             dst.deviceName = src.deviceName;
+        }
+
+        if (dst.luid.empty() && !src.luid.empty()) {
+            dst.luid = src.luid;
         }
 
         if (!dst.pciDeviceId.has_value() && src.pciDeviceId.has_value()) {
