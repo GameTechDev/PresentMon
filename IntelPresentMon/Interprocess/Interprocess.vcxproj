@@ -17,7 +17,6 @@
     <ClCompile Include="source\IntrospectionPopulators.cpp" />
     <ClCompile Include="source\metadata\MetadataValidators.cpp" />
     <ClCompile Include="source\MetricCapabilities.cpp" />
-    <ClCompile Include="source\MetricCapabilitiesShim.cpp" />
     <ClCompile Include="source\ShmNamer.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -33,9 +32,7 @@
     <ClInclude Include="source\act\Transfer.h" />
     <ClInclude Include="source\DataStores.h" />
     <ClInclude Include="source\MetricCapabilities.h" />
-    <ClInclude Include="source\MetricCapabilitiesShim.h" />
     <ClInclude Include="source\PmStatusError.h" />
-    <ClInclude Include="source\IntrospectionCapsLookup.h" />
     <ClInclude Include="source\IntrospectionDataTypeMapping.h" />
     <ClInclude Include="source\IntrospectionHelpers.h" />
     <ClInclude Include="source\metadata\EnumFrameType.h" />

@@ -38,9 +38,8 @@ PM_STATUS PresentMon::UpdateTracking(const std::unordered_set<uint32_t>& tracked
 	return pSession_->UpdateTracking(trackedPids);
 }
 
-std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> PresentMon::EnumerateAdapters()
+std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> PresentMon::EnumerateAdapters() const
 {
-	// Only the real time trace uses the control libary interface
 	return pSession_->EnumerateAdapters();
 }
 

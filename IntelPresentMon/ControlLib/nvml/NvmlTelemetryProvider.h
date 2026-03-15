@@ -3,8 +3,8 @@
 #pragma once
 
 #include "../EndpointCache.h"
-#include "../NvmlWrapper.h"
 #include "../TelemetryProvider.h"
+#include "NvmlWrapper.h"
 
 #include <cstdint>
 #include <memory>
@@ -51,7 +51,7 @@ namespace pmon::tel::nvml
         std::optional<unsigned int> PollPowerLimitEndpoint_(const DeviceState_& device) const;
 
     private:
-        std::unique_ptr<pwr::nv::NvmlWrapper> pNvml_{};
+        std::unique_ptr<NvmlWrapper> pNvml_{};
         std::unordered_map<ProviderDeviceId, DeviceState_> devicesById_{};
         ProviderDeviceId nextProviderDeviceId_ = 1;
     };

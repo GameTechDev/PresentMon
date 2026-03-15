@@ -1,9 +1,8 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "NvmlWrapper.h"
-#include <regex>
 
-namespace pwr::nv
+namespace pmon::tel::nvml
 {
 	NvmlWrapper::NvmlWrapper()
 	{
@@ -38,43 +37,6 @@ namespace pwr::nv
 			// TODO: log failure of this function
 			pShutdown();
 		}
-	}
-
-	NvmlAdapterSignature NvmlWrapper::GetAdapterSignature(nvmlDevice_t adapter) const
-	{
-		// get pci information
-		nvmlPciInfo_t pciInfo{};
-		if (!Ok(DeviceGetPciInfo_v3(adapter, &pciInfo)))
-		{
-			// TODO: log failure of this function
-			return {};
-		}
-
-		// fill directly fillable information into signature
-		NvmlAdapterSignature signature{
-			.pciDeviceId = pciInfo.pciDeviceId,
-			.pciSubSystemId = pciInfo.pciSubSystemId,
-		};
-
-		// extract out necessary components from pciInfo.
-		// pciInfo.busId is a string with format = Domain:Bus:PciFunction.Id
-		try {
-			const std::regex expr{ "(.*?):(.*?):(.*?)\\.(.*)" };
-			std::cmatch results;
-			if (std::regex_match(pciInfo.busId, results, expr))
-			{
-				if (results[1].length() > 0)
-				{
-					signature.busIdDomain = std::stoul(results[1]);
-				}
-				if (results[2].length() > 0)
-				{
-					signature.busIdBus = std::stoul(results[2]);
-				}
-			}
-		} catch (...) {}
-
-		return signature;
 	}
 
 	// definition of wrapper functions

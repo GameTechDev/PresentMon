@@ -46,12 +46,12 @@ namespace pmon::svc::acts
 			Response out;
 			for (auto&& adapter : ctx.pPmon->EnumerateAdapters()) {
 				out.adapters.push_back(Response::Adapter{
-					.id = adapter->GetDeviceId(),
-					.vendor = adapter->GetVendor(),
-					.name = adapter->GetName(),
-					.gpuSustainedPowerLimit = adapter->GetSustainedPowerLimit(),
-					.gpuMemorySize = adapter->GetDedicatedVideoMemory(),
-					.gpuMemoryMaxBandwidth = adapter->GetVideoMemoryMaxBandwidth(),
+					.id = adapter.id,
+					.vendor = adapter.vendor,
+					.name = adapter.name,
+					.gpuSustainedPowerLimit = adapter.gpuSustainedPowerLimit,
+					.gpuMemorySize = adapter.gpuMemorySize,
+					.gpuMemoryMaxBandwidth = adapter.gpuMemoryMaxBandwidth,
 				});
 			}
 			pmlog_dbg(std::format("{} adapters enumerated", out.adapters.size()));

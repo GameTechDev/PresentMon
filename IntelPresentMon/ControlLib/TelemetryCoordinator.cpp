@@ -51,6 +51,116 @@ namespace pmon::tel
         BuildLogicalDevicesAndRoutes_();
     }
 
+    std::optional<TelemetryCoordinator::CpuInfo> TelemetryCoordinator::GetCpuInfo() const
+    {
+        const auto iLogicalDevice = logicalDevicesById_.find(ipc::kSystemDeviceId);
+        if (iLogicalDevice == logicalDevicesById_.end()) {
+            return std::nullopt;
+        }
+
+        const auto requestQpc = util::GetCurrentTimestamp();
+        const auto& logicalDevice = iLogicalDevice->second;
+
+        CpuInfo cpuInfo{};
+        cpuInfo.name = "UNKNOWN_CPU";
+
+        bool haveFingerprint = false;
+        const auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice, haveFingerprint);
+        if (haveFingerprint) {
+            cpuInfo.vendor = fingerprint.vendor;
+            if (!fingerprint.deviceName.empty()) {
+                cpuInfo.name = fingerprint.deviceName;
+            }
+        }
+        else {
+            pmlog_warn("No provider-device fingerprint available for CPU enumeration");
+        }
+
+        if (logicalDevice.routes.contains(PM_METRIC_CPU_POWER_LIMIT)) {
+            try {
+                const auto value = PollMetricForRoute_(logicalDevice, PM_METRIC_CPU_POWER_LIMIT, 0, requestQpc);
+                if (const auto pVal = std::get_if<double>(&value)) {
+                    cpuInfo.cpuPowerLimit = *pVal;
+                }
+                else {
+                    throw util::Except<>("Type mismatch while enumerating CPU static metric");
+                }
+            }
+            catch (...) {
+                pmlog_error(util::ReportException("CPU static metric query failed"))
+                    .pmwatch((int)PM_METRIC_CPU_POWER_LIMIT);
+            }
+        }
+
+        return cpuInfo;
+    }
+
+    std::vector<TelemetryCoordinator::AdapterInfo> TelemetryCoordinator::EnumerateAdapters() const
+    {
+        const auto requestQpc = util::GetCurrentTimestamp();
+        std::vector<AdapterInfo> adapters;
+        adapters.reserve(logicalDevicesById_.size());
+
+        for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
+            if (logicalDeviceId == ipc::kSystemDeviceId) {
+                continue;
+            }
+
+            AdapterInfo adapter{};
+            adapter.id = logicalDeviceId;
+            adapter.name = "UNKNOWN_GPU";
+
+            bool haveFingerprint = false;
+            const auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice, haveFingerprint);
+            if (haveFingerprint) {
+                adapter.vendor = fingerprint.vendor;
+                if (!fingerprint.deviceName.empty()) {
+                    adapter.name = fingerprint.deviceName;
+                }
+            }
+            else {
+                pmlog_warn("No provider-device fingerprint available for adapter enumeration")
+                    .pmwatch(logicalDeviceId);
+            }
+
+            const auto populateStaticMetric = [&]<typename T>(PM_METRIC metricId, T& destination) {
+                if (!logicalDevice.routes.contains(metricId)) {
+                    return;
+                }
+
+                try {
+                    const auto value = PollMetricForRoute_(logicalDevice, metricId, 0, requestQpc);
+                    if (const auto pVal = std::get_if<T>(&value)) {
+                        destination = *pVal;
+                    }
+                    else {
+                        throw util::Except<>("Type mismatch while enumerating adapter static metric");
+                    }
+                }
+                catch (...) {
+                    pmlog_error(util::ReportException("Adapter static metric query failed"))
+                        .pmwatch(logicalDeviceId)
+                        .pmwatch((int)metricId);
+                }
+            };
+
+            populateStaticMetric(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, adapter.gpuSustainedPowerLimit);
+            populateStaticMetric(PM_METRIC_GPU_MEM_SIZE, adapter.gpuMemorySize);
+            populateStaticMetric(PM_METRIC_GPU_MEM_MAX_BANDWIDTH, adapter.gpuMemoryMaxBandwidth);
+
+            adapters.push_back(std::move(adapter));
+        }
+
+        std::sort(adapters.begin(), adapters.end(), [](const AdapterInfo& lhs, const AdapterInfo& rhs) {
+            if (lhs.gpuMemorySize != rhs.gpuMemorySize) {
+                return lhs.gpuMemorySize > rhs.gpuMemorySize;
+            }
+            return lhs.id < rhs.id;
+        });
+
+        return adapters;
+    }
+
     void TelemetryCoordinator::RegisterDevicesToIpc(ipc::ServiceComms& comms) const
     {
         bool cpuRegistered = false;

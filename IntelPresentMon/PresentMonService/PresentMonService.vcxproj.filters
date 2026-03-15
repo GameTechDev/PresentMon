@@ -3,7 +3,6 @@
   <ItemGroup>
     <ClCompile Include="ActionServer.cpp" />
     <ClCompile Include="PMMainThread.cpp" />
-    <ClCompile Include="PowerTelemetryContainer.cpp" />
     <ClCompile Include="PresentMon.cpp" />
     <ClCompile Include="Service.cpp" />
     <ClCompile Include="ServiceMain.cpp" />
@@ -20,7 +19,6 @@
   <ItemGroup>
     <ClInclude Include="LateStageReprojectionData.hpp" />
     <ClInclude Include="ActionServer.h" />
-    <ClInclude Include="PowerTelemetryContainer.h" />
     <ClInclude Include="PresentMon.h" />
     <ClInclude Include="Service.h" />
     <ClInclude Include="CliOptions.h" />

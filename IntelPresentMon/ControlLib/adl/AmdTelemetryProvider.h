@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
-#include "../Adl2Wrapper.h"
 #include "../EndpointCache.h"
 #include "../TelemetryProvider.h"
+#include "Adl2Wrapper.h"
 
 #include <cstdint>
 #include <memory>
@@ -117,7 +117,7 @@ namespace pmon::tel::adl
             DynamicSnapshot_& snapshot) const;
 
     private:
-        std::unique_ptr<pwr::amd::Adl2Wrapper> pAdl_{};
+        std::unique_ptr<Adl2Wrapper> pAdl_{};
         std::unordered_map<ProviderDeviceId, DeviceState_> devicesById_{};
         ProviderDeviceId nextProviderDeviceId_ = 1;
     };

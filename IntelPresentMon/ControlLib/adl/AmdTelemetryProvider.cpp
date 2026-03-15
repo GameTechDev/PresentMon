@@ -30,7 +30,7 @@ namespace pmon::tel::adl
     AmdTelemetryProvider::AmdTelemetryProvider()
     {
         try {
-            pAdl_ = std::make_unique<pwr::amd::Adl2Wrapper>();
+            pAdl_ = std::make_unique<Adl2Wrapper>();
         }
         catch (const TelemetrySubsystemAbsent&) {
             throw;
@@ -42,7 +42,7 @@ namespace pmon::tel::adl
 
         int adapterCount = 0;
         const auto countResult = pAdl_->Adapter_NumberOfAdapters_Get(&adapterCount);
-        if (!pwr::amd::Adl2Wrapper::Ok(countResult)) {
+        if (!Adl2Wrapper::Ok(countResult)) {
             pmlog_error("ADL2_Adapter_NumberOfAdapters_Get failed").code(countResult);
             throw Except<>("ADL adapter count query failed");
         }
@@ -59,7 +59,7 @@ namespace pmon::tel::adl
         const auto infoResult = pAdl_->Adapter_AdapterInfo_Get(
             adapterInfos.data(),
             (int)(adapterInfos.size() * sizeof(AdapterInfo)));
-        if (!pwr::amd::Adl2Wrapper::Ok(infoResult)) {
+        if (!Adl2Wrapper::Ok(infoResult)) {
             pmlog_error("ADL2_Adapter_AdapterInfo_Get failed").code(infoResult);
             throw Except<>("ADL adapter info query failed");
         }
@@ -290,7 +290,7 @@ namespace pmon::tel::adl
             &overdriveSupported,
             &overdriveEnabled,
             &overdriveVersion);
-        if (!pwr::amd::Adl2Wrapper::Ok(capsResult)) {
+        if (!Adl2Wrapper::Ok(capsResult)) {
             pmlog_warn("ADL2_Overdrive_Caps failed").code(capsResult)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
@@ -332,7 +332,7 @@ namespace pmon::tel::adl
                 device.adlAdapterIndex,
                 thermalControllerIndex,
                 &thermalInfo);
-            if (!pwr::amd::Adl2Wrapper::Ok(result)) {
+            if (!Adl2Wrapper::Ok(result)) {
                 if (result != ADL_ERR_INVALID_CONTROLLER_IDX && result != ADL_ERR) {
                     pmlog_warn("ADL2_Overdrive5_ThermalDevices_Enum failed").code(result)
                         .pmwatch(device.providerDeviceId)
@@ -426,7 +426,7 @@ namespace pmon::tel::adl
         device.memoryInfoQueried = true;
         ADLMemoryInfoX4 memoryInfo{};
         const auto result = pAdl_->Adapter_MemoryInfoX4_Get(device.adlAdapterIndex, &memoryInfo);
-        if (!pwr::amd::Adl2Wrapper::Ok(result)) {
+        if (!Adl2Wrapper::Ok(result)) {
             pmlog_warn("ADL2_Adapter_MemoryInfoX4_Get failed").code(result)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
@@ -452,7 +452,7 @@ namespace pmon::tel::adl
             auto result = pAdl_->Overdrive5_PowerControl_Caps(
                 device.adlAdapterIndex,
                 &powerControlSupported);
-            if (!pwr::amd::Adl2Wrapper::Ok(result)) {
+            if (!Adl2Wrapper::Ok(result)) {
                 pmlog_warn("ADL2_Overdrive5_PowerControl_Caps failed").code(result)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName);
@@ -468,7 +468,7 @@ namespace pmon::tel::adl
                 device.adlAdapterIndex,
                 &powerControlCurrent,
                 &powerControlDefault);
-            if (!pwr::amd::Adl2Wrapper::Ok(result)) {
+            if (!Adl2Wrapper::Ok(result)) {
                 pmlog_warn("ADL2_Overdrive5_PowerControl_Get failed").code(result)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName);
@@ -485,7 +485,7 @@ namespace pmon::tel::adl
             auto result = pAdl_->Overdrive6_PowerControl_Caps(
                 device.adlAdapterIndex,
                 &powerControlSupported);
-            if (!pwr::amd::Adl2Wrapper::Ok(result)) {
+            if (!Adl2Wrapper::Ok(result)) {
                 pmlog_warn("ADL2_Overdrive6_PowerControl_Caps failed").code(result)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName);
@@ -501,7 +501,7 @@ namespace pmon::tel::adl
                 device.adlAdapterIndex,
                 &powerControlCurrent,
                 &powerControlDefault);
-            if (!pwr::amd::Adl2Wrapper::Ok(result)) {
+            if (!Adl2Wrapper::Ok(result)) {
                 pmlog_warn("ADL2_Overdrive6_PowerControl_Get failed").code(result)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName);
@@ -532,7 +532,7 @@ namespace pmon::tel::adl
 
         int vramUsageMb = 0;
         const auto vramUsageResult = pAdl_->Adapter_VRAMUsage_Get(device.adlAdapterIndex, &vramUsageMb);
-        if (pwr::amd::Adl2Wrapper::Ok(vramUsageResult)) {
+        if (Adl2Wrapper::Ok(vramUsageResult)) {
             snapshot.hasGpuMemUsed = true;
             snapshot.gpuMemUsedBytes = (uint64_t)vramUsageMb * 1000000ull;
         }
@@ -576,7 +576,7 @@ namespace pmon::tel::adl
                 device.adlAdapterIndex,
                 thermalControllerIndex,
                 &temperature);
-            if (pwr::amd::Adl2Wrapper::Ok(tempResult)) {
+            if (Adl2Wrapper::Ok(tempResult)) {
                 if (!snapshot.hasGpuTemperature) {
                     snapshot.gpuTemperatureC = (double)temperature.iTemperature / 1000.0;
                     snapshot.hasGpuTemperature = true;
@@ -594,7 +594,7 @@ namespace pmon::tel::adl
                 device.adlAdapterIndex,
                 thermalControllerIndex,
                 &fanInfo);
-            if (!pwr::amd::Adl2Wrapper::Ok(fanInfoResult)) {
+            if (!Adl2Wrapper::Ok(fanInfoResult)) {
                 pmlog_warn("ADL2_Overdrive5_FanSpeedInfo_Get failed").code(fanInfoResult).every(std::chrono::seconds{ 60 })
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName)
@@ -611,7 +611,7 @@ namespace pmon::tel::adl
                     device.adlAdapterIndex,
                     thermalControllerIndex,
                     &fanValue);
-                if (pwr::amd::Adl2Wrapper::Ok(fanResult)) {
+                if (Adl2Wrapper::Ok(fanResult)) {
                     snapshot.fanSpeedsRpm.push_back((double)fanValue.iFanSpeed);
                 }
                 else {
@@ -631,7 +631,7 @@ namespace pmon::tel::adl
                     device.adlAdapterIndex,
                     thermalControllerIndex,
                     &fanValue);
-                if (pwr::amd::Adl2Wrapper::Ok(fanResult)) {
+                if (Adl2Wrapper::Ok(fanResult)) {
                     snapshot.fanSpeedRatios.push_back((double)fanValue.iFanSpeed / 100.0);
                 }
                 else {
@@ -647,7 +647,7 @@ namespace pmon::tel::adl
         const auto activityResult = pAdl_->Overdrive5_CurrentActivity_Get(
             device.adlAdapterIndex,
             &activity);
-        if (pwr::amd::Adl2Wrapper::Ok(activityResult)) {
+        if (Adl2Wrapper::Ok(activityResult)) {
             snapshot.gpuUtilizationPercent = (double)activity.iActivityPercent;
             snapshot.hasGpuUtilization = true;
 
@@ -675,11 +675,11 @@ namespace pmon::tel::adl
         const auto thermalCapsResult = pAdl_->Overdrive6_ThermalController_Caps(
             device.adlAdapterIndex,
             &thermalCaps);
-        if (pwr::amd::Adl2Wrapper::Ok(thermalCapsResult)) {
+        if (Adl2Wrapper::Ok(thermalCapsResult)) {
             if (HasFlag_(thermalCaps.iCapabilities, ADL_OD6_TCCAPS_THERMAL_CONTROLLER)) {
                 int temperature = 0;
                 const auto tempResult = pAdl_->Overdrive6_Temperature_Get(device.adlAdapterIndex, &temperature);
-                if (pwr::amd::Adl2Wrapper::Ok(tempResult)) {
+                if (Adl2Wrapper::Ok(tempResult)) {
                     snapshot.gpuTemperatureC = (double)temperature / 1000.0;
                     snapshot.hasGpuTemperature = true;
                 }
@@ -692,7 +692,7 @@ namespace pmon::tel::adl
 
             ADLOD6FanSpeedInfo fanInfo{};
             const auto fanResult = pAdl_->Overdrive6_FanSpeed_Get(device.adlAdapterIndex, &fanInfo);
-            if (pwr::amd::Adl2Wrapper::Ok(fanResult)) {
+            if (Adl2Wrapper::Ok(fanResult)) {
                 if (HasFlag_(fanInfo.iSpeedType, ADL_OD6_FANSPEED_TYPE_RPM)) {
                     snapshot.fanSpeedsRpm.push_back((double)fanInfo.iFanSpeedRPM);
                 }
@@ -714,7 +714,7 @@ namespace pmon::tel::adl
 
         ADLOD6CurrentStatus currentStatus{};
         const auto currentStatusResult = pAdl_->Overdrive6_CurrentStatus_Get(device.adlAdapterIndex, &currentStatus);
-        if (pwr::amd::Adl2Wrapper::Ok(currentStatusResult)) {
+        if (Adl2Wrapper::Ok(currentStatusResult)) {
             snapshot.gpuFrequencyMhz = (double)currentStatus.iEngineClock / 100.0;
             snapshot.hasGpuFrequency = true;
 
@@ -723,7 +723,7 @@ namespace pmon::tel::adl
 
             ADLOD6Capabilities capabilities{};
             const auto capResult = pAdl_->Overdrive6_Capabilities_Get(device.adlAdapterIndex, &capabilities);
-            if (pwr::amd::Adl2Wrapper::Ok(capResult)) {
+            if (Adl2Wrapper::Ok(capResult)) {
                 if (HasFlag_(capabilities.iCapabilities, ADL_OD6_CAPABILITY_GPU_ACTIVITY_MONITOR)) {
                     snapshot.gpuUtilizationPercent = (double)currentStatus.iActivityPercent;
                     snapshot.hasGpuUtilization = true;
@@ -743,7 +743,7 @@ namespace pmon::tel::adl
 
         int currentPower = 0;
         const auto powerResult = pAdl_->Overdrive6_CurrentPower_Get(device.adlAdapterIndex, 0, &currentPower);
-        if (pwr::amd::Adl2Wrapper::Ok(powerResult)) {
+        if (Adl2Wrapper::Ok(powerResult)) {
             snapshot.gpuPowerW = (double)currentPower / 256.0;
             snapshot.hasGpuPower = true;
         }
@@ -760,7 +760,7 @@ namespace pmon::tel::adl
     {
         ADLODNCapabilitiesX2 capabilities{};
         const auto capsResult = pAdl_->OverdriveN_CapabilitiesX2_Get(device.adlAdapterIndex, &capabilities);
-        if (!pwr::amd::Adl2Wrapper::Ok(capsResult)) {
+        if (!Adl2Wrapper::Ok(capsResult)) {
             pmlog_warn("ADL2_OverdriveN_CapabilitiesX2_Get failed").code(capsResult).every(std::chrono::seconds{ 60 })
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
@@ -769,7 +769,7 @@ namespace pmon::tel::adl
 
         ADLODNPerformanceStatus performanceStatus{};
         const auto statusResult = pAdl_->OverdriveN_PerformanceStatus_Get(device.adlAdapterIndex, &performanceStatus);
-        if (pwr::amd::Adl2Wrapper::Ok(statusResult)) {
+        if (Adl2Wrapper::Ok(statusResult)) {
             snapshot.gpuFrequencyMhz = (double)performanceStatus.iCoreClock / 100.0;
             snapshot.hasGpuFrequency = true;
 
@@ -793,7 +793,7 @@ namespace pmon::tel::adl
             device.adlAdapterIndex,
             kOdnGpuTemperatureSensor_,
             &temperature);
-        if (pwr::amd::Adl2Wrapper::Ok(tempResult)) {
+        if (Adl2Wrapper::Ok(tempResult)) {
             snapshot.gpuTemperatureC = (double)temperature / 1000.0;
             snapshot.hasGpuTemperature = true;
         }
@@ -805,7 +805,7 @@ namespace pmon::tel::adl
 
         ADLODNFanControl fanControl{};
         const auto fanResult = pAdl_->OverdriveN_FanControl_Get(device.adlAdapterIndex, &fanControl);
-        if (pwr::amd::Adl2Wrapper::Ok(fanResult)) {
+        if (Adl2Wrapper::Ok(fanResult)) {
             if (HasFlag_(fanControl.iCurrentFanSpeedMode, ADL_OD6_FANSPEED_TYPE_RPM)) {
                 snapshot.fanSpeedsRpm.push_back((double)fanControl.iCurrentFanSpeed);
             }
@@ -824,7 +824,7 @@ namespace pmon::tel::adl
 
         int currentPower = 0;
         const auto powerResult = pAdl_->Overdrive6_CurrentPower_Get(device.adlAdapterIndex, 0, &currentPower);
-        if (pwr::amd::Adl2Wrapper::Ok(powerResult)) {
+        if (Adl2Wrapper::Ok(powerResult)) {
             snapshot.gpuPowerW = (double)currentPower / 256.0;
             snapshot.hasGpuPower = true;
         }
@@ -844,7 +844,7 @@ namespace pmon::tel::adl
         ADLPMLogDataOutput dataOutput{};
         dataOutput.size = sizeof(ADLPMLogDataOutput);
         const auto result = pAdl_->New_QueryPMLogData_Get(device.adlAdapterIndex, &dataOutput);
-        if (!pwr::amd::Adl2Wrapper::Ok(result)) {
+        if (!Adl2Wrapper::Ok(result)) {
             pmlog_warn("ADL2_New_QueryPMLogData_Get failed").code(result).every(std::chrono::seconds{ 60 })
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);

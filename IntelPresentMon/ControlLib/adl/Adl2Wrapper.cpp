@@ -1,8 +1,8 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Adl2Wrapper.h"
 
-namespace pwr::amd {
+namespace pmon::tel::adl {
 
   void* __stdcall ADL_Main_Memory_Alloc(int iSize) {
     void* lpBuffer = malloc(iSize);
@@ -33,7 +33,7 @@ namespace pwr::amd {
     // Initialize ADL2. The second parameter is 1, which means:
     // retrieve adapter information only for adapters that are physically
     // present and enabled in the system
-    if (!Ok(adl2_main_control_create_ptr(pwr::amd::ADL_Main_Memory_Alloc, 1,
+    if (!Ok(adl2_main_control_create_ptr(ADL_Main_Memory_Alloc, 1,
                                          &adl_context_))) {
       throw std::runtime_error{"adl2 init call failed"};
     }
@@ -56,4 +56,4 @@ namespace pwr::amd {
   }
   AMD_ADL2_ENDPOINT_LIST
 #undef X_
-} // namespace pwr::amd
+} // namespace pmon::tel::adl

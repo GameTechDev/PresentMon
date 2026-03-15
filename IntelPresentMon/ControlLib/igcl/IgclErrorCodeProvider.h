@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "../../CommonUtilities/log/IErrorCodeProvider.h"
 
-namespace pwr::intel
+namespace pmon::tel::igcl
 {
 	class IgclErrorCodeProvider : public pmon::util::log::IErrorCodeProvider
 	{

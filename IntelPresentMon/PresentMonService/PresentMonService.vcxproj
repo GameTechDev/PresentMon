@@ -122,7 +122,6 @@
     <ClCompile Include="MockPresentMonSession.cpp" />
     <ClCompile Include="ActionServer.cpp" />
     <ClCompile Include="PMMainThread.cpp" />
-    <ClCompile Include="PowerTelemetryContainer.cpp" />
     <ClCompile Include="RealtimePresentMonSession.cpp" />
     <ClCompile Include="Service.cpp" />
     <ClCompile Include="ServiceMain.cpp" />
@@ -154,7 +153,6 @@
     <ClInclude Include="LateStageReprojectionData.hpp" />
     <ClInclude Include="MetricUse.h" />
     <ClInclude Include="ActionServer.h" />
-    <ClInclude Include="PowerTelemetryContainer.h" />
     <ClInclude Include="PresentMon.h" />
     <ClInclude Include="PMMainThread.h" />
     <ClInclude Include="PresentMonSession.h" />

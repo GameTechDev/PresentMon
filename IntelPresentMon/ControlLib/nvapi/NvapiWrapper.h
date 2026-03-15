@@ -1,11 +1,11 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #define NOMINMAX
 #include <Windows.h>
+#include "../DllModule.h"
+#include "../MacroHelpers.h"
 #include "nvapi.h"
-#include "MacroHelpers.h"
-#include "DllModule.h"
 
 // goals: single source of truth, automatic id lookup, parameter names in intellisense, easy updates
 // means: x-macros, macro length overload w/ pairwise operation (up to 6 params)
@@ -24,7 +24,7 @@ X_(GPU_GetPCIIdentifiers, NvPhysicalGpuHandle, hPhysicalGpu, NvU32*, pDeviceId, 
 X_(GPU_GetBusId, NvPhysicalGpuHandle, hPhysicalGpu, NvU32*, pBusId)
 
 
-namespace pwr::nv
+namespace pmon::tel::nvapi
 {
 	// utilization domains are not defined in the public nvapi header
 	enum NVAPI_GPU_UTILIZATION_DOMAIN
@@ -33,15 +33,6 @@ namespace pwr::nv
 		NVAPI_GPU_UTILIZATION_DOMAIN_FB,
 		NVAPI_GPU_UTILIZATION_DOMAIN_VID,
 		NVAPI_GPU_UTILIZATION_DOMAIN_BUS,
-	};
-
-	struct NvapiAdapterSignature
-	{
-		NvU32 deviceId;
-		NvU32 revisionId;
-		NvU32 subSystemId;
-		NvU32 extDeviceId;
-		NvU32 busId;
 	};
 
 	class NvapiWrapper
@@ -56,7 +47,6 @@ namespace pwr::nv
 		NVW_NVAPI_ENDPOINT_LIST
 #undef X_
 		static bool Ok(NvAPI_Status sta) noexcept { return sta == NVAPI_OK; }
-		NvapiAdapterSignature GetAdapterSignature(NvPhysicalGpuHandle adapter) const noexcept;
 		
 	private:
 		DllModule dll{ { "nvapi64.dll", "nvapi32.dll" } };

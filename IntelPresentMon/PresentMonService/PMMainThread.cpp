@@ -98,6 +98,10 @@ void TelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Servic
         pmon::tel::TelemetryCoordinator coordinator;
         coordinator.RegisterDevicesToIpc(*pComms);
         coordinator.PopulateStaticsToIpc(*pComms);
+        if (const auto cpuInfo = coordinator.GetCpuInfo()) {
+            pm->SetCpuStaticInfo(cpuInfo->name, cpuInfo->cpuPowerLimit);
+        }
+        pm->SetTelemetryAdapters(coordinator.EnumerateAdapters());
         pmlog_info(std::format(
             "Finished populating telemetry introspection, {} seconds elapsed",
             timer.Mark()));
