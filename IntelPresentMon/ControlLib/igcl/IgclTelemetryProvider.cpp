@@ -233,28 +233,16 @@ namespace pmon::tel::igcl
         ctl_device_adapter_handle_t handle) const
     {
         device.handle = handle;
-        device.properties = {
-            .Size = sizeof(ctl_device_adapter_properties_t),
-            .pDeviceID = nullptr,
-            .device_id_size = 0,
-        };
-
-        auto propertiesResult = ctlGetDeviceProperties(device.handle, &device.properties);
-        if (propertiesResult != CTL_RESULT_SUCCESS) {
-            pmlog_error("ctlGetDeviceProperties(size query) failed").code(propertiesResult);
-            return false;
-        }
-
-        device.deviceLuid.resize((size_t)device.properties.device_id_size);
+        device.deviceLuid.resize(sizeof(LUID));
         device.properties = {
             .Size = sizeof(ctl_device_adapter_properties_t),
             .pDeviceID = device.deviceLuid.empty() ? nullptr : device.deviceLuid.data(),
             .device_id_size = (uint32_t)device.deviceLuid.size(),
         };
 
-        propertiesResult = ctlGetDeviceProperties(device.handle, &device.properties);
+        const auto propertiesResult = ctlGetDeviceProperties(device.handle, &device.properties);
         if (propertiesResult != CTL_RESULT_SUCCESS) {
-            pmlog_error("ctlGetDeviceProperties(data query) failed").code(propertiesResult);
+            pmlog_error("ctlGetDeviceProperties failed").code(propertiesResult);
             return false;
         }
         pmlog_verb(v::tele_gpu)("ctlGetDeviceProperties output")
@@ -270,7 +258,7 @@ namespace pmon::tel::igcl
         device.fingerprint.vendor = PM_DEVICE_VENDOR_INTEL;
         device.fingerprint.deviceName = device.properties.name;
         if (!device.deviceLuid.empty()) {
-            device.fingerprint.adapterLuid = device.deviceLuid;
+            device.fingerprint.luid = device.deviceLuid;
         }
 
         device.isAlchemist = std::regex_search(device.fingerprint.deviceName, std::regex{ R"(Arc.*A\d{3})" });

@@ -15,7 +15,6 @@
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../Interprocess/source/metadata/MetricList.h"
 #include <algorithm>
-#include <format>
 #include <functional>
 #include <limits>
 #include <span>
@@ -45,20 +44,6 @@ namespace pmon::tel
             }
         }
 
-        std::string FormatAdapterLuid_(std::span<const uint8_t> adapterLuid)
-        {
-            if (adapterLuid.empty()) {
-                return "<EMPTY>";
-            }
-
-            std::string text{};
-            text.reserve(adapterLuid.size() * 3u - 1u);
-            for (size_t i = 0; i < adapterLuid.size(); ++i) {
-                text += std::format("{:02X}{}", adapterLuid[i], i != 0 ? " " : "");
-            }
-
-            return text;
-        }
     }
 
     TelemetryCoordinator::TelemetryCoordinator()
@@ -186,7 +171,7 @@ namespace pmon::tel
                         !fingerprint.deviceName.empty() ?
                             fingerprint.deviceName : std::string{ "UNKNOWN_GPU" },
                         caps,
-                        fingerprint.adapterLuid);
+                        fingerprint.luid);
                 }
                 else {
                     comms.RegisterCpuDevice(vendor, name, caps);
@@ -412,11 +397,11 @@ namespace pmon::tel
                 const auto capabilityMap = pProvider->GetCaps();
                 for (const auto& [providerDeviceId, capabilities] : capabilityMap) {
                     const auto& fingerprint = pProvider->GetFingerPrint(providerDeviceId);
-                    pmlog_dbg("Provider device adapter LUID")
+                    pmlog_dbg("Provider device LUID")
                         .pmwatch((int)fingerprint.vendor)
                         .pmwatch(fingerprint.deviceName)
                         .pmwatch(providerDeviceId)
-                        .pmwatch(FormatAdapterLuid_(fingerprint.adapterLuid));
+                        .pmwatch(fingerprint.LuidAsString());
                     auto& logicalDevice = GetOrCreateLogicalDevice_(fingerprint);
                     const auto logicalDeviceId = logicalDevice.logicalDeviceId;
 
@@ -595,9 +580,9 @@ namespace pmon::tel
                     haveFingerprint = true;
                 }
                 else {
-                    if (!fingerprint.adapterLuid.empty() &&
-                        !providerFingerprint.adapterLuid.empty() &&
-                        fingerprint.adapterLuid != providerFingerprint.adapterLuid) {
+                    if (!fingerprint.luid.empty() &&
+                        !providerFingerprint.luid.empty() &&
+                        fingerprint.luid != providerFingerprint.luid) {
                         pmlog_warn("Conflicting provider LUID while resolving logical-device fingerprint")
                             .pmwatch(logicalDevice.logicalDeviceId)
                             .pmwatch(providerDevice.providerDeviceId);
