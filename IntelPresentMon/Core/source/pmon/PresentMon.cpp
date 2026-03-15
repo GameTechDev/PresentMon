@@ -165,39 +165,13 @@ namespace p2c::pmon
 	{
 		const auto& intro = *pIntrospectionRoot;
 		uint32_t bestId = 0;
-		uint64_t bestMem = 0;
 
 		for (const auto& device : intro.GetDevices()) {
 			if (device.GetType() != PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
 				continue;
 			}
-			uint64_t memSize = 0;
-			bool hasValue = false;
-			try {
-				memSize = pmapi::PollStatic(*pSession,
-					PM_METRIC_GPU_MEM_SIZE, device.GetId(), 0).As<uint64_t>();
-				hasValue = true;
-			}
-			catch (...) {
-				hasValue = false;
-			}
-
-			if (hasValue) {
-				if (memSize > bestMem) {
-					bestMem = memSize;
-					bestId = device.GetId();
-				}
-			}
-			else if (bestId == 0) {
+			if (bestId == 0 || device.GetId() < bestId) {
 				bestId = device.GetId();
-			}
-		}
-
-		if (bestId == 0) {
-			for (const auto& device : intro.GetDevices()) {
-				if (device.GetType() == PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
-					return device.GetId();
-				}
 			}
 		}
 
