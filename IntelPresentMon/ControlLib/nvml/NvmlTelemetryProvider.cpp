@@ -18,6 +18,9 @@ namespace pmon::tel::nvml
         try {
             pNvml_ = std::make_unique<NvmlWrapper>();
         }
+        catch (const TelemetrySubsystemAbsent&) {
+            throw;
+        }
         catch (...) {
             pmlog_error(util::ReportException("NVML wrapper construction failed"));
             throw Except<TelemetrySubsystemAbsent>("Unable to initialize NVIDIA Management Library");

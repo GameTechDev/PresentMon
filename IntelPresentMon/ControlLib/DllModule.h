@@ -1,8 +1,7 @@
 // Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
-#define NOMINMAX
-#include <Windows.h>
+#include "../CommonUtilities/win/WinAPI.h"
 #include <string>
 #include <vector>
 #include <stdexcept>

@@ -1,5 +1,6 @@
 ﻿// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
+#include "../../CommonUtilities/win/WinAPI.h"
 #include "NvapiTelemetryProvider.h"
 
 #include "../Exceptions.h"
