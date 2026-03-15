@@ -1,8 +1,6 @@
 ﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
-#define NOMINMAX
-#include <Windows.h>
 #include "../DllModule.h"
 #include "../MacroHelpers.h"
 #include "nvapi.h"
