@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <string>
@@ -6,7 +6,7 @@
 #include "igcl/igcl_api.h"
 #include "../CommonUtilities/log/Log.h"
 
-namespace pwr::log
+namespace pmon::tel::log
 {
     inline std::string MakeErrorLocationString(int line, const char* file, const char* function)
     {
