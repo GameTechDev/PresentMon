@@ -257,6 +257,8 @@ namespace pmon::tel::igcl
         device.fingerprint.deviceType = PM_DEVICE_TYPE_GRAPHICS_ADAPTER;
         device.fingerprint.vendor = PM_DEVICE_VENDOR_INTEL;
         device.fingerprint.deviceName = device.properties.name;
+        device.fingerprint.isIntegratedAdapter =
+            (device.properties.graphics_adapter_properties & CTL_ADAPTER_PROPERTIES_FLAG_INTEGRATED) != 0;
         if (!device.deviceLuid.empty()) {
             device.fingerprint.luid = device.deviceLuid;
         }

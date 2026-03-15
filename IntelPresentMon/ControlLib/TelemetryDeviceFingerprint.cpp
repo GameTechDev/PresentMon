@@ -70,27 +70,31 @@ namespace pmon::tel
         TelemetryDeviceFingerprint& dst,
         const TelemetryDeviceFingerprint& src)
     {
-        if (dst.vendor == PM_DEVICE_VENDOR_UNKNOWN && src.vendor != PM_DEVICE_VENDOR_UNKNOWN) {
+        if (dst.vendor == PM_DEVICE_VENDOR_UNKNOWN) {
             dst.vendor = src.vendor;
         }
 
-        if (dst.deviceName.empty() && !src.deviceName.empty()) {
+        if (dst.deviceName.empty()) {
             dst.deviceName = src.deviceName;
         }
 
-        if (dst.luid.empty() && !src.luid.empty()) {
+        if (!dst.isIntegratedAdapter) {
+            dst.isIntegratedAdapter = src.isIntegratedAdapter;
+        }
+
+        if (dst.luid.empty()) {
             dst.luid = src.luid;
         }
 
-        if (!dst.pciDeviceId.has_value() && src.pciDeviceId.has_value()) {
+        if (!dst.pciDeviceId.has_value()) {
             dst.pciDeviceId = src.pciDeviceId;
         }
 
-        if (!dst.pciSubSystemId.has_value() && src.pciSubSystemId.has_value()) {
+        if (!dst.pciSubSystemId.has_value()) {
             dst.pciSubSystemId = src.pciSubSystemId;
         }
 
-        if (!dst.pciBusId.has_value() && src.pciBusId.has_value()) {
+        if (!dst.pciBusId.has_value()) {
             dst.pciBusId = src.pciBusId;
         }
     }
