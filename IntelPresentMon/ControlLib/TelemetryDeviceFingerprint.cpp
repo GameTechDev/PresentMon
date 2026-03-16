@@ -1,4 +1,4 @@
-// Copyright (C) 2026 Intel Corporation
+﻿// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "TelemetryDeviceFingerprint.h"
 #include <cctype>
@@ -32,7 +32,17 @@ namespace pmon::tel
         const TelemetryDeviceFingerprint& lhs,
         const TelemetryDeviceFingerprint& rhs) noexcept
     {
-        if (lhs.deviceType != rhs.deviceType || lhs.vendor != rhs.vendor) {
+        if (lhs.deviceType != rhs.deviceType) {
+            return false;
+        }
+
+        // There is only one logical system device exposed through IPC. Any
+        // provider reporting PM_DEVICE_TYPE_SYSTEM should correlate to it.
+        if (lhs.deviceType == PM_DEVICE_TYPE_SYSTEM) {
+            return true;
+        }
+
+        if (lhs.vendor != rhs.vendor) {
             return false;
         }
 

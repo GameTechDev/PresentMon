@@ -3,6 +3,7 @@
 #pragma once
 
 #include "TelemetryDeviceFingerprint.h"
+#include "../PresentMonService/MetricUse.h"
 #include "../Interprocess/source/MetricCapabilities.h"
 #include "../Interprocess/source/TelemetryMap.h"
 #include <cstdint>
@@ -26,5 +27,13 @@ namespace pmon::tel
             PM_METRIC metricId,
             uint32_t arrayIndex,
             int64_t requestQpc) = 0;
+        virtual void SetPollRate(uint32_t pollRateMs)
+        {
+            (void)pollRateMs;
+        }
+        virtual void SetMetricUse(const svc::DeviceMetricUse& metricUse)
+        {
+            (void)metricUse;
+        }
     };
 }

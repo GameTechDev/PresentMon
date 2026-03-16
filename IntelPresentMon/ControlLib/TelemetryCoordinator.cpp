@@ -8,6 +8,7 @@
 #include "igcl/IgclTelemetryProvider.h"
 #include "nvapi/NvapiTelemetryProvider.h"
 #include "nvml/NvmlTelemetryProvider.h"
+#include "uci/UciTelemetryProvider.h"
 #include "wmi/WmiTelemetryProvider.h"
 #include "../CommonUtilities/Exception.h"
 #include "../CommonUtilities/Qpc.h"
@@ -52,7 +53,9 @@ namespace pmon::tel
 
     }
 
-    TelemetryCoordinator::TelemetryCoordinator()
+    TelemetryCoordinator::TelemetryCoordinator(uint32_t pollRateMs)
+        :
+        pollRateMs_{ std::max(pollRateMs, 1u) }
     {
         TryCreateConcreteProviders_();
         BuildLogicalDevicesAndRoutes_();
@@ -290,6 +293,31 @@ namespace pmon::tel
         return availability;
     }
 
+    void TelemetryCoordinator::SetPollRate(uint32_t pollRateMs)
+    {
+        pollRateMs_ = std::max(pollRateMs, 1u);
+        for (const auto& pProvider : providerPtrs_) {
+            try {
+                pProvider->SetPollRate(pollRateMs_);
+            }
+            catch (...) {
+                pmlog_error(util::ReportException("Telemetry provider poll-rate update failed"));
+            }
+        }
+    }
+
+    void TelemetryCoordinator::SetMetricUse(const svc::DeviceMetricUse& metricUse)
+    {
+        for (const auto& pProvider : providerPtrs_) {
+            try {
+                pProvider->SetMetricUse(metricUse);
+            }
+            catch (...) {
+                pmlog_error(util::ReportException("Telemetry provider metric-use update failed"));
+            }
+        }
+    }
+
     size_t TelemetryCoordinator::PollToIpc(
         const svc::DeviceMetricUse& metricUse,
         ipc::ServiceComms& comms) const
@@ -364,7 +392,9 @@ namespace pmon::tel
 
         const auto tryAddProvider = [this]<class ProviderT>(const char* missingMessage, const char* failureMessage) {
             try {
-                providerPtrs_.push_back(std::make_shared<ProviderT>());
+                auto pProvider = std::make_shared<ProviderT>();
+                pProvider->SetPollRate(pollRateMs_);
+                providerPtrs_.push_back(std::move(pProvider));
             }
             catch (const TelemetrySubsystemAbsent&) {
                 pmlog_dbg(util::ReportException(missingMessage));
@@ -377,6 +407,9 @@ namespace pmon::tel
         tryAddProvider.operator()<wmi::WmiTelemetryProvider>(
             "WMI telemetry provider unavailable",
             "WMI telemetry provider construction failed");
+        tryAddProvider.operator()<uci::UciTelemetryProvider>(
+            "UCI telemetry provider unavailable",
+            "UCI telemetry provider construction failed");
         tryAddProvider.operator()<adl::AmdTelemetryProvider>(
             "ADL telemetry provider unavailable",
             "ADL telemetry provider construction failed");
@@ -400,11 +433,6 @@ namespace pmon::tel
         std::unordered_map<uint32_t, CandidateMap> routeCandidatesByLogicalId;
 
         for (const auto& pProvider : providerPtrs_) {
-            if (!pProvider) {
-                pmlog_error("Null pointer in provider ptrs");
-                continue;
-            }
-
             try {
                 const auto capabilityMap = pProvider->GetCaps();
                 for (const auto& [providerDeviceId, capabilities] : capabilityMap) {

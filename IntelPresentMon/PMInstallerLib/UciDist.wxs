@@ -1,0 +1,166 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Fragment>
+        <DirectoryRef Id="service_folder">
+            <Directory Id="collectors" Name="collectors" />
+        </DirectoryRef>
+    </Fragment>
+    <Fragment>
+        <ComponentGroup Id="uci_dist_files">
+            <Component Id="unified_collector_interface.dll" Directory="service_folder" Guid="{27275D4D-B2AD-8D3D-A0FA-A0BCF1129F1E}" Win64="yes">
+                <File Id="unified_collector_interface.dll" KeyPath="yes" Source="$(var.UciDistDir)\unified-collector-interface.dll" />
+            </Component>
+            <Component Id="libMPCommon.dll" Directory="socwatch" Guid="{1BC23BAA-AA01-2834-817C-1974EC6A2EC0}" Win64="yes">
+                <File Id="libMPCommon.dll" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\libMPCommon.dll" />
+            </Component>
+            <Component Id="socwatch.dll" Directory="socwatch" Guid="{A211BF08-805D-2834-A9C2-95B8EA450C97}" Win64="yes">
+                <File Id="socwatch.dll" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\socwatch.dll" />
+            </Component>
+            <Component Id="socwatchdrv.sys" Directory="socwatch" Guid="{F7756219-5977-2C38-B01C-5FD088A6E623}" Win64="yes">
+                <File Id="socwatchdrv.sys" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\socwatchdrv.sys" />
+            </Component>
+            <Component Id="SOCWatchConfig.txt" Directory="configs" Guid="{83519B51-3264-883F-BAEE-B7C9C8DDDC52}" Win64="yes">
+                <File Id="SOCWatchConfig.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\configs\SOCWatchConfig.txt" />
+            </Component>
+            <Component Id="acpi_dstate_config.txt" Directory="output_configs" Guid="{F6472AC1-E54B-BB3C-8BD4-5C124440362F}" Win64="yes">
+                <File Id="acpi_dstate_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\acpi-dstate_config.txt" />
+            </Component>
+            <Component Id="aggr_telem_config.txt" Directory="output_configs" Guid="{B304C8B7-1811-5133-8F84-3BC42E2DD840}" Win64="yes">
+                <File Id="aggr_telem_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\aggr-telem_config.txt" />
+            </Component>
+            <Component Id="connected_standby.txt" Directory="output_configs" Guid="{77AC8B1E-D6C4-0130-8C56-823F6B5C66B5}" Win64="yes">
+                <File Id="connected_standby.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\connected-standby.txt" />
+            </Component>
+            <Component Id="continuous_monitoring_config.txt" Directory="output_configs" Guid="{7DB32161-B9F0-5134-8E9C-90D2AE2F83BE}" Win64="yes">
+                <File Id="continuous_monitoring_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\continuous-monitoring_config.txt" />
+            </Component>
+            <Component Id="cpu_c_p_state_config.txt" Directory="output_configs" Guid="{65CE8933-0936-9236-8A16-580FE8D65B79}" Win64="yes">
+                <File Id="cpu_c_p_state_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\cpu-c-p-state_config.txt" />
+            </Component>
+            <Component Id="cpu_gpu_concurrency_config.txt" Directory="output_configs" Guid="{C255983E-93AF-783E-895B-623F60BF3AF5}" Win64="yes">
+                <File Id="cpu_gpu_concurrency_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\cpu-gpu-concurrency_config.txt" />
+            </Component>
+            <Component Id="ddr_bw_config.txt" Directory="output_configs" Guid="{2960663A-3F41-2337-BDE4-92B251A60C35}" Win64="yes">
+                <File Id="ddr_bw_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\ddr-bw_config.txt" />
+            </Component>
+            <Component Id="default_config.txt" Directory="output_configs" Guid="{838C579E-13B8-1B3E-91C0-0495492CB36F}" Win64="yes">
+                <File Id="default_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\default_config.txt" />
+            </Component>
+            <Component Id="dram_srr_config.txt" Directory="output_configs" Guid="{B92473AE-AAAA-553A-9105-CEF7D81B1E98}" Win64="yes">
+                <File Id="dram_srr_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\dram-srr_config.txt" />
+            </Component>
+            <Component Id="feature_ordering.txt" Directory="output_configs" Guid="{8238604C-6E12-2531-9909-D5CF30723B14}" Win64="yes">
+                <File Id="feature_ordering.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\feature_ordering.txt" />
+            </Component>
+            <Component Id="graphics_config.txt" Directory="output_configs" Guid="{3CB6352C-D88B-753E-B66A-FA69E935518B}" Win64="yes">
+                <File Id="graphics_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\graphics_config.txt" />
+            </Component>
+            <Component Id="pch_slps0_dbg_config.txt" Directory="output_configs" Guid="{B0C01247-DED5-7C33-8696-573899209198}" Win64="yes">
+                <File Id="pch_slps0_dbg_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\pch-slps0-dbg_config.txt" />
+            </Component>
+            <Component Id="pch_slps0_config.txt" Directory="output_configs" Guid="{58926B78-1C56-593A-99B7-272F2ACD9B0D}" Win64="yes">
+                <File Id="pch_slps0_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\pch-slps0_config.txt" />
+            </Component>
+            <Component Id="power_config.txt" Directory="output_configs" Guid="{11E8A0A6-8C81-E331-9C9B-88DF1C002809}" Win64="yes">
+                <File Id="power_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\power_config.txt" />
+            </Component>
+            <Component Id="soc_temp_config.txt" Directory="output_configs" Guid="{606F05C9-0764-4133-88FC-24B55CE74F50}" Win64="yes">
+                <File Id="soc_temp_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\soc-temp_config.txt" />
+            </Component>
+            <Component Id="temp_config.txt" Directory="output_configs" Guid="{304F8430-8EF7-983A-A1C6-D3D234383CD5}" Win64="yes">
+                <File Id="temp_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\temp_config.txt" />
+            </Component>
+            <Component Id="throt_reason_config.txt" Directory="output_configs" Guid="{459A6890-5E80-D132-A0EF-95654C6F7C75}" Win64="yes">
+                <File Id="throt_reason_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\throt-reason_config.txt" />
+            </Component>
+            <Component Id="timer_resolution_config.txt" Directory="output_configs" Guid="{73BDB608-2D60-593B-B105-68CD17B498BE}" Win64="yes">
+                <File Id="timer_resolution_config.txt" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\output_configs\timer-resolution_config.txt" />
+            </Component>
+            <Component Id="libSWCore.dll" Directory="plugins" Guid="{0949C328-0129-1235-BA85-1EC88E215AE9}" Win64="yes">
+                <File Id="libSWCore.dll" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\plugins\libSWCore.dll" />
+            </Component>
+            <Component Id="libSWWriterPlugins.dll" Directory="plugins" Guid="{C396BF1E-705F-7231-8CF8-190929B7A9B0}" Win64="yes">
+                <File Id="libSWWriterPlugins.dll" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\plugins\libSWWriterPlugins.dll" />
+            </Component>
+            <Component Id="telemetry_0x130670b2.xml" Directory="xml_configs" Guid="{6E40F729-4D4B-D232-AB1D-0CAD501F6801}" Win64="yes">
+                <File Id="telemetry_0x130670b2.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x130670b2.xml" />
+            </Component>
+            <Component Id="telemetry_0x130671b2.xml" Directory="xml_configs" Guid="{F95DC961-2A4D-5434-ADAB-3183A51B92EA}" Win64="yes">
+                <File Id="telemetry_0x130671b2.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x130671b2.xml" />
+            </Component>
+            <Component Id="telemetry_0x1a067002.xml" Directory="xml_configs" Guid="{49B66B82-2EF7-B330-B2D6-2BB0B39444DD}" Win64="yes">
+                <File Id="telemetry_0x1a067002.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x1a067002.xml" />
+            </Component>
+            <Component Id="telemetry_0x1a067102.xml" Directory="xml_configs" Guid="{D52B2E41-A18A-2335-977E-7815C35A3022}" Win64="yes">
+                <File Id="telemetry_0x1a067102.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x1a067102.xml" />
+            </Component>
+            <Component Id="telemetry_0x1e2f8200.xml" Directory="xml_configs" Guid="{23B13389-B556-3E35-98BB-CC41BB94C7FC}" Win64="yes">
+                <File Id="telemetry_0x1e2f8200.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x1e2f8200.xml" />
+            </Component>
+            <Component Id="telemetry_0x1e2f8201.xml" Directory="xml_configs" Guid="{C026EE7B-6E98-0734-9683-FA3280070C63}" Win64="yes">
+                <File Id="telemetry_0x1e2f8201.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x1e2f8201.xml" />
+            </Component>
+            <Component Id="telemetry_0x1e2f8202.xml" Directory="xml_configs" Guid="{9632E79F-9957-A23F-BB02-67CF006285EF}" Win64="yes">
+                <File Id="telemetry_0x1e2f8202.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x1e2f8202.xml" />
+            </Component>
+            <Component Id="telemetry_0x3072005.xml" Directory="xml_configs" Guid="{8AB0F9B4-3E5C-2230-8BCE-909FE3F1A2A0}" Win64="yes">
+                <File Id="telemetry_0x3072005.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x3072005.xml" />
+            </Component>
+            <Component Id="telemetry_0x3072105.xml" Directory="xml_configs" Guid="{6AF27384-9E03-5939-A865-455B412494A4}" Win64="yes">
+                <File Id="telemetry_0x3072105.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x3072105.xml" />
+            </Component>
+            <Component Id="telemetry_0x3086000.xml" Directory="xml_configs" Guid="{B0441B3E-45E8-FF3E-8F8E-82A6E7A3F855}" Win64="yes">
+                <File Id="telemetry_0x3086000.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x3086000.xml" />
+            </Component>
+            <Component Id="telemetry_0x3086100.xml" Directory="xml_configs" Guid="{41914BB1-020B-813A-A159-64EABB07DF6B}" Win64="yes">
+                <File Id="telemetry_0x3086100.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x3086100.xml" />
+            </Component>
+            <Component Id="telemetry_0x308d000.xml" Directory="xml_configs" Guid="{4F647776-7E68-4334-AEC5-86DD96681563}" Win64="yes">
+                <File Id="telemetry_0x308d000.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x308d000.xml" />
+            </Component>
+            <Component Id="telemetry_0x308d100.xml" Directory="xml_configs" Guid="{850D5899-3194-8934-BD58-2A0FEB6ECD19}" Win64="yes">
+                <File Id="telemetry_0x308d100.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x308d100.xml" />
+            </Component>
+            <Component Id="telemetry_0x41fe79a4.xml" Directory="xml_configs" Guid="{28B1BE24-1AA2-5834-A0F3-61F0C957F008}" Win64="yes">
+                <File Id="telemetry_0x41fe79a4.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x41fe79a4.xml" />
+            </Component>
+            <Component Id="telemetry_0x41fe79a5.xml" Directory="xml_configs" Guid="{CFD3708E-AA47-8937-B666-A21B9815B454}" Win64="yes">
+                <File Id="telemetry_0x41fe79a5.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x41fe79a5.xml" />
+            </Component>
+            <Component Id="telemetry_0x5e2f8211.xml" Directory="xml_configs" Guid="{A631F441-2726-4831-89CE-D63E8EC80E97}" Win64="yes">
+                <File Id="telemetry_0x5e2f8211.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0x5e2f8211.xml" />
+            </Component>
+            <Component Id="telemetry_0xb15a0edc.xml" Directory="xml_configs" Guid="{6421ADD5-736F-BC37-BF59-A265896F72B5}" Win64="yes">
+                <File Id="telemetry_0xb15a0edc.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0xb15a0edc.xml" />
+            </Component>
+            <Component Id="telemetry_0xb15a0ede.xml" Directory="xml_configs" Guid="{6E477024-B011-813B-A2F8-4C47A6154750}" Win64="yes">
+                <File Id="telemetry_0xb15a0ede.xml" KeyPath="yes" Source="$(var.UciDistDir)\collectors\socwatch\xml_configs\telemetry_0xb15a0ede.xml" />
+            </Component>
+        </ComponentGroup>
+    </Fragment>
+    <Fragment>
+        <DirectoryRef Id="socwatch">
+            <Directory Id="configs" Name="configs" />
+        </DirectoryRef>
+    </Fragment>
+    <Fragment>
+        <DirectoryRef Id="socwatch">
+            <Directory Id="output_configs" Name="output_configs" />
+        </DirectoryRef>
+    </Fragment>
+    <Fragment>
+        <DirectoryRef Id="socwatch">
+            <Directory Id="plugins" Name="plugins" />
+        </DirectoryRef>
+    </Fragment>
+    <Fragment>
+        <DirectoryRef Id="collectors">
+            <Directory Id="socwatch" Name="socwatch" />
+        </DirectoryRef>
+    </Fragment>
+    <Fragment>
+        <DirectoryRef Id="socwatch">
+            <Directory Id="xml_configs" Name="xml_configs" />
+        </DirectoryRef>
+    </Fragment>
+</Wix>

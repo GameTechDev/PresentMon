@@ -5,6 +5,7 @@
     <OutputName>PMInstallerLib</OutputName>
     <IntermediateOutputPath>$(SolutionDir)build\obj\$(MSBuildProjectName)-$(Platform)-$(Configuration)</IntermediateOutputPath>
     <OutputPath>$(SolutionDir)build\$(Configuration)</OutputPath>
+    <DefineConstants>$(DefineConstants);UciDistDir=$(MSBuildProjectDirectory)\..\ControlLib\uci\dist</DefineConstants>
     <!-- Point these at YOUR WiX 3.x install -->
     <WixToolPath>$(WIX)bin\</WixToolPath>
     <WixTargetsPath>$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
@@ -14,6 +15,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Library.wxs" />
+    <Compile Include="UciDist.wxs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PresentMonAPI2\PresentMonAPI2.vcxproj">
@@ -33,5 +35,8 @@
       <RefTargetDir>INSTALLFOLDER</RefTargetDir>
     </ProjectReference>
   </ItemGroup>
+  <Target Name="BeforeBuild">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\wix-uci-dist.ps1&quot;" />
+  </Target>
   <Import Project="$(WixTargetsPath)" />
 </Project>

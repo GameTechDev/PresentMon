@@ -73,13 +73,14 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
+      <AdditionalIncludeDirectories>uci\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalDependencies>wbemuuid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>wbemuuid.lib;unified-collector-interface.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -95,6 +96,7 @@
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ControlFlowGuard>Guard</ControlFlowGuard>
+      <AdditionalIncludeDirectories>uci\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -103,7 +105,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalDependencies>wbemuuid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>wbemuuid.lib;unified-collector-interface.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -130,6 +132,7 @@
     <ClInclude Include="TelemetryCoordinator.h" />
     <ClInclude Include="TelemetryDeviceFingerprint.h" />
     <ClInclude Include="TelemetryProvider.h" />
+    <ClInclude Include="uci\UciTelemetryProvider.h" />
     <ClInclude Include="wmi\WmiTelemetryProvider.h" />
   </ItemGroup>
   <ItemGroup>
@@ -144,6 +147,7 @@
     <ClCompile Include="nvml\NvmlTelemetryProvider.cpp" />
     <ClCompile Include="TelemetryCoordinator.cpp" />
     <ClCompile Include="TelemetryDeviceFingerprint.cpp" />
+    <ClCompile Include="uci\UciTelemetryProvider.cpp" />
     <ClCompile Include="wmi\WmiTelemetryProvider.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -1,4 +1,4 @@
-// WARNING: ensure this file is saved in text CSV format when modifying this file,,,
+﻿// WARNING: ensure this file is saved in text CSV format when modifying this file,,,
 // PM_METRIC,IPM_ONLY,NAME,DESCRIPTION
 ,,,
 PM_METRIC_APPLICATION,,Application,The name of the process that generated the frame.
@@ -78,11 +78,11 @@ PM_METRIC_GPU_MEM_UTILIZATION_LIMITED,1,GPU Memory Utilization Limited,Memory fr
 PM_METRIC_CPU_UTILIZATION,1,CPU Utilization,Amount of CPU processing capacity being used.
 PM_METRIC_CPU_POWER_LIMIT,1,CPU Power Limit,Power limit of the CPU.
 PM_METRIC_CPU_POWER,1,CPU Power,Power consumed by the CPU.
-PM_METRIC_CPU_TEMPERATURE,1,CPU Temperature,Temperature of the CPU.
+PM_METRIC_CPU_TEMPERATURE,1,CPU Temperature,Temperature of each physical CPU core.
 PM_METRIC_CPU_FREQUENCY,1,CPU Frequency,Clock speed of the CPU.
 PM_METRIC_CPU_CORE_UTILITY,1,CPU Core Utility,Amount of CPU processing utility being used per core.
 ,,,
-PM_METRIC_INSTRUMENTED_LATENCY,,Instrumented Latency,Instrumented Frame Start To Display Latency,How long it took from the instrumented start of this frame until the frame was displayed on the screen.
+PM_METRIC_INSTRUMENTED_LATENCY,,Instrumented Latency,How long it took from the instrumented start of this frame until the frame was displayed on the screen.
 PM_METRIC_GPU_EFFECTIVE_FREQUENCY,1,GPU Effective Frequency,Effective clock speed of the GPU cores.
 PM_METRIC_GPU_VOLTAGE_REGULATOR_TEMPERATURE,1,GPU Voltage Regulator Temperature,Effective clock speed of the GPU cores.
 PM_METRIC_GPU_MEM_EFFECTIVE_BANDWIDTH,1,GPU Memory Effective Bandwidth,Data transfer rate that the memory modules can sustain based on current clock frequency.
