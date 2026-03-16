@@ -17,6 +17,9 @@
     <Filter Include="Wmi">
       <UniqueIdentifier>{a6df2cb9-9e2a-46e5-8adb-ff8f258e2a36}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Uci">
+      <UniqueIdentifier>{6db4e810-a194-46a6-ac19-44e86c4b2645}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="adl\adl_defines.h">
@@ -79,6 +82,9 @@
     <ClInclude Include="wmi\WmiTelemetryProvider.h">
       <Filter>Wmi</Filter>
     </ClInclude>
+    <ClInclude Include="uci\UciTelemetryProvider.h">
+      <Filter>Uci</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="nvapi\NvapiWrapper.cpp">
@@ -112,6 +118,9 @@
     </ClCompile>
     <ClCompile Include="wmi\WmiTelemetryProvider.cpp">
       <Filter>Wmi</Filter>
+    </ClCompile>
+    <ClCompile Include="uci\UciTelemetryProvider.cpp">
+      <Filter>Uci</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

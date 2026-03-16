@@ -95,7 +95,7 @@ void TelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Servic
         }
 
         pmon::util::QpcTimer timer;
-        pmon::tel::TelemetryCoordinator coordinator;
+        pmon::tel::TelemetryCoordinator coordinator{ pm->GetGpuTelemetryPeriod() };
         coordinator.RegisterDevicesToIpc(*pComms);
         coordinator.PopulateStaticsToIpc(*pComms);
         if (const auto cpuInfo = coordinator.GetCpuInfo()) {
@@ -116,6 +116,7 @@ void TelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Servic
 
             auto pMetricUse = pm->GetDeviceMetricUsageSnapshot();
             if (!pMetricUse || pMetricUse->empty()) {
+                coordinator.SetMetricUse({});
                 pmlog_dbg("received device usage event, but no telemetry device metrics were active");
                 continue;
             }
@@ -128,12 +129,16 @@ void TelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Servic
 
                 pMetricUse = pm->GetDeviceMetricUsageSnapshot();
                 if (!pMetricUse || pMetricUse->empty()) {
+                    coordinator.SetMetricUse({});
                     break;
                 }
 
+                const auto telemetryPeriodMs = pm->GetGpuTelemetryPeriod();
+                coordinator.SetPollRate(telemetryPeriodMs);
+                coordinator.SetMetricUse(*pMetricUse);
                 coordinator.PollToIpc(*pMetricUse, *pComms);
 
-                waiter.SetInterval(pm->GetGpuTelemetryPeriod() / 1000.);
+                waiter.SetInterval(telemetryPeriodMs / 1000.);
                 waiter.Wait();
             }
         }

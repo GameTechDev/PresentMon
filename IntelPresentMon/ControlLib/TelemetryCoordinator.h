@@ -40,7 +40,7 @@ namespace pmon::tel
 
         // Constructs all known concrete providers, correlates logical devices,
         // and builds metric polling routes.
-        TelemetryCoordinator();
+        explicit TelemetryCoordinator(uint32_t pollRateMs);
         // Returns system CPU static identity and routed static telemetry when present.
         std::optional<CpuInfo> GetCpuInfo() const;
         // Returns GPU adapter identity and routed static telemetry for legacy service enumeration.
@@ -51,6 +51,10 @@ namespace pmon::tel
         void PopulateStaticsToIpc(ipc::ServiceComms& comms) const;
         // Returns aggregate availability across all routed logical devices.
         ipc::MetricCapabilities GetAvailability() const;
+        // Broadcasts requested active telemetry polling cadence to providers that need it.
+        void SetPollRate(uint32_t pollRateMs);
+        // Broadcasts current routed metric interest to providers that need active configuration.
+        void SetMetricUse(const svc::DeviceMetricUse& metricUse);
         // Polls routed telemetry metrics and pushes samples directly to IPC rings.
         size_t PollToIpc(
             const svc::DeviceMetricUse& metricUse,
@@ -104,5 +108,6 @@ namespace pmon::tel
         std::vector<std::shared_ptr<TelemetryProvider>> providerPtrs_;
         std::unordered_map<uint32_t, LogicalDevice_> logicalDevicesById_;
         uint32_t nextLogicalDeviceId_ = 1;
+        uint32_t pollRateMs_ = 1000;
     };
 }

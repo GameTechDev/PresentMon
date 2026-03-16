@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Fragment>
 
@@ -70,6 +70,7 @@
     <ComponentGroup Id="service_files">
       <ComponentRef Id="pmon_shared_service_component" />
       <ComponentRef Id="present_mon_shared_dll_component" />
+      <ComponentGroupRef Id="uci_dist_files" />
     </ComponentGroup>
 
   </Fragment>

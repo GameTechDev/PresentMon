@@ -9,6 +9,7 @@ namespace pmon::util::log
 		v8async,
 		procwatch,
 		tele_gpu,
+		uci,
 		core_metric,
 		core_hotkey,
 		core_window,
