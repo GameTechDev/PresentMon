@@ -7,9 +7,11 @@
 #include "Folders.h"
 #include <vincentlaucsb-csv-parser/csv.hpp>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <format>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -106,6 +108,8 @@ namespace PacedFrame
 		"MsInstrumentedLatency",
 	};
 
+	constexpr double kMissingMetricValue = std::numeric_limits<double>::quiet_NaN();
+
 	struct FrameCsvRow
 	{
 		std::string application;
@@ -117,14 +121,14 @@ namespace PacedFrame
 		uint32_t allowsTearing = 0;
 		std::string presentMode;
 		std::string frameType;
-		std::optional<double> cpuStartTime;
-		std::optional<double> msBetweenSimulationStart;
+		double cpuStartTime = kMissingMetricValue;
+		double msBetweenSimulationStart = kMissingMetricValue;
 		double msBetweenPresents = 0.0;
-		std::optional<double> msBetweenDisplayChange;
+		double msBetweenDisplayChange = kMissingMetricValue;
 		double msInPresentApi = 0.0;
 		double msRenderPresentLatency = 0.0;
-		std::optional<double> msUntilDisplayed;
-		std::optional<double> msPcLatency;
+		double msUntilDisplayed = kMissingMetricValue;
+		double msPcLatency = kMissingMetricValue;
 		double msBetweenAppStart = 0.0;
 		double msCpuBusy = 0.0;
 		double msCpuWait = 0.0;
@@ -133,12 +137,12 @@ namespace PacedFrame
 		double msGpuBusy = 0.0;
 		double msGpuWait = 0.0;
 		double msVideoBusy = 0.0;
-		std::optional<double> msAnimationError;
-		std::optional<double> animationTime;
-		std::optional<double> msFlipDelay;
-		std::optional<double> msAllInputToPhotonLatency;
-		std::optional<double> msClickToPhotonLatency;
-		std::optional<double> msInstrumentedLatency;
+		double msAnimationError = kMissingMetricValue;
+		double animationTime = kMissingMetricValue;
+		double msFlipDelay = kMissingMetricValue;
+		double msAllInputToPhotonLatency = kMissingMetricValue;
+		double msClickToPhotonLatency = kMissingMetricValue;
+		double msInstrumentedLatency = kMissingMetricValue;
 	};
 
 	std::wstring MakeFailMessage(size_t row, const char* column, const std::string& expected,
@@ -164,6 +168,11 @@ namespace PacedFrame
 	bool IsMissingToken(const std::string& value)
 	{
 		return value == "NA" || value == "NaN" || value == "nan";
+	}
+
+	bool IsMissingValue(double value)
+	{
+		return std::isnan(value);
 	}
 
 	uint64_t ParseUint64(const std::string& value, size_t row, const char* column)
@@ -210,10 +219,10 @@ namespace PacedFrame
 		return 0.0;
 	}
 
-	std::optional<double> ParseOptionalDouble(const std::string& value, size_t row, const char* column)
+	double ParseMetricDouble(const std::string& value, size_t row, const char* column)
 	{
 		if (IsMissingToken(value)) {
-			return std::nullopt;
+			return kMissingMetricValue;
 		}
 		return ParseDouble(value, row, column);
 	}
@@ -239,21 +248,21 @@ namespace PacedFrame
 		parsed.allowsTearing = ParseUint32(row[static_cast<size_t>(ColumnIndex::AllowsTearing)], rowIndex, "AllowsTearing");
 		parsed.presentMode = row[static_cast<size_t>(ColumnIndex::PresentMode)];
 		parsed.frameType = row[static_cast<size_t>(ColumnIndex::FrameType)];
-		parsed.cpuStartTime = ParseOptionalDouble(
+		parsed.cpuStartTime = ParseMetricDouble(
 			row[static_cast<size_t>(ColumnIndex::CPUStartTime)], rowIndex, "CPUStartTime");
-		parsed.msBetweenSimulationStart = ParseOptionalDouble(
+		parsed.msBetweenSimulationStart = ParseMetricDouble(
 			row[static_cast<size_t>(ColumnIndex::MsBetweenSimulationStart)], rowIndex, "MsBetweenSimulationStart");
 		parsed.msBetweenPresents = ParseDouble(
 			row[static_cast<size_t>(ColumnIndex::MsBetweenPresents)], rowIndex, "MsBetweenPresents");
-		parsed.msBetweenDisplayChange = ParseOptionalDouble(
+		parsed.msBetweenDisplayChange = ParseMetricDouble(
 			row[static_cast<size_t>(ColumnIndex::MsBetweenDisplayChange)], rowIndex, "MsBetweenDisplayChange");
 		parsed.msInPresentApi = ParseDouble(
 			row[static_cast<size_t>(ColumnIndex::MsInPresentAPI)], rowIndex, "MsInPresentAPI");
 		parsed.msRenderPresentLatency = ParseDouble(
 			row[static_cast<size_t>(ColumnIndex::MsRenderPresentLatency)], rowIndex, "MsRenderPresentLatency");
-		parsed.msUntilDisplayed = ParseOptionalDouble(
+		parsed.msUntilDisplayed = ParseMetricDouble(
 			row[static_cast<size_t>(ColumnIndex::MsUntilDisplayed)], rowIndex, "MsUntilDisplayed");
-		parsed.msPcLatency = ParseOptionalDouble(
+		parsed.msPcLatency = ParseMetricDouble(
 			row[static_cast<size_t>(ColumnIndex::MsPCLatency)], rowIndex, "MsPCLatency");
 		parsed.msBetweenAppStart = ParseDouble(
 			row[static_cast<size_t>(ColumnIndex::MsBetweenAppStart)], rowIndex, "MsBetweenAppStart");
@@ -271,17 +280,17 @@ namespace PacedFrame
 			row[static_cast<size_t>(ColumnIndex::MsGPUWait)], rowIndex, "MsGPUWait");
 		parsed.msVideoBusy = ParseDouble(
 			row[static_cast<size_t>(ColumnIndex::MsVideoBusy)], rowIndex, "MsVideoBusy");
-		parsed.msAnimationError = ParseOptionalDouble(
+		parsed.msAnimationError = ParseMetricDouble(
 			row[static_cast<size_t>(ColumnIndex::MsAnimationError)], rowIndex, "MsAnimationError");
-		parsed.animationTime = ParseOptionalDouble(
+		parsed.animationTime = ParseMetricDouble(
 			row[static_cast<size_t>(ColumnIndex::AnimationTime)], rowIndex, "AnimationTime");
-		parsed.msFlipDelay = ParseOptionalDouble(
+		parsed.msFlipDelay = ParseMetricDouble(
 			row[static_cast<size_t>(ColumnIndex::MsFlipDelay)], rowIndex, "MsFlipDelay");
-		parsed.msAllInputToPhotonLatency = ParseOptionalDouble(
+		parsed.msAllInputToPhotonLatency = ParseMetricDouble(
 			row[static_cast<size_t>(ColumnIndex::MsAllInputToPhotonLatency)], rowIndex, "MsAllInputToPhotonLatency");
-		parsed.msClickToPhotonLatency = ParseOptionalDouble(
+		parsed.msClickToPhotonLatency = ParseMetricDouble(
 			row[static_cast<size_t>(ColumnIndex::MsClickToPhotonLatency)], rowIndex, "MsClickToPhotonLatency");
-		parsed.msInstrumentedLatency = ParseOptionalDouble(
+		parsed.msInstrumentedLatency = ParseMetricDouble(
 			row[static_cast<size_t>(ColumnIndex::MsInstrumentedLatency)], rowIndex, "MsInstrumentedLatency");
 		return parsed;
 	}
@@ -359,13 +368,15 @@ namespace PacedFrame
 		return std::nullopt;
 	}
 
-	void CompareOptionalDouble(const std::optional<double>& expected, const std::optional<double>& actual,
+	void CompareMetricDouble(double expected, double actual,
 		size_t rowIndex, const char* column)
 	{
-		if (expected.has_value() != actual.has_value()) {
+		const auto expectedMissing = IsMissingValue(expected);
+		const auto actualMissing = IsMissingValue(actual);
+		if (expectedMissing != actualMissing) {
 			Assert::Fail(MakeFailMessage(rowIndex, column).c_str());
 		}
-		if (expected && actual && *expected != *actual) {
+		if (!expectedMissing && expected != actual) {
 			Assert::Fail(MakeFailMessage(rowIndex, column).c_str());
 		}
 	}
@@ -402,14 +413,14 @@ namespace PacedFrame
 			Assert::Fail(MakeFailMessage(rowIndex, "FrameType",
 				expected.frameType, actual.frameType).c_str());
 		}
-		CompareOptionalDouble(expected.cpuStartTime, actual.cpuStartTime,
+		CompareMetricDouble(expected.cpuStartTime, actual.cpuStartTime,
 			rowIndex, "CPUStartTime");
-		CompareOptionalDouble(expected.msBetweenSimulationStart, actual.msBetweenSimulationStart,
+		CompareMetricDouble(expected.msBetweenSimulationStart, actual.msBetweenSimulationStart,
 			rowIndex, "MsBetweenSimulationStart");
 		if (expected.msBetweenPresents != actual.msBetweenPresents) {
 			Assert::Fail(MakeFailMessage(rowIndex, "MsBetweenPresents").c_str());
 		}
-		CompareOptionalDouble(expected.msBetweenDisplayChange, actual.msBetweenDisplayChange,
+		CompareMetricDouble(expected.msBetweenDisplayChange, actual.msBetweenDisplayChange,
 			rowIndex, "MsBetweenDisplayChange");
 		if (expected.msInPresentApi != actual.msInPresentApi) {
 			Assert::Fail(MakeFailMessage(rowIndex, "MsInPresentAPI").c_str());
@@ -417,9 +428,9 @@ namespace PacedFrame
 		if (expected.msRenderPresentLatency != actual.msRenderPresentLatency) {
 			Assert::Fail(MakeFailMessage(rowIndex, "MsRenderPresentLatency").c_str());
 		}
-		CompareOptionalDouble(expected.msUntilDisplayed, actual.msUntilDisplayed,
+		CompareMetricDouble(expected.msUntilDisplayed, actual.msUntilDisplayed,
 			rowIndex, "MsUntilDisplayed");
-		CompareOptionalDouble(expected.msPcLatency, actual.msPcLatency,
+		CompareMetricDouble(expected.msPcLatency, actual.msPcLatency,
 			rowIndex, "MsPCLatency");
 		if (expected.msBetweenAppStart != actual.msBetweenAppStart) {
 			Assert::Fail(MakeFailMessage(rowIndex, "MsBetweenAppStart").c_str());
@@ -445,17 +456,17 @@ namespace PacedFrame
 		if (expected.msVideoBusy != actual.msVideoBusy) {
 			Assert::Fail(MakeFailMessage(rowIndex, "MsVideoBusy").c_str());
 		}
-		CompareOptionalDouble(expected.msAnimationError, actual.msAnimationError,
+		CompareMetricDouble(expected.msAnimationError, actual.msAnimationError,
 			rowIndex, "MsAnimationError");
-		CompareOptionalDouble(expected.animationTime, actual.animationTime,
+		CompareMetricDouble(expected.animationTime, actual.animationTime,
 			rowIndex, "AnimationTime");
-		CompareOptionalDouble(expected.msFlipDelay, actual.msFlipDelay,
+		CompareMetricDouble(expected.msFlipDelay, actual.msFlipDelay,
 			rowIndex, "MsFlipDelay");
-		CompareOptionalDouble(expected.msAllInputToPhotonLatency, actual.msAllInputToPhotonLatency,
+		CompareMetricDouble(expected.msAllInputToPhotonLatency, actual.msAllInputToPhotonLatency,
 			rowIndex, "MsAllInputToPhotonLatency");
-		CompareOptionalDouble(expected.msClickToPhotonLatency, actual.msClickToPhotonLatency,
+		CompareMetricDouble(expected.msClickToPhotonLatency, actual.msClickToPhotonLatency,
 			rowIndex, "MsClickToPhotonLatency");
-		CompareOptionalDouble(expected.msInstrumentedLatency, actual.msInstrumentedLatency,
+		CompareMetricDouble(expected.msInstrumentedLatency, actual.msInstrumentedLatency,
 			rowIndex, "MsInstrumentedLatency");
 	}
 
