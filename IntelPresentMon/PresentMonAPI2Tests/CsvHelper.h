@@ -14,6 +14,7 @@
 #include <cmath>
 #include <limits>
 #include <optional>
+#include <cctype>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -314,7 +315,32 @@ void CharConvert<T>::Convert(const std::string data, T& convertedData, Header co
 
 bool IsMissingMetricToken(const char* data)
 {
-    return strcmp(data, "NA") == 0 || strcmp(data, "NaN") == 0 || strcmp(data, "nan") == 0;
+    if (data == nullptr) {
+        return true;
+    }
+
+    const char* tokenBegin = data;
+    while (*tokenBegin != '\0' && std::isspace(static_cast<unsigned char>(*tokenBegin))) {
+        ++tokenBegin;
+    }
+
+    const char* tokenEnd = tokenBegin;
+    while (*tokenEnd != '\0') {
+        ++tokenEnd;
+    }
+
+    while (tokenEnd > tokenBegin && std::isspace(static_cast<unsigned char>(*(tokenEnd - 1)))) {
+        --tokenEnd;
+    }
+
+    if (tokenBegin == tokenEnd) {
+        return true;
+    }
+
+    std::string token(tokenBegin, tokenEnd);
+    return _stricmp(token.c_str(), "NA") == 0 ||
+           _stricmp(token.c_str(), "N/A") == 0 ||
+           _stricmp(token.c_str(), "NaN") == 0;
 }
 
 double ParseMetricValue(const char* data, Header columnId, size_t line)
@@ -326,6 +352,10 @@ double ParseMetricValue(const char* data, Header columnId, size_t line)
     double convertedData = 0.;
     CharConvert<double> converter;
     converter.Convert(data, convertedData, columnId, line);
+    if (std::isnan(convertedData)) {
+        return kMissingMetricValue;
+    }
+
     return convertedData;
 }
 
@@ -408,7 +438,7 @@ std::optional<std::ofstream> CreateCsvFile(std::string& output_dir, std::string&
         csvFile <<
             "Application,ProcessID,SwapChainAddress,PresentRuntime"
             ",SyncInterval,PresentFlags,AllowsTearing,PresentMode"
-            ",FrameType,TimeInSec,MsBetweenSimulationStart,MsBetweenPresents"
+            ",FrameType,TimeInQPC,MsBetweenSimulationStart,MsBetweenPresents"
             ",MsBetweenDisplayChange,MsInPresent,MsRenderPresentLatency"
             ",MsUntilDisplayed,MsPCLatency,CPUStartQPC,MsBetweenAppStart"
             ",MsCPUBusy,MsCPUWait,MsGPULatency,MsGPUTime,MsGPUBusy,MsGPUWait"
