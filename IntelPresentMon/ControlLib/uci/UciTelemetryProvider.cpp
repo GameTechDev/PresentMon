@@ -203,6 +203,11 @@ namespace pmon::tel::uci
         device_.caps = BuildCaps_(enumeratedMetricNames_, device_.physicalCoreCount);
         device_.samples.cpuTemperatures.resize(device_.physicalCoreCount, 0.0);
         device_.samples.hasCpuTemperature.resize(device_.physicalCoreCount, false);
+
+        pmlog_info(std::format(
+            "UCI telemetry provider initialized successfully; physicalCores={} enumeratedMetrics={}",
+            device_.physicalCoreCount,
+            enumeratedMetricNames_.size()));
     }
 
     UciTelemetryProvider::~UciTelemetryProvider()
@@ -608,7 +613,15 @@ namespace pmon::tel::uci
         }
 
         const bool wantsCollection = wantsCpuPower || wantsCpuTemperature;
+        pmlog_dbg(std::format(
+            "Configuring UCI collection; pollRateMs={} wantsCpuPower={} wantsCpuTemperature={} collectionStarted={}",
+            pollRateMs_,
+            wantsCpuPower,
+            wantsCpuTemperature,
+            collectionStarted_));
+
         if (!wantsCollection) {
+            pmlog_dbg("Stopping UCI collection because no supported UCI metrics are requested");
             StopCollection_();
             std::lock_guard dataLock{ dataMutex_ };
             device_.samples.cpuPower = 0.0;
@@ -651,6 +664,12 @@ namespace pmon::tel::uci
             pollRateMs_,
             metricsJson);
 
+        pmlog_dbg(std::format(
+            "Applying UCI collection configuration; pollRateMs={} metrics=[{}]",
+            pollRateMs_,
+            metricsJson));
+        pmlog_verb(v::uci)(std::format("UCI collection config JSON:\n{}", configJson));
+
         CheckUciCall_(uciConfigureCollection(collector_, configJson.c_str()), "uciConfigureCollection");
         CheckUciCall_(uciSetDataCallback(collector_, &StaticDataCallback_), "uciSetDataCallback");
 
@@ -659,6 +678,11 @@ namespace pmon::tel::uci
             activeProvider_.store(this, std::memory_order_release);
         }
 
+        pmlog_dbg(std::format(
+            "Starting UCI collection; pollRateMs={} wantsCpuPower={} wantsCpuTemperature={}",
+            pollRateMs_,
+            wantsCpuPower,
+            wantsCpuTemperature));
         CheckUciCall_(uciStartCollection(collector_), "uciStartCollection");
         collectionStarted_ = true;
     }
@@ -669,6 +693,7 @@ namespace pmon::tel::uci
             return;
         }
 
+        pmlog_dbg("Stopping UCI collection");
         const auto result = uciStopCollection(collector_);
         if (result != UC_SUCCESS &&
             result != UC_ERROR_COLLECTION_NOT_RUNNING) {
