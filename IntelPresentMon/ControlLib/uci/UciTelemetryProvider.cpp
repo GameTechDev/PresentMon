@@ -142,11 +142,13 @@ namespace pmon::tel::uci
         std::optional<uint32_t> TryParseCoreIndex_(std::string_view entity)
         {
             if (!entity.starts_with(kCoreEntityPrefix_)) {
+                pmlog_dbg("unexpected core entity").pmwatch(entity);
                 return std::nullopt;
             }
 
             const auto suffix = entity.substr(kCoreEntityPrefix_.size());
             if (suffix.empty()) {
+                pmlog_dbg("missing core index").pmwatch(entity);
                 return std::nullopt;
             }
 
@@ -155,11 +157,14 @@ namespace pmon::tel::uci
                 size_t parsedChars = 0;
                 const auto value = std::stoul(suffixString, &parsedChars);
                 if (parsedChars != suffixString.size() || value > uint32_t(-1)) {
+                    pmlog_dbg("unexpected parsed chars or value")
+                        .pmwatch(entity).pmwatch(parsedChars).pmwatch(value);
                     return std::nullopt;
                 }
                 return (uint32_t)value;
             }
             catch (const std::exception&) {
+                pmlog_dbg(util::ReportException("Parse failure"));
                 return std::nullopt;
             }
         }
@@ -538,22 +543,26 @@ namespace pmon::tel::uci
         const auto record = (uciMetricRecordHandle)recordHandle;
         std::string metricName;
         if (!TryGetString_(uciMetricRecordGetMetricName, record, metricName) || metricName.empty()) {
+            pmlog_dbg("Could not get record metric name");
             return;
         }
 
         double sample = 0.0;
         if (!TryGetSample_(uciMetricRecordGetSample, record, sample)) {
+            pmlog_dbg("Could not get record sample");
             return;
         }
 
         if (metricName == kCpuPowerRecordMetricName_) {
             uint64_t duration = 0;
             if (!TryGetDuration_(uciMetricRecordGetRecordDuration, record, duration) || duration == 0) {
+                pmlog_dbg("Could not get record duration");
                 return;
             }
 
             const auto durationSeconds = double(duration) / 1'000'000'000.0;
             if (durationSeconds <= 0.0) {
+                pmlog_dbg("Negative duration").pmwatch(durationSeconds);
                 return;
             }
 
