@@ -414,12 +414,22 @@ bool Validate(const T& param1, const T& param2) {
 
 }
 
+
+
 bool ValidateMetricValue(double expected, double actual)
 {
     const auto expectedMissing = std::isnan(expected);
     const auto actualMissing = std::isnan(actual);
-    if (expectedMissing || actualMissing) {
-        return expectedMissing && actualMissing;
+    if (actualMissing) {
+        // If actual is missing, it's only valid if expected is exactly 0.0,
+        // otherwise it would be a mismatch with the gold file. The intent is to eventually
+        // migrate all gold files to use NA or NAN for missing metrics, but in the meantime
+        // we want to allow 0.0 as a valid expected value for metrics yet to be transitioned.
+        return expectedMissing || expected == 0.0;
+    }
+
+    if (expectedMissing) {
+        return false;
     }
 
     return Validate(expected, actual);
@@ -707,13 +717,13 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
                 columnsMatch = Validate(v2MetricRow_.cpuFrameQpc, cpuStartQpc);
                 break;
             case Header_MsBetweenAppStart:
-                columnsMatch = Validate(v2MetricRow_.msBetweenAppStart, msBetweenAppStart);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msBetweenAppStart, msBetweenAppStart);
                 break;
             case Header_MsCPUBusy:
-                columnsMatch = Validate(v2MetricRow_.msCpuBusy, msCpuBusy);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msCpuBusy, msCpuBusy);
                 break;
             case Header_MsCPUWait:
-                columnsMatch = Validate(v2MetricRow_.msCpuWait, msCpuWait);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msCpuWait, msCpuWait);
                 break;
             case Header_MsGPULatency:
                 columnsMatch = Validate(v2MetricRow_.msGpuLatency, msGpuLatency);
