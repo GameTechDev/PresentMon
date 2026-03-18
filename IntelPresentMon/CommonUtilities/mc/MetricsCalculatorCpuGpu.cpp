@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MetricsCalculator.h"
 #include "MetricsCalculatorInternal.h"
@@ -18,7 +18,7 @@ namespace pmon::util::metrics
             bool isAppPresent)
         {
             if (!isAppPresent) {
-                return 0.0;
+                return MissingFrameMetricValue();
             }
 
             const auto cpuStart = CalculateCPUStart(swapChain, present);
@@ -42,7 +42,7 @@ namespace pmon::util::metrics
             bool isAppPresent)
         {
             if (!isAppPresent) {
-                return 0.0;
+                return MissingFrameMetricValue();
             }
 
             if (present.appPropagatedTimeInPresent != 0) {
