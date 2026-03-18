@@ -12,6 +12,11 @@ static bool HasFrameMetricValue(double value)
     return !pmon::util::metrics::IsMissingFrameMetricValue(value);
 }
 
+static void WriteMetricOrZero(FILE* fp, double value, int precision = 4)
+{
+    fwprintf(fp, L",%.*lf", precision, HasFrameMetricValue(value) ? value : 0);
+}
+
 void IncrementRecordingCount()
 {
     gRecordingCount += 1;
@@ -776,9 +781,9 @@ void WriteCsvRow<FrameMetrics>(
     }
 
     // MsBetweenAppStart, MsCPUBusy, MsCPUWait
-    fwprintf(fp, L",%.4lf,%.4lf,%.4lf", metrics.mMsCPUBusy + metrics.mMsCPUWait,
-        metrics.mMsCPUBusy,
-        metrics.mMsCPUWait);
+    WriteMetricOrZero(fp, metrics.mMsCPUBusy + metrics.mMsCPUWait);
+    WriteMetricOrZero(fp, metrics.mMsCPUBusy);
+    WriteMetricOrZero(fp, metrics.mMsCPUWait);
 
     if (args.mTrackGPU) {
         fwprintf(fp, L",%.4lf,%.4lf,%.4lf,%.4lf", metrics.mMsGPULatency,
@@ -999,9 +1004,9 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
     }
 
     // MsBetweenAppStart, MsCPUBusy, MsCPUWait
-    fwprintf(fp, L",%.4lf,%.4lf,%.4lf", metrics.msCPUBusy + metrics.msCPUWait,
-        metrics.msCPUBusy,
-        metrics.msCPUWait);
+    WriteMetricOrZero(fp, metrics.msCPUBusy + metrics.msCPUWait);
+    WriteMetricOrZero(fp, metrics.msCPUBusy);
+    WriteMetricOrZero(fp, metrics.msCPUWait);
 
     if (args.mTrackGPU) {
         fwprintf(fp, L",%.4lf,%.4lf,%.4lf,%.4lf", metrics.msGPULatency,
@@ -1216,9 +1221,9 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
     }
 
     // MsBetweenAppStart, MsCPUBusy, MsCPUWait
-    fwprintf(fp, L",%.4lf,%.4lf,%.4lf", metrics.msCPUBusy + metrics.msCPUWait,
-        metrics.msCPUBusy,
-        metrics.msCPUWait);
+    WriteMetricOrZero(fp, metrics.msCPUBusy + metrics.msCPUWait);
+    WriteMetricOrZero(fp, metrics.msCPUBusy);
+    WriteMetricOrZero(fp, metrics.msCPUWait);
 
     if (args.mTrackGPU) {
         fwprintf(fp, L",%.4lf,%.4lf,%.4lf,%.4lf", metrics.msGPULatency,
