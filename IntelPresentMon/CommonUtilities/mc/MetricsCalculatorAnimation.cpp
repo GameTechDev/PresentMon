@@ -10,6 +10,51 @@ namespace pmon::util::metrics
 {
     namespace
     {
+        struct AnimationSourceContext
+        {
+            AnimationErrorSource effectiveSource = AnimationErrorSource::CpuStart;
+            uint64_t currentSimStart = 0;
+            bool isTransitionFrame = false;
+        };
+
+        AnimationSourceContext ResolveAnimationSourceContext(
+            const SwapChainCoreState& chain,
+            const FrameData& present)
+        {
+            AnimationSourceContext context{};
+            context.effectiveSource = chain.animationErrorSource;
+
+            switch (chain.animationErrorSource) {
+            case AnimationErrorSource::AppProvider:
+                break;
+
+            case AnimationErrorSource::PCLatency:
+                if (present.appSimStartTime != 0) {
+                    context.effectiveSource = AnimationErrorSource::AppProvider;
+                    context.isTransitionFrame = true;
+                }
+                break;
+
+            case AnimationErrorSource::CpuStart:
+                if (present.appSimStartTime != 0) {
+                    context.effectiveSource = AnimationErrorSource::AppProvider;
+                    context.isTransitionFrame = true;
+                }
+                else if (present.pclSimStartTime != 0) {
+                    context.effectiveSource = AnimationErrorSource::PCLatency;
+                    context.isTransitionFrame = true;
+                }
+                break;
+            }
+
+            context.currentSimStart = CalculateAnimationErrorSimStartTime(
+                chain,
+                present,
+                context.effectiveSource);
+
+            return context;
+        }
+
         // ---- Animation metrics ----
         double ComputeAnimationError(
             const QpcConverter& qpc,
@@ -23,16 +68,22 @@ namespace pmon::util::metrics
                 return MissingFrameMetricValue();
             }
 
-            uint64_t currentSimStart = CalculateAnimationErrorSimStartTime(chain, present, chain.animationErrorSource);
+            const auto sourceContext = ResolveAnimationSourceContext(chain, present);
 
-            if (currentSimStart == 0 ||
+            if (sourceContext.isTransitionFrame) {
+                return MissingFrameMetricValue();
+            }
+
+            if (sourceContext.currentSimStart == 0 ||
                 chain.lastDisplayedSimStartTime == 0 ||
-                currentSimStart <= chain.lastDisplayedSimStartTime ||
+                sourceContext.currentSimStart <= chain.lastDisplayedSimStartTime ||
                 chain.lastDisplayedAppScreenTime == 0) {
                 return MissingFrameMetricValue();
             }
 
-            double simElapsed = qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedSimStartTime, currentSimStart);
+            double simElapsed = qpc.DeltaUnsignedMilliSeconds(
+                chain.lastDisplayedSimStartTime,
+                sourceContext.currentSimStart);
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedAppScreenTime, screenTime);
 
             if (simElapsed == 0.0 || displayElapsed == 0.0) {
@@ -54,22 +105,22 @@ namespace pmon::util::metrics
                 return MissingFrameMetricValue();
             }
 
-            bool isFirstProviderSimTime =
-                chain.animationErrorSource == AnimationErrorSource::CpuStart &&
-                chain.firstAppSimStartTime == 0 &&
-                (present.appSimStartTime != 0 || present.pclSimStartTime != 0);
-            if (isFirstProviderSimTime) {
-                // Seed only: no animation time yet. UpdateAfterPresent will flip us
-                // into AppProvider/PCL and latch firstAppSimStartTime.
+            const auto sourceContext = ResolveAnimationSourceContext(chain, present);
+
+            if (sourceContext.isTransitionFrame) {
                 return 0.0;
             }
 
-            uint64_t currentSimStart = CalculateAnimationErrorSimStartTime(chain, present, chain.animationErrorSource);
-            if (currentSimStart == 0) {
+            if (sourceContext.effectiveSource != AnimationErrorSource::CpuStart &&
+                sourceContext.currentSimStart == 0) {
+                return MissingFrameMetricValue();
+            }
+
+            if (sourceContext.currentSimStart == 0) {
                 return 0.0;
             }
 
-            return CalculateAnimationTime(qpc, chain.firstAppSimStartTime, currentSimStart);
+            return CalculateAnimationTime(qpc, chain.firstAppSimStartTime, sourceContext.currentSimStart);
         }
 
         double ComputePresentStartTimeMs(

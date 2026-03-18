@@ -1103,6 +1103,67 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(uint64_t(1'500), chain.lastDisplayedAppScreenTime);
         }
 
+        TEST_METHOD(UpdateAfterPresent_AnimationSource_AppProvider_BothPresent_RemainsAppProvider)
+        {
+            SwapChainCoreState chain{};
+            chain.animationErrorSource = AnimationErrorSource::AppProvider;
+            chain.firstAppSimStartTime = 40'000;
+            chain.lastDisplayedSimStartTime = 41'000;
+            chain.lastDisplayedAppScreenTime = 8'800;
+
+            auto frame = MakeFrame(PresentResult::Presented, 1'100, 55, 1'300,
+                                   { { FrameType::Application, 1'650 } },
+                                   10'000 /* appSimStartTime */, 12'000 /* pclSimStart */);
+
+            chain.UpdateAfterPresent(frame);
+
+            Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
+            Assert::AreEqual(uint64_t(40'000), chain.firstAppSimStartTime);
+            Assert::AreEqual(uint64_t(10'000), chain.lastDisplayedSimStartTime);
+            Assert::IsTrue(chain.lastDisplayedSimStartTime != uint64_t(12'000));
+            Assert::AreEqual(uint64_t(1'650), chain.lastDisplayedAppScreenTime);
+        }
+
+        TEST_METHOD(UpdateAfterPresent_AnimationSource_AppProvider_MissingApp_NoPcl_LeavesAnchorsUnchanged)
+        {
+            SwapChainCoreState chain{};
+            chain.animationErrorSource = AnimationErrorSource::AppProvider;
+            chain.firstAppSimStartTime = 40'000;
+            chain.lastDisplayedSimStartTime = 41'000;
+            chain.lastDisplayedAppScreenTime = 8'800;
+
+            auto frame = MakeFrame(PresentResult::Presented, 2'000, 40, 2'300,
+                                   { { FrameType::Application, 9'950 } },
+                                   0 /* appSimStartTime */, 0 /* pclSimStart */);
+
+            chain.UpdateAfterPresent(frame);
+
+            Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
+            Assert::AreEqual(uint64_t(40'000), chain.firstAppSimStartTime);
+            Assert::AreEqual(uint64_t(41'000), chain.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(8'800), chain.lastDisplayedAppScreenTime);
+        }
+
+        TEST_METHOD(UpdateAfterPresent_AnimationSource_AppProvider_MissingApp_WithPcl_LeavesAnchorsUnchanged)
+        {
+            SwapChainCoreState chain{};
+            chain.animationErrorSource = AnimationErrorSource::AppProvider;
+            chain.firstAppSimStartTime = 40'000;
+            chain.lastDisplayedSimStartTime = 41'000;
+            chain.lastDisplayedAppScreenTime = 8'800;
+
+            auto frame = MakeFrame(PresentResult::Presented, 2'100, 40, 2'400,
+                                   { { FrameType::Application, 9'960 } },
+                                   0 /* appSimStartTime */, 52'000 /* pclSimStart */);
+
+            chain.UpdateAfterPresent(frame);
+
+            Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
+            Assert::AreEqual(uint64_t(40'000), chain.firstAppSimStartTime);
+            Assert::AreEqual(uint64_t(41'000), chain.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(8'800), chain.lastDisplayedAppScreenTime);
+        }
+
         TEST_METHOD(UpdateAfterPresent_AnimationSource_PCLatency_UpdatesSimStartAndFirstAppSim)
         {
             SwapChainCoreState chain{};
@@ -1117,6 +1178,30 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(uint64_t(12'345), chain.lastDisplayedSimStartTime);
             Assert::AreEqual(uint64_t(12'345), chain.firstAppSimStartTime);
             Assert::AreEqual(uint64_t(2'700), chain.lastDisplayedAppScreenTime);
+        }
+
+        TEST_METHOD(UpdateAfterPresent_AnimationSource_PCLatency_MissingPcl_NoApp_LeavesAnchorsUnchanged)
+        {
+            SwapChainCoreState chain{};
+            chain.animationErrorSource = AnimationErrorSource::PCLatency;
+            chain.firstAppSimStartTime = 30'000;
+            chain.lastDisplayedSimStartTime = 31'000;
+            chain.lastDisplayedAppScreenTime = 8'800;
+
+            FrameData previousApp = MakeFrame(PresentResult::Presented, 5'000, 80, 5'300,
+                                              { { FrameType::Application, 5'800 } });
+            chain.lastAppPresent = previousApp;
+
+            auto frame = MakeFrame(PresentResult::Presented, 9'000, 90, 9'400,
+                                   { { FrameType::Application, 9'950 } },
+                                   0 /* appSimStartTime */, 0 /* pclSimStart */);
+
+            chain.UpdateAfterPresent(frame);
+
+            Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::PCLatency);
+            Assert::AreEqual(uint64_t(30'000), chain.firstAppSimStartTime);
+            Assert::AreEqual(uint64_t(31'000), chain.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(8'800), chain.lastDisplayedAppScreenTime);
         }
 
         TEST_METHOD(UpdateAfterPresent_AnimationSource_CpuStart_FallbackToPreviousAppPresent)
@@ -1157,6 +1242,24 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(uint64_t(20'000), chain.firstAppSimStartTime);
         }
 
+        TEST_METHOD(UpdateAfterPresent_AnimationSource_CpuStart_BothPresent_TransitionsDirectlyToAppProvider)
+        {
+            SwapChainCoreState chain{};
+            chain.animationErrorSource = AnimationErrorSource::CpuStart;
+            chain.firstAppSimStartTime = 15'000;
+            chain.lastDisplayedSimStartTime = 15'000;
+
+            auto frame = MakeFrame(PresentResult::Presented, 7'500, 75, 7'900,
+                                   { { FrameType::Application, 8'300 } },
+                                   20'000 /* appSimStartTime */, 30'000 /* pclSimStart */);
+
+            chain.UpdateAfterPresent(frame);
+
+            Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
+            Assert::AreEqual(uint64_t(20'000), chain.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(20'000), chain.firstAppSimStartTime);
+        }
+
         TEST_METHOD(UpdateAfterPresent_AnimationSource_CpuStart_TransitionsToPCLatency)
         {
             SwapChainCoreState chain{};
@@ -1171,6 +1274,46 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::PCLatency);
             Assert::AreEqual(uint64_t(30'000), chain.lastDisplayedSimStartTime);
             Assert::AreEqual(uint64_t(30'000), chain.firstAppSimStartTime);
+        }
+
+        TEST_METHOD(UpdateAfterPresent_AnimationSource_PCLatency_TransitionsToAppProvider_WhenAppOnly)
+        {
+            SwapChainCoreState chain{};
+            chain.animationErrorSource = AnimationErrorSource::PCLatency;
+            chain.firstAppSimStartTime = 30'000;
+            chain.lastDisplayedSimStartTime = 31'000;
+            chain.lastDisplayedAppScreenTime = 8'800;
+
+            auto frame = MakeFrame(PresentResult::Presented, 9'000, 90, 9'400,
+                                   { { FrameType::Application, 9'950 } },
+                                   40'000 /* appSimStartTime */, 0 /* pclSimStart */);
+
+            chain.UpdateAfterPresent(frame);
+
+            Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
+            Assert::AreEqual(uint64_t(40'000), chain.firstAppSimStartTime);
+            Assert::AreEqual(uint64_t(40'000), chain.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(9'950), chain.lastDisplayedAppScreenTime);
+        }
+
+        TEST_METHOD(UpdateAfterPresent_AnimationSource_PCLatency_TransitionsToAppProvider_WhenAppAndPclBothPresent)
+        {
+            SwapChainCoreState chain{};
+            chain.animationErrorSource = AnimationErrorSource::PCLatency;
+            chain.firstAppSimStartTime = 30'000;
+            chain.lastDisplayedSimStartTime = 31'000;
+            chain.lastDisplayedAppScreenTime = 8'800;
+
+            auto frame = MakeFrame(PresentResult::Presented, 10'000, 100, 10'400,
+                                   { { FrameType::Application, 10'950 } },
+                                   40'000 /* appSimStartTime */, 50'000 /* pclSimStart */);
+
+            chain.UpdateAfterPresent(frame);
+
+            Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
+            Assert::AreEqual(uint64_t(40'000), chain.firstAppSimStartTime);
+            Assert::AreEqual(uint64_t(40'000), chain.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(10'950), chain.lastDisplayedAppScreenTime);
         }
     };
 
@@ -4475,19 +4618,21 @@ TEST_CLASS(ComputeMetricsForPresentTests)
     {
     public:
         // ========================================================================
-        // A1: AnimationTime_AppProvider_FirstFrame_ZeroWithoutAppSimStartTime
+        // A1: AnimationTime_CpuStart_FirstFrame_ZeroWithoutAppSimStartTime
         // ========================================================================
-        TEST_METHOD(AnimationTime_AppProvider_FirstFrame_ZeroWithoutAppSimStartTime)
+        TEST_METHOD(AnimationTime_CpuStart_FirstFrame_ZeroWithoutAppSimStartTime)
         {
             // Scenario:
             // - SwapChainCoreState starts with CpuStart (default)
-            // - Current frame: displayed, displayIndex == appIndex, but appSimStartTime == 0
-            // - No app data means source stays CpuStart
+            // - Current frame: displayed with appSimStartTime == 0 and pclSimStartTime == 0
+            // - The existing body keeps CpuStart active when appSimStartTime is missing
             //
             // Expected Outcome:
-            // - msAnimationTime = std::nullopt (no valid sim start time, no history)
+            // - msAnimationTime = 0.0 in this existing first-frame path
             // - firstAppSimStartTime remains 0 in state
+            // - lastDisplayedSimStartTime remains 0 in state
             // - Source remains CpuStart
+            // - This is legacy behavior and does not describe the new missing-source policy
 
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
@@ -4902,19 +5047,143 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"lastDisplayedAppScreenTime should track the most recent displayed screen time");
         }
         // ========================================================================
-        // B1: AnimationTime_PCLatency_FirstFrame_ZeroWithoutPclSimStartTime
+        // A6: AnimationTime_AppProvider_MissingApp_NoPcl_IsMissingAndStateUnchanged
         // ========================================================================
-        TEST_METHOD(AnimationTime_PCLatency_FirstFrame_ZeroWithoutPclSimStartTime)
+        TEST_METHOD(AnimationTime_AppProvider_MissingApp_NoPcl_IsMissingAndStateUnchanged)
+        {
+            // Scenario:
+            // - State already uses AppProvider with existing animation anchors.
+            // - Current displayed frame has neither appSimStartTime nor pclSimStartTime.
+            // - AppProvider must remain active; no fallback or demotion is allowed.
+            //
+            // Expected Outcome:
+            // - msAnimationTime is missing (NaN), not 0.0.
+            // - animationErrorSource remains AppProvider.
+            // - firstAppSimStartTime, lastDisplayedSimStartTime, and
+            //   lastDisplayedAppScreenTime remain unchanged.
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::AppProvider;
+            state.firstAppSimStartTime = 40'000;
+            state.lastDisplayedSimStartTime = 41'000;
+            state.lastDisplayedAppScreenTime = 8'800;
+
+            FrameData frame{};
+            frame.presentStartTime = 1'200'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'300'000;
+            frame.appSimStartTime = 0;
+            frame.pclSimStartTime = 0;
+            frame.finalState = PresentResult::Presented;
+            frame.displayed.PushBack({ FrameType::Application, 9'950 });
+
+            FrameData next{};
+            next.presentStartTime = 1'600'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'700'000;
+            next.finalState = PresentResult::Presented;
+            next.displayed.PushBack({ FrameType::Application, 10'950 });
+
+            auto metricsVector = ComputeMetricsForPresent(qpc, frame, &next, state);
+
+            Assert::AreEqual(size_t(1), metricsVector.size());
+
+            const ComputedMetrics& result = metricsVector[0];
+
+            Assert::IsFalse(HasMetricValue(result.metrics.msAnimationTime),
+                L"msAnimationTime should be missing when AppProvider remains active but no sim start is available.");
+            Assert::IsTrue(IsMissingFrameMetricValue(result.metrics.msAnimationTime),
+                L"msAnimationTime should be stored as missing (NaN)");
+
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"animationErrorSource should remain AppProvider when no transition is allowed.");
+            Assert::AreEqual(uint64_t(40'000), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should remain unchanged.");
+            Assert::AreEqual(uint64_t(41'000), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should remain unchanged when the active source is missing.");
+            Assert::AreEqual(uint64_t(8'800), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should remain unchanged when the active source is missing.");
+        }
+        // ========================================================================
+        // A7: AnimationTime_AppProvider_MissingApp_WithPcl_IsMissingAndStateUnchanged
+        // ========================================================================
+        TEST_METHOD(AnimationTime_AppProvider_MissingApp_WithPcl_IsMissingAndStateUnchanged)
+        {
+            // Scenario:
+            // - State already uses AppProvider with existing animation anchors.
+            // - Current displayed frame has pclSimStartTime but no appSimStartTime.
+            // - AppProvider must remain active; AppProvider -> PCLatency is not allowed.
+            //
+            // Expected Outcome:
+            // - msAnimationTime is missing (NaN), not 0.0.
+            // - animationErrorSource remains AppProvider, proving no demotion to PCLatency.
+            // - firstAppSimStartTime, lastDisplayedSimStartTime, and
+            //   lastDisplayedAppScreenTime remain unchanged.
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::AppProvider;
+            state.firstAppSimStartTime = 40'000;
+            state.lastDisplayedSimStartTime = 41'000;
+            state.lastDisplayedAppScreenTime = 8'800;
+
+            FrameData frame{};
+            frame.presentStartTime = 1'200'000;
+            frame.timeInPresent = 100'000;
+            frame.readyTime = 1'300'000;
+            frame.appSimStartTime = 0;
+            frame.pclSimStartTime = 42'000;
+            frame.finalState = PresentResult::Presented;
+            frame.displayed.PushBack({ FrameType::Application, 9'950 });
+
+            FrameData next{};
+            next.presentStartTime = 1'600'000;
+            next.timeInPresent = 50'000;
+            next.readyTime = 1'700'000;
+            next.finalState = PresentResult::Presented;
+            next.displayed.PushBack({ FrameType::Application, 10'950 });
+
+            auto metricsVector = ComputeMetricsForPresent(qpc, frame, &next, state);
+
+            Assert::AreEqual(size_t(1), metricsVector.size());
+
+            const ComputedMetrics& result = metricsVector[0];
+
+            Assert::IsFalse(HasMetricValue(result.metrics.msAnimationTime),
+                L"msAnimationTime should be missing when AppProvider remains active but only pclSimStartTime is present.");
+            Assert::IsTrue(IsMissingFrameMetricValue(result.metrics.msAnimationTime),
+                L"msAnimationTime should be stored as missing (NaN) when AppProvider remains active but only pclSimStartTime is present.");
+
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"animationErrorSource should remain AppProvider when appSimStartTime is missing.");
+            Assert::IsFalse(state.animationErrorSource == AnimationErrorSource::PCLatency,
+                L"AppProvider must not transition to PCLatency during normal runtime when only pclSimStartTime is available.");
+            Assert::AreEqual(uint64_t(40'000), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should remain unchanged.");
+            Assert::AreEqual(uint64_t(41'000), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should remain unchanged instead of switching to the frame's pclSimStartTime.");
+            Assert::IsTrue(state.lastDisplayedSimStartTime != frame.pclSimStartTime,
+                L"lastDisplayedSimStartTime should not be replaced by pclSimStartTime when AppProvider stays active.");
+            Assert::AreEqual(uint64_t(8'800), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should remain unchanged when the active source is missing.");
+        }
+        // ========================================================================
+        // B1: AnimationTime_CpuStart_FirstFrame_ZeroWithoutPclSimStartTime
+        // ========================================================================
+        TEST_METHOD(AnimationTime_CpuStart_FirstFrame_ZeroWithoutPclSimStartTime)
         {
             // Scenario:
             // - SwapChainCoreState starts with CpuStart (default)
-            // - Current frame: displayed, displayIndex == appIndex, but pclSimStartTime == 0
-            // - No PCL data means source stays CpuStart
+            // - Current frame: displayed with pclSimStartTime == 0 and appSimStartTime == 0
+            // - The existing body keeps CpuStart active when pclSimStartTime is missing
             //
             // Expected Outcome:
-            // - msAnimationTime = std::nullopt (no valid sim start time, no history)
+            // - msAnimationTime = 0.0 in this existing first-frame path
             // - firstAppSimStartTime remains 0 in state
+            // - lastDisplayedSimStartTime remains 0 in state
             // - Source remains CpuStart
+            // - This is legacy behavior and does not describe the new missing-source policy
 
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
@@ -5346,19 +5615,21 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"lastDisplayedSimStartTime should advance to Frame 3's PCL sim start.");
         }
         // ========================================================================
-        // B6: AnimationTime_PCLatency_FallsBackToCpuStart_WhenPclSimStartTimeZero
+        // B6: AnimationTime_PCLatency_MissingPclAndAppSimStart_NoDemotionOrFallback
         // ========================================================================
-        TEST_METHOD(AnimationTime_PCLatency_FallsBackToCpuStart_WhenPclSimStartTimeZero)
+        TEST_METHOD(AnimationTime_PCLatency_MissingPclAndAppSimStart_NoDemotionOrFallback)
         {
             // Scenario:
-            // - Start with CpuStart source
-            // - Frame 1: PCL data establishes PCLatency source
-            // - Frame 2: pclSimStartTime = 0 (PCL data disappears)
-            // - Source should stay PCLatency (no fallback), msAnimationTime = nullopt
+            // - Start with CpuStart source.
+            // - Frame 1: displayed PCL data establishes PCLatency as the active source.
+            // - Frame 2: displayed frame has neither pclSimStartTime nor appSimStartTime.
+            // - No demotion or fallback is allowed, so the source and anchors stay unchanged.
             //
             // Expected Outcome:
-            // - msAnimationTime = nullopt (PCL data missing)
-            // - animationErrorSource remains PCLatency (no fallback)
+            // - msAnimationTime is missing (NaN), not 0.0.
+            // - animationErrorSource remains PCLatency.
+            // - firstAppSimStartTime, lastDisplayedSimStartTime, and
+            //   lastDisplayedAppScreenTime remain unchanged.
 
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
@@ -5379,15 +5650,17 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto metrics1 = ComputeMetricsForPresent(qpc, frame1, &next1, state);
             Assert::AreEqual(size_t(1), metrics1.size());
             Assert::AreEqual(uint64_t(100), state.firstAppSimStartTime);
+            Assert::AreEqual(uint64_t(100), state.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(900'000), state.lastDisplayedAppScreenTime);
             Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::PCLatency);
 
-            // Frame 2: PCL data missing (pclSimStartTime = 0)
+            // Frame 2: displayed frame is missing both PCL and AppProvider sim start data.
             FrameData frame{};
             frame.presentStartTime = 1'200'000;
             frame.timeInPresent = 100'000;
             frame.readyTime = 1'300'000;
             frame.appSimStartTime = 0;
-            frame.pclSimStartTime = 0;  // PCL data disappeared
+            frame.pclSimStartTime = 0;
             frame.finalState = PresentResult::Presented;
             frame.displayed.PushBack({ FrameType::Application, 1'400'000 });
 
@@ -5407,19 +5680,145 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             const ComputedMetrics& result = metricsVector[0];
 
-            // Assert: msAnimationTime should be zero
-            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime),
-                L"msAnimationTime should be 0 whentransitioning");
-            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime, 0.0001);
+            // Assert: missing active-source data does not trigger a fallback or reset.
+            Assert::IsFalse(HasMetricValue(result.metrics.msAnimationTime),
+                L"msAnimationTime should be missing when PCLatency remains active but no sim start is available.");
 
-            // Assert: State should remain PCLatency
+            // Assert: State should remain PCLatency with prior anchors intact.
             Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::PCLatency,
-                L"animationErrorSource should remain PCLatency (no fallback)");
+                L"animationErrorSource should remain PCLatency when no demotion is allowed.");
 
-            // Assert: firstAppSimStartTime unchanged
             Assert::AreEqual(uint64_t(100), state.firstAppSimStartTime,
-                L"firstAppSimStartTime should remain unchanged");
+                L"firstAppSimStartTime should remain unchanged.");
+            Assert::AreEqual(uint64_t(100), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should remain unchanged when the active source is missing.");
+            Assert::AreEqual(uint64_t(900'000), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should remain unchanged when the active source is missing.");
         }
+
+        // ========================================================================
+        // B7: AnimationTime_PCLatency_TransitionToAppProvider_AppOnly_ZeroAndReseeds
+        // ========================================================================
+        TEST_METHOD(AnimationTime_PCLatency_TransitionToAppProvider_AppOnly_ZeroAndReseeds)
+        {
+            // Scenario:
+            // - Chain is already using PCLatency with a prior PCL-derived anchor.
+            // - Current displayed frame has appSimStartTime but no pclSimStartTime.
+            // - PCLatency -> AppProvider is an allowed upgrade.
+            //
+            // Expected Outcome:
+            // - msAnimationTime = 0.0 on the transition frame.
+            // - animationErrorSource upgrades to AppProvider.
+            // - firstAppSimStartTime and lastDisplayedSimStartTime reseed to appSimStartTime.
+            // - lastDisplayedAppScreenTime updates to the displayed app screen time.
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::PCLatency;
+            state.firstAppSimStartTime = 300;
+            state.lastDisplayedSimStartTime = 320;
+            state.lastDisplayedAppScreenTime = 900'000;
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 500;
+            frame.readyTime = 1'500'000;
+            frame.appSimStartTime = 700;
+            frame.pclSimStartTime = 0;
+            frame.finalState = PresentResult::Presented;
+            frame.displayed.PushBack({ FrameType::Application, 1'900'000 });
+
+            FrameData next{};
+            next.presentStartTime = 2'000'000;
+            next.timeInPresent = 400;
+            next.readyTime = 2'500'000;
+            next.finalState = PresentResult::Presented;
+            next.displayed.PushBack({ FrameType::Application, 2'900'000 });
+
+            auto metricsVector = ComputeMetricsForPresent(qpc, frame, &next, state);
+
+            Assert::AreEqual(size_t(1), metricsVector.size());
+            const ComputedMetrics& result = metricsVector[0];
+
+            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime),
+                L"Transition frame should report msAnimationTime.");
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime, 0.0001,
+                L"msAnimationTime should be 0.0 on the PCLatency to AppProvider transition frame.");
+
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"animationErrorSource should transition to AppProvider.");
+            Assert::AreEqual(uint64_t(700), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should reseed to the current frame's appSimStartTime.");
+            Assert::AreEqual(uint64_t(700), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should update to the current frame's appSimStartTime.");
+            Assert::AreEqual(uint64_t(1'900'000), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should update to the displayed app screen time.");
+        }
+
+        // ========================================================================
+        // B8: AnimationTime_PCLatency_TransitionToAppProvider_BothPresent_ZeroAndReseedsToApp
+        // ========================================================================
+        TEST_METHOD(AnimationTime_PCLatency_TransitionToAppProvider_BothPresent_ZeroAndReseedsToApp)
+        {
+            // Scenario:
+            // - Chain is already using PCLatency with a prior PCL-derived anchor.
+            // - Current displayed frame has both appSimStartTime and pclSimStartTime.
+            // - PCLatency -> AppProvider is an allowed upgrade, and AppProvider wins.
+            //
+            // Expected Outcome:
+            // - msAnimationTime = 0.0 on the transition frame.
+            // - animationErrorSource upgrades to AppProvider.
+            // - firstAppSimStartTime and lastDisplayedSimStartTime reseed to appSimStartTime,
+            //   not pclSimStartTime.
+            // - lastDisplayedAppScreenTime updates to the displayed app screen time.
+
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::PCLatency;
+            state.firstAppSimStartTime = 300;
+            state.lastDisplayedSimStartTime = 320;
+            state.lastDisplayedAppScreenTime = 900'000;
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 500;
+            frame.readyTime = 1'500'000;
+            frame.appSimStartTime = 700;
+            frame.pclSimStartTime = 950;
+            frame.finalState = PresentResult::Presented;
+            frame.displayed.PushBack({ FrameType::Application, 1'950'000 });
+
+            FrameData next{};
+            next.presentStartTime = 2'000'000;
+            next.timeInPresent = 400;
+            next.readyTime = 2'500'000;
+            next.finalState = PresentResult::Presented;
+            next.displayed.PushBack({ FrameType::Application, 2'950'000 });
+
+            auto metricsVector = ComputeMetricsForPresent(qpc, frame, &next, state);
+
+            Assert::AreEqual(size_t(1), metricsVector.size());
+            const ComputedMetrics& result = metricsVector[0];
+
+            Assert::IsTrue(HasMetricValue(result.metrics.msAnimationTime),
+                L"Transition frame should report msAnimationTime.");
+            Assert::AreEqual(double(0.0), result.metrics.msAnimationTime, 0.0001,
+                L"msAnimationTime should be 0.0 on the PCLatency to AppProvider transition frame when both sources are present.");
+
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"animationErrorSource should transition to AppProvider when both AppProvider and PCLatency data are present.");
+            Assert::AreEqual(uint64_t(700), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should reseed to appSimStartTime for the new AppProvider timeline.");
+            Assert::AreEqual(uint64_t(700), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should update to appSimStartTime, not pclSimStartTime.");
+            Assert::AreNotEqual(uint64_t(950), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should not reseed from pclSimStartTime when AppProvider is available.");
+            Assert::AreNotEqual(uint64_t(950), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should prove AppProvider wins over PCLatency in the both-present case.");
+            Assert::AreEqual(uint64_t(1'950'000), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should update to the displayed app screen time.");
+        }
+
         // ========================================================================
         // D1: AnimationTime_CpuStart_FirstFrame_ZeroWithoutHistory
         // ========================================================================
@@ -5875,6 +6274,15 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
             ComputeMetricsForPresent(qpc, frame1, &dummyNext, swapChain);
 
+            Assert::IsTrue(swapChain.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"animationErrorSource should be AppProvider before processing the missing-data frame.");
+            Assert::AreEqual(uint64_t(100), swapChain.firstAppSimStartTime,
+                L"firstAppSimStartTime should be seeded from the prior displayed AppProvider frame.");
+            Assert::AreEqual(uint64_t(100), swapChain.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should reflect the prior displayed AppProvider frame before the missing-data frame is processed.");
+            Assert::AreEqual(uint64_t(1000), swapChain.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should be seeded from the prior displayed AppProvider frame.");
+
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
@@ -5882,6 +6290,70 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
                 L"msAnimationError should be nullopt without valid sim start time");
+            Assert::IsTrue(swapChain.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"animationErrorSource should remain AppProvider when no transition is allowed.");
+            Assert::AreEqual(uint64_t(100), swapChain.firstAppSimStartTime,
+                L"firstAppSimStartTime should remain unchanged when the active source is missing.");
+            Assert::AreEqual(uint64_t(100), swapChain.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should remain unchanged when the active source is missing.");
+            Assert::AreEqual(uint64_t(1000), swapChain.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should remain unchanged when the active source is missing.");
+        }
+
+        TEST_METHOD(AnimationError_AppProvider_BothPresent_UsesAppNotPcl)
+        {
+            // Scenario: AppProvider is already active and the current displayed frame has both
+            // appSimStartTime and pclSimStartTime.
+            // Expected: msAnimationError uses the app timeline and the source remains AppProvider.
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::AppProvider;
+
+            FrameData frame1{};
+            frame1.presentStartTime = 1000;
+            frame1.timeInPresent = 100;
+            frame1.appSimStartTime = 100;
+            frame1.finalState = PresentResult::Presented;
+            frame1.displayed.PushBack({ FrameType::Application, 1000 });
+
+            FrameData frame2{};
+            frame2.presentStartTime = 2000;
+            frame2.timeInPresent = 100;
+            frame2.appSimStartTime = 140;
+            frame2.pclSimStartTime = 180;
+            frame2.finalState = PresentResult::Presented;
+            frame2.displayed.PushBack({ FrameType::Application, 1050 });
+
+            FrameData dummyNext{};
+            dummyNext.finalState = PresentResult::Presented;
+            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
+            ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
+
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"animationErrorSource should already be AppProvider before processing the frame with both timestamps.");
+
+            FrameData frame3{};
+            frame3.finalState = PresentResult::Presented;
+            frame3.displayed.PushBack({ FrameType::Application, 3000 });
+            auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
+
+            Assert::AreEqual(size_t(1), results.size());
+            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationError),
+                L"msAnimationError should be computed when AppProvider remains active and appSimStartTime is present.");
+
+            double appExpected = qpc.DeltaUnsignedMilliSeconds(100, 140) -
+                qpc.DeltaUnsignedMilliSeconds(1000, 1050);
+            double pclExpected = qpc.DeltaUnsignedMilliSeconds(100, 180) -
+                qpc.DeltaUnsignedMilliSeconds(1000, 1050);
+
+            Assert::AreEqual(-0.001, appExpected, 0.0001,
+                L"Test setup should produce a distinct app-based animation error.");
+            Assert::AreEqual(0.003, pclExpected, 0.0001,
+                L"Test setup should produce a different hypothetical pcl-based animation error.");
+            Assert::AreEqual(appExpected, results[0].metrics.msAnimationError, 0.0001,
+                L"msAnimationError should use app timing when AppProvider is authoritative.");
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"animationErrorSource should remain AppProvider after processing a frame with both timestamps.");
         }
 
         TEST_METHOD(AnimationError_AppProvider_ZeroDisplayDelta_ErrorIsSimElapsed)
@@ -5963,7 +6435,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
         TEST_METHOD(AnimationError_PCLatency_CurrentPclSimStartZero_Nullopt)
         {
             // Scenario: PCL source, but current frame has pclSimStartTime = 0
-            // Expected: msAnimationError = std::nullopt (no fallback to app in PCL mode)
+            // and no appSimStartTime.
+            // Expected: msAnimationError = std::nullopt with no transition and
+            // no anchor clearing while PCLatency remains active.
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
             state.animationErrorSource = AnimationErrorSource::PCLatency;
@@ -5979,22 +6453,41 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame2.presentStartTime = 2000;
             frame2.timeInPresent = 100;
             frame2.pclSimStartTime = 0;  // PCL unavailable
-            frame2.appSimStartTime = 150;  // app available, but should not be used
+            frame2.appSimStartTime = 0;  // app unavailable
             frame2.finalState = PresentResult::Presented;
             frame2.displayed.PushBack({ FrameType::Application, 1050 });
 
             FrameData dummyNext{};
             dummyNext.finalState = PresentResult::Presented;
             dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
-            ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
+            auto seedResults = ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
+
+            Assert::AreEqual(size_t(1), seedResults.size());
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::PCLatency,
+                L"animationErrorSource should be seeded to PCLatency by the prior displayed PCL frame.");
+            Assert::AreEqual(uint64_t(100), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should be seeded from the prior displayed PCL frame.");
+            Assert::AreEqual(uint64_t(100), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should be seeded from the prior displayed PCL frame.");
+            Assert::AreEqual(uint64_t(1000), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should be seeded from the prior displayed PCL frame.");
 
             FrameData frame3{};
             frame3.finalState = PresentResult::Presented;
             frame3.displayed.PushBack({ FrameType::Application, 3000 });
             auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
 
+            Assert::AreEqual(size_t(1), results.size());
             Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
                 L"msAnimationError should be nullopt when PCL source unavailable");
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::PCLatency,
+                L"animationErrorSource should remain PCLatency when no transition is allowed.");
+            Assert::AreEqual(uint64_t(100), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should remain unchanged when the active source is missing.");
+            Assert::AreEqual(uint64_t(100), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should remain unchanged when the active source is missing.");
+            Assert::AreEqual(uint64_t(1000), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should remain unchanged when the active source is missing.");
         }
 
         TEST_METHOD(AnimationError_PCLatency_TransitionFromZero_FirstValidPclSimStart)
@@ -6022,100 +6515,96 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"msAnimationError should be nullopt on first valid PCL frame");
         }
 
-        TEST_METHOD(AnimationError_PCLatency_TransitionFromAppToPcl_SourceSwitches)
+        TEST_METHOD(AnimationError_PCLatency_TransitionToAppProvider_AppOnly_Nullopt)
         {
-            // Scenario: Switching from CpuStart source to PCL
-            // Expected: Source auto-switches when PCL data arrives
-            QpcConverter qpc(10'000'000, 0);
-            SwapChainCoreState state{};
-            state.animationErrorSource = AnimationErrorSource::CpuStart;
-
-            // Frame 1: Establish baseline
-            FrameData frame1{};
-            frame1.presentStartTime = 800;
-            frame1.timeInPresent = 100;  // CPU end = 900
-            frame1.finalState = PresentResult::Presented;
-            frame1.displayed.PushBack({ FrameType::Application, 1800 });
-
-            // Frame 2: Continue with CPU source
-            FrameData frame2{};
-            frame2.presentStartTime = 1000;
-            frame2.timeInPresent = 100;  // CPU end = 1100
-            frame2.finalState = PresentResult::Presented;
-            frame2.displayed.PushBack({ FrameType::Application, 2000 });
-
-            // Frame 3: PCL becomes available, triggers source switch
-            FrameData frame3{};
-            frame3.presentStartTime = 1200;
-            frame3.timeInPresent = 100;
-            frame3.pclSimStartTime = 150;  // PCL data present
-            frame3.appSimStartTime = 150;
-            frame3.finalState = PresentResult::Presented;
-            frame3.displayed.PushBack({ FrameType::Application, 2100 });
-
-            // Frame 4: Next frame for completion
-            FrameData frame4{};
-            frame4.presentStartTime = 1400;
-            frame4.timeInPresent = 100;
-            frame4.finalState = PresentResult::Presented;
-            frame4.displayed.PushBack({ FrameType::Application, 2200 });
-
-            ComputeMetricsForPresent(qpc, frame1, &frame2, state);
-            ComputeMetricsForPresent(qpc, frame2, &frame3, state);
-
-            // Frame 3 processes with CpuStart source, then UpdateChain switches to PCLatency
-            auto results = ComputeMetricsForPresent(qpc, frame3, &frame4, state);
-
-            // Animation error computed using CPU start (source still CpuStart during calculation)
-            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationError),
-                L"Animation error should be computed with CPU start before source switch");
-            
-            // After UpdateChain, source should have switched to PCLatency
-            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::PCLatency,
-                L"Source should auto-switch to PCLatency after UpdateChain");
-        }
-
-        TEST_METHOD(AnimationError_PCLatency_SourcePriority_PclWinsOverApp)
-        {
-            // Scenario: Both PCL and App sim start present
-            // Expected: Use PCL (source priority)
+            // Scenario: Active source is PCLatency and the current displayed frame
+            // has appSimStartTime but no pclSimStartTime.
+            // Expected: This is an allowed upgrade to AppProvider, so
+            // msAnimationError is nullopt and state reseeds to AppProvider.
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
             state.animationErrorSource = AnimationErrorSource::PCLatency;
+            state.firstAppSimStartTime = 300;
+            state.lastDisplayedSimStartTime = 320;
+            state.lastDisplayedAppScreenTime = 900'000;
 
-            FrameData frame1{};
-            frame1.presentStartTime = 1000;
-            frame1.timeInPresent = 100;
-            frame1.pclSimStartTime = 100;
-            frame1.appSimStartTime = 200;  // different value
-            frame1.finalState = PresentResult::Presented;
-            frame1.displayed.PushBack({ FrameType::Application, 1000 });
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 500;
+            frame.readyTime = 1'500'000;
+            frame.pclSimStartTime = 0;
+            frame.appSimStartTime = 700;
+            frame.finalState = PresentResult::Presented;
+            frame.displayed.PushBack({ FrameType::Application, 1'900'000 });
 
-            FrameData frame2{};
-            frame2.presentStartTime = 2000;
-            frame2.timeInPresent = 100;
-            frame2.pclSimStartTime = 150;  // PCL elapsed = 50
-            frame2.appSimStartTime = 300;  // app elapsed = 100 (should be ignored)
-            frame2.finalState = PresentResult::Presented;
-            frame2.displayed.PushBack({ FrameType::Application, 1050 });  // display elapsed = 50
+            FrameData next{};
+            next.presentStartTime = 2'000'000;
+            next.timeInPresent = 400;
+            next.readyTime = 2'500'000;
+            next.finalState = PresentResult::Presented;
+            next.displayed.PushBack({ FrameType::Application, 2'900'000 });
 
-            FrameData dummyNext{};
-            dummyNext.finalState = PresentResult::Presented;
-            dummyNext.displayed.PushBack({ FrameType::Application, 2000 });
-            ComputeMetricsForPresent(qpc, frame1, &dummyNext, state);
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, state);
 
-            FrameData frame3{};
-            frame3.finalState = PresentResult::Presented;
-            frame3.displayed.PushBack({ FrameType::Application, 3000 });
-            auto results = ComputeMetricsForPresent(qpc, frame2, &frame3, state);
+            Assert::AreEqual(size_t(1), results.size());
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
+                L"msAnimationError should be nullopt on the PCLatency to AppProvider transition frame when only appSimStartTime is present.");
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"animationErrorSource should transition to AppProvider when appSimStartTime becomes available while PCLatency is active.");
+            Assert::AreEqual(uint64_t(700), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should reseed to appSimStartTime for the new AppProvider timeline.");
+            Assert::AreEqual(uint64_t(700), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should reseed to appSimStartTime on the AppProvider transition frame.");
+            Assert::AreEqual(uint64_t(1'900'000), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should update to the displayed app screen time on transition.");
+        }
 
-            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationError));
-            // Should use PCL: sim=50, display=50, error=0
-            double simElapsed = qpc.DeltaUnsignedMilliSeconds(100, 150);  // PCL: 0.005 ms
-            double displayElapsed = qpc.DeltaUnsignedMilliSeconds(1000, 1050);
-            double expected = simElapsed - displayElapsed;  // 0.0 ms
-            Assert::AreEqual(expected, results[0].metrics.msAnimationError, 0.0001,
-                L"Should use PCL source, not app source");
+        TEST_METHOD(AnimationError_PCLatency_TransitionToAppProvider_BothPresent_Nullopt)
+        {
+            // Scenario: Active source is PCLatency and the current displayed frame
+            // has both appSimStartTime and pclSimStartTime.
+            // Expected: This is an allowed upgrade to AppProvider, so
+            // msAnimationError is nullopt and state reseeds to AppProvider.
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::PCLatency;
+            state.firstAppSimStartTime = 300;
+            state.lastDisplayedSimStartTime = 320;
+            state.lastDisplayedAppScreenTime = 900'000;
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 500;
+            frame.readyTime = 1'500'000;
+            frame.pclSimStartTime = 950;
+            frame.appSimStartTime = 700;
+            frame.finalState = PresentResult::Presented;
+            frame.displayed.PushBack({ FrameType::Application, 1'950'000 });
+
+            FrameData next{};
+            next.presentStartTime = 2'000'000;
+            next.timeInPresent = 400;
+            next.readyTime = 2'500'000;
+            next.finalState = PresentResult::Presented;
+            next.displayed.PushBack({ FrameType::Application, 2'950'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, state);
+
+            Assert::AreEqual(size_t(1), results.size());
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
+                L"msAnimationError should be nullopt on the PCLatency to AppProvider transition frame when both sources are present.");
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"animationErrorSource should transition to AppProvider when appSimStartTime becomes available while PCLatency is active.");
+            Assert::AreEqual(uint64_t(700), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should reseed to appSimStartTime for the new AppProvider timeline.");
+            Assert::AreEqual(uint64_t(700), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should reseed to appSimStartTime on the AppProvider transition frame.");
+            Assert::AreNotEqual(uint64_t(950), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should not reseed from pclSimStartTime when AppProvider is available.");
+            Assert::AreNotEqual(uint64_t(950), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should prove AppProvider wins over PCLatency in the both-present transition case.");
+            Assert::AreEqual(uint64_t(1'950'000), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should update to the displayed app screen time on transition.");
         }
 
         // Section D: Animation Error – CpuStart Source
@@ -6243,6 +6732,57 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"Source should auto-switch to AppProvider");
         }
 
+        TEST_METHOD(AnimationError_CpuStart_BothPresent_TransitionsDirectlyToAppProvider_Nullopt)
+        {
+            // Scenario: Active source is CpuStart and the current displayed frame
+            // has both appSimStartTime and pclSimStartTime.
+            // Expected: This is treated as a direct transition to AppProvider,
+            // so msAnimationError is nullopt and AppProvider state is reseeded
+            // from appSimStartTime, not pclSimStartTime.
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::CpuStart;
+            state.firstAppSimStartTime = 300;
+            state.lastDisplayedSimStartTime = 320;
+            state.lastDisplayedAppScreenTime = 900'000;
+
+            FrameData frame{};
+            frame.presentStartTime = 1'000'000;
+            frame.timeInPresent = 500;
+            frame.readyTime = 1'500'000;
+            frame.appSimStartTime = 700;
+            frame.pclSimStartTime = 950;
+            frame.finalState = PresentResult::Presented;
+            frame.displayed.PushBack({ FrameType::Application, 1'950'000 });
+
+            FrameData next{};
+            next.presentStartTime = 2'000'000;
+            next.timeInPresent = 400;
+            next.readyTime = 2'500'000;
+            next.finalState = PresentResult::Presented;
+            next.displayed.PushBack({ FrameType::Application, 2'950'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, state);
+
+            Assert::AreEqual(size_t(1), results.size());
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError),
+                L"msAnimationError should be nullopt on the CpuStart to AppProvider transition frame when both sources are present.");
+            Assert::IsTrue(state.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"animationErrorSource should transition directly to AppProvider when both appSimStartTime and pclSimStartTime are present while CpuStart is active.");
+            Assert::IsFalse(state.animationErrorSource == AnimationErrorSource::PCLatency,
+                L"CpuStart should transition directly to AppProvider, not to PCLatency, when both sources are present.");
+            Assert::AreEqual(uint64_t(700), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should reseed to appSimStartTime for the new AppProvider timeline.");
+            Assert::AreEqual(uint64_t(700), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should reseed to appSimStartTime on the AppProvider transition frame.");
+            Assert::AreNotEqual(uint64_t(950), state.firstAppSimStartTime,
+                L"firstAppSimStartTime should not reseed from pclSimStartTime when AppProvider is available.");
+            Assert::AreNotEqual(uint64_t(950), state.lastDisplayedSimStartTime,
+                L"lastDisplayedSimStartTime should prove AppProvider wins over PCLatency in the both-present CpuStart transition case.");
+            Assert::AreEqual(uint64_t(1'950'000), state.lastDisplayedAppScreenTime,
+                L"lastDisplayedAppScreenTime should update to the displayed app screen time on transition.");
+        }
+
         // Section E: Disabled or Edge Cases
 
         TEST_METHOD(AnimationError_NotAppDisplayed_BothNullopt)
@@ -6275,10 +6815,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"msAnimationTime should be nullopt for non-app frames");
         }
 
-        TEST_METHOD(AnimationError_FirstFrameEver_BothNullopt)
+        TEST_METHOD(AnimationError_FirstFrameEver_BothMissingMetric)
         {
             // Scenario: Very first frame, no prior state
-            // Expected: Both animation metrics = std::nullopt
+            // Expected: Both animation metrics = std::QuietNaN
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};  // all zeros
             state.animationErrorSource = AnimationErrorSource::AppProvider;
@@ -6298,7 +6838,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto results = ComputeMetricsForPresent(qpc, present, &nextPresent, state);
 
             Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationError));
-            Assert::IsTrue(HasMetricValue(results[0].metrics.msAnimationTime));
+            Assert::IsFalse(HasMetricValue(results[0].metrics.msAnimationTime));
         }
 
         TEST_METHOD(AnimationError_BackwardsScreenTime_ErrorStillComputed)
