@@ -242,6 +242,8 @@ namespace pmon::tel::uci
         case PM_METRIC_CPU_POWER:
             return systemDevice_.cpuPowerSample.value_or(0.0);
         case PM_METRIC_CPU_TEMPERATURE:
+            return ComputeAverageCpuTemperature_(systemDevice_).value_or(0.0);
+        case PM_METRIC_CPU_CORE_TEMPERATURE:
             return systemDevice_.cpuCoreTemperaturesSample[arrayIndex].value_or(0.0);
         default:
             throw Except<>("Unsupported metric for UCI provider");
@@ -265,6 +267,7 @@ namespace pmon::tel::uci
         std::lock_guard configLock{ configMutex_ };
         bool wantsCpuPower = false;
         bool wantsCpuTemperature = false;
+        bool wantsCpuCoreTemperature = false;
         if (const auto it = metricUse.find(ipc::kSystemDeviceId); it != metricUse.end()) {
             for (const auto& use : it->second) {
                 if (use.metricId == PM_METRIC_CPU_POWER &&
@@ -275,16 +278,22 @@ namespace pmon::tel::uci
                     systemDevice_.caps.Check(PM_METRIC_CPU_TEMPERATURE) != 0) {
                     wantsCpuTemperature = true;
                 }
+                else if (use.metricId == PM_METRIC_CPU_CORE_TEMPERATURE &&
+                    systemDevice_.caps.Check(PM_METRIC_CPU_CORE_TEMPERATURE) != 0) {
+                    wantsCpuCoreTemperature = true;
+                }
             }
         }
 
         if (wantsCpuPower_ == wantsCpuPower &&
-            wantsCpuTemperature_ == wantsCpuTemperature) {
+            wantsCpuTemperature_ == wantsCpuTemperature &&
+            wantsCpuCoreTemperature_ == wantsCpuCoreTemperature) {
             return;
         }
 
         wantsCpuPower_ = wantsCpuPower;
         wantsCpuTemperature_ = wantsCpuTemperature;
+        wantsCpuCoreTemperature_ = wantsCpuCoreTemperature;
         ReconfigureCollection_();
     }
 
@@ -327,6 +336,25 @@ namespace pmon::tel::uci
         return coreCount;
     }
 
+    std::optional<double> UciTelemetryProvider::ComputeAverageCpuTemperature_(const DeviceState_& device)
+    {
+        double sum = 0.0;
+        uint32_t sampleCount = 0;
+        for (const auto& sample : device.cpuCoreTemperaturesSample) {
+            if (!sample) {
+                continue;
+            }
+            sum += *sample;
+            ++sampleCount;
+        }
+
+        if (sampleCount == 0) {
+            return std::nullopt;
+        }
+
+        return sum / (double)sampleCount;
+    }
+
     void UciTelemetryProvider::ValidateMetricIndex_(
         const DeviceState_& device,
         PM_METRIC metricId,
@@ -334,13 +362,14 @@ namespace pmon::tel::uci
     {
         switch (metricId) {
         case PM_METRIC_CPU_POWER:
+        case PM_METRIC_CPU_TEMPERATURE:
             if (arrayIndex != 0) {
                 throw Except<>("UCI scalar metric queried with nonzero array index");
             }
             return;
-        case PM_METRIC_CPU_TEMPERATURE:
+        case PM_METRIC_CPU_CORE_TEMPERATURE:
             if (arrayIndex >= device.cpuCoreTemperaturesSample.size()) {
-                throw Except<>("UCI CPU temperature queried with out-of-range array index");
+                throw Except<>("UCI CPU core temperature queried with out-of-range array index");
             }
             return;
         default:
@@ -365,7 +394,8 @@ namespace pmon::tel::uci
         }
         if (physicalCoreCount != 0 &&
             enumeratedMetricNames.contains(std::string{ kCpuTemperatureMetricName_ })) {
-            caps.Set(PM_METRIC_CPU_TEMPERATURE, physicalCoreCount);
+            caps.Set(PM_METRIC_CPU_TEMPERATURE, 1);
+            caps.Set(PM_METRIC_CPU_CORE_TEMPERATURE, physicalCoreCount);
         }
         return caps;
     }
@@ -602,12 +632,14 @@ namespace pmon::tel::uci
 
         const auto wantsCpuPower = wantsCpuPower_;
         const auto wantsCpuTemperature = wantsCpuTemperature_;
-        const bool wantsCollection = wantsCpuPower || wantsCpuTemperature;
+        const auto wantsCpuCoreTemperature = wantsCpuCoreTemperature_;
+        const bool wantsCollection = wantsCpuPower || wantsCpuTemperature || wantsCpuCoreTemperature;
         pmlog_dbg(std::format(
-            "Configuring UCI collection; pollRateMs={} wantsCpuPower={} wantsCpuTemperature={} collectionStarted={}",
+            "Configuring UCI collection; pollRateMs={} wantsCpuPower={} wantsCpuTemperature={} wantsCpuCoreTemperature={} collectionStarted={}",
             pollRateMs_,
             wantsCpuPower,
             wantsCpuTemperature,
+            wantsCpuCoreTemperature,
             collectionStarted_));
 
         if (!wantsCollection) {
@@ -628,7 +660,7 @@ namespace pmon::tel::uci
         if (wantsCpuPower) {
             AppendQuotedMetricName_(metricsJson, kCpuPowerMetricName_);
         }
-        if (wantsCpuTemperature) {
+        if (wantsCpuTemperature || wantsCpuCoreTemperature) {
             AppendQuotedMetricName_(metricsJson, kCpuTemperatureMetricName_);
         }
 
@@ -670,10 +702,11 @@ namespace pmon::tel::uci
         }
 
         pmlog_dbg(std::format(
-            "Starting UCI collection; pollRateMs={} wantsCpuPower={} wantsCpuTemperature={}",
+            "Starting UCI collection; pollRateMs={} wantsCpuPower={} wantsCpuTemperature={} wantsCpuCoreTemperature={}",
             pollRateMs_,
             wantsCpuPower,
-            wantsCpuTemperature));
+            wantsCpuTemperature,
+            wantsCpuCoreTemperature));
         CheckUciCall_(uciStartCollection(collector_), "uciStartCollection");
         collectionStarted_ = true;
     }

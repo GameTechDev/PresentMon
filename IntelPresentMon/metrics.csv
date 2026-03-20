@@ -78,7 +78,8 @@ PM_METRIC_GPU_MEM_UTILIZATION_LIMITED,1,GPU Memory Utilization Limited,Memory fr
 PM_METRIC_CPU_UTILIZATION,1,CPU Utilization,Amount of CPU processing capacity being used.
 PM_METRIC_CPU_POWER_LIMIT,1,CPU Power Limit,Power limit of the CPU.
 PM_METRIC_CPU_POWER,1,CPU Power,Power consumed by the CPU.
-PM_METRIC_CPU_TEMPERATURE,1,CPU Temperature,Temperature of each physical CPU core.
+PM_METRIC_CPU_TEMPERATURE,1,CPU Temperature,Average temperature across all physical CPU cores with available temperature samples.
+PM_METRIC_CPU_CORE_TEMPERATURE,1,CPU Core Temperature,Temperature of each physical CPU core.
 PM_METRIC_CPU_FREQUENCY,1,CPU Frequency,Clock speed of the CPU.
 PM_METRIC_CPU_CORE_UTILITY,1,CPU Core Utility,Amount of CPU processing utility being used per core.
 ,,,

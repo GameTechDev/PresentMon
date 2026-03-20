@@ -46,6 +46,7 @@ namespace pmon::tel::uci
 
         static void StaticDataCallback_(uciDataBundle* dataBundle);
         static uint32_t CountPhysicalCores_();
+        static std::optional<double> ComputeAverageCpuTemperature_(const DeviceState_& device);
         static void ValidateMetricIndex_(const DeviceState_& device, PM_METRIC metricId, uint32_t arrayIndex);
         static TelemetryDeviceFingerprint BuildFingerprint_();
         static ipc::MetricCapabilities BuildCaps_(
@@ -69,6 +70,7 @@ namespace pmon::tel::uci
         bool collectionStarted_ = false;
         bool wantsCpuPower_ = false;
         bool wantsCpuTemperature_ = false;
+        bool wantsCpuCoreTemperature_ = false;
 
         static std::atomic<UciTelemetryProvider*> activeProvider_;
     };

@@ -10,7 +10,7 @@
 #include <cstdint>
 
 #define PM_API_VERSION_MAJOR 3
-#define PM_API_VERSION_MINOR 3
+#define PM_API_VERSION_MINOR 4
 
 #define PM_MAX_PATH 260
 
@@ -139,6 +139,7 @@ extern "C" {
 		PM_METRIC_FLIP_DELAY,
 		PM_METRIC_PROCESS_ID,
 		PM_METRIC_SESSION_START_QPC,
+		PM_METRIC_CPU_CORE_TEMPERATURE,
 		PM_METRIC_COUNT_, // sentry to mark end of metric list; not an actual query metric
 	};
 
