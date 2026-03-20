@@ -13,7 +13,7 @@ extern "C" {
 typedef struct rec_metric_continuous_t* uciMetricRecordHandle;
 
 typedef struct _uciDataBundle {
-    uint16_t numRecords;
+    uint16_t num_records;
     uciMetricRecordHandle* records;
 } uciDataBundle;
 

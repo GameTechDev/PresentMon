@@ -27,12 +27,12 @@ typedef struct Collector* uciCollectorHandle;
  * collector implementations are currently available for use. This count can
  * be used to allocate memory for subsequent calls to retrieve all collectors.
  *
- * @param[out] numOfAvailableCollectors Pointer to receive the count of available collectors.
+ * @param[out] num_of_available_collectors Pointer to receive the count of available collectors.
  *
  * @return UC_SUCCESS if the count was retrieved successfully.
- * @return UC_ERROR_INVALID_PARAMETER if numOfAvailableCollectors is NULL.
+ * @return UC_ERROR_INVALID_PARAMETER if num_of_available_collectors is NULL.
  */
-uc_result_t UCI_EXPORT uciNumberOfAvailableCollectors(uint32_t* numOfAvailableCollectors);
+uc_result_t UCI_EXPORT uciNumberOfAvailableCollectors(uint32_t* num_of_available_collectors);
 
 /**
  * @brief Retrieves handles to all available collectors on the loadable system.
@@ -41,13 +41,13 @@ uc_result_t UCI_EXPORT uciNumberOfAvailableCollectors(uint32_t* numOfAvailableCo
  * that are currently available. The array must be pre-allocated with sufficient
  * space based on the count returned by uciNumberOfAvailableCollectors().
  *
- * @param[in] numOfAvailableCollectors The number of collector handles the array can hold.
+ * @param[in] num_of_available_collectors The number of collector handles the array can hold.
  * @param[out] collectors Pre-allocated array to receive collector handles.
  *
  * @return UC_SUCCESS if all collector handles were retrieved successfully.
- * @return UC_ERROR_INVALID_PARAMETER if collectors is NULL or numOfAvailableCollectors is 0.
+ * @return UC_ERROR_INVALID_PARAMETER if collectors is NULL or num_of_available_collectors is 0.
  */
-uc_result_t UCI_EXPORT uciGetAllCollectors(uint32_t numOfAvailableCollectors, uciCollectorHandle* collectors);
+uc_result_t UCI_EXPORT uciGetAllCollectors(uint32_t num_of_available_collectors, uciCollectorHandle* collectors);
 
 /**
  * @brief Retrieves a specific collector by its unique identifier.
@@ -56,13 +56,13 @@ uc_result_t UCI_EXPORT uciGetAllCollectors(uint32_t numOfAvailableCollectors, uc
  * the provided identifier. The identifier uniquely identifies a collector by
  * its name, GUID, and version information.
  *
- * @param[in] collectorIdentifier Unique identifier specifying which collector to retrieve.
+ * @param[in] collector_identifier Unique identifier specifying which collector to retrieve.
  * @param[out] collector Pointer to receive the handle to the matching collector.
  *
  * @return UC_SUCCESS if the collector was found and handle retrieved successfully.
  * @return UC_ERROR_INVALID_PARAMETER if collector is NULL.
  */
-uc_result_t UCI_EXPORT uciGetCollectorFromIdentifier(uciIdentifier collectorIdentifier, uciCollectorHandle* collector);
+uc_result_t UCI_EXPORT uciGetCollectorFromIdentifier(uciIdentifier collector_identifier, uciCollectorHandle* collector);
 
 /**
  * @brief Parses a configuration string to extract collector identifier information.
@@ -196,13 +196,13 @@ uc_result_t UCI_EXPORT uciInitialize(uciCollectorHandle collector);
  * available metrics.
  *
  * @param[in] collector Handle to the collector to use for metric enumeration.
- * @param[out] metricContainer Pointer to a metric container handle that will be filled with metric information.
+ * @param[out] metric_container Pointer to a metric container handle that will be filled with metric information.
  *
  * @return UC_SUCCESS if metrics were enumerated successfully.
- * @return UC_ERROR_INVALID_PARAMETER if collector, device, or metricContainer is NULL.
+ * @return UC_ERROR_INVALID_PARAMETER if collector, device, or metric_container is NULL.
  * @return UC_ERROR_MEMORY_ALLOCATION_FAILED if memory allocation failed.
  */
-uc_result_t UCI_EXPORT uciEnumerateMetrics(uciCollectorHandle collector, uciMetricContainerHandle* metricContainer);
+uc_result_t UCI_EXPORT uciEnumerateMetrics(uciCollectorHandle collector, uciMetricContainerHandle* metric_container);
 
 /**
  * @brief Configures metric collection based on a JSON configuration string.
@@ -224,28 +224,27 @@ uc_result_t UCI_EXPORT uciEnumerateMetrics(uciCollectorHandle collector, uciMetr
  *     "enableTimestamps": <boolean>,
  *     ...
  *   },
- *   "devices": [
- *     {
- *       "deviceId": <device_id>,
- *       "deviceType": "<device_type>",
- *       "metricGroups": ["<group_name>", ...],
- *       "metrics": ["<metric_name>", ...],
- *       "events": ["<event_name>", ...],
- *       ...
- *     },
+ *   "metrics": [
+ *     "<metric_name>",
  *     ...
- *   ]
+ *   ],
+ *   "outputParams": {
+ *     "outputFormats": [
+ *       ...
+ *     ],
+ *     ...
+ *   }
  * }
  *
  * @param[in] collector Handle to the collector to configure.
- * @param[in] configJson JSON string containing the collection configuration.
+ * @param[in] config_json JSON string containing the collection configuration.
  *
  * @return UC_SUCCESS if configuration was successful.
- * @return UC_ERROR_INVALID_PARAMETER if collector or configJson is NULL.
+ * @return UC_ERROR_INVALID_PARAMETER if collector or config_json is NULL.
  * @return UC_ERROR_INVALID_CONFIGURATION if the configuration contains invalid JSON or values.
  * @return UC_NO_DEVICES_FOUND if no matching devices were found for configuration.
  */
-uc_result_t UCI_EXPORT uciConfigureCollection(uciCollectorHandle collector, const char* configJson);
+uc_result_t UCI_EXPORT uciConfigureCollection(uciCollectorHandle collector, const char* config_json);
 
 /**
  * @brief Sets a callback function to receive metric data during collection.
@@ -254,14 +253,14 @@ uc_result_t UCI_EXPORT uciConfigureCollection(uciCollectorHandle collector, cons
  * is available during an active collection.
  *
  * @param[in] collector Handle to the collector for which to set the callback.
- * @param[in] dataCallback Function pointer to the callback that will receive data records.
+ * @param[in] data_callback Function pointer to the callback that will receive data records.
  *
  * @return UC_SUCCESS if the callback was set successfully.
  * @return UC_ERROR_INVALID_PARAMETER if collector is NULL.
  * @return UC_ERROR_FUNCTION_NOT_SUPPORTED if the collector does not support this functionality.
  * @return UC_ERROR_COLLECTION_STARTED if collection is already running and callback cannot be changed.
  */
-uc_result_t UCI_EXPORT uciSetDataCallback(uciCollectorHandle collector, void (*dataCallback)(uciDataBundle* dataBundle));
+uc_result_t UCI_EXPORT uciSetDataCallback(uciCollectorHandle collector, void (*data_callback)(uciDataBundle* data_bundle));
 
 /**
  * @brief Starts metric collection on all configured devices.
@@ -349,7 +348,7 @@ uc_result_t UCI_EXPORT uciResumeCollection(uciCollectorHandle collector);
  * @param[in] collector Handle to the collector whose data should be aggregated.
  *
  * @return UC_SUCCESS if data was successfully aggregated and saved.
- * @return UC_ERROR_INVALID_PARAMETER if collector, outputFormat, or outputPath is NULL.
+ * @return UC_ERROR_INVALID_PARAMETER if collector, output_format, or output_path is NULL.
  * @return UC_ERROR_NO_DATA if no collection data is available to aggregate.
  */
 uc_result_t UCI_EXPORT uciAggregateData(uciCollectorHandle collector);

@@ -29,11 +29,4 @@ UCI_DEFINE_VERSION(ETWCollectorVersion, 0, 1, 0, 0);
 UCI_DEFINE_IDENTIFIER(ETWIdentifier, "etw", ETWCollectorGUID, ETWCollectorVersion);
 #endif
 
-#if defined(UC_BUILD_VULKAN)
-/* Vulkan */
-UCI_DEFINE_GUID(VulkanCollectorGUID, 0x41cbaedd, 0x0cc8, 0x4974, 0x8d6d, 0xa4545b3c7c6e);
-UCI_DEFINE_VERSION(VulkanCollectorVersion, 0, 1, 0, 0);
-UCI_DEFINE_IDENTIFIER(VulkanIdentifier, "vulkan", VulkanCollectorGUID, VulkanCollectorVersion);
-#endif
-
 #endif // _UCI_VERSIONS_H_

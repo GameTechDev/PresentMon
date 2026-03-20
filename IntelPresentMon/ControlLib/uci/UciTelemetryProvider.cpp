@@ -87,13 +87,13 @@ namespace pmon::tel::uci
 
             std::string dump = std::format(
                 "UCI callback received numRecords={}\n",
-                dataBundle->numRecords);
+                dataBundle->num_records);
             if (dataBundle->records == nullptr) {
                 pmlog_verb(v::uci)("records array pointer is null");
                 return;
             }
 
-            for (uint16_t i = 0; i < dataBundle->numRecords; ++i) {
+            for (uint16_t i = 0; i < dataBundle->num_records; ++i) {
                 const auto record = dataBundle->records[i];
                 dump += std::format("record[{}]\n", i);
                 if (record == nullptr) {
@@ -566,12 +566,12 @@ namespace pmon::tel::uci
             DumpDataCallback_(dataBundle);
         }
 
-        if (dataBundle == nullptr || dataBundle->records == nullptr || dataBundle->numRecords == 0) {
+        if (dataBundle == nullptr || dataBundle->records == nullptr || dataBundle->num_records == 0) {
             return;
         }
 
         std::lock_guard dataLock{ dataMutex_ };
-        for (uint16_t i = 0; i < dataBundle->numRecords; ++i) {
+        for (uint16_t i = 0; i < dataBundle->num_records; ++i) {
             ApplyMetricRecord_(systemDevice_, dataBundle->records[i]);
         }
     }
