@@ -11,6 +11,7 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -33,21 +34,14 @@ namespace pmon::tel::uci
         void SetMetricUse(const svc::DeviceMetricUse& metricUse) override;
 
     private:
-        struct SampleState_
-        {
-            double cpuPower = 0.0;
-            bool hasCpuPower = false;
-            std::vector<double> cpuTemperatures{};
-            std::vector<bool> hasCpuTemperature{};
-        };
-
         struct DeviceState_
         {
             ProviderDeviceId providerDeviceId = 0;
             TelemetryDeviceFingerprint fingerprint{};
             ipc::MetricCapabilities caps{};
             uint32_t physicalCoreCount = 1;
-            SampleState_ samples{};
+            std::optional<double> cpuPowerSample{};
+            std::vector<std::optional<double>> cpuCoreTemperaturesSample{};
         };
 
         static void StaticDataCallback_(uciDataBundle* dataBundle);
@@ -68,13 +62,13 @@ namespace pmon::tel::uci
     private:
         static constexpr ProviderDeviceId kProviderDeviceId_ = 1;
         uciCollectorHandle collector_ = nullptr;
-        DeviceState_ device_{};
+        DeviceState_ systemDevice_{};
         std::mutex configMutex_{};
         std::mutex dataMutex_{};
-        std::unordered_set<svc::MetricUse> metricUse_{};
-        std::unordered_set<std::string> enumeratedMetricNames_{};
         uint32_t pollRateMs_ = 1000;
         bool collectionStarted_ = false;
+        bool wantsCpuPower_ = false;
+        bool wantsCpuTemperature_ = false;
 
         static std::atomic<UciTelemetryProvider*> activeProvider_;
     };
