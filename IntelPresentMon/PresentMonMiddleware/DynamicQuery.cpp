@@ -5,15 +5,30 @@
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../CommonUtilities/Hash.h"
+#include "../CommonUtilities/log/Log.h"
 #include <unordered_map>
 #include <algorithm>
-#include <limits>
+#include <string>
+#include <format>
+#include <sstream>
+#include <cstdint>
+#include <chrono>
+#include <cassert>
+#include <cstring>
 
 using namespace pmon;
 using namespace mid;
 
 namespace
 {
+	constexpr uint64_t kFrameMetricCacheValueMaxSize_ = sizeof(uint64_t);
+	static_assert(sizeof(double) <= kFrameMetricCacheValueMaxSize_);
+	static_assert(sizeof(int32_t) <= kFrameMetricCacheValueMaxSize_);
+	static_assert(sizeof(uint32_t) <= kFrameMetricCacheValueMaxSize_);
+	static_assert(sizeof(uint64_t) <= kFrameMetricCacheValueMaxSize_);
+	static_assert(sizeof(bool) <= kFrameMetricCacheValueMaxSize_);
+	static_assert(sizeof(int) <= kFrameMetricCacheValueMaxSize_);
+
 	struct TelemetryBindingKey_
 	{
 		uint32_t deviceId;
@@ -44,9 +59,74 @@ namespace std
 	};
 }
 
+static std::string BuildPollSnapshotCsv_(const FrameMetricsSource::PollSnapshotData& snapshots)
+{
+	std::ostringstream os;
+	os << "source,swap_chain_address,frame_id,present_qpc,display_qpc\n";
+
+	for (const auto& ipcSnapshot : snapshots.ipcStoreSnapshots) {
+		os << "ipc_store,"
+			<< ipcSnapshot.swapChainAddress << ","
+			<< ipcSnapshot.snapshot.frameId << ","
+			<< ipcSnapshot.snapshot.presentQpc << ","
+			<< ipcSnapshot.snapshot.displayQpc << "\n";
+	}
+
+	for (const auto& swapSnapshots : snapshots.swapChainSnapshots) {
+		for (const auto& frameSnapshot : swapSnapshots.snapshots) {
+			os << "swap_chain_frame_metrics,"
+				<< swapSnapshots.swapChainAddress << ","
+				<< frameSnapshot.frameId << ","
+				<< frameSnapshot.presentQpc << ","
+				<< frameSnapshot.displayQpc << "\n";
+		}
+	}
+
+	return os.str();
+}
+
+static bool IsFrameTimeOrFpsMetric_(PM_METRIC metric)
+{
+	switch (metric) {
+	case PM_METRIC_CPU_FRAME_TIME:
+	case PM_METRIC_DISPLAYED_FRAME_TIME:
+	case PM_METRIC_PRESENTED_FRAME_TIME:
+	case PM_METRIC_DISPLAYED_FPS:
+	case PM_METRIC_APPLICATION_FPS:
+	case PM_METRIC_PRESENTED_FPS:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static uint64_t GetTargetStartQpc_(ipc::MiddlewareComms& comms, uint32_t processId)
+{
+	const int64_t startQpcSigned = comms.GetFrameDataStore(processId).bookkeeping.startQpc;
+	return startQpcSigned > 0 ? static_cast<uint64_t>(startQpcSigned) : 0u;
+}
+
+static std::string BuildElapsedSinceTargetStartText_(uint64_t targetStartQpc, uint64_t nowTimestamp, double qpcPeriodSeconds)
+{
+	if (targetStartQpc == 0u || nowTimestamp == 0u) {
+		return "NA";
+	}
+
+	const double elapsedSeconds = double(int64_t(nowTimestamp) - int64_t(targetStartQpc)) * qpcPeriodSeconds;
+	return std::format("{:.4f}", elapsedSeconds);
+}
+
+static std::string BuildRelativeMillisecondsText_(uint64_t referenceQpc, uint64_t sampleQpc, double qpcPeriodSeconds)
+{
+	const double deltaMs = double(int64_t(referenceQpc) - int64_t(sampleQpc)) * qpcPeriodSeconds * 1000.0;
+	return std::format("{:.4f}", deltaMs);
+}
+
 PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double windowSizeMs,
 	double windowOffsetMs, double qpcPeriodSeconds, ipc::MiddlewareComms& comms, pmon::mid::Middleware& middleware)
 	:
+	windowOffsetMs_{ windowOffsetMs },
+	qpcPeriodSeconds_{ qpcPeriodSeconds },
 	windowSizeQpc_{ int64_t((windowSizeMs / 1000.) / qpcPeriodSeconds) },
 	windowOffsetQpc_{ int64_t((windowOffsetMs / 1000.) / qpcPeriodSeconds) }
 {
@@ -63,6 +143,7 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 		const auto metricView = introRoot.FindMetric(qel.metric);
 		const auto metricType = metricView.GetType();
 		const bool isStaticMetric = metricType == PM_METRIC_TYPE_STATIC;
+		const bool isFrameMetric = !isStaticMetric && qel.deviceId == ipc::kUniversalDeviceId;
 		if (isStaticMetric) {
 			auto bindingPtr = MakeStaticMetricBinding(qel, middleware);
 			binding = bindingPtr.get();
@@ -97,6 +178,25 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 		qel.dataOffset = blobCursor;
 		binding->AddMetricStat(qel, introRoot);
 		blobCursor = qel.dataOffset + qel.dataSize;
+		if (isFrameMetric) {
+			assert(qel.dataSize <= kFrameMetricCacheValueMaxSize_);
+			if (qel.dataSize > kFrameMetricCacheValueMaxSize_) {
+				pmlog_warn("Frame metric cache registration skipped due to unsupported value size")
+					.pmwatch(qel.dataSize)
+					.diag();
+			}
+			else {
+				frameMetricCacheEntries_.push_back(FrameMetricCacheEntry_{
+					.dataOffset = qel.dataOffset,
+					.dataSize = static_cast<uint8_t>(qel.dataSize),
+				});
+			}
+		}
+		if (!frameTimeOrFpsOffset_.has_value() &&
+			IsFrameTimeOrFpsMetric_(qel.metric) &&
+			qel.dataSize == sizeof(double)) {
+			frameTimeOrFpsOffset_ = size_t(qel.dataOffset);
+		}
 	}
 
 	for (auto& binding : ringMetricPtrs_) {
@@ -126,6 +226,149 @@ DynamicQueryWindow PM_DYNAMIC_QUERY::GenerateQueryWindow_(int64_t nowTimestamp) 
 	return { .oldest = uint64_t(oldest), .newest = uint64_t(newest)};
 }
 
+bool PM_DYNAMIC_QUERY::HasZeroTrackedFrameTimeOrFpsValue_(const uint8_t* pBlobBase) const
+{
+	if (pBlobBase == nullptr || !frameTimeOrFpsOffset_.has_value()) {
+		return false;
+	}
+
+	const auto* pValue = reinterpret_cast<const double*>(pBlobBase + *frameTimeOrFpsOffset_);
+	return *pValue == 0.0;
+}
+
+void PM_DYNAMIC_QUERY::UpdateFrameMetricCache_(const uint8_t* pBlobBase) const
+{
+	if (pBlobBase == nullptr) {
+		return;
+	}
+
+	for (auto& entry : frameMetricCacheEntries_) {
+		if (entry.dataSize == 0u) {
+			continue;
+		}
+		std::memcpy(entry.bytes.data(), pBlobBase + entry.dataOffset, size_t(entry.dataSize));
+	}
+}
+
+void PM_DYNAMIC_QUERY::PopulateFrameMetricCache_(uint8_t* pBlobBase) const
+{
+	if (pBlobBase == nullptr) {
+		return;
+	}
+
+	for (const auto& entry : frameMetricCacheEntries_) {
+		if (entry.dataSize == 0u) {
+			continue;
+		}
+		std::memcpy(pBlobBase + entry.dataOffset, entry.bytes.data(), size_t(entry.dataSize));
+	}
+}
+
+void PM_DYNAMIC_QUERY::ValidatePendingIntegrityWindows_(FrameMetricsSource* frameSource,
+	ipc::MiddlewareComms& comms,
+	uint32_t processId, uint64_t nowTimestamp) const
+{
+	if (frameSource == nullptr) {
+		return;
+	}
+
+	const uint64_t targetStartQpc = GetTargetStartQpc_(comms, processId);
+	const std::string elapsedSinceTargetStartSecondsText =
+		BuildElapsedSinceTargetStartText_(targetStartQpc, nowTimestamp, qpcPeriodSeconds_);
+
+	for (auto it = swapToIntegrityState_.begin(); it != swapToIntegrityState_.end();) {
+		const uint64_t swapChainAddress = it->first;
+		auto& tracking = it->second;
+		if (tracking.pendingWindows.empty()) {
+			it = swapToIntegrityState_.erase(it);
+			continue;
+		}
+
+		const SwapChainState* pSwapChain = frameSource->FindSwapChainState(swapChainAddress);
+		// Skip validation until frame data is available for this swap chain.
+		if (pSwapChain == nullptr || pSwapChain->Empty()) {
+			++it;
+			continue;
+		}
+
+		const uint64_t latestPresentQpc = pSwapChain->At(pSwapChain->Size() - 1u).presentStartQpc;
+		while (!tracking.pendingWindows.empty() &&
+			latestPresentQpc > tracking.pendingWindows.front().pollWindow.newest) {
+			const auto pendingWindow = tracking.pendingWindows.front();
+			tracking.pendingWindows.pop_front();
+
+			const uint64_t intervalStart = pendingWindow.lastPresentQpcOlderThanWindow;
+			const uint64_t intervalEnd = pendingWindow.pollWindow.newest;
+			if (intervalStart >= intervalEnd) {
+				continue;
+			}
+
+			const uint64_t searchStart = intervalStart + 1u;
+			const size_t lateFrameCountRaw = pSwapChain->CountInTimestampRange(searchStart, intervalEnd);
+			if (lateFrameCountRaw == 0u) {
+				continue;
+			}
+
+			const size_t firstLateIndex = pSwapChain->LowerBoundIndex(searchStart);
+			if (firstLateIndex >= pSwapChain->Size()) {
+				continue;
+			}
+
+			const uint64_t firstLateQpc = pSwapChain->At(firstLateIndex).presentStartQpc;
+			if (firstLateQpc > intervalEnd) {
+				continue;
+			}
+
+			// Additional offset needed to place window edge on the first late-arriving frame.
+			const double captureGapMs = double(intervalEnd - firstLateQpc) * qpcPeriodSeconds_ * 1000.0;
+			const double elapsedSinceWindowPollMs = double(int64_t(nowTimestamp) - int64_t(pendingWindow.pollTimestampQpc)) * qpcPeriodSeconds_ * 1000.0;
+			const uint32_t lateFrameCount = static_cast<uint32_t>(lateFrameCountRaw);
+			std::string violatingFramesText;
+			violatingFramesText.reserve(static_cast<size_t>(lateFrameCount) * 128u);
+			uint32_t violatingFrameLineNumber = 1u;
+			pSwapChain->ForEachInTimestampRange(searchStart, intervalEnd,
+				[&](const util::metrics::FrameMetrics& frame) {
+					const auto qpcDeltaMs = [&](uint64_t referenceQpc, uint64_t sampleQpc) {
+						return double(int64_t(referenceQpc) - int64_t(sampleQpc)) * qpcPeriodSeconds_ * 1000.0;
+					};
+					violatingFramesText += "\n    ";
+					violatingFramesText += std::to_string(violatingFrameLineNumber++);
+					violatingFramesText += ") [" + std::to_string(frame.frameId);
+					violatingFramesText += "] ";
+					violatingFramesText += std::format("pres_then={:.3f}, ", qpcDeltaMs(pendingWindow.pollTimestampQpc, frame.presentStartQpc));
+					violatingFramesText += "disp_then=";
+					if (frame.screenTimeQpc == 0u) {
+						violatingFramesText += "NA";
+					}
+					else {
+						violatingFramesText += std::format("{:.3f}", qpcDeltaMs(pendingWindow.pollTimestampQpc, frame.screenTimeQpc));
+					}
+				});
+
+			++tracking.loggedViolationCount;
+			pmlog_dbg("Dynamic query stats window integrity violation detected")
+				.pmwatch(processId)
+				.watch("swapChainAddress", reinterpret_cast<void*>(static_cast<uintptr_t>(swapChainAddress)))
+				.pmwatch(pendingWindow.windowSequence)
+				.pmwatch(windowOffsetMs_)
+				.pmwatch(captureGapMs)
+				.pmwatch(elapsedSinceWindowPollMs)
+				.pmwatch(lateFrameCount)
+				.pmwatch(tracking.loggedViolationCount)
+				.watch("elapsed_since_target_start_s", elapsedSinceTargetStartSecondsText)
+				.pmwatch(violatingFramesText)
+				.diag();
+		}
+
+		if (tracking.pendingWindows.empty()) {
+			it = swapToIntegrityState_.erase(it);
+		}
+		else {
+			++it;
+		}
+	}
+}
+
 uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 	uint64_t nowTimestamp, FrameMetricsSource* frameSource, uint32_t processId, uint32_t maxSwapChains) const
 {
@@ -134,30 +377,125 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 	}
 
 	const auto window = GenerateQueryWindow_(nowTimestamp);
+	const bool integrityCheckEnabled = util::log::GlobalPolicy::Get().GetLogLevel() >= util::log::Level::Debug;
+
+	// Validate pending windows from previous polls before polling this window.
+	if (integrityCheckEnabled) {
+		ValidatePendingIntegrityWindows_(frameSource, comms, processId, nowTimestamp);
+	}
+
 	std::vector<uint64_t> swapChainAddresses;
 	if (frameSource != nullptr) {
 		swapChainAddresses = frameSource->GetSwapChainAddressesInTimestampRange(window.oldest, window.newest);
 	}
 
-	auto pollOnce = [&](const SwapChainState* pSwapChain, uint8_t* pBlob) {
+	const bool snapshotDumpEnabled = util::log::GlobalPolicy::Get().GetLogLevel() >= util::log::Level::Verbose &&
+		util::log::GlobalPolicy::VCheck(util::log::V::middleware);
+
+	std::optional<FrameMetricsSource::PollSnapshotData> pollSnapshots;
+	if (snapshotDumpEnabled && frameSource != nullptr && frameTimeOrFpsOffset_.has_value()) {
+		pollSnapshots = frameSource->CapturePollSnapshotData();
+	}
+
+	bool sawZeroFrameTimeOrFpsValue = false;
+	const uint64_t targetStartQpc = GetTargetStartQpc_(comms, processId);
+	const std::string elapsedSinceTargetStartSecondsText =
+		BuildElapsedSinceTargetStartText_(targetStartQpc, nowTimestamp, qpcPeriodSeconds_);
+
+	auto dumpSnapshotsIfNeeded = [&]() {
+		if (!pollSnapshots || !sawZeroFrameTimeOrFpsValue) {
+			return;
+		}
+		size_t totalSwapChainFrameSnapshots = 0;
+		for (const auto& swapChainSnapshots : pollSnapshots->swapChainSnapshots) {
+			totalSwapChainFrameSnapshots += swapChainSnapshots.snapshots.size();
+		}
+
+		pmlog_verb(util::log::V::middleware)("Dynamic query detected zero frame time/FPS metric and dumped poll snapshots")
+			.every(std::chrono::milliseconds{ 500 })
+			.pmwatch(processId)
+			.pmwatch(nowTimestamp)
+			.watch("queryHandle", reinterpret_cast<void*>(const_cast<PM_DYNAMIC_QUERY*>(this)))
+			.watch("elapsed_since_target_start_s", elapsedSinceTargetStartSecondsText)
+			.pmwatch(pollSnapshots->ipcStoreSnapshots.size())
+			.pmwatch(pollSnapshots->swapChainSnapshots.size())
+			.watch("total_swap_chain_frame_snapshots", totalSwapChainFrameSnapshots)
+			.watch("poll_snapshot_csv", BuildPollSnapshotCsv_(*pollSnapshots))
+			.diag();
+	};
+
+	auto pollOnce = [&](const SwapChainState* pSwapChain, uint64_t swapChainAddress, uint8_t* pBlob) {
+		const bool hasFrameSamples = pSwapChain != nullptr &&
+			pSwapChain->CountInTimestampRange(window.oldest, window.newest) > 0;
+		if (integrityCheckEnabled && pSwapChain != nullptr && !pSwapChain->Empty()) {
+			// Track every poll window that extends beyond known data for this swap chain.
+			const uint64_t latestPresentQpc = pSwapChain->At(pSwapChain->Size() - 1u).presentStartQpc;
+			if (latestPresentQpc < window.newest) {
+				const auto trackingIt = swapToIntegrityState_.try_emplace(swapChainAddress).first;
+				auto& tracking = trackingIt->second;
+				const uint64_t windowSequence = tracking.nextWindowSequence++;
+				tracking.pendingWindows.push_back(PendingIntegrityWindow_{
+					.windowSequence = windowSequence,
+					.lastPresentQpcOlderThanWindow = latestPresentQpc,
+					.pollWindow = window,
+					.pollTimestampQpc = nowTimestamp,
+				});
+				pmlog_verb(util::log::V::middleware)("Dynamic query integrity potential violation window opened")
+					.pmwatch(processId)
+					.watch("swapChainAddress", reinterpret_cast<void*>(static_cast<uintptr_t>(swapChainAddress)))
+					.pmwatch(windowSequence)
+					.pmwatch(nowTimestamp)
+					.pmwatch(window.oldest)
+					.pmwatch(window.newest)
+					.pmwatch(latestPresentQpc)
+					.pmwatch(tracking.pendingWindows.size())
+					.diag();
+			}
+		}
 		for (auto& pRing : ringMetricPtrs_) {
 			pRing->Poll(window, pBlob, comms, pSwapChain, processId);
+		}
+		if (hasFrameSamples) {
+			UpdateFrameMetricCache_(pBlob);
+		}
+		else {
+			PopulateFrameMetricCache_(pBlob);
+		}
+		if (snapshotDumpEnabled && frameTimeOrFpsOffset_.has_value() &&
+			HasZeroTrackedFrameTimeOrFpsValue_(pBlob)) {
+			sawZeroFrameTimeOrFpsValue = true;
 		}
 	};
 
 	if (swapChainAddresses.empty()) {
-		pollOnce(nullptr, pBlobBase);
+		if (frameSource != nullptr) {
+			const uint64_t targetStartQpc = GetTargetStartQpc_(comms, processId);
+			const std::string elapsedSinceTargetStartSecondsText =
+				BuildElapsedSinceTargetStartText_(targetStartQpc, nowTimestamp, qpcPeriodSeconds_);
+			pmlog_dbg("Dynamic query poll found no swap chains in window")
+				.watch("queryHandle", std::format("0x{:x}", reinterpret_cast<uintptr_t>(this)))
+				.pmwatch(processId)
+				.watch("window_oldest_ms_from_now", BuildRelativeMillisecondsText_(nowTimestamp, window.oldest, qpcPeriodSeconds_))
+				.watch("window_newest_ms_from_now", BuildRelativeMillisecondsText_(nowTimestamp, window.newest, qpcPeriodSeconds_))
+				.watch("elapsed_since_target_start_s", elapsedSinceTargetStartSecondsText)
+				.diag();
+		}
+		pollOnce(nullptr, 0, pBlobBase);
+		dumpSnapshotsIfNeeded();
 		return 1;
 	}
 
 	const uint32_t swapChainsToPoll = (uint32_t)std::min<size_t>(swapChainAddresses.size(), maxSwapChains);
 	for (uint32_t i = 0; i < swapChainsToPoll; ++i) {
+		const uint64_t swapChainAddress = swapChainAddresses[i];
 		const SwapChainState* pSwapChain = frameSource != nullptr
-			? frameSource->FindSwapChainState(swapChainAddresses[i])
+			? frameSource->FindSwapChainState(swapChainAddress)
 			: nullptr;
-		pollOnce(pSwapChain, pBlobBase);
+		pollOnce(pSwapChain, swapChainAddress, pBlobBase);
 		pBlobBase += blobSize_;
 	}
+
+	dumpSnapshotsIfNeeded();
 
 	return swapChainsToPoll;
 }

@@ -1,4 +1,4 @@
-﻿#include "../CommonUtilities/win/WinAPI.h"
+#include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
 #include <filesystem>
 #include "Folders.h"
@@ -39,4 +39,5 @@ TEST_MODULE_INITIALIZE(Api2TestModuleInit)
 	WipeAndRecreate(InterimBroadcasterTests::logFolder_);
 	WipeAndRecreate(InterimBroadcasterTests::outFolder_);
 	WipeAndRecreate(IpcMcIntegrationTests::logFolder_);
+	WipeAndRecreate(LoggingTests::logFolder_);
 }

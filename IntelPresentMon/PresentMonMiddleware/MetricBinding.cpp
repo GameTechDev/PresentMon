@@ -12,6 +12,8 @@
 
 namespace pmon::mid
 {
+    using namespace std::literals;
+
     namespace
     {
         template<typename T>
@@ -160,7 +162,6 @@ namespace pmon::mid
                 (void)processId;
 
                 if (pSwapChain == nullptr) {
-                    // TODO: consider logging (debug or verbose) that empty chain was processed
                     auto forEachFunc = [](uint64_t, uint64_t, auto&&) {};
                     auto nearestFunc = [](uint64_t) -> const util::metrics::FrameMetrics* {
                         return nullptr;

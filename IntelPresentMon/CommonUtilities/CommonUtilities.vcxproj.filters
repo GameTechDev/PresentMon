@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
@@ -162,6 +162,9 @@
     <ClInclude Include="log\CopyDriver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="log\CrashFlushHooks.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="log\HrLogger.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -237,6 +240,9 @@
     <ClInclude Include="Math.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SampleStatistics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="win\MessageBox.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -292,6 +298,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="file\FileUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="file\PathUtils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="win\Security.h">
@@ -410,6 +419,9 @@
     <ClCompile Include="log\CopyDriver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="log\CrashFlushHooks.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="log\HrLogger.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -483,6 +495,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="file\FileUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="file\PathUtils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="win\Security.cpp">

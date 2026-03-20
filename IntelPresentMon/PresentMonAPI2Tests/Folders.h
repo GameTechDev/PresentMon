@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 namespace MultiClientTests
 {
@@ -38,4 +38,9 @@ namespace IpcComponentTests
 namespace IpcMcIntegrationTests
 {
 	static constexpr const char* logFolder_ = "TestLogs\\IpcMcIntegration";
+}
+
+namespace LoggingTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\LoggingTests";
 }

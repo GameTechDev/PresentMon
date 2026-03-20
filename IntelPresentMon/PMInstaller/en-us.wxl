@@ -7,6 +7,8 @@
     <String Id="feature_complete_install_description">Install the Intel PresentMon application, the PresentMon service, a command line executable and header files.</String>
     <String Id="feature_presentmon_install_title">Intel PresentMon</String>
     <String Id="feature_presentmon_install_description">Installs the Intel PresentMon capture application, the PresentMon service, the PresentMon service command line interface, and the PresentMon SDK header files and library.</String>
+    <String Id="feature_presentmon_cli_path_title">Add presentmon-cli to PATH</String>
+    <String Id="feature_presentmon_cli_path_description">Adds the PresentMonApplication\pathed folder to the system PATH so presentmon-cli can be run from any command prompt.</String>
     <String Id="feature_presentmon_provider_install_title">PresentMon ETW Provider Manifest</String>
     <String Id="feature_presentmon_provider_install_description">Installing the Intel-PresentMon ETW Provider Manifest is optional.  It enables other ETW tools (such as Windows Performance Analyzer) to query information about PresentMon events.</String>
     <String Id="feature_presentmon_console_app_install_title">PresentMon Console Application</String>

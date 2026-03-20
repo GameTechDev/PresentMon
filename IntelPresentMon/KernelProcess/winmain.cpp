@@ -1,4 +1,4 @@
-﻿#include "../CommonUtilities/win/WinAPI.h"
+#include "../CommonUtilities/win/WinAPI.h"
 #include "../Core/source/kernel/Kernel.h"
 #include "../Core/source/infra/util/FolderResolver.h"
 #include "../CommonUtilities/log/IdentificationTable.h"
@@ -14,6 +14,7 @@
 #include <Core/source/cli/CliOptions.h>
 #include <PresentMonAPI2Loader/Loader.h>
 #include <Core/source/infra/LogSetup.h>
+#include <CommonUtilities/file/PathUtils.h>
 #include <CommonUtilities/win/Utilities.h>
 #include <CommonUtilities/win/Privileges.h>
 #include <CommonUtilities/win/ProcessMapBuilder.h>
@@ -21,9 +22,9 @@
 #include <Shobjidl.h>
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/windows/as_user_launcher.hpp>
-#include <array>
 #include <ranges>
 #include <iostream>
+#include <filesystem>
 
 
 using namespace pmon;
@@ -155,6 +156,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			return *err;
 		}
 		const auto& opt = cli::Options::Get();
+		if (opt.logFolder) {
+			infra::util::FolderResolver::SetLogPathOverride(util::str::ToWide(*opt.logFolder));
+		}
 		// do some post validation here
 		if (opt.subcCapture.Active()) {
 			// make sure target is specified
@@ -169,6 +173,42 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				std::cerr << "Must specify one of --metrics or --devices for list" << std::endl;
 				return -1;
 			}
+		}
+		if (opt.subcShow.Active()) {
+			if (!opt.showVerboseModules && !opt.showVerboseBitset && !opt.showLogFolder) {
+				std::cerr << "Must specify one of --log-folder, --verbose-modules, or --verbose-bitset for show" << std::endl;
+				return -1;
+			}
+			if (opt.showLogFolder) {
+				const auto logPath = infra::util::FolderResolver::Get().ResolveLogPath();
+				std::error_code ec;
+				std::filesystem::create_directories(logPath, ec);
+				if (ec) {
+					std::cerr << "Failed to create log folder: " << logPath << std::endl;
+					return -1;
+				}
+				util::win::ExplorePath(logPath);
+			}
+			if (opt.showVerboseModules) {
+				for (int i = 0; i < int(util::log::V::Count); i++) {
+					std::cout << util::log::GetVerboseModuleName(util::log::V(i)) << "\n";
+				}
+			}
+			if (opt.showVerboseBitset) {
+				const auto verboseModuleMap = util::log::GetVerboseModuleMapNarrow();
+				uint64_t verboseBitset = 0;
+				for (const auto& moduleNameRaw : *opt.showVerboseBitset) {
+					const auto moduleName = util::str::ToLower(moduleNameRaw);
+					const auto it = verboseModuleMap.find(moduleName);
+					if (it == verboseModuleMap.end() || it->second == util::log::V::Count) {
+						std::cerr << std::format("Unknown verbose module '{}'", moduleNameRaw) << std::endl;
+						return -1;
+					}
+					verboseBitset |= (1ull << uint64_t(it->second));
+				}
+				std::cout << std::format("0x{:X}", verboseBitset) << std::endl;
+			}
+			return 0;
 		}
 		// pause process to allow for attaching debugger
 		if (opt.waitForDebugger) {
@@ -228,7 +268,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				args.append_range(*opt.logVerboseModules | vi::transform(util::log::GetVerboseModuleName));
 			}
 			// launch service child process
-			svcChild = bp2::windows::default_launcher{}(ioctx, "PresentMonService.exe"s, std::move(args));
+			// WORKAROUND: keep a relative exe name while forcing install-dir cwd for child startup.
+			// Remove this when our Boost.Process version no longer breaks cli args for absolute exe paths.
+			{
+				::pmon::util::file::ScopedWorkingDirectory setInstallWorkingDirectory{
+					infra::util::FolderResolver::ResolveInstallPath()
+				};
+				svcChild = bp2::windows::default_launcher{}(ioctx, "PresentMonService.exe"s, std::move(args));
+			}
 			// wait for pipe availability of service api
 			if (!::pmon::util::win::WaitForNamedPipe(*opt.controlPipe + "-in", 1500000)) {
 				pmlog_error("timeout waiting for child service control pipe to go online");
@@ -390,6 +437,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			});
 			// launch the CEF browser process, which in turn launches all the other processes in the CEF process constellation
 			auto cefChild = [&] {
+				// WORKAROUND: keep a relative exe name while forcing install-dir cwd for child startup.
+				// Remove this when our Boost.Process version no longer breaks cli args for absolute exe paths.
+				::pmon::util::file::ScopedWorkingDirectory setInstallWorkingDirectory{
+					infra::util::FolderResolver::ResolveInstallPath()
+				};
 				if (util::win::WeAreElevated()) {
 					try {
 						pmlog_info("detected elevation, attempting integrity downgrade");

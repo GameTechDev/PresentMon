@@ -4,6 +4,17 @@
 
 namespace pmon::mid
 {
+	namespace
+	{
+		uint64_t GetDisplayQpcFromFrameData_(const util::metrics::FrameData& frame)
+		{
+			if (frame.displayed.Empty()) {
+				return 0;
+			}
+			return frame.displayed.Back().second;
+		}
+	}
+
 	SwapChainState::SwapChainState(size_t capacity)
 		:
 		metrics_{ capacity }
@@ -279,6 +290,53 @@ namespace pmon::mid
 				state.ConsumeNext();
 			}
 		}
+	}
+
+	FrameMetricsSource::PollSnapshotData FrameMetricsSource::CapturePollSnapshotData() const
+	{
+		PollSnapshotData output;
+
+		if (pStore_ != nullptr) {
+			const auto& ring = pStore_->frameData;
+			const auto [firstSerial, lastSerial] = ring.GetSerialRange();
+			output.ipcStoreSnapshots.reserve(lastSerial - firstSerial);
+			for (size_t serial = firstSerial; serial < lastSerial; ++serial) {
+				const auto& frame = ring.At(serial);
+				output.ipcStoreSnapshots.push_back(IpcStoreSnapshot{
+					.swapChainAddress = frame.swapChainAddress,
+					.snapshot = FrameSnapshot{
+						.frameId = frame.frameId,
+						.presentQpc = frame.presentStartTime,
+						.displayQpc = GetDisplayQpcFromFrameData_(frame),
+					},
+				});
+			}
+		}
+
+		output.swapChainSnapshots.reserve(swapChains_.size());
+		for (const auto& [swapChainAddress, state] : swapChains_) {
+			SwapChainSnapshots snapshots{};
+			snapshots.swapChainAddress = swapChainAddress;
+			snapshots.snapshots.reserve(state.Size());
+			for (size_t i = 0; i < state.Size(); ++i) {
+				const auto& frame = state.At(i);
+				snapshots.snapshots.push_back(FrameSnapshot{
+					.frameId = frame.frameId,
+					.presentQpc = frame.presentStartQpc,
+					.displayQpc = frame.screenTimeQpc,
+				});
+			}
+			output.swapChainSnapshots.push_back(std::move(snapshots));
+		}
+
+		if (output.swapChainSnapshots.size() > 1) {
+			std::sort(output.swapChainSnapshots.begin(), output.swapChainSnapshots.end(),
+				[](const auto& lhs, const auto& rhs) {
+					return lhs.swapChainAddress < rhs.swapChainAddress;
+				});
+		}
+
+		return output;
 	}
 
 	std::vector<uint64_t> FrameMetricsSource::GetSwapChainAddressesInTimestampRange(uint64_t start, uint64_t end) const

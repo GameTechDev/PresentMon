@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
@@ -54,8 +54,7 @@ namespace MultiClientTests
 			Assert::AreEqual(0ull, status.trackedPids.size());
 			Assert::AreEqual(0ull, status.frameStorePids.size());
 			Assert::AreEqual(16u, status.telemetryPeriodMs);
-			Assert::IsTrue((bool)status.etwFlushPeriodMs);
-			Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+			Assert::IsFalse((bool)status.etwFlushPeriodMs);
 		}
 		// verify client lifetime
 		TEST_METHOD(ClientLaunchTest)
@@ -381,12 +380,11 @@ namespace MultiClientTests
 				Assert::AreEqual(50u, *status.etwFlushPeriodMs);
 			}
 
-			// kill client 1; should revert to default (1000 ms per ServiceStatusTest)
+			// kill client 1; should revert to default (manual flush disabled)
 			client1.Quit();
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::IsTrue((bool)status.etwFlushPeriodMs);
-				Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+				Assert::IsFalse((bool)status.etwFlushPeriodMs);
 			}
 		}
 		// verify reversion on sudden client death
@@ -430,8 +428,7 @@ namespace MultiClientTests
 			// verify reversion to default
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::IsTrue((bool)status.etwFlushPeriodMs);
-				Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+				Assert::IsFalse((bool)status.etwFlushPeriodMs);
 			}
 		}
 		// verify range check error high

@@ -111,6 +111,7 @@
     <ClCompile Include="DiagnosticDemo.cpp" />
     <ClCompile Include="EtlLogger.cpp" />
     <ClCompile Include="IpcComponentServer.cpp" />
+    <ClCompile Include="LoggingCrashTest.cpp" />
     <ClCompile Include="LogSetup.cpp" />
     <ClCompile Include="LogDemo.cpp" />
     <ClCompile Include="MultiClient.cpp" />
@@ -129,6 +130,7 @@
     <ClInclude Include="FrameQuerySample.h" />
     <ClInclude Include="IntrospectionSample.h" />
     <ClInclude Include="IpcComponentServer.h" />
+    <ClInclude Include="LoggingCrashTest.h" />
     <ClInclude Include="LogSetup.h" />
     <ClInclude Include="LogDemo.h" />
     <ClInclude Include="MetricListSample.h" />

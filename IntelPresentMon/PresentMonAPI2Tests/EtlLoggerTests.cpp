@@ -55,8 +55,7 @@ namespace EtlLoggerTests
 			Assert::AreEqual(0ull, status.trackedPids.size());
 			Assert::AreEqual(0ull, status.frameStorePids.size());
 			Assert::AreEqual(16u, status.telemetryPeriodMs);
-			Assert::IsTrue((bool)status.etwFlushPeriodMs);
-			Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+			Assert::IsFalse((bool)status.etwFlushPeriodMs);
 		}
 		// verify client lifetime
 		TEST_METHOD(ClientLaunchTest)

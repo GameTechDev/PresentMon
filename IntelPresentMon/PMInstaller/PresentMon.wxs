@@ -9,10 +9,12 @@
         UpgradeCode="CD0D489E-0FE7-452D-90D9-F94F3F5FF410">
 
         <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"/>
+        <Icon Id="PresentMonArpIcon.ico" SourceFile="..\AppCef\flask.ico" />
 
         <!-- Handle in-use files by scheduling for reboot (user will see FilesInUse dialog) -->
         <Property Id="MSIRESTARTMANAGERCONTROL" Value="DisableShutdown" />
         <Property Id="REBOOT" Value="ReallySuppress" />
+        <Property Id="ARPPRODUCTICON" Value="PresentMonArpIcon.ico" />
         <Property Id="LOCALAPPDATAPRESENTMONFOLDER">
             <RegistrySearch
                 Id="SearchLocalAppDataPresentMonFolder"
@@ -56,6 +58,15 @@
                 <ComponentGroupRef Id="pm_app_web_css" />
                 <ComponentGroupRef Id="pm_app_web_fonts" />
                 <ComponentGroupRef Id="pm_app_web_js" />
+                <ComponentGroupRef Id="pm_app_pathed" />
+                <Feature
+                    Id="presentmon_cli_path_feature"
+                    Title="!(loc.feature_presentmon_cli_path_title)"
+                    Description="!(loc.feature_presentmon_cli_path_description)"
+                    Level="200"
+                    Absent="allow">
+                    <ComponentGroupRef Id="pm_app_cli_path" />
+                </Feature>
             </Feature>
             <Feature
                 Id="presentmon_provider_install"
@@ -147,6 +158,9 @@
                             Id="pm_app_folder"
                             Name="PresentMonApplication">
                             <Directory
+                                Id="pm_app_pathed_folder"
+                                Name="pathed"/>
+                            <Directory
                                 Id="pm_app_shaders_folder"
                                 Name="Shaders"/>
                             <Directory
@@ -227,6 +241,10 @@
                 <RemoveFolder
                     Id="RemoveAppPresetsIfEmpty"
                     Directory="pm_app_presets_folder"
+                    On="uninstall" />
+                <RemoveFolder
+                    Id="RemoveAppPathedIfEmpty"
+                    Directory="pm_app_pathed_folder"
                     On="uninstall" />
                 <RemoveFolder
                     Id="RemoveAppIfEmpty"
@@ -342,16 +360,6 @@
                 </File>
             </Component>
 			<Component
-                Id="pm_app_cli_script"
-                Guid="EFFCBD82-BF3D-43CE-9442-E8293466F77B">
-				<File
-                    Id="pm_app_cli_script"
-                    Name="presentmon-cli.cmd"
-                    Source="$(var.PresentMon.TargetDir)presentmon-cli.cmd"
-                    KeyPath="yes">
-				</File>
-			</Component>
-			<Component
                 Id="pm_app_target_block_list_txt"
                 Guid="203B303F-A097-4B1E-BFA0-895794F192C1">
                 <File
@@ -416,6 +424,42 @@
                     KeyPath="yes">
 				</File>
 			</Component>
+        </ComponentGroup>
+        <ComponentGroup
+            Id="pm_app_pathed"
+            Directory="pm_app_pathed_folder">
+            <Component
+                Id="pm_app_cli_script"
+                Guid="8F5A37C0-2A70-4C5A-95A2-4F6FBF540E64">
+                <File
+                    Id="pm_app_cli_script"
+                    Name="presentmon-cli.bat"
+                    Source="$(var.PresentMon.TargetDir)pathed\presentmon-cli.bat"
+                    KeyPath="yes">
+                </File>
+            </Component>
+        </ComponentGroup>
+        <ComponentGroup
+            Id="pm_app_cli_path"
+            Directory="pm_app_folder">
+            <Component
+                Id="pm_app_cli_path_environment"
+                Guid="149B4A34-E489-4E5A-A236-9DDDC70C9D6A">
+                <RegistryValue
+                    Root="HKLM"
+                    Key="Software\Intel\PresentMon"
+                    Name="CliPathEnvironmentInstalled"
+                    Type="integer"
+                    Value="1"
+                    KeyPath="yes" />
+                <Environment
+                    Id="pm_app_cli_path_environment_var"
+                    Name="PATH"
+                    Action="set"
+                    Part="last"
+                    System="yes"
+                    Value="[pm_app_pathed_folder]" />
+            </Component>
         </ComponentGroup>
         <ComponentGroup
             Id="pm_app_shaders"

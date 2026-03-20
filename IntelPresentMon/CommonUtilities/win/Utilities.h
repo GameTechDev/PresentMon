@@ -25,4 +25,6 @@ namespace pmon::util::win
 	bool ProcessIs32Bit(HANDLE hProc);
 	// convert a guid to string
 	std::wstring GuidToString(const GUID& guid);
+	// open a file-system path in the shell (typically Explorer for directories)
+	void ExplorePath(const std::filesystem::path& path);
 }

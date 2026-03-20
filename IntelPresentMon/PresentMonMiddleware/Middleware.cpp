@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Middleware.h"
 #include <string>
@@ -9,6 +9,7 @@
 #include <numeric>
 #include <algorithm>
 #include <unordered_set>
+#include <type_traits>
 #include "../CommonUtilities/mt/Thread.h"
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/Qpc.h"
@@ -34,6 +35,84 @@ namespace pmon::mid
     namespace vi = std::views;
 
     static constexpr size_t kFrameMetricsPerSwapChainCapacity = 4096u;
+
+    namespace
+    {
+        const char* GetQueryTypeName_(PM_METRIC_TYPE queryType) noexcept
+        {
+            switch (queryType) {
+            case PM_METRIC_TYPE_DYNAMIC:
+                return "dynamic";
+            case PM_METRIC_TYPE_FRAME_EVENT:
+                return "frame";
+            default:
+                return "unknown";
+            }
+        }
+
+        std::string GetMetricSymbol_(const pmapi::intro::Root& introRoot, PM_METRIC metric)
+        {
+            try {
+                return introRoot.FindMetric(metric).Introspect().GetSymbol();
+            }
+            catch (...) {
+                return "UnknownMetric";
+            }
+        }
+
+        std::string GetStatSymbol_(const pmapi::intro::Root& introRoot, PM_STAT stat)
+        {
+            try {
+                return introRoot.FindEnumKey(PM_ENUM_STAT, int(stat)).GetSymbol();
+            }
+            catch (...) {
+                return "UnknownStat";
+            }
+        }
+
+        std::string GetDeviceName_(const pmapi::intro::Root& introRoot, uint32_t deviceId)
+        {
+            if (deviceId == ipc::kUniversalDeviceId) {
+                return "Universal";
+            }
+            if (deviceId == ipc::kSystemDeviceId) {
+                return "System";
+            }
+            try {
+                return introRoot.FindDevice(deviceId).GetName();
+            }
+            catch (...) {
+                return "UnknownDevice";
+            }
+        }
+
+        void LogQueryRegistration_(PM_METRIC_TYPE queryType, const pmapi::intro::Root& introRoot,
+            const void* queryHandle, std::span<const PM_QUERY_ELEMENT> queryElements)
+        {
+            pmlog_dbg("Registered query")
+                .watch("query_type", GetQueryTypeName_(queryType))
+                .pmwatch(queryHandle)
+                .pmwatch(queryElements.size());
+
+            for (size_t elementIndex = 0; elementIndex < queryElements.size(); ++elementIndex) {
+                const auto& qel = queryElements[elementIndex];
+                const auto metricSymbol = GetMetricSymbol_(introRoot, qel.metric);
+                const auto statSymbol = GetStatSymbol_(introRoot, qel.stat);
+                const auto deviceName = GetDeviceName_(introRoot, qel.deviceId);
+
+                pmlog_dbg("Registered query element")
+                    .watch("query_type", GetQueryTypeName_(queryType))
+                    .pmwatch(queryHandle)
+                    .pmwatch(elementIndex)
+                    .watch("metric_symbol", metricSymbol)
+                    .watch("stat_symbol", statSymbol)
+                    .watch("device_name", deviceName)
+                    .pmwatch(qel.arrayIndex)
+                    .pmwatch(qel.dataOffset)
+                    .pmwatch(qel.dataSize);
+            }
+        }
+    }
 
 	Middleware::Middleware(std::optional<std::string> pipeNameOverride)
 	{
@@ -140,10 +219,10 @@ namespace pmon::mid
     PM_DYNAMIC_QUERY* Middleware::RegisterDynamicQuery(std::span<PM_QUERY_ELEMENT> queryElements,
         double windowSizeMs, double metricOffsetMs)
     {
-        pmlog_dbg("Registering dynamic query").pmwatch(queryElements.size()).pmwatch(windowSizeMs).pmwatch(metricOffsetMs);
         const auto qpcPeriod = util::GetTimestampPeriodSeconds();
         auto* query = new PM_DYNAMIC_QUERY{ queryElements, windowSizeMs, metricOffsetMs, qpcPeriod, *pComms_, *this };
         RegisterMetricUsage_(query, queryElements);
+        LogQueryRegistration_(PM_METRIC_TYPE_DYNAMIC, GetIntrospectionRoot_(), query, queryElements);
         return query;
     }
 
@@ -222,6 +301,7 @@ namespace pmon::mid
         auto pQuery = new PM_FRAME_QUERY{ queryElements, *this, *pComms_, GetIntrospectionRoot_() };
         blobSize = (uint32_t)pQuery->GetBlobSize();
         RegisterMetricUsage_(pQuery, queryElements);
+        LogQueryRegistration_(PM_METRIC_TYPE_FRAME_EVENT, GetIntrospectionRoot_(), pQuery, queryElements);
         return pQuery;
     }
 
@@ -321,6 +401,7 @@ namespace pmon::mid
     void Middleware::UpdateMetricUsage_()
     {
         std::unordered_set<svc::acts::MetricUse> usage;
+        // TODO: remove intro here as it is not necessary
         const auto& introRoot = GetIntrospectionRoot_();
         for (const auto& [handle, elements] : queryMetricUsage_) {
             for (const auto& element : elements) {

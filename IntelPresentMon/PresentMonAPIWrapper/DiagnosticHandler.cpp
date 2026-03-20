@@ -55,7 +55,8 @@ namespace pmapi
 		std::span<PM_DIAGNOSTIC_SUBSYSTEM> allowList,
 		bool enableTimestamp,
 		bool enableTrace,
-		bool enableLocation
+		bool enableLocation,
+		uint64_t verboseModuleBitset
 	) : gracePeriodMs_{ gracePeriodMs } {
 		const PM_DIAGNOSTIC_CONFIGURATION config{
 			.filterLevel = filterLevel,
@@ -65,6 +66,7 @@ namespace pmapi
 			.enableTimestamp = enableTimestamp,
 			.enableTrace = enableTrace,
 			.enableLocation = enableLocation,
+			.verboseModuleBitset = verboseModuleBitset,
 		};
 		if (pmDiagnosticSetup(&config) != PM_STATUS_SUCCESS) {
 			throw Exception{ "Failure setting up diagnostic layer" };

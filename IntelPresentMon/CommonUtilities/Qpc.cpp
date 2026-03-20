@@ -10,7 +10,7 @@ namespace pmon::util
 	{
 		LARGE_INTEGER timestamp;
 		if (!QueryPerformanceCounter(&timestamp)) {
-			pmlog_error("qpc failed").hr().every(50);
+			pmlog_error("qpc failed").hr().first(20);
 		}
 		return (int64_t)timestamp.QuadPart;
 	}
@@ -22,7 +22,7 @@ namespace pmon::util
 	{
 		LARGE_INTEGER freq;
 		if (!QueryPerformanceFrequency(&freq)) {
-			pmlog_error("qpc frequency failed").hr().every(5);
+			pmlog_error("qpc frequency failed").hr().first(20);
 			return 0;
 		}
 		return (uint64_t)freq.QuadPart;

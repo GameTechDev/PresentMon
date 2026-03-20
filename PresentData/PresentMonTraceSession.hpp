@@ -1,7 +1,8 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 #include "../IntelPresentMon/CommonUtilities/PrecisionWaiter.h"
+#include "../IntelPresentMon/CommonUtilities/SampleStatistics.h"
 #include "IFilterBuildListener.h"
 
 struct PMTraceConsumer;
@@ -47,6 +48,8 @@ struct PMTraceSession {
     ULONG mNumBuffersLost = 0;
 
     bool mIsRealtimeSession = false;
+    pmon::util::SampleStatistics<double> mEtwEventLatencyStatsMs;
+    int64_t mEtwEventLatencyStatsWindowStartQpc = 0;
 
     // Cached ETW status for CSV output (updated periodically via QueryEtwStatus)
     mutable EtwStatus mCachedEtwStatus = {};
@@ -66,6 +69,8 @@ struct PMTraceSession {
     uint64_t MilliSecondsDeltaToTimestamp(double millisecondsDelta) const;
 
     bool QueryEtwStatus(EtwStatus* status) const;
+    void ProcessEtwEventLatencyStats(uint64_t eventQpcTimestamp);
+    void ResetEtwEventLatencyStats();
 };
 
 ULONG StopNamedTraceSession(wchar_t const* sessionName);
