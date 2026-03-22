@@ -15,6 +15,7 @@
 
 using namespace pmon;
 using namespace util;
+using namespace std::literals;
 using v = log::V;
 
 namespace pmon::tel::igcl
@@ -543,7 +544,7 @@ namespace pmon::tel::igcl
             .pmwatch(device.providerDeviceId);
         const auto pollResult = ctlPowerTelemetryGet(device.handle, &currentSample);
         if (pollResult != CTL_RESULT_SUCCESS) {
-            pmlog_warn("ctlPowerTelemetryGet failed").code(pollResult).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ctlPowerTelemetryGet failed").code(pollResult).every(60s)
                 .pmwatch(device.fingerprint.deviceName);
             currentSample = {
                 .Size = sizeof(ctl_power_telemetry_t),
@@ -573,7 +574,7 @@ namespace pmon::tel::igcl
         if (!device.memoryModules.empty()) {
             const auto result = ctlMemoryGetState(device.memoryModules[0], &cache.output);
             if (result != CTL_RESULT_SUCCESS) {
-                pmlog_warn("ctlMemoryGetState failed").code(result).every(std::chrono::seconds{ 60 })
+                pmlog_warn("ctlMemoryGetState failed").code(result).every(60s)
                     .pmwatch(device.fingerprint.deviceName);
                 cache.output.Size = 0;
             }
@@ -607,7 +608,7 @@ namespace pmon::tel::igcl
                 return memoryBandwidth;
             }
             else {
-                pmlog_warn("ctlMemoryGetBandwidth failed").code(result).every(std::chrono::seconds{ 60 })
+                pmlog_warn("ctlMemoryGetBandwidth failed").code(result).every(60s)
                     .pmwatch(device.fingerprint.deviceName);
             }
             pmlog_verb(v::tele_gpu)("ctlMemoryGetBandwidth output")
@@ -636,7 +637,7 @@ namespace pmon::tel::igcl
                 return powerLimits;
             }
             else {
-                pmlog_warn("ctlPowerGetLimits failed").code(result).every(std::chrono::seconds{ 60 })
+                pmlog_warn("ctlPowerGetLimits failed").code(result).every(60s)
                     .pmwatch(device.fingerprint.deviceName);
             }
         }

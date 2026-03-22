@@ -11,6 +11,7 @@
 
 using namespace pmon;
 using namespace util;
+using namespace std::literals;
 
 namespace pmon::tel::adl
 {
@@ -138,8 +139,8 @@ namespace pmon::tel::adl
         case PM_METRIC_GPU_SUSTAINED_POWER_LIMIT:
         {
             ValidateScalarMetricIndex_(metricId, arrayIndex);
-            const auto pLimit = QuerySustainedPowerLimit_(device);
-            return pLimit != nullptr ? *pLimit : 0.0;
+            const auto limit = QuerySustainedPowerLimit_(device);
+            return limit ? *limit : 0.0;
         }
         case PM_METRIC_GPU_MEM_SIZE:
         {
@@ -355,7 +356,7 @@ namespace pmon::tel::adl
         caps.Set(PM_METRIC_GPU_VENDOR, 1);
         caps.Set(PM_METRIC_GPU_NAME, 1);
 
-        if (QuerySustainedPowerLimit_(device) != nullptr) {
+        if (QuerySustainedPowerLimit_(device)) {
             caps.Set(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, 1);
         }
 
@@ -437,14 +438,8 @@ namespace pmon::tel::adl
         return &*device.memoryInfo;
     }
 
-    const double* AmdTelemetryProvider::QuerySustainedPowerLimit_(DeviceState_& device) const
+    std::optional<double> AmdTelemetryProvider::QuerySustainedPowerLimit_(const DeviceState_& device) const
     {
-        if (device.sustainedPowerLimitQueried) {
-            return device.sustainedPowerLimitW ? &*device.sustainedPowerLimitW : nullptr;
-        }
-
-        device.sustainedPowerLimitQueried = true;
-
         switch (device.overdriveVersion) {
         case 5:
         {
@@ -456,10 +451,10 @@ namespace pmon::tel::adl
                 pmlog_warn("ADL2_Overdrive5_PowerControl_Caps failed").code(result)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName);
-                return nullptr;
+                return {};
             }
             if (!powerControlSupported) {
-                return nullptr;
+                return {};
             }
 
             int powerControlCurrent = 0;
@@ -472,12 +467,11 @@ namespace pmon::tel::adl
                 pmlog_warn("ADL2_Overdrive5_PowerControl_Get failed").code(result)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName);
-                return nullptr;
+                return {};
             }
 
-            device.sustainedPowerLimitW = (double)powerControlCurrent;
             (void)powerControlDefault;
-            return &*device.sustainedPowerLimitW;
+            return (double)powerControlCurrent;
         }
         case 6:
         {
@@ -489,10 +483,10 @@ namespace pmon::tel::adl
                 pmlog_warn("ADL2_Overdrive6_PowerControl_Caps failed").code(result)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName);
-                return nullptr;
+                return {};
             }
             if (!powerControlSupported) {
-                return nullptr;
+                return {};
             }
 
             int powerControlCurrent = 0;
@@ -505,15 +499,14 @@ namespace pmon::tel::adl
                 pmlog_warn("ADL2_Overdrive6_PowerControl_Get failed").code(result)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName);
-                return nullptr;
+                return {};
             }
 
-            device.sustainedPowerLimitW = (double)powerControlCurrent;
             (void)powerControlDefault;
-            return &*device.sustainedPowerLimitW;
+            return (double)powerControlCurrent;
         }
         default:
-            return nullptr;
+            return {};
         }
     }
 
@@ -537,7 +530,7 @@ namespace pmon::tel::adl
             snapshot.gpuMemUsedBytes = (uint64_t)vramUsageMb * 1000000ull;
         }
         else {
-            pmlog_warn("ADL2_Adapter_VRAMUsage_Get failed").code(vramUsageResult).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ADL2_Adapter_VRAMUsage_Get failed").code(vramUsageResult).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
         }
@@ -583,7 +576,7 @@ namespace pmon::tel::adl
                 }
             }
             else {
-                pmlog_warn("ADL2_Overdrive5_Temperature_Get failed").code(tempResult).every(std::chrono::seconds{ 60 })
+                pmlog_warn("ADL2_Overdrive5_Temperature_Get failed").code(tempResult).every(60s)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName)
                     .pmwatch(thermalControllerIndex);
@@ -595,7 +588,7 @@ namespace pmon::tel::adl
                 thermalControllerIndex,
                 &fanInfo);
             if (!Adl2Wrapper::Ok(fanInfoResult)) {
-                pmlog_warn("ADL2_Overdrive5_FanSpeedInfo_Get failed").code(fanInfoResult).every(std::chrono::seconds{ 60 })
+                pmlog_warn("ADL2_Overdrive5_FanSpeedInfo_Get failed").code(fanInfoResult).every(60s)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName)
                     .pmwatch(thermalControllerIndex);
@@ -615,7 +608,7 @@ namespace pmon::tel::adl
                     snapshot.fanSpeedsRpm.push_back((double)fanValue.iFanSpeed);
                 }
                 else {
-                    pmlog_warn("ADL2_Overdrive5_FanSpeed_Get failed for RPM").code(fanResult).every(std::chrono::seconds{ 60 })
+                    pmlog_warn("ADL2_Overdrive5_FanSpeed_Get failed for RPM").code(fanResult).every(60s)
                         .pmwatch(device.providerDeviceId)
                         .pmwatch(device.fingerprint.deviceName)
                         .pmwatch(thermalControllerIndex);
@@ -635,7 +628,7 @@ namespace pmon::tel::adl
                     snapshot.fanSpeedRatios.push_back((double)fanValue.iFanSpeed / 100.0);
                 }
                 else {
-                    pmlog_warn("ADL2_Overdrive5_FanSpeed_Get failed for percent").code(fanResult).every(std::chrono::seconds{ 60 })
+                    pmlog_warn("ADL2_Overdrive5_FanSpeed_Get failed for percent").code(fanResult).every(60s)
                         .pmwatch(device.providerDeviceId)
                         .pmwatch(device.fingerprint.deviceName)
                         .pmwatch(thermalControllerIndex);
@@ -661,7 +654,7 @@ namespace pmon::tel::adl
             snapshot.hasGpuVoltage = true;
         }
         else {
-            pmlog_warn("ADL2_Overdrive5_CurrentActivity_Get failed").code(activityResult).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ADL2_Overdrive5_CurrentActivity_Get failed").code(activityResult).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
         }
@@ -684,7 +677,7 @@ namespace pmon::tel::adl
                     snapshot.hasGpuTemperature = true;
                 }
                 else {
-                    pmlog_warn("ADL2_Overdrive6_Temperature_Get failed").code(tempResult).every(std::chrono::seconds{ 60 })
+                    pmlog_warn("ADL2_Overdrive6_Temperature_Get failed").code(tempResult).every(60s)
                         .pmwatch(device.providerDeviceId)
                         .pmwatch(device.fingerprint.deviceName);
                 }
@@ -701,13 +694,13 @@ namespace pmon::tel::adl
                 }
             }
             else {
-                pmlog_warn("ADL2_Overdrive6_FanSpeed_Get failed").code(fanResult).every(std::chrono::seconds{ 60 })
+                pmlog_warn("ADL2_Overdrive6_FanSpeed_Get failed").code(fanResult).every(60s)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName);
             }
         }
         else {
-            pmlog_warn("ADL2_Overdrive6_ThermalController_Caps failed").code(thermalCapsResult).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ADL2_Overdrive6_ThermalController_Caps failed").code(thermalCapsResult).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
         }
@@ -730,13 +723,13 @@ namespace pmon::tel::adl
                 }
             }
             else {
-                pmlog_warn("ADL2_Overdrive6_Capabilities_Get failed").code(capResult).every(std::chrono::seconds{ 60 })
+                pmlog_warn("ADL2_Overdrive6_Capabilities_Get failed").code(capResult).every(60s)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName);
             }
         }
         else {
-            pmlog_warn("ADL2_Overdrive6_CurrentStatus_Get failed").code(currentStatusResult).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ADL2_Overdrive6_CurrentStatus_Get failed").code(currentStatusResult).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
         }
@@ -748,7 +741,7 @@ namespace pmon::tel::adl
             snapshot.hasGpuPower = true;
         }
         else {
-            pmlog_warn("ADL2_Overdrive6_CurrentPower_Get failed").code(powerResult).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ADL2_Overdrive6_CurrentPower_Get failed").code(powerResult).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
         }
@@ -761,7 +754,7 @@ namespace pmon::tel::adl
         ADLODNCapabilitiesX2 capabilities{};
         const auto capsResult = pAdl_->OverdriveN_CapabilitiesX2_Get(device.adlAdapterIndex, &capabilities);
         if (!Adl2Wrapper::Ok(capsResult)) {
-            pmlog_warn("ADL2_OverdriveN_CapabilitiesX2_Get failed").code(capsResult).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ADL2_OverdriveN_CapabilitiesX2_Get failed").code(capsResult).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
             return;
@@ -783,7 +776,7 @@ namespace pmon::tel::adl
             snapshot.hasGpuUtilization = true;
         }
         else {
-            pmlog_warn("ADL2_OverdriveN_PerformanceStatus_Get failed").code(statusResult).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ADL2_OverdriveN_PerformanceStatus_Get failed").code(statusResult).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
         }
@@ -798,7 +791,7 @@ namespace pmon::tel::adl
             snapshot.hasGpuTemperature = true;
         }
         else {
-            pmlog_warn("ADL2_OverdriveN_Temperature_Get failed").code(tempResult).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ADL2_OverdriveN_Temperature_Get failed").code(tempResult).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
         }
@@ -817,7 +810,7 @@ namespace pmon::tel::adl
             }
         }
         else {
-            pmlog_warn("ADL2_OverdriveN_FanControl_Get failed").code(fanResult).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ADL2_OverdriveN_FanControl_Get failed").code(fanResult).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
         }
@@ -829,7 +822,7 @@ namespace pmon::tel::adl
             snapshot.hasGpuPower = true;
         }
         else {
-            pmlog_warn("ADL2_Overdrive6_CurrentPower_Get failed").code(powerResult).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ADL2_Overdrive6_CurrentPower_Get failed").code(powerResult).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
         }
@@ -845,7 +838,7 @@ namespace pmon::tel::adl
         dataOutput.size = sizeof(ADLPMLogDataOutput);
         const auto result = pAdl_->New_QueryPMLogData_Get(device.adlAdapterIndex, &dataOutput);
         if (!Adl2Wrapper::Ok(result)) {
-            pmlog_warn("ADL2_New_QueryPMLogData_Get failed").code(result).every(std::chrono::seconds{ 60 })
+            pmlog_warn("ADL2_New_QueryPMLogData_Get failed").code(result).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
             return;

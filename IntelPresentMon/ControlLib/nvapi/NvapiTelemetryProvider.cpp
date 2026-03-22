@@ -12,6 +12,7 @@
 
 using namespace pmon;
 using namespace util;
+using namespace std::literals;
 
 namespace pmon::tel::nvapi
 {
@@ -206,7 +207,7 @@ namespace pmon::tel::nvapi
             }
         }
 
-        if (PollTachEndpoint_(device, requestQpc) != nullptr) {
+        if (PollTachEndpoint_(device)) {
             caps.Set(PM_METRIC_GPU_FAN_SPEED, 1);
         }
 
@@ -230,7 +231,7 @@ namespace pmon::tel::nvapi
         const auto result = pNvapi_->GPU_GetThermalSettings(
             device.handle, NVAPI_THERMAL_TARGET_ALL, &cache.output);
         if (!NvapiWrapper::Ok(result)) {
-            pmlog_warn("NvAPI_GPU_GetThermalSettings failed").code(result).every(std::chrono::seconds{ 60 })
+            pmlog_warn("NvAPI_GPU_GetThermalSettings failed").code(result).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
             cache.output.version = 0;
@@ -256,7 +257,7 @@ namespace pmon::tel::nvapi
 
         const auto result = pNvapi_->GPU_GetAllClockFrequencies(device.handle, &cache.output);
         if (!NvapiWrapper::Ok(result)) {
-            pmlog_warn("NvAPI_GPU_GetAllClockFrequencies failed").code(result).every(std::chrono::seconds{ 60 })
+            pmlog_warn("NvAPI_GPU_GetAllClockFrequencies failed").code(result).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
             cache.output.version = 0;
@@ -282,7 +283,7 @@ namespace pmon::tel::nvapi
 
         const auto result = pNvapi_->GPU_GetDynamicPstatesInfoEx(device.handle, &cache.output);
         if (!NvapiWrapper::Ok(result)) {
-            pmlog_warn("NvAPI_GPU_GetDynamicPstatesInfoEx failed").code(result).every(std::chrono::seconds{ 60 })
+            pmlog_warn("NvAPI_GPU_GetDynamicPstatesInfoEx failed").code(result).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
             cache.output.version = 0;
@@ -292,29 +293,18 @@ namespace pmon::tel::nvapi
         return &cache.output;
     }
 
-    const NvU32* NvapiTelemetryProvider::PollTachEndpoint_(
-        DeviceState_& device,
-        int64_t requestQpc) const
+    std::optional<NvU32> NvapiTelemetryProvider::PollTachEndpoint_(const DeviceState_& device) const
     {
-        auto& cache = device.tachEndpointCache;
-        if (cache.Matches(requestQpc)) {
-            return cache.output ? &*cache.output : nullptr;
-        }
-
-        cache.output.reset();
-        cache.requestQpc = requestQpc;
-
         NvU32 tach = 0;
         const auto result = pNvapi_->GPU_GetTachReading(device.handle, &tach);
         if (!NvapiWrapper::Ok(result)) {
-            pmlog_warn("NvAPI_GPU_GetTachReading failed").code(result).every(std::chrono::seconds{ 60 })
+            pmlog_warn("NvAPI_GPU_GetTachReading failed").code(result).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
-            return nullptr;
+            return {};
         }
 
-        cache.output = tach;
-        return &*cache.output;
+        return tach;
     }
 
     TelemetryMetricValue NvapiTelemetryProvider::PollNvapiMetric_(
@@ -371,9 +361,9 @@ namespace pmon::tel::nvapi
             if (arrayIndex != 0) {
                 throw Except<>("NVAPI array index out of range");
             }
-            const auto* pTach = PollTachEndpoint_(device, requestQpc);
-            if (pTach != nullptr) {
-                return (double)*pTach;
+            const auto tach = PollTachEndpoint_(device);
+            if (tach) {
+                return (double)*tach;
             }
             return 0.0;
         }

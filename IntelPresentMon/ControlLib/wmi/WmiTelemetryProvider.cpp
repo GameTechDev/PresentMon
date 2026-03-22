@@ -19,6 +19,7 @@
 
 using namespace pmon;
 using namespace util;
+using namespace std::literals;
 
 namespace pmon::tel::wmi
 {
@@ -324,7 +325,7 @@ namespace pmon::tel::wmi
             (device.nextSampleQpc == 0 || sampleQpc >= device.nextSampleQpc)) {
             const auto collectResult = PdhCollectQueryData(device.query.get());
             if (collectResult != ERROR_SUCCESS) {
-                pmlog_warn("PdhCollectQueryData failed").code(collectResult).every(std::chrono::seconds{ 60 })
+                pmlog_warn("PdhCollectQueryData failed").code(collectResult).every(60s)
                     .pmwatch(device.providerDeviceId)
                     .pmwatch(device.fingerprint.deviceName);
             }
@@ -384,7 +385,7 @@ namespace pmon::tel::wmi
             &counterType,
             &counterValue);
         if (result != ERROR_SUCCESS) {
-            pmlog_warn(label).code(result).every(std::chrono::seconds{ 60 })
+            pmlog_warn(label).code(result).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
             value = 0.0;
