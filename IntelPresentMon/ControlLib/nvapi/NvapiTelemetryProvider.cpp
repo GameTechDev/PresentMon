@@ -6,6 +6,7 @@
 #include "../Exceptions.h"
 #include "../Logging.h"
 #include "../../CommonUtilities/Qpc.h"
+#include "../../CommonUtilities/ref/GeneratedReflection.h"
 
 #include <algorithm>
 #include <chrono>
@@ -13,6 +14,7 @@
 using namespace pmon;
 using namespace util;
 using namespace std::literals;
+using v = log::V;
 
 namespace pmon::tel::nvapi
 {
@@ -39,6 +41,8 @@ namespace pmon::tel::nvapi
             pmlog_error("NvAPI_EnumPhysicalGPUs failed").code(enumResult);
             throw Except<>("NVAPI physical GPU enumeration failed");
         }
+        pmlog_verb(v::tele_gpu)("NvAPI_EnumPhysicalGPUs output")
+            .pmwatch(count);
 
         handles.resize((size_t)count);
         for (const auto handle : handles) {
@@ -129,6 +133,9 @@ namespace pmon::tel::nvapi
         const auto fullNameResult = pNvapi_->GPU_GetFullName(device.handle, adapterName);
         if (NvapiWrapper::Ok(fullNameResult)) {
             device.fingerprint.deviceName = adapterName;
+            pmlog_verb(v::tele_gpu)("NvAPI_GPU_GetFullName output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName);
         }
         else {
             pmlog_warn("NvAPI_GPU_GetFullName failed").code(fullNameResult)
@@ -144,6 +151,13 @@ namespace pmon::tel::nvapi
         if (NvapiWrapper::Ok(pciResult)) {
             device.fingerprint.pciDeviceId = deviceId;
             device.fingerprint.pciSubSystemId = subSystemId;
+            pmlog_verb(v::tele_gpu)("NvAPI_GPU_GetPCIIdentifiers output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(deviceId)
+                .pmwatch(subSystemId)
+                .pmwatch(revisionId)
+                .pmwatch(extDeviceId);
         }
         else {
             pmlog_warn("NvAPI_GPU_GetPCIIdentifiers failed").code(pciResult)
@@ -155,6 +169,10 @@ namespace pmon::tel::nvapi
         const auto busResult = pNvapi_->GPU_GetBusId(device.handle, &busId);
         if (NvapiWrapper::Ok(busResult)) {
             device.fingerprint.pciBusId = busId;
+            pmlog_verb(v::tele_gpu)("NvAPI_GPU_GetBusId output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(busId);
         }
         else {
             pmlog_warn("NvAPI_GPU_GetBusId failed").code(busResult)
@@ -237,6 +255,10 @@ namespace pmon::tel::nvapi
             cache.output.version = 0;
             return nullptr;
         }
+        pmlog_verb(v::tele_gpu)("NvAPI_GPU_GetThermalSettings output")
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(ref::DumpGenerated(cache.output));
 
         return &cache.output;
     }
@@ -263,6 +285,10 @@ namespace pmon::tel::nvapi
             cache.output.version = 0;
             return nullptr;
         }
+        pmlog_verb(v::tele_gpu)("NvAPI_GPU_GetAllClockFrequencies output")
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(ref::DumpGenerated(cache.output));
 
         return &cache.output;
     }
@@ -289,6 +315,10 @@ namespace pmon::tel::nvapi
             cache.output.version = 0;
             return nullptr;
         }
+        pmlog_verb(v::tele_gpu)("NvAPI_GPU_GetDynamicPstatesInfoEx output")
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(ref::DumpGenerated(cache.output));
 
         return &cache.output;
     }
@@ -303,6 +333,10 @@ namespace pmon::tel::nvapi
                 .pmwatch(device.fingerprint.deviceName);
             return {};
         }
+        pmlog_verb(v::tele_gpu)("NvAPI_GPU_GetTachReading output")
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(tach);
 
         return tach;
     }

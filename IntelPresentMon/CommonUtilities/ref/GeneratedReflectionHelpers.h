@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <concepts>
 #include "GeneratedReflection.h"
@@ -8,28 +8,44 @@ namespace pmon::util::ref::gen
 	namespace {
 		using namespace std::literals;
 
-		template<typename T, size_t N, bool Primitive>
-		std::string DumpArray_(const void* pArray)
+		template<typename T, size_t N>
+		std::string DumpArray_(const T(&arr)[N])
 		{
-			auto& arr = *reinterpret_cast<const T(*)[N]>(pArray);
 			std::ostringstream oss;
 			oss << "[";
-			// TODO: push this up to the static layer, simplify this helper and C# generation
-			if constexpr (Primitive) {
-				if constexpr (std::same_as<T, char> || std::same_as<T, unsigned char>) {
-					for (size_t i = 0; i < N; i++) {
-						oss << " " << (int)arr[i] << ",";
-					}
+			if constexpr (std::is_array_v<T>) {
+				for (size_t i = 0; i < N; i++) {
+					oss << " " << DumpArray_(arr[i]) << ",";
 				}
-				else {
-					for (size_t i = 0; i < N; i++) {
-						oss << " " << arr[i] << ",";
-					}
+			}
+			else if constexpr (std::same_as<T, char>) {
+				for (size_t i = 0; i < N; i++) {
+					oss << " " << arr[i] << ",";
+				}
+			}
+			else if constexpr (std::same_as<T, unsigned char>) {
+				for (size_t i = 0; i < N; i++) {
+					oss << " " << (int)arr[i] << ",";
+				}
+			}
+			else if constexpr (
+				std::same_as<T, signed char> ||
+				std::same_as<T, wchar_t> ||
+				std::same_as<T, char8_t> ||
+				std::same_as<T, char16_t> ||
+				std::same_as<T, char32_t>) {
+				for (size_t i = 0; i < N; i++) {
+					oss << " " << (uint32_t)arr[i] << ",";
+				}
+			}
+			else if constexpr (std::is_arithmetic_v<T>) {
+				for (size_t i = 0; i < N; i++) {
+					oss << " " << arr[i] << ",";
 				}
 			}
 			else if constexpr (std::is_pointer_v<T>) {
 				for (size_t i = 0; i < N; i++) {
-					oss << " " << (arr[i] ? std::format("0x{{:016X}}", reinterpret_cast<std::uintptr_t>(arr[i])) : "null"s) << ",";
+					oss << " " << (arr[i] ? std::format("0x{:016X}", reinterpret_cast<std::uintptr_t>(arr[i])) : "null"s) << ",";
 				}
 			}
 			else {
@@ -44,6 +60,13 @@ namespace pmon::util::ref::gen
 			}
 			oss << "]";
 			return oss.str();
+		}
+
+		template<typename T, size_t N, bool Primitive>
+		std::string DumpArray_(const void* pArray)
+		{
+			(void)Primitive;
+			return DumpArray_(*reinterpret_cast<const T(*)[N]>(pArray));
 		}
 	}
 }

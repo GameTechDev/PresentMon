@@ -5,12 +5,14 @@
 #include "../Exceptions.h"
 #include "../Logging.h"
 #include "../../CommonUtilities/Qpc.h"
+#include "../../CommonUtilities/ref/GeneratedReflection.h"
 
 #include <chrono>
 
 using namespace pmon;
 using namespace util;
 using namespace std::literals;
+using v = log::V;
 
 namespace pmon::tel::nvml
 {
@@ -33,6 +35,8 @@ namespace pmon::tel::nvml
             pmlog_error("nvmlDeviceGetCount_v2 failed").code(countResult);
             throw Except<>("NVML device count query failed");
         }
+        pmlog_verb(v::tele_gpu)("nvmlDeviceGetCount_v2 output")
+            .pmwatch(count);
 
         for (unsigned int i = 0; i < count; ++i) {
             nvmlDevice_t handle = nullptr;
@@ -42,6 +46,9 @@ namespace pmon::tel::nvml
                     .pmwatch(i);
                 continue;
             }
+            pmlog_verb(v::tele_gpu)("nvmlDeviceGetHandleByIndex_v2 output")
+                .pmwatch(i)
+                .pmwatch((const void*)handle);
 
             const auto providerDeviceId = nextProviderDeviceId_;
             const auto emplaceResult = devicesById_.try_emplace(providerDeviceId);
@@ -188,6 +195,9 @@ namespace pmon::tel::nvml
         }
         else if (adapterName[0] != '\0') {
             device.fingerprint.deviceName = adapterName;
+            pmlog_verb(v::tele_gpu)("nvmlDeviceGetName output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName);
         }
         else {
             pmlog_warn("nvmlDeviceGetName returned empty adapter name")
@@ -200,6 +210,10 @@ namespace pmon::tel::nvml
             device.fingerprint.pciDeviceId = pciInfo.pciDeviceId;
             device.fingerprint.pciSubSystemId = pciInfo.pciSubSystemId;
             device.fingerprint.pciBusId = pciInfo.bus;
+            pmlog_verb(v::tele_gpu)("nvmlDeviceGetPciInfo_v3 output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(ref::DumpGenerated(pciInfo));
         }
         else {
             pmlog_warn("nvmlDeviceGetPciInfo_v3 failed").code(pciResult)
@@ -258,6 +272,10 @@ namespace pmon::tel::nvml
                 .pmwatch(device.fingerprint.deviceName);
             return nullptr;
         }
+        pmlog_verb(v::tele_gpu)("nvmlDeviceGetMemoryInfo output")
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(ref::DumpGenerated(memoryInfo));
 
         cache.output = memoryInfo;
         return &*cache.output;
@@ -273,6 +291,10 @@ namespace pmon::tel::nvml
                 .pmwatch(device.fingerprint.deviceName);
             return {};
         }
+        pmlog_verb(v::tele_gpu)("nvmlDeviceGetPowerUsage output")
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(powerMw);
 
         return powerMw;
     }
@@ -287,6 +309,10 @@ namespace pmon::tel::nvml
                 .pmwatch(device.fingerprint.deviceName);
             return {};
         }
+        pmlog_verb(v::tele_gpu)("nvmlDeviceGetPowerManagementLimit output")
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(limitMw);
 
         return limitMw;
     }
