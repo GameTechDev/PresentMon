@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MetricsCalculator.h"
 #include "MetricsCalculatorInternal.h"
@@ -11,7 +11,7 @@ namespace pmon::util::metrics
     namespace
     {
         // ---- Input latency metrics ----
-        std::optional<double> ComputeClickToPhotonLatency(
+        double ComputeClickToPhotonLatency(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
             const FrameData& present,
@@ -22,7 +22,7 @@ namespace pmon::util::metrics
         {
             // Only app frames participate in click-to-photon.
             if (!isAppFrame) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             uint64_t inputTime = 0;
@@ -34,7 +34,7 @@ namespace pmon::util::metrics
                 if (!isDisplayed) {
                     // Not displayed: stash the click for a future displayed frame.
                     stateDeltas.lastReceivedNotDisplayedMouseClickTime = inputTime;
-                    return std::nullopt;
+                    return MissingFrameMetricValue();
                 }
                 else {
                     stateDeltas.shouldResetInputTimes = true;
@@ -49,14 +49,14 @@ namespace pmon::util::metrics
 
             // If we still have no inputTime, nothing to compute.
             if (inputTime == 0) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
         }
 
 
-        std::optional<double> ComputeAllInputToPhotonLatency(
+        double ComputeAllInputToPhotonLatency(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
             const FrameData& present,
@@ -67,7 +67,7 @@ namespace pmon::util::metrics
         {
             // Only app frames participate in click-to-photon.
             if (!isAppFrame) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             uint64_t inputTime = 0;
@@ -79,7 +79,7 @@ namespace pmon::util::metrics
                 if (!isDisplayed) {
                     // Not displayed: stash the click for a future displayed frame.
                     stateDeltas.lastReceivedNotDisplayedAllInputTime = inputTime;
-                    return std::nullopt;
+                    return MissingFrameMetricValue();
                 }
                 else {
                     stateDeltas.shouldResetInputTimes = true;
@@ -94,13 +94,13 @@ namespace pmon::util::metrics
 
             // If we still have no inputTime, nothing to compute.
             if (inputTime == 0) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);
         }
 
-        std::optional<double> ComputeInstrumentedInputToPhotonLatency(
+        double ComputeInstrumentedInputToPhotonLatency(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
             const FrameData& present,
@@ -111,7 +111,7 @@ namespace pmon::util::metrics
         {
             // Only app frames participate in click-to-photon.
             if (!isAppFrame) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             uint64_t inputTime = 0;
@@ -123,7 +123,7 @@ namespace pmon::util::metrics
                 if (!isDisplayed) {
                     // Not displayed: stash the click for a future displayed frame.
                     stateDeltas.lastReceivedNotDisplayedAppProviderInputTime = inputTime;
-                    return std::nullopt;
+                    return MissingFrameMetricValue();
                 }
                 else {
                     stateDeltas.shouldResetInputTimes = true;
@@ -138,7 +138,7 @@ namespace pmon::util::metrics
 
             // If we still have no inputTime, nothing to compute.
             if (inputTime == 0) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             return qpc.DeltaUnsignedMilliSeconds(inputTime, screenTime);

@@ -116,10 +116,8 @@ PM_FRAME_QUERY::GatherCommand_ PM_FRAME_QUERY::MapQueryElementToFrameGatherComma
 		[&]<PM_METRIC Metric>() -> bool {
 			if constexpr (util::metrics::HasFrameMetricMember<Metric>) {
 				constexpr auto memberPtr = util::metrics::FrameMetricMember<Metric>::member;
-				using MemberType = typename util::MemberPointerInfo<decltype(memberPtr)>::MemberType;
 				static const uint32_t memberOffset = uint32_t(util::MemberPointerOffset(memberPtr));
 				cmd.frameMetricsOffset = memberOffset;
-				cmd.isOptional = util::IsStdOptional<MemberType>;
 				return true;
 			}
 			return false;
@@ -148,27 +146,11 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 		return;
 	}
 
-	// Write frame metric into the blob, preserving optional<...> semantics.
-	// For optional<double>, nullopt maps to NaN for downstream compatibility.
+	// Write frame metric into the blob. Missing metrics are already encoded as NaN
+	// in FrameMetrics.
 	const auto WriteValue = [&]<typename T>() {
 		auto& blobValue = *reinterpret_cast<T*>(pBlobBytes + cmd.blobOffset);
-		if (!cmd.isOptional) {
-			blobValue = *reinterpret_cast<const T*>(pFrameMemberBytes);
-		}
-		else {
-			const auto& optValue = *reinterpret_cast<const std::optional<T>*>(pFrameMemberBytes);
-			if (optValue) {
-				blobValue = *optValue;
-			}
-			else {
-				if constexpr (std::is_same_v<T, double>) {
-					blobValue = std::numeric_limits<double>::quiet_NaN();
-				}
-				else {
-					blobValue = T{};
-				}
-			}
-		}
+		blobValue = *reinterpret_cast<const T*>(pFrameMemberBytes);
 
 		// Additional display-metric specific logic if the value is zero and not-dropped
 		if constexpr (std::is_same_v<T, double>) {

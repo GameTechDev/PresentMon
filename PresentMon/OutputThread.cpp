@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -394,7 +394,7 @@ static FrameMetrics1 ToFrameMetrics1(pmon::util::metrics::FrameMetrics const& m)
     out.msVideoDuration = m.msVideoDuration;
     out.msSinceInput = m.msSinceInput;
     out.qpcScreenTime = m.screenTimeQpc;
-    out.msFlipDelay = m.msFlipDelay.has_value() ? m.msFlipDelay.value() : 0.0;
+    out.msFlipDelay = pmon::util::metrics::IsMissingFrameMetricValue(m.msFlipDelay) ? 0.0 : m.msFlipDelay;
     return out;
 }
 

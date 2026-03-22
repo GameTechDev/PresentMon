@@ -70,7 +70,7 @@ namespace pmon::mid
         {
             const auto value = AdjustSample_(sample.*MemberPtr);
             // if samples has reserved size, it is needed
-            if (samples_.capacity()) {
+            if (samples_.capacity() && detail::DynamicStatSampleAdapter<T>::HasValue(value)) {
                 samples_.push_back(value);
             }
             for (auto* stat : needsUpdatePtrs_) {
@@ -170,17 +170,7 @@ namespace pmon::mid
 
         static T ApplyAbs_(T value)
         {
-            if constexpr (util::IsStdOptional<T>) {
-                using ValueType = typename T::value_type;
-                if (value) {
-                    if constexpr (std::is_arithmetic_v<ValueType> && std::is_signed_v<ValueType>) {
-                        using std::abs;
-                        *value = static_cast<ValueType>(abs(*value));
-                    }
-                }
-                return value;
-            }
-            else if constexpr (std::is_arithmetic_v<T> && std::is_signed_v<T>) {
+            if constexpr (std::is_arithmetic_v<T> && std::is_signed_v<T>) {
                 using std::abs;
                 return static_cast<T>(abs(value));
             }

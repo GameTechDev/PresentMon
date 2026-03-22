@@ -15,55 +15,12 @@ namespace pmon::mid
 {
     namespace detail
     {
-        // TODO: consider ways of obviating this adapter construct
-        template<typename T>
-        struct SampleAdapter_
-        {
-            static bool HasValue(const T&)
-            {
-                return true;
-            }
-            static bool IsZero(const T& val)
-            {
-                return val == (T)0;
-            }
-            static double ToDouble(const T& val)
-            {
-                return (double)val;
-            }
-            static uint64_t ToUint64(const T& val)
-            {
-                return (uint64_t)val;
-            }
-        };
-
-        template<typename U>
-        struct SampleAdapter_<std::optional<U>>
-        {
-            static bool HasValue(const std::optional<U>& val)
-            {
-                return val.has_value();
-            }
-            static bool IsZero(const std::optional<U>& val)
-            {
-                return !val.has_value() || *val == (U)0;
-            }
-            static double ToDouble(const std::optional<U>& val)
-            {
-                return val.has_value() ? (double)*val : 0.0;
-            }
-            static uint64_t ToUint64(const std::optional<U>& val)
-            {
-                return val.has_value() ? (uint64_t)*val : 0;
-            }
-        };
-
         template<typename T>
         void WriteOptionalValueToBlob_(uint8_t* pBase, size_t offsetBytes, PM_DATA_TYPE outType, const std::optional<T>& value)
         {
             auto* pTarget = pBase + offsetBytes;
-            const double doubleVal = value ? SampleAdapter_<T>::ToDouble(*value) : 0.0;
-            const uint64_t uint64Val = value ? SampleAdapter_<T>::ToUint64(*value) : 0;
+            const double doubleVal = value ? DynamicStatSampleAdapter<T>::ToDouble(*value) : 0.0;
+            const uint64_t uint64Val = value ? DynamicStatSampleAdapter<T>::ToUint64(*value) : 0;
             switch (outType) {
             case PM_DATA_TYPE_DOUBLE:
                 *reinterpret_cast<double*>(pTarget) = doubleVal;
@@ -129,7 +86,7 @@ namespace pmon::mid
                     WriteOptionalValueToBlob_(pBase, offsetBytes_, outType_, std::optional<double>{});
                     return;
                 }
-                const double rawValue = SampleAdapter_<V>::ToDouble(*value);
+                const double rawValue = DynamicStatSampleAdapter<V>::ToDouble(*value);
                 // if value is present but zero, cannot recip zero so write nullopt
                 if (rawValue == 0.0) {
                     WriteOptionalValueToBlob_(pBase, offsetBytes_, outType_, std::optional<double>{});
@@ -161,13 +118,13 @@ namespace pmon::mid
             bool NeedsSortedWindow() const override { return false; }
             void AddSample(T val) override
             {
-                if (!SampleAdapter_<T>::HasValue(val)) {
+                if (!DynamicStatSampleAdapter<T>::HasValue(val)) {
                     return;
                 }
-                if (skipZero_ && SampleAdapter_<T>::IsZero(val)) {
+                if (skipZero_ && DynamicStatSampleAdapter<T>::IsZero(val)) {
                     return;
                 }
-                sum_ += SampleAdapter_<T>::ToDouble(val);
+                sum_ += DynamicStatSampleAdapter<T>::ToDouble(val);
                 ++count_;
             }
             void GatherToBlob(uint8_t* pBase) const override
@@ -204,8 +161,8 @@ namespace pmon::mid
             {
                 // Methodology / steps:
                 //
-                //  0) Find the first sample that "has value" (for std::optional and similar),
-                //     assuming empties/invalids sort before valids in the already-sorted buffer.
+                //  0) Find the first valid sample, assuming invalid entries sort before valid
+                //     entries in the already-sorted buffer.
                 //
                 //  1) Map p to a fractional index h in [0, N-1] using:
                 //        h = p * (N - 1)
@@ -228,12 +185,12 @@ namespace pmon::mid
                 // Step 0: locate the first valid value (ignore empties/invalids at the front).
                 size_t firstValid = 0;
                 while (firstValid < sortedSamples.size() &&
-                    !SampleAdapter_<T>::HasValue(sortedSamples[firstValid])) {
+                    !DynamicStatSampleAdapter<T>::HasValue(sortedSamples[firstValid])) {
                     ++firstValid;
                 }
                 const size_t validCount = sortedSamples.size() - firstValid;
                 if (validCount == 0) {
-                    return; // no valid samples => leave value_ unchanged (or set to NaN if desired)
+                    return; // no valid samples => leave value_ unchanged
                 }
 
                 // Step 1: p-to-index mapping (fractional index over [0, N-1]).
@@ -250,8 +207,8 @@ namespace pmon::mid
                 // (but if at the end of container, use i for both sides of interpolation)
                 const size_t i1 = (i + 1 < validCount) ? (i + 1) : i;
                 // retrieve both samples
-                const double x0 = SampleAdapter_<T>::ToDouble(sortedSamples[firstValid + i]);
-                const double x1 = SampleAdapter_<T>::ToDouble(sortedSamples[firstValid + i1]);
+                const double x0 = DynamicStatSampleAdapter<T>::ToDouble(sortedSamples[firstValid + i]);
+                const double x1 = DynamicStatSampleAdapter<T>::ToDouble(sortedSamples[firstValid + i1]);
                
                 // Step 4: perform linear interpolation
                 value_ = x0 + g * (x1 - x0);
@@ -282,10 +239,10 @@ namespace pmon::mid
             bool NeedsSortedWindow() const override { return false; }
             void AddSample(T val) override
             {
-                if (!SampleAdapter_<T>::HasValue(val)) {
+                if (!DynamicStatSampleAdapter<T>::HasValue(val)) {
                     return;
                 }
-                const double doubleVal = SampleAdapter_<T>::ToDouble(val);
+                const double doubleVal = DynamicStatSampleAdapter<T>::ToDouble(val);
                 if (!value_) {
                     value_ = doubleVal;
                     return;
@@ -343,6 +300,10 @@ namespace pmon::mid
             }
             void SetSampledValue(T val) override
             {
+                if (!DynamicStatSampleAdapter<T>::HasValue(val)) {
+                    value_.reset();
+                    return;
+                }
                 value_ = val;
             }
             void GatherToBlob(uint8_t* pBase) const override
@@ -413,7 +374,6 @@ namespace pmon::mid
     template std::unique_ptr<DynamicStat<uint32_t>> MakeDynamicStat<uint32_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
     template std::unique_ptr<DynamicStat<uint64_t>> MakeDynamicStat<uint64_t>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
     template std::unique_ptr<DynamicStat<bool>> MakeDynamicStat<bool>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
-    template std::unique_ptr<DynamicStat<std::optional<double>>> MakeDynamicStat<std::optional<double>>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
     template std::unique_ptr<DynamicStat<::PresentMode>> MakeDynamicStat<::PresentMode>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
     template std::unique_ptr<DynamicStat<::Runtime>> MakeDynamicStat<::Runtime>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);
     template std::unique_ptr<DynamicStat<::FrameType>> MakeDynamicStat<::FrameType>(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType, size_t offsetBytes, std::optional<double> reciprocationFactor);

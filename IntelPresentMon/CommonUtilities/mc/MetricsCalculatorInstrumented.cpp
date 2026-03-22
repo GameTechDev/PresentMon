@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MetricsCalculator.h"
 #include "MetricsCalculatorInternal.h"
@@ -11,7 +11,7 @@ namespace pmon::util::metrics
     namespace
     {
         // ---- Instrumented metrics ----
-        std::optional<double> ComputeInstrumentedLatency(
+        double ComputeInstrumentedLatency(
             const QpcConverter& qpc,
             const FrameData& present,
             bool isDisplayed,
@@ -19,7 +19,7 @@ namespace pmon::util::metrics
             uint64_t screenTime)
         {
             if (!isDisplayed || !isAppFrame) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             auto instrumentedStartTime = present.appSleepEndTime != 0 ?
@@ -27,13 +27,13 @@ namespace pmon::util::metrics
 
             if (instrumentedStartTime == 0) {
                 // No instrumented start time: nothing to compute.
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             return qpc.DeltaUnsignedMilliSeconds(instrumentedStartTime, screenTime);
         }
 
-        std::optional<double> ComputeInstrumentedRenderLatency(
+        double ComputeInstrumentedRenderLatency(
             const QpcConverter& qpc,
             const FrameData& present,
             bool isDisplayed,
@@ -41,41 +41,41 @@ namespace pmon::util::metrics
             uint64_t screenTime)
         {
             if (!isDisplayed || !isAppFrame) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             if (present.appRenderSubmitStartTime == 0) {
                 // No app provided render submit start time: nothing to compute.
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             return qpc.DeltaUnsignedMilliSeconds(present.appRenderSubmitStartTime, screenTime);
         }
 
-        std::optional<double> ComputeInstrumentedSleep(
+        double ComputeInstrumentedSleep(
             const QpcConverter& qpc,
             const FrameData& present,
             bool isAppFrame)
         {
             if (!isAppFrame) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             if (present.appSleepStartTime == 0 || present.appSleepEndTime == 0) {
                 // No app provided sleep times: nothing to compute.
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             return qpc.DeltaUnsignedMilliSeconds(present.appSleepStartTime, present.appSleepEndTime);
         }
 
-        std::optional<double> ComputeInstrumentedGpuLatency(
+        double ComputeInstrumentedGpuLatency(
             const QpcConverter& qpc,
             const FrameData& present,
             bool isAppFrame)
         {
             if (!isAppFrame) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             auto instrumentedStartTime = present.appSleepEndTime != 0 ?
@@ -83,26 +83,26 @@ namespace pmon::util::metrics
 
             if (instrumentedStartTime == 0) {
                 // No provider sleep end or sim start time: nothing to compute.
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             if (present.gpuStartTime == 0) {
                 // No GPU start time: nothing to compute.
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             return qpc.DeltaUnsignedMilliSeconds(instrumentedStartTime, present.gpuStartTime);
         }
 
         // ---- Simulation metrics ----
-        std::optional<double> ComputeMsBetweenSimulationStarts(
+        double ComputeMsBetweenSimulationStarts(
             const QpcConverter& qpc,
             const SwapChainCoreState& chain,
             const FrameData& present,
             bool isAppFrame)
         {
             if (!isAppFrame) {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
 
             // The current sim start time is only dependent on the current frame's simulation start times.
@@ -121,13 +121,13 @@ namespace pmon::util::metrics
                     currentSimStartTime);
             }
             else {
-                return std::nullopt;
+                return MissingFrameMetricValue();
             }
         }
 
     }
 
-    std::optional<double> CalculatePcLatency(
+    double CalculatePcLatency(
         const QpcConverter& qpc,
         const SwapChainCoreState& chain,
         const FrameData& present,
@@ -156,7 +156,7 @@ namespace pmon::util::metrics
                 }
                 stateDeltas.newLastReceivedPclSimStart = present.pclSimStartTime;
             }
-            return std::nullopt;
+            return MissingFrameMetricValue();
         }
 
         // Check to see if we have a valid PC Latency sim start time
@@ -203,7 +203,7 @@ namespace pmon::util::metrics
             return input2FrameStartEma + qpc.DeltaSignedMilliSeconds(simStartTime, screenTime);
         }
         else {
-            return std::nullopt;
+            return MissingFrameMetricValue();
         }
     }
 

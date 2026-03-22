@@ -21,15 +21,22 @@ namespace pmon::util::metrics {
                     const uint64_t lastScreenTime = present.displayed[lastIdx].second;
 
                     if (animationErrorSource == AnimationErrorSource::AppProvider) {
-                        lastDisplayedSimStartTime = present.appSimStartTime;
-                        if (firstAppSimStartTime == 0) {
-                            firstAppSimStartTime = present.appSimStartTime;
+                        if (present.appSimStartTime != 0) {
+                            lastDisplayedSimStartTime = present.appSimStartTime;
+                            if (firstAppSimStartTime == 0) {
+                                firstAppSimStartTime = present.appSimStartTime;
+                            }
+                            lastDisplayedAppScreenTime = lastScreenTime;
                         }
-                        lastDisplayedAppScreenTime = lastScreenTime;
                     }
                     else if (animationErrorSource == AnimationErrorSource::PCLatency) {
-                        // In the case of PCLatency only set values if PCL sim start time is non-zero
-                        if (present.pclSimStartTime != 0) {
+                        if (present.appSimStartTime != 0) {
+                            animationErrorSource = AnimationErrorSource::AppProvider;
+                            firstAppSimStartTime = present.appSimStartTime;
+                            lastDisplayedSimStartTime = present.appSimStartTime;
+                            lastDisplayedAppScreenTime = lastScreenTime;
+                        }
+                        else if (present.pclSimStartTime != 0) {
                             lastDisplayedSimStartTime = present.pclSimStartTime;
                             if (firstAppSimStartTime == 0) {
                                 firstAppSimStartTime = present.pclSimStartTime;
@@ -38,21 +45,17 @@ namespace pmon::util::metrics {
                         }
                     }
                     else { // AnimationErrorSource::CpuStart
-                        // Check for PCL or App sim start and possibly change source.
-                        if (present.pclSimStartTime != 0) {
-                            animationErrorSource = AnimationErrorSource::PCLatency;
-                            lastDisplayedSimStartTime = present.pclSimStartTime;
-                            if (firstAppSimStartTime == 0) {
-                                firstAppSimStartTime = present.pclSimStartTime;
-                            }
+                        // Check for provider sim start and possibly change source.
+                        if (present.appSimStartTime != 0) {
+                            animationErrorSource = AnimationErrorSource::AppProvider;
+                            firstAppSimStartTime = present.appSimStartTime;
+                            lastDisplayedSimStartTime = present.appSimStartTime;
                             lastDisplayedAppScreenTime = lastScreenTime;
                         }
-                        else if (present.appSimStartTime != 0) {
-                            animationErrorSource = AnimationErrorSource::AppProvider;
-                            lastDisplayedSimStartTime = present.appSimStartTime;
-                            if (firstAppSimStartTime == 0) {
-                                firstAppSimStartTime = present.appSimStartTime;
-                            }
+                        else if (present.pclSimStartTime != 0) {
+                            animationErrorSource = AnimationErrorSource::PCLatency;
+                            firstAppSimStartTime = present.pclSimStartTime;
+                            lastDisplayedSimStartTime = present.pclSimStartTime;
                             lastDisplayedAppScreenTime = lastScreenTime;
                         }
                         else {
