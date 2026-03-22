@@ -161,8 +161,8 @@ namespace pmon::mid
             {
                 // Methodology / steps:
                 //
-                //  0) Find the first sample that "has value" (for std::optional and similar),
-                //     assuming empties/invalids sort before valids in the already-sorted buffer.
+                //  0) Find the first valid sample, assuming invalid entries sort before valid
+                //     entries in the already-sorted buffer.
                 //
                 //  1) Map p to a fractional index h in [0, N-1] using:
                 //        h = p * (N - 1)
@@ -190,7 +190,7 @@ namespace pmon::mid
                 }
                 const size_t validCount = sortedSamples.size() - firstValid;
                 if (validCount == 0) {
-                    return; // no valid samples => leave value_ unchanged (or set to NaN if desired)
+                    return; // no valid samples => leave value_ unchanged
                 }
 
                 // Step 1: p-to-index mapping (fractional index over [0, N-1]).

@@ -146,8 +146,8 @@ void PM_FRAME_QUERY::GatherFromFrameMetrics_(const GatherCommand_& cmd, uint8_t*
 		return;
 	}
 
-	// Write frame metric into the blob, preserving optional<...> semantics.
-	// Missing migrated frame metrics are already encoded as NaN in FrameMetrics.
+	// Write frame metric into the blob. Missing metrics are already encoded as NaN
+	// in FrameMetrics.
 	const auto WriteValue = [&]<typename T>() {
 		auto& blobValue = *reinterpret_cast<T*>(pBlobBytes + cmd.blobOffset);
 		blobValue = *reinterpret_cast<const T*>(pFrameMemberBytes);

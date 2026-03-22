@@ -170,17 +170,7 @@ namespace pmon::mid
 
         static T ApplyAbs_(T value)
         {
-            if constexpr (util::IsStdOptional<T>) {
-                using ValueType = typename T::value_type;
-                if (value) {
-                    if constexpr (std::is_arithmetic_v<ValueType> && std::is_signed_v<ValueType>) {
-                        using std::abs;
-                        *value = static_cast<ValueType>(abs(*value));
-                    }
-                }
-                return value;
-            }
-            else if constexpr (std::is_arithmetic_v<T> && std::is_signed_v<T>) {
+            if constexpr (std::is_arithmetic_v<T> && std::is_signed_v<T>) {
                 using std::abs;
                 return static_cast<T>(abs(value));
             }
