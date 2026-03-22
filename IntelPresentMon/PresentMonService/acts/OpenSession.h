@@ -1,5 +1,6 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
+#include "../ActionExecutionContext.h"
 #include "../../Versioning/BuildId.h"
 #include <format>
 

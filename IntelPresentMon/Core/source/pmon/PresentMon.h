@@ -4,7 +4,6 @@
 #include <optional>
 #include <vector>
 #include <memory>
-#include "AdapterInfo.h"
 #include <PresentMonAPIWrapper/ProcessTracker.h>
 #include <PresentMonAPIWrapper/EtlLogger.h>
 
@@ -33,7 +32,6 @@ namespace p2c::pmon
 		uint32_t GetGpuTelemetryPeriod();
 		void SetEtwFlushPeriod(std::optional<uint32_t> periodMs);
 		std::optional<uint32_t> GetEtwFlushPeriod();
-		std::vector<AdapterInfo> EnumerateAdapters() const;
 		void SetEtlLogging(bool active);
 		std::optional<uint32_t> GetPid() const;
 		const pmapi::ProcessTracker& GetTracker() const;

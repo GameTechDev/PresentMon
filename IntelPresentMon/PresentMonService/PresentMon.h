@@ -37,7 +37,6 @@ public:
 	// Force stop trace sessions
 	void StopTraceSessions();
     PM_STATUS UpdateTracking(const std::unordered_set<uint32_t>& trackedPids);
-	std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> EnumerateAdapters() const;
 	PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> telemetryPeriodRequestsMs)
 	{
 		return pSession_->SetGpuTelemetryPeriod(telemetryPeriodRequestsMs);
@@ -64,10 +63,6 @@ public:
 	bool HasLiveTargets() const
 	{
 		return pSession_->HasLiveTargets();
-	}
-	void SetTelemetryAdapters(std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> adapters)
-	{
-		pSession_->SetTelemetryAdapters(std::move(adapters));
 	}
 	void FlushEvents()
 	{
