@@ -5,6 +5,7 @@
 #include "../Exceptions.h"
 #include "../Logging.h"
 #include "../../CommonUtilities/Qpc.h"
+#include "../../CommonUtilities/ref/GeneratedReflection.h"
 
 #include <chrono>
 #include <unordered_set>
@@ -12,6 +13,7 @@
 using namespace pmon;
 using namespace util;
 using namespace std::literals;
+using v = log::V;
 
 namespace pmon::tel::adl
 {
@@ -47,6 +49,8 @@ namespace pmon::tel::adl
             pmlog_error("ADL2_Adapter_NumberOfAdapters_Get failed").code(countResult);
             throw Except<>("ADL adapter count query failed");
         }
+        pmlog_verb(v::tele_gpu)("ADL2_Adapter_NumberOfAdapters_Get output")
+            .pmwatch(adapterCount);
 
         if (adapterCount <= 0) {
             return;
@@ -64,6 +68,8 @@ namespace pmon::tel::adl
             pmlog_error("ADL2_Adapter_AdapterInfo_Get failed").code(infoResult);
             throw Except<>("ADL adapter info query failed");
         }
+        pmlog_verb(v::tele_gpu)("ADL2_Adapter_AdapterInfo_Get output")
+            .pmwatch(ref::DumpGenerated(adapterInfos));
 
         std::unordered_set<int> seenBusNumbers{};
         for (const auto& adapterInfo : adapterInfos) {
@@ -297,6 +303,12 @@ namespace pmon::tel::adl
                 .pmwatch(device.fingerprint.deviceName);
             return false;
         }
+        pmlog_verb(v::tele_gpu)("ADL2_Overdrive_Caps output")
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(overdriveSupported)
+            .pmwatch(overdriveEnabled)
+            .pmwatch(overdriveVersion);
 
         if (!overdriveSupported || !overdriveEnabled) {
             pmlog_warn("Skipping AMD adapter without enabled Overdrive telemetry")
@@ -342,6 +354,11 @@ namespace pmon::tel::adl
                 }
                 break;
             }
+            pmlog_verb(v::tele_gpu)("ADL2_Overdrive5_ThermalDevices_Enum output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(thermalControllerIndex)
+                .pmwatch(ref::DumpGenerated(thermalInfo));
             if (thermalInfo.iThermalDomain == ADL_DL_THERMAL_DOMAIN_GPU) {
                 device.od5ThermalControllerIndices.push_back(thermalControllerIndex);
             }
@@ -433,6 +450,10 @@ namespace pmon::tel::adl
                 .pmwatch(device.fingerprint.deviceName);
             return nullptr;
         }
+        pmlog_verb(v::tele_gpu)("ADL2_Adapter_MemoryInfoX4_Get output")
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(ref::DumpGenerated(memoryInfo));
 
         device.memoryInfo = memoryInfo;
         return &*device.memoryInfo;
@@ -453,6 +474,10 @@ namespace pmon::tel::adl
                     .pmwatch(device.fingerprint.deviceName);
                 return {};
             }
+            pmlog_verb(v::tele_gpu)("ADL2_Overdrive5_PowerControl_Caps output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(powerControlSupported);
             if (!powerControlSupported) {
                 return {};
             }
@@ -469,6 +494,11 @@ namespace pmon::tel::adl
                     .pmwatch(device.fingerprint.deviceName);
                 return {};
             }
+            pmlog_verb(v::tele_gpu)("ADL2_Overdrive5_PowerControl_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(powerControlCurrent)
+                .pmwatch(powerControlDefault);
 
             (void)powerControlDefault;
             return (double)powerControlCurrent;
@@ -485,6 +515,10 @@ namespace pmon::tel::adl
                     .pmwatch(device.fingerprint.deviceName);
                 return {};
             }
+            pmlog_verb(v::tele_gpu)("ADL2_Overdrive6_PowerControl_Caps output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(powerControlSupported);
             if (!powerControlSupported) {
                 return {};
             }
@@ -501,6 +535,11 @@ namespace pmon::tel::adl
                     .pmwatch(device.fingerprint.deviceName);
                 return {};
             }
+            pmlog_verb(v::tele_gpu)("ADL2_Overdrive6_PowerControl_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(powerControlCurrent)
+                .pmwatch(powerControlDefault);
 
             (void)powerControlDefault;
             return (double)powerControlCurrent;
@@ -528,6 +567,10 @@ namespace pmon::tel::adl
         if (Adl2Wrapper::Ok(vramUsageResult)) {
             snapshot.hasGpuMemUsed = true;
             snapshot.gpuMemUsedBytes = (uint64_t)vramUsageMb * 1000000ull;
+            pmlog_verb(v::tele_gpu)("ADL2_Adapter_VRAMUsage_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(vramUsageMb);
         }
         else {
             pmlog_warn("ADL2_Adapter_VRAMUsage_Get failed").code(vramUsageResult).every(60s)
@@ -574,6 +617,11 @@ namespace pmon::tel::adl
                     snapshot.gpuTemperatureC = (double)temperature.iTemperature / 1000.0;
                     snapshot.hasGpuTemperature = true;
                 }
+                pmlog_verb(v::tele_gpu)("ADL2_Overdrive5_Temperature_Get output")
+                    .pmwatch(device.providerDeviceId)
+                    .pmwatch(device.fingerprint.deviceName)
+                    .pmwatch(thermalControllerIndex)
+                    .pmwatch(ref::DumpGenerated(temperature));
             }
             else {
                 pmlog_warn("ADL2_Overdrive5_Temperature_Get failed").code(tempResult).every(60s)
@@ -594,6 +642,11 @@ namespace pmon::tel::adl
                     .pmwatch(thermalControllerIndex);
                 continue;
             }
+            pmlog_verb(v::tele_gpu)("ADL2_Overdrive5_FanSpeedInfo_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(thermalControllerIndex)
+                .pmwatch(ref::DumpGenerated(fanInfo));
 
             if (HasFlag_(fanInfo.iFlags, ADL_DL_FANCTRL_SUPPORTS_RPM_READ)) {
                 ADLFanSpeedValue fanValue{
@@ -606,6 +659,11 @@ namespace pmon::tel::adl
                     &fanValue);
                 if (Adl2Wrapper::Ok(fanResult)) {
                     snapshot.fanSpeedsRpm.push_back((double)fanValue.iFanSpeed);
+                    pmlog_verb(v::tele_gpu)("ADL2_Overdrive5_FanSpeed_Get output")
+                        .pmwatch(device.providerDeviceId)
+                        .pmwatch(device.fingerprint.deviceName)
+                        .pmwatch(thermalControllerIndex)
+                        .pmwatch(ref::DumpGenerated(fanValue));
                 }
                 else {
                     pmlog_warn("ADL2_Overdrive5_FanSpeed_Get failed for RPM").code(fanResult).every(60s)
@@ -626,6 +684,11 @@ namespace pmon::tel::adl
                     &fanValue);
                 if (Adl2Wrapper::Ok(fanResult)) {
                     snapshot.fanSpeedRatios.push_back((double)fanValue.iFanSpeed / 100.0);
+                    pmlog_verb(v::tele_gpu)("ADL2_Overdrive5_FanSpeed_Get output")
+                        .pmwatch(device.providerDeviceId)
+                        .pmwatch(device.fingerprint.deviceName)
+                        .pmwatch(thermalControllerIndex)
+                        .pmwatch(ref::DumpGenerated(fanValue));
                 }
                 else {
                     pmlog_warn("ADL2_Overdrive5_FanSpeed_Get failed for percent").code(fanResult).every(60s)
@@ -652,6 +715,10 @@ namespace pmon::tel::adl
 
             snapshot.gpuVoltageV = (double)activity.iVddc;
             snapshot.hasGpuVoltage = true;
+            pmlog_verb(v::tele_gpu)("ADL2_Overdrive5_CurrentActivity_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(ref::DumpGenerated(activity));
         }
         else {
             pmlog_warn("ADL2_Overdrive5_CurrentActivity_Get failed").code(activityResult).every(60s)
@@ -669,12 +736,20 @@ namespace pmon::tel::adl
             device.adlAdapterIndex,
             &thermalCaps);
         if (Adl2Wrapper::Ok(thermalCapsResult)) {
+            pmlog_verb(v::tele_gpu)("ADL2_Overdrive6_ThermalController_Caps output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(ref::DumpGenerated(thermalCaps));
             if (HasFlag_(thermalCaps.iCapabilities, ADL_OD6_TCCAPS_THERMAL_CONTROLLER)) {
                 int temperature = 0;
                 const auto tempResult = pAdl_->Overdrive6_Temperature_Get(device.adlAdapterIndex, &temperature);
                 if (Adl2Wrapper::Ok(tempResult)) {
                     snapshot.gpuTemperatureC = (double)temperature / 1000.0;
                     snapshot.hasGpuTemperature = true;
+                    pmlog_verb(v::tele_gpu)("ADL2_Overdrive6_Temperature_Get output")
+                        .pmwatch(device.providerDeviceId)
+                        .pmwatch(device.fingerprint.deviceName)
+                        .pmwatch(temperature);
                 }
                 else {
                     pmlog_warn("ADL2_Overdrive6_Temperature_Get failed").code(tempResult).every(60s)
@@ -686,6 +761,10 @@ namespace pmon::tel::adl
             ADLOD6FanSpeedInfo fanInfo{};
             const auto fanResult = pAdl_->Overdrive6_FanSpeed_Get(device.adlAdapterIndex, &fanInfo);
             if (Adl2Wrapper::Ok(fanResult)) {
+                pmlog_verb(v::tele_gpu)("ADL2_Overdrive6_FanSpeed_Get output")
+                    .pmwatch(device.providerDeviceId)
+                    .pmwatch(device.fingerprint.deviceName)
+                    .pmwatch(ref::DumpGenerated(fanInfo));
                 if (HasFlag_(fanInfo.iSpeedType, ADL_OD6_FANSPEED_TYPE_RPM)) {
                     snapshot.fanSpeedsRpm.push_back((double)fanInfo.iFanSpeedRPM);
                 }
@@ -708,6 +787,10 @@ namespace pmon::tel::adl
         ADLOD6CurrentStatus currentStatus{};
         const auto currentStatusResult = pAdl_->Overdrive6_CurrentStatus_Get(device.adlAdapterIndex, &currentStatus);
         if (Adl2Wrapper::Ok(currentStatusResult)) {
+            pmlog_verb(v::tele_gpu)("ADL2_Overdrive6_CurrentStatus_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(ref::DumpGenerated(currentStatus));
             snapshot.gpuFrequencyMhz = (double)currentStatus.iEngineClock / 100.0;
             snapshot.hasGpuFrequency = true;
 
@@ -717,6 +800,10 @@ namespace pmon::tel::adl
             ADLOD6Capabilities capabilities{};
             const auto capResult = pAdl_->Overdrive6_Capabilities_Get(device.adlAdapterIndex, &capabilities);
             if (Adl2Wrapper::Ok(capResult)) {
+                pmlog_verb(v::tele_gpu)("ADL2_Overdrive6_Capabilities_Get output")
+                    .pmwatch(device.providerDeviceId)
+                    .pmwatch(device.fingerprint.deviceName)
+                    .pmwatch(ref::DumpGenerated(capabilities));
                 if (HasFlag_(capabilities.iCapabilities, ADL_OD6_CAPABILITY_GPU_ACTIVITY_MONITOR)) {
                     snapshot.gpuUtilizationPercent = (double)currentStatus.iActivityPercent;
                     snapshot.hasGpuUtilization = true;
@@ -739,6 +826,10 @@ namespace pmon::tel::adl
         if (Adl2Wrapper::Ok(powerResult)) {
             snapshot.gpuPowerW = (double)currentPower / 256.0;
             snapshot.hasGpuPower = true;
+            pmlog_verb(v::tele_gpu)("ADL2_Overdrive6_CurrentPower_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(currentPower);
         }
         else {
             pmlog_warn("ADL2_Overdrive6_CurrentPower_Get failed").code(powerResult).every(60s)
@@ -759,10 +850,18 @@ namespace pmon::tel::adl
                 .pmwatch(device.fingerprint.deviceName);
             return;
         }
+        pmlog_verb(v::tele_gpu)("ADL2_OverdriveN_CapabilitiesX2_Get output")
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(ref::DumpGenerated(capabilities));
 
         ADLODNPerformanceStatus performanceStatus{};
         const auto statusResult = pAdl_->OverdriveN_PerformanceStatus_Get(device.adlAdapterIndex, &performanceStatus);
         if (Adl2Wrapper::Ok(statusResult)) {
+            pmlog_verb(v::tele_gpu)("ADL2_OverdriveN_PerformanceStatus_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(ref::DumpGenerated(performanceStatus));
             snapshot.gpuFrequencyMhz = (double)performanceStatus.iCoreClock / 100.0;
             snapshot.hasGpuFrequency = true;
 
@@ -789,6 +888,10 @@ namespace pmon::tel::adl
         if (Adl2Wrapper::Ok(tempResult)) {
             snapshot.gpuTemperatureC = (double)temperature / 1000.0;
             snapshot.hasGpuTemperature = true;
+            pmlog_verb(v::tele_gpu)("ADL2_OverdriveN_Temperature_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(temperature);
         }
         else {
             pmlog_warn("ADL2_OverdriveN_Temperature_Get failed").code(tempResult).every(60s)
@@ -799,6 +902,10 @@ namespace pmon::tel::adl
         ADLODNFanControl fanControl{};
         const auto fanResult = pAdl_->OverdriveN_FanControl_Get(device.adlAdapterIndex, &fanControl);
         if (Adl2Wrapper::Ok(fanResult)) {
+            pmlog_verb(v::tele_gpu)("ADL2_OverdriveN_FanControl_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(ref::DumpGenerated(fanControl));
             if (HasFlag_(fanControl.iCurrentFanSpeedMode, ADL_OD6_FANSPEED_TYPE_RPM)) {
                 snapshot.fanSpeedsRpm.push_back((double)fanControl.iCurrentFanSpeed);
             }
@@ -820,6 +927,10 @@ namespace pmon::tel::adl
         if (Adl2Wrapper::Ok(powerResult)) {
             snapshot.gpuPowerW = (double)currentPower / 256.0;
             snapshot.hasGpuPower = true;
+            pmlog_verb(v::tele_gpu)("ADL2_Overdrive6_CurrentPower_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(currentPower);
         }
         else {
             pmlog_warn("ADL2_Overdrive6_CurrentPower_Get failed").code(powerResult).every(60s)
@@ -843,6 +954,10 @@ namespace pmon::tel::adl
                 .pmwatch(device.fingerprint.deviceName);
             return;
         }
+        pmlog_verb(v::tele_gpu)("ADL2_New_QueryPMLogData_Get output")
+            .pmwatch(device.providerDeviceId)
+            .pmwatch(device.fingerprint.deviceName)
+            .pmwatch(ref::DumpGenerated(dataOutput));
 
         int value = 0;
         if (TryGetPmLogSensorValue_(dataOutput, PMLOG_CLK_GFXCLK, value)) {
