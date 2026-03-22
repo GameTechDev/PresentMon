@@ -38,8 +38,6 @@ public:
 	void StopTraceSessions();
     PM_STATUS UpdateTracking(const std::unordered_set<uint32_t>& trackedPids);
 	std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> EnumerateAdapters() const;
-	std::string GetCpuName() { return pSession_->GetCpuName(); }
-	double GetCpuPowerLimit() { return pSession_->GetCpuPowerLimit(); }
 	PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> telemetryPeriodRequestsMs)
 	{
 		return pSession_->SetGpuTelemetryPeriod(telemetryPeriodRequestsMs);
@@ -58,10 +56,6 @@ public:
 	{
 		// Only the real time trace sets ETW flush period
 		return pSession_->GetEtwFlushPeriod();
-	}
-	void SetCpuStaticInfo(std::string cpuName, double cpuPowerLimit)
-	{
-		pSession_->SetCpuStaticInfo(std::move(cpuName), cpuPowerLimit);
 	}
 	HANDLE GetStreamingStartHandle()
 	{

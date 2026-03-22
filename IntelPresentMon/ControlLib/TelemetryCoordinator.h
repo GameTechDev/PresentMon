@@ -5,7 +5,6 @@
 #include "../PresentMonService/MetricUse.h"
 #include "TelemetryProvider.h"
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -21,13 +20,6 @@ namespace pmon::tel
     class TelemetryCoordinator
     {
     public:
-        struct CpuInfo
-        {
-            PM_DEVICE_VENDOR vendor = PM_DEVICE_VENDOR_UNKNOWN;
-            std::string name{};
-            double cpuPowerLimit = 0.0;
-        };
-
         struct AdapterInfo
         {
             uint32_t id = 0;
@@ -41,8 +33,6 @@ namespace pmon::tel
         // Constructs all known concrete providers, correlates logical devices,
         // and builds metric polling routes.
         explicit TelemetryCoordinator(uint32_t pollRateMs);
-        // Returns system CPU static identity and routed static telemetry when present.
-        std::optional<CpuInfo> GetCpuInfo() const;
         // Returns GPU adapter identity and routed static telemetry for legacy service enumeration.
         std::vector<AdapterInfo> EnumerateAdapters() const;
         // Registers logical CPU/GPU devices and per-device routed capabilities with IPC.

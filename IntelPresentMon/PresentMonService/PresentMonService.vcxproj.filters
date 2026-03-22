@@ -32,7 +32,6 @@
     <ClInclude Include="MetricUse.h" />
     <ClInclude Include="acts\OpenSession.h" />
     <ClInclude Include="acts\StartTracking.h" />
-    <ClInclude Include="acts\GetStaticCpuMetrics.h" />
     <ClInclude Include="acts\EnumerateAdapters.h" />
     <ClInclude Include="acts\SetTelemetryPeriod.h" />
     <ClInclude Include="acts\StopTracking.h" />
