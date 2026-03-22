@@ -130,7 +130,6 @@
     <ClCompile Include="testing\TestControl.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="acts\EnumerateAdapters.h" />
     <ClInclude Include="acts\FinishEtlLogging.h" />
     <ClInclude Include="acts\OpenSession.h" />
     <ClInclude Include="acts\ReportMetricUse.h" />

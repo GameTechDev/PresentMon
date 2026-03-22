@@ -26,10 +26,6 @@ pmon::test::service::Status PresentMonSession::GetTestingStatus() const
     };
 }
 
-std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> PresentMonSession::EnumerateAdapters() const {
-    return telemetry_adapters_;
-}
-
 PM_STATUS PresentMonSession::SetGpuTelemetryPeriod(std::optional<uint32_t> period_ms)
 {
     gpu_telemetry_period_ms_ = period_ms.value_or(default_gpu_telemetry_period_ms_);
@@ -58,11 +54,6 @@ std::optional<uint32_t> PresentMonSession::GetEtwFlushPeriod()
 
 bool PresentMonSession::HasLiveTargets() const {
     return HasLiveTrackedProcesses();
-}
-
-void PresentMonSession::SetTelemetryAdapters(
-    std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> adapters) {
-    telemetry_adapters_ = std::move(adapters);
 }
 
 void PresentMonSession::SyncTrackedPidState(const std::unordered_set<uint32_t>& trackedPids)

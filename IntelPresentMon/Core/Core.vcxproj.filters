@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClInclude Include="source\win\WndClass.h" />
@@ -72,7 +72,6 @@
     <ClInclude Include="source\win\KernelWindow.h" />
     <ClInclude Include="source\pmon\StatisticsTracker.h" />
     <ClInclude Include="source\win\GpuUtilization.h" />
-    <ClInclude Include="source\pmon\AdapterInfo.h" />
     <ClInclude Include="source\pmon\metric\DynamicPollingFetcher.h" />
     <ClInclude Include="source\pmon\DynamicQuery.h" />
     <ClInclude Include="source\kernel\DataFetchPack.h" />

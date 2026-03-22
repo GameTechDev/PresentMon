@@ -38,11 +38,6 @@ PM_STATUS PresentMon::UpdateTracking(const std::unordered_set<uint32_t>& tracked
 	return pSession_->UpdateTracking(trackedPids);
 }
 
-std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> PresentMon::EnumerateAdapters() const
-{
-	return pSession_->EnumerateAdapters();
-}
-
 void PresentMon::StartPlayback()
 {
 	if (auto pPlaybackSession = dynamic_cast<MockPresentMonSession*>(pSession_.get())) {

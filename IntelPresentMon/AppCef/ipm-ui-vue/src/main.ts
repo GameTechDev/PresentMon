@@ -1,4 +1,4 @@
-import '@/assets/global.css'
+﻿import '@/assets/global.css'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
@@ -17,7 +17,6 @@ import { md2 } from 'vuetify/blueprints'
 
 import { useHotkeyStore } from '@/stores/hotkey';
 import { useIntrospectionStore } from '@/stores/introspection';
-import { useAdaptersStore } from './stores/adapters'
 import { loadBlocklists } from './core/block-list'
 import { usePreferencesStore } from './stores/preferences'
 
@@ -100,7 +99,6 @@ async function initStores() {
     await Promise.all([
         useHotkeyStore().refreshOptions(),
         useIntrospectionStore().load(),
-        useAdaptersStore().refresh(),
         loadBlocklists(),
     ])
     await usePreferencesStore().initPreferences()

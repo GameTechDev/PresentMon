@@ -39,14 +39,12 @@ public:
     virtual void FlushEvents() {}
     virtual void ResetEtwFlushPeriod() = 0;
 
-    std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> EnumerateAdapters() const;
     pmon::test::service::Status GetTestingStatus() const;
     PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> period_ms);
     PM_STATUS SetEtwFlushPeriod(std::optional<uint32_t> periodMs);
     std::optional<uint32_t> GetEtwFlushPeriod();
     uint32_t GetGpuTelemetryPeriod();
     bool HasLiveTargets() const;
-    void SetTelemetryAdapters(std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> adapters);
 
     void MarkProcessExited(uint32_t pid);
     bool IsProcessTracked(uint32_t pid) const;
@@ -59,8 +57,6 @@ protected:
     // TODO: review all of these members and consider fixing the unsound thread safety aspects
     // data
     std::wstring pm_session_name_;
-
-    std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> telemetry_adapters_{};
 
     // Set the initial telemetry period to 16ms
     static constexpr uint32_t default_gpu_telemetry_period_ms_ = 16;

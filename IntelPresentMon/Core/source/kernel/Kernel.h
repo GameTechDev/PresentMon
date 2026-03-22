@@ -51,7 +51,6 @@ namespace p2c::kern
             std::optional<std::string> overrideTargetName,
             const GfxLayer::Extension::OverlayConfig& cfg);
         void ClearOverlay();
-        std::vector<pmon::AdapterInfo> EnumerateAdapters() const;
         void SetCapture(bool active);
         void SetEtlLogging(bool active);
         const pmapi::intro::Root& GetIntrospectionRoot() const;

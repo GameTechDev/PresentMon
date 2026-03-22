@@ -1,14 +1,14 @@
-<!-- Copyright (C) 2022 Intel Corporation -->
+﻿<!-- Copyright (C) 2022 Intel Corporation -->
 <!-- SPDX-License-Identifier: MIT -->
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { usePreferencesStore } from '@/stores/preferences';
 import { isDevelopment } from '@/core/env-vars';
-import { useAdaptersStore } from '@/stores/adapters';
+import { useIntrospectionStore } from '@/stores/introspection';
 
 const prefs = usePreferencesStore();
-const adaptersStore = useAdaptersStore();
+const intro = useIntrospectionStore();
 
 const metricPollMessages = computed(() => {
   if (prefs.preferences.metricPollRate % prefs.preferences.overlayDrawRate !== 0) {
@@ -142,7 +142,7 @@ const metricPollMessages = computed(() => {
         <v-col cols="9">
           <v-select
             v-model="prefs.preferences.adapterId"
-            :items="adaptersStore.adapters"
+            :items="intro.adapters"
             item-value="id"
             item-title="name"
             placeholder="Default adapter"

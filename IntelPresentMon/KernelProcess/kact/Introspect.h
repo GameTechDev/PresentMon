@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
 #include "KernelExecutionContext.h"
 #include <format>
@@ -78,11 +78,25 @@ namespace ACT_NS
             }
         };
 
+        struct Adapter
+        {
+            uint32_t id;
+            std::string vendor;
+            std::string name;
+
+            template<class A> void serialize(A& ar) {
+                ar(CEREAL_NVP(id),
+                    CEREAL_NVP(vendor),
+                    CEREAL_NVP(name));
+            }
+        };
+
         struct Response
         {
             std::vector<Metric> metrics;
             std::vector<Stat> stats;
             std::vector<Unit> units;
+            std::vector<Adapter> adapters;
             uint32_t systemDeviceId;
             uint32_t defaultAdapterId;
 
@@ -90,6 +104,7 @@ namespace ACT_NS
                 ar(CEREAL_NVP(metrics),
                     CEREAL_NVP(stats),
                     CEREAL_NVP(units),
+                    CEREAL_NVP(adapters),
                     CEREAL_NVP(systemDeviceId),
                     CEREAL_NVP(defaultAdapterId));
             }
@@ -131,6 +146,16 @@ namespace ACT_NS
             Response res;
             res.systemDeviceId = ::pmon::ipc::kSystemDeviceId;
             res.defaultAdapterId = (*ctx.ppKernel)->GetDefaultGpuDeviceId();
+            for (const auto& device : intro.GetDevices()) {
+                if (device.GetType() != PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
+                    continue;
+                }
+                res.adapters.push_back(Adapter{
+                    .id = device.GetId(),
+                    .vendor = device.IntrospectVendor().GetName(),
+                    .name = device.GetName(),
+                });
+            }
 
             // reserve space for the actual number of metrics
             res.metrics.reserve(rn::distance(intro.GetMetrics() | vi::filter(filterPred)));

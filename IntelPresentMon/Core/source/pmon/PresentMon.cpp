@@ -71,21 +71,6 @@ namespace p2c::pmon
 	{
 		return telemetrySamplePeriod;
 	}
-	std::vector<AdapterInfo> PresentMon::EnumerateAdapters() const
-	{
-		std::vector<AdapterInfo> infos;
-		for (const auto& info : pIntrospectionRoot->GetDevices()) {
-			if (info.GetType() != PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
-				continue;
-			}
-			infos.push_back(AdapterInfo{
-				.id = info.GetId(),
-				.vendor = info.IntrospectVendor().GetName(),
-				.name = info.GetName(),
-			});
-		}
-		return infos;
-	}
 	void PresentMon::SetEtlLogging(bool active)
 	{
 		pmlog_info("Setting etl logging").pmwatch(active);

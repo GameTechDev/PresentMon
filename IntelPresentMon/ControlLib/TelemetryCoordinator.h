@@ -20,21 +20,9 @@ namespace pmon::tel
     class TelemetryCoordinator
     {
     public:
-        struct AdapterInfo
-        {
-            uint32_t id = 0;
-            PM_DEVICE_VENDOR vendor = PM_DEVICE_VENDOR_UNKNOWN;
-            std::string name{};
-            double gpuSustainedPowerLimit = 0.0;
-            uint64_t gpuMemorySize = 0;
-            uint64_t gpuMemoryMaxBandwidth = 0;
-        };
-
         // Constructs all known concrete providers, correlates logical devices,
         // and builds metric polling routes.
         explicit TelemetryCoordinator(uint32_t pollRateMs);
-        // Returns GPU adapter identity and routed static telemetry for legacy service enumeration.
-        std::vector<AdapterInfo> EnumerateAdapters() const;
         // Registers logical CPU/GPU devices and per-device routed capabilities with IPC.
         void RegisterDevicesToIpc(ipc::ServiceComms& comms) const;
         // Populates available static data into IPC device stores.
@@ -46,8 +34,7 @@ namespace pmon::tel
         // Broadcasts current routed metric interest to providers that need active configuration.
         void SetMetricUse(const svc::DeviceMetricUse& metricUse);
         // Polls routed telemetry metrics and pushes samples directly to IPC rings.
-        size_t PollToIpc(
-            const svc::DeviceMetricUse& metricUse,
+        size_t PollToIpc(const svc::DeviceMetricUse& metricUse,
             ipc::ServiceComms& comms) const;
 
     private:

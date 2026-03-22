@@ -112,21 +112,6 @@ namespace p2c::kern
         return pm->GetDefaultGpuDeviceId();
     }
 
-    std::vector<pmon::AdapterInfo> Kernel::EnumerateAdapters() const
-    {
-        HandleMarshalledException_();
-        std::lock_guard lk{ mtx };
-        if (!pm) {
-            pmlog_warn("presentmon not initialized");
-            return {};
-        }
-        try { return pm->EnumerateAdapters(); }
-        catch (...) { 
-            pmlog_warn("failed to enumerate adapters, returning empty set");
-            return {};
-        }
-    }
-
     void Kernel::SetCapture(bool active)
     {
         HandleMarshalledException_();

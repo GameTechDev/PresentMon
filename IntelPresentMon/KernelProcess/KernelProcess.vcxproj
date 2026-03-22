@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -167,7 +167,6 @@
     <ClInclude Include="kact\AllActions.h" />
     <ClInclude Include="kact\BindHotkey.h" />
     <ClInclude Include="kact\ClearHotkey.h" />
-    <ClInclude Include="kact\EnumerateAdapters.h" />
     <ClInclude Include="kact\Introspect.h" />
     <ClInclude Include="kact\KernelExecutionContext.h" />
     <ClInclude Include="kact\OpenSession.h" />

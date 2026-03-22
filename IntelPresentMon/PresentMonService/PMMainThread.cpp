@@ -98,7 +98,6 @@ void TelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Servic
         pmon::tel::TelemetryCoordinator coordinator{ pm->GetGpuTelemetryPeriod() };
         coordinator.RegisterDevicesToIpc(*pComms);
         coordinator.PopulateStaticsToIpc(*pComms);
-        pm->SetTelemetryAdapters(coordinator.EnumerateAdapters());
         pmlog_info(std::format(
             "Finished populating telemetry introspection, {} seconds elapsed",
             timer.Mark()));
