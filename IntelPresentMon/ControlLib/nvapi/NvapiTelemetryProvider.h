@@ -39,7 +39,6 @@ namespace pmon::tel::nvapi
             pmon::tele::EndpointCache<NV_GPU_THERMAL_SETTINGS> thermalEndpointCache{};
             pmon::tele::EndpointCache<NV_GPU_CLOCK_FREQUENCIES> clockEndpointCache{};
             pmon::tele::EndpointCache<NV_GPU_DYNAMIC_PSTATES_INFO_EX> utilizationEndpointCache{};
-            pmon::tele::EndpointCache<std::optional<NvU32>> tachEndpointCache{};
         };
 
         static void ValidateScalarMetricIndex_(PM_METRIC metricId, uint32_t arrayIndex);
@@ -55,9 +54,7 @@ namespace pmon::tel::nvapi
         const NV_GPU_DYNAMIC_PSTATES_INFO_EX* PollUtilizationEndpoint_(
             DeviceState_& device,
             int64_t requestQpc) const;
-        const NvU32* PollTachEndpoint_(
-            DeviceState_& device,
-            int64_t requestQpc) const;
+        std::optional<NvU32> PollTachEndpoint_(const DeviceState_& device) const;
 
         TelemetryMetricValue PollNvapiMetric_(
             DeviceState_& device,

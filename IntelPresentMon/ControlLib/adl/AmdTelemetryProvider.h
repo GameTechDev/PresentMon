@@ -79,9 +79,6 @@ namespace pmon::tel::adl
             bool memoryInfoQueried = false;
             std::optional<ADLMemoryInfoX4> memoryInfo{};
 
-            bool sustainedPowerLimitQueried = false;
-            std::optional<double> sustainedPowerLimitW{};
-
             pmon::tele::EndpointCache<DynamicSnapshot_> dynamicSnapshotCache{};
         };
 
@@ -98,7 +95,7 @@ namespace pmon::tel::adl
         ipc::MetricCapabilities BuildCapsForDevice_(DeviceState_& device) const;
 
         const ADLMemoryInfoX4* QueryMemoryInfo_(DeviceState_& device) const;
-        const double* QuerySustainedPowerLimit_(DeviceState_& device) const;
+        std::optional<double> QuerySustainedPowerLimit_(const DeviceState_& device) const;
         const DynamicSnapshot_& PollDynamicSnapshot_(
             DeviceState_& device,
             int64_t requestQpc) const;

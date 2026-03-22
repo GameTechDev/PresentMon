@@ -10,6 +10,7 @@
 
 using namespace pmon;
 using namespace util;
+using namespace std::literals;
 
 namespace pmon::tel::nvml
 {
@@ -252,7 +253,7 @@ namespace pmon::tel::nvml
         nvmlMemory_t memoryInfo{};
         const auto result = pNvml_->DeviceGetMemoryInfo(device.handle, &memoryInfo);
         if (!NvmlWrapper::Ok(result)) {
-            pmlog_warn("nvmlDeviceGetMemoryInfo failed").code(result).every(std::chrono::seconds{ 60 })
+            pmlog_warn("nvmlDeviceGetMemoryInfo failed").code(result).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
             return nullptr;
@@ -267,7 +268,7 @@ namespace pmon::tel::nvml
         unsigned int powerMw = 0;
         const auto result = pNvml_->DeviceGetPowerUsage(device.handle, &powerMw);
         if (!NvmlWrapper::Ok(result)) {
-            pmlog_warn("nvmlDeviceGetPowerUsage failed").code(result).every(std::chrono::seconds{ 60 })
+            pmlog_warn("nvmlDeviceGetPowerUsage failed").code(result).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
             return {};
@@ -281,7 +282,7 @@ namespace pmon::tel::nvml
         unsigned int limitMw = 0;
         const auto result = pNvml_->DeviceGetPowerManagementLimit(device.handle, &limitMw);
         if (!NvmlWrapper::Ok(result)) {
-            pmlog_warn("nvmlDeviceGetPowerManagementLimit failed").code(result).every(std::chrono::seconds{ 60 })
+            pmlog_warn("nvmlDeviceGetPowerManagementLimit failed").code(result).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
             return {};
