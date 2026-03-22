@@ -40,9 +40,6 @@ public:
     virtual void ResetEtwFlushPeriod() = 0;
 
     std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> EnumerateAdapters() const;
-    void SetCpuStaticInfo(std::string cpuName, double cpuPowerLimit);
-    std::string GetCpuName();
-    double GetCpuPowerLimit();
     pmon::test::service::Status GetTestingStatus() const;
     PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> period_ms);
     PM_STATUS SetEtwFlushPeriod(std::optional<uint32_t> periodMs);
@@ -63,8 +60,6 @@ protected:
     // data
     std::wstring pm_session_name_;
 
-    std::string cpu_name_{};
-    double cpu_power_limit_ = 0.0;
     std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> telemetry_adapters_{};
 
     // Set the initial telemetry period to 16ms

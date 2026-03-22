@@ -33,7 +33,6 @@ namespace p2c::pmon
 		uint32_t GetGpuTelemetryPeriod();
 		void SetEtwFlushPeriod(std::optional<uint32_t> periodMs);
 		std::optional<uint32_t> GetEtwFlushPeriod();
-		// std::wstring GetCpuName() const;
 		std::vector<AdapterInfo> EnumerateAdapters() const;
 		void SetEtlLogging(bool active);
 		std::optional<uint32_t> GetPid() const;

@@ -30,19 +30,6 @@ std::vector<pmon::tel::TelemetryCoordinator::AdapterInfo> PresentMonSession::Enu
     return telemetry_adapters_;
 }
 
-void PresentMonSession::SetCpuStaticInfo(std::string cpuName, double cpuPowerLimit) {
-    cpu_name_ = std::move(cpuName);
-    cpu_power_limit_ = cpuPowerLimit;
-}
-
-std::string PresentMonSession::GetCpuName() {
-    return cpu_name_.empty() ? std::string{ "UNKOWN_CPU" } : cpu_name_;
-}
-
-double PresentMonSession::GetCpuPowerLimit() {
-    return cpu_power_limit_;
-}
-
 PM_STATUS PresentMonSession::SetGpuTelemetryPeriod(std::optional<uint32_t> period_ms)
 {
     gpu_telemetry_period_ms_ = period_ms.value_or(default_gpu_telemetry_period_ms_);

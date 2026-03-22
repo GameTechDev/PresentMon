@@ -61,45 +61,6 @@ namespace pmon::tel
         BuildLogicalDevicesAndRoutes_();
     }
 
-    std::optional<TelemetryCoordinator::CpuInfo> TelemetryCoordinator::GetCpuInfo() const
-    {
-        const auto iLogicalDevice = logicalDevicesById_.find(ipc::kSystemDeviceId);
-        if (iLogicalDevice == logicalDevicesById_.end()) {
-            return std::nullopt;
-        }
-
-        const auto requestQpc = util::GetCurrentTimestamp();
-        const auto& logicalDevice = iLogicalDevice->second;
-
-        CpuInfo cpuInfo{};
-        const auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice);
-        cpuInfo.vendor = fingerprint.vendor;
-        if (!fingerprint.deviceName.empty()) {
-            cpuInfo.name = fingerprint.deviceName;
-        }
-        else {
-            cpuInfo.name = "UNKNOWN_CPU";
-        }
-
-        if (logicalDevice.routes.contains(PM_METRIC_CPU_POWER_LIMIT)) {
-            try {
-                const auto value = PollMetricForRoute_(logicalDevice, PM_METRIC_CPU_POWER_LIMIT, 0, requestQpc);
-                if (const auto pVal = std::get_if<double>(&value)) {
-                    cpuInfo.cpuPowerLimit = *pVal;
-                }
-                else {
-                    throw util::Except<>("Type mismatch while enumerating CPU static metric");
-                }
-            }
-            catch (...) {
-                pmlog_error(util::ReportException("CPU static metric query failed"))
-                    .pmwatch((int)PM_METRIC_CPU_POWER_LIMIT);
-            }
-        }
-
-        return cpuInfo;
-    }
-
     std::vector<TelemetryCoordinator::AdapterInfo> TelemetryCoordinator::EnumerateAdapters() const
     {
         std::vector<AdapterInfo> adapters;
