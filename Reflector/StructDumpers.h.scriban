@@ -20,6 +20,18 @@ namespace pmon::util::ref::gen
 
 	void RegisterDumpers_(std::unordered_map<std::type_index, std::function<std::string(const void*)>>& dumpers)
 	{
+		// rooted typedefs
+{{~ for typedef in typedefs ~}}
+		dumpers[typeid({{ typedef.Name }})] = [](const void* pTypedef) {
+			const auto& s = *static_cast<const {{ typedef.Name }}*>(pTypedef);
+			std::ostringstream oss;
+			oss << std::boolalpha << "typedef {{ typedef.Name }} {"
+				<< " .value = " << {{ typedef.DumpExpression }}
+				<< " }";
+			return oss.str();
+		};
+{{~ end ~}}
+
 		// structs
 {{~ for struct in structs ~}}
 		dumpers[typeid({{ struct.Name }})] = [](const void* pStruct) {
