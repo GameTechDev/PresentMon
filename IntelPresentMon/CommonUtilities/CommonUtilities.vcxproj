@@ -176,12 +176,7 @@
     <ClCompile Include="pipe\Pipe.cpp" />
     <ClCompile Include="PrecisionWaiter.cpp" />
     <ClCompile Include="Qpc.cpp" />
-    <ClCompile Include="ref\GeneratedReflection.cpp">
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">/bigobj %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">/bigobj %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/bigobj %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/bigobj %(AdditionalOptions)</AdditionalOptions>
-    </ClCompile>
+    <ClCompile Include="ref\GeneratedReflection.cpp" />
     <ClCompile Include="str\String.cpp" />
     <ClCompile Include="win\com\ComManager.cpp" />
     <ClCompile Include="win\com\ProcessSpawnSink.cpp" />

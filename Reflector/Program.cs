@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using CppAst;
@@ -13,122 +12,156 @@ namespace StructDumperGenerator
         static void Main(string[] args)
         {
             var repositoryRoot = FindRepositoryRoot();
-            var targetHeaders = new List<TargetHeader>
+            var targets = new List<TargetHeader>
             {
-                new("IGCL", "IntelPresentMon/ControlLib/igcl/igcl_api.h"),
-                new("NVAPI", "IntelPresentMon/ControlLib/nvapi/nvapi.h"),
-                new("NVML", "IntelPresentMon/ControlLib/nvml/nvml.h"),
-                new("ADL", "IntelPresentMon/ControlLib/adl/adl_sdk.h"),
+                new(
+                    "IGCL",
+                    "IntelPresentMon/ControlLib/igcl/igcl_api.h",
+                    new HashSet<string>
+                    {
+                        "ctl_result_t",
+                        "ctl_init_args_t",
+                        "ctl_device_adapter_properties_t",
+                        "ctl_mem_handle_t",
+                        "ctl_pwr_handle_t",
+                        "ctl_fan_properties_t",
+                        "ctl_power_telemetry_t",
+                        "ctl_mem_state_t",
+                        "ctl_mem_bandwidth_t",
+                        "ctl_power_limits_t",
+                    }),
+                new(
+                    "NVAPI",
+                    "IntelPresentMon/ControlLib/nvapi/nvapi.h",
+                    new HashSet<string>
+                    {
+                        "NvAPI_Status",
+                        "NV_GPU_THERMAL_SETTINGS",
+                        "NV_GPU_CLOCK_FREQUENCIES",
+                        "NV_GPU_DYNAMIC_PSTATES_INFO_EX",
+                    }),
+                new(
+                    "NVML",
+                    "IntelPresentMon/ControlLib/nvml/nvml.h",
+                    new HashSet<string>
+                    {
+                        "nvmlReturn_t",
+                        "nvmlPciInfo_t",
+                        "nvmlMemory_t",
+                    }),
+                new(
+                    "ADL",
+                    "IntelPresentMon/ControlLib/adl/adl_sdk.h",
+                    new HashSet<string>
+                    {
+                        "AdapterInfo",
+                        "ADLThermalControllerInfo",
+                        "ADLMemoryInfoX4",
+                        "ADLTemperature",
+                        "ADLFanSpeedInfo",
+                        "ADLFanSpeedValue",
+                        "ADLPMActivity",
+                        "ADLOD6ThermalControllerCaps",
+                        "ADLOD6FanSpeedInfo",
+                        "ADLOD6CurrentStatus",
+                        "ADLOD6Capabilities",
+                        "ADLODNCapabilitiesX2",
+                        "ADLODNPerformanceStatus",
+                        "ADLODNFanControl",
+                        "ADLPMLogDataOutput",
+                    }),
             };
 
-            Console.WriteLine($"Starting reflection generation for {targetHeaders.Count} header(s).");
+            Console.WriteLine($"Starting reflection generation for {targets.Count} header(s).");
 
             var parsedHeaders = new List<ParsedHeader>();
-            for (var i = 0; i < targetHeaders.Count; ++i) {
-                var targetHeader = targetHeaders[i];
-                var headerPath = Path.Combine(repositoryRoot, ToSystemPath_(targetHeader.IncludePath));
+            foreach (var target in targets) {
+                var headerPath = Path.GetFullPath(Path.Combine(repositoryRoot, ToSystemPath_(target.IncludePath)));
+                if (!File.Exists(headerPath)) {
+                    Console.WriteLine($"Target header not found: {headerPath}");
+                    return;
+                }
                 var headerDirectory = Path.GetDirectoryName(headerPath)!;
-                Console.WriteLine($"[{i + 1}/{targetHeaders.Count}] Parsing {targetHeader.DisplayName}: {targetHeader.IncludePath}");
+                Console.WriteLine($"Parsing {target.DisplayName}: {target.IncludePath}");
 
-                var compilation = CppParser.ParseFile(headerPath);
+                var compilation = CppParser.ParseFile(ToClangPath_(headerPath));
                 if (compilation.HasErrors) {
-                    Console.WriteLine($"Parsing failed for {targetHeader.DisplayName}:");
+                    Console.WriteLine($"Parsing failed for {target.DisplayName}:");
                     foreach (var message in compilation.Diagnostics.Messages) {
                         Console.WriteLine(message);
                     }
                     return;
                 }
 
-                var classes = compilation.Classes
-                    .Where(cppClass =>
-                        cppClass.IsDefinition &&
-                        !cppClass.IsAnonymous &&
-                        !string.IsNullOrWhiteSpace(cppClass.Name) &&
-                        IsDeclaredUnderRoot_(cppClass, headerDirectory))
-                    .ToList();
-                var enums = compilation.Enums
-                    .Where(cppEnum =>
-                        !string.IsNullOrWhiteSpace(cppEnum.Name) &&
-                        IsDeclaredUnderRoot_(cppEnum, headerDirectory))
-                    .ToList();
-
-                var namedFieldCount = classes.Sum(cppClass => cppClass.Fields.Count(field => !string.IsNullOrWhiteSpace(field.Name)));
-                var namedEnumValueCount = enums.Sum(cppEnum => cppEnum.Items.Count(item => !string.IsNullOrWhiteSpace(item.Name)));
-
                 parsedHeaders.Add(new ParsedHeader {
-                    Header = targetHeader,
-                    Classes = classes,
-                    Enums = enums,
+                    Header = target,
+                    Classes = compilation.Classes
+                        .Where(cppClass =>
+                            cppClass.IsDefinition &&
+                            !cppClass.IsAnonymous &&
+                            !string.IsNullOrWhiteSpace(cppClass.Name) &&
+                            IsDeclaredUnderRoot_(cppClass, headerDirectory))
+                        .ToList(),
+                    Enums = compilation.Enums
+                        .Where(cppEnum =>
+                            !string.IsNullOrWhiteSpace(cppEnum.Name) &&
+                            IsDeclaredUnderRoot_(cppEnum, headerDirectory))
+                        .ToList(),
+                    Typedefs = compilation.Typedefs
+                        .Where(cppTypedef =>
+                            !string.IsNullOrWhiteSpace(cppTypedef.Name) &&
+                            IsDeclaredUnderRoot_(cppTypedef, headerDirectory))
+                        .ToList(),
                 });
-
-                Console.WriteLine(
-                    $"[{i + 1}/{targetHeaders.Count}] Parsed {targetHeader.DisplayName}: {classes.Count} type(s), " +
-                    $"{enums.Count} enum(s), {namedFieldCount} field(s), {namedEnumValueCount} enum value(s).");
             }
 
-            var totalItems = parsedHeaders.Sum(parsedHeader => parsedHeader.Classes.Count + parsedHeader.Enums.Count);
-            Console.WriteLine($"Processing {totalItems} generated item(s) across {parsedHeaders.Count} header(s).");
+            var classesByName = BuildNameMap(
+                parsedHeaders.SelectMany(parsedHeader => parsedHeader.Classes),
+                cppClass => cppClass.Name);
+            var enumsByName = BuildNameMap(
+                parsedHeaders.SelectMany(parsedHeader => parsedHeader.Enums),
+                cppEnum => cppEnum.Name);
+            var typedefsByName = BuildNameMap(
+                parsedHeaders.SelectMany(parsedHeader => parsedHeader.Typedefs),
+                cppTypedef => cppTypedef.Name);
 
-            var structs = new List<StructInfo>();
-            var enumsOut = new List<EnumInfo>();
-            var overallProcessedItems = 0;
-            var overallFieldCount = 0;
-            var overallEnumValueCount = 0;
+            var includedStructs = new HashSet<string>(StringComparer.Ordinal);
+            var includedEnums = new HashSet<string>(StringComparer.Ordinal);
+            var rootedTypedefSet = new HashSet<string>(StringComparer.Ordinal);
+            var rootedTypedefNames = new List<string>();
 
-            for (var headerIndex = 0; headerIndex < parsedHeaders.Count; ++headerIndex) {
-                var parsedHeader = parsedHeaders[headerIndex];
-                var fileTotalItems = parsedHeader.Classes.Count + parsedHeader.Enums.Count;
-                var fileProcessedItems = 0;
-                var fileFieldCount = 0;
-                var fileEnumValueCount = 0;
-                var reportInterval = GetReportInterval_(fileTotalItems);
-
-                foreach (var cppClass in parsedHeader.Classes) {
-                    var structInfo = ProcessStruct(cppClass);
-                    structs.Add(structInfo);
-                    fileFieldCount += structInfo.Members.Count;
-                    overallFieldCount += structInfo.Members.Count;
-                    ++fileProcessedItems;
-                    ++overallProcessedItems;
-                    ReportProgress_(
-                        parsedHeader.Header,
-                        headerIndex,
-                        parsedHeaders.Count,
-                        fileProcessedItems,
-                        fileTotalItems,
-                        overallProcessedItems,
-                        totalItems,
-                        fileFieldCount,
-                        fileEnumValueCount,
-                        reportInterval,
-                        $"type {structInfo.Name}");
+            foreach (var rootTypeName in targets.SelectMany(target => target.RootTypeNames).Distinct()) {
+                if (!IncludeRootType(
+                    rootTypeName,
+                    classesByName,
+                    enumsByName,
+                    typedefsByName,
+                    includedStructs,
+                    includedEnums,
+                    rootedTypedefSet,
+                    rootedTypedefNames)) {
+                    Console.WriteLine($"Warning: rooted dump type not found: {rootTypeName}");
                 }
-
-                foreach (var cppEnum in parsedHeader.Enums) {
-                    var enumInfo = ProcessEnum(cppEnum);
-                    enumsOut.Add(enumInfo);
-                    fileEnumValueCount += enumInfo.Values.Count;
-                    overallEnumValueCount += enumInfo.Values.Count;
-                    ++fileProcessedItems;
-                    ++overallProcessedItems;
-                    ReportProgress_(
-                        parsedHeader.Header,
-                        headerIndex,
-                        parsedHeaders.Count,
-                        fileProcessedItems,
-                        fileTotalItems,
-                        overallProcessedItems,
-                        totalItems,
-                        fileFieldCount,
-                        fileEnumValueCount,
-                        reportInterval,
-                        $"enum {enumInfo.Name}");
-                }
-
-                Console.WriteLine(
-                    $"[{headerIndex + 1}/{parsedHeaders.Count}] Completed {parsedHeader.Header.DisplayName}: " +
-                    $"{fileProcessedItems}/{fileTotalItems} item(s), {fileFieldCount} field(s), {fileEnumValueCount} enum value(s).");
             }
+
+            var typedefs = rootedTypedefNames
+                .Select(name => ProcessTypedef(typedefsByName[name]))
+                .Where(info => info != null)
+                .Cast<TypedefInfo>()
+                .ToList();
+            var structs = parsedHeaders
+                .SelectMany(parsedHeader => parsedHeader.Classes)
+                .Where(cppClass => includedStructs.Contains(cppClass.Name))
+                .Select(ProcessStruct)
+                .ToList();
+            var enumsOut = parsedHeaders
+                .SelectMany(parsedHeader => parsedHeader.Enums)
+                .Where(cppEnum => includedEnums.Contains(cppEnum.Name))
+                .Select(ProcessEnum)
+                .ToList();
+
+            Console.WriteLine(
+                $"Reachable dump surface: {typedefs.Count} rooted typedef(s), {structs.Count} type dumper(s), {enumsOut.Count} enum dumper(s).");
 
             var templatePath = Path.Combine(repositoryRoot, "Reflector", "StructDumpers.h.scriban");
             Console.WriteLine($"Loading template: {MakeRepositoryRelativePath_(repositoryRoot, templatePath)}");
@@ -143,14 +176,12 @@ namespace StructDumperGenerator
             }
 
             var model = new {
-                includes = targetHeaders.Select(header => header.IncludePath).ToList(),
+                includes = targets.Select(target => target.IncludePath).Distinct().ToList(),
+                typedefs = typedefs,
                 structs = structs,
                 enums = enumsOut,
             };
 
-            Console.WriteLine(
-                $"Rendering output: {structs.Count} type dumper(s), {enumsOut.Count} enum dumper(s), " +
-                $"{overallFieldCount} field(s), {overallEnumValueCount} enum value(s).");
             var result = template.Render(model, member => member.Name);
 
             var outputPath = Path.Combine(
@@ -165,6 +196,98 @@ namespace StructDumperGenerator
 
             Console.WriteLine($"Wrote {MakeRepositoryRelativePath_(repositoryRoot, outputPath)}");
             Console.WriteLine("Code generation complete.");
+        }
+
+        static Dictionary<string, T> BuildNameMap<T>(IEnumerable<T> declarations, Func<T, string> getName)
+        {
+            var map = new Dictionary<string, T>(StringComparer.Ordinal);
+            foreach (var declaration in declarations) {
+                var name = getName(declaration);
+                if (string.IsNullOrWhiteSpace(name) || map.ContainsKey(name)) {
+                    continue;
+                }
+                map.Add(name, declaration);
+            }
+            return map;
+        }
+
+        static bool IncludeRootType(
+            string rootTypeName,
+            IReadOnlyDictionary<string, CppClass> classesByName,
+            IReadOnlyDictionary<string, CppEnum> enumsByName,
+            IReadOnlyDictionary<string, CppTypedef> typedefsByName,
+            HashSet<string> includedStructs,
+            HashSet<string> includedEnums,
+            HashSet<string> rootedTypedefSet,
+            List<string> rootedTypedefNames)
+        {
+            if (classesByName.TryGetValue(rootTypeName, out var cppClass)) {
+                IncludeReferencedType(cppClass, includedStructs, includedEnums);
+                return true;
+            }
+            if (enumsByName.TryGetValue(rootTypeName, out var cppEnum)) {
+                includedEnums.Add(cppEnum.Name);
+                return true;
+            }
+            if (!typedefsByName.TryGetValue(rootTypeName, out var cppTypedef)) {
+                return false;
+            }
+
+            var unwrappedType = UnwrapType(cppTypedef);
+            if (unwrappedType is CppClass typedefClass) {
+                IncludeReferencedType(typedefClass, includedStructs, includedEnums);
+            }
+            else if (unwrappedType is CppEnum typedefEnum) {
+                includedEnums.Add(typedefEnum.Name);
+            }
+            else if (rootedTypedefSet.Add(cppTypedef.Name)) {
+                rootedTypedefNames.Add(cppTypedef.Name);
+            }
+
+            IncludeReferencedType(cppTypedef.ElementType, includedStructs, includedEnums);
+            return true;
+        }
+
+        static void IncludeReferencedType(
+            CppType type,
+            HashSet<string> includedStructs,
+            HashSet<string> includedEnums)
+        {
+            switch (type) {
+            case CppQualifiedType qualifiedType:
+                IncludeReferencedType(qualifiedType.ElementType, includedStructs, includedEnums);
+                break;
+            case CppTypedef typedefType:
+                IncludeReferencedType(typedefType.ElementType, includedStructs, includedEnums);
+                break;
+            case CppArrayType arrayType:
+                IncludeReferencedType(arrayType.ElementType, includedStructs, includedEnums);
+                break;
+            case CppClass cppClass when cppClass.IsDefinition && !string.IsNullOrWhiteSpace(cppClass.Name):
+                if (!includedStructs.Add(cppClass.Name)) {
+                    return;
+                }
+                foreach (var field in cppClass.Fields.Where(field => !string.IsNullOrWhiteSpace(field.Name))) {
+                    IncludeReferencedType(field.Type, includedStructs, includedEnums);
+                }
+                break;
+            case CppEnum cppEnum when !string.IsNullOrWhiteSpace(cppEnum.Name):
+                includedEnums.Add(cppEnum.Name);
+                break;
+            }
+        }
+
+        static TypedefInfo? ProcessTypedef(CppTypedef cppTypedef)
+        {
+            var unwrappedType = UnwrapType(cppTypedef);
+            if (unwrappedType is CppClass || unwrappedType is CppEnum) {
+                return null;
+            }
+
+            return new TypedefInfo {
+                Name = cppTypedef.Name,
+                DumpExpression = GetDumpExpression(cppTypedef, "s"),
+            };
         }
 
         static StructInfo ProcessStruct(CppClass cppClass)
@@ -204,6 +327,12 @@ namespace StructDumperGenerator
 
         static string GetDumpExpression(CppType type, string variableAccess)
         {
+            var uniqueId = 0;
+            return GetDumpExpression(type, variableAccess, ref uniqueId);
+        }
+
+        static string GetDumpExpression(CppType type, string variableAccess, ref int uniqueId)
+        {
             var unwrappedType = UnwrapType(type);
 
             if (unwrappedType is CppPrimitiveType cppPrim) {
@@ -212,10 +341,16 @@ namespace StructDumperGenerator
                 }
                 return variableAccess;
             }
-            else if (unwrappedType is CppClass) {
+            else if (unwrappedType is CppClass cppClass) {
+                if (cppClass.IsAnonymous || string.IsNullOrWhiteSpace(cppClass.Name)) {
+                    return BuildInlineClassDumpExpression(cppClass, variableAccess, ref uniqueId);
+                }
                 return $"DumpGenerated({variableAccess})";
             }
-            else if (unwrappedType is CppEnum) {
+            else if (unwrappedType is CppEnum cppEnum) {
+                if (string.IsNullOrWhiteSpace(cppEnum.Name)) {
+                    return $"(int){variableAccess}";
+                }
                 return $"DumpGenerated({variableAccess})";
             }
             else if (unwrappedType is CppArrayType arrayType) {
@@ -224,13 +359,36 @@ namespace StructDumperGenerator
                     return variableAccess;
                 }
                 else {
-                    return $"DumpArray_({variableAccess})";
+                    return BuildInlineArrayDumpExpression(arrayType.ElementType, variableAccess, ref uniqueId);
                 }
             }
             else if (unwrappedType is CppPointerType) {
                 return $"({variableAccess} ? std::format(\"0x{{:016X}}\", reinterpret_cast<std::uintptr_t>({variableAccess})) : \"null\"s)";
             }
             return "\"{ unsupported }\"";
+        }
+
+        static string BuildInlineClassDumpExpression(CppClass cppClass, string variableAccess, ref int uniqueId)
+        {
+            var ossVar = $"oss_{uniqueId++}";
+            var fieldExpressions = new List<string>();
+            foreach (var field in cppClass.Fields.Where(field => !string.IsNullOrWhiteSpace(field.Name))) {
+                fieldExpressions.Add(
+                    $"{ossVar} << \" .{field.Name} = \" << {GetDumpExpression(field.Type, $"{variableAccess}.{field.Name}", ref uniqueId)};");
+            }
+            var classTypeName = cppClass.ClassKind == CppClassKind.Class ? "class" :
+                cppClass.ClassKind == CppClassKind.Union ? "union" :
+                "struct";
+
+            var body = string.Join(" ", fieldExpressions);
+            return $"([&]() {{ std::ostringstream {ossVar}; {ossVar} << std::boolalpha << \"{classTypeName} {{\"; {body} {ossVar} << \" }}\"; return {ossVar}.str(); }}())";
+        }
+
+        static string BuildInlineArrayDumpExpression(CppType elementType, string variableAccess, ref int uniqueId)
+        {
+            var elementVar = $"elem_{uniqueId++}";
+            var elementExpression = GetDumpExpression(elementType, elementVar, ref uniqueId);
+            return $"DumpArray_({variableAccess}, [&](const auto& {elementVar}) {{ return {elementExpression}; }})";
         }
 
         static CppType UnwrapType(CppType type)
@@ -265,48 +423,14 @@ namespace StructDumperGenerator
             throw new DirectoryNotFoundException("Unable to locate repository root.");
         }
 
-        static int GetReportInterval_(int totalItems)
-        {
-            return Math.Max(1, totalItems / 20);
-        }
-
-        static void ReportProgress_(
-            TargetHeader header,
-            int headerIndex,
-            int headerCount,
-            int fileProcessedItems,
-            int fileTotalItems,
-            int overallProcessedItems,
-            int overallTotalItems,
-            int fileFieldCount,
-            int fileEnumValueCount,
-            int reportInterval,
-            string lastProcessedItem)
-        {
-            if (fileProcessedItems != 1 &&
-                fileProcessedItems != fileTotalItems &&
-                fileProcessedItems % reportInterval != 0) {
-                return;
-            }
-
-            Console.WriteLine(
-                $"[{headerIndex + 1}/{headerCount}] {header.DisplayName}: " +
-                $"{fileProcessedItems}/{fileTotalItems} item(s) ({FormatProgress_(fileProcessedItems, fileTotalItems)}), " +
-                $"overall {overallProcessedItems}/{overallTotalItems} ({FormatProgress_(overallProcessedItems, overallTotalItems)}), " +
-                $"{fileFieldCount} field(s), {fileEnumValueCount} enum value(s), last {lastProcessedItem}");
-        }
-
-        static string FormatProgress_(int current, int total)
-        {
-            if (total <= 0) {
-                return "0.0%";
-            }
-            return ((double)current / total).ToString("0.0%", CultureInfo.InvariantCulture);
-        }
-
         static string ToSystemPath_(string path)
         {
             return path.Replace('/', Path.DirectorySeparatorChar);
+        }
+
+        static string ToClangPath_(string path)
+        {
+            return Path.GetFullPath(path).Replace(Path.DirectorySeparatorChar, '/');
         }
 
         static string MakeRepositoryRelativePath_(string repositoryRoot, string path)
@@ -331,14 +455,16 @@ namespace StructDumperGenerator
 
     class TargetHeader
     {
-        public TargetHeader(string displayName, string includePath)
+        public TargetHeader(string displayName, string includePath, HashSet<string> rootTypeNames)
         {
             DisplayName = displayName;
             IncludePath = includePath;
+            RootTypeNames = rootTypeNames;
         }
 
         public string DisplayName { get; }
         public string IncludePath { get; }
+        public HashSet<string> RootTypeNames { get; }
     }
 
     class ParsedHeader
@@ -346,6 +472,13 @@ namespace StructDumperGenerator
         public required TargetHeader Header { get; set; }
         public required List<CppClass> Classes { get; set; }
         public required List<CppEnum> Enums { get; set; }
+        public required List<CppTypedef> Typedefs { get; set; }
+    }
+
+    class TypedefInfo
+    {
+        public required string Name { get; set; }
+        public required string DumpExpression { get; set; }
     }
 
     class StructInfo

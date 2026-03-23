@@ -68,5 +68,17 @@ namespace pmon::util::ref::gen
 			(void)Primitive;
 			return DumpArray_(*reinterpret_cast<const T(*)[N]>(pArray));
 		}
+
+		template<typename T, size_t N, typename F>
+		std::string DumpArray_(const T(&arr)[N], F&& formatter)
+		{
+			std::ostringstream oss;
+			oss << "[";
+			for (size_t i = 0; i < N; i++) {
+				oss << " " << formatter(arr[i]) << ",";
+			}
+			oss << "]";
+			return oss.str();
+		}
 	}
 }
