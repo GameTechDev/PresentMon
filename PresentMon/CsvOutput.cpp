@@ -890,6 +890,9 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
         RuntimeToString(p.Runtime),
         p.SyncInterval,
         p.PresentFlags);
+    if (args.mWriteDisplayMetadata) {
+        fwprintf(fp, L",%u,%u", metrics.displayId.first, metrics.displayId.second);
+    }
     if (args.mTrackDisplay) {
         fwprintf(fp, L",%d,%hs", p.SupportsTearing,
             PresentModeToString(p.PresentMode));
@@ -1083,6 +1086,9 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
         if (args.mTrackPcLatency) {
             fwprintf(fp, L",%u", p.PclFrameId);
         }
+    }
+    if (args.mWriteDisplayMetadata) {
+        fwprintf(fp, L",%llu", metrics.presentId);
     }
     fwprintf(fp, L"\n");
 
