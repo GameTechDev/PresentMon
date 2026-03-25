@@ -7,7 +7,7 @@
 #include <memory>
 #include <optional>
 #include "../cnr/FixedVector.h"
-#include "../../../PresentData/PresentEventEnums.hpp"
+#include <PresentData/PresentEventEnums.hpp>
 
 // Forward declarations for external types
 struct PresentEvent; // From PresentMonTraceConsumer

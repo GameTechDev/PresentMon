@@ -3,7 +3,7 @@
 #include "MetricsCalculator.h"
 #include "MetricsCalculatorInternal.h"
 
-#include "../PresentData/PresentMonTraceConsumer.hpp"
+#include <PresentData/PresentMonTraceConsumer.hpp>
 #include "../Math.h"
 
 namespace pmon::util::metrics

@@ -3,7 +3,7 @@
 #include "MetricsCalculator.h"
 #include "MetricsCalculatorInternal.h"
 
-#include "../PresentData/PresentMonTraceConsumer.hpp"
+#include <PresentData/PresentMonTraceConsumer.hpp>
 #include "../Math.h"
 
 // Layout: internal helpers -> entry points -> metric assembly -> exported helpers

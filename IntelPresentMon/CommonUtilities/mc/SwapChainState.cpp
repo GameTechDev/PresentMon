@@ -1,7 +1,7 @@
 ﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "SwapChainState.h"
-#include "../PresentData/PresentMonTraceConsumer.hpp"
+#include <PresentData/PresentMonTraceConsumer.hpp>
 
 namespace pmon::util::metrics {
 

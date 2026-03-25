@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "MetricsTypes.h"
 
-#include "../PresentData/PresentMonTraceConsumer.hpp"
+#include <PresentData/PresentMonTraceConsumer.hpp>
 
 namespace pmon::util::metrics {
 
