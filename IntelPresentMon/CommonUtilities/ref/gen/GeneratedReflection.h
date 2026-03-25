@@ -10,7 +10,7 @@
 #include "../GeneratedReflectionHelpers.h"
 
 // target includes
-#include "../../../../IntelPresentMon/ControlLib/igcl_api.h"
+#include <IntelPresentMon/ControlLib/igcl_api.h>
 
 namespace pmon::util::ref::gen
 {
