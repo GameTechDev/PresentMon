@@ -18,22 +18,13 @@ namespace pmon::tel::nvml
 {
     NvmlTelemetryProvider::NvmlTelemetryProvider()
     {
-        try {
-            pNvml_ = std::make_unique<NvmlWrapper>();
-        }
-        catch (const TelemetrySubsystemAbsent&) {
-            throw;
-        }
-        catch (...) {
-            pmlog_error(util::ReportException("NVML wrapper construction failed"));
-            throw Except<TelemetrySubsystemAbsent>("Unable to initialize NVIDIA Management Library");
-        }
+        pNvml_ = std::make_unique<NvmlWrapper>();
 
         unsigned int count = 0;
         const auto countResult = pNvml_->DeviceGetCount_v2(&count);
         if (!NvmlWrapper::Ok(countResult)) {
             pmlog_error("nvmlDeviceGetCount_v2 failed").code(countResult);
-            throw Except<>("NVML device count query failed");
+            throw Except<NvmlException>("NVML device count query failed");
         }
         pmlog_verb(v::tele_gpu)("nvmlDeviceGetCount_v2 output")
             .pmwatch(count);
@@ -53,7 +44,7 @@ namespace pmon::tel::nvml
             const auto providerDeviceId = nextProviderDeviceId_;
             const auto emplaceResult = devicesById_.try_emplace(providerDeviceId);
             if (!emplaceResult.second) {
-                throw Except<>("Duplicate NVML provider device id encountered");
+                throw Except<NvmlException>("Duplicate NVML provider device id encountered");
             }
 
             auto& device = emplaceResult.first->second;
@@ -82,7 +73,7 @@ namespace pmon::tel::nvml
     {
         const auto iDevice = devicesById_.find(providerDeviceId);
         if (iDevice == devicesById_.end()) {
-            throw Except<>("NVML provider device not found");
+            throw Except<NvmlException>("NVML provider device not found");
         }
         return iDevice->second.fingerprint;
     }
@@ -95,7 +86,7 @@ namespace pmon::tel::nvml
     {
         const auto iDevice = devicesById_.find(providerDeviceId);
         if (iDevice == devicesById_.end()) {
-            throw Except<>("NVML provider device not found");
+            throw Except<NvmlException>("NVML provider device not found");
         }
 
         auto& device = iDevice->second;
@@ -105,7 +96,7 @@ namespace pmon::tel::nvml
             ValidateScalarMetricIndex_(metricId, arrayIndex);
             return (int)device.fingerprint.vendor;
         case PM_METRIC_GPU_NAME:
-            throw Except<>("PM_METRIC_GPU_NAME is static-only and is not served by poll path");
+            throw Except<NvmlException>("PM_METRIC_GPU_NAME is static-only and is not served by poll path");
         case PM_METRIC_GPU_POWER:
         {
             ValidateScalarMetricIndex_(metricId, arrayIndex);
@@ -157,14 +148,14 @@ namespace pmon::tel::nvml
             return 100.0 * ((double)pMemoryInfo->used / (double)totalBytes);
         }
         default:
-            throw Except<>("Unsupported metric for NVML provider");
+            throw Except<NvmlException>("Unsupported metric for NVML provider");
         }
     }
 
     void NvmlTelemetryProvider::ValidateScalarMetricIndex_(PM_METRIC metricId, uint32_t arrayIndex)
     {
         if (arrayIndex != 0) {
-            throw Except<>("NVML scalar metric queried with nonzero array index");
+            throw Except<NvmlException>("NVML scalar metric queried with nonzero array index");
         }
         (void)metricId;
     }

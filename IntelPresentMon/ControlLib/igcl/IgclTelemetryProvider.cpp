@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <chrono>
 #include <regex>
-#include <stdexcept>
 #include <string>
 
 using namespace pmon;
@@ -96,7 +95,7 @@ namespace pmon::tel::igcl
             const auto enumCountResult = ctlEnumerateDevices(apiHandle_, &count, nullptr);
             if (enumCountResult != CTL_RESULT_SUCCESS) {
                 pmlog_error("ctlEnumerateDevices(count) failed").code(enumCountResult);
-                throw std::runtime_error{ "IGCL device enumeration (count) failed" };
+                throw Except<IgclException>("IGCL device enumeration (count) failed");
             }
             pmlog_verb(v::tele_gpu)("ctlEnumerateDevices(count) output")
                 .pmwatch(count);
@@ -105,7 +104,7 @@ namespace pmon::tel::igcl
             const auto enumListResult = ctlEnumerateDevices(apiHandle_, &count, handles.data());
             if (enumListResult != CTL_RESULT_SUCCESS) {
                 pmlog_error("ctlEnumerateDevices(list) failed").code(enumListResult);
-                throw std::runtime_error{ "IGCL device enumeration (list) failed" };
+                throw Except<IgclException>("IGCL device enumeration (list) failed");
             }
         }
 
@@ -113,7 +112,7 @@ namespace pmon::tel::igcl
             const auto providerDeviceId = nextProviderDeviceId_;
             const auto emplaceResult = devicesById_.try_emplace(providerDeviceId);
             if (!emplaceResult.second) {
-                throw std::runtime_error{ "Duplicate IGCL provider device id encountered" };
+                throw Except<IgclException>("Duplicate IGCL provider device id encountered");
             }
 
             auto& device = emplaceResult.first->second;
@@ -160,7 +159,7 @@ namespace pmon::tel::igcl
     {
         const auto iDevice = devicesById_.find(providerDeviceId);
         if (iDevice == devicesById_.end()) {
-            throw std::out_of_range{ "IGCL provider device not found" };
+            throw Except<IgclException>("IGCL provider device not found");
         }
 
         auto& device = iDevice->second;
@@ -170,7 +169,7 @@ namespace pmon::tel::igcl
             ValidateScalarMetricIndex_(metricId, arrayIndex);
             return (int)device.fingerprint.vendor;
         case PM_METRIC_GPU_NAME:
-            throw std::invalid_argument{ "PM_METRIC_GPU_NAME is static-only and is not served by poll path" };
+            throw Except<IgclException>("PM_METRIC_GPU_NAME is static-only and is not served by poll path");
         case PM_METRIC_GPU_SUSTAINED_POWER_LIMIT:
         {
             ValidateScalarMetricIndex_(metricId, arrayIndex);
@@ -224,7 +223,7 @@ namespace pmon::tel::igcl
     void IgclTelemetryProvider::ValidateScalarMetricIndex_(PM_METRIC metricId, uint32_t arrayIndex)
     {
         if (arrayIndex != 0) {
-            throw std::out_of_range{ "IGCL scalar metric queried with nonzero array index" };
+            throw Except<IgclException>("IGCL scalar metric queried with nonzero array index");
         }
         (void)metricId;
     }
@@ -859,7 +858,7 @@ namespace pmon::tel::igcl
         case PM_METRIC_GPU_FAN_SPEED:
         {
             if (arrayIndex >= device.fanSpeedCount) {
-                throw Except<>("IGCL array index out of range");
+                throw Except<IgclException>("IGCL array index out of range");
             }
             if (TryGetInstantaneousTelemetryItem_(currentSample.fanSpeed[(size_t)arrayIndex], value)) {
                 return value;
@@ -869,7 +868,7 @@ namespace pmon::tel::igcl
         case PM_METRIC_GPU_FAN_SPEED_PERCENT:
         {
             if (arrayIndex >= device.fanSpeedPercentCount) {
-                throw Except<>("IGCL array index out of range");
+                throw Except<IgclException>("IGCL array index out of range");
             }
             if (!TryGetInstantaneousTelemetryItem_(currentSample.fanSpeed[(size_t)arrayIndex], value)) {
                 return 0.0;
@@ -899,7 +898,7 @@ namespace pmon::tel::igcl
             ValidateScalarMetricIndex_(metricId, arrayIndex);
             return false;
         default:
-            throw std::invalid_argument{ "Unsupported metric for IGCL provider" };
+            throw Except<IgclException>("Unsupported metric for IGCL provider");
         }
     }
 
