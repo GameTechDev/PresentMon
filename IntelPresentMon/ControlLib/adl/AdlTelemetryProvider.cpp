@@ -1,6 +1,6 @@
 ﻿// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
-#include "AmdTelemetryProvider.h"
+#include "AdlTelemetryProvider.h"
 
 #include "../Exceptions.h"
 #include "../Logging.h"
@@ -30,7 +30,7 @@ namespace pmon::tel::adl
         }
     }
 
-    AmdTelemetryProvider::AmdTelemetryProvider()
+    AdlTelemetryProvider::AdlTelemetryProvider()
     {
         pAdl_ = std::make_unique<Adl2Wrapper>();
 
@@ -95,7 +95,7 @@ namespace pmon::tel::adl
         }
     }
 
-    ProviderCapabilityMap AmdTelemetryProvider::GetCaps()
+    ProviderCapabilityMap AdlTelemetryProvider::GetCaps()
     {
         ProviderCapabilityMap capsByDeviceId{};
         for (const auto& entry : devicesById_) {
@@ -104,7 +104,7 @@ namespace pmon::tel::adl
         return capsByDeviceId;
     }
 
-    const TelemetryDeviceFingerprint& AmdTelemetryProvider::GetFingerPrint(
+    const TelemetryDeviceFingerprint& AdlTelemetryProvider::GetFingerPrint(
         ProviderDeviceId providerDeviceId) const
     {
         const auto iDevice = devicesById_.find(providerDeviceId);
@@ -114,7 +114,7 @@ namespace pmon::tel::adl
         return iDevice->second.fingerprint;
     }
 
-    TelemetryMetricValue AmdTelemetryProvider::PollMetric(
+    TelemetryMetricValue AdlTelemetryProvider::PollMetric(
         ProviderDeviceId providerDeviceId,
         PM_METRIC metricId,
         uint32_t arrayIndex,
@@ -222,7 +222,7 @@ namespace pmon::tel::adl
         }
     }
 
-    void AmdTelemetryProvider::ValidateScalarMetricIndex_(PM_METRIC metricId, uint32_t arrayIndex)
+    void AdlTelemetryProvider::ValidateScalarMetricIndex_(PM_METRIC metricId, uint32_t arrayIndex)
     {
         if (arrayIndex != 0) {
             throw Except<AdlException>("ADL scalar metric queried with nonzero array index");
@@ -230,12 +230,12 @@ namespace pmon::tel::adl
         (void)metricId;
     }
 
-    uint64_t AmdTelemetryProvider::GetMemorySizeBytes_(const ADLMemoryInfoX4& memoryInfo) noexcept
+    uint64_t AdlTelemetryProvider::GetMemorySizeBytes_(const ADLMemoryInfoX4& memoryInfo) noexcept
     {
         return memoryInfo.iMemorySize > 0 ? (uint64_t)memoryInfo.iMemorySize : 0ull;
     }
 
-    uint64_t AmdTelemetryProvider::GetMemoryMaxBandwidthBitsPerSecond_(const ADLMemoryInfoX4& memoryInfo) noexcept
+    uint64_t AdlTelemetryProvider::GetMemoryMaxBandwidthBitsPerSecond_(const ADLMemoryInfoX4& memoryInfo) noexcept
     {
         if (memoryInfo.iMemoryBitRateX2 > 0) {
             return (uint64_t)memoryInfo.iMemoryBitRateX2;
@@ -249,7 +249,7 @@ namespace pmon::tel::adl
         return 0ull;
     }
 
-    bool AmdTelemetryProvider::TryGetPmLogSensorValue_(
+    bool AdlTelemetryProvider::TryGetPmLogSensorValue_(
         const ADLPMLogDataOutput& data,
         int sensorIndex,
         int& value) noexcept
@@ -269,7 +269,7 @@ namespace pmon::tel::adl
         return true;
     }
 
-    bool AmdTelemetryProvider::TryInitializeDevice_(
+    bool AdlTelemetryProvider::TryInitializeDevice_(
         DeviceState_& device,
         const AdapterInfo& adapterInfo) const
     {
@@ -326,7 +326,7 @@ namespace pmon::tel::adl
         return true;
     }
 
-    void AmdTelemetryProvider::EnumerateOd5ThermalControllers_(DeviceState_& device) const
+    void AdlTelemetryProvider::EnumerateOd5ThermalControllers_(DeviceState_& device) const
     {
         device.od5ThermalControllerIndices.clear();
 
@@ -356,7 +356,7 @@ namespace pmon::tel::adl
         }
     }
 
-    ipc::MetricCapabilities AmdTelemetryProvider::BuildCapsForDevice_(DeviceState_& device) const
+    ipc::MetricCapabilities AdlTelemetryProvider::BuildCapsForDevice_(DeviceState_& device) const
     {
         ipc::MetricCapabilities caps{};
         const auto requestQpc = GetCurrentTimestamp();
@@ -426,7 +426,7 @@ namespace pmon::tel::adl
         return caps;
     }
 
-    const ADLMemoryInfoX4* AmdTelemetryProvider::QueryMemoryInfo_(DeviceState_& device) const
+    const ADLMemoryInfoX4* AdlTelemetryProvider::QueryMemoryInfo_(DeviceState_& device) const
     {
         if (device.memoryInfoQueried) {
             return device.memoryInfo ? &*device.memoryInfo : nullptr;
@@ -450,7 +450,7 @@ namespace pmon::tel::adl
         return &*device.memoryInfo;
     }
 
-    std::optional<double> AmdTelemetryProvider::QuerySustainedPowerLimit_(const DeviceState_& device) const
+    std::optional<double> AdlTelemetryProvider::QuerySustainedPowerLimit_(const DeviceState_& device) const
     {
         switch (device.overdriveVersion) {
         case 5:
@@ -540,7 +540,7 @@ namespace pmon::tel::adl
         }
     }
 
-    const AmdTelemetryProvider::DynamicSnapshot_& AmdTelemetryProvider::PollDynamicSnapshot_(
+    const AdlTelemetryProvider::DynamicSnapshot_& AdlTelemetryProvider::PollDynamicSnapshot_(
         DeviceState_& device,
         int64_t requestQpc) const
     {
@@ -593,7 +593,7 @@ namespace pmon::tel::adl
         return cache.output;
     }
 
-    void AmdTelemetryProvider::PopulateOverdrive5Snapshot_(
+    void AdlTelemetryProvider::PopulateOverdrive5Snapshot_(
         DeviceState_& device,
         DynamicSnapshot_& snapshot) const
     {
@@ -718,7 +718,7 @@ namespace pmon::tel::adl
         }
     }
 
-    void AmdTelemetryProvider::PopulateOverdrive6Snapshot_(
+    void AdlTelemetryProvider::PopulateOverdrive6Snapshot_(
         DeviceState_& device,
         DynamicSnapshot_& snapshot) const
     {
@@ -829,7 +829,7 @@ namespace pmon::tel::adl
         }
     }
 
-    void AmdTelemetryProvider::PopulateOverdrive7Snapshot_(
+    void AdlTelemetryProvider::PopulateOverdrive7Snapshot_(
         DeviceState_& device,
         DynamicSnapshot_& snapshot) const
     {
@@ -932,7 +932,7 @@ namespace pmon::tel::adl
         (void)capabilities;
     }
 
-    void AmdTelemetryProvider::PopulateOverdrive8Snapshot_(
+    void AdlTelemetryProvider::PopulateOverdrive8Snapshot_(
         DeviceState_& device,
         DynamicSnapshot_& snapshot) const
     {

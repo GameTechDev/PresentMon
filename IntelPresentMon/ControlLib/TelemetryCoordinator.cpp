@@ -4,7 +4,7 @@
 #include "Exceptions.h"
 #include "TelemetryDeviceFingerprint.h"
 #include "Logging.h"
-#include "adl/AmdTelemetryProvider.h"
+#include "adl/AdlTelemetryProvider.h"
 #include "igcl/IgclTelemetryProvider.h"
 #include "nvapi/NvapiTelemetryProvider.h"
 #include "nvml/NvmlTelemetryProvider.h"
@@ -305,7 +305,7 @@ namespace pmon::tel
         tryAddProvider.operator()<uci::UciTelemetryProvider>(
             "UCI telemetry provider unavailable",
             "UCI telemetry provider construction failed");
-        tryAddProvider.operator()<adl::AmdTelemetryProvider>(
+        tryAddProvider.operator()<adl::AdlTelemetryProvider>(
             "ADL telemetry provider unavailable",
             "ADL telemetry provider construction failed");
         tryAddProvider.operator()<igcl::IgclTelemetryProvider>(

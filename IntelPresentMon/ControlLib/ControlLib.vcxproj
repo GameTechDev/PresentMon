@@ -113,7 +113,7 @@
     <ClInclude Include="adl\adl_sdk.h" />
     <ClInclude Include="adl\adl_structures.h" />
     <ClInclude Include="adl\Adl2Wrapper.h" />
-    <ClInclude Include="adl\AmdTelemetryProvider.h" />
+    <ClInclude Include="adl\AdlTelemetryProvider.h" />
     <ClInclude Include="DllModule.h" />
     <ClInclude Include="Exceptions.h" />
     <ClInclude Include="igcl\IgclErrorCodeProvider.h" />
@@ -137,7 +137,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="adl\Adl2Wrapper.cpp" />
-    <ClCompile Include="adl\AmdTelemetryProvider.cpp" />
+    <ClCompile Include="adl\AdlTelemetryProvider.cpp" />
     <ClCompile Include="igcl\cApiWrapper.cpp" />
     <ClCompile Include="igcl\IgclErrorCodeProvider.cpp" />
     <ClCompile Include="igcl\IgclTelemetryProvider.cpp" />
