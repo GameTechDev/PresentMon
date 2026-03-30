@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="CppAst" Version="0.21.1" />
-    <PackageReference Include="Scriban" Version="6.6.0" />
+    <PackageReference Include="Scriban" Version="7.0.6" />
   </ItemGroup>
 
 </Project>
