@@ -14,11 +14,11 @@
 
 namespace pmon::tel::adl
 {
-    class AmdTelemetryProvider : public TelemetryProvider
+    class AdlTelemetryProvider : public TelemetryProvider
     {
     public:
-        AmdTelemetryProvider();
-        ~AmdTelemetryProvider() override = default;
+        AdlTelemetryProvider();
+        ~AdlTelemetryProvider() override = default;
         ProviderCapabilityMap GetCaps() override;
         const TelemetryDeviceFingerprint& GetFingerPrint(ProviderDeviceId providerDeviceId) const override;
         TelemetryMetricValue PollMetric(
