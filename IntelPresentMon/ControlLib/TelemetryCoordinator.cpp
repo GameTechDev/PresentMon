@@ -122,7 +122,7 @@ namespace pmon::tel
                             store.statics.sustainedPowerLimit = *pVal;
                         }
                         else {
-                            throw util::Except<>("Type mismatch for PM_METRIC_GPU_SUSTAINED_POWER_LIMIT static metric");
+                            throw util::Except<TelemetryCoordinatorException>("Type mismatch for PM_METRIC_GPU_SUSTAINED_POWER_LIMIT static metric");
                         }
                     }
                     if (logicalDevice.routes.contains(PM_METRIC_GPU_MEM_SIZE)) {
@@ -132,7 +132,7 @@ namespace pmon::tel
                             store.statics.memSize = *pVal;
                         }
                         else {
-                            throw util::Except<>("Type mismatch for PM_METRIC_GPU_MEM_SIZE static metric");
+                            throw util::Except<TelemetryCoordinatorException>("Type mismatch for PM_METRIC_GPU_MEM_SIZE static metric");
                         }
                     }
                     if (logicalDevice.routes.contains(PM_METRIC_GPU_MEM_MAX_BANDWIDTH)) {
@@ -142,7 +142,7 @@ namespace pmon::tel
                             store.statics.maxMemBandwidth = *pVal;
                         }
                         else {
-                            throw util::Except<>("Type mismatch for PM_METRIC_GPU_MEM_MAX_BANDWIDTH static metric");
+                            throw util::Except<TelemetryCoordinatorException>("Type mismatch for PM_METRIC_GPU_MEM_MAX_BANDWIDTH static metric");
                         }
                     }
                 }
@@ -158,7 +158,7 @@ namespace pmon::tel
                             store.statics.cpuPowerLimit = *pVal;
                         }
                         else {
-                            throw util::Except<>("Type mismatch for PM_METRIC_CPU_POWER_LIMIT static metric");
+                            throw util::Except<TelemetryCoordinatorException>("Type mismatch for PM_METRIC_CPU_POWER_LIMIT static metric");
                         }
                     }
                 }
@@ -637,7 +637,7 @@ namespace pmon::tel
                 return out;
             }
 
-            throw util::Except<>("Type mismatch while querying GPU memory size");
+            throw util::Except<TelemetryCoordinatorException>("Type mismatch while querying GPU memory size");
         }
         catch (...) {
             pmlog_error(util::ReportException("GPU memory size query failed while ordering logical devices"))
@@ -663,7 +663,7 @@ namespace pmon::tel
                 return out;
             }
 
-            throw util::Except<>("Type mismatch while querying GPU sustained power limit");
+            throw util::Except<TelemetryCoordinatorException>("Type mismatch while querying GPU sustained power limit");
         }
         catch (...) {
             pmlog_error(util::ReportException("GPU sustained power limit query failed while ordering logical devices"))
@@ -764,7 +764,7 @@ namespace pmon::tel
         if (!haveFingerprint) {
             pmlog_error("No provider-device fingerprint resolved for logical device")
                 .pmwatch(logicalDevice.logicalDeviceId);
-            throw util::Except<>("No provider-device fingerprint resolved for logical device");
+            throw util::Except<TelemetryCoordinatorException>("No provider-device fingerprint resolved for logical device");
         }
 
         return fingerprint;
@@ -851,7 +851,7 @@ namespace pmon::tel
                         pmlog_error("Failed pushing telemetry sample to ring (backpressured timeout)")
                             .pmwatch((int)metricId)
                             .pmwatch(arrayIndex);
-                        throw util::Except<>("Failed pushing telemetry sample to ring (backpressured timeout)");
+                        throw util::Except<TelemetryCoordinatorException>("Failed pushing telemetry sample to ring (backpressured timeout)");
                     }
                     return;
                 }
@@ -860,7 +860,7 @@ namespace pmon::tel
                         .pmwatch((int)metricId)
                         .pmwatch(rings.size())
                         .pmwatch(arrayIndex);
-                    throw util::Except<>("Index out of bounds in telemetry ring");
+                    throw util::Except<TelemetryCoordinatorException>("Index out of bounds in telemetry ring");
                 }
             }, value);
         }
@@ -884,7 +884,7 @@ namespace pmon::tel
                 .pmwatch(logicalDevice.logicalDeviceId)
                 .pmwatch((int)metricId)
                 .pmwatch(arrayIndex);
-            throw util::Except<>("No route found for metric on logical device");
+            throw util::Except<TelemetryCoordinatorException>("No route found for metric on logical device");
         }
 
         const auto providerDeviceIndex = itRoute->second;
@@ -894,7 +894,7 @@ namespace pmon::tel
                 .pmwatch((int)metricId)
                 .pmwatch(providerDeviceIndex)
                 .pmwatch(logicalDevice.providerDevices.size());
-            throw util::Except<>("Route points outside provider device list");
+            throw util::Except<TelemetryCoordinatorException>("Route points outside provider device list");
         }
 
         const auto& providerDevice = logicalDevice.providerDevices[providerDeviceIndex];
@@ -905,7 +905,7 @@ namespace pmon::tel
                 .pmwatch((int)metricId)
                 .pmwatch(providerDevice.providerDeviceId)
                 .pmwatch(arrayIndex);
-            throw util::Except<>("Route provider expired");
+            throw util::Except<TelemetryCoordinatorException>("Route provider expired");
         }
 
         try {

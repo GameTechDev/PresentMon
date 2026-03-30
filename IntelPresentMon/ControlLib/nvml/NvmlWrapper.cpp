@@ -10,7 +10,7 @@ namespace pmon::tel::nvml
 		const auto pInit_v2 = static_cast<nvmlReturn_t(*)()>(dll.GetProcAddress("nvmlInit_v2"));
 		if (!pInit_v2)
 		{
-			throw std::runtime_error{ "Failed to get init proc for nvml" };
+			throw Except<TelemetrySubsystemAbsent>("Failed to get nvmlInit_v2 proc");
 		}
 
 		// get shutdown proc, but don't throw if not found (non-critical)
@@ -26,7 +26,7 @@ namespace pmon::tel::nvml
 		// initialize nvml
 		if (!Ok(pInit_v2()))
 		{
-			throw std::runtime_error{ "nvml init call failed" };
+			throw Except<TelemetrySubsystemAbsent>("nvmlInit_v2 call failed");
 		}
 	}
 

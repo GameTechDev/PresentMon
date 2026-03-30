@@ -57,7 +57,7 @@ namespace pmon::tel::uci
             if (subsystemAbsent) {
                 throw Except<TelemetrySubsystemAbsent>(message);
             }
-            throw Except<>(message);
+            throw Except<UciException>(message);
         }
 
         void CheckUciCall_(uc_result_t result, const char* call, bool subsystemAbsent = false)
@@ -220,7 +220,7 @@ namespace pmon::tel::uci
         if (providerDeviceId == kProviderDeviceId_) {
             return systemDevice_.fingerprint;
         }
-        throw Except<>("UCI provider device not found");
+        throw Except<UciException>("UCI provider device not found");
     }
 
     TelemetryMetricValue UciTelemetryProvider::PollMetric(
@@ -232,7 +232,7 @@ namespace pmon::tel::uci
         (void)requestQpc;
 
         if (providerDeviceId != kProviderDeviceId_) {
-            throw Except<>("UCI provider device not found");
+            throw Except<UciException>("UCI provider device not found");
         }
 
         std::lock_guard dataLock{ dataMutex_ };
@@ -246,7 +246,7 @@ namespace pmon::tel::uci
         case PM_METRIC_CPU_CORE_TEMPERATURE:
             return systemDevice_.cpuCoreTemperaturesSample[arrayIndex].value_or(0.0);
         default:
-            throw Except<>("Unsupported metric for UCI provider");
+            throw Except<UciException>("Unsupported metric for UCI provider");
         }
     }
 
@@ -364,16 +364,16 @@ namespace pmon::tel::uci
         case PM_METRIC_CPU_POWER:
         case PM_METRIC_CPU_TEMPERATURE:
             if (arrayIndex != 0) {
-                throw Except<>("UCI scalar metric queried with nonzero array index");
+                throw Except<UciException>("UCI scalar metric queried with nonzero array index");
             }
             return;
         case PM_METRIC_CPU_CORE_TEMPERATURE:
             if (arrayIndex >= device.cpuCoreTemperaturesSample.size()) {
-                throw Except<>("UCI CPU core temperature queried with out-of-range array index");
+                throw Except<UciException>("UCI CPU core temperature queried with out-of-range array index");
             }
             return;
         default:
-            throw Except<>("Unsupported UCI metric queried");
+            throw Except<UciException>("Unsupported UCI metric queried");
         }
     }
 

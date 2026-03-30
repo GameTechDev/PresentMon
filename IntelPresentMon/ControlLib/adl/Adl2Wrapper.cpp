@@ -15,8 +15,8 @@ namespace pmon::tel::adl {
         static_cast<int (*)(ADL_MAIN_MALLOC_CALLBACK, int, ADL_CONTEXT_HANDLE*)>(
             dll.GetProcAddress("ADL2_Main_Control_Create"));
     if (!adl2_main_control_create_ptr) {
-      throw std::runtime_error{
-          "Failed to get main control create proc for amd"};
+      throw Except<TelemetrySubsystemAbsent>(
+          "Failed to get ADL2 main control create proc");
     }
 
     // get shutdown proc, but don't throw if not found (non-critical)
@@ -35,7 +35,7 @@ namespace pmon::tel::adl {
     // present and enabled in the system
     if (!Ok(adl2_main_control_create_ptr(ADL_Main_Memory_Alloc, 1,
                                          &adl_context_))) {
-      throw std::runtime_error{"adl2 init call failed"};
+      throw Except<TelemetrySubsystemAbsent>("ADL2 initialization call failed");
     }
   }
 

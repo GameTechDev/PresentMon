@@ -95,7 +95,7 @@ namespace pmon::tel::wmi
         const auto providerDeviceId = nextProviderDeviceId_;
         const auto emplaceResult = devicesById_.try_emplace(providerDeviceId);
         if (!emplaceResult.second) {
-            throw Except<>("Duplicate WMI provider device id encountered");
+            throw Except<WmiException>("Duplicate WMI provider device id encountered");
         }
 
         auto& device = emplaceResult.first->second;
@@ -123,7 +123,7 @@ namespace pmon::tel::wmi
     {
         const auto iDevice = devicesById_.find(providerDeviceId);
         if (iDevice == devicesById_.end()) {
-            throw Except<>("WMI provider device not found");
+            throw Except<WmiException>("WMI provider device not found");
         }
         return iDevice->second.fingerprint;
     }
@@ -136,7 +136,7 @@ namespace pmon::tel::wmi
     {
         const auto iDevice = devicesById_.find(providerDeviceId);
         if (iDevice == devicesById_.end()) {
-            throw Except<>("WMI provider device not found");
+            throw Except<WmiException>("WMI provider device not found");
         }
 
         auto& device = iDevice->second;
@@ -146,7 +146,7 @@ namespace pmon::tel::wmi
             ValidateScalarMetricIndex_(metricId, arrayIndex);
             return (int)device.fingerprint.vendor;
         case PM_METRIC_CPU_NAME:
-            throw Except<>("PM_METRIC_CPU_NAME is static-only and is not served by poll path");
+            throw Except<WmiException>("PM_METRIC_CPU_NAME is static-only and is not served by poll path");
         case PM_METRIC_CPU_FREQUENCY:
         {
             ValidateScalarMetricIndex_(metricId, arrayIndex);
@@ -166,14 +166,14 @@ namespace pmon::tel::wmi
             return pSample->utilizationPercent;
         }
         default:
-            throw Except<>("Unsupported metric for WMI provider");
+            throw Except<WmiException>("Unsupported metric for WMI provider");
         }
     }
 
     void WmiTelemetryProvider::ValidateScalarMetricIndex_(PM_METRIC metricId, uint32_t arrayIndex)
     {
         if (arrayIndex != 0) {
-            throw Except<>("WMI scalar metric queried with nonzero array index");
+            throw Except<WmiException>("WMI scalar metric queried with nonzero array index");
         }
         (void)metricId;
     }

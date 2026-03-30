@@ -32,22 +32,13 @@ namespace pmon::tel::adl
 
     AmdTelemetryProvider::AmdTelemetryProvider()
     {
-        try {
-            pAdl_ = std::make_unique<Adl2Wrapper>();
-        }
-        catch (const TelemetrySubsystemAbsent&) {
-            throw;
-        }
-        catch (...) {
-            pmlog_error(util::ReportException("ADL wrapper construction failed"));
-            throw Except<TelemetrySubsystemAbsent>("Unable to initialize AMD Display Library");
-        }
+        pAdl_ = std::make_unique<Adl2Wrapper>();
 
         int adapterCount = 0;
         const auto countResult = pAdl_->Adapter_NumberOfAdapters_Get(&adapterCount);
         if (!Adl2Wrapper::Ok(countResult)) {
             pmlog_error("ADL2_Adapter_NumberOfAdapters_Get failed").code(countResult);
-            throw Except<>("ADL adapter count query failed");
+            throw Except<AdlException>("ADL adapter count query failed");
         }
         pmlog_verb(v::tele_gpu)("ADL2_Adapter_NumberOfAdapters_Get output")
             .pmwatch(adapterCount);
@@ -66,7 +57,7 @@ namespace pmon::tel::adl
             (int)(adapterInfos.size() * sizeof(AdapterInfo)));
         if (!Adl2Wrapper::Ok(infoResult)) {
             pmlog_error("ADL2_Adapter_AdapterInfo_Get failed").code(infoResult);
-            throw Except<>("ADL adapter info query failed");
+            throw Except<AdlException>("ADL adapter info query failed");
         }
         pmlog_verb(v::tele_gpu)("ADL2_Adapter_AdapterInfo_Get output")
             .pmwatch(ref::DumpGenerated(adapterInfos));
@@ -89,7 +80,7 @@ namespace pmon::tel::adl
             const auto providerDeviceId = nextProviderDeviceId_;
             const auto emplaceResult = devicesById_.try_emplace(providerDeviceId);
             if (!emplaceResult.second) {
-                throw Except<>("Duplicate ADL provider device id encountered");
+                throw Except<AdlException>("Duplicate ADL provider device id encountered");
             }
 
             auto& device = emplaceResult.first->second;
@@ -118,7 +109,7 @@ namespace pmon::tel::adl
     {
         const auto iDevice = devicesById_.find(providerDeviceId);
         if (iDevice == devicesById_.end()) {
-            throw Except<>("ADL provider device not found");
+            throw Except<AdlException>("ADL provider device not found");
         }
         return iDevice->second.fingerprint;
     }
@@ -131,7 +122,7 @@ namespace pmon::tel::adl
     {
         const auto iDevice = devicesById_.find(providerDeviceId);
         if (iDevice == devicesById_.end()) {
-            throw Except<>("ADL provider device not found");
+            throw Except<AdlException>("ADL provider device not found");
         }
 
         auto& device = iDevice->second;
@@ -141,7 +132,7 @@ namespace pmon::tel::adl
             ValidateScalarMetricIndex_(metricId, arrayIndex);
             return (int)device.fingerprint.vendor;
         case PM_METRIC_GPU_NAME:
-            throw Except<>("PM_METRIC_GPU_NAME is static-only and is not served by poll path");
+            throw Except<AdlException>("PM_METRIC_GPU_NAME is static-only and is not served by poll path");
         case PM_METRIC_GPU_SUSTAINED_POWER_LIMIT:
         {
             ValidateScalarMetricIndex_(metricId, arrayIndex);
@@ -218,23 +209,23 @@ namespace pmon::tel::adl
             return snapshot.hasThrottleStatus ? snapshot.gpuCurrentLimited : false;
         case PM_METRIC_GPU_FAN_SPEED:
             if (arrayIndex >= snapshot.fanSpeedsRpm.size()) {
-                throw Except<>("ADL array index out of range");
+                throw Except<AdlException>("ADL array index out of range");
             }
             return snapshot.fanSpeedsRpm[(size_t)arrayIndex];
         case PM_METRIC_GPU_FAN_SPEED_PERCENT:
             if (arrayIndex >= snapshot.fanSpeedRatios.size()) {
-                throw Except<>("ADL array index out of range");
+                throw Except<AdlException>("ADL array index out of range");
             }
             return snapshot.fanSpeedRatios[(size_t)arrayIndex];
         default:
-            throw Except<>("Unsupported metric for ADL provider");
+            throw Except<AdlException>("Unsupported metric for ADL provider");
         }
     }
 
     void AmdTelemetryProvider::ValidateScalarMetricIndex_(PM_METRIC metricId, uint32_t arrayIndex)
     {
         if (arrayIndex != 0) {
-            throw Except<>("ADL scalar metric queried with nonzero array index");
+            throw Except<AdlException>("ADL scalar metric queried with nonzero array index");
         }
         (void)metricId;
     }

@@ -20,16 +20,7 @@ namespace pmon::tel::nvapi
 {
     NvapiTelemetryProvider::NvapiTelemetryProvider()
     {
-        try {
-            pNvapi_ = std::make_unique<NvapiWrapper>();
-        }
-        catch (const TelemetrySubsystemAbsent&) {
-            throw;
-        }
-        catch (...) {
-            pmlog_error(util::ReportException("NVAPI wrapper construction failed"));
-            throw Except<TelemetrySubsystemAbsent>("Unable to initialize NVIDIA API");
-        }
+        pNvapi_ = std::make_unique<NvapiWrapper>();
 
         std::vector<NvPhysicalGpuHandle> handles((size_t)NVAPI_MAX_PHYSICAL_GPUS);
         NvU32 count = (NvU32)handles.size();
@@ -39,7 +30,7 @@ namespace pmon::tel::nvapi
         }
         if (!NvapiWrapper::Ok(enumResult)) {
             pmlog_error("NvAPI_EnumPhysicalGPUs failed").code(enumResult);
-            throw Except<>("NVAPI physical GPU enumeration failed");
+            throw Except<NvapiException>("NVAPI physical GPU enumeration failed");
         }
         pmlog_verb(v::tele_gpu)("NvAPI_EnumPhysicalGPUs output")
             .pmwatch(count);
@@ -49,7 +40,7 @@ namespace pmon::tel::nvapi
             const auto providerDeviceId = nextProviderDeviceId_;
             const auto emplaceResult = devicesById_.try_emplace(providerDeviceId);
             if (!emplaceResult.second) {
-                throw Except<>("Duplicate NVAPI provider device id encountered");
+                throw Except<NvapiException>("Duplicate NVAPI provider device id encountered");
             }
 
             auto& device = emplaceResult.first->second;
@@ -78,7 +69,7 @@ namespace pmon::tel::nvapi
     {
         const auto iDevice = devicesById_.find(providerDeviceId);
         if (iDevice == devicesById_.end()) {
-            throw Except<>("NVAPI provider device not found");
+            throw Except<NvapiException>("NVAPI provider device not found");
         }
         return iDevice->second.fingerprint;
     }
@@ -91,7 +82,7 @@ namespace pmon::tel::nvapi
     {
         const auto iDevice = devicesById_.find(providerDeviceId);
         if (iDevice == devicesById_.end()) {
-            throw Except<>("NVAPI provider device not found");
+            throw Except<NvapiException>("NVAPI provider device not found");
         }
 
         auto& device = iDevice->second;
@@ -101,7 +92,7 @@ namespace pmon::tel::nvapi
             ValidateScalarMetricIndex_(metricId, arrayIndex);
             return (int)device.fingerprint.vendor;
         case PM_METRIC_GPU_NAME:
-            throw Except<>("PM_METRIC_GPU_NAME is static-only and is not served by poll path");
+            throw Except<NvapiException>("PM_METRIC_GPU_NAME is static-only and is not served by poll path");
         default:
             return PollNvapiMetric_(device, metricId, arrayIndex, requestQpc);
         }
@@ -110,7 +101,7 @@ namespace pmon::tel::nvapi
     void NvapiTelemetryProvider::ValidateScalarMetricIndex_(PM_METRIC metricId, uint32_t arrayIndex)
     {
         if (arrayIndex != 0) {
-            throw Except<>("NVAPI scalar metric queried with nonzero array index");
+            throw Except<NvapiException>("NVAPI scalar metric queried with nonzero array index");
         }
         (void)metricId;
     }
@@ -393,7 +384,7 @@ namespace pmon::tel::nvapi
         case PM_METRIC_GPU_FAN_SPEED:
         {
             if (arrayIndex != 0) {
-                throw Except<>("NVAPI array index out of range");
+                throw Except<NvapiException>("NVAPI array index out of range");
             }
             const auto tach = PollTachEndpoint_(device);
             if (tach) {
@@ -424,7 +415,7 @@ namespace pmon::tel::nvapi
             return 0.0;
         }
         default:
-            throw Except<>("Unsupported metric for NVAPI provider");
+            throw Except<NvapiException>("Unsupported metric for NVAPI provider");
         }
     }
 

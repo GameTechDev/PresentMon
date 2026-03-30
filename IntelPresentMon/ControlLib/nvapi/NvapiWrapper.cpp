@@ -13,7 +13,7 @@ namespace pmon::tel::nvapi
 		const auto QueryInterface = static_cast<void*(*)(unsigned int)>(dll.GetProcAddress("nvapi_QueryInterface"));
 		if (!QueryInterface)
 		{
-			throw std::runtime_error{ "Failed to get query proc in nvapi dll" };
+			throw Except<TelemetrySubsystemAbsent>("Failed to get nvapi_QueryInterface proc");
 		}
 
 		// Query for all endpoints in NVW_ENDPOINT_LIST using the QueryInterface endpoint
@@ -41,12 +41,12 @@ namespace pmon::tel::nvapi
 		{
 			if (!Ok(pInitialize()))
 			{
-				throw std::runtime_error{ "Call to nvapi initialize failed" };
+				throw Except<TelemetrySubsystemAbsent>("NvAPI_Initialize call failed");
 			}
 		}
 		else
 		{
-			throw std::runtime_error{ "Failed to query nvapi initialization endpoint" };
+			throw Except<TelemetrySubsystemAbsent>("Failed to query NvAPI_Initialize endpoint");
 		}
 
 		// load the private endpoint for unloading api
