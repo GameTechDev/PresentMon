@@ -1,4 +1,4 @@
-<script lang="ts" setup>
+﻿<script lang="ts" setup>
 import { computed, ref, watchEffect } from 'vue'
 import { type ListItem } from 'vuetify/lib/composables/list-items.mjs';
 import { type Process } from '@/core/process';
@@ -85,6 +85,8 @@ watchEffect(async () => {
         }
     }
 })
+
+const processFromItem = (item: ListItem<unknown>) => item.raw as Process;
 </script>
 
 
@@ -110,36 +112,36 @@ watchEffect(async () => {
             :disabled="prefs.preferences.enableAutotargetting"
             clearable
         >
-            <template v-slot:selection="{item, index}: {item:ListItem<Process>, index:number}">
-                <template v-if="item.raw.windowName">
-                    {{ makeSelectorName(item.raw.windowName) }} 
-                    <span class="pid-node-inline">[{{ item.raw.pid }}]</span>
+            <template v-slot:selection="{ item }">
+                <template v-if="processFromItem(item).windowName">
+                    {{ makeSelectorName(processFromItem(item).windowName ?? '') }}
+                    <span class="pid-node-inline">[{{ processFromItem(item).pid }}]</span>
                 </template>            
                 <template v-else>
                     <div>
-                    {{ item.raw.name }}
-                    <span class="pid-node-inline">[{{ item.raw.pid }}]</span>
+                    {{ processFromItem(item).name }}
+                    <span class="pid-node-inline">[{{ processFromItem(item).pid }}]</span>
                     </div>
                 </template>
             </template>
-            <template v-slot:item="{item, props, index}: {item:ListItem<Process>, props:any, index:number}">
-                <v-list-item v-if="item.raw.windowName" v-bind="props" :title="makeSelectorName(item.raw.windowName)">
+            <template v-slot:item="{ item, props }">
+                <v-list-item v-if="processFromItem(item).windowName" v-bind="props" :title="makeSelectorName(processFromItem(item).windowName ?? '')">
                     <v-list-item-subtitle>
-                        {{ item.raw.name }}
-                        <span class="pid-node">[{{ item.raw.pid }}]</span>
+                        {{ processFromItem(item).name }}
+                        <span class="pid-node">[{{ processFromItem(item).pid }}]</span>
                     </v-list-item-subtitle>
                 </v-list-item>
                 <v-list-item v-else v-bind="props" :title="undefined">
                     <v-list-item-title>
-                        {{ makeSelectorName(item.raw.name) }}
-                        <span class="pid-node-inline">[{{ item.raw.pid }}]</span>
+                        {{ makeSelectorName(processFromItem(item).name) }}
+                        <span class="pid-node-inline">[{{ processFromItem(item).pid }}]</span>
                     </v-list-item-title>
                 </v-list-item>
             </template>
         </v-autocomplete>
         </v-col>
     </v-row> 
-    
+
     <v-row dense>       
         <v-col cols="3">
         Auto-target
@@ -312,5 +314,3 @@ watchEffect(async () => {
     }
 }
 </style>
-
-    

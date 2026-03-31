@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import { ref, computed } from 'vue';
+﻿<script setup lang="ts">
+import { computed } from 'vue';
 import { type Widget, WidgetType } from '@/core/widget';
 import type { Metric } from '@/core/metric';
 import type { MetricOption } from '@/core/metric-option';
@@ -123,6 +123,9 @@ const findMetricById = (metricId: number) => {
 };
 
 const widgetTypeToString = (t: WidgetType) => WidgetType[t];
+const metricOptionFromItem = (item: ListItem<unknown>) => item.raw as MetricOption;
+const statFromItem = (item: ListItem<unknown>) => item.raw as Stat;
+const widgetTypeFromItem = (item: ListItem<unknown>) => item.raw as WidgetType;
 
 const metricOptionsFiltered = computed(() => {
   return props.lineIdx === 0
@@ -161,10 +164,10 @@ const isReadoutWidget = computed(() => widgetType.value === WidgetType.Readout);
         return-object
         :density="isMaster ? 'default' : 'compact'"
       >
-        <template v-slot:item="{item, props: itemProps}: {item:ListItem<MetricOption>, props:any}">
-          <v-tooltip :text="findMetricById(item.raw.metricId).description">
+        <template v-slot:item="{ item, props: itemProps }">
+          <v-tooltip :text="findMetricById(metricOptionFromItem(item).metricId).description">
             <template v-slot:activator="{props: tooltipProps}">
-              <v-list-item v-bind="{...itemProps, ...tooltipProps}" :title="item.raw.name"/>
+              <v-list-item v-bind="{...itemProps, ...tooltipProps}" :title="metricOptionFromItem(item).name"/>
             </template>
           </v-tooltip>
         </template>
@@ -179,10 +182,10 @@ const isReadoutWidget = computed(() => widgetType.value === WidgetType.Readout);
         return-object
         :density="isMaster ? 'default' : 'compact'"
       >
-        <template v-slot:item="{item, props: itemProps}: {item:ListItem<Stat>, props:any}">
-          <v-tooltip :text="`${item.raw.name}: ${item.raw.description}`">
+        <template v-slot:item="{ item, props: itemProps }">
+          <v-tooltip :text="`${statFromItem(item).name}: ${statFromItem(item).description}`">
             <template v-slot:activator="{props: tooltipProps}">
-              <v-list-item v-bind="{...itemProps, ...tooltipProps}" :title="item.raw.shortName"/>
+              <v-list-item v-bind="{...itemProps, ...tooltipProps}" :title="statFromItem(item).shortName"/>
             </template>
           </v-tooltip>
         </template>
@@ -196,11 +199,11 @@ const isReadoutWidget = computed(() => widgetType.value === WidgetType.Readout);
         :disabled="locked || widgetTypeOptions.length < 2"
         :density="isMaster ? 'default' : 'compact'"
       >
-        <template v-slot:selection="{item, index}: {item:ListItem<WidgetType>, index:number}">
-          {{ widgetTypeToString(item.raw) }}
+        <template v-slot:selection="{ item }">
+          {{ widgetTypeToString(widgetTypeFromItem(item)) }}
         </template>
-        <template v-slot:item="{item, props, index}: {item:ListItem<WidgetType>, props:any, index:number}">
-          <v-list-item v-bind="props" :title="widgetTypeToString(item.raw)">
+        <template v-slot:item="{ item, props }">
+          <v-list-item v-bind="props" :title="widgetTypeToString(widgetTypeFromItem(item))">
           </v-list-item>
         </template>
       </v-select>
