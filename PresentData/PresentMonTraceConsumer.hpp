@@ -335,6 +335,10 @@ struct PMTraceConsumer
 
     void DequeueProcessEvents(std::vector<ProcessEvent>& outProcessEvents);
     void DequeuePresentEvents(std::vector<std::shared_ptr<PresentEvent>>& outPresentEvents);
+    uint32_t GetNumOverflowedPresents() const
+    {
+        return mNumOverflowedPresents.load(std::memory_order_relaxed);
+    }
 
     // Control of general event processing state for service capture start/stop without
     // tearing down the underlying ETW session
@@ -357,7 +361,7 @@ struct PMTraceConsumer
     uint32_t mCompletedIndex = 0;       // The index of mCompletedPresents of the oldest completed present.
     uint32_t mCompletedCount = 0;       // The total number of presents in mCompletedPresents.
     uint32_t mReadyCount = 0;           // The number of presents in mCompletedPresents, starting at mCompletedIndex, that are ready to be dequeued.
-    uint32_t mNumOverflowedPresents = 0; // The number of presents that have been lost due to the ring buffer wrapping.
+    std::atomic<uint32_t> mNumOverflowedPresents = 0; // The number of presents that have been lost due to the ring buffer wrapping.
     uint32_t mCircularBufferSize = 0;   // The size of the ring buffers for presents.
 
     // Mutexs to protect consumer/dequeue access from different threads:
