@@ -55,6 +55,7 @@ enum class FrameType : uint8_t {
     Repeated = 2,
     Intel_XEFG = 50,
     AMD_AFMF = 100,
+    AMD_FSR_FG = 101,
 };
 
 enum class InputType : uint32_t {

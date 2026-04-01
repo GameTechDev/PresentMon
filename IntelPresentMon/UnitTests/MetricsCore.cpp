@@ -782,6 +782,33 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(uint64_t(1'500), swapChain.swapChain.lastDisplayedScreenTime,
                 L"Should remain unchanged.");
         }
+
+        TEST_METHOD(DisplayIndexing_AmdFsrFg_Multi_WithNext_AppIndexProcessed)
+        {
+            // 3x AMD_FSR_FG then a single Application
+            FrameData present = MakeFrame(
+                PresentResult::Presented,
+                20'000, 600, 30'000,
+                {
+                    { FrameType::AMD_FSR_FG, 21'000 },
+                    { FrameType::AMD_FSR_FG, 21'500 },
+                    { FrameType::AMD_FSR_FG, 22'000 },
+                    { FrameType::Application, 22'500 },
+                });
+
+            FrameData nextDisplayed = MakeFrame(
+                PresentResult::Presented,
+                23'000, 400, 30'500,
+                { { FrameType::Application, 24'000 } });
+
+            auto idx = DisplayIndexing::Calculate(present, &nextDisplayed);
+
+            // With nextDisplayed: process postponed last only => [N-1, N) => [3, 4)
+            Assert::AreEqual(size_t(3), idx.startIndex);
+            Assert::AreEqual(size_t(4), idx.endIndex);
+            Assert::AreEqual(size_t(3), idx.appIndex);
+            Assert::IsTrue(idx.hasNextDisplayed);
+        }
     };
 
     TEST_CLASS(UpdateAfterBootstrapPresentV2Tests)
