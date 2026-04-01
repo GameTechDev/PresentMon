@@ -187,6 +187,7 @@ bool IsValid(
            frameType == PresentMonProvider_FrameType_Repeated ||
            frameType == PresentMonProvider_FrameType_Intel_XEFG ||
            frameType == PresentMonProvider_FrameType_AMD_AFMF ||
+           frameType == PresentMonProvider_FrameType_AMD_FSR_FG ||
            frameType == PresentMonProvider_FrameType_NVIDIA_DLSS;
 }
 

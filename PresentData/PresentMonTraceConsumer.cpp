@@ -39,6 +39,7 @@ static inline FrameType ConvertPMPFrameTypeToFrameType(Intel_PresentMon::FrameTy
     case Intel_PresentMon::FrameType::Repeated:    return FrameType::Repeated;
     case Intel_PresentMon::FrameType::Intel_XEFG:  return FrameType::Intel_XEFG;
     case Intel_PresentMon::FrameType::AMD_AFMF:    return FrameType::AMD_AFMF;
+    case Intel_PresentMon::FrameType::AMD_FSR_FG:  return FrameType::AMD_FSR_FG;
     }
 
     DebugAssert(false);
@@ -70,7 +71,8 @@ static inline bool ShouldAppendApplicationAfterGeneratedDisplay(std::shared_ptr<
 {
     bool hasGeneratedFrame =
         HasDisplayedFrameType(p, FrameType::Intel_XEFG) ||
-        HasDisplayedFrameType(p, FrameType::AMD_AFMF);
+        HasDisplayedFrameType(p, FrameType::AMD_AFMF) ||
+        HasDisplayedFrameType(p, FrameType::AMD_FSR_FG);
 
     bool hasApplicationFrame =
         HasDisplayedFrameType(p, FrameType::Application);
@@ -3900,7 +3902,9 @@ bool PMTraceConsumer::IsApplicationPresent(std::shared_ptr<PresentEvent> const& 
     }
 
     auto frameType = present->Displayed[0];
-    return ((frameType.first != FrameType::Intel_XEFG) && (frameType.first != FrameType::AMD_AFMF));
+    return ((frameType.first != FrameType::Intel_XEFG) && 
+            (frameType.first != FrameType::AMD_AFMF) && 
+            (frameType.first != FrameType::AMD_FSR_FG));
 }
 
 void PMTraceConsumer::SetAppTimingDataAsComplete(uint32_t processId, uint32_t appFrameId) {

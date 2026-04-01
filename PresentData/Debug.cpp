@@ -182,6 +182,7 @@ wchar_t const* PMPFrameTypeToString(Intel_PresentMon::FrameType type)
     case Intel_PresentMon::FrameType::Repeated:    return L"Repeated";
     case Intel_PresentMon::FrameType::Intel_XEFG:  return L"Intel XeSS-FG";
     case Intel_PresentMon::FrameType::AMD_AFMF:    return L"AMD AFMF";
+    case Intel_PresentMon::FrameType::AMD_FSR_FG:  return L"AMD FSR FG";
     }
 
     assert(false);
@@ -196,6 +197,7 @@ void PrintFrameType(FrameType type)
     case FrameType::Repeated:    wprintf(L"Repeated"); break;
     case FrameType::Intel_XEFG:  wprintf(L"Intel XeSS-FG"); break;
     case FrameType::AMD_AFMF:    wprintf(L"AMD AFMF"); break;
+    case FrameType::AMD_FSR_FG:  wprintf(L"AMD FSR FG"); break;
     default:                     wprintf(L"Unknown (%u)", type); assert(false); break;
     }
 }
