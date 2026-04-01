@@ -44,7 +44,7 @@ namespace pmon::util::metrics
         }
     }
 
-    void UnifiedSwapChain::SeedFromFirstPresent(FrameData present)
+    void UnifiedSwapChain::SeedFromFirstPresent(const FrameData& present)
     {
         // Mirror console baseline behavior:
         // first present just seeds history (no pending pipeline).
@@ -53,7 +53,7 @@ namespace pmon::util::metrics
 
     // UnifiedSwapChain.cpp
     std::vector<UnifiedSwapChain::ReadyItem>
-        UnifiedSwapChain::Enqueue(FrameData present, MetricsVersion version)
+        UnifiedSwapChain::Enqueue(FrameData&& present, MetricsVersion version)
     {
         SanitizeDisplayedRepeatedPresents(present);
 
@@ -69,7 +69,7 @@ namespace pmon::util::metrics
 
         // Seed baseline
         if (!swapChain.lastPresent.has_value()) {
-            SeedFromFirstPresent(std::move(present));
+            SeedFromFirstPresent(present);
             return out;
         }
 
