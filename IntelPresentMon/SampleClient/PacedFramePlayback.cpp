@@ -101,6 +101,8 @@ namespace
 			return "AMD_AFMF";
 		case PM_FRAME_TYPE_INTEL_XEFG:
 			return "Intel XeSS-FG";
+		case PM_FRAME_TYPE_AMD_FSR_FG:
+			return "AMD_FSR_FG";
 		default:
 			return "Other";
 		}
