@@ -275,9 +275,20 @@ namespace pmon::mid
             }
             else {
                 if (isStaticMetric) {
-                    if (q.stat != PM_STAT_NONE) {
-                        LogAndThrow("Static metric in dynamic query requires NONE stat");
-                    }
+                    // TODO: temporarily allowing any PM_STAT for filled static-in-dynamic
+                    // as a permissive configuration to not break compatibility of deployed apps
+                    // emit a warning as deprecation and enforce in a future release
+                    pmlog_warn("Static metric in dynamic query requires NONE stat")
+                        .pmwatch(metricView.Introspect().GetSymbol())
+                        .pmwatch(statSymbol)
+                        .pmwatch((int)q.stat)
+                        .pmwatch(q.arrayIndex)
+                        .pmwatch(q.deviceId)
+                        .pmwatch((uint64_t)elementIndex).diag();
+
+                    //if (q.stat != PM_STAT_NONE) {
+                    //    LogAndThrow("Static metric in dynamic query requires NONE stat");
+                    //}
                 }
                 else {
                     if (!IsStatSupported_(q.stat, metricView)) {
