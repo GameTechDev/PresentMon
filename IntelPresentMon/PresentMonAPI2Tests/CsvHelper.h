@@ -356,11 +356,14 @@ void CharConvert<T>::Convert(const std::string data, T& convertedData, Header co
         else if (data == "Repeated") {
             convertedData = PM_FRAME_TYPE_REPEATED;
         }
-        else if (data == "AMD_AFMF") {
+        else if (data == "AMD AFMF") {
             convertedData = PM_FRAME_TYPE_AMD_AFMF;
         }
         else if (data == "Intel XeSS-FG") {
             convertedData = PM_FRAME_TYPE_INTEL_XEFG;
+        }
+        else if (data == "AMD FSR-FG") {
+            convertedData = PM_FRAME_TYPE_AMD_FSR_FG;
         }
         else {
             throw CsvConversionException(Header_FrameType, line, data);
@@ -626,9 +629,11 @@ std::string TranslateFrameType(PM_FRAME_TYPE frameType) {
     case PM_FRAME_TYPE_APPLICATION:
         return "Application";
     case PM_FRAME_TYPE_AMD_AFMF:
-        return "AMD_AFMF";
+        return "AMD AFMF";
     case PM_FRAME_TYPE_INTEL_XEFG:
         return "Intel XeSS-FG";
+    case PM_FRAME_TYPE_AMD_FSR_FG:
+        return "AMD FSR-FG";
     default:
         return "<Unknown>";
     }

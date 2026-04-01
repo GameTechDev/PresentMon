@@ -98,9 +98,11 @@ namespace
 		case PM_FRAME_TYPE_APPLICATION:
 			return "Application";
 		case PM_FRAME_TYPE_AMD_AFMF:
-			return "AMD_AFMF";
+			return "AMD AFMF";
 		case PM_FRAME_TYPE_INTEL_XEFG:
 			return "Intel XeSS-FG";
+		case PM_FRAME_TYPE_AMD_FSR_FG:
+			return "AMD FSR-FG";
 		default:
 			return "Other";
 		}
