@@ -67,20 +67,20 @@ namespace pmon::util::log
 		ErrorCode & operator=(const ErrorCode&) = delete;
 		~ErrorCode() = default;
 
-		bool HasUnsigned() const;
-		bool HasSigned() const;
-		bool HasIntegral() const;
-		bool Fits32() const;
-		std::optional<uint64_t> AsUnsigned() const;
-		std::optional<int64_t> AsSigned() const;
-		bool Empty() const;
+		bool HasUnsigned() const noexcept;
+		bool HasSigned() const noexcept;
+		bool HasIntegral() const noexcept;
+		bool Fits32() const noexcept;
+		std::optional<uint64_t> AsUnsigned() const noexcept;
+		std::optional<int64_t> AsSigned() const noexcept;
+		bool Empty() const noexcept;
 		bool Resolve(const IErrorCodeResolver& resolver);
-		bool HasTypeInfo() const;
-		bool IsResolved() const;
-		bool IsResolvedNontrivial() const;
+		bool HasTypeInfo() const noexcept;
+		bool IsResolved() const noexcept;
+		bool IsResolvedNontrivial() const noexcept;
 		std::string AsHex() const;
 		const IErrorCodeResolver::Strings* GetStrings() const;
-		operator bool() const;
+		operator bool() const noexcept;
 	private:
 		const std::type_info* pTypeInfo_ = nullptr;
 		CloningUptr<IErrorCodeResolver::Strings> pStrings_;
