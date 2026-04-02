@@ -118,7 +118,8 @@ namespace p2c::win
         auto processes_snapshot = (cwin::Handle)CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (processes_snapshot == INVALID_HANDLE_VALUE)
         {
-            pmlog_error("Failed to get process snapshot").hr().raise<cwin::HrError>();
+            pmlog_error("Failed to get process snapshot").hr();
+            throw ::pmon::util::Except<cwin::HrError>("Failed to get process snapshot");
         }
 
         Process32FirstW(processes_snapshot, &process_info);

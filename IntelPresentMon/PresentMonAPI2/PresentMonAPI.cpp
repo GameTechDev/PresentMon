@@ -1,4 +1,4 @@
-﻿#include <memory>
+#include <memory>
 #include <crtdbg.h>
 #include <unordered_map>
 #include "../PresentMonMiddleware/Middleware.h"
@@ -65,8 +65,8 @@ Middleware& LookupMiddlewareCheckDropped_(const void* handle)
 	auto& mid = LookupMiddleware_(handle);
 	if (!mid.ServiceConnected()) {
 		pmlog_error("Service dropped; proactive abort")
-			.code(PM_STATUS_SESSION_NOT_OPEN)
-			.raise<ipc::PmStatusError>();
+			.code(PM_STATUS_SESSION_NOT_OPEN);
+		throw util::Except<ipc::PmStatusError>(PM_STATUS_SESSION_NOT_OPEN, "Service dropped; proactive abort");
 	}
 	return mid;
 }

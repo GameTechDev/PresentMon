@@ -216,7 +216,8 @@ namespace pmon::ipc
             {
                 const auto it = gpuShms_.find(deviceId);
                 if (it == gpuShms_.end()) {
-                    pmlog_error("No gpu segment found").pmwatch(deviceId).raise<util::Exception>();
+                    pmlog_error("No gpu segment found").pmwatch(deviceId);
+                    throw util::Except<util::Exception>("No GPU data segment found for this deviceId");
                 }
                 return it->second.GetStore();
             }

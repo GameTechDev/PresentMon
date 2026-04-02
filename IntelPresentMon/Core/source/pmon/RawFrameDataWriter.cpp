@@ -144,7 +144,8 @@ namespace p2c::pmon
                     const auto& metric = introRoot.FindMetric(metricId);
                     // make sure metric is valid for a frame query
                     if (metric.GetType() == PM_METRIC_TYPE_DYNAMIC) {
-                        pmlog_error("Specified metric does not support frame query").raise<::pmon::util::Exception>();
+                        pmlog_error("Specified metric does not support frame query");
+                        throw ::pmon::util::Except<::pmon::util::Exception>("Specified metric does not support frame query");
                     }
                     const auto& deviceInfos = metric.GetDeviceMetricInfo();
                     const bool isGraphicsAdapter = !deviceInfos.empty() &&
@@ -513,7 +514,8 @@ namespace p2c::pmon
         }
         const auto columns = BuildMetricColumns_(elements, activeDeviceId, introRoot, omitUnavailableColumns);
         if (columns.empty()) {
-            pmlog_error("No valid metrics specified for frame event capture").raise<::pmon::util::Exception>();
+            pmlog_error("No valid metrics specified for frame event capture");
+            throw ::pmon::util::Except<::pmon::util::Exception>("No valid metrics specified for frame event capture");
         }
         pQueryElementContainer = std::make_unique<QueryElementContainer_>(columns, session, introRoot);
         blobs = pQueryElementContainer->MakeBlobs(numberOfBlobs);                

@@ -46,7 +46,8 @@ namespace pmon::util::log
 				emptyEvent_.Reset();
 				entryQueue_.enqueue(std::forward<T>(packetable));
 				if (!SetEvent(entryEvent_.native_handle())) {
-					pmlog_error("failed setting packet queue event").raise<Exception>();
+					pmlog_error("failed setting packet queue event");
+					throw Except<Exception>("failed setting packet queue event");
 				}
 			}
 		}
