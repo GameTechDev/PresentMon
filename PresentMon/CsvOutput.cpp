@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -6,6 +6,16 @@
 
 static FILE* gGlobalOutputCsv = nullptr;
 static uint32_t gRecordingCount = 1;
+
+static bool HasFrameMetricValue(double value)
+{
+    return !pmon::util::metrics::IsMissingFrameMetricValue(value);
+}
+
+static void WriteMetricOrZero(FILE* fp, double value, int precision = 4)
+{
+    fwprintf(fp, L",%.*lf", precision, HasFrameMetricValue(value) ? value : 0);
+}
 
 void IncrementRecordingCount()
 {
@@ -137,6 +147,9 @@ void WriteCsvHeader(FILE* fp);
 template<typename FrameMetricsT>
 void WriteCsvRow(FILE* fp, PMTraceSession const& pmSession, ProcessInfo const& processInfo, PresentEvent const& p, FrameMetricsT const& metrics);
 
+template<typename FrameMetricsT>
+void WriteCsvRow(FILE* fp, PMTraceSession const& pmSession, ProcessInfo const& processInfo, pmon::util::metrics::FrameData const& p, FrameMetricsT const& metrics);
+
 template<>
 void WriteCsvHeader<FrameMetrics1>(FILE* fp)
 {
@@ -178,6 +191,14 @@ void WriteCsvHeader<FrameMetrics1>(FILE* fp)
     }
     if (args.mWriteFrameId) {
         fwprintf(fp, L",FrameId");
+    }
+    if (args.mTrackEtwStatus) {
+        fwprintf(fp, L",EtwBufferFillPct"
+                     L",EtwBuffersInUse"
+                     L",EtwTotalBuffers"
+                     L",EtwEventsLost"
+                     L",EtwBuffersLost"
+                     L",OverflowedPresents");
     }
     fwprintf(fp, L"\n");
 
@@ -267,6 +288,95 @@ void WriteCsvRow<FrameMetrics1>(
     }
     if (args.mWriteFrameId) {
         fwprintf(fp, L",%u", p.FrameId);
+    }
+    if (args.mTrackEtwStatus) {
+        fwprintf(fp, L",%.1lf,%lu,%lu,%lu,%lu,%lu",
+            pmSession.mCachedEtwStatus.mEtwBufferFillPct,
+            pmSession.mCachedEtwStatus.mEtwBuffersInUse,
+            pmSession.mCachedEtwStatus.mEtwTotalBuffers,
+            pmSession.mCachedEtwStatus.mEtwEventsLost,
+            pmSession.mCachedEtwStatus.mEtwBuffersLost,
+            pmSession.mCachedEtwStatus.mNumOverflowedPresents);
+    }
+    fwprintf(fp, L"\n");
+
+    if (args.mCSVOutput == CSVOutput::Stdout) {
+        fflush(fp);
+    }
+}
+
+template<>
+void WriteCsvRow<FrameMetrics1>(
+    FILE* fp,
+    PMTraceSession const& pmSession,
+    ProcessInfo const& processInfo,
+    pmon::util::metrics::FrameData const& p,
+    FrameMetrics1 const& metrics)
+{
+    auto const& args = GetCommandLineArgs();
+
+    fwprintf(fp, L"%s,%d,0x%016llX,%hs,%d,%d,%hs", processInfo.mModuleName.c_str(),
+        p.processId,
+        p.swapChainAddress,
+        RuntimeToString(p.runtime),
+        p.syncInterval,
+        p.presentFlags,
+        FinalStateToDroppedString(p.finalState));
+    switch (args.mTimeUnit) {
+    case TimeUnit::DateTime: {
+        SYSTEMTIME st = {};
+        uint64_t ns = 0;
+        pmSession.TimestampToLocalSystemTime(p.presentStartTime, &st, &ns);
+        fwprintf(fp, L",%u-%u-%u %u:%02u:%02u.%09llu", st.wYear,
+            st.wMonth,
+            st.wDay,
+            st.wHour,
+            st.wMinute,
+            st.wSecond,
+            ns);
+    }   break;
+    default:
+        fwprintf(fp, L",%.*lf", DBL_DIG - 1, 0.001 * pmSession.TimestampToMilliSeconds(p.presentStartTime));
+        break;
+    }
+    fwprintf(fp, L",%.*lf,%.*lf", DBL_DIG - 1, metrics.msInPresentApi,
+        DBL_DIG - 1, metrics.msBetweenPresents);
+    if (args.mTrackDisplay) {
+        fwprintf(fp, L",%d,%hs,%.*lf,%.*lf,%.*lf,%.*lf", p.supportsTearing,
+            PresentModeToString(p.presentMode),
+            DBL_DIG - 1, metrics.msUntilRenderComplete,
+            DBL_DIG - 1, metrics.msUntilDisplayed,
+            DBL_DIG - 1, metrics.msBetweenDisplayChange,
+            DBL_DIG - 1, metrics.msFlipDelay);
+    }
+    if (args.mTrackGPU) {
+        fwprintf(fp, L",%.*lf,%.*lf", DBL_DIG - 1, metrics.msUntilRenderStart,
+            DBL_DIG - 1, metrics.msGPUDuration);
+    }
+    if (args.mTrackGPUVideo) {
+        fwprintf(fp, L",%.*lf", DBL_DIG - 1, metrics.msVideoDuration);
+    }
+    if (args.mTrackInput) {
+        fwprintf(fp, L",%.*lf", DBL_DIG - 1, metrics.msSinceInput);
+    }
+    switch (args.mTimeUnit) {
+    case TimeUnit::QPC:
+        fwprintf(fp, L",%llu", p.presentStartTime);
+        break;
+    case TimeUnit::QPCMilliSeconds:
+        fwprintf(fp, L",%.*lf", DBL_DIG - 1, 0.001 * pmSession.TimestampDeltaToMilliSeconds(p.presentStartTime));
+        break;
+    }
+    if (args.mWriteDisplayTime) {
+        if (metrics.qpcScreenTime == 0) {
+            fwprintf(fp, L",NA");
+        }
+        else {
+            fwprintf(fp, L",%.*lf", DBL_DIG - 1, 0.001 * pmSession.TimestampToMilliSeconds(metrics.qpcScreenTime));
+        }
+    }
+    if (args.mWriteFrameId) {
+        fwprintf(fp, L",%u", p.frameId);
     }
     fwprintf(fp, L"\n");
 
@@ -358,6 +468,149 @@ void WriteCsvHeader<FrameMetrics>(FILE* fp)
             fwprintf(fp, L",InstrumentedLatency");
         }
     } else {
+        switch (args.mTimeUnit) {
+        case TimeUnit::MilliSeconds:    fwprintf(fp, L",CPUStartTimeInMs"); break;
+        case TimeUnit::QPC:             fwprintf(fp, L",CPUStartQPC"); break;
+        case TimeUnit::QPCMilliSeconds: fwprintf(fp, L",CPUStartQPCTimeInMs"); break;
+        case TimeUnit::DateTime:        fwprintf(fp, L",CPUStartDateTime"); break;
+        default:                        fwprintf(fp, L",CPUStartTimeInSeconds"); break;
+        }
+        fwprintf(fp, L",MsBetweenAppStart"
+            L",MsCPUBusy"
+            L",MsCPUWait");
+        if (args.mTrackGPU) {
+            fwprintf(fp, L",MsGPULatency"
+                L",MsGPUTime"
+                L",MsGPUBusy"
+                L",MsGPUWait");
+        }
+        if (args.mTrackGPUVideo) {
+            fwprintf(fp, L",MsVideoBusy");
+        }
+        if (args.mTrackDisplay) {
+            fwprintf(fp, L",MsAnimationError"
+                L",AnimationTime"
+                L",MsFlipDelay");
+        }
+        if (args.mTrackInput) {
+            fwprintf(fp, L",MsAllInputToPhotonLatency");
+            fwprintf(fp, L",MsClickToPhotonLatency");
+        }
+        if (args.mTrackAppTiming) {
+            fwprintf(fp, L",MsInstrumentedLatency");
+        }
+    }
+    if (args.mWriteDisplayTime) {
+        fwprintf(fp, L",DisplayTimeAbs");
+    }
+    if (args.mWriteFrameId) {
+        fwprintf(fp, L",FrameId");
+        if (args.mTrackAppTiming) {
+            fwprintf(fp, L",AppFrameId");
+        }
+        if (args.mTrackPcLatency) {
+            fwprintf(fp, L",PCLFrameId");
+        }
+    }
+    if (args.mTrackEtwStatus) {
+        fwprintf(fp, L",EtwBufferFillPct"
+                     L",EtwBuffersInUse"
+                     L",EtwTotalBuffers"
+                     L",EtwEventsLost"
+                     L",EtwBuffersLost"
+                     L",OverflowedPresents");
+    }
+    fwprintf(fp, L"\n");
+
+    if (args.mCSVOutput == CSVOutput::Stdout) {
+        fflush(fp);
+    }
+}
+
+template<>
+void WriteCsvHeader<pmon::util::metrics::FrameMetrics>(FILE* fp)
+{
+    auto const& args = GetCommandLineArgs();
+
+    fwprintf(fp, L"Application"
+        L",ProcessID"
+        L",SwapChainAddress"
+        L",PresentRuntime"
+        L",SyncInterval"
+        L",PresentFlags");
+    if (args.mTrackDisplay) {
+        fwprintf(fp, L",AllowsTearing"
+            L",PresentMode");
+    }
+    if (args.mTrackFrameType) {
+        fwprintf(fp, L",FrameType");
+    }
+    if (args.mTrackHybridPresent) {
+        fwprintf(fp, L",HybridPresent");
+    }
+    if (args.mUseV2Metrics == false) {
+        switch (args.mTimeUnit) {
+        case TimeUnit::MilliSeconds:    fwprintf(fp, L",TimeInMs"); break;
+        case TimeUnit::QPC:             fwprintf(fp, L",TimeInQPC"); break;
+        case TimeUnit::DateTime:        fwprintf(fp, L",TimeInDateTime"); break;
+        default:                        fwprintf(fp, L",TimeInSeconds"); break;
+        }
+
+        fwprintf(fp, L",MsBetweenSimulationStart"
+            L",MsBetweenPresents");
+
+        if (args.mTrackDisplay) {
+            fwprintf(fp, L",MsBetweenDisplayChange");
+        }
+
+        fwprintf(fp, L",MsInPresentAPI"
+            L",MsRenderPresentLatency");
+
+        if (args.mTrackDisplay) {
+            fwprintf(fp, L",MsUntilDisplayed");
+            if (args.mTrackPcLatency) {
+                fwprintf(fp, L",MsPCLatency");
+            }
+        }
+    }
+
+    if (args.mUseV2Metrics) {
+        switch (args.mTimeUnit) {
+        case TimeUnit::MilliSeconds:    fwprintf(fp, L",CPUStartTime"); break;
+        case TimeUnit::QPC:             fwprintf(fp, L",CPUStartQPC"); break;
+        case TimeUnit::QPCMilliSeconds: fwprintf(fp, L",CPUStartQPCTime"); break;
+        case TimeUnit::DateTime:        fwprintf(fp, L",CPUStartDateTime"); break;
+        default:                        fwprintf(fp, L",CPUStartTime"); break;
+        }
+        fwprintf(fp, L",FrameTime"
+            L",CPUBusy"
+            L",CPUWait");
+        if (args.mTrackGPU) {
+            fwprintf(fp, L",GPULatency"
+                L",GPUTime"
+                L",GPUBusy"
+                L",GPUWait");
+        }
+        if (args.mTrackGPUVideo) {
+            fwprintf(fp, L",VideoBusy");
+        }
+        if (args.mTrackDisplay) {
+            fwprintf(fp,
+                L",DisplayLatency"
+                L",DisplayedTime"
+                L",AnimationError"
+                L",AnimationTime"
+                L",MsFlipDelay");
+        }
+        if (args.mTrackInput) {
+            fwprintf(fp, L",AllInputToPhotonLatency");
+            fwprintf(fp, L",ClickToPhotonLatency");
+        }
+        if (args.mTrackAppTiming) {
+            fwprintf(fp, L",InstrumentedLatency");
+        }
+    }
+    else {
         switch (args.mTimeUnit) {
         case TimeUnit::MilliSeconds:    fwprintf(fp, L",CPUStartTimeInMs"); break;
         case TimeUnit::QPC:             fwprintf(fp, L",CPUStartQPC"); break;
@@ -537,9 +790,9 @@ void WriteCsvRow<FrameMetrics>(
     }
 
     // MsBetweenAppStart, MsCPUBusy, MsCPUWait
-    fwprintf(fp, L",%.4lf,%.4lf,%.4lf", metrics.mMsCPUBusy + metrics.mMsCPUWait,
-        metrics.mMsCPUBusy,
-        metrics.mMsCPUWait);
+    WriteMetricOrZero(fp, metrics.mMsCPUBusy + metrics.mMsCPUWait);
+    WriteMetricOrZero(fp, metrics.mMsCPUBusy);
+    WriteMetricOrZero(fp, metrics.mMsCPUWait);
 
     if (args.mTrackGPU) {
         fwprintf(fp, L",%.4lf,%.4lf,%.4lf,%.4lf", metrics.mMsGPULatency,
@@ -615,6 +868,454 @@ void WriteCsvRow<FrameMetrics>(
             fwprintf(fp, L",%u", p.PclFrameId);
         }
     }
+    if (args.mTrackEtwStatus) {
+        fwprintf(fp, L",%.1lf,%lu,%lu,%lu,%lu,%lu",
+            pmSession.mCachedEtwStatus.mEtwBufferFillPct,
+            pmSession.mCachedEtwStatus.mEtwBuffersInUse,
+            pmSession.mCachedEtwStatus.mEtwTotalBuffers,
+            pmSession.mCachedEtwStatus.mEtwEventsLost,
+            pmSession.mCachedEtwStatus.mEtwBuffersLost,
+            pmSession.mCachedEtwStatus.mNumOverflowedPresents);
+    }
+    fwprintf(fp, L"\n");
+
+    if (args.mCSVOutput == CSVOutput::Stdout) {
+        fflush(fp);
+    }
+}
+
+template<>
+void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
+    FILE* fp,
+    PMTraceSession const& pmSession,
+    ProcessInfo const& processInfo,
+    PresentEvent const& p,
+    pmon::util::metrics::FrameMetrics const& metrics)
+{
+    auto const& args = GetCommandLineArgs();
+
+    fwprintf(fp, L"%s,%d,0x%llX,%hs,%d,%d", processInfo.mModuleName.c_str(),
+        p.ProcessId,
+        p.SwapChainAddress,
+        RuntimeToString(p.Runtime),
+        p.SyncInterval,
+        p.PresentFlags);
+    if (args.mTrackDisplay) {
+        fwprintf(fp, L",%d,%hs", p.SupportsTearing,
+            PresentModeToString(p.PresentMode));
+    }
+    if (args.mTrackFrameType) {
+        fwprintf(fp, L",%hs", FrameTypeToString(metrics.frameType));
+    }
+    if (args.mTrackHybridPresent) {
+        fwprintf(fp, L",%d", p.IsHybridPresent);
+    }
+
+    if (args.mUseV2Metrics == false) {
+        // Time in Seconds
+        switch (args.mTimeUnit) {
+        case TimeUnit::DateTime: {
+            SYSTEMTIME st = {};
+            uint64_t ns = 0;
+            pmSession.TimestampToLocalSystemTime(metrics.timeInSeconds, &st, &ns);
+            fwprintf(fp, L",%u-%u-%u %u:%02u:%02u.%09llu", st.wYear,
+                st.wMonth,
+                st.wDay,
+                st.wHour,
+                st.wMinute,
+                st.wSecond,
+                ns);
+        }   break;
+        case TimeUnit::MilliSeconds:
+        case TimeUnit::QPCMilliSeconds:
+            fwprintf(fp, L",%.4lf", pmSession.TimestampToMilliSeconds(metrics.timeInSeconds));
+            break;
+        case TimeUnit::QPC:
+            fwprintf(fp, L",%llu", metrics.timeInSeconds);
+            break;
+        default:
+            fwprintf(fp, L",%.*lf", DBL_DIG - 1, 0.001 * pmSession.TimestampToMilliSeconds(metrics.timeInSeconds));
+            break;
+        }
+
+        // MsBetweenSimulationStart
+        if (HasFrameMetricValue(metrics.msBetweenSimStarts)) {
+            fwprintf(fp, L",%.4lf", metrics.msBetweenSimStarts);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+
+        // MsBetweenPresents
+        fwprintf(fp, L",%.*lf", DBL_DIG - 1, metrics.msBetweenPresents);
+
+        // MsBetweenDisplayChange -> Transition from DisplayedTime
+        if (args.mTrackDisplay) {
+            if (metrics.msBetweenDisplayChange == 0.0) {
+                fwprintf(fp, L",NA");
+            }
+            else {
+                fwprintf(fp, L",%.*lf", DBL_DIG - 1, metrics.msBetweenDisplayChange);
+            }
+        }
+
+        // MsInPresentAPI
+        fwprintf(fp, L",%.*lf", DBL_DIG - 1, metrics.msInPresentApi);
+
+        // MsRenderPresentLatency
+        fwprintf(fp, L",%.*lf", DBL_DIG - 1, metrics.msUntilRenderComplete);
+
+        // MsUntilDisplayed
+        if (args.mTrackDisplay) {
+            if (metrics.msUntilDisplayed == 0.0) {
+                fwprintf(fp, L",NA");
+            }
+            else {
+                fwprintf(fp, L",%.4lf", metrics.msUntilDisplayed);
+            }
+        }
+        if (args.mTrackPcLatency) {
+            if (HasFrameMetricValue(metrics.msPcLatency)) {
+                fwprintf(fp, L",%.4lf", metrics.msPcLatency);
+            }
+            else {
+                fwprintf(fp, L",NA");
+            }
+        }
+    }
+
+    // CPUStartTime
+    switch (args.mTimeUnit) {
+    case TimeUnit::MilliSeconds:
+        fwprintf(fp, L",%.4lf", pmSession.TimestampToMilliSeconds(metrics.cpuStartQpc));
+        break;
+    case TimeUnit::QPC:
+        fwprintf(fp, L",%llu", metrics.cpuStartQpc);
+        break;
+    case TimeUnit::QPCMilliSeconds:
+        fwprintf(fp, L",%.4lf", pmSession.TimestampDeltaToMilliSeconds(metrics.cpuStartQpc));
+        break;
+    case TimeUnit::DateTime: {
+        SYSTEMTIME st = {};
+        uint64_t ns = 0;
+        pmSession.TimestampToLocalSystemTime(metrics.cpuStartQpc, &st, &ns);
+        fwprintf(fp, L",%u-%u-%u %u:%02u:%02u.%09llu", st.wYear,
+            st.wMonth,
+            st.wDay,
+            st.wHour,
+            st.wMinute,
+            st.wSecond,
+            ns);
+    }
+                           break;
+    default:
+        fwprintf(fp, L",%.4lf", 0.001 * pmSession.TimestampToMilliSeconds(metrics.cpuStartQpc));
+    }
+
+    // MsBetweenAppStart, MsCPUBusy, MsCPUWait
+    WriteMetricOrZero(fp, metrics.msCPUBusy + metrics.msCPUWait);
+    WriteMetricOrZero(fp, metrics.msCPUBusy);
+    WriteMetricOrZero(fp, metrics.msCPUWait);
+
+    if (args.mTrackGPU) {
+        fwprintf(fp, L",%.4lf,%.4lf,%.4lf,%.4lf", metrics.msGPULatency,
+            metrics.msGPUBusy + metrics.msGPUWait,
+            metrics.msGPUBusy,
+            metrics.msGPUWait);
+    }
+    if (args.mTrackGPUVideo) {
+        fwprintf(fp, L",%.4lf", metrics.msVideoBusy);
+    }
+    if (args.mTrackDisplay) {
+        if (args.mUseV2Metrics) {
+            if (metrics.msDisplayedTime == 0.0) {
+                fwprintf(fp, L",NA,NA");
+            }
+            else {
+                fwprintf(fp, L",%.4lf,%.4lf", metrics.msDisplayLatency,
+                    metrics.msDisplayedTime);
+            }
+        }
+        if (HasFrameMetricValue(metrics.msAnimationError)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationError);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+        if (HasFrameMetricValue(metrics.msAnimationTime)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationTime);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+        if (HasFrameMetricValue(metrics.msFlipDelay)) {
+            fwprintf(fp, L",%.4lf", metrics.msFlipDelay);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+    }
+    if (args.mTrackInput) {
+        if (HasFrameMetricValue(metrics.msAllInputPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msAllInputPhotonLatency);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+        if (HasFrameMetricValue(metrics.msClickToPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msClickToPhotonLatency);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+    }
+    if (args.mTrackAppTiming) {
+        if (HasFrameMetricValue(metrics.msInstrumentedLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msInstrumentedLatency);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+    }
+    if (args.mWriteDisplayTime) {
+        if (metrics.screenTimeQpc == 0) {
+            fwprintf(fp, L",NA");
+        }
+        else {
+            fwprintf(fp, L",%.4lf", pmSession.TimestampToMilliSeconds(metrics.screenTimeQpc));
+        }
+    }
+    if (args.mWriteFrameId) {
+        fwprintf(fp, L",%u", p.FrameId);
+        if (args.mTrackAppTiming) {
+            fwprintf(fp, L",%u", p.AppFrameId);
+        }
+        if (args.mTrackPcLatency) {
+            fwprintf(fp, L",%u", p.PclFrameId);
+        }
+    }
+    fwprintf(fp, L"\n");
+
+    if (args.mCSVOutput == CSVOutput::Stdout) {
+        fflush(fp);
+    }
+}
+
+template<>
+void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
+    FILE* fp,
+    PMTraceSession const& pmSession,
+    ProcessInfo const& processInfo,
+    pmon::util::metrics::FrameData const& p,
+    pmon::util::metrics::FrameMetrics const& metrics)
+{
+    auto const& args = GetCommandLineArgs();
+
+    fwprintf(fp, L"%s,%d,0x%llX,%hs,%d,%d", processInfo.mModuleName.c_str(),
+        p.processId,
+        p.swapChainAddress,
+        RuntimeToString(p.runtime),
+        p.syncInterval,
+        p.presentFlags);
+    if (args.mTrackDisplay) {
+        fwprintf(fp, L",%d,%hs", p.supportsTearing,
+            PresentModeToString(p.presentMode));
+    }
+    if (args.mTrackFrameType) {
+        fwprintf(fp, L",%hs", FrameTypeToString(metrics.frameType));
+    }
+    if (args.mTrackHybridPresent) {
+        fwprintf(fp, L",%d", p.isHybridPresent);
+    }
+
+    if (args.mUseV2Metrics == false) {
+        // Time in Seconds
+        switch (args.mTimeUnit) {
+        case TimeUnit::DateTime: {
+            SYSTEMTIME st = {};
+            uint64_t ns = 0;
+            pmSession.TimestampToLocalSystemTime(metrics.timeInSeconds, &st, &ns);
+            fwprintf(fp, L",%u-%u-%u %u:%02u:%02u.%09llu", st.wYear,
+                st.wMonth,
+                st.wDay,
+                st.wHour,
+                st.wMinute,
+                st.wSecond,
+                ns);
+        }   break;
+        case TimeUnit::MilliSeconds:
+        case TimeUnit::QPCMilliSeconds:
+            fwprintf(fp, L",%.4lf", pmSession.TimestampToMilliSeconds(metrics.timeInSeconds));
+            break;
+        case TimeUnit::QPC:
+            fwprintf(fp, L",%llu", metrics.timeInSeconds);
+            break;
+        default:
+            fwprintf(fp, L",%.*lf", DBL_DIG - 1, 0.001 * pmSession.TimestampToMilliSeconds(metrics.timeInSeconds));
+            break;
+        }
+
+        // MsBetweenSimulationStart
+        if (HasFrameMetricValue(metrics.msBetweenSimStarts)) {
+            fwprintf(fp, L",%.4lf", metrics.msBetweenSimStarts);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+
+        // MsBetweenPresents
+        fwprintf(fp, L",%.*lf", DBL_DIG - 1, metrics.msBetweenPresents);
+
+        // MsBetweenDisplayChange -> Transition from DisplayedTime
+        if (args.mTrackDisplay) {
+            if (metrics.msBetweenDisplayChange == 0.0) {
+                fwprintf(fp, L",NA");
+            }
+            else {
+                fwprintf(fp, L",%.*lf", DBL_DIG - 1, metrics.msBetweenDisplayChange);
+            }
+        }
+
+        // MsInPresentAPI
+        fwprintf(fp, L",%.*lf", DBL_DIG - 1, metrics.msInPresentApi);
+
+        // MsRenderPresentLatency
+        fwprintf(fp, L",%.*lf", DBL_DIG - 1, metrics.msUntilRenderComplete);
+
+        // MsUntilDisplayed
+        if (args.mTrackDisplay) {
+            if (metrics.msUntilDisplayed == 0.0) {
+                fwprintf(fp, L",NA");
+            }
+            else {
+                fwprintf(fp, L",%.4lf", metrics.msUntilDisplayed);
+            }
+        }
+        if (args.mTrackPcLatency) {
+            if (HasFrameMetricValue(metrics.msPcLatency)) {
+                fwprintf(fp, L",%.4lf", metrics.msPcLatency);
+            }
+            else {
+                fwprintf(fp, L",NA");
+            }
+        }
+    }
+
+    // CPUStartTime
+    switch (args.mTimeUnit) {
+    case TimeUnit::MilliSeconds:
+        fwprintf(fp, L",%.4lf", pmSession.TimestampToMilliSeconds(metrics.cpuStartQpc));
+        break;
+    case TimeUnit::QPC:
+        fwprintf(fp, L",%llu", metrics.cpuStartQpc);
+        break;
+    case TimeUnit::QPCMilliSeconds:
+        fwprintf(fp, L",%.4lf", pmSession.TimestampDeltaToMilliSeconds(metrics.cpuStartQpc));
+        break;
+    case TimeUnit::DateTime: {
+        SYSTEMTIME st = {};
+        uint64_t ns = 0;
+        pmSession.TimestampToLocalSystemTime(metrics.cpuStartQpc, &st, &ns);
+        fwprintf(fp, L",%u-%u-%u %u:%02u:%02u.%09llu", st.wYear,
+            st.wMonth,
+            st.wDay,
+            st.wHour,
+            st.wMinute,
+            st.wSecond,
+            ns);
+    }
+                           break;
+    default:
+        fwprintf(fp, L",%.4lf", 0.001 * pmSession.TimestampToMilliSeconds(metrics.cpuStartQpc));
+    }
+
+    // MsBetweenAppStart, MsCPUBusy, MsCPUWait
+    WriteMetricOrZero(fp, metrics.msCPUBusy + metrics.msCPUWait);
+    WriteMetricOrZero(fp, metrics.msCPUBusy);
+    WriteMetricOrZero(fp, metrics.msCPUWait);
+
+    if (args.mTrackGPU) {
+        fwprintf(fp, L",%.4lf,%.4lf,%.4lf,%.4lf", metrics.msGPULatency,
+            metrics.msGPUBusy + metrics.msGPUWait,
+            metrics.msGPUBusy,
+            metrics.msGPUWait);
+    }
+    if (args.mTrackGPUVideo) {
+        fwprintf(fp, L",%.4lf", metrics.msVideoBusy);
+    }
+    if (args.mTrackDisplay) {
+        if (args.mUseV2Metrics) {
+            if (metrics.msDisplayedTime == 0.0) {
+                fwprintf(fp, L",NA,NA");
+            }
+            else {
+                fwprintf(fp, L",%.4lf,%.4lf", metrics.msDisplayLatency,
+                    metrics.msDisplayedTime);
+            }
+        }
+        if (HasFrameMetricValue(metrics.msAnimationError)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationError);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+        if (HasFrameMetricValue(metrics.msAnimationTime)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationTime);
+        }
+        else {
+            if (metrics.msDisplayedTime == 0.0 || (metrics.frameType != FrameType::Application && metrics.frameType != FrameType::NotSet)) {
+                fwprintf(fp, L",NA");
+            }
+            else {
+                fwprintf(fp, L",%.4lf", 0.0);
+            }
+        }
+        if (HasFrameMetricValue(metrics.msFlipDelay)) {
+            fwprintf(fp, L",%.4lf", metrics.msFlipDelay);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+    }
+    if (args.mTrackInput) {
+        if (HasFrameMetricValue(metrics.msAllInputPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msAllInputPhotonLatency);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+        if (HasFrameMetricValue(metrics.msClickToPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msClickToPhotonLatency);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+    }
+    if (args.mTrackAppTiming) {
+        if (HasFrameMetricValue(metrics.msInstrumentedLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msInstrumentedLatency);
+        }
+        else {
+            fwprintf(fp, L",NA");
+        }
+    }
+    if (args.mWriteDisplayTime) {
+        if (metrics.screenTimeQpc == 0) {
+            fwprintf(fp, L",NA");
+        }
+        else {
+            fwprintf(fp, L",%.4lf", pmSession.TimestampToMilliSeconds(metrics.screenTimeQpc));
+        }
+    }
+    if (args.mWriteFrameId) {
+        fwprintf(fp, L",%u", p.frameId);
+        if (args.mTrackAppTiming) {
+            fwprintf(fp, L",%u", p.appFrameId);
+        }
+        if (args.mTrackPcLatency) {
+            fwprintf(fp, L",%u", p.pclFrameId);
+        }
+    }
     fwprintf(fp, L"\n");
 
     if (args.mCSVOutput == CSVOutput::Stdout) {
@@ -665,12 +1366,71 @@ void UpdateCsvT(
     WriteCsvRow(*fp, pmSession, *processInfo, p, metrics);
 }
 
+template<typename FrameMetricsT>
+void UpdateCsvT(
+    PMTraceSession const& pmSession,
+    ProcessInfo* processInfo,
+    pmon::util::metrics::FrameData const& p,
+    FrameMetricsT const& metrics)
+{
+    auto const& args = GetCommandLineArgs();
+
+    // Early return if not outputing to CSV.
+    if (args.mCSVOutput == CSVOutput::None) {
+        return;
+    }
+
+    // Don't output dropped frames (if requested).
+    auto presented = p.finalState == PresentResult::Presented;
+    if (args.mExcludeDropped && !presented) {
+        return;
+    }
+
+    // Get/create file
+    FILE** fp = args.mMultiCsv
+        ? &processInfo->mOutputCsv
+        : &gGlobalOutputCsv;
+
+    if (*fp == nullptr) {
+        if (args.mCSVOutput == CSVOutput::File) {
+            wchar_t path[MAX_PATH];
+            GenerateFilename(path, processInfo->mModuleName, p.processId);
+            if (_wfopen_s(fp, path, L"w,ccs=UTF-8")) {
+                return;
+            }
+        }
+        else {
+            *fp = stdout;
+        }
+
+        WriteCsvHeader<FrameMetricsT>(*fp);
+    }
+
+    // Output in CSV format
+    WriteCsvRow(*fp, pmSession, *processInfo, p, metrics);
+}
+
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics1 const& metrics)
 {
     UpdateCsvT(pmSession, processInfo, p, metrics);
 }
 
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics const& metrics)
+{
+    UpdateCsvT(pmSession, processInfo, p, metrics);
+}
+
+void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, pmon::util::metrics::FrameMetrics const& metrics)
+{
+    UpdateCsvT(pmSession, processInfo, p, metrics);
+}
+
+void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, pmon::util::metrics::FrameData const& p, pmon::util::metrics::FrameMetrics const& metrics)
+{
+    UpdateCsvT(pmSession, processInfo, p, metrics);
+}
+
+void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, pmon::util::metrics::FrameData const& p, FrameMetrics1 const& metrics)
 {
     UpdateCsvT(pmSession, processInfo, p, metrics);
 }

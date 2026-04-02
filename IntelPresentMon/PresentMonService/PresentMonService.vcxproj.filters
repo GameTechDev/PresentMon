@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="ActionServer.cpp" />
@@ -36,20 +36,20 @@
     <ClInclude Include="acts\GetStaticCpuMetrics.h" />
     <ClInclude Include="acts\EnumerateAdapters.h" />
     <ClInclude Include="acts\SetTelemetryPeriod.h" />
-    <ClInclude Include="acts\SelectAdapter.h" />
     <ClInclude Include="acts\StopTracking.h" />
     <ClInclude Include="AllActions.h" />
     <ClInclude Include="ActionExecutionContext.h" />
     <ClInclude Include="Logging.h" />
     <ClInclude Include="acts\SetEtwFlushPeriod.h" />
     <ClInclude Include="Registry.h" />
-    <ClInclude Include="acts\GetIntrospectionShmName.h" />
     <ClInclude Include="acts\StopPlayback.h" />
     <ClInclude Include="testing\TestControl.h" />
     <ClInclude Include="EtwLogger.h" />
     <ClInclude Include="EtwLogSession.h" />
     <ClInclude Include="acts\StartEtlLogging.h" />
     <ClInclude Include="acts\FinishEtlLogging.h" />
+    <ClInclude Include="FrameBroadcaster.h" />
+    <ClInclude Include="acts\ReportMetricUse.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PresentMonService.rc" />

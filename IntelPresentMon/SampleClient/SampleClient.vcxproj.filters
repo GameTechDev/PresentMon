@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Console.cpp" />
@@ -7,8 +7,11 @@
     <ClCompile Include="LogDemo.cpp" />
     <ClCompile Include="DiagnosticDemo.cpp" />
     <ClCompile Include="MultiClient.cpp" />
+    <ClCompile Include="ServiceCrashClient.cpp" />
     <ClCompile Include="EtlLogger.cpp" />
     <ClCompile Include="PacedPlayback.cpp" />
+    <ClCompile Include="IpcComponentServer.cpp" />
+    <ClCompile Include="LoggingCrashTest.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Console.h" />
@@ -24,7 +27,10 @@
     <ClInclude Include="LogSetup.h" />
     <ClInclude Include="DiagnosticDemo.h" />
     <ClInclude Include="MultiClient.h" />
+    <ClInclude Include="ServiceCrashClient.h" />
     <ClInclude Include="EtlLogger.h" />
     <ClInclude Include="PacedPlayback.h" />
+    <ClInclude Include="IpcComponentServer.h" />
+    <ClInclude Include="LoggingCrashTest.h" />
   </ItemGroup>
 </Project>

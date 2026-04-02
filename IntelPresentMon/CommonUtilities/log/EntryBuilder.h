@@ -1,8 +1,18 @@
-#pragma once
+﻿#pragma once
 #include "Entry.h"
+#include "../Meta.h"
 #include <format>
 #include <memory>
 #include <sstream>
+#include <exception>
+#include <type_traits>
+#if __has_include(<cereal/archives/json.hpp>)
+#include <cereal/cereal.hpp>
+#include <cereal/archives/json.hpp>
+#define PMLOG_HAS_CEREAL_JSON 1
+#else
+#define PMLOG_HAS_CEREAL_JSON 0
+#endif
 #include "TimePoint.h"
 #include "PanicLogger.h"
 
@@ -43,22 +53,76 @@ namespace pmon::util::log
 		EntryBuilder& watch(const char* symbol, const T& value) noexcept
 		{
 			try {
-				if (note_.empty()) {
-					note_ += std::format("   {} => {}", symbol, value);
+				using D = std::remove_cvref_t<T>;
+				if constexpr (std::is_pointer_v<D> && !std::is_function_v<std::remove_pointer_t<D>>) {
+					using P = std::remove_cv_t<std::remove_pointer_t<D>>;
+					if constexpr (std::is_same_v<P, char>) {
+						if (note_.empty()) {
+							note_ += std::format("   {} => {}", symbol, value);
+						}
+						else {
+							note_ += std::format("\n     {} => {}", symbol, value);
+						}
+					}
+					else {
+						if (note_.empty()) {
+							note_ += std::format("   {} => {}", symbol, static_cast<const void*>(value));
+						}
+						else {
+							note_ += std::format("\n     {} => {}", symbol, static_cast<const void*>(value));
+						}
+					}
 				}
 				else {
-					note_ += std::format("\n     {} => {}", symbol, value);
+					if (note_.empty()) {
+						note_ += std::format("   {} => {}", symbol, value);
+					}
+					else {
+						note_ += std::format("\n     {} => {}", symbol, value);
+					}
 				}
 			}
 			catch (...) { pmlog_panic_("Failed to format watch in EntryBuilder"); }
 			return *this;
 		}
+		template<typename T>
+		EntryBuilder& serialize(const char* symbol, const T& value) noexcept
+		{
+#if PMLOG_HAS_CEREAL_JSON
+			try {
+				std::ostringstream os;
+				auto opts = cereal::JSONOutputArchive::Options::Default();
+				cereal::JSONOutputArchive ar(os, opts);
+				ar(cereal::make_nvp(symbol, value));
+				return watch(symbol, os.str());
+			}
+			catch (const std::exception& e) {
+				return watch(symbol, std::string("JSON serialization failed: ") + e.what());
+			}
+			catch (...) {
+				return watch(symbol, std::string("JSON serialization failed"));
+			}
+#else
+			(void)value;
+			return watch(symbol, std::string("JSON serialization unavailable (cereal not built)"));
+#endif
+		}
 		template<typename E>
-		EntryBuilder& raise()
+		[[noreturn]] EntryBuilder& raise()
 		{
 			auto note = note_;
 			commit_();
-			throw Except<E>(std::move(note));
+			if constexpr (std::is_constructible_v<E, ErrorCodeArg_, std::string>) {
+				throw Except<E>(ErrorCodeArg_{ errorCode_ }, std::move(note));
+			}
+			else if constexpr (std::is_constructible_v<E, std::string>) {
+				throw Except<E>(std::move(note));
+			}
+			else {
+				static_assert(::pmon::util::DependentFalse<E>,
+					"EntryBuilder::raise requires exception type with (code, std::string) or (std::string) constructor.");
+				throw std::runtime_error{ "Generic Error /w reporting failure in log::raise" };
+			}
 		}
 		EntryBuilder& mark(const TimePoint& tp) noexcept;
 		EntryBuilder& note(std::string note = "") noexcept;
@@ -69,6 +133,7 @@ namespace pmon::util::log
 		EntryBuilder& hr() noexcept;
 		EntryBuilder& hr(uint32_t) noexcept;
 		EntryBuilder& every(int n, bool includeFirst = true) noexcept;
+		EntryBuilder& every(std::chrono::nanoseconds duration, bool includeFirst = true) noexcept;
 		EntryBuilder& first(int n) noexcept;
 		EntryBuilder& after(int n) noexcept;
 		EntryBuilder& hitcount() noexcept;
@@ -92,6 +157,33 @@ namespace pmon::util::log
 			return *this;
 		}
 	private:
+		struct ErrorCodeArg_
+		{
+			const ErrorCode& code_;
+			template<typename T>
+			requires ::pmon::util::IsIntegralOrEnum<T>
+			operator T() const noexcept
+			{
+				using RawT = ::pmon::util::EnumOrIntegralUnderlying<T>;
+				if constexpr (std::is_signed_v<RawT>) {
+					if (auto value = code_.AsSigned()) {
+						return static_cast<T>(static_cast<RawT>(*value));
+					}
+					if (auto value = code_.AsUnsigned()) {
+						return static_cast<T>(static_cast<RawT>(*value));
+					}
+				}
+				else {
+					if (auto value = code_.AsUnsigned()) {
+						return static_cast<T>(static_cast<RawT>(*value));
+					}
+					if (auto value = code_.AsSigned()) {
+						return static_cast<T>(static_cast<RawT>(*value));
+					}
+				}
+				return static_cast<T>(RawT{});
+			}
+		};
 		// functions
 		void commit_() noexcept;
 		// data

@@ -94,6 +94,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ControlFlowGuard>Guard</ControlFlowGuard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -110,7 +111,6 @@
     <ClInclude Include="AmdPowerTelemetryProvider.h" />
     <ClInclude Include="Adl2Wrapper.h" />
     <ClInclude Include="CpuTelemetryInfo.h" />
-    <ClInclude Include="ctlpvttemp_api.h" />
     <ClInclude Include="DllModule.h" />
     <ClInclude Include="CpuTelemetry.h" />
     <ClInclude Include="Exceptions.h" />
@@ -132,14 +132,12 @@
     <ClInclude Include="PresentMonPowerTelemetry.h" />
     <ClInclude Include="PowerTelemetryProviderFactory.h" />
     <ClInclude Include="SignatureComparison.h" />
-    <ClInclude Include="TelemetryHistory.h" />
     <ClInclude Include="WmiCpu.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AmdPowerTelemetryAdapter.cpp" />
     <ClCompile Include="Adl2Wrapper.cpp" />
     <ClCompile Include="cApiWrapper.cpp" />
-    <ClCompile Include="ctlpvttempWrapper.cpp" />
     <ClCompile Include="IgclErrorCodeProvider.cpp" />
     <ClCompile Include="IntelPowerTelemetryProvider.cpp" />
     <ClCompile Include="IntelPowerTelemetryAdapter.cpp" />
@@ -155,7 +153,7 @@
     <ClCompile Include="WmiCpu.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\PresentMonUtils\PresentMonUtils.vcxproj">
+    <ProjectReference Include="..\PresentMonUtils\PresentMonUtils.vcxproj" Condition="Exists('..\PresentMonUtils\PresentMonUtils.vcxproj')">
       <Project>{66e9f6c5-28db-4218-81b9-31e0e146ecc0}</Project>
     </ProjectReference>
   </ItemGroup>

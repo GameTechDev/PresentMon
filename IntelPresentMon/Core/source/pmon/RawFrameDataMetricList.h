@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 // must include PresentMonAPI.h before including this file
@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <vector>
 #include <ranges>
+#include "../../../Interprocess/source/SystemDeviceId.h"
 
 namespace p2c::pmon
 {
@@ -16,8 +17,6 @@ namespace p2c::pmon
         std::optional<uint32_t> index;
     };
 
-    constexpr int PM_METRIC_INTERNAL_PROCESS_ID_ = 4'021'373;
-
     inline std::vector<RawFrameQueryElementDefinition> GetDefaultRawFrameDataMetricList(uint32_t activeDeviceId, bool enableTimestamp)
     {
         namespace rn = std::ranges;
@@ -26,7 +25,7 @@ namespace p2c::pmon
         std::vector<Element> queryElements{
             // these first 2 are special cases filled by the writer logic
             Element{.metricId = PM_METRIC_APPLICATION, .deviceId = 0 },
-            Element{.metricId = (PM_METRIC)PM_METRIC_INTERNAL_PROCESS_ID_, .deviceId = 0 },
+            Element{.metricId = PM_METRIC_PROCESS_ID, .deviceId = 0 },
             Element{.metricId = PM_METRIC_SWAP_CHAIN_ADDRESS, .deviceId = 0 },
             Element{.metricId = PM_METRIC_PRESENT_RUNTIME, .deviceId = 0 },
             Element{.metricId = PM_METRIC_SYNC_INTERVAL, .deviceId = 0 },
@@ -42,7 +41,6 @@ namespace p2c::pmon
             Element{.metricId = PM_METRIC_IN_PRESENT_API, .deviceId = 0 },
             Element{.metricId = PM_METRIC_RENDER_PRESENT_LATENCY, .deviceId = 0 },
             Element{.metricId = PM_METRIC_UNTIL_DISPLAYED, .deviceId = 0 },
-            Element{.metricId = PM_METRIC_PC_LATENCY, .deviceId = 0 },
             Element{.metricId = PM_METRIC_CPU_START_TIME, .deviceId = 0 },
             Element{.metricId = PM_METRIC_BETWEEN_APP_START, .deviceId = 0 },
             Element{.metricId = PM_METRIC_CPU_BUSY, .deviceId = 0 },
@@ -91,10 +89,10 @@ namespace p2c::pmon
             Element{.metricId = PM_METRIC_GPU_MEM_VOLTAGE_LIMITED, .deviceId = activeDeviceId },
             Element{.metricId = PM_METRIC_GPU_MEM_UTILIZATION_LIMITED, .deviceId = activeDeviceId },
 
-            Element{.metricId = PM_METRIC_CPU_UTILIZATION },
-            Element{.metricId = PM_METRIC_CPU_POWER },
-            Element{.metricId = PM_METRIC_CPU_TEMPERATURE },
-            Element{.metricId = PM_METRIC_CPU_FREQUENCY },
+            Element{.metricId = PM_METRIC_CPU_UTILIZATION, .deviceId = ::pmon::ipc::kSystemDeviceId },
+            Element{.metricId = PM_METRIC_CPU_POWER, .deviceId = ::pmon::ipc::kSystemDeviceId },
+            Element{.metricId = PM_METRIC_CPU_TEMPERATURE, .deviceId = ::pmon::ipc::kSystemDeviceId },
+            Element{.metricId = PM_METRIC_CPU_FREQUENCY, .deviceId = ::pmon::ipc::kSystemDeviceId },
         };
 
         if (enableTimestamp) {

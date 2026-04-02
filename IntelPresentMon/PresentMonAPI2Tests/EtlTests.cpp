@@ -21,9 +21,8 @@ namespace fs = std::filesystem;
 
 namespace EtlTests
 {
-	static constexpr const char* controlPipe_ = R"(\\.\pipe\pm-etlults-ctrl)";
-	static constexpr const char* introNsm_ = "pm_etlults_test_intro";
-	static constexpr const char* nsmPrefix_ = "pmon_nsm_utest_";
+	static constexpr const char* controlPipe_ = R"(\\.\pipe\test-pipe-pmsvc-2)";
+	static constexpr const char* nsmPrefix_ = "pm_etl_test_shm";
 
 	// Test case data structure - loaded from CSV file
 	struct TestCaseData {
@@ -36,7 +35,7 @@ namespace EtlTests
 		int waitTimeSecs;
 		bool isExpectedFailure;
 		std::string failureReason;
-		bool useAdditionalTestLocation;  // Load from additional test directory (runsettings)
+		bool useAdditionalTestLocation;   // Load from additional test directory (runsettings)
 		bool produceDebugCsv;             // Generate debug CSV output
 		bool runTest;                     // Whether to run this test (for selective debugging)
 	};
@@ -88,7 +87,8 @@ namespace EtlTests
 		// Convert to absolute path for better error reporting
 		fs::path absolutePath = fs::absolute(csvFilePath);
 		
-		std::ifstream file(csvFilePath);
+		std::ifstream file(absolutePath);
+        auto fileOpenResult = file.is_open();
 		if (!file.is_open()) {
 			throw std::runtime_error(std::format(
 				"Failed to open test cases CSV file:\n"
@@ -98,6 +98,13 @@ namespace EtlTests
 				csvFilePath, 
 				absolutePath.string(),
 				fs::current_path().string()));
+		}
+
+		if (!file.good()) {
+			throw std::runtime_error(std::format(
+				"File opened but stream is in bad state:\n"
+				"  Path: {}",
+				absolutePath.string()));
 		}
 
 		std::string line;
@@ -201,7 +208,7 @@ namespace EtlTests
 		auto frameQuery = pSession->RegisterFrameQuery(queryElements);
 		auto blobs = frameQuery.MakeBlobContainer(numberOfBlobs);
 
-		processTracker = pSession->TrackProcess(processId);
+		processTracker = pSession->TrackProcess(processId, true, true);
 
 		using Clock = std::chrono::high_resolution_clock;
 		const auto start = Clock::now();
@@ -262,7 +269,6 @@ namespace EtlTests
 				"--timed-stop"s, timedStop,
 				"--control-pipe"s, controlPipe_,
 				"--nsm-prefix"s, nsmPrefix_,
-				"--intro-nsm"s, introNsm_,
 				"--etl-test-file"s, etlFile,
 				bp::std_out > out, bp::std_in < in);
 
@@ -589,15 +595,14 @@ namespace EtlTests
 			bp::opstream in;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
+			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
 			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
 
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlName,
 				bp::std_out > out, bp::std_in < in);
 

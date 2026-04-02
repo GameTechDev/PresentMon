@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -20,9 +20,9 @@
 #include "ETW/Intel_PresentMon.h"
 #include "ETW/NV_DD.h"
 #include "ETW/Nvidia_PCL.h"
+#include <format>
 
 namespace {
-
 struct TraceProperties : public EVENT_TRACE_PROPERTIES {
     wchar_t mSessionName[MAX_PATH];
 };
@@ -284,6 +284,7 @@ void DisableProviders(TRACEHANDLE sessionHandle)
     status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Kernel_Process::GUID, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
     status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Win32k::GUID,         EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
     status = EnableTraceEx2(sessionHandle, &NvidiaDisplayDriver_Events::GUID,       EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
+    status = EnableTraceEx2(sessionHandle, &Nvidia_PCL::GUID,                       EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
 }
 
 template<
@@ -296,6 +297,15 @@ void CALLBACK EventRecordCallback(EVENT_RECORD* pEventRecord)
 {
     auto session = (PMTraceSession*) pEventRecord->UserContext;
     const auto& hdr = pEventRecord->EventHeader;
+
+    PMTraceConsumer::EventProcessingScope processingScope(*session->mPMConsumer);
+    if (!processingScope) {
+        return;
+    }
+
+    if constexpr (IS_REALTIME_SESSION) {
+        session->ProcessEtwEventLatencyStats(hdr.TimeStamp.QuadPart);
+    }
 
     if constexpr (!IS_REALTIME_SESSION) {
         if (session->mStartTimestamp.QuadPart == 0) {
@@ -458,7 +468,8 @@ ULONG CALLBACK BufferCallback(EVENT_TRACE_LOGFILE* pLogFile)
 
 ULONG PMTraceSession::Start(
     wchar_t const* etlPath,
-    wchar_t const* sessionName)
+    wchar_t const* sessionName,
+    bool enableProviders)
 {
     assert(mPMConsumer != nullptr);
     assert(mSessionHandle == 0);
@@ -466,6 +477,7 @@ ULONG PMTraceSession::Start(
     mStartTimestamp.QuadPart = 0;
     mContinueProcessingBuffers = TRUE;
     mIsRealtimeSession = etlPath == nullptr;
+    ResetEtwEventLatencyStats();
     mPMConsumer->mIsRealtimeSession = mIsRealtimeSession;
 
     // If we're not reading an ETL, start a realtime trace session with the
@@ -477,6 +489,9 @@ ULONG PMTraceSession::Start(
         sessionProps.Wnode.Flags = WNODE_FLAG_TRACED_GUID;
         sessionProps.LogFileMode = EVENT_TRACE_REAL_TIME_MODE;      // We have a realtime consumer, not writing to a log file
         sessionProps.LoggerNameOffset = offsetof(TraceProperties, mSessionName);  // Location of session name; will be written by StartTrace()
+        sessionProps.BufferSize = 64;                                // Buffer size in KB
+        sessionProps.MinimumBuffers = 256;                           // Minimum number of buffers allocated for the session's buffer pool
+        sessionProps.MaximumBuffers = 1024;                             // Maximum number of buffers (0 = no limit)
 
         auto status = StartTraceW(&mSessionHandle, sessionName, &sessionProps);
         if (status != ERROR_SUCCESS) {
@@ -484,10 +499,15 @@ ULONG PMTraceSession::Start(
             return status;
         }
 
-        status = EnableProviders(mSessionHandle, sessionProps.Wnode.Guid, mPMConsumer);
-        if (status != ERROR_SUCCESS) {
-            Stop();
-            return status;
+        // Set the session GUID
+        mSessionGuid = sessionProps.Wnode.Guid;
+
+        if (enableProviders) {
+            status = EnableProviders(mSessionHandle, sessionProps.Wnode.Guid, mPMConsumer);
+            if (status != ERROR_SUCCESS) {
+                Stop();
+                return status;
+            }
         }
     }
 
@@ -654,6 +674,116 @@ void PMTraceSession::TimestampToLocalSystemTime(uint64_t timestamp, SYSTEMTIME* 
     FileTimeToLocalFileTime((FILETIME*) &timestamp, &lft);
     FileTimeToSystemTime(&lft, st);
     *ns = (timestamp % 10000000) * 100;
+}
+
+bool PMTraceSession::QueryEtwStatus(EtwStatus* status) const
+{
+    if (mSessionHandle == 0) {
+        return false;
+    }
+
+    TraceProperties sessionProps = {};
+    sessionProps.Wnode.BufferSize = (ULONG) sizeof(TraceProperties);
+    sessionProps.LoggerNameOffset = offsetof(TraceProperties, mSessionName);
+
+    auto queryStatus = ControlTraceW(mSessionHandle, nullptr, &sessionProps, EVENT_TRACE_CONTROL_QUERY);
+    if (queryStatus != ERROR_SUCCESS) {
+        return false;
+    }
+
+    // Update cached status
+    mCachedEtwStatus.mEtwBuffersInUse = sessionProps.NumberOfBuffers - sessionProps.FreeBuffers;
+    mCachedEtwStatus.mEtwTotalBuffers = sessionProps.NumberOfBuffers;
+    mCachedEtwStatus.mEtwEventsLost = sessionProps.EventsLost;
+    mCachedEtwStatus.mEtwBuffersLost = sessionProps.LogBuffersLost + sessionProps.RealTimeBuffersLost;
+    mCachedEtwStatus.mNumOverflowedPresents = mPMConsumer->mNumOverflowedPresents;
+
+    if (sessionProps.NumberOfBuffers > 0) {
+        mCachedEtwStatus.mEtwBufferFillPct = 100.0 * mCachedEtwStatus.mEtwBuffersInUse / sessionProps.NumberOfBuffers;
+    } else {
+        mCachedEtwStatus.mEtwBufferFillPct = 0.0;
+    }
+
+    // Copy to output if provided
+    if (status != nullptr) {
+        *status = mCachedEtwStatus;
+    }
+
+    return true;
+}
+
+void PMTraceSession::ProcessEtwEventLatencyStats(uint64_t eventQpcTimestamp)
+{
+    const auto statsEnabled = pmon::util::log::GlobalPolicy::Get().GetLogLevel() >= pmon::util::log::Level::Debug;
+    if (!statsEnabled) {
+        if (mEtwEventLatencyStatsWindowStartQpc != 0) {
+            ResetEtwEventLatencyStats();
+        }
+        return;
+    }
+
+    if (eventQpcTimestamp == 0) {
+        return;
+    }
+
+    const auto now = pmon::util::GetCurrentTimestamp();
+    if (mEtwEventLatencyStatsWindowStartQpc == 0) {
+        mEtwEventLatencyStatsWindowStartQpc = now;
+    }
+
+    const auto periodSeconds = pmon::util::GetTimestampPeriodSeconds();
+    const auto eventLagMs = pmon::util::TimestampDeltaToSeconds(
+        static_cast<int64_t>(eventQpcTimestamp),
+        now,
+        periodSeconds) * 1000.0;
+    mEtwEventLatencyStatsMs.AddSample(eventLagMs);
+
+    const auto elapsedSeconds = pmon::util::TimestampDeltaToSeconds(
+        mEtwEventLatencyStatsWindowStartQpc,
+        now,
+        periodSeconds);
+    if (elapsedSeconds < 10.0) {
+        return;
+    }
+
+    mEtwEventLatencyStatsMs.Prepare();
+    const auto count = mEtwEventLatencyStatsMs.GetSampleCount();
+    if (count > 0) {
+        pmlog_(pmon::util::log::Level::Debug).note(std::format(
+            "ETW event latency stats [{} events] avg={:.3f} ms min={:.3f} ms p01={:.3f} ms p05={:.3f} ms p10={:.3f} ms p50={:.3f} ms p90={:.3f} ms p95={:.3f} ms p99={:.3f} ms max={:.3f} ms",
+            count,
+            mEtwEventLatencyStatsMs.GetMean(),
+            mEtwEventLatencyStatsMs.GetPercentile(0.00),
+            mEtwEventLatencyStatsMs.GetPercentile(0.01),
+            mEtwEventLatencyStatsMs.GetPercentile(0.05),
+            mEtwEventLatencyStatsMs.GetPercentile(0.10),
+            mEtwEventLatencyStatsMs.GetPercentile(0.50),
+            mEtwEventLatencyStatsMs.GetPercentile(0.90),
+            mEtwEventLatencyStatsMs.GetPercentile(0.95),
+            mEtwEventLatencyStatsMs.GetPercentile(0.99),
+            mEtwEventLatencyStatsMs.GetPercentile(1.00)));
+    } else {
+        pmlog_(pmon::util::log::Level::Debug).note("ETW event latency stats [0 events]");
+    }
+
+    mEtwEventLatencyStatsMs.Reset();
+    mEtwEventLatencyStatsWindowStartQpc = now;
+}
+
+void PMTraceSession::ResetEtwEventLatencyStats()
+{
+    mEtwEventLatencyStatsMs.Reset();
+    mEtwEventLatencyStatsWindowStartQpc = 0;
+}
+
+ULONG PMTraceSession::StartProviders()
+{
+    return EnableProviders(mSessionHandle, mSessionGuid, mPMConsumer);
+}
+
+void PMTraceSession::StopProviders()
+{
+    DisableProviders(mSessionHandle);
 }
 
 ULONG EnableProvidersListing(

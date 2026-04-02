@@ -18,6 +18,6 @@ namespace pmon::util::log
 		EndOfEnumKeys,
 	};
 
-	std::string GetLevelName(Level) noexcept;
-	std::map<std::string, Level> GetLevelMapNarrow() noexcept;
+	std::string GetLevelName(Level);
+	std::map<std::string, Level> GetLevelMapNarrow();
 }

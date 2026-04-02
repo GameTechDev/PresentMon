@@ -100,6 +100,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <AdditionalIncludeDirectories>..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ControlFlowGuard>Guard</ControlFlowGuard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -171,7 +172,6 @@
     <ClInclude Include="kact\KernelExecutionContext.h" />
     <ClInclude Include="kact\OpenSession.h" />
     <ClInclude Include="kact\PushSpecification.h" />
-    <ClInclude Include="kact\SetAdapter.h" />
     <ClInclude Include="kact\SetCapture.h" />
     <ClInclude Include="kact\SetEtlLogging.h" />
     <ClInclude Include="MakeOverlaySpec.h" />
@@ -191,6 +191,10 @@
       <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</DeploymentContent>
     </CopyFileToFolders>
   </ItemGroup>
+  <Target Name="CopyPathedPresentMonCli" AfterTargets="Build">
+    <MakeDir Directories="$(OutDir)pathed" />
+    <Copy SourceFiles="$(ProjectDir)presentmon-cli.bat" DestinationFiles="$(OutDir)pathed\presentmon-cli.bat" SkipUnchangedFiles="true" />
+  </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

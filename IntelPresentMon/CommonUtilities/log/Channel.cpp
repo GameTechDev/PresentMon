@@ -11,6 +11,7 @@
 #include "GlobalPolicy.h"
 #include "../str/String.h"
 #include "../Exception.h"
+#include "../win/WinAPI.h"
 
 namespace pmon::util::log
 {
@@ -66,6 +67,7 @@ namespace pmon::util::log
 		{
 			std::binary_semaphore semaphore{ 0 };
 			void WaitUntilProcessed() { semaphore.acquire(); }
+			bool WaitUntilProcessedFor(std::chrono::milliseconds timeout) { return semaphore.try_acquire_for(timeout); }
 		};
 		struct FlushPacket_ : public Packet_
 		{
@@ -74,6 +76,18 @@ namespace pmon::util::log
 				channel.Flush();
 				semaphore.release();
 			}
+		};
+		struct WaitEntryPacket_ : public Packet_
+		{
+			WaitEntryPacket_(Entry&& entry)
+				:
+				entry_{ std::move(entry) }
+			{}
+			WaitEntryPacket_(const Entry& entry)
+				:
+				entry_{ entry }
+			{}
+			Entry entry_;
 		};
 		struct KillPacket_ : public Packet_
 		{
@@ -94,6 +108,7 @@ namespace pmon::util::log
 		};
 		// aliases for variant / queue typenames
 		using QueueElementType_ = std::variant<Entry,
+			std::shared_ptr<WaitEntryPacket_>,
 			std::shared_ptr<FlushPacket_>,
 			std::shared_ptr<KillPacket_>,
 			std::shared_ptr<FlushEntryPointPacket_>>;
@@ -116,53 +131,71 @@ namespace pmon::util::log
 		}
 		// internal implementation of the channel, with public functions hidden from the external interface
 		// but available to packet processing functions to use
-		ChannelInternal_::ChannelInternal_(std::vector<std::pair<std::string, std::shared_ptr<IChannelComponent>>> componentPtrs)
+		ChannelInternal_::ChannelInternal_(std::vector<std::pair<std::string, std::shared_ptr<IChannelComponent>>> componentPtrs,
+			bool synchronousMode)
 			:
-			pEntryQueue_{ std::make_shared<QueueType_>() }
+			pEntryQueue_{ std::make_shared<QueueType_>() },
+			synchronousMode_{ synchronousMode }
 		{
 			for (auto&&[t, p] : componentPtrs) {
 				AttachComponent_(std::move(p), std::move(t));
 			}
 			worker_ = mt::Thread("log-chan", [this] {
 				try {
-					auto visitor = [this](auto& el) {
+					workerTid_ = GetCurrentThreadId();
+					auto processEntry = [this](Entry& entry) {
+						// process all policies, tranforming entry in-place
+						for (auto&& [tag,pPolicy] : policyPtrs_) {
+							try {
+								// if any policy returns false, drop entry
+								if (!pPolicy->TransformFilter(entry)) {
+									return;
+								}
+							}
+							catch (...) {
+								pmlog_panic_(ReportException());
+							}
+						}
+						// resolve trace if one is present
+						if (entry.pTrace_ && !entry.pTrace_->Resolved()) {
+							try {
+								if (resolvingTraces_) {
+									entry.pTrace_->Resolve();
+								}
+							}
+							catch (...) {
+								pmlog_panic_(ReportException());
+							}
+						}
+						// submit entry to all drivers (by copy)
+						for (auto&& [tag,pDriver] : driverPtrs_) {
+							try { pDriver->Submit(entry); }
+							catch (...) {
+								pmlog_panic_(ReportException());
+							}
+						}
+						if (driverPtrs_.empty()) {
+							pmlog_panic_("No drivers in logging channel while processing entry");
+						}
+						// sync mode provides durable visibility by forcing driver flush for every entry.
+						if (synchronousMode_) {
+							Flush();
+						}
+					};
+					auto visitor = [this, &processEntry](auto& el) {
 						// log entry is handled differently than command packets
 						using ElementType = std::decay_t<decltype(el)>;
 						if constexpr (std::is_same_v<ElementType, Entry>) {
-							Entry& entry = el;
-							// process all policies, tranforming entry in-place
-							for (auto&& [tag,pPolicy] : policyPtrs_) {
-								try {
-									// if any policy returns false, drop entry
-									if (!pPolicy->TransformFilter(entry)) {
-										return;
-									}
-								}
-								catch (...) {
-									pmlog_panic_(ReportException());
-								}
+							processEntry(el);
+						}
+						else if constexpr (std::is_same_v<ElementType, std::shared_ptr<WaitEntryPacket_>>) {
+							try {
+								processEntry(el->entry_);
 							}
-							// resolve trace if one is present
-							if (entry.pTrace_ && !entry.pTrace_->Resolved()) {
-								try {
-									if (resolvingTraces_) {
-										entry.pTrace_->Resolve();
-									}
-								}
-								catch (...) {
-									pmlog_panic_(ReportException());
-								}
+							catch (...) {
+								pmlog_panic_(ReportException());
 							}
-							// submit entry to all drivers (by copy)
-							for (auto&& [tag,pDriver] : driverPtrs_) {
-								try { pDriver->Submit(entry); }
-								catch (...) {
-									pmlog_panic_(ReportException());
-								}
-							}
-							if (driverPtrs_.empty()) {
-								pmlog_panic_("No drivers in logging channel while processing entry");
-							}
+							el->semaphore.release();
 						}
 						// if not log entry object, then shared_ptr to a command packet w/ Process member
 						else {
@@ -251,6 +284,18 @@ namespace pmon::util::log
 		{
 			Queue_(this).enqueue(e);
 		}
+		void ChannelInternal_::EnqueueEntryWait(Entry&& e)
+		{
+			auto pPacket = std::make_shared<WaitEntryPacket_>(std::move(e));
+			Queue_(this).enqueue(pPacket);
+			pPacket->WaitUntilProcessed();
+		}
+		void ChannelInternal_::EnqueueEntryWait(const Entry& e)
+		{
+			auto pPacket = std::make_shared<WaitEntryPacket_>(e);
+			Queue_(this).enqueue(pPacket);
+			pPacket->WaitUntilProcessed();
+		}
 		template<class P, typename ...Args>
 		void ChannelInternal_::EnqueuePacketWait(Args&& ...args)
 		{
@@ -259,17 +304,37 @@ namespace pmon::util::log
 			pPacket->WaitUntilProcessed();
 		}
 		template<class P, typename ...Args>
+		bool ChannelInternal_::EnqueuePacketWaitFor(std::chrono::milliseconds timeout, Args&& ...args)
+		{
+			auto pPacket = std::make_shared<P>(std::forward<Args>(args)...);
+			Queue_(this).enqueue(pPacket);
+			return pPacket->WaitUntilProcessedFor(timeout);
+		}
+		template<class P, typename ...Args>
 		void ChannelInternal_::EnqueuePacketAsync(Args&& ...args)
 		{
 			Queue_(this).enqueue(std::make_shared<P>(std::forward<Args>(args)...));
+		}
+		bool ChannelInternal_::IsWorkerThread() const noexcept
+		{
+			return workerTid_.load() == GetCurrentThreadId();
+		}
+		bool ChannelInternal_::IsSynchronousModeEnabled() const noexcept
+		{
+			return synchronousMode_;
 		}
 	}
 
 
 	// implementation of external interfaces
-	Channel::Channel(std::vector<std::pair<std::string, std::shared_ptr<IChannelComponent>>> componentPtrs)
+	Channel::Channel(bool synchronousMode)
 		:
-		ChannelInternal_{ std::move(componentPtrs) }
+		Channel({}, synchronousMode)
+	{}
+	Channel::Channel(std::vector<std::pair<std::string, std::shared_ptr<IChannelComponent>>> componentPtrs,
+		bool synchronousMode)
+		:
+		ChannelInternal_{ std::move(componentPtrs), synchronousMode }
 	{}
 	Channel::~Channel()
 	{
@@ -283,7 +348,12 @@ namespace pmon::util::log
 	void Channel::Submit(Entry&& e) noexcept
 	{
 		try {
-			EnqueueEntry(std::move(e));
+			if (IsSynchronousModeEnabled() && !IsWorkerThread()) {
+				EnqueueEntryWait(std::move(e));
+			}
+			else {
+				EnqueueEntry(std::move(e));
+			}
 		}
 		catch (...) {
 			pmlog_panic_("Exception thrown in Channel::Submit (move)");
@@ -292,7 +362,12 @@ namespace pmon::util::log
 	void Channel::Submit(const Entry& e) noexcept
 	{
 		try {
-			EnqueueEntry(e);
+			if (IsSynchronousModeEnabled() && !IsWorkerThread()) {
+				EnqueueEntryWait(e);
+			}
+			else {
+				EnqueueEntry(e);
+			}
 		}
 		catch (...) {
 			pmlog_panic_("Exception thrown in Channel::Submit (copy)");
@@ -301,6 +376,21 @@ namespace pmon::util::log
 	void Channel::Flush()
 	{
 		EnqueuePacketWait<FlushPacket_>();
+	}
+	bool Channel::TryFlushFor(std::chrono::milliseconds timeout) noexcept
+	{
+		try {
+			// avoid self-deadlock if a flush attempt occurs from within the worker thread
+			if (IsWorkerThread()) {
+				ChannelInternal_::Flush();
+				return true;
+			}
+			return EnqueuePacketWaitFor<FlushPacket_>(timeout);
+		}
+		catch (...) {
+			pmlog_panic_("Exception thrown in Channel::TryFlushFor");
+		}
+		return false;
 	}
 	void Channel::AttachComponent(std::shared_ptr<IChannelComponent> pComponent, std::string tag)
 	{

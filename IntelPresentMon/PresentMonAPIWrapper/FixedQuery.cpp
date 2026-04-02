@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "FixedQuery.h"
 #include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
 #include <IntelPresentMon/CommonUtilities//str/String.h>
@@ -46,6 +46,12 @@ namespace pmapi
 		return activeBlobIndex_;
 	}
 
+	ProcessTracker FixedQueryContainer_::TrackProcess(uint32_t pid, bool isPlayback, bool isBackpressured)
+	{
+		assert(pSession_);
+		return pSession_->TrackProcess(pid, isPlayback, isBackpressured);
+	}
+
 	void FixedQueryContainer_::FinalizationPreprocess_()
 	{
 		// replace slot indexes with device ids
@@ -77,7 +83,6 @@ namespace pmapi
 		smartElements_.clear();
 		rawElements_.clear();
 		slotDeviceIds_.clear();
-		pSession_ = nullptr;
 	}
 
 

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <memory>
 
 namespace pmon::util
@@ -14,6 +14,11 @@ namespace pmon::util
 	constexpr size_t GetPadding(size_t byteIndex)
 	{
 		return GetPadding(byteIndex, alignof(T));
+	}
+
+	inline constexpr size_t PadToAlignment(size_t bytes, size_t alignment)
+	{
+		return bytes + GetPadding(bytes, alignment);
 	}
 
 	template<std::copy_constructible T>

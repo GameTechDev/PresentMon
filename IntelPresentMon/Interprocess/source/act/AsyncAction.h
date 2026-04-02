@@ -38,7 +38,7 @@ namespace pmon::ipc::act
 				resHeader = MakeResponseHeader(header, TransportStatus::Success, PM_STATUS_SUCCESS);
 			}
 			catch (const ActionExecutionError& e) {
-				pmlog_error(std::format("Error in action [{}] execution", GetIdentifier())).code(e.GetCode());
+				pmlog_error(std::format("Error in action [{}] execution", GetIdentifier())).code(e.GetCode()).diag();
 				resHeader = MakeResponseHeader(header, TransportStatus::ExecutionFailure, e.GetCode());
 			}
 			catch (...) {
@@ -78,7 +78,7 @@ namespace pmon::ipc::act
 				T::Execute_(ctx, stx, pipe.ConsumePacketPayload<typename T::Params>());
 			}
 			catch (const ActionExecutionError& e) {
-				pmlog_error(std::format("Error in action [{}] execution: {}", GetIdentifier(), e.what())).code(e.GetCode());
+				pmlog_error(std::format("Error in action [{}] execution: {}", GetIdentifier(), e.what())).code(e.GetCode()).diag();
 			}
 			catch (...) {
 				pmlog_error(util::ReportException());

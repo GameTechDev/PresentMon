@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "PresentMonAPI.h"
 #include "PresentMonDiagnostics.h"
 #include "../CommonUtilities/log/Log.h"
@@ -43,5 +43,4 @@ PRESENTMON_API2_EXPORT void pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL logLevel,
 PRESENTMON_API2_EXPORT PM_STATUS pmSetupFileLogging_(const char* filename, PM_DIAGNOSTIC_LEVEL logLevel,
 	PM_DIAGNOSTIC_LEVEL stackTraceLevel, bool exceptionTrace);
 
-// set middleware to log using OutputDebugString
 PRESENTMON_API2_EXPORT PM_STATUS pmStopPlayback_(PM_SESSION_HANDLE handle);

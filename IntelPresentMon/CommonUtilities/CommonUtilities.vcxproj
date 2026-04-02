@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -20,13 +20,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cli\CliFramework.h" />
+    <ClInclude Include="cnr\FixedVector.h" />
     <ClInclude Include="Exception.h" />
     <ClInclude Include="file\FileUtils.h" />
+    <ClInclude Include="file\PathUtils.h" />
     <ClInclude Include="file\SecureSubdirectory.h" />
     <ClInclude Include="file\TempFile.h" />
     <ClInclude Include="IntervalWaiter.h" />
     <ClInclude Include="log\ChannelFlusher.h" />
     <ClInclude Include="log\CopyDriver.h" />
+    <ClInclude Include="log\CrashFlushHooks.h" />
     <ClInclude Include="log\DiagnosticDriver.h" />
     <ClInclude Include="log\ErrorCode.h" />
     <ClInclude Include="log\EntryMarshallInjector.h" />
@@ -68,6 +71,13 @@
     <ClInclude Include="log\Verbose.h" />
     <ClInclude Include="Macro.h" />
     <ClInclude Include="Math.h" />
+    <ClInclude Include="SampleStatistics.h" />
+    <ClInclude Include="mc\FrameMetricsMemberMap.h" />
+    <ClInclude Include="mc\MetricsCalculator.h" />
+    <ClInclude Include="mc\MetricsCalculatorInternal.h" />
+    <ClInclude Include="mc\MetricsTypes.h" />
+    <ClInclude Include="mc\SwapChainState.h" />
+    <ClInclude Include="mc\UnifiedSwapChain.h" />
     <ClInclude Include="Memory.h" />
     <ClInclude Include="Hash.h" />
     <ClInclude Include="Meta.h" />
@@ -117,11 +127,13 @@
     <ClCompile Include="cli\CliFramework.cpp" />
     <ClCompile Include="Exception.cpp" />
     <ClCompile Include="file\FileUtils.cpp" />
+    <ClCompile Include="file\PathUtils.cpp" />
     <ClCompile Include="file\SecureSubdirectory.cpp" />
     <ClCompile Include="file\TempFile.cpp" />
     <ClCompile Include="IntervalWaiter.cpp" />
     <ClCompile Include="log\ChannelFlusher.cpp" />
     <ClCompile Include="log\CopyDriver.cpp" />
+    <ClCompile Include="log\CrashFlushHooks.cpp" />
     <ClCompile Include="log\DiagnosticDriver.cpp" />
     <ClCompile Include="log\EntryMarshallInjector.cpp" />
     <ClCompile Include="Hash.cpp" />
@@ -150,6 +162,15 @@
     <ClCompile Include="log\NamedPipeMarshallSender.cpp" />
     <ClCompile Include="log\TimePoint.cpp" />
     <ClCompile Include="log\Verbose.cpp" />
+    <ClCompile Include="mc\MetricsCalculator.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorCpuGpu.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorDisplay.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorInput.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorInstrumented.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorAnimation.cpp" />
+    <ClCompile Include="mc\MetricsTypes.cpp" />
+    <ClCompile Include="mc\SwapChainState.cpp" />
+    <ClCompile Include="mc\UnifiedSwapChain.cpp" />
     <ClCompile Include="mt\Thread.cpp" />
     <ClCompile Include="pipe\CoroMutex.cpp" />
     <ClCompile Include="pipe\Pipe.cpp" />
@@ -355,6 +376,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <ExceptionHandling>Async</ExceptionHandling>
       <AdditionalIncludeDirectories>../..;$(vcSiblingIncludeDirectory);$(vcInstalledIncludeDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ControlFlowGuard>Guard</ControlFlowGuard>
     </ClCompile>
     <Link>
       <SubSystem>

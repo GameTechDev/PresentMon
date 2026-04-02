@@ -26,17 +26,22 @@
 #include "../PresentMonAPI2Loader/Loader.h"
 #include "Utils.h"
 #include "DynamicQuerySample.h"
+#include "DynamicQueryNoTargetSample.h"
 #include "FrameQuerySample.h"
 #include "IntrospectionSample.h"
 #include "CheckMetricSample.h"
 #include "WrapperStaticQuery.h"
 #include "MetricListSample.h"
 #include "MultiClient.h"
+#include "ServiceCrashClient.h"
 #include "EtlLogger.h"
+#include "IpcComponentServer.h"
 #include "PacedPlayback.h"
+#include "PacedFramePlayback.h"
 #include "LogDemo.h"
 #include "DiagnosticDemo.h"
 #include "LogSetup.h"
+#include "LoggingCrashTest.h"
 
 #include "../CommonUtilities/IntervalWaiter.h"
 #include "../CommonUtilities/pipe/Pipe.h"
@@ -61,8 +66,7 @@ void RunPlaybackFrameQuery()
         "PresentMonService.exe"s,
         // "--timed-stop"s, "10000"s,
         "--control-pipe"s, pipeName,
-        "--nsm-prefix"s, "pmon_nsm_tt_"s,
-        "--intro-nsm"s, "svc-intro-tt"s,
+        "--shm-name-prefix"s, "pm-tt-shm"s,
         "--etw-session-name"s, "svc-sesh-tt"s,
         bp::args(dargs),
     };
@@ -91,7 +95,7 @@ void RunPlaybackFrameQuery()
         // track the pid we know to be active in the ETL (1268 for dwm in gold_0)
         pid = opt.processId.AsOptional().value_or(1268);
     }
-    auto tracker = api.TrackProcess(pid);
+    auto tracker = api.TrackProcess(pid, true, false);
     std::this_thread::sleep_for(500ms);
 
     uint32_t frameCount = 0;
@@ -147,8 +151,7 @@ void RunPlaybackDynamicQuery()
         "PresentMonService.exe"s,
         // "--timed-stop"s, "10000"s,
         "--control-pipe"s, pipeName,
-        "--nsm-prefix"s, "pmon_nsm_tt_"s,
-        "--intro-nsm"s, "svc-intro-tt"s,
+        "--shm-name-prefix"s, "pm-tt-shm"s,
         "--etw-session-name"s, "svc-sesh-tt"s,
         bp::args(dargs),
     };
@@ -171,7 +174,7 @@ void RunPlaybackDynamicQuery()
     PM_END_FIXED_QUERY query{ api, 200., 50., 1, 1 };
 
     // track the pid we know to be active in the ETL (1268 for dwm in gold_0)
-    auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268));
+    auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268), true, false);
 
     pmon::util::IntervalWaiter waiter{ 0.1 };
 
@@ -222,8 +225,7 @@ void RunPlaybackDynamicQueryN()
             "PresentMonService.exe"s,
             // "--timed-stop"s, "10000"s,
             "--control-pipe"s, pipeName,
-            "--nsm-prefix"s, "pmon_nsm_tt_"s,
-            "--intro-nsm"s, "svc-intro-tt"s,
+            "--shm-name-prefix"s, "pm-tt-shm"s,
             "--etw-session-name"s, "svc-sesh-tt"s,
             bp::args(dargs),
         };
@@ -246,7 +248,7 @@ void RunPlaybackDynamicQueryN()
         PM_END_FIXED_QUERY query{ api, 200., 50., 1, 1 };
 
         // track the pid we know to be active in the ETL (1268 for dwm in gold_0)
-        auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268));
+        auto tracker = api.TrackProcess(opt.processId.AsOptional().value_or(1268), true, false);
 
         pmon::util::IntervalWaiter waiter{ 0.1 };
 
@@ -287,8 +289,7 @@ void IntrospectAllDynamicOptions()
     bp::child svc{
         "PresentMonService.exe"s,
         "--control-pipe"s, pipeName,
-        "--nsm-prefix"s, "pmon_nsm_tt_"s,
-        "--intro-nsm"s, "svc-intro-tt"s,
+        "--shm-name-prefix"s, "pm-tt-shm"s,
         "--etw-session-name"s, "svc-sesh-tt"s,
     };
 
@@ -316,82 +317,111 @@ void IntrospectAllDynamicOptions()
     }
 }
 
-
 int main(int argc, char* argv[])
 {
-    try {
-        // command line options initialization
-        if (auto e = clio::Options::Init(argc, argv, true)) {
-            pmlog_error(clio::Options::GetDiagnostics()).no_trace();
-            std::cerr << clio::Options::GetDiagnostics() << std::endl;
-            return *e;
-        }
-        auto& opt = clio::Options::Get();
+	try {
+		// command line options initialization
+		if (auto e = clio::Options::Init(argc, argv, true)) {
+			pmlog_error(clio::Options::GetDiagnostics()).no_trace();
+			std::cerr << clio::Options::GetDiagnostics() << std::endl;
+			return *e;
+		}
+	}
+	catch (...) {
+		const auto exr = pmon::util::ReportException("Exception caught during SampleClient option initialization");
+		std::cout << "Error: " << exr.first << std::endl;
+		pmlog_error(exr);
+		return -1;
+	}
 
-        // use the middleware in the dev path esp. if we are running debug build
-        // important to do this before any intra-process log linking occurs
-        if (opt.middlewareDllPath) {
-            pmLoaderSetPathToMiddlewareDll_(opt.middlewareDllPath->c_str());
-        }
+	auto& opt = clio::Options::Get();
+	const auto mode = *opt.mode;
 
-        // setup logging, including middleware intra-process cross-module link
-        p2sam::LogChannelManager zLogMan_;
-        p2sam::ConfigureLogging();
+	// crash logging mode intentionally runs without top-level exception handling
+	if (mode == clio::Mode::LoggingCrashTest) {
+		if (opt.middlewareDllPath) {
+			pmLoaderSetPathToMiddlewareDll_(opt.middlewareDllPath->c_str());
+		}
 
-        // helper for connecting a pmapi session
-        const auto ConnectSession = [&] {
-            if (opt.controlPipe) {
-                return std::make_unique<pmapi::Session>(*opt.controlPipe);
-            }
-            else {
-                return std::make_unique<pmapi::Session>();
-            }
-        };
+		p2sam::LogChannelManager zLogMan_;
+		p2sam::ConfigureLogging();
 
-        // determine requested mode to run the sample app in
-        switch (*opt.mode) {
-        case clio::Mode::LogDemo:
-            RunLogDemo(*opt.submode); break;
-        case clio::Mode::DiagnosticsDemo:
-            RunDiagnosticDemo(*opt.submode); break;
-        case clio::Mode::Introspection:
-            return IntrospectionSample(ConnectSession());
-        case clio::Mode::CheckMetric:
-            return CheckMetricSample(ConnectSession());
-        case clio::Mode::DynamicQuery:
-            return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, false);
-        case clio::Mode::AddGpuMetric:
-            return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, true);
-        case clio::Mode::WrapperStaticQuery:
-            return WrapperStaticQuerySample(ConnectSession());
-        case clio::Mode::MetricList:
-            return MetricListSample(ConnectSession());
-        case clio::Mode::FrameQuery:
-            return FrameQuerySample(ConnectSession(), false);
-        case clio::Mode::CsvFrameQuery:
-            return FrameQuerySample(ConnectSession(), true);
-        case clio::Mode::MultiClient:
-            return MultiClientTest(ConnectSession());
-        case clio::Mode::EtlLogger:
-            return EtlLoggerTest(ConnectSession());
-        case clio::Mode::PacedPlayback:
-            return PacedPlaybackTest(ConnectSession());
-        case clio::Mode::PlaybackDynamicQuery:
-            RunPlaybackDynamicQueryN(); break;
-        case clio::Mode::PlaybackFrameQuery:
-            RunPlaybackFrameQuery(); break;
-        case clio::Mode::IntrospectAllDynamicOptions:
-            IntrospectAllDynamicOptions(); break;
-        default:
-            throw std::runtime_error{ "unknown sample client mode" };
-        }
-    }
-    catch (...) {
-        const auto exr = pmon::util::ReportException();
-        std::cout << "Error: " << exr.first << std::endl;
-        pmlog_error(exr);
-        return -1;
-    }
+		return RunLoggingCrashTest(*opt.submode);
+	}
 
-    return 0;
+	try {
+		// use the middleware in the dev path esp. if we are running debug build
+		// important to do this before any intra-process log linking occurs
+		if (opt.middlewareDllPath) {
+			pmLoaderSetPathToMiddlewareDll_(opt.middlewareDllPath->c_str());
+		}
+
+		// setup logging, including middleware intra-process cross-module link
+		p2sam::LogChannelManager zLogMan_;
+		p2sam::ConfigureLogging();
+
+		// helper for connecting a pmapi session
+		const auto ConnectSession = [&] {
+			if (opt.controlPipe) {
+				return std::make_unique<pmapi::Session>(*opt.controlPipe);
+			}
+			return std::make_unique<pmapi::Session>();
+		};
+
+		// determine requested mode to run the sample app in
+		switch (mode) {
+		case clio::Mode::LogDemo:
+			RunLogDemo(*opt.submode); break;
+		case clio::Mode::DiagnosticsDemo:
+			RunDiagnosticDemo(*opt.submode); break;
+		case clio::Mode::Introspection:
+			return IntrospectionSample(ConnectSession());
+		case clio::Mode::CheckMetric:
+			return CheckMetricSample(ConnectSession());
+		case clio::Mode::DynamicQuery:
+			return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, false);
+		case clio::Mode::AddGpuMetric:
+			return DynamicQuerySample(ConnectSession(), *opt.windowSize, *opt.metricOffset, true);
+		case clio::Mode::DynamicQueryNoTargetAll:
+			return DynamicQueryNoTargetSample(ConnectSession(), *opt.windowSize, *opt.metricOffset);
+		case clio::Mode::WrapperStaticQuery:
+			return WrapperStaticQuerySample(ConnectSession());
+		case clio::Mode::MetricList:
+			return MetricListSample(ConnectSession());
+		case clio::Mode::FrameQuery:
+			return FrameQuerySample(ConnectSession(), false);
+		case clio::Mode::CsvFrameQuery:
+			return FrameQuerySample(ConnectSession(), true);
+		case clio::Mode::MultiClient:
+			return MultiClientTest(ConnectSession());
+		case clio::Mode::ServiceCrashClient:
+			return ServiceCrashClientTest(ConnectSession());
+		case clio::Mode::EtlLogger:
+			return EtlLoggerTest(ConnectSession());
+		case clio::Mode::PacedPlayback:
+			return PacedPlaybackTest(ConnectSession());
+		case clio::Mode::PacedFramePlayback:
+			return PacedFramePlaybackTest(ConnectSession());
+		case clio::Mode::PlaybackDynamicQuery:
+			RunPlaybackDynamicQueryN(); break;
+		case clio::Mode::PlaybackFrameQuery:
+			RunPlaybackFrameQuery(); break;
+		case clio::Mode::IntrospectAllDynamicOptions:
+			IntrospectAllDynamicOptions(); break;
+		case clio::Mode::IpcComponentServer:
+			IpcComponentServer(); break;
+		case clio::Mode::IntrospectionDevices:
+			IntrospectAllDevices(ConnectSession()); break;
+		default:
+			throw std::runtime_error{ "unknown sample client mode" };
+		}
+	}
+	catch (...) {
+		const auto exr = pmon::util::ReportException("Exception caught in SampleClient main");
+		std::cout << "Error: " << exr.first << std::endl;
+		pmlog_error(exr);
+		return -1;
+	}
+
+	return 0;
 }

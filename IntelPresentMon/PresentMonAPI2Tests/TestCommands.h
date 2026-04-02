@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <set>
 #include <optional>
 #include <cereal/types/set.hpp>
@@ -13,21 +13,30 @@ namespace pmon::test
 	{
 		struct Status
 		{
-			std::set<uint32_t> nsmStreamedPids;
-			uint32_t activeAdapterId;
+			// new ipc tracking
+			std::set<uint32_t> trackedPids;
+			std::set<uint32_t> frameStorePids;
 			uint32_t telemetryPeriodMs;
 			std::optional<uint32_t> etwFlushPeriodMs;
 
 			template <class Archive>
 			void serialize(Archive& ar)
 			{
-				ar(nsmStreamedPids, activeAdapterId, telemetryPeriodMs, etwFlushPeriodMs);
+				ar(trackedPids, frameStorePids, telemetryPeriodMs, etwFlushPeriodMs);
 			}
 		};
 	}
 
 	namespace client
 	{
+		enum class CrashPhase
+		{
+			SessionOpen = 0,
+			QueryRegistered = 1,
+			TargetTracked = 2,
+			QueryPolling = 3,
+		};
+
 		struct Frame
 		{
 			double receivedTime;

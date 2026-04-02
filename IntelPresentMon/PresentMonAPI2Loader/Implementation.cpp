@@ -1,4 +1,4 @@
-#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
+﻿#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
 #include <IntelPresentMon/PresentMonAPI2/Internal.h>
 #include <IntelPresentMon/PresentMonAPI2/PresentMonDiagnostics.h>
 #include <IntelPresentMon/CommonUtilities/win/WinAPI.h>
@@ -27,14 +27,17 @@ PM_STATUS(*pFunc_pmOpenSession_)(PM_SESSION_HANDLE*) = nullptr;
 PM_STATUS(*pFunc_pmOpenSessionWithPipe_)(PM_SESSION_HANDLE* pHandle, const char*) = nullptr;
 PM_STATUS(*pFunc_pmCloseSession_)(PM_SESSION_HANDLE) = nullptr;
 PM_STATUS(*pFunc_pmStartTrackingProcess_)(PM_SESSION_HANDLE, uint32_t) = nullptr;
+PM_STATUS(*pFunc_pmStartPlaybackTracking_)(PM_SESSION_HANDLE, uint32_t, uint32_t) = nullptr;
 PM_STATUS(*pFunc_pmStopTrackingProcess_)(PM_SESSION_HANDLE, uint32_t) = nullptr;
 PM_STATUS(*pFunc_pmGetIntrospectionRoot_)(PM_SESSION_HANDLE, const PM_INTROSPECTION_ROOT**) = nullptr;
 PM_STATUS(*pFunc_pmFreeIntrospectionRoot_)(const PM_INTROSPECTION_ROOT*) = nullptr;
 PM_STATUS(*pFunc_pmSetTelemetryPollingPeriod_)(PM_SESSION_HANDLE, uint32_t, uint32_t) = nullptr;
 PM_STATUS(*pFunc_pmSetEtwFlushPeriod_)(PM_SESSION_HANDLE, uint32_t) = nullptr;
+PM_STATUS(*pFunc_pmFlushFrames_)(PM_SESSION_HANDLE, uint32_t) = nullptr;
 PM_STATUS(*pFunc_pmRegisterDynamicQuery_)(PM_SESSION_HANDLE, PM_DYNAMIC_QUERY_HANDLE*, PM_QUERY_ELEMENT*, uint64_t, double, double) = nullptr;
 PM_STATUS(*pFunc_pmFreeDynamicQuery_)(PM_DYNAMIC_QUERY_HANDLE) = nullptr;
 PM_STATUS(*pFunc_pmPollDynamicQuery_)(PM_DYNAMIC_QUERY_HANDLE, uint32_t, uint8_t*, uint32_t*) = nullptr;
+PM_STATUS(*pFunc_pmPollDynamicQueryWithTimestamp_)(PM_DYNAMIC_QUERY_HANDLE, uint32_t, uint8_t*, uint32_t*, uint64_t) = nullptr;
 PM_STATUS(*pFunc_pmPollStaticQuery_)(PM_SESSION_HANDLE, const PM_QUERY_ELEMENT*, uint32_t, uint8_t*) = nullptr;
 PM_STATUS(*pFunc_pmRegisterFrameQuery_)(PM_SESSION_HANDLE, PM_FRAME_QUERY_HANDLE*, PM_QUERY_ELEMENT*, uint64_t, uint32_t*) = nullptr;
 PM_STATUS(*pFunc_pmConsumeFrames_)(PM_FRAME_QUERY_HANDLE, uint32_t, uint8_t*, uint32_t*) = nullptr;
@@ -156,14 +159,17 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 		RESOLVE(pmOpenSessionWithPipe);
 		RESOLVE(pmCloseSession);
 		RESOLVE(pmStartTrackingProcess);
+		RESOLVE(pmStartPlaybackTracking);
 		RESOLVE(pmStopTrackingProcess);
 		RESOLVE(pmGetIntrospectionRoot);
 		RESOLVE(pmFreeIntrospectionRoot);
 		RESOLVE(pmSetTelemetryPollingPeriod);
 		RESOLVE(pmSetEtwFlushPeriod);
+		RESOLVE(pmFlushFrames);
 		RESOLVE(pmRegisterDynamicQuery);
 		RESOLVE(pmFreeDynamicQuery);
 		RESOLVE(pmPollDynamicQuery);
+		RESOLVE(pmPollDynamicQueryWithTimestamp);
 		RESOLVE(pmPollStaticQuery);
 		RESOLVE(pmRegisterFrameQuery);
 		RESOLVE(pmConsumeFrames);
@@ -228,6 +234,11 @@ PRESENTMON_API2_EXPORT PM_STATUS pmStartTrackingProcess(PM_SESSION_HANDLE handle
 	LoadEndpointsIfEmpty_();
 	return pFunc_pmStartTrackingProcess_(handle, process_id);
 }
+PRESENTMON_API2_EXPORT PM_STATUS pmStartPlaybackTracking(PM_SESSION_HANDLE handle, uint32_t process_id, uint32_t isBackpressured)
+{
+	LoadEndpointsIfEmpty_();
+	return pFunc_pmStartPlaybackTracking_(handle, process_id, isBackpressured);
+}
 PRESENTMON_API2_EXPORT PM_STATUS pmStopTrackingProcess(PM_SESSION_HANDLE handle, uint32_t process_id)
 {
 	LoadEndpointsIfEmpty_();
@@ -253,6 +264,11 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, u
 	LoadEndpointsIfEmpty_();
 	return pFunc_pmSetEtwFlushPeriod_(handle, periodMs);
 }
+PRESENTMON_API2_EXPORT PM_STATUS pmFlushFrames(PM_SESSION_HANDLE handle, uint32_t processId)
+{
+	LoadEndpointsIfEmpty_();
+	return pFunc_pmFlushFrames_(handle, processId);
+}
 PRESENTMON_API2_EXPORT PM_STATUS pmRegisterDynamicQuery(PM_SESSION_HANDLE sessionHandle, PM_DYNAMIC_QUERY_HANDLE* pHandle, PM_QUERY_ELEMENT* pElements, uint64_t numElements, double windowSizeMs, double metricOffsetMs)
 {
 	LoadEndpointsIfEmpty_();
@@ -267,6 +283,11 @@ PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQuery(PM_DYNAMIC_QUERY_HANDLE hand
 {
 	LoadEndpointsIfEmpty_();
 	return pFunc_pmPollDynamicQuery_(handle, processId, pBlob, numSwapChains);
+}
+PRESENTMON_API2_EXPORT PM_STATUS pmPollDynamicQueryWithTimestamp(PM_DYNAMIC_QUERY_HANDLE handle, uint32_t processId, uint8_t* pBlob, uint32_t* numSwapChains, uint64_t nowTimestamp)
+{
+	LoadEndpointsIfEmpty_();
+	return pFunc_pmPollDynamicQueryWithTimestamp_(handle, processId, pBlob, numSwapChains, nowTimestamp);
 }
 PRESENTMON_API2_EXPORT PM_STATUS pmPollStaticQuery(PM_SESSION_HANDLE sessionHandle, const PM_QUERY_ELEMENT* pElement, uint32_t processId, uint8_t* pBlob)
 {

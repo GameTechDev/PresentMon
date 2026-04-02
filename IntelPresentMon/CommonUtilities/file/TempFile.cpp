@@ -5,6 +5,7 @@
 #include "../str/String.h"
 #include "../Exception.h"
 #include "../Memory.h"
+#include "../log/Log.h"
 #include <fstream>
 #include <random>
 #include <format>
@@ -21,7 +22,10 @@ namespace pmon::util::file
 	TempFile::~TempFile()
 	{
 		if (!Empty()) {
-			fs::remove(path_);
+			try { fs::remove(path_); }
+			catch (...) {
+				pmlog_warn(util::ReportException("TempFile dtor cleanup"));
+			}
 		}
 	}
 	TempFile TempFile::Create()

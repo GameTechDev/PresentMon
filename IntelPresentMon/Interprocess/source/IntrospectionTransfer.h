@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <vector>
 #include <memory>
@@ -6,6 +6,7 @@
 #include <ranges>
 #include <cstring>
 #include "../../PresentMonAPI2/PresentMonAPI.h"
+#include "../../CommonUtilities/Exception.h"
 #include "SharedMemoryTypes.h"
 #include <span>
 #include <utility>
@@ -102,6 +103,10 @@ namespace pmon::ipc::intro
 			return pSelf;
 		}
 		std::span<ShmUniquePtr<T>> GetElements()
+		{
+			return { buffer_ };
+		}
+		std::span<const ShmUniquePtr<T>> GetElements() const
 		{
 			return { buffer_ };
 		}
@@ -211,14 +216,59 @@ namespace pmon::ipc::intro
 		IntrospectionString description_;
 	};
 
+	struct IntrospectionDeviceLuid
+	{
+		IntrospectionDeviceLuid(std::span<const uint8_t> luidBytes, ShmSegmentManager* pSegmentManager)
+			:
+			buffer_{ pSegmentManager->get_allocator<uint8_t>()}
+        {
+			if (!luidBytes.empty()) {
+                buffer_.resize(luidBytes.size());
+                std::memcpy(buffer_.data(), luidBytes.data(), luidBytes.size());
+			}
+        }
+        using ApiType = PM_INTROSPECTION_DEVICE_LUID;
+        template<class V>
+		ApiType* ApiClone(V voidAlloc) const
+		{
+            // local to hold structure contents being built up
+            ApiType content;
+            // self allocation
+            using A = std::allocator_traits<V>::template rebind_alloc<ApiType>;
+            A alloc{ voidAlloc };
+			auto pSelf = alloc.allocate(1);
+			// prepare contents
+            using CA = std::allocator_traits<V>::template rebind_alloc<uint8_t>;
+			CA charAlloc{ voidAlloc };
+			content.size = static_cast<uint32_t>(buffer_.size());
+			if (content.size == 0) {
+				content.pData = nullptr;
+			}
+            else {
+				content.pData = charAlloc.allocate(content.size);
+				if (content.pData) {
+					std::memcpy(const_cast<uint8_t*>(content.pData), buffer_.data(), content.size);
+				}
+			}
+            // emplace to allocated self
+			if (pSelf) {
+				std::allocator_traits<A>::construct(alloc, pSelf, content);
+			}
+            return pSelf;
+		}
+    private:
+        ShmVector<uint8_t> buffer_;
+	};
+
 	struct IntrospectionDevice
 	{
-		IntrospectionDevice(uint32_t id_in, PM_DEVICE_TYPE type_in, PM_DEVICE_VENDOR vendor_in, ShmString name_in)
+		IntrospectionDevice(uint32_t id_in, PM_DEVICE_TYPE type_in, PM_DEVICE_VENDOR vendor_in, ShmString name_in, ShmUniquePtr<IntrospectionDeviceLuid> pLuid_in)
 			:
 			id_{ id_in },
 			type_{ type_in },
 			vendor_{ vendor_in },
-			name_{ std::move(name_in) }
+			name_{ std::move(name_in) },
+			pLuid_{ std::move(pLuid_in) }
 		{}
 		using ApiType = PM_INTROSPECTION_DEVICE;
 		template<class V>
@@ -235,6 +285,22 @@ namespace pmon::ipc::intro
 			content.type = type_;
 			content.vendor = vendor_;
 			content.pName = name_.ApiClone(voidAlloc);
+			if (pLuid_) {
+                content.pLuid = pLuid_->ApiClone(voidAlloc);
+			}
+			else {
+				using LT = PM_INTROSPECTION_DEVICE_LUID;
+				using LA = std::allocator_traits<V>::template rebind_alloc<LT>;
+				LA luidAlloc{ voidAlloc };
+				auto pEmpty = luidAlloc.allocate(1);
+				if (pEmpty) {
+					LT empty{};
+					empty.pData = nullptr;
+					empty.size = 0;
+					std::allocator_traits<LA>::construct(luidAlloc, pEmpty, empty);
+				}
+				content.pLuid = pEmpty;
+            }
 			// emplace to allocated self
 			if (pSelf) {
 				std::allocator_traits<A>::construct(alloc, pSelf, content);
@@ -245,11 +311,20 @@ namespace pmon::ipc::intro
 		{
 			return id_ < rhs.id_;
 		}
+		uint32_t GetId() const
+		{
+			return id_;
+		}
+		PM_DEVICE_TYPE GetType() const
+		{
+			return type_;
+		}
 	private:
 		uint32_t id_;
 		PM_DEVICE_TYPE type_;
 		PM_DEVICE_VENDOR vendor_;
 		IntrospectionString name_;
+		ShmUniquePtr<IntrospectionDeviceLuid> pLuid_;
 	};
 
 	struct IntrospectionDeviceMetricInfo
@@ -279,6 +354,10 @@ namespace pmon::ipc::intro
 				std::allocator_traits<A>::construct(alloc, pSelf, content);
 			}
 			return pSelf;
+		}
+		uint32_t GetDeviceId() const
+		{
+			return deviceId_;
 		}
 	private:
 		uint32_t deviceId_;
@@ -313,6 +392,10 @@ namespace pmon::ipc::intro
 				std::allocator_traits<A>::construct(alloc, pSelf, content);
 			}
 			return pSelf;
+		}
+		PM_DATA_TYPE GetFrameType() const
+		{
+			return frameType_;
 		}
 	private:
 		PM_DATA_TYPE polledType_;
@@ -447,6 +530,18 @@ namespace pmon::ipc::intro
 		{
 			return id_;
 		}
+		const IntrospectionDataTypeInfo& GetDataTypeInfo() const
+		{
+			return *pTypeInfo_;
+		}
+		std::span<const ShmUniquePtr<IntrospectionDeviceMetricInfo>> GetDeviceMetricInfo() const
+		{
+			return deviceMetricInfo_.GetElements();
+		}
+		PM_METRIC_TYPE GetMetricType() const
+		{
+			return type_;
+		}
 		bool operator<(const IntrospectionMetric& rhs) const
 		{
 			return id_ < rhs.id_;
@@ -491,6 +586,37 @@ namespace pmon::ipc::intro
 		{
 			return metrics_.GetElements();
 		}
+		std::span<const ShmUniquePtr<IntrospectionMetric>> GetMetrics() const
+		{
+			return metrics_.GetElements();
+		}
+		std::span<ShmUniquePtr<IntrospectionDevice>> GetDevices()
+		{
+			return devices_.GetElements();
+		}
+		std::span<const ShmUniquePtr<IntrospectionDevice>> GetDevices() const
+		{
+			return devices_.GetElements();
+		}
+		IntrospectionMetric& FindMetric(PM_METRIC metric)
+		{
+			for (auto& p : GetMetrics()) {
+				if (p->GetId() == metric) {
+					return *p;
+				}
+			}
+			throw util::Except<>("Metric ID not found in introspection");
+		}
+		const IntrospectionMetric& FindMetric(PM_METRIC metric) const
+		{
+			for (const auto& p : GetMetrics()) {
+				if (p->GetId() == metric) {
+					return *p;
+				}
+			}
+			throw util::Except<>("Metric ID not found in introspection");
+		}
+
 		using ApiType = PM_INTROSPECTION_ROOT;
 		template<class V>
 		const ApiType* ApiClone(V voidAlloc) const

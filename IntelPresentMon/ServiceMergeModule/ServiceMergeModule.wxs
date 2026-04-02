@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <!-- Merge Module for the shared service payload -->
-  <Module
+    <Module
       Id="PresentMonSharedServiceModule"
       Language="1033"
-      Version="2.4.0.0">
+      Version="$(var.ProductVersion)">
 
     <Package Id="{58140006-3D39-42B4-A0EE-8AD01B2E0E1A}" Manufacturer="Intel(R) Corporation" InstallerVersion="500" />
 

@@ -11,7 +11,7 @@ namespace pmon::svc
 	class EtwLogger
 	{
 	public:
-		EtwLogger(bool isElevated) noexcept;
+		EtwLogger(bool isElevated);
 		uint32_t StartLogSession(std::span<const EtwProviderDescription> = {});
 		util::file::TempFile FinishLogSession(uint32_t id);
 		void CancelLogSession(uint32_t id);

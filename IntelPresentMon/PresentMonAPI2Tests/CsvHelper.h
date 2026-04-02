@@ -11,7 +11,10 @@
 #include <string>
 #include <stdexcept>
 #include <map>
+#include <cmath>
+#include <limits>
 #include <optional>
+#include <cctype>
 #include <filesystem>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -44,6 +47,7 @@ enum Header {
     Header_MsVideoBusy,
     Header_MsAnimationError,
     Header_AnimationTime,
+    Header_MsFlipDelay,
     Header_MsClickToPhotonLatency,
     Header_MsAllInputToPhotonLatency,
 
@@ -74,6 +78,8 @@ enum Header {
     UnknownHeader,
 };
 
+constexpr double kMissingMetricValue = std::numeric_limits<double>::quiet_NaN();
+
 struct v2Metrics {
     std::string appName;
     uint32_t processId = 0;
@@ -97,20 +103,21 @@ struct v2Metrics {
     double msGpuBusy = 0.;
     double msGpuWait = 0.;
     double msVideoBusy = 0.;
-    std::optional<double> msBetweenSimStart;
-    std::optional<double> msUntilDisplayed;
-    std::optional<double> msBetweenDisplayChange;
-    std::optional<double> msPcLatency;
-    std::optional<double> msAnimationError;
-    std::optional<double> animationTime;
-    std::optional<double> msClickToPhotonLatency;
-    std::optional<double> msAllInputToPhotonLatency;
-    std::optional<double> msInstrumentedLatency;
-    std::optional<double> msInstrumentedRenderLatency;
-    std::optional<double> msInstrumentedSleep;
-    std::optional<double> msInstrumentedGPULatency;
-    std::optional<double> msReadyTimeToDisplayLatency;
-    std::optional<double> msReprojectedLatency;
+    double msBetweenSimStart = kMissingMetricValue;
+    double msUntilDisplayed = kMissingMetricValue;
+    double msBetweenDisplayChange = kMissingMetricValue;
+    double msPcLatency = kMissingMetricValue;
+    double msAnimationError = kMissingMetricValue;
+    double animationTime = kMissingMetricValue;
+    double msFlipDelay = kMissingMetricValue;
+    double msClickToPhotonLatency = kMissingMetricValue;
+    double msAllInputToPhotonLatency = kMissingMetricValue;
+    double msInstrumentedLatency = kMissingMetricValue;
+    double msInstrumentedRenderLatency = kMissingMetricValue;
+    double msInstrumentedSleep = kMissingMetricValue;
+    double msInstrumentedGPULatency = kMissingMetricValue;
+    double msReadyTimeToDisplayLatency = kMissingMetricValue;
+    double msReprojectedLatency = kMissingMetricValue;
 };
 
 constexpr char const* GetHeaderString(Header h)
@@ -138,6 +145,7 @@ constexpr char const* GetHeaderString(Header h)
     case Header_MsGPULatency:               return "MsGPULatency";
     case Header_MsGPUTime:                  return "MsGPUTime";
     case Header_MsGPUBusy:                  return "MsGPUBusy";
+    case Header_MsFlipDelay:                return "MsFlipDelay";
     case Header_MsVideoBusy:                return "MsVideoBusy";
     case Header_MsGPUWait:                  return "MsGPUWait";
     case Header_MsAnimationError:           return "MsAnimationError";
@@ -364,6 +372,52 @@ void CharConvert<T>::Convert(const std::string data, T& convertedData, Header co
     }
 }
 
+bool IsMissingMetricToken(const char* data)
+{
+    if (data == nullptr) {
+        return true;
+    }
+
+    const char* tokenBegin = data;
+    while (*tokenBegin != '\0' && std::isspace(static_cast<unsigned char>(*tokenBegin))) {
+        ++tokenBegin;
+    }
+
+    const char* tokenEnd = tokenBegin;
+    while (*tokenEnd != '\0') {
+        ++tokenEnd;
+    }
+
+    while (tokenEnd > tokenBegin && std::isspace(static_cast<unsigned char>(*(tokenEnd - 1)))) {
+        --tokenEnd;
+    }
+
+    if (tokenBegin == tokenEnd) {
+        return true;
+    }
+
+    std::string token(tokenBegin, tokenEnd);
+    return _stricmp(token.c_str(), "NA") == 0 ||
+           _stricmp(token.c_str(), "N/A") == 0 ||
+           _stricmp(token.c_str(), "NaN") == 0;
+}
+
+double ParseMetricValue(const char* data, Header columnId, size_t line)
+{
+    if (IsMissingMetricToken(data)) {
+        return kMissingMetricValue;
+    }
+
+    double convertedData = 0.;
+    CharConvert<double> converter;
+    converter.Convert(data, convertedData, columnId, line);
+    if (std::isnan(convertedData)) {
+        return kMissingMetricValue;
+    }
+
+    return convertedData;
+}
+
 size_t countDecimalPlaces(double value) {
     std::string str = std::to_string(value);
     auto dotPos = str.find('.');
@@ -381,6 +435,22 @@ size_t countDecimalPlaces(double value) {
         if (c != '0') ++count;
     }
     return count;
+}
+
+bool ValidateFrameType(PM_FRAME_TYPE gold, PM_FRAME_TYPE test) {
+    // Gold FrameType may be NotSet, Repeated or Application. If Gold is one of NotSet, Unspecified or Repeated test must match. If Gold is
+    // Application, test can be Application, NotSet, or Repeated. The reason for this is if the gold file was generated from PresentMon version
+    // that had DEBUG_FRAME_TYPE defined.
+    if (gold == PM_FRAME_TYPE_NOT_SET || gold == PM_FRAME_TYPE_UNSPECIFIED || gold == PM_FRAME_TYPE_REPEATED) {
+        return test == gold;
+    }
+    else if (gold == PM_FRAME_TYPE_APPLICATION) {
+        return test == PM_FRAME_TYPE_APPLICATION || test == PM_FRAME_TYPE_NOT_SET || test == PM_FRAME_TYPE_REPEATED;
+    }
+    else {
+        return gold == test;
+    }
+
 }
 
 template<typename T>
@@ -441,7 +511,28 @@ bool Validate(const T& param1, const T& param2) {
 
 }
 
-std::optional<std::ofstream> CreateCsvFile(const std::string& output_dir, const std::string& processName)
+
+
+bool ValidateMetricValue(double expected, double actual)
+{
+    const auto expectedMissing = std::isnan(expected);
+    const auto actualMissing = std::isnan(actual);
+    if (actualMissing) {
+        // If actual is missing, it's only valid if expected is exactly 0.0,
+        // otherwise it would be a mismatch with the gold file. The intent is to eventually
+        // migrate all gold files to use NA or NAN for missing metrics, but in the meantime
+        // we want to allow 0.0 as a valid expected value for metrics yet to be transitioned.
+        return expectedMissing || expected == 0.0;
+    }
+
+    if (expectedMissing) {
+        return false;
+    }
+
+    return Validate(expected, actual);
+}
+
+std::optional<std::ofstream> CreateCsvFile(std::string& output_dir, std::string& processName)
 {
     // Setup csv file
     time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -469,7 +560,7 @@ std::optional<std::ofstream> CreateCsvFile(const std::string& output_dir, const 
         csvFile <<
             "Application,ProcessID,SwapChainAddress,PresentRuntime"
             ",SyncInterval,PresentFlags,AllowsTearing,PresentMode"
-            ",FrameType,TimeInSec,MsBetweenSimulationStart,MsBetweenPresents"
+            ",FrameType,TimeInQPC,MsBetweenSimulationStart,MsBetweenPresents"
             ",MsBetweenDisplayChange,MsInPresent,MsRenderPresentLatency"
             ",MsUntilDisplayed,MsPCLatency,CPUStartQPC,MsBetweenAppStart"
             ",MsCPUBusy,MsCPUWait,MsGPULatency,MsGPUTime,MsGPUBusy,MsGPUWait"
@@ -700,6 +791,8 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
 
         // Go through all of the active headers and validate results
         for (const auto& pair : activeColHeadersMap_) {
+
+            bool columnsMatch = false;
             switch (pair.second)
             {
             case Header_Application:
@@ -727,7 +820,7 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
                 ValidateOrThrow(pair.second, line_, v2MetricRow_.presentMode, presentMode);
                 break;
             case Header_FrameType:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.frameType, frameType);
+                columnsMatch = ValidateFrameType(v2MetricRow_.frameType, frameType);
                 break;
             case Header_TimeInSeconds:
                 ValidateOrThrow(pair.second, line_, v2MetricRow_.presentStartQPC, timeQpc);
@@ -736,13 +829,13 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
                 ValidateOrThrow(pair.second, line_, v2MetricRow_.cpuFrameQpc, cpuStartQpc);
                 break;
             case Header_MsBetweenAppStart:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.msBetweenAppStart, msBetweenAppStart);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msBetweenAppStart, msBetweenAppStart);
                 break;
             case Header_MsCPUBusy:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.msCpuBusy, msCpuBusy);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msCpuBusy, msCpuBusy);
                 break;
             case Header_MsCPUWait:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.msCpuWait, msCpuWait);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msCpuWait, msCpuWait);
                 break;
             case Header_MsGPULatency:
                 ValidateOrThrow(pair.second, line_, v2MetricRow_.msGpuLatency, msGpuLatency);
@@ -757,31 +850,34 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
                 ValidateOrThrow(pair.second, line_, v2MetricRow_.msGpuWait, msGpuWait);
                 break;
             case Header_MsBetweenSimulationStart:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.msBetweenSimStart, msBetweenSimStartTime);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msBetweenSimStart, msBetweenSimStartTime);
                 break;
             case Header_MsUntilDisplayed:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.msUntilDisplayed, msUntilDisplayed);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msUntilDisplayed, msUntilDisplayed);
                 break;
             case Header_MsBetweenDisplayChange:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.msBetweenDisplayChange, msBetweenDisplayChange);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msBetweenDisplayChange, msBetweenDisplayChange);
                 break;
             case Header_MsPCLatency:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.msPcLatency, msPcLatency);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msPcLatency, msPcLatency);
                 break;
             case Header_MsAnimationError:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.msAnimationError, msAnimationError);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msAnimationError, msAnimationError);
                 break;
             case Header_AnimationTime:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.animationTime, animationTime);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.animationTime, animationTime);
+                break;
+            case Header_MsFlipDelay:
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msFlipDelay, msFrameDelay);
                 break;
             case Header_MsClickToPhotonLatency:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.msClickToPhotonLatency, msClickToPhotonLatency);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msClickToPhotonLatency, msClickToPhotonLatency);
                 break;
             case Header_MsAllInputToPhotonLatency:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.msAllInputToPhotonLatency, msAllInputToPhotonLatency);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msAllInputToPhotonLatency, msAllInputToPhotonLatency);
                 break;
             case Header_MsInstrumentedLatency:
-                ValidateOrThrow(pair.second, line_, v2MetricRow_.msInstrumentedLatency, msInstrumentedLatency);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msInstrumentedLatency, msInstrumentedLatency);
                 break;
             default:
                 // Unknown header, skip validation
@@ -896,6 +992,7 @@ bool CsvParser::Open(std::wstring const& path, uint32_t processId) {
                                                Header_MsBetweenDisplayChange,
                                                Header_MsAnimationError,
                                                Header_AnimationTime,
+                                               Header_MsFlipDelay,
                                                Header_MsClickToPhotonLatency,
                                                Header_MsAllInputToPhotonLatency,
                                                Header_MsBetweenSimulationStart,
@@ -1054,16 +1151,7 @@ void CsvParser::ConvertToMetricDataType(const char* data, Header columnId)
     break;
     case Header_MsBetweenSimulationStart:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msBetweenSimStart = convertedData;
-        }
-        else
-        {
-            v2MetricRow_.msBetweenSimStart.reset();
-        }
+        v2MetricRow_.msBetweenSimStart = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsBetweenPresents:
@@ -1074,15 +1162,7 @@ void CsvParser::ConvertToMetricDataType(const char* data, Header columnId)
     break;
     case Header_MsBetweenDisplayChange:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msBetweenDisplayChange = convertedData;
-        }
-        else {
-            v2MetricRow_.msBetweenDisplayChange.reset();
-        }
+        v2MetricRow_.msBetweenDisplayChange = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsInPresentAPI: {
@@ -1098,95 +1178,42 @@ void CsvParser::ConvertToMetricDataType(const char* data, Header columnId)
     break;
     case Header_MsUntilDisplayed:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msUntilDisplayed = convertedData;
-        }
-        else
-        {
-            v2MetricRow_.msUntilDisplayed.reset();
-        }
+        v2MetricRow_.msUntilDisplayed = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsPCLatency:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msPcLatency = convertedData;
-        }
-        else {
-            v2MetricRow_.msPcLatency.reset();
-        }
+        v2MetricRow_.msPcLatency = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsAnimationError:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msAnimationError = convertedData;
-        }
-        else {
-            v2MetricRow_.msAnimationError.reset();
-        }
+        v2MetricRow_.msAnimationError = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_AnimationTime:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.animationTime = convertedData;
-        }
-        else {
-            v2MetricRow_.animationTime.reset();
-        }
+        v2MetricRow_.animationTime = ParseMetricValue(data, columnId, line_);
+    }
+    break;
+    case Header_MsFlipDelay:
+    {
+        v2MetricRow_.msFlipDelay = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsClickToPhotonLatency:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msClickToPhotonLatency = convertedData;
-        }
-        else {
-            v2MetricRow_.msClickToPhotonLatency.reset();
-        }
+        v2MetricRow_.msClickToPhotonLatency = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsAllInputToPhotonLatency:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msAllInputToPhotonLatency = convertedData;
-        }
-        else {
-            v2MetricRow_.msAllInputToPhotonLatency.reset();
-        }
+        v2MetricRow_.msAllInputToPhotonLatency = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsInstrumentedLatency:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msInstrumentedLatency = convertedData;
-        }
-        else
-        {
-            v2MetricRow_.msInstrumentedLatency.reset();
-        }
+        v2MetricRow_.msInstrumentedLatency = ParseMetricValue(data, columnId, line_);
     }
     break;
     default:

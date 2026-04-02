@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
@@ -24,8 +24,7 @@ namespace MultiClientTests
 		{
 			static CommonProcessArgs args{
 				.ctrlPipe = R"(\\.\pipe\pm-multi-test-ctrl)",
-				.introNsm = "pm_multi_test_intro",
-				.frameNsm = "pm_multi_test_nsm",
+				.shmNamePrefix = "pm_multi_test_intro",
 				.logLevel = "debug",
 				.logFolder = logFolder_,
 				.sampleClientMode = "MultiClient",
@@ -52,10 +51,10 @@ namespace MultiClientTests
 		{
 			// verify initial status
 			const auto status = fixture_.service->QueryStatus();
-			Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+			Assert::AreEqual(0ull, status.trackedPids.size());
+			Assert::AreEqual(0ull, status.frameStorePids.size());
 			Assert::AreEqual(16u, status.telemetryPeriodMs);
-			Assert::IsTrue((bool)status.etwFlushPeriodMs);
-			Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+			Assert::IsFalse((bool)status.etwFlushPeriodMs);
 		}
 		// verify client lifetime
 		TEST_METHOD(ClientLaunchTest)
@@ -381,12 +380,11 @@ namespace MultiClientTests
 				Assert::AreEqual(50u, *status.etwFlushPeriodMs);
 			}
 
-			// kill client 1; should revert to default (1000 ms per ServiceStatusTest)
+			// kill client 1; should revert to default (manual flush disabled)
 			client1.Quit();
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::IsTrue((bool)status.etwFlushPeriodMs);
-				Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+				Assert::IsFalse((bool)status.etwFlushPeriodMs);
 			}
 		}
 		// verify reversion on sudden client death
@@ -430,8 +428,7 @@ namespace MultiClientTests
 			// verify reversion to default
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::IsTrue((bool)status.etwFlushPeriodMs);
-				Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+				Assert::IsFalse((bool)status.etwFlushPeriodMs);
 			}
 		}
 		// verify range check error high
@@ -476,21 +473,24 @@ namespace MultiClientTests
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// one client quits
 			client1.Quit();
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// other client quits
 			client2.Quit();
 			// verify tracking stopped at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(0ull, status.trackedPids.size());
+				Assert::AreEqual(0ull, status.frameStorePids.size());
 			}
 		}
 		// verify process untrack (stream stop) when clients die suddenly
@@ -509,7 +509,8 @@ namespace MultiClientTests
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// one client dies
 			client1.Murder();
@@ -517,7 +518,8 @@ namespace MultiClientTests
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// other client dies
 			client2.Murder();
@@ -525,7 +527,8 @@ namespace MultiClientTests
 			// verify tracking stopped at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(0ull, status.trackedPids.size());
+				Assert::AreEqual(0ull, status.frameStorePids.size());
 			}
 		}
 		// test a large number of clients running
@@ -550,6 +553,88 @@ namespace MultiClientTests
 					frames.size(), i).c_str());
 				Assert::IsTrue(frames.size() >= 40ull, L"Minimum threshold frames received");
 			}
+		}
+	};
+
+	TEST_CLASS(ServiceCrashTests)
+	{
+	private:
+		class Fixture_ : public CommonTestFixture
+		{
+		protected:
+			const CommonProcessArgs& GetCommonArgs() const override
+			{
+				static CommonProcessArgs args{
+					.ctrlPipe = R"(\\.\pipe\pm-multi-test-ctrl)",
+					.shmNamePrefix = "pm_multi_test_intro",
+					.logLevel = "debug",
+					.logFolder = logFolder_,
+					.sampleClientMode = "ServiceCrashClient",
+				};
+				return args;
+			}
+		} fixture_;
+		static constexpr auto clientExitTimeout_ = 3s;
+
+		void RunCrashCase_(const std::vector<std::string>& args)
+		{
+			auto client = fixture_.LaunchClient(args);
+
+			fixture_.StopService();
+
+			Assert::AreEqual("exit-ack"s, client.Command("exit"));
+			if (!client.WaitForExit(clientExitTimeout_)) {
+				client.Murder();
+				Assert::Fail(L"Client did not exit after service termination");
+			}
+		}
+
+		void RunCrashCase_(pmon::test::client::CrashPhase phase)
+		{
+			RunCrashCase_({
+				"--submode"s, std::to_string(static_cast<int>(phase)),
+			});
+		}
+
+		void RunCrashCaseWithPresenter_(pmon::test::client::CrashPhase phase)
+		{
+			auto presenter = fixture_.LaunchPresenter();
+			std::this_thread::sleep_for(30ms);
+
+			RunCrashCase_({
+				"--submode"s, std::to_string(static_cast<int>(phase)),
+				"--process-id"s, std::to_string(presenter.GetId()),
+			});
+		}
+
+	public:
+		TEST_METHOD_INITIALIZE(Setup)
+		{
+			fixture_.Setup();
+		}
+		TEST_METHOD_CLEANUP(Cleanup)
+		{
+			fixture_.Cleanup();
+		}
+		// service drops while client has a session open
+		TEST_METHOD(SessionOpen)
+		{
+			RunCrashCase_(pmon::test::client::CrashPhase::SessionOpen);
+		}
+		// service drops while client has a registered query
+		TEST_METHOD(QueryRegistered)
+		{
+			RunCrashCase_(pmon::test::client::CrashPhase::QueryRegistered);
+		}
+		// service drops while client is tracking a target
+		TEST_METHOD(TargetTracked)
+		{
+			RunCrashCaseWithPresenter_(pmon::test::client::CrashPhase::TargetTracked);
+		}
+		// service drops while client is polling a query/target
+		TEST_METHOD(QueryPolling)
+		{
+			RunCrashCaseWithPresenter_(pmon::test::client::CrashPhase::QueryPolling);
 		}
 	};
 }

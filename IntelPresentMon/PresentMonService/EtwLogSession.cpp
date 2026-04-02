@@ -124,7 +124,10 @@ namespace pmon::svc
     EtwLogSession::~EtwLogSession()
     {
         if (!Empty()) {
-            Finish();
+            try { Finish(); }
+            catch (...) {
+                pmlog_error(util::ReportException("EtwLogSession dtor"));
+            }
         }
     }
     bool EtwLogSession::Empty() const

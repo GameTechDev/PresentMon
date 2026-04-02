@@ -7,6 +7,7 @@
     "cli11",
     "boost-interprocess",
     "boost-process",
+    "boost-circular-buffer",
     "cereal",
     "concurrentqueue",
     "boost-asio",

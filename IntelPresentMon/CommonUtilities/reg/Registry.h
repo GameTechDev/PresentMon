@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <winreg/winreg.hpp>
 
@@ -29,19 +29,17 @@ namespace pmon::util::reg
 			{}
 			std::optional<T> AsOptional() const noexcept
 			{
+				if (!Exists()) {
+					return {};
+				}
 				try {
 					return Get();
 				}
 				catch (const RegistryNotOpen&) {
 					pmlog_warn("Optional access of registry value when key not open");
 				}
-				catch (const winreg::RegException& e) {
-					if (e.code().value() == 2) {
-						pmlog_dbg("Optional access of absent value");
-					}
-					else {
-						pmlog_error(ReportException("Error during optional access of registry value"));
-					}
+				catch (const winreg::RegException&) {
+					pmlog_error(ReportException("Error during optional access of registry value"));
 				}
 				catch (...) {
 					pmlog_error(ReportException("Unknown error during optional access of registry value"));

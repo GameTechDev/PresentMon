@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" DefaultTargets="Build" InitialTargets="EnsureWixToolsetInstalled" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\..\Version.props" Condition="Exists('..\..\Version.props') and '$(VersionPropsImported)'==''" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
@@ -13,7 +14,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
     <OutputPath>..\..\build\$(Configuration)\</OutputPath>
     <IntermediateOutputPath>..\..\build\obj\PMInstaller-$(Platform)-$(Configuration)\</IntermediateOutputPath>
-    <DefineConstants>Debug;</DefineConstants>
+    <DefineConstants>Debug;ConsoleAppVersion=$(PresentMonVersion);ProductVersion=$(PresentMonProductVersion)</DefineConstants>
     <CompilerAdditionalOptions>-arch x64</CompilerAdditionalOptions>
     <LinkerAdditionalOptions>
     </LinkerAdditionalOptions>
@@ -24,8 +25,7 @@
     <OutputPath>..\..\build\$(Configuration)\</OutputPath>
     <IntermediateOutputPath>..\..\build\obj\PMInstaller-$(Platform)-$(Configuration)\</IntermediateOutputPath>
     <CompilerAdditionalOptions>-arch x64</CompilerAdditionalOptions>
-    <DefineConstants>
-    </DefineConstants>
+    <DefineConstants>ConsoleAppVersion=$(PresentMonVersion);ProductVersion=$(PresentMonProductVersion)</DefineConstants>
     <LinkerAdditionalOptions>
     </LinkerAdditionalOptions>
     <SuppressIces>ICE60</SuppressIces>

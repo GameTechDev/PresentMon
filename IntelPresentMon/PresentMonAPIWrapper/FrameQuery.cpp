@@ -8,7 +8,11 @@
 
 namespace pmapi
 {
-    FrameQuery::~FrameQuery() { Reset(); }
+    FrameQuery::~FrameQuery()
+    {
+        try { Reset(); }
+        catch (...) {}
+    }
 
     FrameQuery::FrameQuery(FrameQuery&& other) noexcept
     {

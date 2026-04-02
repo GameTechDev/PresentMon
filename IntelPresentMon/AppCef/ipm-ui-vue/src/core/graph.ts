@@ -1,7 +1,6 @@
 // Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 import { type RgbaColor } from "./color"
-import { compareVersions } from "./signature";
 import { type Widget, WidgetType, generateKey } from './widget'
 import { makeDefaultWidgetMetric } from "./widget-metric";
 import { type QualifiedMetric } from "./qualified-metric";
@@ -80,31 +79,4 @@ export function makeDefaultGraph(metric: QualifiedMetric|null = null): Graph {
         },        
         textSize: 11,
     };
-}
-
-
-interface Migration {
-  version: string;
-  migrate: (graph: Graph) => void;
-}
-
-const migrations: Migration[] = [
-  {
-      version: '0.13.0',
-      migrate: (graph: Graph) => {
-          let e = new Error('Loadout file version too old to migrate (<0.13.0).');
-          (e as any).noticeOverride = true;
-          throw e;
-      }
-  },
-];
-
-migrations.sort((a, b) => compareVersions(a.version, b.version));
-
-export function migrateGraph(graph: Graph, sourceVersion: string): void {
-  for (const mig of migrations) {
-      if (compareVersions(mig.version, sourceVersion) > 0) {
-          mig.migrate(graph);
-      }
-  }
 }

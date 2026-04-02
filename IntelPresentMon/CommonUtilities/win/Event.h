@@ -27,11 +27,12 @@ namespace pmon::util::win
     std::optional<uint32_t> WaitOnMultipleEvents(std::span<Event::HandleType> events, bool waitAll = false, uint32_t milli = 0xFFFF'FFFF);
 
     template<typename T> concept Eventable = std::derived_from<T, Handle> || std::same_as<T, Handle::HandleType>;
+    // TODO: this can just return a non-optional more simply
     template<Eventable...E >
-    std::optional<uint32_t> WaitAnyEvent(const E&...events)
+    uint32_t WaitAnyEvent(const E&...events)
     {
         Event::HandleType handles[] = { events... };
-        return WaitOnMultipleEvents(handles);
+        return *WaitOnMultipleEvents(handles);
     }
 
     template<class D, Eventable...E>

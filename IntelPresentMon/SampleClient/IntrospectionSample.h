@@ -34,3 +34,27 @@ int IntrospectionSample(std::unique_ptr<pmapi::Session>&& pSession)
 
     return 0;
 }
+
+int IntrospectAllDevices(std::unique_ptr<pmapi::Session>&& pSession)
+{
+    // Example of how to use introspection to examine ALL devices
+    auto pIntrospectionRoot = pSession->GetIntrospectionRoot();
+
+    // Loop through ALL PresentMon metrics
+    for (auto device : pIntrospectionRoot->GetDevices())
+    {
+        auto luid = device.GetLuid();
+        std::string luidString;
+        luidString.reserve(luid->GetSize() * 3); // "XX:" per byte
+        auto luidData = static_cast<const uint8_t*>(luid->GetData());
+        for (size_t i = 0; i < luid->GetSize(); ++i)
+        {
+            luidString += std::format("{:02X}", luidData[i]);
+        }
+        std::cout << std::format("Device Name: {}, Device Id: {}, Luid: {}",
+            device.GetName(), device.GetId(), luidString);
+        std::cout << std::endl;
+    }
+
+    return 0;
+}

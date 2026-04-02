@@ -1,5 +1,5 @@
 //===========================================================================
-// Copyright (C) 2022-23 Intel Corporation
+// Copyright (C) 2025 Intel Corporation
 // This software and the related documents are Intel copyrighted materials, and
 // your use of them is governed by the express license under which they were
 // provided to you ("License"). Unless the License provides otherwise, you may
@@ -120,6 +120,9 @@ typedef enum _ctl_init_flag_t
 {
     CTL_INIT_FLAG_USE_LEVEL_ZERO = CTL_BIT(0),      ///< Use Level0 or not. This is usually required for telemetry,
                                                     ///< performance, frequency related APIs
+    CTL_INIT_FLAG_IGSC_FUL = CTL_BIT(1),            ///< Enable IGSC(Intel Graphics System Firmware Update Library) full
+                                                    ///< functionality mode, which may include advanced graphics and compute
+                                                    ///< capabilities
     CTL_INIT_FLAG_MAX = 0x80000000
 
 } ctl_init_flag_t;
@@ -391,6 +394,8 @@ typedef enum _ctl_result_t
     CTL_RESULT_ERROR_LOAD = 0x40000026,             ///< Library load failure
     CTL_RESULT_ERROR_UNKNOWN = 0x4000FFFF,          ///< Unknown or internal error
     CTL_RESULT_ERROR_RETRY_OPERATION = 0x40010000,  ///< Operation failed, retry previous operation again
+    CTL_RESULT_ERROR_IGSC_LOADER = 0x40010001,      ///< IGSC library loader not found
+    CTL_RESULT_ERROR_RESTRICTED_APPLICATION = 0x40010002,   ///< Unsupported application
     CTL_RESULT_ERROR_GENERIC_END = 0x4000FFFF,      ///< "Generic error code end value, not to be used
                                                     ///< "
     CTL_RESULT_ERROR_CORE_START = 0x44000000,       ///< Core error code starting value, not to be used
@@ -404,6 +409,18 @@ typedef enum _ctl_result_t
                                                     ///< device is reset.
     CTL_RESULT_ERROR_CORE_OVERCLOCK_WAIVER_NOT_SET = 0x44000008,///< The $OverclockWaiverSet function has not been called.
     CTL_RESULT_ERROR_CORE_OVERCLOCK_DEPRECATED_API = 0x44000009,///< The error indicates to switch to newer API version if applicable.
+    CTL_RESULT_ERROR_CORE_LED_GET_STATE_NOT_SUPPORTED_FOR_I2C_LED = 0x4400000a, ///< The error indicates that driver cannot get Led state if Led is i2c
+                                                    ///< supported
+    CTL_RESULT_ERROR_CORE_LED_SET_STATE_NOT_SUPPORTED_FOR_I2C_LED = 0x4400000b, ///< The error indicates that driver cannot set Led state if Led is i2c
+                                                    ///< supported
+    CTL_RESULT_ERROR_CORE_LED_TOO_FREQUENT_SET_REQUESTS = 0x4400000c,   ///< The error indicates that Set Led State request is called too
+                                                    ///< frequently too fast
+    CTL_RESULT_ERROR_CORE_OVERCLOCK_VRAM_MEMORY_SPEED_OUTSIDE_RANGE = 0x4400000d,   ///< The VRAM Memory Speed exceeds the acceptable min/max.
+    CTL_RESULT_ERROR_CORE_OVERCLOCK_INVALID_CUSTOM_VF_CURVE = 0x4400000e,   ///< Invalid Custom VF Curve applied using OverclockWriteCustomVFCurve.
+                                                    ///< Valid VF Curve contains VF Curve Points which are within min/max of
+                                                    ///< gpuVFCurveVoltageLimit, gpuVFCurveFrequencyLimit parameters in
+                                                    ///< ctl_oc_properties_t structure and VFCurve points with distinct volages
+                                                    ///< in ascending order, frequencies in ascending order.
     CTL_RESULT_ERROR_CORE_END = 0x0440FFFF,         ///< "Core error code end value, not to be used
                                                     ///< "
     CTL_RESULT_ERROR_3D_START = 0x60000000,         ///< 3D error code starting value, not to be used
@@ -461,7 +478,7 @@ typedef enum _ctl_result_t
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef CTL_MAX_RESERVED_SIZE
 /// @brief Maximum reserved size for future members.
-#define CTL_MAX_RESERVED_SIZE  112
+#define CTL_MAX_RESERVED_SIZE  108
 #endif // CTL_MAX_RESERVED_SIZE
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -735,7 +752,7 @@ typedef struct _ctl_device_adapter_properties_t
     ctl_device_type_t device_type;                  ///< [out] Device Type
     ctl_supported_functions_flags_t supported_subfunction_flags;///< [out] Supported functions
     uint64_t driver_version;                        ///< [out] Driver version
-    ctl_firmware_version_t firmware_version;        ///< [out] Firmware version
+    ctl_firmware_version_t firmware_version;        ///< [out] Global Firmware version for discrete adapters. Not implemented
     uint32_t pci_vendor_id;                         ///< [out] PCI Vendor ID
     uint32_t pci_device_id;                         ///< [out] PCI Device ID
     uint32_t rev_id;                                ///< [out] PCI Revision ID
@@ -750,6 +767,7 @@ typedef struct _ctl_device_adapter_properties_t
     uint16_t pci_subsys_id;                         ///< [out] PCI SubSys ID, Supported only for Version > 1
     uint16_t pci_subsys_vendor_id;                  ///< [out] PCI SubSys Vendor ID, Supported only for Version > 1
     ctl_adapter_bdf_t adapter_bdf;                  ///< [out] Pci Bus, Device, Function. Supported only for Version > 1
+    uint32_t num_xe_cores;                          ///< [out] Number of Xe Cores. Supported only for Version > 2
     char reserved[CTL_MAX_RESERVED_SIZE];           ///< [out] Reserved
 
 } ctl_device_adapter_properties_t;
@@ -1178,10 +1196,6 @@ typedef struct _ctl_sw_psr_settings_t ctl_sw_psr_settings_t;
 typedef struct _ctl_intel_arc_sync_monitor_params_t ctl_intel_arc_sync_monitor_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Forward-declare ctl_mux_properties_t
-typedef struct _ctl_mux_properties_t ctl_mux_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Forward-declare ctl_intel_arc_sync_profile_params_t
 typedef struct _ctl_intel_arc_sync_profile_params_t ctl_intel_arc_sync_profile_params_t;
 
@@ -1250,6 +1264,14 @@ typedef struct _ctl_get_set_wire_format_config_t ctl_get_set_wire_format_config_
 typedef struct _ctl_display_settings_t ctl_display_settings_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Forward-declare ctl_ecc_properties_t
+typedef struct _ctl_ecc_properties_t ctl_ecc_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Forward-declare ctl_ecc_state_desc_t
+typedef struct _ctl_ecc_state_desc_t ctl_ecc_state_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Forward-declare ctl_engine_properties_t
 typedef struct _ctl_engine_properties_t ctl_engine_properties_t;
 
@@ -1276,6 +1298,14 @@ typedef struct _ctl_fan_properties_t ctl_fan_properties_t;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Forward-declare ctl_fan_config_t
 typedef struct _ctl_fan_config_t ctl_fan_config_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Forward-declare ctl_firmware_properties_t
+typedef struct _ctl_firmware_properties_t ctl_firmware_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Forward-declare ctl_firmware_component_properties_t
+typedef struct _ctl_firmware_component_properties_t ctl_firmware_component_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Forward-declare ctl_freq_properties_t
@@ -1394,6 +1424,10 @@ typedef struct _ctl_psu_info_t ctl_psu_info_t;
 typedef struct _ctl_power_telemetry_t ctl_power_telemetry_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Forward-declare ctl_voltage_frequency_point_t
+typedef struct _ctl_voltage_frequency_point_t ctl_voltage_frequency_point_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Forward-declare ctl_pci_address_t
 typedef struct _ctl_pci_address_t ctl_pci_address_t;
 
@@ -1478,6 +1512,8 @@ typedef enum _ctl_3d_feature_t
     CTL_3D_FEATURE_VRR_WINDOWED_BLT = 14,           ///< VRR windowed blt. Control VRR for windowed mode game
     CTL_3D_FEATURE_GLOBAL_OR_PER_APP = 15,          ///< Set global settings or per application settings
     CTL_3D_FEATURE_LOW_LATENCY = 16,                ///< Low latency mode. Contains generic enum type fields
+    CTL_3D_FEATURE_FRAME_GENERATION = 17,           ///< Frame Generation
+    CTL_3D_FEATURE_PREBUILT_SHADER_DOWNLOAD = 18,   ///< Download prebuilt shaders. Contains generic bool type fields
     CTL_3D_FEATURE_MAX
 
 } ctl_3d_feature_t;
@@ -1616,11 +1652,14 @@ typedef uint32_t ctl_gaming_flip_mode_flags_t;
 typedef enum _ctl_gaming_flip_mode_flag_t
 {
     CTL_GAMING_FLIP_MODE_FLAG_APPLICATION_DEFAULT = CTL_BIT(0), ///< Application Default
-    CTL_GAMING_FLIP_MODE_FLAG_VSYNC_OFF = CTL_BIT(1),   ///< Convert all sync flips to async on the next possible scanline.
+    CTL_GAMING_FLIP_MODE_FLAG_VSYNC_OFF = CTL_BIT(1),   ///< Convert all sync flips to async on the next possible scanline for
+                                                    ///< Intel Verified application profile.
     CTL_GAMING_FLIP_MODE_FLAG_VSYNC_ON = CTL_BIT(2),///< Convert all async flips to sync flips.
     CTL_GAMING_FLIP_MODE_FLAG_SMOOTH_SYNC = CTL_BIT(3), ///< Reduce tearing effect with async flips
     CTL_GAMING_FLIP_MODE_FLAG_SPEED_FRAME = CTL_BIT(4), ///< Application unaware triple buffering
     CTL_GAMING_FLIP_MODE_FLAG_CAPPED_FPS = CTL_BIT(5),  ///< Limit the game FPS to panel RR
+    CTL_GAMING_FLIP_MODE_FLAG_VSYNC_OFF_IGNORE_ALLOW_LIST = CTL_BIT(6), ///< Convert all sync flips to async on the next possible scanline without
+                                                    ///< application filtering.
     CTL_GAMING_FLIP_MODE_FLAG_MAX = 0x80000000
 
 } ctl_gaming_flip_mode_flag_t;
@@ -2500,6 +2539,10 @@ typedef enum _ctl_i2c_flag_t
     CTL_I2C_FLAG_SPEED_FAST = CTL_BIT(5),           ///< If no Speed Flag is set, defaults to Best Option possible.
     CTL_I2C_FLAG_SPEED_BIT_BASH = CTL_BIT(6),       ///< Uses Slower access using SW bit bashing method. If no Speed Flag is
                                                     ///< set, defaults to Best Option possible.
+    CTL_I2C_FLAG_DRIVER_OVERRIDE = CTL_BIT(7),      ///< If set, overrides the driver I2C flags with those provided by IGCL
+    CTL_I2C_FLAG_START = CTL_BIT(8),                ///< I2C Start driver override flag
+    CTL_I2C_FLAG_STOP = CTL_BIT(9),                 ///< I2C Stop driver override flags
+    CTL_I2C_FLAG_RESTART = CTL_BIT(10),             ///< I2C Restart driver override flag
     CTL_I2C_FLAG_MAX = 0x80000000
 
 } ctl_i2c_flag_t;
@@ -2526,7 +2569,8 @@ typedef struct _ctl_i2c_access_args_t
 /// @brief I2C Access
 /// 
 /// @details
-///     - Interface to access I2C using display handle as identifier.
+///     - Interface to access I2C using display handle as identifier.  I2C
+///       driver override flags are supported only for HDMI displays.
 /// 
 /// @returns
 ///     - CTL_RESULT_SUCCESS
@@ -3734,105 +3778,6 @@ ctlGetIntelArcSyncInfoForMonitor(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of a MUX output instance
-typedef struct _ctl_mux_output_handle_t *ctl_mux_output_handle_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Enumerate Display MUX Devices on this system across adapters
-/// 
-/// @details
-///     - The application enumerates all MUX devices in the system
-/// 
-/// @returns
-///     - CTL_RESULT_SUCCESS
-///     - CTL_RESULT_ERROR_UNINITIALIZED
-///     - CTL_RESULT_ERROR_DEVICE_LOST
-///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hAPIHandle`
-///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pCount`
-///         + `nullptr == phMuxDevices`
-///     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
-CTL_APIEXPORT ctl_result_t CTL_APICALL
-ctlEnumerateMuxDevices(
-    ctl_api_handle_t hAPIHandle,                    ///< [in][release] Applications should pass the Control API handle returned
-                                                    ///< by the CtlInit function 
-    uint32_t* pCount,                               ///< [in,out][release] pointer to the number of MUX device instances. If
-                                                    ///< input count is zero, then the api will update the value with the total
-                                                    ///< number of MUX devices available and return the Count value. If input
-                                                    ///< count is non-zero, then the api will only retrieve the number of MUX Devices.
-                                                    ///< If count is larger than the number of MUX devices available, then the
-                                                    ///< api will update the value with the correct number of MUX devices available.
-    ctl_mux_output_handle_t* phMuxDevices           ///< [out][range(0, *pCount)] array of MUX device instance handles
-    );
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Display MUX device properties
-typedef struct _ctl_mux_properties_t
-{
-    uint32_t Size;                                  ///< [in] size of this structure
-    uint8_t Version;                                ///< [in] version of this structure
-    uint8_t MuxId;                                  ///< [out] MUX ID of this MUX device enumerated
-    uint32_t Count;                                 ///< [in,out] Pointer to the number of display output instances this MUX
-                                                    ///< object can drive. If count is zero, then the api will update the value
-                                                    ///< with the total
-                                                    ///< number of outputs available. If count is non-zero, then the api will
-                                                    ///< only retrieve the number of outputs.
-                                                    ///< If count is larger than the number of display outputs MUX can drive,
-                                                    ///< then the api will update the value with the correct number of display
-                                                    ///< outputs MUX can driver.
-    ctl_display_output_handle_t* phDisplayOutputs;  ///< [in,out][range(0, *pCount)] Array of display output instance handles
-                                                    ///< this MUX device can drive
-    uint8_t IndexOfDisplayOutputOwningMux;          ///< [out] [range(0, (Count-1))] This is the index into the
-                                                    ///< phDisplayOutputs list to the display output which currently owns the
-                                                    ///< MUX output. This doesn't mean display is active
-
-} ctl_mux_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Get Display Mux properties
-/// 
-/// @details
-///     - Get the propeties of the Mux device
-/// 
-/// @returns
-///     - CTL_RESULT_SUCCESS
-///     - CTL_RESULT_ERROR_UNINITIALIZED
-///     - CTL_RESULT_ERROR_DEVICE_LOST
-///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hMuxDevice`
-///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pMuxProperties`
-///     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
-CTL_APIEXPORT ctl_result_t CTL_APICALL
-ctlGetMuxProperties(
-    ctl_mux_output_handle_t hMuxDevice,             ///< [in] MUX device instance handle
-    ctl_mux_properties_t* pMuxProperties            ///< [in,out] MUX device properties
-    );
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Switch Mux output
-/// 
-/// @details
-///     - Switches the MUX output
-/// 
-/// @returns
-///     - CTL_RESULT_SUCCESS
-///     - CTL_RESULT_ERROR_UNINITIALIZED
-///     - CTL_RESULT_ERROR_DEVICE_LOST
-///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hMuxDevice`
-///         + `nullptr == hInactiveDisplayOutput`
-///     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
-CTL_APIEXPORT ctl_result_t CTL_APICALL
-ctlSwitchMux(
-    ctl_mux_output_handle_t hMuxDevice,             ///< [in] MUX device instance handle
-    ctl_display_output_handle_t hInactiveDisplayOutput  ///< [out] Input selection for this MUX, which if active will drive the
-                                                    ///< output of this MUX device. This should be one of the display output
-                                                    ///< handles reported under this MUX device's properties.
-    );
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intel Arc Sync profile
 typedef enum _ctl_intel_arc_sync_profile_t
 {
@@ -4683,6 +4628,130 @@ ctlGetSetDisplaySettings(
 #if !defined(__GNUC__)
 #pragma endregion // display
 #endif
+// Intel 'ctlApi' for Device Adapter - ECC
+#if !defined(__GNUC__)
+#pragma region ecc
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief ECC properties.
+typedef struct _ctl_ecc_properties_t
+{
+    uint32_t Size;                                  ///< [in] size of this structure
+    uint8_t Version;                                ///< [in] version of this structure
+    bool isSupported;                               ///< [out] Indicates if ECC support is available.
+    bool canControl;                                ///< [out] Indicates if software can control the ECC assuming the user has
+                                                    ///< permissions.
+
+} ctl_ecc_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief ECC state.
+typedef enum _ctl_ecc_state_t
+{
+    CTL_ECC_STATE_ECC_DEFAULT_STATE = 0,            ///< ECC Default State
+    CTL_ECC_STATE_ECC_ENABLED_STATE = 1,            ///< ECC Enabled State
+    CTL_ECC_STATE_ECC_DISABLED_STATE = 2,           ///< ECC Disabled State
+    CTL_ECC_STATE_MAX
+
+} ctl_ecc_state_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief ECC state descriptor. If the currentEccState is not equal to
+///        pendingEccState, then system reboot is needed for the pendingEccState
+///        to be applied.
+typedef struct _ctl_ecc_state_desc_t
+{
+    uint32_t Size;                                  ///< [in] size of this structure
+    uint8_t Version;                                ///< [in] version of this structure
+    ctl_ecc_state_t currentEccState;                ///< [in,out] Indicates the ECC state.
+                                                    ///< A valid input can be one of the ::ctl_ecc_state_t enum values.
+                                                    ///< A valid output will be either CTL_ECC_STATE_ECC_ENABLED_STATE or CTL_ECC_STATE_ECC_DISABLED_STATE.
+    ctl_ecc_state_t pendingEccState;                ///< [out] Indicates the pending ECC state from ctlEccSetState() call. A
+                                                    ///< valid output will be either CTL_ECC_STATE_ECC_ENABLED_STATE or
+                                                    ///< CTL_ECC_STATE_ECC_DISABLED_STATE.
+
+} ctl_ecc_state_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get ECC properties.
+/// 
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDAhandle`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pProperties`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlEccGetProperties(
+    ctl_device_adapter_handle_t hDAhandle,          ///< [in][release] Handle to display adapter
+    ctl_ecc_properties_t* pProperties               ///< [in,out] Will contain ECC properties.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get ECC state.
+/// 
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDAhandle`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pState`
+///     - CTL_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::CTL_ECC_STATE_ECC_DISABLED_STATE < pState->currentEccState`
+///         + `::CTL_ECC_STATE_ECC_DISABLED_STATE < pState->pendingEccState`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlEccGetState(
+    ctl_device_adapter_handle_t hDAhandle,          ///< [in][release] Handle to display adapter
+    ctl_ecc_state_desc_t* pState                    ///< [in,out] Will contain the current ECC state and pending ECC state to
+                                                    ///< be applied from previous ctlEccSetState() call.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set ECC state. Setting CTL_ECC_STATE_ECC_DEFAULT_STATE will reset the
+///        ECC state to the factory settings.
+/// 
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDAhandle`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pState`
+///     - CTL_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::CTL_ECC_STATE_ECC_DISABLED_STATE < pState->currentEccState`
+///         + `::CTL_ECC_STATE_ECC_DISABLED_STATE < pState->pendingEccState`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlEccSetState(
+    ctl_device_adapter_handle_t hDAhandle,          ///< [in][release] Handle to display adapter
+    ctl_ecc_state_desc_t* pState                    ///< [in,out] Will contain the new ECC state and pending ECC state from
+                                                    ///< ctlEccSetState() call.
+                                                    ///< New ECC State can be set only if isSupported is true and canControl is true.
+                                                    ///< ctlEccGetState() can be called to determine if the currentEccState is
+                                                    ///< not equal to pendingEccState, then system reboot is needed for the
+                                                    ///< pendingEccState to be applied.
+    );
+
+
+#if !defined(__GNUC__)
+#pragma endregion // ecc
+#endif
 // Intel 'ctlApi' for Device Adapter - Engine groups
 #if !defined(__GNUC__)
 #pragma region engine
@@ -5092,6 +5161,199 @@ ctlFanGetState(
 
 #if !defined(__GNUC__)
 #pragma endregion // fan
+#endif
+// Intel 'ctlApi' for Device Adapter - Firmware management
+#if !defined(__GNUC__)
+#pragma region firmware
+#endif
+///////////////////////////////////////////////////////////////////////////////
+#ifndef CTL_FIRMWARE_PROPERTY_STR_SIZE
+/// @brief Maximum number of characters in firmware name/version string
+#define CTL_FIRMWARE_PROPERTY_STR_SIZE  64
+#endif // CTL_FIRMWARE_PROPERTY_STR_SIZE
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle for a device firmware component
+typedef struct _ctl_firmware_component_handle_t *ctl_firmware_component_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+#ifndef CTL_MAX_FIRMWARE_PROPERTIES_RESERVED_SIZE
+/// @brief Maximum reserved size for future firmware component property members.
+#define CTL_MAX_FIRMWARE_PROPERTIES_RESERVED_SIZE  16
+#endif // CTL_MAX_FIRMWARE_PROPERTIES_RESERVED_SIZE
+
+///////////////////////////////////////////////////////////////////////////////
+#ifndef CTL_MAX_FIRMWARE_COMPONENT_PROPERTIES_RESERVED_SIZE
+/// @brief Maximum reserved size for future firmware component property members.
+#define CTL_MAX_FIRMWARE_COMPONENT_PROPERTIES_RESERVED_SIZE  20
+#endif // CTL_MAX_FIRMWARE_COMPONENT_PROPERTIES_RESERVED_SIZE
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief [out] Firmware configuration flags 
+typedef uint32_t ctl_firmware_config_flags_t;
+typedef enum _ctl_firmware_config_flag_t
+{
+    CTL_FIRMWARE_CONFIG_FLAG_IS_DEVICE_LINK_SPEED_DOWNGRADE_CAPABLE = CTL_BIT(0),   ///< [out] Is the device firmware capable of downgrading to lower PCIE link
+                                                    ///< speed from higher PCIE link speeds automatically on incompatible hosts.
+    CTL_FIRMWARE_CONFIG_FLAG_IS_DEVICE_LINK_SPEED_DOWNGRADE_ACTIVE = CTL_BIT(1),///< [out] This bit indicates if the discrete GPU host was capable of
+                                                    ///< running at higher PCIE link speeds but the card firmware failed to
+                                                    ///< train PCIE link at higher speeds
+                                                    ///< due to non-compliant hosts. So device firmware did a fall back to
+                                                    ///< lower link speeds.
+    CTL_FIRMWARE_CONFIG_FLAG_MAX = 0x80000000
+
+} ctl_firmware_config_flag_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Base firmware properties
+typedef struct _ctl_firmware_properties_t
+{
+    uint32_t Size;                                  ///< [in] size of this structure
+    uint8_t Version;                                ///< [in] version of this structure
+    char name[CTL_FIRMWARE_PROPERTY_STR_SIZE];      ///< [out] NULL terminated string value for the name of the firmware
+                                                    ///< component. 'unknown' will be returned if this property cannot be
+                                                    ///< determined.
+    char version[CTL_FIRMWARE_PROPERTY_STR_SIZE];   ///< [out] NULL terminated string value for the device version of the
+                                                    ///< firmware component. 'unknown' will be returned if this property cannot
+                                                    ///< be determined.
+    ctl_firmware_config_flags_t FirmwareConfig;     ///< [out] This bit indicates various firmware supported configurations and
+                                                    ///< capabilities.
+    char reserved[CTL_MAX_FIRMWARE_PROPERTIES_RESERVED_SIZE];   ///< [out] Reserved
+
+} ctl_firmware_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Individual firmware component properties
+typedef struct _ctl_firmware_component_properties_t
+{
+    uint32_t Size;                                  ///< [in] size of this structure
+    uint8_t Version;                                ///< [in] version of this structure
+    char name[CTL_FIRMWARE_PROPERTY_STR_SIZE];      ///< [out] NULL terminated string value for the name of the firmware
+                                                    ///< component. 'unknown' will be returned if this property cannot be
+                                                    ///< determined.
+    char version[CTL_FIRMWARE_PROPERTY_STR_SIZE];   ///< [out] NULL terminated string value for the device version of the
+                                                    ///< firmware component. 'unknown' will be returned if this property cannot
+                                                    ///< be determined.
+    char reserved[CTL_MAX_FIRMWARE_COMPONENT_PROPERTIES_RESERVED_SIZE]; ///< [out] Reserved
+
+} ctl_firmware_component_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get base firmware properties
+/// 
+/// @details
+///     - The application gets properties of base firmware
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceAdapter`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pProperties`
+///     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlGetFirmwareProperties(
+    ctl_device_adapter_handle_t hDeviceAdapter,     ///< [in][release] handle to control device adapter
+    ctl_firmware_properties_t* pProperties          ///< [in,out] Pointer to an array that will hold properties of the base
+                                                    ///< firmware.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get handle of various firmware components
+/// 
+/// @details
+///     - The application enumerates all firmware components on an Intel
+///       Discrete Graphics device.
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceAdapter`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pCount`
+///     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
+///     - ::CTL_RESULT_ERROR_INVALID_NULL_HANDLE - "Invalid handle"
+///     - ::CTL_RESULT_ERROR_KMD_CALL - "KMD call failed"
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlEnumerateFirmwareComponents(
+    ctl_device_adapter_handle_t hDeviceAdapter,     ///< [in][release] handle to control device adapter
+    uint32_t* pCount,                               ///< [in,out] pointer to the number of components of this type.
+                                                    ///< if count is zero, then the driver shall update the value with the
+                                                    ///< total number of components of this type that are available.
+                                                    ///< if count is greater than the number of components of this type that
+                                                    ///< are available, then the driver shall update the value with the correct
+                                                    ///< number of components.
+    ctl_firmware_component_handle_t* phFirmware     ///< [in,out][optional][release][range(0, *pCount)] array of handle of
+                                                    ///< firmware components.
+                                                    ///< If count is less than the number of firmware components that are
+                                                    ///< available, then the driver shall only retrieve that number of firmware
+                                                    ///< component handles.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get firmware component properties
+/// 
+/// @details
+///     - The application gets properties of individual firmware components
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hFirmware`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pProperties`
+///     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
+///     - ::CTL_RESULT_ERROR_INVALID_NULL_HANDLE - "Invalid handle"
+///     - ::CTL_RESULT_ERROR_KMD_CALL - "KMD call failed"
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlGetFirmwareComponentProperties(
+    ctl_firmware_component_handle_t hFirmware,      ///< [in] Handle for the firmware component.
+    ctl_firmware_component_properties_t* pProperties///< [in,out] Pointer to an array that will hold properties of the firmware
+                                                    ///< component.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Allows/Blocks discrete graphics device firmware's capability to train
+///        PCI-E link at higher speeds on compatible compatible hosts
+/// 
+/// @details
+///     - This API allows caller to allow/block a compatible discrete graphics
+///       card's firmware train PCIE links at higher speeds on compatible hosts.
+///     - System needs to be powered off and restarted for the new state to take
+///       affect. The new state will not be applied on only a warm reboot of the
+///       system.
+///     - This is a reserved capability. By default, this capability will not be
+///       enabled, need application to activate it, please contact Intel for
+///       activation.
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceAdapter`
+///     - ::CTL_RESULT_ERROR_UNSUPPORTED_VERSION - "Unsupported version"
+///     - ::CTL_RESULT_ERROR_INVALID_NULL_HANDLE - "Invalid handle"
+///     - ::CTL_RESULT_ERROR_KMD_CALL - "KMD call failed"
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlAllowPCIeLinkSpeedUpdate(
+    ctl_device_adapter_handle_t hDeviceAdapter,     ///< [in][release] handle to control device adapter
+    bool AllowPCIeLinkSpeedUpdate                   ///< [in] When set configures the device firmware to train PCI-E link at
+                                                    ///< higher speeds, else this will block the device firmware from training
+                                                    ///< at higher PCI-E link speeds on compatible hosts.
+                                                    ///< This API modifies a flash persistant setting of the device firmware to
+                                                    ///< allow/block training PCI-E link at higher speeds.
+    );
+
+
+#if !defined(__GNUC__)
+#pragma endregion // firmware
 #endif
 // Intel 'ctlApi' for Device Adapter - Frequency domains
 #if !defined(__GNUC__)
@@ -5520,6 +5782,9 @@ ctlLedGetState(
 /// @details
 ///     - The application may call this function from simultaneous threads.
 ///     - The implementation of this function should be lock-free.
+///     - This API is rate-limited by 500 milliseconds, If this API is called
+///       too frequently ::CTL_ERROR_CORE_LED_TOO_FREQUENT_SET_REQUESTS error
+///       will be returned
 /// 
 /// @returns
 ///     - CTL_RESULT_SUCCESS
@@ -6142,12 +6407,18 @@ typedef struct _ctl_oc_properties_t
     uint32_t Size;                                  ///< [in] size of this structure
     uint8_t Version;                                ///< [in] version of this structure
     bool bSupported;                                ///< [out] Indicates if the adapter supports overclocking.
-    ctl_oc_control_info_t gpuFrequencyOffset;       ///< [out] related to function ::ctlOverclockGpuFrequencyOffsetSet
-    ctl_oc_control_info_t gpuVoltageOffset;         ///< [out] related to function ::ctlOverclockGpuVoltageOffsetSet
+    ctl_oc_control_info_t gpuFrequencyOffset;       ///< [out] related to function ::ctlOverclockGpuFrequencyOffsetSetV2
+    ctl_oc_control_info_t gpuVoltageOffset;         ///< [out] related to function ::ctlOverclockGpuMaxVoltageOffsetSetV2
     ctl_oc_control_info_t vramFrequencyOffset;      ///< [out] Property Field Deprecated / No Longer Supported
     ctl_oc_control_info_t vramVoltageOffset;        ///< [out] Property Field Deprecated / No Longer Supported
-    ctl_oc_control_info_t powerLimit;               ///< [out] related to function ::ctlOverclockPowerLimitSet
-    ctl_oc_control_info_t temperatureLimit;         ///< [out] related to function ::ctlOverclockTemperatureLimitSet
+    ctl_oc_control_info_t powerLimit;               ///< [out] related to function ::ctlOverclockPowerLimitSetV2
+    ctl_oc_control_info_t temperatureLimit;         ///< [out] related to function ::ctlOverclockTemperatureLimitSetV2
+    ctl_oc_control_info_t vramMemSpeedLimit;        ///< [out] related to function ::ctlOverclockVramMemSpeedLimitSetV2
+                                                    ///< Supported only for Version > 0
+    ctl_oc_control_info_t gpuVFCurveVoltageLimit;   ///< [out] related to function ::ctlOverclockWriteCustomVFCurve Supported
+                                                    ///< only for Version > 0
+    ctl_oc_control_info_t gpuVFCurveFrequencyLimit; ///< [out] related to function ::ctlOverclockWriteCustomVFCurve Supported
+                                                    ///< only for Version > 0
 
 } ctl_oc_properties_t;
 
@@ -6236,20 +6507,20 @@ typedef struct _ctl_power_telemetry_t
                                                     ///< percentage utilization of all media blocks in the GPU.
     bool gpuPowerLimited;                           ///< [out] Instantaneous indication that the desired GPU frequency is being
                                                     ///< throttled because the GPU chip is exceeding the maximum power limits.
-                                                    ///< Increasing the power limits using ::ctlOverclockPowerLimitSet() is one
-                                                    ///< way to remove this limitation.
+                                                    ///< Increasing the power limits using ::ctlOverclockPowerLimitSetV2() is
+                                                    ///< one way to remove this limitation.
     bool gpuTemperatureLimited;                     ///< [out] Instantaneous indication that the desired GPU frequency is being
                                                     ///< throttled because the GPU chip is exceeding the temperature limits.
                                                     ///< Increasing the temperature limits using
-                                                    ///< ::ctlOverclockTemperatureLimitSet() is one way to reduce this
+                                                    ///< ::ctlOverclockTemperatureLimitSetV2() is one way to reduce this
                                                     ///< limitation. Improving the cooling solution is another way.
     bool gpuCurrentLimited;                         ///< [out] Instantaneous indication that the desired GPU frequency is being
                                                     ///< throttled because the GPU chip has exceeded the power supply current
                                                     ///< limits. A better power supply is required to reduce this limitation.
     bool gpuVoltageLimited;                         ///< [out] Instantaneous indication that the GPU frequency cannot be
                                                     ///< increased because the voltage limits have been reached. Increase the
-                                                    ///< voltage offset using ::ctlOverclockGpuVoltageOffsetSet() is one way to
-                                                    ///< reduce this limitation.
+                                                    ///< voltage offset using ::ctlOverclockGpuMaxVoltageOffsetSetV2() is one
+                                                    ///< way to reduce this limitation.
     bool gpuUtilizationLimited;                     ///< [out] Instantaneous indication that due to lower GPU utilization, the
                                                     ///< hardware has lowered the GPU frequency.
     ctl_oc_telemetry_item_t vramEnergyCounter;      ///< [out] Snapshot of the monotonic energy counter maintained by hardware.
@@ -6800,6 +7071,428 @@ ctlPowerTelemetryGet(
 CTL_APIEXPORT ctl_result_t CTL_APICALL
 ctlOverclockResetToDefault(
     ctl_device_adapter_handle_t hDeviceHandle       ///< [in][release] Handle to display adapter
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief VF Curve Detail
+typedef enum _ctl_vf_curve_details_t
+{
+    CTL_VF_CURVE_DETAILS_SIMPLIFIED = 0,            ///< Read minimum num of VF points for simplified VF curve view
+    CTL_VF_CURVE_DETAILS_MEDIUM = 1,                ///< Read medium num of VF points for more points than simplified view
+    CTL_VF_CURVE_DETAILS_ELABORATE = 2,             ///< Read Maximum num of VF points for detailed VF curve View
+    CTL_VF_CURVE_DETAILS_MAX
+
+} ctl_vf_curve_details_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief VF Curve type
+typedef enum _ctl_vf_curve_type_t
+{
+    CTL_VF_CURVE_TYPE_STOCK = 0,                    ///< Read default VF curve
+    CTL_VF_CURVE_TYPE_LIVE = 1,                     ///< Read Live VF Curve
+    CTL_VF_CURVE_TYPE_MAX
+
+} ctl_vf_curve_type_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Overclock Voltage Frequency Point
+typedef struct _ctl_voltage_frequency_point_t
+{
+    uint32_t Voltage;                               ///< [in][out] in milliVolts
+    uint32_t Frequency;                             ///< [in][out] in MHz
+
+} ctl_voltage_frequency_point_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the Current Overclock GPU Frequency Offset
+/// 
+/// @details
+///     - Determine the current frequency offset in effect (refer to
+///       ::ctlOverclockGpuFrequencyOffsetSetV2() for details).
+///     - The unit of the value returned is given in
+///       ::ctl_oc_properties_t::gpuFrequencyOffset::units returned from
+///       ::ctlOverclockGetProperties()
+///     - The unit of the value returned can be different for different
+///       generation of graphics product
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceHandle`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pOcFrequencyOffset`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockGpuFrequencyOffsetGetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double* pOcFrequencyOffset                      ///< [in,out] Current GPU Overclock Frequency Offset in units given in
+                                                    ///< ::ctl_oc_properties_t::gpuFrequencyOffset::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the Overclock Frequency Offset for the GPU
+/// 
+/// @details
+///     - The purpose of this function is to increase/decrease the frequency
+///       offset at which typical workloads will run within the same thermal
+///       budget.
+///     - The frequency offset is expressed in units given in
+///       ::ctl_oc_properties_t::gpuFrequencyOffset::units returned from
+///       ::ctlOverclockGetProperties()
+///     - The actual operating frequency for each workload is not guaranteed to
+///       change exactly by the specified offset.
+///     - For positive frequency offsets, the factory maximum frequency may
+///       increase by up to the specified amount.
+///     - Specifying large values for the frequency offset can lead to
+///       instability. It is recommended that changes are made in small
+///       increments and stability/performance measured running intense GPU
+///       workloads before increasing further.
+///     - This setting is not persistent through system reboots or driver
+///       resets/hangs. It is up to the overclock application to reapply the
+///       settings in those cases.
+///     - This setting can cause system/device instability. It is up to the
+///       overclock application to detect if the system has rebooted
+///       unexpectedly or the device was restarted. When this occurs, the
+///       application should not reapply the overclock settings automatically
+///       but instead return to previously known good settings or notify the
+///       user that the settings are not being applied.
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceHandle`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockGpuFrequencyOffsetSetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double ocFrequencyOffset                        ///< [in] The GPU Overclocking Frequency Offset Desired in units given in
+                                                    ///< ::ctl_oc_properties_t::gpuFrequencyOffset::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the Current Overclock Voltage Offset for the GPU
+/// 
+/// @details
+///     - Determine the current maximum voltage offset in effect on the hardware
+///       (refer to ::ctlOverclockGpuMaxVoltageOffsetSetV2 for details).
+///     - The unit of the value returned is given in
+///       ::ctl_oc_properties_t::gpuVoltageOffset::units returned from
+///       ::ctlOverclockGetProperties()
+///     - The unit of the value returned can be different for different
+///       generation of graphics product
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceHandle`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pOcMaxVoltageOffset`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockGpuMaxVoltageOffsetGetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double* pOcMaxVoltageOffset                     ///< [in,out] Current Overclock GPU Voltage Offset in Units given in
+                                                    ///< ::ctl_oc_properties_t::gpuVoltageOffset::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the Overclock Voltage Offset for the GPU
+/// 
+/// @details
+///     - The purpose of this function is to attempt to run the GPU up to higher
+///       voltages beyond the part warrantee limits. This can permit running at
+///       even higher frequencies than can be obtained using the frequency
+///       offset setting, but at the risk of reducing the lifetime of the part.
+///     - The voltage offset is expressed in units given in
+///       ::ctl_oc_properties_t::gpuVoltageOffset::units returned from
+///       ::ctlOverclockGetProperties()
+///     - The overclock waiver must be set before calling this function
+///       otherwise error will be returned.
+///     - There is no guarantee that a workload can operate at the higher
+///       frequencies permitted by this setting. Significantly more heat will be
+///       generated at these high frequencies/voltages which will necessitate a
+///       good cooling solution.
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceHandle`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockGpuMaxVoltageOffsetSetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double ocMaxVoltageOffset                       ///< [in] The Overclocking Maximum Voltage Desired in units given in
+                                                    ///< ::ctl_oc_properties_t::gpuVoltageOffset::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the current Overclock Vram Memory Speed
+/// 
+/// @details
+///     - The purpose of this function is to return the current VRAM Memory
+///       Speed
+///     - The unit of the value returned is given in
+///       ::ctl_oc_properties_t::vramMemSpeedLimit::units returned from
+///       ::ctlOverclockGetProperties()
+///     - The unit of the value returned can be different for different
+///       generation of graphics product
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceHandle`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pOcVramMemSpeedLimit`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockVramMemSpeedLimitGetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double* pOcVramMemSpeedLimit                    ///< [in,out] The current VRAM Memory Speed in units given in
+                                                    ///< ::ctl_oc_properties_t::vramMemSpeedLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the desired Overclock Vram Memory Speed
+/// 
+/// @details
+///     - The purpose of this function is to increase/decrease the Speed of
+///       VRAM.
+///     - The Memory Speed is expressed in units given in
+///       ::ctl_oc_properties_t::vramMemSpeedLimit::units returned from
+///       ::ctlOverclockGetProperties() with a minimum step size given by
+///       ::ctlOverclockGetProperties().
+///     - The actual Memory Speed for each workload is not guaranteed to change
+///       exactly by the specified offset.
+///     - This setting is not persistent through system reboots or driver
+///       resets/hangs. It is up to the overclock application to reapply the
+///       settings in those cases.
+///     - This setting can cause system/device instability. It is up to the
+///       overclock application to detect if the system has rebooted
+///       unexpectedly or the device was restarted. When this occurs, the
+///       application should not reapply the overclock settings automatically
+///       but instead return to previously known good settings or notify the
+///       user that the settings are not being applied.
+///     - If the memory controller doesn't support changes to memory speed on
+///       the fly, one of the following return codes will be given:
+///     - CTL_RESULT_ERROR_RESET_DEVICE_REQUIRED: The requested memory overclock
+///       will be applied when the device is reset or the system is rebooted. In
+///       this case, the overclock software should check if the overclock
+///       request was applied after the reset/reboot. If it was and when the
+///       overclock application shuts down gracefully and if the overclock
+///       application wants the setting to be persistent, the application should
+///       request the same overclock settings again so that they will be applied
+///       on the next reset/reboot. If this is not done, then every time the
+///       device is reset and overclock is requested, the device needs to be
+///       reset a second time.
+///     - CTL_RESULT_ERROR_FULL_REBOOT_REQUIRED: The requested memory overclock
+///       will be applied when the system is rebooted. In this case, the
+///       overclock software should check if the overclock request was applied
+///       after the reboot. If it was and when the overclock application shuts
+///       down gracefully and if the overclock application wants the setting to
+///       be persistent, the application should request the same overclock
+///       settings again so that they will be applied on the next reset/reboot.
+///       If this is not done and the overclock setting is requested after the
+///       reboot has occurred, a second reboot will be required.
+///     - CTL_RESULT_ERROR_UNSUPPORTED_FEATURE: The Memory Speed Get / Set
+///       Feature is currently not available or Unsupported in current platform
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceHandle`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockVramMemSpeedLimitSetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double ocVramMemSpeedLimit                      ///< [in] The desired Memory Speed in units given in
+                                                    ///< ::ctl_oc_properties_t::vramMemSpeedLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the Current Sustained power limit
+/// 
+/// @details
+///     - The purpose of this function is to read the current sustained power
+///       limit.
+///     - The unit of the value returned is given in
+///       ::ctl_oc_properties_t::powerLimit::units returned from
+///       ::ctlOverclockGetProperties()
+///     - The unit of the value returned can be different for different
+///       generation of graphics product
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceHandle`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pSustainedPowerLimit`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockPowerLimitGetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double* pSustainedPowerLimit                    ///< [in,out] The current Sustained Power limit in Units given in
+                                                    ///< ::ctl_oc_properties_t::powerLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the Sustained power limit
+/// 
+/// @details
+///     - The purpose of this function is to set the maximum sustained power
+///       limit. If the average GPU power averaged over a few seconds exceeds
+///       this value, the frequency of the GPU will be throttled.
+///     - Set a value of 0 to disable this power limit. In this case, the GPU
+///       frequency will not throttle due to average power but may hit other
+///       limits.
+///     - The unit of the PowerLimit to be set is given in
+///       ::ctl_oc_properties_t::powerLimit::units returned from
+///       ::ctlOverclockGetProperties()
+///     - The unit of the value returned can be different for different
+///       generation of graphics product
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceHandle`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockPowerLimitSetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double sustainedPowerLimit                      ///< [in] The desired sustained power limit in Units given in
+                                                    ///< ::ctl_oc_properties_t::powerLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the current temperature limit
+/// 
+/// @details
+///     - The purpose of this function is to read the current thermal limit used
+///       for Overclocking
+///     - The unit of the value returned is given in
+///       ::ctl_oc_properties_t::temperatureLimit::units returned from
+///       ::ctlOverclockGetProperties()
+///     - The unit of the value returned can be different for different
+///       generation of graphics product
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceHandle`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pTemperatureLimit`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockTemperatureLimitGetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double* pTemperatureLimit                       ///< [in,out] The current temperature limit in Units given in
+                                                    ///< ::ctl_oc_properties_t::temperatureLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the temperature limit
+/// 
+/// @details
+///     - The purpose of this function is to change the maximum thermal limit.
+///       When the GPU temperature exceeds this value, the GPU frequency will be
+///       throttled.
+///     - The unit of the value to be set is given in
+///       ::ctl_oc_properties_t::temperatureLimit::units returned from
+///       ::ctlOverclockGetProperties()
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceHandle`
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockTemperatureLimitSetV2(
+    ctl_device_adapter_handle_t hDeviceHandle,      ///< [in][release] Handle to display adapter
+    double temperatureLimit                         ///< [in] The desired temperature limit in Units given in
+                                                    ///< ::ctl_oc_properties_t::temperatureLimit::units returned from
+                                                    ///< ::ctlOverclockGetProperties()
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Read VF Curve
+/// 
+/// @details
+///     - Read the Voltage-Frequency Curve
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceAdapter`
+///     - CTL_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::CTL_VF_CURVE_TYPE_LIVE < VFCurveType`
+///         + `::CTL_VF_CURVE_DETAILS_ELABORATE < VFCurveDetail`
+///     - CTL_RESULT_ERROR_UNKNOWN - "Unknown Error"
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockReadVFCurve(
+    ctl_device_adapter_handle_t hDeviceAdapter,     ///< [in][release] Handle to control device adapter
+    ctl_vf_curve_type_t VFCurveType,                ///< [in] Type of Curve to read
+    ctl_vf_curve_details_t VFCurveDetail,           ///< [in] Detail of Curve to read
+    uint32_t * pNumPoints,                          ///< [in][out] Number of points in the custom VF curve. If the NumPoints is
+                                                    ///< zero, then the api will update the value with total number of Points
+                                                    ///< based on requested VFCurveType and VFCurveDetail. If the NumPoints is
+                                                    ///< non-zero, then the api will read and update the VF points in
+                                                    ///< pVFCurveTable buffer provided. If the NumPoints doesn't match what the
+                                                    ///< api returned in the first call, it will return an error.
+    ctl_voltage_frequency_point_t * pVFCurveTable   ///< [in][out] Pointer to array of VF points, to copy the VF curve being
+                                                    ///< read
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Write Custom VF curve
+/// 
+/// @details
+///     - Modify the Voltage-Frequency Curve used by GPU
+///     - Valid Voltage-Frequency Curve shall have Voltage and Frequency Points
+///       in increasing order
+///     - Recommended to create Custom V-F Curve from reading Current V-F Curve
+///       using ::ctlOverclockReadVFCurve (Read-Modify-Write)
+///     - If Custom V-F curve write request is Successful, the Applied VF Curve
+///       might be slightly different than what is originally requested,
+///       recommended to update the UI by reading the V-F curve again using
+///       ctlOverclockReadVFCurve (with ctl_vf_curve_type_t::LIVE as input)
+///     - The overclock waiver must be set before calling this function
+///       otherwise error will be returned.
+/// 
+/// @returns
+///     - CTL_RESULT_SUCCESS
+///     - CTL_RESULT_ERROR_UNINITIALIZED
+///     - CTL_RESULT_ERROR_DEVICE_LOST
+///     - CTL_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hDeviceAdapter`
+///     - CTL_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pCustomVFCurveTable`
+///     - CTL_RESULT_ERROR_UNKNOWN - "Unknown Error"
+CTL_APIEXPORT ctl_result_t CTL_APICALL
+ctlOverclockWriteCustomVFCurve(
+    ctl_device_adapter_handle_t hDeviceAdapter,     ///< [in][release] Handle to control device adapter
+    uint32_t NumPoints,                             ///< [in] Number of points in the custom VF curve
+    ctl_voltage_frequency_point_t* pCustomVFCurveTable  ///< [in] Pointer to an array of VF Points containing 'NumPoints' Custom VF
+                                                    ///< points
     );
 
 
@@ -7568,31 +8261,6 @@ typedef ctl_result_t (CTL_APICALL *ctl_pfnGetIntelArcSyncInfoForMonitor_t)(
 
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for ctlEnumerateMuxDevices 
-typedef ctl_result_t (CTL_APICALL *ctl_pfnEnumerateMuxDevices_t)(
-    ctl_api_handle_t,
-    uint32_t*,
-    ctl_mux_output_handle_t*
-    );
-
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for ctlGetMuxProperties 
-typedef ctl_result_t (CTL_APICALL *ctl_pfnGetMuxProperties_t)(
-    ctl_mux_output_handle_t,
-    ctl_mux_properties_t*
-    );
-
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for ctlSwitchMux 
-typedef ctl_result_t (CTL_APICALL *ctl_pfnSwitchMux_t)(
-    ctl_mux_output_handle_t,
-    ctl_display_output_handle_t
-    );
-
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for ctlGetIntelArcSyncProfile 
 typedef ctl_result_t (CTL_APICALL *ctl_pfnGetIntelArcSyncProfile_t)(
     ctl_display_output_handle_t,
@@ -7698,6 +8366,30 @@ typedef ctl_result_t (CTL_APICALL *ctl_pfnGetSetDisplaySettings_t)(
 
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlEccGetProperties 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnEccGetProperties_t)(
+    ctl_device_adapter_handle_t,
+    ctl_ecc_properties_t*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlEccGetState 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnEccGetState_t)(
+    ctl_device_adapter_handle_t,
+    ctl_ecc_state_desc_t*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlEccSetState 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnEccSetState_t)(
+    ctl_device_adapter_handle_t,
+    ctl_ecc_state_desc_t*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for ctlEnumEngineGroups 
 typedef ctl_result_t (CTL_APICALL *ctl_pfnEnumEngineGroups_t)(
     ctl_device_adapter_handle_t,
@@ -7776,6 +8468,39 @@ typedef ctl_result_t (CTL_APICALL *ctl_pfnFanGetState_t)(
     ctl_fan_handle_t,
     ctl_fan_speed_units_t,
     int32_t*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlGetFirmwareProperties 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnGetFirmwareProperties_t)(
+    ctl_device_adapter_handle_t,
+    ctl_firmware_properties_t*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlEnumerateFirmwareComponents 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnEnumerateFirmwareComponents_t)(
+    ctl_device_adapter_handle_t,
+    uint32_t*,
+    ctl_firmware_component_handle_t*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlGetFirmwareComponentProperties 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnGetFirmwareComponentProperties_t)(
+    ctl_firmware_component_handle_t,
+    ctl_firmware_component_properties_t*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlAllowPCIeLinkSpeedUpdate 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnAllowPCIeLinkSpeedUpdate_t)(
+    ctl_device_adapter_handle_t,
+    bool
     );
 
 
@@ -8059,6 +8784,106 @@ typedef ctl_result_t (CTL_APICALL *ctl_pfnPowerTelemetryGet_t)(
 /// @brief Function-pointer for ctlOverclockResetToDefault 
 typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockResetToDefault_t)(
     ctl_device_adapter_handle_t
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockGpuFrequencyOffsetGetV2 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockGpuFrequencyOffsetGetV2_t)(
+    ctl_device_adapter_handle_t,
+    double*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockGpuFrequencyOffsetSetV2 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockGpuFrequencyOffsetSetV2_t)(
+    ctl_device_adapter_handle_t,
+    double
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockGpuMaxVoltageOffsetGetV2 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockGpuMaxVoltageOffsetGetV2_t)(
+    ctl_device_adapter_handle_t,
+    double*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockGpuMaxVoltageOffsetSetV2 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockGpuMaxVoltageOffsetSetV2_t)(
+    ctl_device_adapter_handle_t,
+    double
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockVramMemSpeedLimitGetV2 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockVramMemSpeedLimitGetV2_t)(
+    ctl_device_adapter_handle_t,
+    double*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockVramMemSpeedLimitSetV2 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockVramMemSpeedLimitSetV2_t)(
+    ctl_device_adapter_handle_t,
+    double
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockPowerLimitGetV2 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockPowerLimitGetV2_t)(
+    ctl_device_adapter_handle_t,
+    double*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockPowerLimitSetV2 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockPowerLimitSetV2_t)(
+    ctl_device_adapter_handle_t,
+    double
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockTemperatureLimitGetV2 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockTemperatureLimitGetV2_t)(
+    ctl_device_adapter_handle_t,
+    double*
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockTemperatureLimitSetV2 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockTemperatureLimitSetV2_t)(
+    ctl_device_adapter_handle_t,
+    double
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockReadVFCurve 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockReadVFCurve_t)(
+    ctl_device_adapter_handle_t,
+    ctl_vf_curve_type_t,
+    ctl_vf_curve_details_t,
+    uint32_t *,
+    ctl_voltage_frequency_point_t *
+    );
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for ctlOverclockWriteCustomVFCurve 
+typedef ctl_result_t (CTL_APICALL *ctl_pfnOverclockWriteCustomVFCurve_t)(
+    ctl_device_adapter_handle_t,
+    uint32_t,
+    ctl_voltage_frequency_point_t*
     );
 
 

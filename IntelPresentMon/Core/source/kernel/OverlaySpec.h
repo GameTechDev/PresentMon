@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <Core/source/win/WinAPI.h>
@@ -92,6 +92,7 @@ namespace p2c::kern
         bool independentKernelWindow;
         bool generateStats;
         bool enableFlashInjection;
+        std::optional<uint32_t> frameQueryAdapterId;
         std::vector<std::shared_ptr<gfx::lay::sty::Stylesheet>> sheets;
     };
 }

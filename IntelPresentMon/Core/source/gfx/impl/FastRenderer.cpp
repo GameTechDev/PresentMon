@@ -3,6 +3,7 @@
 #include "FastRenderer.h"
 #include <d3dcompiler.h>
 #include <Core/source/infra/Logging.h>
+#include <Core/source/infra/util/FolderResolver.h>
 #include <CommonUtilities/Exception.h>
 #include "../Exception.h"
 
@@ -11,15 +12,18 @@
 namespace p2c::gfx::impl
 {
     using namespace ::pmon::util;
+    using p2c::infra::util::FolderResolver;
 
 	FastRenderer::FastRenderer(ID3D11Device& device, const DimensionsI& dims)
         :
         dims{ dims }
 	{
+        const auto pixelShaderPath = FolderResolver::ResolveInstallPath(L"Shaders\\Line_PS.cso");
+        const auto vertexShaderPath = FolderResolver::ResolveInstallPath(L"Shaders\\Line_VS.cso");
         // pixel shader
         {
             ComPtr<ID3DBlob> pBlob;
-            if (auto hr = D3DReadFileToBlob(L"Shaders\\Line_PS.cso", &pBlob); FAILED(hr))
+            if (auto hr = D3DReadFileToBlob(pixelShaderPath.c_str(), &pBlob); FAILED(hr))
             {
                 pmlog_error("Failure reading Shaders\\Line_PS.cso").hr(hr);
                 throw Except<Exception>();
@@ -38,7 +42,7 @@ namespace p2c::gfx::impl
         // vertex shader & input layout
         {
             ComPtr<ID3DBlob> pBlob;
-            if (auto hr = D3DReadFileToBlob(L"Shaders\\Line_VS.cso", &pBlob); FAILED(hr))
+            if (auto hr = D3DReadFileToBlob(vertexShaderPath.c_str(), &pBlob); FAILED(hr))
             {
                 pmlog_error("Failure reading Shaders\\Line_VS.cso").hr(hr);
                 throw Except<Exception>();

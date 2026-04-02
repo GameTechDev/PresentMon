@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include <format>
 #include <map>
@@ -10,7 +10,7 @@
 
 namespace pwr::amd {
 
-AmdPowerTelemetryProvider::AmdPowerTelemetryProvider() {
+AmdPowerTelemetryProvider::AmdPowerTelemetryProvider(DeviceIdAllocator& allocator) {
   int count = 0;
   if (!adl_.Ok(adl_.Adapter_NumberOfAdapters_Get(&count))) {
     throw std::runtime_error{"Failed to get number of amd gpus"};
@@ -67,7 +67,7 @@ AmdPowerTelemetryProvider::AmdPowerTelemetryProvider() {
         try {
           std::string adl_adapter_name = ai.strAdapterName;
           adapter_ptrs_.push_back(std::make_shared<AmdPowerTelemetryAdapter>(
-              &adl_, adl_adapter_name, ai.iAdapterIndex, overdrive_version));
+              allocator.Next(), &adl_, adl_adapter_name, ai.iAdapterIndex, overdrive_version));
         } catch (const std::exception& e) {
           TELE_ERR(e.what());
         } catch (...) {

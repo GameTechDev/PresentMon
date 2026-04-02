@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Level.h"
 #include "Subsystem.h"
 #include <chrono>
@@ -21,11 +21,14 @@ namespace pmon::util::log
 				None,
 				Every,
 				EveryAndFirst,
+				EveryDuration,
+				EveryDurationAndFirst,
 				First,
 				After,
 				Hitcount,
 			} type = Type::None;
 			int parameter = -1;
+			std::chrono::nanoseconds duration = {};
 		};
 		struct StaticSourceStrings
 		{

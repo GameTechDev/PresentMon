@@ -17,8 +17,11 @@ namespace clio
 	private: Group gc_{ this, "Connection", "Control client connection" }; public:
 		Option<std::string> etwSessionName{ this, "--etw-session-name", "PMService", "Name to use when creating the ETW session" };
 		Option<std::string> controlPipe{ this, "--control-pipe", "", "Name of the named pipe to use for the client-service control channel" };
-		Option<std::string> nsmPrefix{ this, "--nsm-prefix", "", "Prefix to use when naming named shared memory segments created for frame data circular buffers" };
-		Option<std::string> introNsm{ this, "--intro-nsm", "", "Name of the NSM used for introspection data" };
+		Option<std::string> shmNamePrefix{ this, "--shm-name-prefix", R"(Global\pm_svc_shm)", "Prefix to use when naming shared memory segments" };
+
+	private: Group gs_{ this, "Shared Memory", "Shared memory ring sizing" }; public:
+		Option<size_t> frameRingSamples{ this, "--frame-ring-samples", 1000, "Number of frame samples to retain per target" };
+		Option<size_t> telemetryRingSamples{ this, "--telemetry-ring-samples", 1500, "Number of telemetry samples to retain per ring" };
 
 	private: Group gd_{ this, "Debugging", "Aids in debugging this tool" }; public:
 		Flag debug{ this, "--debug,-d", "Stall service by running in a loop after startup waiting for debugger to connect" };
@@ -32,6 +35,7 @@ namespace clio
 		Option<std::string> logDir{ this, "--log-dir", "", "Enable logging to a file in the specified directory" };
 		Option<std::string> logPipeName{ this, "--log-pipe-name", pmon::gid::defaultLogPipeBaseName, "Name of the pipe to connect to for log IPC" };
 		Flag enableStdioLog{ this, "--enable-stdio-log", "Enable logging to stderr" };
+		Flag disableColorizedStdioLog{ this, "--disable-colorized-stdio-log", "Disable colorized stderr logging in console mode" };
 		Flag enableDebuggerLog{ this, "--enable-debugger-log", "Enable logging to system debugger" };
 		Flag disableIpcLog{ this, "--disable-ipc-log", "Disable logging to named pipe connection" };
 		Option<Level> logLevel{ this, "--log-level", Level::Error, "Severity to log at", logLevelTf_ };

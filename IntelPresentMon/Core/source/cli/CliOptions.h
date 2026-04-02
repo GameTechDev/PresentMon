@@ -21,11 +21,11 @@ namespace p2c::cli
 
 	private: Group gd_{ this, "Debugging", "Aids in debugging this tool" }; public:
 		Option<std::string> controlPipe{ this, "--control-pipe", R"(\\.\pipe\pm-ctrl)", "Named pipe to connect to the service with" };
-		Option<std::string> shmName{ this, "--shm-name", "pm-intro-shm", "Shared memory to connect to the service with" };
+		Option<std::string> shmNamePrefix{ this, "--shm-name-prefix", "pm-child-shm", "Shared memory to connect to the service with" };
 		Option<std::string> etwSessionName{ this, "--etw-session-name", "pm-child-etw-session", "ETW session name when lauching service as child" };
 		Flag svcAsChild{ this, "--svc-as-child", "Launch service as child console app" };
 		Flag traceExceptions{ this, "--trace-exceptions", "Add stack trace to all thrown exceptions (including SEH exceptions)" };
-		Flag enableDiagnostic{ this, "--enable-diagnostic", "Enable debug diagnostic layer forwarding (duplicates exiisting log entries)" };
+		Flag enableDiagnostic{ this, "--enable-diagnostic", "Enable diagnostics output (debugger only) and disable normal debugger log output" };
 		Flag filesWorking{ this, "--files-working", "Use the working directory for file storage" };
 		Flag waitForDebugger{ this, "--wait-for-debugger", "On entry wait for debugger to be attached, then break" };
 
@@ -38,6 +38,8 @@ namespace p2c::cli
 		Option<std::string> logSvcPipe{ this, "--log-svc-pipe", ::pmon::gid::defaultLogPipeBaseName, "Base name of pipe to use when connecting to service IPC log" };
 		Flag logSvcPipeEnable{ this, "--log-svc-pipe-enable", "Enable pipe connection to service IPC log stream" };
 		Flag logMiddlewareCopy{ this, "--log-middleware-copy", "Copy log entries from middleware channel to this client" };
+		Flag logSynchronous{ this, "--log-synchronous", "Enable synchronous logging (submit waits for processing and flush)" };
+		Flag logFlushOnCrash{ this, "--log-flush-on-crash", "Install best-effort crash/terminate log flush hooks" };
 		Option<std::vector<log::V>> logVerboseModules{ this, "--log-verbose-modules", {}, "Verbose logging modules to enable", logVmodTf_ };
 
 	private: Group gu_{ this, "CEF UI", "Options to pass thru to the CEF UI system" }; public:
@@ -53,17 +55,26 @@ namespace p2c::cli
 		Option<std::string> capTargetName{ this, "--target-name", {}, "Main module name of the process to track" };
 		Option<double> capDuration{ this, "--duration", 10., "How long to capture for in seconds" };
 		Option<uint32_t> capTelemetryPeriod{ this, "--telemetry-period", 100, "Time between GPU/CPU telemetry samples in ms" };
+		Option<uint32_t> capDefaultAdapterId{ this, "--default-adapter", {}, "Default GPU adapter id used when no device id is specified in --metrics" };
 		Option<std::string> capOutput{ this, "--output", {}, "Name of the output CSV file, optionally with absolute or relative path" };
-		Option<std::vector<std::string>> capMetrics{ this, "--metrics", {}, "List of metrics to capture as columns in the output CSV file" };
+		Option<std::vector<std::string>> capMetrics{ this, "--metrics", {}, "List of metrics to capture as columns in the output CSV file. Format: PM_METRIC_XXX[INDEX]:DEVICEID (index and device id optional)." };
 
 	Subcommand subcList{ this, "list", "List entities for use with PresentMon SDK/headless CLI" }; public:
 	private: Group glists_{ this, "Standard", "Standard options for the list subcommand" }; public:
 		Flag listMetrics{ this, "--metrics,-m", "Output a list of available metrics" };
 		Flag listMetricsStats{ this, "--stats,-s", "Output a list of available stats for each metric" };
-		Flag listDevices{ this, "--devices,-d", "Output a list of available graphics adapters" };
+		Flag listDevices{ this, "--devices,-d", "Output a list of available devices" };
 		Flag listFilterFrame{ this, "--filter-frame,-f", "Filter to only metrics available for use with frame event capture" };
 		Flag listFilterDynamic{ this, "--filter-dynamic,-y", "Filter to only metrics available for use with dynamic polling" };
 		Option<std::string> listSearch{ this, "--search", {}, "Substring to filter metric results on (case-insensitive)" };
+
+	Subcommand subcShow{ this, "show", "Show static CLI diagnostic information" }; public:
+	private: Group gshows_{ this, "Standard", "Standard options for the show subcommand" }; public:
+		Flag showLogFolder{ this, "--log-folder", "Open the default appdata log folder in Explorer" };
+		Flag showVerboseModules{ this, "--verbose-modules", "List names of all verbose modules" };
+		Option<std::vector<std::string>> showVerboseBitset{ this, "--verbose-bitset", {}, "Compute ORed module-bitset hex value for given module names", [](CLI::Option* pOption) {
+			pOption->expected(1, -1);
+		} };
 	
 
 		static constexpr const char* description = "PresentMon performance overlay and trace capture application";

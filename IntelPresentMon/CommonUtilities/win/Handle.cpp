@@ -10,20 +10,20 @@ namespace pmon::util::win
     Handle::Handle(HandleType handle) : handle_{ handle } {}
     Handle::~Handle()
     {
-        try { Clear(); }
-        catch (...) {
-            // TODO: consider logging here in some builds / modes, but
-            // caution required since this is used by logging components themselves
-        }
+        // TODO: consider logging here in some builds / modes, but
+        // caution required since this is used by logging components themselves
+        pmquell(Clear());
     }
     Handle::Handle(Handle&& other) noexcept
         :
         handle_(std::exchange(other.handle_, nullptr))
     {}
-    Handle& Handle::operator=(Handle&& other)
+    Handle& Handle::operator=(Handle&& other) noexcept
     {
         if (this != &other) {
-            Clear();
+            // TODO: consider logging here in some builds / modes, but
+            // caution required since this is used by logging components themselves
+            pmquell(Clear());
             handle_ = std::exchange(other.handle_, nullptr);
         }
         return *this;

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <map>
 
@@ -13,9 +13,15 @@ namespace pmon::util::log
 		core_hotkey,
 		core_window,
 		etwq,
+		kact,
+		ipc_sto,
+		ipc_ring,
+		met_use,
+		middleware,
+		chrome,
 		Count
 	};
 
-	std::string GetVerboseModuleName(V mod) noexcept;
-	std::map<std::string, V> GetVerboseModuleMapNarrow() noexcept;
+	std::string GetVerboseModuleName(V mod);
+	std::map<std::string, V> GetVerboseModuleMapNarrow();
 }

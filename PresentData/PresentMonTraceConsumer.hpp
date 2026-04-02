@@ -8,6 +8,7 @@
 #endif
 
 #include <deque>
+#include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -27,6 +28,7 @@
 #include "GpuTrace.hpp"
 #include "TraceConsumer.hpp"
 #include "NvidiaTraceConsumer.hpp"
+#include "PresentEventEnums.hpp"
 #include "../IntelPresentMon/CommonUtilities/Hash.h"
 
 // PresentMode represents the different paths a present can take on windows.
@@ -91,45 +93,6 @@
 //     -> DxgKrnl_PresentHistory_Start (use model field for classification, get token ptr)
 //     -> DxgKrnl_PresentHistory_Info (by token ptr)
 //     -> Assume DWM will compose this buffer on next present (missing InFrame event), follow windowed blit paths to screen time
-
-enum class PresentMode {
-    Unknown = 0,
-    Hardware_Legacy_Flip = 1,
-    Hardware_Legacy_Copy_To_Front_Buffer = 2,
-    Hardware_Independent_Flip = 3,
-    Composed_Flip = 4,
-    Composed_Copy_GPU_GDI = 5,
-    Composed_Copy_CPU_GDI = 6,
-    Hardware_Composed_Independent_Flip = 8,
-};
-
-enum class PresentResult {
-    Unknown = 0,
-    Presented = 1,
-    Discarded = 2,
-};
-
-enum class Runtime {
-    Other = 0,
-    DXGI = 1,
-    D3D9 = 2,
-};
-
-enum class InputDeviceType {
-    None = 0,
-    Unknown = 1,
-    Mouse = 2,
-    Keyboard = 3,
-};
-
-enum class FrameType {
-    NotSet = 0,
-    Unspecified = 1,
-    Application = 2,
-    Repeated = 3,
-    Intel_XEFG = 50,
-    AMD_AFMF = 100,
-};
 
 struct InputData {
     uint64_t Time;
@@ -373,6 +336,14 @@ struct PMTraceConsumer
     void DequeueProcessEvents(std::vector<ProcessEvent>& outProcessEvents);
     void DequeuePresentEvents(std::vector<std::shared_ptr<PresentEvent>>& outPresentEvents);
 
+    // Control of general event processing state for service capture start/stop without
+    // tearing down the underlying ETW session
+    //
+    // Provider-toggle mode enables a quiesce gate in the session callback so we can safely
+    // clear internal present tracking state from a controller thread.
+    void SetProviderToggleMode(bool enabled);
+    void SetEventProcessingEnabled(bool enabled);
+    void ResetPresentTrackingData(bool shrink = false);
 
     // -------------------------------------------------------------------------------------------
     // The rest of this structure are internal data and functions for analysing the collected ETW
@@ -486,6 +457,28 @@ struct PMTraceConsumer
             return DualHash(p.first, p.second);
         }
     };
+
+    // Guard used to safely mutate/clear all Present tracking structures
+    // without taking a mutex on every ETW event. ResetPresentTrackingData() disables
+    // tracking and then waits for in-flight scopes to drain before clearing the maps.
+    struct EventProcessingScope {
+        PMTraceConsumer& Consumer;
+        // Whether event processing is active for the scope duration
+        bool active = false;
+        // Whether we incremented the in-flight counter
+        bool counted = false;
+        explicit EventProcessingScope(PMTraceConsumer& consumer);
+        ~EventProcessingScope();
+        EventProcessingScope(const EventProcessingScope&) = delete;
+        EventProcessingScope& operator=(const EventProcessingScope&) = delete;
+        explicit operator bool() const noexcept { return active; }
+    };
+
+    std::atomic<bool> mProviderToggleMode{ false };
+    std::atomic<bool> mEventProcessingEnabled{ true };
+    // WaitOnAddress needs a 1/2/4/8-byte memory location. Using LONG makes it
+    // Win7-compatible (via Interlocked ops) and Win8+ compatible (via WaitOnAddress shim).
+    volatile LONG mEventProcessingInFlight = 0;
 
     std::unordered_map<uint32_t, std::shared_ptr<PresentEvent>> mPresentByThreadId;                     // ThreadId -> PresentEvent
     std::unordered_map<uint32_t, OrderedPresents>               mOrderedPresentsByProcessId;            // ProcessId -> ordered PresentStartTime -> PresentEvent

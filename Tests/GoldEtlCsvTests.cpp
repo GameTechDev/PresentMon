@@ -92,7 +92,11 @@ public:
                         const char* goldDecimalAddr = strchr(b, '.');
                         size_t testDecimalNumbersCount = testDecimalAddr == nullptr ? 0 : ((a + strlen(a)) - testDecimalAddr - 1);
                         size_t goldDecimalNumbersCount = goldDecimalAddr == nullptr ? 0 : ((b + strlen(b)) - goldDecimalAddr - 1);
-                        double threshold = pow(0.1, std::min(testDecimalNumbersCount, goldDecimalNumbersCount));
+                        size_t decimals = std::min(testDecimalNumbersCount, goldDecimalNumbersCount);
+                        // Cap precision used for tolerance to avoid ultra-long double-to-string artifacts
+                        // (e.g., 100.06490000000001 vs 100.06489999999999)
+                        decimals = std::min(decimals, size_t(9));
+                        double threshold = pow(0.1, decimals);
                         double difference = testNumber - goldNumber;
 
                         if (difference > -threshold && difference < threshold) {
