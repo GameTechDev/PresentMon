@@ -22,7 +22,7 @@ namespace fs = std::filesystem;
 namespace EtlTests
 {
 	static constexpr const char* controlPipe_ = R"(\\.\pipe\test-pipe-pmsvc-2)";
-	static constexpr const char* nsmPrefix_ = "pm_etl_test_shm";
+	static constexpr const char* shmNamePrefix = "pm_etl_test_shm";
 
 	// Test case data structure - loaded from CSV file
 	struct TestCaseData {
@@ -268,7 +268,7 @@ namespace EtlTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, timedStop,
 				"--control-pipe"s, controlPipe_,
-				"--nsm-prefix"s, nsmPrefix_,
+				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlFile,
 				bp::std_out > out, bp::std_in < in);
 
