@@ -302,7 +302,9 @@ void MockPresentMonSession::AddPresents(
         }
 
         // timeout set for 1000 ms
-        pBroadcaster->Broadcast(*presentEvent, 1000);
+        if (pBroadcaster) {
+            pBroadcaster->Broadcast(*presentEvent, 1000);
+        }
 
     }
 
@@ -456,7 +458,9 @@ void MockPresentMonSession::UpdateProcesses(
         }
         if (processEvent.IsStartEvent) {
             if (started_processes_.insert(processEvent.ProcessId).second) {
-                pBroadcaster->HandleTargetProcessEvent(processEvent);
+                if (pBroadcaster) {
+                    pBroadcaster->HandleTargetProcessEvent(processEvent);
+                }
             }
         }
     }

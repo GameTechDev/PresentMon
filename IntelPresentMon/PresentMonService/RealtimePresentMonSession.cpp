@@ -318,7 +318,9 @@ void RealtimePresentMonSession::AddPresents(
             }
         }
 
-        pBroadcaster->Broadcast(*presentEvent);
+        if (pBroadcaster) {
+            pBroadcaster->Broadcast(*presentEvent);
+        }
 
     }
 
