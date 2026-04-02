@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2017-2024 Intel Corporation
+// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Middleware.h"
 #include <string>
@@ -132,6 +132,12 @@ namespace pmon::mid
         // Get and cache the introspection data
         (void)GetIntrospectionRoot_();
 	}
+
+    Middleware::Middleware(Middleware&&) = default;
+
+    Middleware& Middleware::operator=(Middleware&&) = default;
+
+    Middleware::~Middleware() = default;
     
     const PM_INTROSPECTION_ROOT* Middleware::GetIntrospectionData()
     {
