@@ -28,24 +28,29 @@ namespace pmon::ipc
 
 		ShmRing(const ShmRing&) = delete;
 		ShmRing& operator=(const ShmRing&) = delete;
-		// we need to enable move for use inside vectors
-		// not enabled by default because of the atomic member
+		// we need to enable move construction for use inside vectors
+		// not enabled by default because of the atomic members
 		ShmRing(ShmRing&& other) noexcept
 			:
 			backpressured_{ other.backpressured_ },
 			data_{ std::move(other.data_) },
-			nextWriteSerial_{ other.nextWriteSerial_.load() }
+			nextWriteSerial_{ other.nextWriteSerial_.load() },
+			nextReadSerial_{ other.nextReadSerial_.load() }
 		{
 		}
 		ShmRing& operator=(ShmRing&& other) noexcept
 		{
 			if (this != &other) {
+				backpressured_ = other.backpressured_;
 				data_ = std::move(other.data_);
 				nextWriteSerial_ = other.nextWriteSerial_.load();
+				nextReadSerial_ = other.nextReadSerial_.load();
 			}
 			return *this;
 		}
-		~ShmRing() = default;
+		~ShmRing() noexcept
+		{
+		}
 
 
 		bool Push(const T& val, std::optional<uint32_t> timeoutMs = {})
@@ -109,7 +114,7 @@ namespace pmon::ipc
 			return serial % data_.size();
 		}
 		// data
-		const bool backpressured_;
+		bool backpressured_;
 		std::atomic<size_t> nextWriteSerial_ = 0;
 		mutable std::atomic<size_t> nextReadSerial_ = 0;
 		ShmVector<T> data_;
