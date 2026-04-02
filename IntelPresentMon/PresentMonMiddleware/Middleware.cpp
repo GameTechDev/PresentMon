@@ -133,8 +133,6 @@ namespace pmon::mid
         (void)GetIntrospectionRoot_();
 	}
     
-    Middleware::~Middleware() = default;
-    
     const PM_INTROSPECTION_ROOT* Middleware::GetIntrospectionData()
     {
         // TODO: consider updating cache or otherwise connecting to middleware intro cache here

@@ -24,7 +24,11 @@ namespace pmon::mid
 	{
 	public:
 		Middleware(std::optional<std::string> pipeNameOverride = {});
-		~Middleware();
+		Middleware(const Middleware&) = delete;
+		Middleware& operator=(const Middleware&) = delete;
+		Middleware(Middleware&&) = default;
+		Middleware& operator=(Middleware&&) = default;
+		~Middleware() = default;
 		const PM_INTROSPECTION_ROOT* GetIntrospectionData();
 		void FreeIntrospectionData(const PM_INTROSPECTION_ROOT* pRoot);
 		void StartTracking(uint32_t processId);
