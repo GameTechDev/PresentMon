@@ -110,19 +110,12 @@
 
         <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />
 
-        <!-- Custom action to set REINSTALLMODE for handling in-use files -->
-        <CustomAction Id="SetReinstallMode"
-                      Property="REINSTALLMODE"
-                      Value="amus"
-                      Execute="immediate" />
         <CustomAction Id="SetLocalAppDataPresentMonFolder"
                       Property="LOCALAPPDATAPRESENTMONFOLDER"
                       Value="[LocalAppDataFolder]Intel\PresentMon"
                       Execute="immediate" />
 
         <InstallExecuteSequence>
-            <!-- Always set REINSTALLMODE to handle file replacement -->
-            <Custom Action="SetReinstallMode" Before="CostInitialize">1</Custom>
             <Custom Action="SetLocalAppDataPresentMonFolder" Before="CostInitialize">NOT LOCALAPPDATAPRESENTMONFOLDER</Custom>
         </InstallExecuteSequence>
         <InstallUISequence>
