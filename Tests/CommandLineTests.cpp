@@ -227,3 +227,30 @@ void InputTest(uint32_t v)
 
 TEST(CommandLineTests, Input_v1) { InputTest(1); }
 TEST(CommandLineTests, Input_v2) { InputTest(2); }
+
+TEST(CommandLineTests, HotkeyWithoutCsv)
+{
+    PresentMon pm;
+    pm.Add(L"--stop_existing_session --no_csv --hotkey F11");
+    pm.PMSTART();
+    EXPECT_TRUE(pm.IsRunning(1000));
+
+    // Simulate F11 key press
+    INPUT input[2] = {};
+    input[0].type = INPUT_KEYBOARD;
+    input[0].ki.wVk = VK_F11;
+    input[1].type = INPUT_KEYBOARD;
+    input[1].ki.wVk = VK_F11;
+    input[1].ki.dwFlags = KEYEVENTF_KEYUP;
+    SendInput(2, input, sizeof(INPUT));
+
+    // Wait for hotkey to be processed
+    Sleep(1000);
+
+    // Check the output
+    std::string output = pm.GetOutput();
+    EXPECT_NE(output.find("Started recording."), std::string::npos);
+
+    // Terminate the process
+    pm.PMEXITED(1000, 0);
+}
