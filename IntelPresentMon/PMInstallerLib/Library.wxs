@@ -33,9 +33,6 @@
                         Name="PresentMonSharedService"
                         Remove="uninstall"
                         Wait="no" />
-        <RemoveFolder Id ="PresentMonSharedServiceUninstall"
-                      Directory="service_folder"
-                      On="uninstall"/>
       </Component>
 
       <!-- PresentMonAPI2.dll -->

@@ -12,8 +12,6 @@
         <Icon Id="PresentMonArpIcon.ico" SourceFile="..\AppCef\flask.ico" />
 
         <!-- Handle in-use files by scheduling for reboot (user will see FilesInUse dialog) -->
-        <Property Id="MSIRESTARTMANAGERCONTROL" Value="DisableShutdown" />
-        <Property Id="REBOOT" Value="ReallySuppress" />
         <Property Id="ARPPRODUCTICON" Value="PresentMonArpIcon.ico" />
         <Property Id="LOCALAPPDATAPRESENTMONFOLDER">
             <RegistrySearch
@@ -25,7 +23,7 @@
         </Property>
 
         <MajorUpgrade
-            Schedule="afterInstallValidate"
+            Schedule="afterInstallExecute"
             AllowDowngrades="no"
             DowngradeErrorMessage="!(loc.product_downgrade_error_message)"/>
         
