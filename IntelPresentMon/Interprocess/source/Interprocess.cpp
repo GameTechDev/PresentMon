@@ -81,7 +81,7 @@ namespace pmon::ipc
                     std::forward_as_tuple(deviceId),
                     std::forward_as_tuple(segmentName,
                         sizing,
-                        static_cast<const bip::permissions&>(Permissions_{}))
+                        static_cast<const bip::permissions&>(Permissions_{ Permissions_::kReadOnly }))
                 ).first->second;
                 // populate rings based on caps
                 PopulateTelemetryRings(gpuShm.GetStore().telemetryData,
@@ -122,7 +122,7 @@ namespace pmon::ipc
                 if (!systemShm_) {
                     systemShm_.emplace(segmentName,
                         sizing,
-                        static_cast<const bip::permissions&>(Permissions_{}));
+                        static_cast<const bip::permissions&>(Permissions_{ Permissions_::kReadOnly }));
                 }
                 // populate rings based on caps
                 PopulateTelemetryRings(systemShm_->GetStore().telemetryData,
@@ -233,9 +233,16 @@ namespace pmon::ipc
             class Permissions_
             {
             public:
-                Permissions_()
+                // Full access for everyone — used for segments clients must write to
+                // (introspection mutex/semaphore, frame ring backpressure).
+                static constexpr const char* kReadWrite = "D:(A;OICI;GA;;;WD)";
+                // Read-only for everyone — used for segments clients only read
+                // (GPU telemetry, system telemetry). Prevents offset_ptr corruption.
+                static constexpr const char* kReadOnly  = "D:(A;OICI;GR;;;WD)";
+
+                explicit Permissions_(const char* sddl = kReadWrite)
                     :
-                    pSecDesc_{ util::win::MakeSecurityDescriptor("D:(A;OICI;GA;;;WD)") },
+                    pSecDesc_{ util::win::MakeSecurityDescriptor(sddl) },
                     secAttr_{ .nLength = sizeof(secAttr_), .lpSecurityDescriptor = pSecDesc_.get() }
                 {}
                 operator bip::permissions()
@@ -453,8 +460,8 @@ namespace pmon::ipc
             ShmNamer namer_;
             ShmSegment shm_; // introspection shm
 
-            std::optional<ViewedDataSegment<SystemDataStore>> systemShm_;
-            std::unordered_map<uint32_t, ViewedDataSegment<GpuDataStore>> gpuShms_;
+            std::optional<ViewedDataSegment<SystemDataStore, true>> systemShm_;
+            std::unordered_map<uint32_t, ViewedDataSegment<GpuDataStore, true>> gpuShms_;
             std::unordered_map<uint32_t, ViewedDataSegment<FrameDataStore>> frameShms_;
         };
     }

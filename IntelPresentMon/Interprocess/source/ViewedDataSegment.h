@@ -7,13 +7,15 @@ namespace pmon::ipc
 
     // Non-owning view over a shared memory segment that hosts a data store T.
     // Opens an existing managed segment and finds the named T instance inside.
-    template<class T>
+    // ReadOnly=true opens the segment with read-only access (FILE_MAP_READ); the
+    // segment's DACL must have been created with at most GR for this to succeed.
+    template<class T, bool ReadOnly = false>
     class ViewedDataSegment
     {
     public:
         explicit ViewedDataSegment(const std::string& segmentName)
             :
-            shm_{ bip::open_only, segmentName.c_str() }
+            shm_{ MakeShm_(segmentName) }
         {
             auto result = shm_.find<T>(name_);
             if (!result.first) {
@@ -26,6 +28,16 @@ namespace pmon::ipc
 
     private:
         static constexpr const char* name_ = "seg-dat";
+
+        static ShmSegment MakeShm_(const std::string& segmentName)
+        {
+            if constexpr (ReadOnly) {
+                return ShmSegment{ bip::open_read_only, segmentName.c_str() };
+            }
+            else {
+                return ShmSegment{ bip::open_only, segmentName.c_str() };
+            }
+        }
 
         ShmSegment shm_;
         T* pData_ = nullptr; // non-owning
