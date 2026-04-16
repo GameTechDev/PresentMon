@@ -50,6 +50,7 @@
     <ClInclude Include="acts\FinishEtlLogging.h" />
     <ClInclude Include="FrameBroadcaster.h" />
     <ClInclude Include="acts\ReportMetricUse.h" />
+    <ClInclude Include="acts\ReportFrameReadProgress.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PresentMonService.rc" />
