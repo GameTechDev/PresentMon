@@ -29,9 +29,18 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
-			if (stx.trackedPids.erase(in.targetPid) == 0) {
+			auto tpidIt = stx.trackedPids.find(in.targetPid);
+			if (tpidIt == stx.trackedPids.end()) {
 				pmlog_error("StopTracking called for untracked pid").pmwatch(in.targetPid);
 				throw util::Except<ActionExecutionError>(PM_STATUS_INVALID_PID);
+			}
+			const bool wasBackpressured = tpidIt->second.isBackpressured;
+			stx.trackedPids.erase(tpidIt);
+			stx.frameReadProgress.erase(in.targetPid);
+			// recompute effective serial now that this session no longer contributes
+			if (wasBackpressured) {
+				ctx.pPmon->GetBroadcaster().UpdateReadSerial(in.targetPid,
+					ctx.ComputeEffectiveReadSerial_(in.targetPid));
 			}
 			ctx.pPmon->UpdateTracking(ctx.GetTrackedPidSet());
 			pmlog_info(std::format("StopTracking action from [{}] un-targeting [{}]", stx.remotePid, in.targetPid));

@@ -43,6 +43,11 @@ namespace pmon::svc::acts
 					.pmwatch(serviceIsPlayback).pmwatch(in.isPlayback);
 				throw util::Except<ActionExecutionError>(PM_STATUS_MODE_MISMATCH);
 			}
+			// backpressure requires playback mode
+			if (!in.isPlayback && in.isBackpressured) {
+				pmlog_error("StartTracking backpressured requires isPlayback=true");
+				throw util::Except<ActionExecutionError>(PM_STATUS_BAD_ARGUMENT);
+			}
 			// check if this session already tracking requested pid
 			if (stx.trackedPids.find(in.targetPid) != stx.trackedPids.end()) {
 				pmlog_error("StartTracking called for already tracked pid").pmwatch(in.targetPid);
@@ -63,12 +68,33 @@ namespace pmon::svc::acts
 			// get the (possibly shared) segment (new or find operation in broadcaster)
 			auto pSegment = ctx.pPmon->GetBroadcaster().RegisterTarget(
 				in.targetPid, in.isPlayback, in.isBackpressured);
+			// the segment may have been created by an earlier session with a different mode;
+			// reject the join rather than silently recording backpressure state that will
+			// never take effect (Push() only blocks when backpressured_ was set at construction)
+			if (pSegment->GetStore().frameData.IsBackpressured() != in.isBackpressured) {
+				pmlog_error("StartTracking backpressure mode conflicts with existing segment")
+					.pmwatch(in.targetPid)
+					.pmwatch(in.isBackpressured);
+				throw util::Except<ActionExecutionError>(PM_STATUS_BAD_ARGUMENT);
+			}
 			if (auto sta = ctx.pPmon->UpdateTracking(trackedPids); sta != PM_STATUS_SUCCESS) {
 				pmlog_error("Start tracking call failed").code(sta);
 				throw util::Except<ActionExecutionError>(sta);
 			}
+			// initialize service-owned backpressure state before the target is recorded
+			if (in.isBackpressured) {
+				const auto initialSerial = pSegment->GetStore().frameData.GetSerialRange().first;
+				stx.frameReadProgress[in.targetPid] = initialSerial;
+			}
+			target.isBackpressured = in.isBackpressured;
 			target.pSegment = std::move(pSegment);
 			stx.trackedPids.emplace(in.targetPid, std::move(target));
+			// update the ring with the new effective minimum (may lower it if this session
+			// joins with an initial serial below the current ring value)
+			if (in.isBackpressured) {
+				ctx.pPmon->GetBroadcaster().UpdateReadSerial(in.targetPid,
+					ctx.ComputeEffectiveReadSerial_(in.targetPid));
+			}
 			pmlog_info(std::format("StartTracking action from [{}] targeting [{}]",
 				stx.remotePid, in.targetPid));
 			return {};

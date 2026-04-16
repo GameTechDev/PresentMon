@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -93,7 +94,11 @@ namespace pmon::mid
 			std::vector<SwapChainSnapshots> swapChainSnapshots;
 		};
 
-		FrameMetricsSource(ipc::MiddlewareComms& comms, uint32_t processId, size_t perSwapChainCapacity);
+		// progressCallback is invoked after each batch of frames is processed to report
+		// the new read position. Only set for backpressured playback targets; it dispatches
+		// ReportFrameReadProgress to the service. Leave empty for non-backpressured targets.
+		FrameMetricsSource(ipc::MiddlewareComms& comms, uint32_t processId, size_t perSwapChainCapacity,
+			std::function<void(uint64_t)> progressCallback = {});
 		~FrameMetricsSource();
 
 		FrameMetricsSource(const FrameMetricsSource&) = delete;
@@ -117,6 +122,7 @@ namespace pmon::mid
 		uint32_t processId_ = 0;
 		size_t perSwapChainCapacity_ = 0;
 		size_t nextFrameSerial_ = 0;
+		std::function<void(uint64_t)> progressCallback_;
 		// optional to defer creation until we are sure store is fully initialized (startQpc)
 		std::optional<util::QpcConverter> qpcConverter_;
 		std::unordered_map<uint64_t, SwapChainState> swapChains_;

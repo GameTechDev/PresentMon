@@ -65,6 +65,15 @@ namespace pmon::ipc
         {
             samples_.MarkNextRead(serial);
         }
+        // Service-side only: unconditionally set the read serial.
+        void ForceSetNextRead(size_t serial) const
+        {
+            samples_.ForceSetNextRead(serial);
+        }
+        bool IsBackpressured() const
+        {
+            return samples_.IsBackpressured();
+        }
         // First serial with timestamp >= given timestamp.
         // If all samples have timestamp < given timestamp, returns last (one past end).
         size_t LowerBoundSerial(uint64_t timestamp) const

@@ -81,8 +81,11 @@ namespace pmon::svc::acts
         {
             std::shared_ptr<FrameBroadcaster::Segment> pSegment;
             util::win::Handle processHandle;
+            bool isBackpressured = false;
         };
         std::map<uint32_t, TrackedTarget> trackedPids;
+        // Service-owned backpressure progress: pid -> nextReadSerial for this session.
+        std::map<uint32_t, uint64_t> frameReadProgress;
         // etl recording functionality support
         std::set<uint32_t> etwLogSessionIds;
         std::optional<uint32_t> requestedTelemetryPeriodMs;
@@ -111,5 +114,9 @@ namespace pmon::svc::acts
         void UpdateEtwFlushPeriod() const;
         void UpdateMetricUsage() const;
         std::unordered_set<uint32_t> GetTrackedPidSet() const;
+        // Compute the minimum nextReadSerial across all sessions backpressure-tracking pid.
+        // Returns the current ring write serial (effectively unblocking the writer) when
+        // no backpressured sessions remain.
+        uint64_t ComputeEffectiveReadSerial_(uint32_t pid) const;
     };
 }

@@ -170,8 +170,20 @@ namespace pmon::mid
             .isPlayback = true,
             .isBackpressured = isBackpressured
         });
+        // For backpressured targets, wire up a callback that reports read progress to
+        // the service via the pipe rather than writing directly into shared memory.
+        std::function<void(uint64_t)> progressCallback;
+        if (isBackpressured) {
+            progressCallback = [this, targetPid](uint64_t nextReadSerial) {
+                pActionClient_->DispatchDetached(ReportFrameReadProgress::Params{
+                    .targetPid = targetPid,
+                    .nextReadSerial = nextReadSerial,
+                });
+            };
+        }
         frameMetricsSources_.emplace(targetPid,
-            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, kFrameMetricsPerSwapChainCapacity));
+            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, kFrameMetricsPerSwapChainCapacity,
+                std::move(progressCallback)));
 
         pmlog_info(std::format("Started playback tracking pid [{}]", targetPid)).diag();
     }

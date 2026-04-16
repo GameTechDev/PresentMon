@@ -98,6 +98,16 @@ namespace pmon::ipc
 				nextReadSerial_ = serial;
 			}
 		}
+		// Service-side only: unconditionally set the read serial (may move backward
+		// when a new slow session joins and lowers the effective minimum).
+		void ForceSetNextRead(size_t serial) const
+		{
+			nextReadSerial_ = serial;
+		}
+		bool IsBackpressured() const
+		{
+			return backpressured_;
+		}
 		bool Empty() const
 		{
 			return nextWriteSerial_ == 0;

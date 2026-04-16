@@ -55,11 +55,43 @@ namespace pmon::svc
 		}
         void Broadcast(const PresentEvent& present, std::optional<uint32_t> timeoutMs = {})
 		{
-            std::lock_guard lk{ mtx_ };
-			if (auto pSegment = comms_.GetFrameDataSegment(present.ProcessId)) {
+            // Release the mutex before calling Push() so that a concurrent
+            // ReportFrameReadProgress action can acquire it to call UpdateReadSerial()
+            // without deadlocking when Push() blocks on backpressure.
+            std::shared_ptr<Segment> pSegment;
+            {
+                std::lock_guard lk{ mtx_ };
+                pSegment = comms_.GetFrameDataSegment(present.ProcessId);
+            }
+            if (pSegment) {
                 pSegment->GetStore().frameData.Push(FrameData::CopyFrameData(present));
-			}
+            }
 		}
+        // Update the ring's effective read serial (service-owned backpressure state).
+        void UpdateReadSerial(uint32_t pid, uint64_t effectiveSerial)
+        {
+            std::shared_ptr<Segment> pSegment;
+            {
+                std::lock_guard lk{ mtx_ };
+                pSegment = comms_.GetFrameDataSegment(pid);
+            }
+            if (pSegment) {
+                pSegment->GetStore().frameData.ForceSetNextRead(effectiveSerial);
+            }
+        }
+        // Return the current write serial for pid, or nullopt if no segment exists.
+        std::optional<uint64_t> GetCurrentWriteSerial(uint32_t pid) const
+        {
+            std::shared_ptr<Segment> pSegment;
+            {
+                std::lock_guard lk{ mtx_ };
+                pSegment = comms_.GetFrameDataSegment(pid);
+            }
+            if (pSegment) {
+                return pSegment->GetStore().frameData.GetSerialRange().second;
+            }
+            return std::nullopt;
+        }
         void HandleTargetProcessEvent(const ProcessEvent& targetProcessEvent)
         {
             std::lock_guard lk{ mtx_ };
