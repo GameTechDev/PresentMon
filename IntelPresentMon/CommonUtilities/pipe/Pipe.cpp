@@ -115,7 +115,7 @@ namespace pmon::util::pipe
 	{
 		switch (mode) {
 		default:case SecurityMode::None: return {};
-		case SecurityMode::Service: return "D:PNO_ACCESS_CONTROLS:(ML;;NW;;;LW)"s;
+		case SecurityMode::Service: return "D:P(A;;GA;;;AU)S:(ML;;NW;;;LW)"s;
 		case SecurityMode::Child: return "D:(A;OICI;GA;;;WD)"s;
 		}
 	}

@@ -233,12 +233,12 @@ namespace pmon::ipc
             class Permissions_
             {
             public:
-                // Full access for everyone - used for segments clients must write to
+                // Full access for authenticated users - used for segments clients must write to
                 // (introspection mutex/semaphore).
-                static constexpr const char* kReadWrite = "D:(A;OICI;GA;;;WD)";
-                // Read-only for everyone - used for segments clients only read
+                static constexpr const char* kReadWrite = "D:(A;OICI;GA;;;AU)";
+                // Read-only for authenticated users - used for segments clients only read
                 // (GPU telemetry, system telemetry).
-                static constexpr const char* kReadOnly  = "D:(A;OICI;GR;;;WD)";
+                static constexpr const char* kReadOnly  = "D:(A;OICI;GR;;;AU)";
 
                 explicit Permissions_(const char* sddl = kReadWrite)
                     :
