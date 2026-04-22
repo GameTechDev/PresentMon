@@ -8,14 +8,16 @@ import { Action } from '@/core/hotkey';
 import HotkeyButton from '@/components/HotkeyButton.vue';
 
 const prefs = usePreferencesStore();
+const etlCaptureDisabled = true;
+const etlCaptureDisabledMessage = 'ETL capture is currently disabled.';
 async function handleEtlCapture() {
-    prefs.toggleEtlLogging()
+    prefs.notifyEtlLoggingDisabled()
 }
 async function handleEtlExplore() {
     await Api.exploreEtls()
 }
 function getEtlToggleButtonName() {
-    return prefs.etlLogging ? 'Finish ETL' : 'Start ETL';
+    return etlCaptureDisabled ? 'ETL Disabled' : prefs.etlLogging ? 'Finish ETL' : 'Start ETL';
 }
 </script>
 
@@ -26,54 +28,57 @@ function getEtlToggleButtonName() {
     </h2>
 
     <v-card class="page-card">
+        <v-alert type="info" variant="tonal" class="mt-5">
+          {{ etlCaptureDisabledMessage }}
+        </v-alert>
 
-      <v-row class="mt-5">
-        <v-col cols="3">
-          ETL Capture Hotkey
-          <p class="text-medium-emphasis text-caption mb-0">
-            Hotkey for starting/finishing an ETL trace
-          </p>
-        </v-col>
-        <v-col cols="9">
-          <v-row>
-            <v-col cols="6">              
-              <hotkey-button :action="Action.ToggleEtlLogging"></hotkey-button>
+        <v-row class="mt-5">
+            <v-col cols="3">
+                ETL Capture Hotkey
+                <p class="text-medium-emphasis text-caption mb-0">
+                    Hotkey for starting/finishing an ETL trace
+                </p>
             </v-col>
-          </v-row>
-        </v-col>
-      </v-row>
+            <v-col cols="9">
+                <v-row>
+                    <v-col cols="6">
+                        <hotkey-button :action="Action.ToggleEtlLogging" :disabled="etlCaptureDisabled"></hotkey-button>
+                    </v-col>
+                </v-row>
+            </v-col>
+        </v-row>
 
-      <v-row class="mt-5">
-        <v-col cols="3">
-          Capture ETL
-          <p class="text-medium-emphasis text-caption mb-0">
-            Capture ETW events to a raw event stream trace for offline analysis and reporting
-          </p>
-        </v-col>
-        <v-col cols="9">
-          <v-row>
-            <v-col cols="6">
-              <v-btn @click="handleEtlCapture">{{ getEtlToggleButtonName() }}</v-btn>
+        <v-row class="mt-5">
+            <v-col cols="3">
+                Capture ETL
+                <p class="text-medium-emphasis text-caption mb-0">
+                    Raw ETL capture is currently disabled.
+                </p>
             </v-col>
-          </v-row>
-        </v-col>
-      </v-row>
+            <v-col cols="9">
+                <v-row>
+                    <v-col cols="6">
+                        <v-btn :disabled="etlCaptureDisabled" @click="handleEtlCapture">{{getEtlToggleButtonName()}}</v-btn>
+                    </v-col>
+                </v-row>
+            </v-col>
+        </v-row>
 
-      <v-row class="mt-5">
-        <v-col cols="3">
-          ETL Folder
-          <p class="text-medium-emphasis text-caption mb-0">
-            Navigate to the folder that receives the captured .etl trace files
-          </p>
-        </v-col>
-        <v-col cols="9">
-          <v-row>
-            <v-col cols="6">
-              <v-btn @click="handleEtlExplore">Open in Explorer</v-btn>
+        <v-row class="mt-5">
+            <v-col cols="3">
+                ETL Folder
+                <p class="text-medium-emphasis text-caption mb-0">
+                    Navigate to the folder that receives the captured .etl trace files
+                </p>
             </v-col>
-          </v-row>
-        </v-col>
-      </v-row>
+            <v-col cols="9">
+                <v-row>
+                    <v-col cols="6">
+                        <v-btn @click="handleEtlExplore">Open in Explorer</v-btn>
+                    </v-col>
+                </v-row>
+            </v-col>
+        </v-row>
 
     </v-card>
   </div>

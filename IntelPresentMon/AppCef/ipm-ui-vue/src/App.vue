@@ -86,7 +86,7 @@ Api.registerHotkeyHandler((action: number) => {
       prefs.toggleCapture()
       break;
     case Action.ToggleEtlLogging:
-      prefs.toggleEtlLogging();
+      prefs.notifyEtlLoggingDisabled();
       break;
     default:
       console.warn(`Unhandled hotkey action: ${action}`);

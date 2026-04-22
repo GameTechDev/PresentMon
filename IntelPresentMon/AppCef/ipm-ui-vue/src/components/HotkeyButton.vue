@@ -12,6 +12,7 @@ import { useHotkeyStore } from '@/stores/hotkey';
 defineOptions({ name: 'HotkeyButton'})
 interface Props {
   action: number
+  disabled?: boolean
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: Combination | null): void }>();
@@ -22,6 +23,7 @@ const hotkeys = useHotkeyStore()
 
 // call exposed function with necessary delay
 async function openHotkeyDialog() {
+  if (props.disabled) return;
   // we need to delay showing of the dialog until the computed properties have caught up
   // otherwise the wrong combination will be captured internally by the dialog state
   await nextTick();
@@ -63,7 +65,8 @@ const hotkeyCombination = computed({
 
 <template>
   <!-- TODO: this could probably be rolled up with HotkeyDialog as one component under Vuetify 3 -->
-<div class="hot-border" @click="openHotkeyDialog">
+<div class="hot-border" :class="{ disabled: props.disabled }"
+@click="openHotkeyDialog">
     <div v-if="hotkeyCombination != null" class="hot-combo">
         <div v-for="m in hotkeyCombination.modifiers" :key="m" class="hot-mod">
             <div class="hot-key">{{ getHotkeyModifierName(m) }}</div>
@@ -101,6 +104,11 @@ const hotkeyCombination = computed({
   &:hover {
     background-color: hsl(240, 1%, 18%);
     border-color: color-mix(in srgb, var(--v-theme-secondary) 80%, white);
+  }
+  &.disabled {
+    opacity: 0.5;
+    cursor: default;
+    pointer-events: none;
   }
 }
 .hot-combo {
