@@ -9,17 +9,11 @@ namespace pmon::svc::acts
 {
     void ActionExecutionContext::Dispose(SessionContextType& stx)
     {
-        // backpressure cleanup: must happen before trackedPids is cleared so that
-        // ComputeEffectiveReadSerial_ can see which targets were backpressured.
-        // We erase each pid from frameReadProgress first so that ComputeEffectiveReadSerial_
-        // excludes this session when recomputing the effective minimum for other sessions.
         for (auto const& [pid, target] : stx.trackedPids) {
-            if (target.isBackpressured) {
-                stx.frameReadProgress.erase(pid);
-                pPmon->GetBroadcaster().UpdateReadSerial(pid, ComputeEffectiveReadSerial_(pid));
+            if (target.backpressureReadSerial) {
+                ReleaseBackpressure(pid);
             }
         }
-        stx.frameReadProgress.clear();
         // etw log trace cleanup
         auto& etw = pPmon->GetEtwLogger();
         for (auto id : stx.etwLogSessionIds) {
@@ -101,28 +95,12 @@ namespace pmon::svc::acts
         return trackedPids;
     }
 
-    uint64_t ActionExecutionContext::ComputeEffectiveReadSerial_(uint32_t pid) const
+    void ActionExecutionContext::ReleaseBackpressure(uint32_t pid) const
     {
-        std::optional<uint64_t> minSerial;
-        if (pSessionMap) {
-            for (auto const& [sid, session] : *pSessionMap) {
-                auto pidIt = session.trackedPids.find(pid);
-                if (pidIt == session.trackedPids.end() || !pidIt->second.isBackpressured) {
-                    continue;
-                }
-                auto rit = session.frameReadProgress.find(pid);
-                if (rit != session.frameReadProgress.end()) {
-                    if (!minSerial || rit->second < *minSerial) {
-                        minSerial = rit->second;
-                    }
-                }
-            }
-        }
-        if (minSerial) {
-            return *minSerial;
-        }
-        // No backpressured sessions remain; return the current write serial so the
-        // producer is not blocked waiting for a read that will never arrive.
-        return pPmon->GetBroadcaster().GetCurrentWriteSerial(pid).value_or(0);
+        // Backpressured playback is SPSC, so tearing down the owner simply advances the
+        // single consumer cursor to the writer and releases any blocked producer.
+        pPmon->GetBroadcaster().UpdateReadSerial(
+            pid,
+            pPmon->GetBroadcaster().GetCurrentWriteSerial(pid).value_or(0));
     }
 }

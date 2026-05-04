@@ -61,14 +61,11 @@ namespace pmon::ipc
             const auto range = GetSerialRange();
             return range.second - range.first;
         }
-        void MarkNextRead(size_t serial) const
+        // Service-side only: set the single consumer read serial for a
+        // backpressured playback ring.
+        void SetNextRead(size_t serial) const
         {
-            samples_.MarkNextRead(serial);
-        }
-        // Service-side only: unconditionally set the read serial.
-        void ForceSetNextRead(size_t serial) const
-        {
-            samples_.ForceSetNextRead(serial);
+            samples_.SetNextRead(serial);
         }
         bool IsBackpressured() const
         {

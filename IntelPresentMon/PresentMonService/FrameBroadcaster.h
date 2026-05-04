@@ -67,7 +67,8 @@ namespace pmon::svc
                 pSegment->GetStore().frameData.Push(FrameData::CopyFrameData(present));
             }
 		}
-        // Update the ring's effective read serial (service-owned backpressure state).
+        // Update the single consumer cursor for a backpressured playback ring. Playback
+        // backpressure is SPSC: one producer in the service and one owning client reader.
         void UpdateReadSerial(uint32_t pid, uint64_t effectiveSerial)
         {
             std::shared_ptr<Segment> pSegment;
@@ -76,7 +77,7 @@ namespace pmon::svc
                 pSegment = comms_.GetFrameDataSegment(pid);
             }
             if (pSegment) {
-                pSegment->GetStore().frameData.ForceSetNextRead(effectiveSerial);
+                pSegment->GetStore().frameData.SetNextRead(effectiveSerial);
             }
         }
         // Return the current write serial for pid, or nullopt if no segment exists.

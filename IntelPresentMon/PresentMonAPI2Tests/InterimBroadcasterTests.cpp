@@ -1060,21 +1060,21 @@ namespace InterimBroadcasterTests
             };
 
             const auto range1 = ring.GetSerialRange();
-            ring.MarkNextRead(range1.second);
+            ring.SetNextRead(range1.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
             appendRange(range1);
 
             std::this_thread::sleep_for(300ms);
 
             const auto range2 = ring.GetSerialRange();
-            ring.MarkNextRead(range2.second);
+            ring.SetNextRead(range2.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
             appendRange(range2);
 
             std::this_thread::sleep_for(500ms);
 
             const auto range3 = ring.GetSerialRange();
-            ring.MarkNextRead(range3.second);
+            ring.SetNextRead(range3.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
             appendRange(range3);
 
@@ -1149,7 +1149,7 @@ namespace InterimBroadcasterTests
                 for (size_t s = start; s < range.second; ++s) {
                     (void)ring.At(s);
                 }
-                ring.MarkNextRead(range.second);
+                ring.SetNextRead(range.second);
                 lastProcessed = range.second;
             }
 

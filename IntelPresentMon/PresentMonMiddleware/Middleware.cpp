@@ -170,8 +170,8 @@ namespace pmon::mid
             .isPlayback = true,
             .isBackpressured = isBackpressured
         });
-        // For backpressured targets, wire up a callback that reports read progress to
-        // the service via the pipe rather than writing directly into shared memory.
+        // For backpressured playback, this middleware instance is the single consumer
+        // for the ring and reports its read progress back to the service.
         std::function<void(uint64_t)> progressCallback;
         if (isBackpressured) {
             progressCallback = [this, targetPid](uint64_t nextReadSerial) {

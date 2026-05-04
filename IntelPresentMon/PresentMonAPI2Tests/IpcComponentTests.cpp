@@ -515,9 +515,9 @@ namespace IpcComponentTests
             Assert::AreEqual<size_t>(pushed, rangeBefore.second);
             Assert::AreEqual<size_t>(0, rangeBefore.first);
 
-            ring.MarkNextRead(rangeBefore.second);
+            ring.SetNextRead(rangeBefore.second);
 
-            Assert::IsTrue(ring.Push(sample, 30), L"Expected push after MarkNextRead");
+            Assert::IsTrue(ring.Push(sample, 30), L"Expected push after SetNextRead");
             const auto rangeAfter = ring.GetSerialRange();
             Assert::AreEqual<size_t>(pushed + 1, rangeAfter.second);
         }
