@@ -119,6 +119,7 @@ namespace pmon::util::metrics
             auto metrics = ComputeFrameMetrics(
                 qpc,
                 present,
+                chainState.lastDisplayedScreenTime,
                 screenTime,
                 nextScreenTime,
                 isDisplayed,
@@ -162,6 +163,7 @@ namespace pmon::util::metrics
             auto metrics = ComputeFrameMetrics(
                 qpc,
                 present,
+                chainState.lastDisplayedScreenTime,
                 screenTime,
                 nextScreenTime,
                 isDisplayedInstance,
@@ -183,6 +185,10 @@ namespace pmon::util::metrics
         const bool shouldUpdateSwapChain = (nextDisplayed != nullptr);
 
         for (size_t displayIndex = indexing.startIndex; displayIndex < indexing.endIndex; ++displayIndex) {
+            const uint64_t previousDisplayedScreenTime =
+                displayIndex > 0
+                ? present.displayed[displayIndex - 1].second
+                : chainState.lastDisplayedScreenTime;
             uint64_t screenTime = present.displayed[displayIndex].second;
             uint64_t nextScreenTime = 0;
 
@@ -207,6 +213,7 @@ namespace pmon::util::metrics
             auto metrics = ComputeFrameMetrics(
                 qpc,
                 present,
+                previousDisplayedScreenTime,
                 screenTime,
                 nextScreenTime,
                 isDisplayedInstance,
@@ -235,6 +242,7 @@ namespace pmon::util::metrics
     ComputedMetrics ComputeFrameMetrics(
         const QpcConverter& qpc,
         const FrameData& present,
+        uint64_t previousDisplayedScreenTime,
         uint64_t screenTime,
         uint64_t nextScreenTime,
         bool isDisplayed,
@@ -258,6 +266,7 @@ namespace pmon::util::metrics
             qpc,
             present,
             chain,
+            previousDisplayedScreenTime,
             isDisplayed,
             screenTime,
             nextScreenTime,

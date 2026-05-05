@@ -55,6 +55,28 @@ static inline bool HasScreenTime(std::shared_ptr<PresentEvent> const& p)
     return false;
 }
 
+static inline bool HasDisplayedFrameType(std::shared_ptr<PresentEvent> const& p, FrameType frameType)
+{
+    for (auto const& displayed : p->Displayed) {
+        if (displayed.first == frameType) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static inline bool ShouldAppendApplicationAfterGeneratedDisplay(std::shared_ptr<PresentEvent> const& p)
+{
+    bool hasGeneratedFrame =
+        HasDisplayedFrameType(p, FrameType::Intel_XEFG) ||
+        HasDisplayedFrameType(p, FrameType::AMD_AFMF);
+
+    bool hasApplicationFrame =
+        HasDisplayedFrameType(p, FrameType::Application);
+
+    return hasGeneratedFrame && !hasApplicationFrame;
+}
+
 // Set a ScreenTime for this present.
 //
 // If a ScreenTime has not yet been set, add it to Displayed and set Presented.
@@ -186,6 +208,7 @@ PresentEvent::PresentEvent()
     , WaitingForFlipFrameType(false)
     , DoneWaitingForFlipFrameType(false)
     , WaitingForFrameId(false)
+    , DisplayedViaFlipFrameType(false)
 {
 }
 
@@ -261,6 +284,7 @@ PresentEvent::PresentEvent(uint32_t fid)
     , WaitingForFlipFrameType(false)
     , DoneWaitingForFlipFrameType(false)
     , WaitingForFrameId(false)
+    , DisplayedViaFlipFrameType(false)
 {
 }
 
@@ -1098,6 +1122,18 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
                             if (pEvent->FinalState != PresentResult::Presented) {
                                 VerboseTraceBeforeModifyingPresent(pEvent.get());
                                 SetScreenTime(pEvent, hdr.TimeStamp.QuadPart);
+                            } else if (pEvent->DisplayedViaFlipFrameType && ShouldAppendApplicationAfterGeneratedDisplay(pEvent)) {
+                                // Special case for FlipFrameType_Info-based driver frame generation:
+                                // ApplyFlipFrameType() may have already appended a generated frame
+                                // which sets FinalState=Presented on the present.
+                                // In that case, this HSync/VSync MPO completion is the application frame
+                                // reaching the screen and should be appended as FrameType::Application.
+                                // This check is intentionally gated on DisplayedViaFlipFrameType to
+                                // avoid incorrectly appending a frame when PresentFrameType_Info is used
+                                // instead (where the VSync event simply fills in the generated frame's
+                                // display timestamp rather than signaling a separate application frame).
+                                VerboseTraceBeforeModifyingPresent(pEvent.get());
+                                pEvent->Displayed.emplace_back(FrameType::NotSet, hdr.TimeStamp.QuadPart);
                             }
 
                             // Complete the present.
@@ -1642,7 +1678,7 @@ void PMTraceConsumer::HandleWin32kEvent(EVENT_RECORD* pEventRecord)
                         // we get multiple back to back flips and token tracking thread 
                         // ends up marking the first frame in the burst as dropped. 
                         // To fix this issue, we mark the frame as discarded only if 
-                        // the frame already doesnâ€™t have valid ScreenTime. 
+                        // the frame already doesn’t have valid ScreenTime. 
                         if (!HasScreenTime(prevPresent)) {
                             prevPresent->FinalState = PresentResult::Discarded;
                         }
@@ -3101,33 +3137,65 @@ void PMTraceConsumer::HandleIntelPresentMonEvent(EVENT_RECORD* pEventRecord)
             }
         }
         return;
-        case Intel_PresentMon::FlipFrameType_Info::Id:
+        case Intel_PresentMon::FlipFrameType_Info::Id: {
             if (mEnableFlipFrameTypeEvents) {
-                DebugAssert(pEventRecord->UserDataLength == sizeof(Intel_PresentMon::FlipFrameType_Info_Props));
+                uint32_t vidPnSourceId = 0;
+                uint32_t layerIndex = 0;
+                uint64_t presentId = 0;
+                uint64_t timestamp = 0;
+                FrameType frameType = FrameType::NotSet;
+                uint32_t processId = pEventRecord->EventHeader.ProcessId;
+                uint32_t threadId = pEventRecord->EventHeader.ThreadId;
 
-                auto props = (Intel_PresentMon::FlipFrameType_Info_Props*) pEventRecord->UserData;
-                auto timestamp = pEventRecord->EventHeader.TimeStamp.QuadPart;
-                auto frameType = ConvertPMPFrameTypeToFrameType(props->FrameType);
+                if (pEventRecord->EventHeader.EventDescriptor.Version == 0) {
+                    DebugAssert(pEventRecord->UserDataLength == sizeof(Intel_PresentMon::FlipFrameType_Info_Props));
+
+                    auto props = (Intel_PresentMon::FlipFrameType_Info_Props*)pEventRecord->UserData;
+                    vidPnSourceId = props->VidPnSourceId;
+                    layerIndex = props->LayerIndex;
+                    presentId = props->PresentId;
+                    timestamp = pEventRecord->EventHeader.TimeStamp.QuadPart;
+                    frameType = ConvertPMPFrameTypeToFrameType(props->FrameType);
+                }
+                else if (pEventRecord->EventHeader.EventDescriptor.Version == 1) {
+                    DebugAssert(pEventRecord->UserDataLength == sizeof(Intel_PresentMon::FlipFrameType_Info_2_Props));
+                    auto props = (Intel_PresentMon::FlipFrameType_Info_2_Props*)pEventRecord->UserData;
+                    vidPnSourceId = props->VidPnSourceId;
+                    layerIndex = props->LayerIndex;
+                    presentId = props->PresentId;
+                    frameType = ConvertPMPFrameTypeToFrameType(props->FrameType);
+                    timestamp = props->TimeStamp;
+                } else {
+                    // Unknown version
+                    return;
+                }
+
+                // For now if timestamp is zero simply return
+                if (timestamp == 0) {
+                    return;
+                }
 
                 // Look up the present associated with this (VidPnSourceId, LayerIndex, PresentId).
                 //
                 // It is possible to see the FlipFrameType event before the MMIOFlipMultiPlaneOverlay3_Info
                 // event, in which case the lookup will fail.  In this case we deferr application of the
                 // FlipFrameType until we see the MMIOFlipMultiPlaneOverlay3_Info event.
-                auto vidPnLayerId = GenerateVidPnLayerId(props->VidPnSourceId, props->LayerIndex);
+                auto vidPnLayerId = GenerateVidPnLayerId(vidPnSourceId, layerIndex);
                 auto ii = mPresentByVidPnLayerId.find(vidPnLayerId);
                 if (ii == mPresentByVidPnLayerId.end()) {
-                    DeferFlipFrameType(vidPnLayerId, props->PresentId, timestamp, frameType);
+                    DeferFlipFrameType(vidPnLayerId, presentId, timestamp, frameType, processId, threadId);
                     return;
                 }
 
                 auto present = ii->second;
                 auto jj = present->PresentIds.find(vidPnLayerId);
-                if (jj == present->PresentIds.end() || jj->second != props->PresentId) {
-                    DeferFlipFrameType(vidPnLayerId, props->PresentId, timestamp, frameType);
-                } else {
+                if (jj == present->PresentIds.end() || jj->second != presentId) {
+                    DeferFlipFrameType(vidPnLayerId, presentId, timestamp, frameType, processId, threadId);
+                }
+                else {
                     ApplyFlipFrameType(present, timestamp, frameType);
                 }
+            }
         }
         return;
         }
@@ -3381,15 +3449,47 @@ void PMTraceConsumer::DeferFlipFrameType(
     uint64_t vidPnLayerId,
     uint64_t presentId,
     uint64_t timestamp,
-    FrameType frameType)
+    FrameType frameType,
+    uint32_t processId,
+    uint32_t threadId)
 {
-    DebugAssert(mPendingFlipFrameTypeEvents.find(vidPnLayerId) == mPendingFlipFrameTypeEvents.end());
+    // If timestamp is 0 it means the frame was generated to be presented but did not actually get presented,
+    // so we should not defer the frame type.
+    if (timestamp == 0) {
+        return;
+    }
 
-    FlipFrameTypeEvent e;
-    e.PresentId = presentId;
-    e.Timestamp = timestamp;
-    e.FrameType = frameType;
-    mPendingFlipFrameTypeEvents.emplace(vidPnLayerId, e);
+    FlipFrameTypeEvent pendingEvent;
+    pendingEvent.PresentId = presentId;
+    pendingEvent.Timestamp = timestamp;
+    pendingEvent.FrameType = frameType;
+    pendingEvent.ProcessId = processId;
+    pendingEvent.ThreadId = threadId;
+
+    auto [pendingFlipFrameTypeEventIt, inserted] = mPendingFlipFrameTypeEvents.try_emplace(vidPnLayerId, pendingEvent);
+    if (!inserted) {
+        auto const& existingEvent = pendingFlipFrameTypeEventIt->second;
+        if (existingEvent == pendingEvent) {
+            pmlog_info(
+                "Received multiple FlipFrameType events for the same"
+                " VidPnSourceId: " + std::to_string(vidPnLayerId >> 32) +
+                " LayerIndex: " + std::to_string(vidPnLayerId & 0xFFFFFFFF) +
+                " with PresentId: " + std::to_string(presentId) +
+                " for ProcessId: " + std::to_string(processId) +
+                " with ThreadId: " + std::to_string(threadId) +
+                ". Ignoring this FlipFrameType event.");
+            return;
+        }
+
+        pmlog_info(
+            "Received a FlipFrameType event for VidPnSourceId: " + std::to_string(vidPnLayerId >> 32) +
+            " LayerIndex: " + std::to_string(vidPnLayerId & 0xFFFFFFFF) +
+            " with PresentId: " + std::to_string(presentId) +
+            " from ProcessId: " + std::to_string(processId) +
+            " with ThreadId: " + std::to_string(threadId) +
+            ". Overwriting the pending FlipFrameType event with the new one.");
+        pendingFlipFrameTypeEventIt->second = pendingEvent;
+    }
 }
 
 void PMTraceConsumer::ApplyFlipFrameType(
@@ -3402,11 +3502,13 @@ void PMTraceConsumer::ApplyFlipFrameType(
     for (auto p2 : present->DependentPresents) {
         if (p2->FinalState != PresentResult::Discarded) {
             VerboseTraceBeforeModifyingPresent(p2.get());
+            p2->DisplayedViaFlipFrameType = true;
             SetScreenTime(p2, timestamp, frameType);
         }
     }
 
     VerboseTraceBeforeModifyingPresent(present.get());
+    present->DisplayedViaFlipFrameType = true;
     SetScreenTime(present, timestamp, frameType);
 }
 

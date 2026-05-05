@@ -41,6 +41,7 @@ EVENT_DESCRIPTOR_DECL(AppSimulationStart_Info, 0x0034, 0x00, 0x00, 0x04, 0x00, 0
 EVENT_DESCRIPTOR_DECL(AppSleepEnd_Info, 0x0033, 0x00, 0x00, 0x04, 0x00, 0x0033, 0x0000000000000020);
 EVENT_DESCRIPTOR_DECL(AppSleepStart_Info, 0x0032, 0x00, 0x00, 0x04, 0x00, 0x0032, 0x0000000000000020);
 EVENT_DESCRIPTOR_DECL(FlipFrameType_Info, 0x0002, 0x00, 0x00, 0x04, 0x00, 0x0002, 0x0000000000000001);
+EVENT_DESCRIPTOR_DECL(FlipFrameType_Info_2, 0x0002, 0x01, 0x00, 0x04, 0x00, 0x0002, 0x0000000000000001);
 EVENT_DESCRIPTOR_DECL(MeasuredInput_Info, 0x000a, 0x00, 0x00, 0x04, 0x00, 0x000a, 0x0000000000000002);
 EVENT_DESCRIPTOR_DECL(MeasuredScreenChange_Info, 0x000b, 0x00, 0x00, 0x04, 0x00, 0x000b, 0x0000000000000002);
 EVENT_DESCRIPTOR_DECL(PresentFrameType_Info, 0x0001, 0x00, 0x00, 0x04, 0x00, 0x0001, 0x0000000000000001);
@@ -115,6 +116,14 @@ struct FlipFrameType_Info_Props {
     uint32_t LayerIndex;
     uint64_t PresentId;
     FrameType FrameType;
+};
+
+struct FlipFrameType_Info_2_Props {
+    uint32_t    VidPnSourceId;
+    uint32_t    LayerIndex;
+    uint64_t    PresentId;
+    FrameType   FrameType;
+    uint64_t    TimeStamp;
 };
 
 struct PresentFrameType_Info_Props {

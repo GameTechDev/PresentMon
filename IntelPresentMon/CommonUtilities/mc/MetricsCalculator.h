@@ -50,6 +50,7 @@ namespace pmon::util::metrics
     ComputedMetrics ComputeFrameMetrics(
         const QpcConverter& qpc,
         const FrameData& present,
+        uint64_t previousDisplayedScreenTime,
         uint64_t screenTime,
         uint64_t nextScreenTime,
         bool isDisplayed,

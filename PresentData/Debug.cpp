@@ -288,6 +288,7 @@ void FlushModifiedPresent()
     FLUSH_MEMBER(PrintBool,           WaitingForFlipFrameType)
     FLUSH_MEMBER(PrintBool,           DoneWaitingForFlipFrameType)
     FLUSH_MEMBER(PrintBool,           WaitingForFrameId)
+    FLUSH_MEMBER(PrintBool,           DisplayedViaFlipFrameType)
 #undef FLUSH_MEMBER
 
     // Displayed

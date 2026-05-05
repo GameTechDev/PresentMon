@@ -1506,6 +1506,353 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(uint64_t(42'200), chain.lastDisplayedScreenTime);
             Assert::AreEqual(uint64_t(999), chain.lastDisplayedFlipDelay);
         }
+
+        TEST_METHOD(ComputeMetricsForPresent_IntelXefg_MultiPresentSequence_VaryingDisplayedVectorSizes)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.lastDisplayedScreenTime = 5;
+
+            auto assertRow = [&](const auto& result, FrameType expectedFrameType, uint64_t expectedScreenTime, uint64_t expectedBetweenStart, uint64_t expectedDisplayedEnd, uint64_t expectedPresentStart, uint64_t expectedCpuStart, uint64_t expectedReadyTime)
+            {
+                const auto& metrics = result.metrics;
+                Assert::IsTrue(metrics.frameType == expectedFrameType);
+                Assert::AreEqual(expectedScreenTime, metrics.screenTimeQpc);
+
+                double expectedBetween = qpc.DeltaUnsignedMilliSeconds(expectedBetweenStart, expectedScreenTime);
+                Assert::AreEqual(expectedBetween, metrics.msBetweenDisplayChange, 0.0001);
+
+                double expectedDisplayedTime = qpc.DeltaUnsignedMilliSeconds(expectedScreenTime, expectedDisplayedEnd);
+                Assert::AreEqual(expectedDisplayedTime, metrics.msDisplayedTime, 0.0001);
+
+                double expectedUntilDisplayed = qpc.DeltaUnsignedMilliSeconds(expectedPresentStart, expectedScreenTime);
+                Assert::AreEqual(expectedUntilDisplayed, metrics.msUntilDisplayed, 0.0001);
+
+                double expectedDisplayLatency = qpc.DeltaUnsignedMilliSeconds(expectedCpuStart, expectedScreenTime);
+                Assert::AreEqual(expectedDisplayLatency, metrics.msDisplayLatency, 0.0001);
+
+                double expectedReadyTimeToDisplayLatency = qpc.DeltaUnsignedMilliSeconds(expectedReadyTime, expectedScreenTime);
+                Assert::AreEqual(expectedReadyTimeToDisplayLatency, metrics.msReadyTimeToDisplayLatency, 0.0001);
+
+                Assert::IsTrue(IsMissingFrameMetricValue(metrics.msFlipDelay),
+                    L"msFlipDelay should be stored as missing (NaN)");
+            };
+
+            FrameData frameA = MakeFrame(
+                PresentResult::Presented,
+                1,
+                1,
+                1,
+                {
+                    { FrameType::Intel_XEFG, 10 },
+                    { FrameType::Intel_XEFG, 20 },
+                    { FrameType::Intel_XEFG, 30 },
+                    { FrameType::Application, 40 },
+                });
+
+            FrameData frameB = MakeFrame(
+                PresentResult::Presented,
+                45,
+                1,
+                45,
+                {
+                    { FrameType::Application, 55 },
+                });
+
+            FrameData frameC = MakeFrame(
+                PresentResult::Presented,
+                60,
+                1,
+                60,
+                {
+                    { FrameType::Intel_XEFG, 70 },
+                    { FrameType::Application, 90 },
+                });
+
+            FrameData frameD = MakeFrame(
+                PresentResult::Presented,
+                95,
+                1,
+                95,
+                {
+                    { FrameType::Intel_XEFG, 110 },
+                    { FrameType::Intel_XEFG, 130 },
+                    { FrameType::Application, 160 },
+                });
+
+            FrameData frameE = MakeFrame(
+                PresentResult::Presented,
+                170,
+                1,
+                170,
+                {
+                    { FrameType::Application, 180 },
+                });
+
+            auto resultsA0 = ComputeMetricsForPresent(qpc, frameA, nullptr, chain);
+            Assert::AreEqual(size_t(3), resultsA0.size(), L"Frame A should emit only generated rows until a later displayed present finalizes the trailing Application row.");
+            assertRow(resultsA0[0], FrameType::Intel_XEFG, 10, 5, 20, frameA.presentStartTime, 0, frameA.readyTime);
+            assertRow(resultsA0[1], FrameType::Intel_XEFG, 20, 10, 30, frameA.presentStartTime, 0, frameA.readyTime);
+            assertRow(resultsA0[2], FrameType::Intel_XEFG, 30, 20, 40, frameA.presentStartTime, 0, frameA.readyTime);
+
+            auto resultsA1 = ComputeMetricsForPresent(qpc, frameA, &frameB, chain);
+            Assert::AreEqual(size_t(1), resultsA1.size(), L"Frame A's trailing Application row should emit only when Frame B is processed as the next displayed present.");
+            assertRow(resultsA1[0], FrameType::Application, 40, 30, 55, frameA.presentStartTime, 0, frameA.readyTime);
+
+            auto resultsB0 = ComputeMetricsForPresent(qpc, frameB, nullptr, chain);
+            Assert::AreEqual(size_t(0), resultsB0.size(), L"A single Application display should stay postponed until a later displayed present is processed.");
+
+            auto resultsB1 = ComputeMetricsForPresent(qpc, frameB, &frameC, chain);
+            Assert::AreEqual(size_t(1), resultsB1.size());
+            assertRow(resultsB1[0], FrameType::Application, 55, 40, 70, frameB.presentStartTime, frameA.presentStartTime + frameA.timeInPresent, frameB.readyTime);
+
+            auto resultsC0 = ComputeMetricsForPresent(qpc, frameC, nullptr, chain);
+            Assert::AreEqual(size_t(1), resultsC0.size(), L"Frame C should emit only its generated row before the trailing Application row is finalized.");
+            assertRow(resultsC0[0], FrameType::Intel_XEFG, 70, 55, 90, frameC.presentStartTime, frameB.presentStartTime + frameB.timeInPresent, frameC.readyTime);
+
+            auto resultsC1 = ComputeMetricsForPresent(qpc, frameC, &frameD, chain);
+            Assert::AreEqual(size_t(1), resultsC1.size());
+            assertRow(resultsC1[0], FrameType::Application, 90, 70, 110, frameC.presentStartTime, frameB.presentStartTime + frameB.timeInPresent, frameC.readyTime);
+
+            auto resultsD0 = ComputeMetricsForPresent(qpc, frameD, nullptr, chain);
+            Assert::AreEqual(size_t(2), resultsD0.size(), L"Frame D should emit its generated rows and postpone only the trailing Application row.");
+            assertRow(resultsD0[0], FrameType::Intel_XEFG, 110, 90, 130, frameD.presentStartTime, frameC.presentStartTime + frameC.timeInPresent, frameD.readyTime);
+            assertRow(resultsD0[1], FrameType::Intel_XEFG, 130, 110, 160, frameD.presentStartTime, frameC.presentStartTime + frameC.timeInPresent, frameD.readyTime);
+
+            auto resultsD1 = ComputeMetricsForPresent(qpc, frameD, &frameE, chain);
+            Assert::AreEqual(size_t(1), resultsD1.size(), L"Frame D's trailing Application row should emit only when a later displayed present is provided.");
+            assertRow(resultsD1[0], FrameType::Application, 160, 130, 180, frameD.presentStartTime, frameC.presentStartTime + frameC.timeInPresent, frameD.readyTime);
+        }
+
+        TEST_METHOD(ComputeMetricsForPresent_IntelXefg_EqualScreenTimeGeneratedFrameSequence)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.lastDisplayedScreenTime = 200;
+
+            FrameData priorApp{};
+            priorApp.presentStartTime = 190;
+            priorApp.timeInPresent = 10;
+            chain.lastAppPresent = priorApp;
+
+            FrameData frameX = MakeFrame(
+                PresentResult::Presented,
+                205,
+                15,
+                208,
+                {
+                    { FrameType::Intel_XEFG, 210 },
+                    { FrameType::Intel_XEFG, 210 },
+                    { FrameType::Intel_XEFG, 210 },
+                    { FrameType::Application, 240 },
+                },
+                0,
+                0,
+                12);
+
+            FrameData frameY = MakeFrame(
+                PresentResult::Presented,
+                260,
+                15,
+                265,
+                {
+                    { FrameType::Application, 300 },
+                });
+
+            const uint64_t expectedCpuStart = priorApp.presentStartTime + priorApp.timeInPresent;
+
+            auto assertRow = [&](const auto& result, FrameType expectedFrameType, uint64_t expectedScreenTime, uint64_t expectedBetweenStart, uint64_t expectedDisplayedEnd)
+            {
+                const auto& metrics = result.metrics;
+
+                Assert::IsTrue(metrics.frameType == expectedFrameType);
+                Assert::AreEqual(expectedScreenTime, metrics.screenTimeQpc);
+
+                Assert::AreEqual(
+                    qpc.DeltaUnsignedMilliSeconds(expectedBetweenStart, expectedScreenTime),
+                    metrics.msBetweenDisplayChange,
+                    0.0001);
+
+                Assert::AreEqual(
+                    qpc.DeltaUnsignedMilliSeconds(expectedScreenTime, expectedDisplayedEnd),
+                    metrics.msDisplayedTime,
+                    0.0001);
+
+                Assert::AreEqual(
+                    qpc.DeltaUnsignedMilliSeconds(frameX.presentStartTime, expectedScreenTime),
+                    metrics.msUntilDisplayed,
+                    0.0001);
+
+                Assert::AreEqual(
+                    qpc.DeltaUnsignedMilliSeconds(expectedCpuStart, expectedScreenTime),
+                    metrics.msDisplayLatency,
+                    0.0001);
+
+                Assert::AreEqual(
+                    qpc.DeltaUnsignedMilliSeconds(frameX.readyTime, expectedScreenTime),
+                    metrics.msReadyTimeToDisplayLatency,
+                    0.0001);
+
+                Assert::AreEqual(
+                    qpc.DurationMilliSeconds(frameX.flipDelay),
+                    metrics.msFlipDelay,
+                    0.0001);
+            };
+
+            auto resultsX0 = ComputeMetricsForPresent(qpc, frameX, nullptr, chain);
+            Assert::AreEqual(size_t(3), resultsX0.size(), L"Frame X should emit all three generated rows and postpone the trailing Application row.");
+            assertRow(resultsX0[0], FrameType::Intel_XEFG, 210, 200, 210);
+            assertRow(resultsX0[1], FrameType::Intel_XEFG, 210, 210, 210);
+            assertRow(resultsX0[2], FrameType::Intel_XEFG, 210, 210, 240);
+
+            auto resultsX1 = ComputeMetricsForPresent(qpc, frameX, &frameY, chain);
+            Assert::AreEqual(size_t(1), resultsX1.size(), L"Frame X's trailing Application row should emit only when Frame Y is processed as the next displayed present.");
+            assertRow(resultsX1[0], FrameType::Application, 240, 210, 300);
+        }
+
+        TEST_METHOD(ComputeMetricsForPresent_IntelXefg_GeneratedRowsRemainDisplayOnlyUntilTrailingApplicationFinalizes)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.animationErrorSource = AnimationErrorSource::AppProvider;
+            chain.lastDisplayedScreenTime = 5;
+            chain.lastDisplayedAppScreenTime = 5;
+            chain.lastSimStartTime = 80;
+            chain.firstAppSimStartTime = 80;
+            chain.lastDisplayedSimStartTime = 80;
+
+            FrameData priorApp = MakeFrame(
+                PresentResult::Presented,
+                1,
+                2,
+                3,
+                {
+                    { FrameType::Application, 5 },
+                });
+            chain.lastAppPresent = priorApp;
+
+            FrameData frameA = MakeFrame(
+                PresentResult::Presented,
+                6,
+                4,
+                8,
+                {
+                    { FrameType::Intel_XEFG, 10 },
+                    { FrameType::Intel_XEFG, 20 },
+                    { FrameType::Intel_XEFG, 30 },
+                    { FrameType::Application, 40 },
+                },
+                90,
+                95,
+                2);
+            frameA.gpuStartTime = 12;
+            frameA.gpuDuration = 6;
+            frameA.inputTime = 4;
+            frameA.mouseClickTime = 5;
+            frameA.appInputSample = { 3, InputDeviceType::Mouse };
+            frameA.appSleepStartTime = 11;
+            frameA.appSleepEndTime = 12;
+            frameA.appRenderSubmitStartTime = 13;
+
+            FrameData frameB = MakeFrame(
+                PresentResult::Presented,
+                50,
+                4,
+                52,
+                {
+                    { FrameType::Application, 55 },
+                });
+
+            auto assertGeneratedDisplayOnlyRow = [&](const auto& result, uint64_t expectedScreenTime)
+            {
+                const auto& metrics = result.metrics;
+
+                Assert::IsTrue(metrics.frameType == FrameType::Intel_XEFG);
+                Assert::AreEqual(expectedScreenTime, metrics.screenTimeQpc);
+                Assert::IsTrue(metrics.msDisplayLatency > 0.0);
+                Assert::IsTrue(metrics.msDisplayedTime > 0.0);
+                Assert::IsTrue(metrics.msUntilDisplayed > 0.0);
+                Assert::IsTrue(metrics.msBetweenDisplayChange > 0.0);
+                Assert::IsFalse(IsMissingFrameMetricValue(metrics.msReadyTimeToDisplayLatency),
+                    L"msReadyTimeToDisplayLatency should not be stored as missing (NaN)");
+                Assert::IsFalse(IsMissingFrameMetricValue(metrics.msFlipDelay),
+                    L"msFlipDelay should not be stored as missing (NaN)");
+
+                Assert::AreEqual(0.0, metrics.msCPUBusy, 0.0001);
+                Assert::AreEqual(0.0, metrics.msCPUWait, 0.0001);
+                Assert::AreEqual(0.0, metrics.msCPUTime, 0.0001);
+                Assert::AreEqual(0.0, metrics.msGPULatency, 0.0001);
+                Assert::AreEqual(0.0, metrics.msGPUBusy, 0.0001);
+                Assert::AreEqual(0.0, metrics.msGPUWait, 0.0001);
+                Assert::AreEqual(0.0, metrics.msGPUTime, 0.0001);
+                Assert::AreEqual(0.0, metrics.msVideoBusy, 0.0001);
+
+                Assert::IsTrue(IsMissingFrameMetricValue(metrics.msClickToPhotonLatency),
+                    L"msClickToPhotonLatency should be stored as missing (NaN)");
+                Assert::IsTrue(IsMissingFrameMetricValue(metrics.msAllInputPhotonLatency),
+                    L"msAllInputPhotonLatency should be stored as missing (NaN)");
+                Assert::IsTrue(IsMissingFrameMetricValue(metrics.msInstrumentedInputTime),
+                    L"msInstrumentedInputTime should be stored as missing (NaN)");
+                Assert::IsTrue(IsMissingFrameMetricValue(metrics.msAnimationError),
+                    L"msAnimationError should be stored as missing (NaN)");
+                Assert::IsTrue(IsMissingFrameMetricValue(metrics.msAnimationTime),
+                    L"msAnimationTime should be stored as missing (NaN)");
+                Assert::IsTrue(IsMissingFrameMetricValue(metrics.msInstrumentedSleep),
+                    L"msInstrumentedSleep should be stored as missing (NaN)");
+                Assert::IsTrue(IsMissingFrameMetricValue(metrics.msInstrumentedGpuLatency),
+                    L"msInstrumentedGpuLatency should be stored as missing (NaN)");
+                Assert::IsTrue(IsMissingFrameMetricValue(metrics.msBetweenSimStarts),
+                    L"msBetweenSimStarts should be stored as missing (NaN)");
+                Assert::IsTrue(IsMissingFrameMetricValue(metrics.msInstrumentedRenderLatency),
+                    L"msInstrumentedRenderLatency should be stored as missing (NaN)");
+                Assert::IsTrue(IsMissingFrameMetricValue(metrics.msInstrumentedLatency),
+                    L"msInstrumentedLatency should be stored as missing (NaN)");
+            };
+
+            auto generatedRows = ComputeMetricsForPresent(qpc, frameA, nullptr, chain);
+
+            Assert::AreEqual(size_t(3), generatedRows.size(), L"Frame A should emit only generated rows before the trailing Application row is finalized.");
+            assertGeneratedDisplayOnlyRow(generatedRows[0], 10);
+            assertGeneratedDisplayOnlyRow(generatedRows[1], 20);
+            assertGeneratedDisplayOnlyRow(generatedRows[2], 30);
+            Assert::IsTrue(chain.lastAppPresent.has_value());
+            Assert::AreEqual(priorApp.presentStartTime, chain.lastAppPresent->presentStartTime,
+                L"lastAppPresent must not advance while only generated rows are emitted.");
+            Assert::AreEqual(uint64_t(5), chain.lastDisplayedScreenTime,
+                L"lastDisplayedScreenTime must remain on the prior Application frame until finalization.");
+
+            auto finalizedRows = ComputeMetricsForPresent(qpc, frameA, &frameB, chain);
+
+            Assert::AreEqual(size_t(1), finalizedRows.size(), L"Frame A should emit only the postponed trailing Application row when Frame B finalizes it.");
+
+            const auto& finalizedMetrics = finalizedRows[0].metrics;
+            Assert::IsTrue(finalizedMetrics.frameType == FrameType::Application);
+            Assert::AreEqual(uint64_t(40), finalizedMetrics.screenTimeQpc);
+            Assert::IsTrue(finalizedMetrics.msDisplayLatency > 0.0);
+            Assert::IsTrue(finalizedMetrics.msDisplayedTime > 0.0);
+            Assert::IsTrue(finalizedMetrics.msUntilDisplayed > 0.0);
+            Assert::IsTrue(finalizedMetrics.msBetweenDisplayChange > 0.0);
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msReadyTimeToDisplayLatency));
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msFlipDelay));
+            Assert::IsTrue(finalizedMetrics.msCPUBusy > 0.0);
+            Assert::IsTrue(finalizedMetrics.msCPUTime > 0.0);
+            Assert::IsTrue(finalizedMetrics.msGPUBusy > 0.0);
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msClickToPhotonLatency));
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msAllInputPhotonLatency));
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msInstrumentedInputTime));
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msAnimationError));
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msAnimationTime));
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msInstrumentedLatency));
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msInstrumentedRenderLatency));
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msInstrumentedSleep));
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msInstrumentedGpuLatency));
+            Assert::IsFalse(IsMissingFrameMetricValue(finalizedMetrics.msBetweenSimStarts));
+            Assert::IsTrue(chain.lastAppPresent.has_value());
+            Assert::AreEqual(frameA.presentStartTime, chain.lastAppPresent->presentStartTime,
+                L"lastAppPresent must advance only after the trailing Application row is finalized.");
+            Assert::AreEqual(uint64_t(40), chain.lastDisplayedScreenTime,
+                L"lastDisplayedScreenTime should advance when the trailing Application row finalizes.");
+        }
     };
     TEST_CLASS(DisplayedDroppedDisplayedSequenceTests)
     {
@@ -2082,7 +2429,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(0.0, m.msBetweenDisplayChange, 0.0001);
         }
 
-        TEST_METHOD(MultipleDisplays_EachComputesDeltaFromPrior)
+        TEST_METHOD(MultipleDisplays_EachComputesDeltaFromPreviousDisplayedEntry)
         {
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
@@ -2093,9 +2440,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.timeInPresent = 50'000;
             frame.readyTime = 5'100'000;
             frame.finalState = PresentResult::Presented;
-            frame.displayed.PushBack({ FrameType::Application, 5'500'000 });
-            frame.displayed.PushBack({ FrameType::Repeated, 5'800'000 });
-            frame.displayed.PushBack({ FrameType::Repeated, 6'100'000 });
+            frame.displayed.PushBack({ FrameType::Intel_XEFG, 5'500'000 });
+            frame.displayed.PushBack({ FrameType::Intel_XEFG, 5'800'000 });
+            frame.displayed.PushBack({ FrameType::Application, 6'100'000 });
 
             FrameData next{};
             next.finalState = PresentResult::Presented;
@@ -2107,13 +2454,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expected0 = qpc.DeltaUnsignedMilliSeconds(3'000'000, 5'500'000);
             Assert::AreEqual(expected0, results1[0].metrics.msBetweenDisplayChange, 0.0001);
 
-            double expected1 = qpc.DeltaUnsignedMilliSeconds(3'000'000, 5'800'000);
+            double expected1 = qpc.DeltaUnsignedMilliSeconds(5'500'000, 5'800'000);
             Assert::AreEqual(expected1, results1[1].metrics.msBetweenDisplayChange, 0.0001);
 
             auto results2 = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results2.size());
 
-            double expected2 = qpc.DeltaUnsignedMilliSeconds(3'000'000, 6'100'000);
+            double expected2 = qpc.DeltaUnsignedMilliSeconds(5'800'000, 6'100'000);
             Assert::AreEqual(expected2, results2[0].metrics.msBetweenDisplayChange, 0.0001);
         }
     };

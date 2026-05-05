@@ -117,9 +117,20 @@ struct PresentFrameTypeEvent {
 };
 
 struct FlipFrameTypeEvent {
-    uint64_t PresentId;
-    uint64_t Timestamp;
-    FrameType FrameType;
+    uint64_t PresentId = 0;
+    uint64_t Timestamp = 0;
+    FrameType FrameType = FrameType::NotSet;
+    uint32_t ProcessId = 0;
+    uint32_t ThreadId = 0;
+
+    bool operator==(FlipFrameTypeEvent const& other) const
+    {
+        return PresentId == other.PresentId &&
+               Timestamp == other.Timestamp &&
+               FrameType == other.FrameType &&
+               ProcessId == other.ProcessId &&
+               ThreadId == other.ThreadId;
+    }
 };
 
 // Structure used to track application provided timing information 
@@ -267,6 +278,12 @@ struct PresentEvent {
     // waiting.
     bool WaitingForFlipFrameType;
     bool DoneWaitingForFlipFrameType;
+
+    // If DisplayedViaFlipFrameType, this present had a generated frame display set via
+    // ApplyFlipFrameType() (i.e., from a FlipFrameType_Info event). This distinguishes it from
+    // presents annotated via PresentFrameType_Info, where the VSync event should NOT append an
+    // additional application frame.
+    bool DisplayedViaFlipFrameType;
 
     // If WaitingForFrameId, the present is waiting for another present with the same FrameId (or,
     // until a PresentFrameType_Info event with a different FrameId).
@@ -598,7 +615,7 @@ struct PMTraceConsumer
 
     void UpdateReadyCount(bool useLock);
 
-    void DeferFlipFrameType(uint64_t vidPnLayerId, uint64_t presentId, uint64_t timestamp, FrameType frameType);
+    void DeferFlipFrameType(uint64_t vidPnLayerId, uint64_t presentId, uint64_t timestamp, FrameType frameType, uint32_t processId, uint32_t threadId);
     void ApplyFlipFrameType(std::shared_ptr<PresentEvent> const& present, uint64_t timestamp, FrameType frameType);
     void ApplyPresentFrameType(std::shared_ptr<PresentEvent> const& present);
     void SetAppTimingData(const EVENT_RECORD* pEventRecord);

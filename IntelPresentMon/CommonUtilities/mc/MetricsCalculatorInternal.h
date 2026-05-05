@@ -17,6 +17,7 @@ namespace pmon::util::metrics
         const QpcConverter& qpc,
         const FrameData& present,
         const SwapChainCoreState& swapChain,
+        uint64_t previousDisplayedScreenTime,
         bool isDisplayed,
         uint64_t screenTime,
         uint64_t nextScreenTime,

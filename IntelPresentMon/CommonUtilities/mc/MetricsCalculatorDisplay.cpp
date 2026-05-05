@@ -26,12 +26,12 @@ namespace pmon::util::metrics
         // Helper dedicated to computing msBetweenDisplayChange, matching legacy ReportMetricsHelper behavior.
         double ComputeMsBetweenDisplayChange(
             const QpcConverter& qpc,
-            const SwapChainCoreState& chain,
+            uint64_t previousDisplayedScreenTime,
             bool isDisplayed,
             uint64_t screenTime)
         {
             return isDisplayed
-                ? qpc.DeltaUnsignedMilliSeconds(chain.lastDisplayedScreenTime, screenTime)
+                ? qpc.DeltaUnsignedMilliSeconds(previousDisplayedScreenTime, screenTime)
                 : 0.0;
         }
 
@@ -189,13 +189,14 @@ namespace pmon::util::metrics
         const QpcConverter& qpc,
         const FrameData& present,
         const SwapChainCoreState& swapChain,
+        uint64_t previousDisplayedScreenTime,
         bool isDisplayed,
         uint64_t screenTime,
         uint64_t nextScreenTime,
         FrameMetrics& metrics)
     {
         metrics.msUntilDisplayed = ComputeMsUntilDisplayed(qpc, present, isDisplayed, screenTime);
-        metrics.msBetweenDisplayChange = ComputeMsBetweenDisplayChange(qpc, swapChain, isDisplayed, screenTime);
+        metrics.msBetweenDisplayChange = ComputeMsBetweenDisplayChange(qpc, previousDisplayedScreenTime, isDisplayed, screenTime);
         metrics.msDisplayedTime = ComputeMsDisplayedTime(qpc, isDisplayed, screenTime, nextScreenTime);
         metrics.msFlipDelay = ComputeMsFlipDelay(qpc, present, isDisplayed);
         metrics.msDisplayLatency = ComputeMsDisplayLatency(qpc, swapChain, present, isDisplayed, screenTime);
