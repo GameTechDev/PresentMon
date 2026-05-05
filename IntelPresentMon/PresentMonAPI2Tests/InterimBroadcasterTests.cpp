@@ -29,6 +29,15 @@ using namespace pmon;
 
 namespace InterimBroadcasterTests
 {
+    static void AssertReadOnlySegmentRejectsWriteCapableOpen_(const std::string& segmentName)
+    {
+        ipc::ShmSegment readOnlyShm{ ipc::bip::open_read_only, segmentName.c_str() };
+        Assert::IsTrue((bool)readOnlyShm.get_segment_manager());
+        Assert::ExpectException<std::exception>([&] {
+            ipc::ShmSegment readWriteShm{ ipc::bip::open_only, segmentName.c_str() };
+        });
+    }
+
     static std::string DumpRing_(const ipc::SampleHistoryRing<double>& ring, size_t maxSamples = 8)
     {
         std::ostringstream oss;
@@ -126,6 +135,12 @@ namespace InterimBroadcasterTests
             auto pDevice = static_cast<const PM_INTROSPECTION_DEVICE*>(pIntro->pDevices->pData[1]);
             Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", pDevice->pName->pData);
         }
+        TEST_METHOD(IntrospectionSegmentRejectsWriteCapableOpen)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
+            AssertReadOnlySegmentRejectsWriteCapableOpen_(namer.MakeIntrospectionName());
+        }
     };
 
     TEST_CLASS(SystemStoreTests)
@@ -180,6 +195,14 @@ namespace InterimBroadcasterTests
             Assert::AreEqual((int)PM_DEVICE_VENDOR_AMD, (int)sys.statics.cpuVendor);
             Assert::AreEqual("AMD Ryzen 7 5800X 8-Core Processor", sys.statics.cpuName.c_str());
             Assert::AreEqual(0., sys.statics.cpuPowerLimit);
+        }
+        TEST_METHOD(SystemStoreRejectsWriteCapableOpen)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
+            (void)pComms->GetSystemDataStore();
+            AssertReadOnlySegmentRejectsWriteCapableOpen_(namer.MakeSystemName());
         }
         // polled store
         TEST_METHOD(PolledData)
@@ -400,6 +423,15 @@ namespace InterimBroadcasterTests
             Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", gpu.statics.name.c_str());
             Assert::AreEqual(260., gpu.statics.sustainedPowerLimit);
             Assert::AreEqual(11811160064ull, gpu.statics.memSize);
+        }
+        TEST_METHOD(GpuStoreRejectsWriteCapableOpen)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
+            constexpr uint32_t TargetDeviceID = 1;
+            (void)pComms->GetGpuDataStore(TargetDeviceID);
+            AssertReadOnlySegmentRejectsWriteCapableOpen_(namer.MakeGpuName(TargetDeviceID));
         }
         // polled store
         TEST_METHOD(PolledData)
@@ -749,6 +781,18 @@ namespace InterimBroadcasterTests
             Assert::AreEqual(pres.GetId(), store.bookkeeping.processId);
             const std::string staticAppName = store.statics.applicationName.c_str();
             Assert::AreEqual("PresentBench.exe"s, staticAppName);
+        }
+        TEST_METHOD(FrameStoreRejectsWriteCapableOpen)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
+
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            pComms->OpenFrameDataStore(pres.GetId());
+
+            AssertReadOnlySegmentRejectsWriteCapableOpen_(namer.MakeFrameName(pres.GetId()));
         }
         TEST_METHOD(TrackUntrack)
         {

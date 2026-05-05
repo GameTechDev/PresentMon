@@ -144,7 +144,7 @@ namespace IpcComponentTests
             auto server = fixture_.LaunchClient();
             std::this_thread::sleep_for(25ms);
 
-            ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            ipc::ViewedDataSegment<ipc::SystemDataStore, true> view{ kSystemSegName };
             const auto& store = view.GetStore();
 
             const auto& scalarVect = store.telemetryData.FindRing<double>(kScalarMetric);
@@ -156,12 +156,22 @@ namespace IpcComponentTests
             Assert::AreEqual<size_t>(2, arrayVect.size(), L"Array metric should have 2 rings");
         }
 
+        TEST_METHOD(ReadOnlySegmentRejectsWriteCapableOpen)
+        {
+            auto server = fixture_.LaunchClient();
+            std::this_thread::sleep_for(25ms);
+
+            Assert::ExpectException<std::exception>([] {
+                ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            });
+        }
+
         TEST_METHOD(EmptyRangeAndNewestWorkForScalar)
         {
             auto server = fixture_.LaunchClient();
             std::this_thread::sleep_for(25ms);
 
-            ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            ipc::ViewedDataSegment<ipc::SystemDataStore, true> view{ kSystemSegName };
             const auto& store = view.GetStore();
 
             const auto& ring = store.telemetryData.FindRing<double>(kScalarMetric).at(0);
@@ -192,7 +202,7 @@ namespace IpcComponentTests
             auto server = fixture_.LaunchClient();
             std::this_thread::sleep_for(25ms);
 
-            ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            ipc::ViewedDataSegment<ipc::SystemDataStore, true> view{ kSystemSegName };
             const auto& store = view.GetStore();
 
             const auto& arrVect = store.telemetryData.FindRing<double>(kArrayMetric);
@@ -230,7 +240,7 @@ namespace IpcComponentTests
             auto server = fixture_.LaunchClient();
             std::this_thread::sleep_for(25ms);
 
-            ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            ipc::ViewedDataSegment<ipc::SystemDataStore, true> view{ kSystemSegName };
             const auto& store = view.GetStore();
 
             const auto& ring = store.telemetryData.FindRing<double>(kScalarMetric).at(0);
@@ -267,7 +277,7 @@ namespace IpcComponentTests
             auto server = fixture_.LaunchClient();
             std::this_thread::sleep_for(25ms);
 
-            ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            ipc::ViewedDataSegment<ipc::SystemDataStore, true> view{ kSystemSegName };
             const auto& store = view.GetStore();
 
             const auto& ring = store.telemetryData.FindRing<double>(kScalarMetric).at(0);
@@ -303,7 +313,7 @@ namespace IpcComponentTests
             auto server = fixture_.LaunchClient();
             std::this_thread::sleep_for(25ms);
 
-            ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            ipc::ViewedDataSegment<ipc::SystemDataStore, true> view{ kSystemSegName };
             const auto& store = view.GetStore();
 
             const auto& ring = store.telemetryData.FindRing<double>(kScalarMetric).at(0);
@@ -343,7 +353,7 @@ namespace IpcComponentTests
             auto server = fixture_.LaunchClient();
             std::this_thread::sleep_for(25ms);
 
-            ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            ipc::ViewedDataSegment<ipc::SystemDataStore, true> view{ kSystemSegName };
             const auto& store = view.GetStore();
 
             const auto& ring = store.telemetryData.FindRing<double>(kScalarMetric).at(0);
@@ -404,7 +414,7 @@ namespace IpcComponentTests
             });
             std::this_thread::sleep_for(25ms);
 
-            ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            ipc::ViewedDataSegment<ipc::SystemDataStore, true> view{ kSystemSegName };
             const auto& store = view.GetStore();
             const auto& ring = store.telemetryData.FindRing<double>(kScalarMetric).at(0);
 
@@ -454,7 +464,7 @@ namespace IpcComponentTests
             });
             std::this_thread::sleep_for(25ms);
 
-            ipc::ViewedDataSegment<ipc::SystemDataStore> view{ kSystemSegName };
+            ipc::ViewedDataSegment<ipc::SystemDataStore, true> view{ kSystemSegName };
             const auto& store = view.GetStore();
             const auto& ring = store.telemetryData.FindRing<double>(kScalarMetric).at(0);
 
