@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClInclude Include="cli\CliFramework.h" />
     <ClInclude Include="cnr\FixedVector.h" />
+    <ClInclude Include="Env.h" />
     <ClInclude Include="Exception.h" />
     <ClInclude Include="file\FileUtils.h" />
     <ClInclude Include="file\PathUtils.h" />
@@ -125,6 +126,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cli\CliFramework.cpp" />
+    <ClCompile Include="Env.cpp" />
     <ClCompile Include="Exception.cpp" />
     <ClCompile Include="file\FileUtils.cpp" />
     <ClCompile Include="file\PathUtils.cpp" />

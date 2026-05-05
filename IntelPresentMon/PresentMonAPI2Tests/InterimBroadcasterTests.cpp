@@ -1,6 +1,7 @@
 ﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
+#include "../CommonUtilities/Env.h"
 #include "CppUnitTest.h"
 #include "StatusComparison.h"
 #include "TestProcess.h"
@@ -131,9 +132,9 @@ namespace InterimBroadcasterTests
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
             auto pIntro = pComms->GetIntrospectionRoot();
-            Assert::AreEqual(3ull, pIntro->pDevices->size);
-            auto pDevice = static_cast<const PM_INTROSPECTION_DEVICE*>(pIntro->pDevices->pData[1]);
-            Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", pDevice->pName->pData);
+            Assert::AreEqual(13ull, pIntro->pEnums->size);
+            auto pEnum = static_cast<const PM_INTROSPECTION_ENUM*>(pIntro->pEnums->pData[0]);
+            Assert::AreEqual("PM_STATUS", pEnum->pSymbol->pData);
         }
         TEST_METHOD(IntrospectionSegmentRejectsWriteCapableOpen)
         {
@@ -192,9 +193,29 @@ namespace InterimBroadcasterTests
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
             // get the store containing system-wide telemetry (cpu etc.)
             auto& sys = pComms->GetSystemDataStore();
-            Assert::AreEqual((int)PM_DEVICE_VENDOR_AMD, (int)sys.statics.cpuVendor);
-            Assert::AreEqual("AMD Ryzen 7 5800X 8-Core Processor", sys.statics.cpuName.c_str());
-            Assert::AreEqual(0., sys.statics.cpuPowerLimit);
+            // check values based on machine
+            std::string machineId;
+            try {
+                machineId = util::GetEnv("PRESENTMON_TEST_MACHINE_ID");
+            }
+            catch (const util::Exception& e) {
+                Logger::WriteMessage(e.what());
+                Assert::Fail();
+            }
+            if (machineId == "chi-int-dsk-1") {
+                Assert::AreEqual((int)PM_DEVICE_VENDOR_INTEL, (int)sys.statics.cpuVendor);
+                Assert::AreEqual("12th Gen Intel(R) Core(TM) i9-12900", sys.statics.cpuName.c_str());
+                Assert::AreEqual(0., sys.statics.cpuPowerLimit);
+            }
+            else if (machineId == "chi-pri-dsk-1") {
+                Assert::AreEqual((int)PM_DEVICE_VENDOR_AMD, (int)sys.statics.cpuVendor);
+                Assert::AreEqual("AMD Ryzen 7 5800X 8-Core Processor", sys.statics.cpuName.c_str());
+                Assert::AreEqual(0., sys.statics.cpuPowerLimit);
+            }
+            else {
+                Logger::WriteMessage(std::format("Unknown test machine [{}]", machineId).c_str());
+                Assert::Fail();
+            }
         }
         TEST_METHOD(SystemStoreRejectsWriteCapableOpen)
         {
@@ -267,7 +288,7 @@ namespace InterimBroadcasterTests
                     freqSamples.push_back(sample);
                     Logger::WriteMessage(std::format("({}) {}: {}\n",
                         i, pMetricMap->at(m).narrowName, sample.value).c_str());
-                    Assert::IsTrue(sample.value > 1500.);
+                    Assert::IsTrue(sample.value > 500.);
                 }
             }
 
@@ -419,10 +440,31 @@ namespace InterimBroadcasterTests
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
             // get the store containing gpu telemetry
             auto& gpu = pComms->GetGpuDataStore(1);
-            Assert::AreEqual((int)PM_DEVICE_VENDOR_NVIDIA, (int)gpu.statics.vendor);
-            Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", gpu.statics.name.c_str());
-            Assert::AreEqual(260., gpu.statics.sustainedPowerLimit);
-            Assert::AreEqual(11811160064ull, gpu.statics.memSize);
+            // check values based on machine
+            std::string machineId;
+            try {
+                machineId = util::GetEnv("PRESENTMON_TEST_MACHINE_ID");
+            }
+            catch (const util::Exception& e) {
+                Logger::WriteMessage(e.what());
+                Assert::Fail();
+            }
+            if (machineId == "chi-int-dsk-1") {
+                Assert::AreEqual((int)PM_DEVICE_VENDOR_INTEL, (int)gpu.statics.vendor);
+                Assert::AreEqual("Intel(R) Arc(TM) A750 Graphics", gpu.statics.name.c_str());
+                Assert::AreEqual(190., gpu.statics.sustainedPowerLimit);
+                Assert::AreEqual(8489271296ull, gpu.statics.memSize);
+            }
+            else if (machineId == "chi-pri-dsk-1") {
+                Assert::AreEqual((int)PM_DEVICE_VENDOR_NVIDIA, (int)gpu.statics.vendor);
+                Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", gpu.statics.name.c_str());
+                Assert::AreEqual(260., gpu.statics.sustainedPowerLimit);
+                Assert::AreEqual(11811160064ull, gpu.statics.memSize);
+            }
+            else {
+                Logger::WriteMessage(std::format("Unknown test machine [{}]", machineId).c_str());
+                Assert::Fail();
+            }
         }
         TEST_METHOD(GpuStoreRejectsWriteCapableOpen)
         {

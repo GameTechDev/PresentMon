@@ -21,6 +21,9 @@
     <ClInclude Include="cnr\FixedVector.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Env.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="str\String.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -327,6 +330,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cli\CliFramework.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Env.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="str\String.cpp">
