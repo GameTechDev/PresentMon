@@ -88,6 +88,24 @@ namespace pmon::util::metrics
         }
 
 
+        bool IsGeneratedFrame(FrameType frameType)
+        {
+            return frameType == FrameType::Repeated ||
+                frameType == FrameType::Intel_XEFG ||
+                frameType == FrameType::AMD_AFMF;
+        }
+
+
+        bool PresentHasGeneratedDisplayEntry(const FrameData& present)
+        {
+            const auto n = present.displayed.Size();
+            for (size_t i = 0; i < n; ++i) {
+                if (IsGeneratedFrame(present.displayed[i].first)) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     // ---- NV collapsed/runt correction ----
@@ -145,15 +163,31 @@ namespace pmon::util::metrics
         // hasNextDisplayed
         result.hasNextDisplayed = (nextDisplayed != nullptr);
 
-        // Figure out range to process based on three cases:
-        // Case 1: Not displayed → empty range [0, 0)
-        // Case 2: Displayed, no next → process [0..N-2], postpone N-1 → range [0, N-1)
-        // Case 3: Displayed, with next → process postponed [N-1] → range [N-1, N)
+        // Figure out range to process:
+        // Case 1: Not displayed -> empty range [0, 0)
+        // Any generated frame: Repeated / Intel_XEFG / AMD_AFMF needs next app sim 
+        // for animation metrics -> defer entire present until next App Displayed exists.
+        //   No next: [0, 0). With next: [0, displayCount).
+        // Otherwise (legacy):
+        // Case 2: Displayed, no next -> [0, displayCount - 1) (postpone last)
+        // Case 3: Displayed, with next -> [displayCount - 1, displayCount) (process last only)
+
+        const bool needsNextPresentForGeneratedFrameMetrics =
+            displayed && displayCount > 0 &&
+            PresentHasGeneratedDisplayEntry(present);
 
         if (!displayed || displayCount == 0) {
             // Case 1: Not displayed
             result.startIndex = 0;
             result.endIndex = 0;  // Empty range
+        }
+        else if (needsNextPresentForGeneratedFrameMetrics && nextDisplayed == nullptr) {
+            result.startIndex = 0;
+            result.endIndex = 0;
+        }
+        else if (needsNextPresentForGeneratedFrameMetrics && nextDisplayed != nullptr) {
+            result.startIndex = 0;
+            result.endIndex = displayCount;
         }
         else if (nextDisplayed == nullptr) {
             // Case 2: Postpone last display
@@ -166,8 +200,7 @@ namespace pmon::util::metrics
             result.endIndex = displayCount;  // One past [N-1] = [N]
         }
 
-        // appIndex - find first NotSet or Application frame
-        // Search from startIndex through ALL displays (not just the processing range)
+        // appIndex - find first NotSet or Application frame (search from startIndex; legacy)
         result.appIndex = std::numeric_limits<size_t>::max();
         if (displayCount > 0) {
             for (size_t i = result.startIndex; i < displayCount; ++i) {
