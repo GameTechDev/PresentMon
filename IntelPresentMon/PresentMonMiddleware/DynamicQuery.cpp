@@ -102,8 +102,7 @@ static bool IsFrameTimeOrFpsMetric_(PM_METRIC metric)
 
 static uint64_t GetTargetStartQpc_(ipc::MiddlewareComms& comms, uint32_t processId)
 {
-	const int64_t startQpcSigned = comms.GetFrameDataStore(processId).bookkeeping.startQpc;
-	return startQpcSigned > 0 ? static_cast<uint64_t>(startQpcSigned) : 0u;
+	return uint64_t(processId ? comms.GetFrameDataStore(processId).bookkeeping.startQpc : 0);
 }
 
 static std::string BuildElapsedSinceTargetStartText_(uint64_t targetStartQpc, uint64_t nowTimestamp, double qpcPeriodSeconds)

@@ -2,6 +2,7 @@
 - Do not ever use non-ascii characters for source code or comments (permissible inside of strings if absolutely necessary but avoid if possible)
 - Do not attempt a build unless explicitly instructed.
 - Do not run tests unless explicitly instructed.
+- Do not ever modify files in .git subfolders.
 - After finishing all changes, run a conversion pass over every changed/created text file to enforce CRLF and eliminate any stray LF.
 - Do not run CRLF normalization on any non-text or binary files (for example: .png, .jpg, .gif, .mp3, .wav, .fbx, .unity). Limit normalization to plain text source/config files only.
 - Use this PowerShell script directly in the current shell to normalize line endings (preserves file encoding). Do not wrap it in a nested powershell -Command invocation, because nested PowerShell quoting can corrupt variable and string parsing:
