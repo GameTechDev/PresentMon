@@ -75,6 +75,32 @@ namespace InterimBroadcasterTests
         return oss.str();
     }
 
+    template<typename Ring>
+    static auto WaitForFirstFrame_(const Ring& ring, const char* label)
+    {
+        const auto warmupStart = std::chrono::steady_clock::now();
+        auto warmupRange = ring.GetSerialRange();
+        while (warmupRange.second == 0 &&
+               std::chrono::steady_clock::now() - warmupStart < 5s) {
+            std::this_thread::sleep_for(25ms);
+            warmupRange = ring.GetSerialRange();
+        }
+        const auto warmupElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - warmupStart).count();
+        Logger::WriteMessage(std::format("{} warmup range [{},{}), elapsedMs={}\n",
+            label, warmupRange.first, warmupRange.second, warmupElapsedMs).c_str());
+        Assert::IsTrue(warmupRange.second > 0, L"Timed out waiting for first playback frame");
+        return warmupRange;
+    }
+
+    static auto WaitForFirstFrame_(const std::string& ctrlPipe, uint32_t pid, const char* label)
+    {
+        mid::ActionClient client{ ctrlPipe };
+        auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+        pComms->OpenFrameDataStore(pid);
+        return WaitForFirstFrame_(pComms->GetFrameDataStore(pid).frameData, label);
+    }
+
     class TestFixture : public CommonTestFixture
     {
     public:
@@ -1127,8 +1153,7 @@ namespace InterimBroadcasterTests
             pComms->OpenFrameDataStore(pid);
             auto& ring = pComms->GetFrameDataStore(pid).frameData;
 
-            // sleep here to let the etw system warm up, and frames propagate
-            std::this_thread::sleep_for(300ms);
+            WaitForFirstFrame_(ring, "backpressured-playback");
 
             struct Row { uint64_t timestamp; uint64_t timeInPresent; };
             std::vector<Row> frames;
@@ -1224,6 +1249,8 @@ namespace InterimBroadcasterTests
             pComms->OpenFrameDataStore(pid);
             auto& ring = pComms->GetFrameDataStore(pid).frameData;
 
+            WaitForFirstFrame_(ring, "pb-wrap-backpressure");
+
             size_t lastProcessed = 0;
             bool missed = false;
             bool sawWrap = false;
@@ -1292,34 +1319,29 @@ namespace InterimBroadcasterTests
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 19736;
             auto tracker = query.TrackProcess(pid, true, true);
-
-            // sleep here to let the etw system warm up, and frames propagate
-            std::this_thread::sleep_for(300ms);
+            WaitForFirstFrame_(fixture_.GetCommonArgs().ctrlPipe, pid, "backpressured-playback-3dm");
 
             const auto consume = [&] {
-                query.ForEachConsume(tracker, [&] {
+                return uint32_t(query.ForEachConsume(tracker, [&] {
                     frames.push_back(Row{
                         .timestamp = query.timestamp,
                         .timeInPresent = query.timeInPres,
                         });
-                });
+                }));
             };
 
             // verify that backpressure works correctly to ensure no frames are lost
-            consume();
-            const auto count1 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count1 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count1).c_str());
 
             std::this_thread::sleep_for(300ms);
 
-            consume();
-            const auto count2 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count2 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count2).c_str());
 
             std::this_thread::sleep_for(500ms);
 
-            consume();
-            const auto count3 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count3 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count3).c_str());
 
             // output timestamp of each frame
@@ -1374,34 +1396,29 @@ namespace InterimBroadcasterTests
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
             auto tracker = query.TrackProcess(pid, true, true);
-
-            // sleep here to let the etw system warm up, and frames propagate
-            std::this_thread::sleep_for(300ms);
+            WaitForFirstFrame_(fixture_.GetCommonArgs().ctrlPipe, pid, "legacy-backpressured-playback");
 
             const auto consume = [&] {
-                query.ForEachConsume(tracker, [&] {
+                return uint32_t(query.ForEachConsume(tracker, [&] {
                     frames.push_back(Row{
                         .timestamp = query.timestamp,
                         .timeInPresent = query.timeInPres,
                         });
-                });
+                }));
             };
 
             // verify that backpressure works correctly to ensure no frames are lost
-            consume();
-            const auto count1 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count1 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count1).c_str());
 
             std::this_thread::sleep_for(300ms);
 
-            consume();
-            const auto count2 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count2 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count2).c_str());
 
             std::this_thread::sleep_for(500ms);
 
-            consume();
-            const auto count3 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count3 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count3).c_str());
 
             // output timestamp of each frame
