@@ -1146,23 +1146,32 @@ namespace InterimBroadcasterTests
             };
 
             const auto range1 = ring.GetSerialRange();
-            ring.SetNextRead(range1.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
             appendRange(range1);
+            client.DispatchDetached(svc::acts::ReportFrameReadProgress::Params{
+                .targetPid = pid,
+                .nextReadSerial = range1.second,
+            });
 
             std::this_thread::sleep_for(300ms);
 
             const auto range2 = ring.GetSerialRange();
-            ring.SetNextRead(range2.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
             appendRange(range2);
+            client.DispatchDetached(svc::acts::ReportFrameReadProgress::Params{
+                .targetPid = pid,
+                .nextReadSerial = range2.second,
+            });
 
             std::this_thread::sleep_for(500ms);
 
             const auto range3 = ring.GetSerialRange();
-            ring.SetNextRead(range3.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
             appendRange(range3);
+            client.DispatchDetached(svc::acts::ReportFrameReadProgress::Params{
+                .targetPid = pid,
+                .nextReadSerial = range3.second,
+            });
 
             // output timestamp of each frame
             const auto outpath = fs::path{ outFolder_ } /
@@ -1235,7 +1244,10 @@ namespace InterimBroadcasterTests
                 for (size_t s = start; s < range.second; ++s) {
                     (void)ring.At(s);
                 }
-                ring.SetNextRead(range.second);
+                client.DispatchDetached(svc::acts::ReportFrameReadProgress::Params{
+                    .targetPid = pid,
+                    .nextReadSerial = range.second,
+                });
                 lastProcessed = range.second;
             }
 
