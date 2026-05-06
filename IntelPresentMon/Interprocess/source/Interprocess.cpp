@@ -429,9 +429,9 @@ namespace pmon::ipc
             util::win::Event introReadyEvent_;
             ShmSegment shm_; // introspection shm
 
-            std::optional<ViewedDataSegment<SystemDataStore, true>> systemShm_;
-            std::unordered_map<uint32_t, ViewedDataSegment<GpuDataStore, true>> gpuShms_;
-            std::unordered_map<uint32_t, ViewedDataSegment<FrameDataStore, true>> frameShms_;
+            std::optional<ViewedDataSegment<SystemDataStore>> systemShm_;
+            std::unordered_map<uint32_t, ViewedDataSegment<GpuDataStore>> gpuShms_;
+            std::unordered_map<uint32_t, ViewedDataSegment<FrameDataStore>> frameShms_;
         };
     }
 

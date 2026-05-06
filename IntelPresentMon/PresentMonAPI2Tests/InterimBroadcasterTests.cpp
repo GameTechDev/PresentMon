@@ -19,6 +19,9 @@
 #include "../PresentMonAPIWrapper/FixedQuery.h"
 #include "../PresentMonService/AllActions.h"
 
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/windows_shared_memory.hpp>
+
 #include <format>
 #include <thread>
 
@@ -30,12 +33,25 @@ using namespace pmon;
 
 namespace InterimBroadcasterTests
 {
-    static void AssertReadOnlySegmentRejectsWriteCapableOpen_(const std::string& segmentName)
+    static void AssertSegmentRejectsWrite_(const std::string& segmentName)
     {
-        ipc::ShmSegment readOnlyShm{ ipc::bip::open_read_only, segmentName.c_str() };
-        Assert::IsTrue((bool)readOnlyShm.get_segment_manager());
+        ipc::bip::windows_shared_memory readOnlyShm{
+            ipc::bip::open_only,
+            segmentName.c_str(),
+            ipc::bip::read_only
+        };
+        ipc::bip::mapped_region readOnlyRegion{ readOnlyShm, ipc::bip::read_only };
+        Assert::IsTrue(readOnlyRegion.get_address() != nullptr);
+
         Assert::ExpectException<std::exception>([&] {
-            ipc::ShmSegment readWriteShm{ ipc::bip::open_only, segmentName.c_str() };
+            ipc::bip::windows_shared_memory readWriteShm{
+                ipc::bip::open_only,
+                segmentName.c_str(),
+                ipc::bip::read_write
+            };
+            ipc::bip::mapped_region readWriteRegion{ readWriteShm, ipc::bip::read_write };
+            auto pData = static_cast<volatile char*>(readWriteRegion.get_address());
+            *pData = *pData;
         });
     }
 
@@ -162,11 +178,11 @@ namespace InterimBroadcasterTests
             auto pEnum = static_cast<const PM_INTROSPECTION_ENUM*>(pIntro->pEnums->pData[0]);
             Assert::AreEqual("PM_STATUS", pEnum->pSymbol->pData);
         }
-        TEST_METHOD(IntrospectionSegmentRejectsWriteCapableOpen)
+        TEST_METHOD(IntrospectionSegmentRejectsWrite)
         {
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
             const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
-            AssertReadOnlySegmentRejectsWriteCapableOpen_(namer.MakeIntrospectionName());
+            AssertSegmentRejectsWrite_(namer.MakeIntrospectionName());
         }
     };
 
@@ -243,13 +259,13 @@ namespace InterimBroadcasterTests
                 Assert::Fail();
             }
         }
-        TEST_METHOD(SystemStoreRejectsWriteCapableOpen)
+        TEST_METHOD(SystemStoreRejectsWrite)
         {
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
             const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
             (void)pComms->GetSystemDataStore();
-            AssertReadOnlySegmentRejectsWriteCapableOpen_(namer.MakeSystemName());
+            AssertSegmentRejectsWrite_(namer.MakeSystemName());
         }
         // polled store
         TEST_METHOD(PolledData)
@@ -492,14 +508,14 @@ namespace InterimBroadcasterTests
                 Assert::Fail();
             }
         }
-        TEST_METHOD(GpuStoreRejectsWriteCapableOpen)
+        TEST_METHOD(GpuStoreRejectsWrite)
         {
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
             const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
             constexpr uint32_t TargetDeviceID = 1;
             (void)pComms->GetGpuDataStore(TargetDeviceID);
-            AssertReadOnlySegmentRejectsWriteCapableOpen_(namer.MakeGpuName(TargetDeviceID));
+            AssertSegmentRejectsWrite_(namer.MakeGpuName(TargetDeviceID));
         }
         // polled store
         TEST_METHOD(PolledData)
@@ -850,7 +866,7 @@ namespace InterimBroadcasterTests
             const std::string staticAppName = store.statics.applicationName.c_str();
             Assert::AreEqual("PresentBench.exe"s, staticAppName);
         }
-        TEST_METHOD(FrameStoreRejectsWriteCapableOpen)
+        TEST_METHOD(FrameStoreRejectsWrite)
         {
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
@@ -860,7 +876,7 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
             pComms->OpenFrameDataStore(pres.GetId());
 
-            AssertReadOnlySegmentRejectsWriteCapableOpen_(namer.MakeFrameName(pres.GetId()));
+            AssertSegmentRejectsWrite_(namer.MakeFrameName(pres.GetId()));
         }
         TEST_METHOD(TrackUntrack)
         {
