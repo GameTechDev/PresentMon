@@ -131,6 +131,7 @@ microsoftedgecp.exe
 minion.exe
 minisearchhost.exe
 mqtt explorer.exe
+ms-teams.exe
 msedge.exe
 msedgewebview2.exe
 msi-kombustor-x64.exe
