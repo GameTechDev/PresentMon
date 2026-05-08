@@ -112,6 +112,37 @@ namespace kproc
 		freopen_s(&f, "CONOUT$", "w", stderr);
 		freopen_s(&f, "CONIN$", "r", stdin);
 	}
+
+#ifndef NDEBUG
+	BOOL CALLBACK LogOutputMonitorCoordinatesCallback_(HMONITOR, HDC, LPRECT pMonitorRect, LPARAM pUserData)
+	{
+		auto& outputIndex = *reinterpret_cast<int*>(pUserData);
+		const auto width = pMonitorRect->right - pMonitorRect->left;
+		const auto height = pMonitorRect->bottom - pMonitorRect->top;
+
+		pmlog_info(std::format("Output monitor [{}] window space: left={} right={} top={} bottom={} width={} height={}",
+			outputIndex,
+			pMonitorRect->left,
+			pMonitorRect->right,
+			pMonitorRect->top,
+			pMonitorRect->bottom,
+			width,
+			height));
+		++outputIndex;
+		return TRUE;
+	}
+
+	void LogOutputMonitorCoordinates_()
+	{
+		int outputIndex = 0;
+		if (!EnumDisplayMonitors(nullptr, nullptr, LogOutputMonitorCoordinatesCallback_, reinterpret_cast<LPARAM>(&outputIndex))) {
+			pmlog_warn("failed to enumerate output monitors").hr();
+		}
+		else if (outputIndex == 0) {
+			pmlog_warn("no output monitors enumerated");
+		}
+	}
+#endif
 }
 
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
@@ -231,6 +262,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
 		// configure the logging system (partially based on command line options)
 		ConfigureLogging();
+
+#ifndef NDEBUG
+		LogOutputMonitorCoordinates_();
+#endif
 
 		// determine if we're running headless
 		const bool headless = opt.subcCapture.Active() || opt.subcList.Active();
