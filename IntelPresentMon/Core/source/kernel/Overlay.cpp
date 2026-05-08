@@ -24,6 +24,7 @@
 #include "MetricPackMapper.h"
 #include <PresentMonAPIWrapper/StaticQuery.h>
 #include <CommonUtilities/Exception.h>
+#include "ProcWindowLogging.h"
 
 
 namespace p2c::kern
@@ -133,6 +134,7 @@ namespace p2c::kern
         samplingWaiter{ 1.f / pSpec->metricPollRate },
         headless{ headless_ }
     {
+        LogProcessHwnds(proc.pid, proc.hWnd, "overlay-target-selected");
         UpdateDataSets_();
         if (!headless) {
             pWindow = MakeWindow_(pos_);

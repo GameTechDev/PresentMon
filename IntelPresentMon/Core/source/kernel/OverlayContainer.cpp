@@ -3,6 +3,7 @@
 #include "OverlayContainer.h"
 #include <Core/source/win/ProcessMapBuilder.h>
 #include "TargetLostException.h"
+#include "ProcWindowLogging.h"
 
 using namespace pmon::util;
 
@@ -133,6 +134,11 @@ namespace p2c::kern
 
             // if an update occurred, consider retargetting process
             if (i->second.hWnd == hWnd) {
+                const auto logCurrentTargetHwnds = [&] {
+                    if (pid == curPid) {
+                        LogProcessHwnds(pid, hWnd, "target-window-spawn-selected");
+                    }
+                };
                 // case when we are in root and hit a child spawn window of interest
                 if (pid != rootPid && curPid == rootPid && win::RectToDims(r).GetArea() >= (640 * 480)) {
                     pmlog_verb(v::procwatch)(std::format("register-win-spawn-upg-root-to-child | hwn: {:5} => {:5}", rootPid, pid));
@@ -146,6 +152,9 @@ namespace p2c::kern
                     if (!pOverlay->IsHeadless() && !pOverlay->IsStandardWindow()) {
                         pOverlay = pOverlay->SacrificeClone(hWnd);
                     }
+                    else {
+                        logCurrentTargetHwnds();
+                    }
                 }
                 // case of window upgrade in root
                 else if (pid == rootPid && curPid == rootPid) {
@@ -154,7 +163,13 @@ namespace p2c::kern
                     if (!pOverlay->IsHeadless() && !pOverlay->IsStandardWindow()) {
                         pOverlay = pOverlay->SacrificeClone(hWnd);
                     }
+                    else {
+                        logCurrentTargetHwnds();
+                    }
 				}
+                else {
+                    logCurrentTargetHwnds();
+                }
             }
         }
         else {

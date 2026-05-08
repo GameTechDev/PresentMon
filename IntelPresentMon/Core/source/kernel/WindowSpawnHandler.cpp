@@ -32,11 +32,15 @@ namespace p2c::kern
         if (GlobalPolicy::VCheck(v::procwatch)) {
             RECT r{};
             GetWindowRect(hWnd, &r);
-            pmlog_(Level::Verbose).note(std::format("win-spawn-event | pid:{:5} hwd:{:8x} own:{:8x} vis:{} siz:{} nam:{}",
+            pmlog_(Level::Verbose).note(std::format("win-spawn-event | pid:{:5} hwd:{:8x} own:{:8x} vis:{} l:{} r:{} t:{} b:{} siz:{} nam:{}",
                 pid,
                 reinterpret_cast<uintptr_t>(hWnd),
                 reinterpret_cast<uintptr_t>(GetWindow(hWnd, GW_OWNER)),
                 IsWindowVisible(hWnd),
+                r.left,
+                r.right,
+                r.top,
+                r.bottom,
                 win::RectToDims(r).GetArea(),
                 ::pmon::util::str::ToNarrow(win::GetWindowTitle(hWnd))
             ));

@@ -35,7 +35,7 @@ namespace p2c::kern
         if (GlobalPolicy::VCheck(v::procwatch)) {
             RECT r{};
             GetWindowRect(hWnd, &r);
-            pmlog_(Level::Verbose).note(std::format("win-move-event | pid:{:5} hwd:{:8x} tgt:{} own:{:8x} obj:{:5x} chl:{:5x} vis:{} siz:{} nam:{}",
+            pmlog_(Level::Verbose).note(std::format("win-move-event | pid:{:5} hwd:{:8x} tgt:{} own:{:8x} obj:{:5x} chl:{:5x} vis:{} l:{} r:{} t:{} b:{} siz:{} nam:{}",
                 proc.pid,
                 reinterpret_cast<uintptr_t>(hWnd),
                 hWnd == proc.hWnd,
@@ -43,6 +43,10 @@ namespace p2c::kern
                 idObject,
                 idChild,
                 IsWindowVisible(hWnd),
+                r.left,
+                r.right,
+                r.top,
+                r.bottom,
                 win::RectToDims(r).GetArea(),
                 ::pmon::util::str::ToNarrow(win::GetWindowTitle(hWnd))
             ));

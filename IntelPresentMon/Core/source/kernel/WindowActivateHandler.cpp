@@ -38,12 +38,16 @@ namespace p2c::kern
             RECT r{};
             GetWindowThreadProcessId(hWnd, &pid);
             GetWindowRect(hWnd, &r);
-            pmlog_(Level::Verbose).note(std::format("win-activate-event | pid:{:5} hwd:{:8x} tgt:{} own:{:8x} vis:{} siz:{} nam:{}",
+            pmlog_(Level::Verbose).note(std::format("win-activate-event | pid:{:5} hwd:{:8x} tgt:{} own:{:8x} vis:{} l:{} r:{} t:{} b:{} siz:{} nam:{}",
                 pid,
                 reinterpret_cast<uintptr_t>(hWnd),
                 isTarget,
                 reinterpret_cast<uintptr_t>(GetWindow(hWnd, GW_OWNER)),
                 IsWindowVisible(hWnd),
+                r.left,
+                r.right,
+                r.top,
+                r.bottom,
                 win::RectToDims(r).GetArea(),
                 ::pmon::util::str::ToNarrow(win::GetWindowTitle(hWnd))
             ));
