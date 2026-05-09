@@ -24,7 +24,6 @@
 #include "MetricPackMapper.h"
 #include <PresentMonAPIWrapper/StaticQuery.h>
 #include <CommonUtilities/Exception.h>
-#include "ProcWindowLogging.h"
 
 
 namespace p2c::kern
@@ -124,7 +123,7 @@ namespace p2c::kern
         hProcess{ OpenProcess(SYNCHRONIZE, TRUE, proc.pid) },
         moveHandlerToken{ win::EventHookManager::AddHandler(std::make_shared<WindowMoveHandler>(proc, this)) },
         activateHandlerToken{ win::EventHookManager::AddHandler(std::make_shared<WindowActivateHandler>(proc, this)) },
-        targetRect{ win::GetWindowClientRect(proc.hWnd) },
+        targetRect{ win::GetWindowClientRectI(proc.hWnd) },
         position{ pSpec->overlayPosition },
         upscaleFactor{ pSpec->upscale ? pSpec->upscaleFactor : 1.f },
         graphicsDimensions{ pSpec->overlayWidth, 240 },
@@ -134,7 +133,6 @@ namespace p2c::kern
         samplingWaiter{ 1.f / pSpec->metricPollRate },
         headless{ headless_ }
     {
-        LogProcessHwnds(proc.pid, proc.hWnd, "overlay-target-selected");
         UpdateDataSets_();
         if (!headless) {
             pWindow = MakeWindow_(pos_);
@@ -295,6 +293,39 @@ namespace p2c::kern
         // hide window during move, record timepoint to determine when to show again
         pWindow->Hide();
         lastMoveTime = std::chrono::high_resolution_clock::now();
+    }
+
+    bool Overlay::ConsiderTargetWindowCandidate(HWND hWnd, const RectI& r)
+    {
+        if (!pWindow || !hWnd || hWnd == proc.hWnd) {
+            return false;
+        }
+
+        DWORD pid = 0;
+        GetWindowThreadProcessId(hWnd, &pid);
+        if (pid != proc.pid || GetWindow(hWnd, GW_OWNER) != nullptr || !IsWindowVisible(hWnd)) {
+            return false;
+        }
+
+        const auto currentRect = win::GetWindowClientRectIOpt(proc.hWnd).value_or(RectI{});
+
+        const auto candidateDims = r.GetDimensions();
+        const auto currentDims = currentRect.GetDimensions();
+        if (candidateDims.GetArea() <= 0 || candidateDims.GetArea() <= currentDims.GetArea()) {
+            return false;
+        }
+
+        pmlog_verb(v::procwatch)(std::format("target-window-candidate-upg | hwn: {:8x}@{} sq px => {:8x}@{} sq px",
+            (uintptr_t)proc.hWnd, currentDims.GetArea(), (uintptr_t)hWnd, candidateDims.GetArea()));
+
+        proc.hWnd = hWnd;
+        targetRect = r;
+        UpdateTargetFullscreenStatus();
+        if (!pWindow->Standard()) {
+            pWindow->Move(CalculateOverlayPosition_());
+            pWindow->Reorder(proc.hWnd);
+        }
+        return true;
     }
 
     void Overlay::UpdateTargetOrder(bool topmost)

@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: MIT
 #include "OverlayContainer.h"
 #include <Core/source/win/ProcessMapBuilder.h>
+#include <CommonUtilities/str/String.h>
 #include "TargetLostException.h"
-#include "ProcWindowLogging.h"
 
 using namespace pmon::util;
+
+// TODO: consider overhaul that listens for all win evt for all descendents considering upgrades for any & guarding against race with full post-listen enumeration
 
 namespace p2c::kern
 {
@@ -51,6 +53,9 @@ namespace p2c::kern
             windowSpawnListeners.push_back(win::EventHookManager::AddHandler(
                 std::make_shared<WindowSpawnHandler>(curPid, this)
             ));
+            // now enumerate all windows again to see if new better candidate has spawned
+            // (particularly after initial selection but before listener active)
+            RegisterExistingWindows_(curPid);
         }
         else
         {
@@ -113,10 +118,12 @@ namespace p2c::kern
         // no need for mtx here since the window event listener runs on kernel thread (msg pump)
         if (auto i = ancestorMap.find(pid); i != ancestorMap.end()) {
             const auto prevHwnd = i->second.hWnd;
+            bool upgraded = false;
             // select update hwnd if current is none or invalid
             if (!prevHwnd || !IsWindow(prevHwnd)) {
                 pmlog_verb(v::procwatch)(std::format("register-win-spawn-sel-nul | hwn: {:8x} => {:8x}", (uintptr_t)i->second.hWnd, (uintptr_t)hWnd));
                 i->second.hWnd = hWnd;
+                upgraded = prevHwnd != hWnd;
             }
             // select update hwnd if current smaller
             else {
@@ -129,16 +136,12 @@ namespace p2c::kern
                         (uintptr_t)i->second.hWnd, win::RectToDims(prevRect).GetArea(),
                         (uintptr_t)hWnd, win::RectToDims(r).GetArea()));
                     i->second.hWnd = hWnd;
+                    upgraded = prevHwnd != hWnd;
                 }
             }
 
             // if an update occurred, consider retargetting process
-            if (i->second.hWnd == hWnd) {
-                const auto logCurrentTargetHwnds = [&] {
-                    if (pid == curPid) {
-                        LogProcessHwnds(pid, hWnd, "target-window-spawn-selected");
-                    }
-                };
+            if (upgraded) {
                 // case when we are in root and hit a child spawn window of interest
                 if (pid != rootPid && curPid == rootPid && win::RectToDims(r).GetArea() >= (640 * 480)) {
                     pmlog_verb(v::procwatch)(std::format("register-win-spawn-upg-root-to-child | hwn: {:5} => {:5}", rootPid, pid));
@@ -152,9 +155,6 @@ namespace p2c::kern
                     if (!pOverlay->IsHeadless() && !pOverlay->IsStandardWindow()) {
                         pOverlay = pOverlay->SacrificeClone(hWnd);
                     }
-                    else {
-                        logCurrentTargetHwnds();
-                    }
                 }
                 // case of window upgrade in root
                 else if (pid == rootPid && curPid == rootPid) {
@@ -163,13 +163,7 @@ namespace p2c::kern
                     if (!pOverlay->IsHeadless() && !pOverlay->IsStandardWindow()) {
                         pOverlay = pOverlay->SacrificeClone(hWnd);
                     }
-                    else {
-                        logCurrentTargetHwnds();
-                    }
 				}
-                else {
-                    logCurrentTargetHwnds();
-                }
             }
         }
         else {
@@ -265,5 +259,58 @@ namespace p2c::kern
             curPid = *nextPid;
             pOverlay = pOverlay->RetargetPidClone(ancestorMap[curPid]);
         }
+    }
+    void OverlayContainer::RegisterExistingWindows_(DWORD pid)
+    {
+        struct WindowEnum {
+            static BOOL CALLBACK Callback(HWND hWnd, LPARAM lParam)
+            {
+                auto& ctx = *reinterpret_cast<WindowEnum*>(lParam);
+
+                DWORD hwndPid = 0;
+                GetWindowThreadProcessId(hWnd, &hwndPid);
+                if (hwndPid != ctx.pid) {
+                    return TRUE;
+                }
+
+                ctx.count++;
+                RECT r{};
+                const auto gotRect = GetWindowRect(hWnd, &r) != FALSE;
+                const auto dims = gotRect ? win::RectToDims(r) : gfx::DimensionsI{};
+                pmlog_verb(v::procwatch)(std::format(
+                    "register-existing-win | pid:{:5} hwd:{:8x} sel:{} own:{:8x} vis:{} l:{} r:{} t:{} b:{} siz:{} nam:{}",
+                    ctx.pid,
+                    reinterpret_cast<uintptr_t>(hWnd),
+                    hWnd == ctx.pContainer->GetProcess().hWnd,
+                    reinterpret_cast<uintptr_t>(GetWindow(hWnd, GW_OWNER)),
+                    IsWindowVisible(hWnd),
+                    r.left,
+                    r.right,
+                    r.top,
+                    r.bottom,
+                    dims.GetArea(),
+                    str::ToNarrow(win::GetWindowTitle(hWnd))
+                ));
+
+                if (GetWindow(hWnd, GW_OWNER) == nullptr) {
+                    if (gotRect && dims.GetArea() > 0) {
+                        ctx.pContainer->RegisterWindowSpawn(ctx.pid, hWnd, r);
+                    }
+                }
+                return TRUE;
+            }
+
+            OverlayContainer* pContainer = nullptr;
+            DWORD pid = 0;
+            size_t count = 0;
+        } ctx{ this, pid };
+
+        EnumWindows(&WindowEnum::Callback, reinterpret_cast<LPARAM>(&ctx));
+        pmlog_verb(v::procwatch)(std::format(
+            "register-existing-win-end | pid:{:5} sel:{:8x} cnt:{}",
+            pid,
+            reinterpret_cast<uintptr_t>(GetProcess().hWnd),
+            ctx.count
+        ));
     }
 }

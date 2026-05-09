@@ -12,7 +12,7 @@ namespace p2c::kern
 
     WindowSpawnHandler::WindowSpawnHandler(DWORD pid, OverlayContainer* pOverlay) : pid{ pid }, pOverlay{ pOverlay }
     {
-        pmlog_verb(v::procwatch)(std::format("win spawn handler ctor | pid:{:5x}", pid));
+        pmlog_verb(v::procwatch)(std::format("win spawn handler ctor | pid:{:5}", pid));
     }
 
     win::EventHookHandler::Filter WindowSpawnHandler::GetFilter() const
@@ -29,9 +29,14 @@ namespace p2c::kern
         LONG idObject, LONG idChild,
         DWORD dwEventThread, DWORD dwmsEventTime)
     {
+        if (idObject != OBJID_WINDOW) {
+            return;
+        }
+
+        RECT r{};
+        const auto gotRect = GetWindowRect(hWnd, &r) != FALSE;
+
         if (GlobalPolicy::VCheck(v::procwatch)) {
-            RECT r{};
-            GetWindowRect(hWnd, &r);
             pmlog_(Level::Verbose).note(std::format("win-spawn-event | pid:{:5} hwd:{:8x} own:{:8x} vis:{} l:{} r:{} t:{} b:{} siz:{} nam:{}",
                 pid,
                 reinterpret_cast<uintptr_t>(hWnd),
@@ -49,8 +54,8 @@ namespace p2c::kern
         // filter to only windows without an owner window
         // window could have died between creation and when we get around to handling
         // so check handle validity first
-        if (idObject == OBJID_WINDOW && IsWindow(hWnd) && GetWindow(hWnd, GW_OWNER) == nullptr) {
-            if (RECT r;  GetWindowRect(hWnd, &r)) {
+        if (IsWindow(hWnd) && GetWindow(hWnd, GW_OWNER) == nullptr) {
+            if (gotRect) {
                 // filter to window with dimensions
                 if (r.right - r.left > 0) {
                     pOverlay->RegisterWindowSpawn(pid, hWnd, r);
