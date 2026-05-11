@@ -396,9 +396,9 @@ namespace MetricsCoreTests
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
 
-            // Process [0..1], postpone [2]
+            // Postpone all since no next, but also appIndex should be invalid since no app frame
             Assert::AreEqual(size_t(0), result.startIndex);
-            Assert::AreEqual(size_t(2), result.endIndex);
+            Assert::AreEqual(size_t(0), result.endIndex);
             Assert::AreEqual(SIZE_MAX, result.appIndex);  // No app frame found
         }
 
@@ -1007,7 +1007,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsFalse(chain.lastAppPresent.has_value());
         }
 
-        TEST_METHOD(ComputeMetricsForPresent_DisplayedNoNext_MultipleDisplays_ProcessesAllButLast)
+        TEST_METHOD(ComputeMetricsForPresent_DisplayedNoNext_MultipleDisplays_ProcessNone)
         {
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
@@ -1015,13 +1015,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto frame = MakeFrame(PresentResult::Presented, 10'000, 300, 10'800,
                                    {
                                        { FrameType::Application, 11'000 },
-                                       { FrameType::Repeated,    11'500 },
-                                       { FrameType::Repeated,    12'000 } // postponed
+                                       { FrameType::Intel_XEFG,    11'500 },
+                                       { FrameType::Intel_XEFG,    12'000 }
                                    });
 
             auto metrics = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
 
-            Assert::AreEqual(size_t(2), metrics.size(), L"Should process all but last display.");
+            Assert::AreEqual(size_t(0), metrics.size(), L"Generated frames require next displayed application frame.");
             Assert::IsFalse(chain.lastPresent.has_value());
             Assert::IsFalse(chain.lastAppPresent.has_value());
         }
@@ -1034,28 +1034,28 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto frame = MakeFrame(PresentResult::Presented, 10'000, 300, 10'800,
                                    {
                                        { FrameType::Application, 11'000 },
-                                       { FrameType::Repeated,    11'500 },
-                                       { FrameType::Repeated,    12'000 }
+                                       { FrameType::Intel_XEFG,  11'500 },
+                                       { FrameType::Intel_XEFG,  12'000 }
                                    },
                                    0, 0, 777);
 
             auto nextDisplayed = MakeFrame(PresentResult::Presented, 13'000, 250, 13'600,
                                            { { FrameType::Application, 14'000 } });
 
-            // First call without nextDisplayed: postpone last
+            // First call with generated frames and no nextDisplayed: postpone all
             auto preMetrics = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
-            Assert::AreEqual(size_t(2), preMetrics.size());
+            Assert::AreEqual(size_t(0), preMetrics.size());
             Assert::IsFalse(chain.lastPresent.has_value());
 
-            // Second call with nextDisplayed: process postponed last + update chain
+            // Second call with nextDisplayed: process all + update chain
             auto postMetrics = ComputeMetricsForPresent(qpc, frame, &nextDisplayed, chain);
-            Assert::AreEqual(size_t(1), postMetrics.size(), L"Should process only the postponed last display this time.");
+            Assert::AreEqual(size_t(3), postMetrics.size(), L"Should process all frames.");
             Assert::IsTrue(chain.lastPresent.has_value());
             Assert::AreEqual(uint64_t(12'000), chain.lastDisplayedScreenTime);
             Assert::AreEqual(uint64_t(777), chain.lastDisplayedFlipDelay);
         }
 
-        TEST_METHOD(ComputeMetricsForPresent_DisplayedWithNext_LastDisplayIsRepeated_DoesNotUpdateLastAppPresent)
+        TEST_METHOD(ComputeMetricsForPresent_DisplayedWithNext_LastDisplayIsGenerated_UpdatesWithNextDisplayedAppFrame)
         {
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
@@ -1068,14 +1068,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto frame = MakeFrame(PresentResult::Presented, 4'000, 120, 4'300,
                                    {
                                        { FrameType::Application, 4'500 },
-                                       { FrameType::Repeated,    4'900 } // last (Repeated)
+                                       { FrameType::AMD_AFMF,    4'900 } 
                                    });
 
             auto nextDisplayed = MakeFrame(PresentResult::Presented, 5'000, 110, 5'250,
                                            { { FrameType::Application, 5'600 } });
 
             auto metrics = ComputeMetricsForPresent(qpc, frame, &nextDisplayed, chain);
-            Assert::AreEqual(size_t(1), metrics.size());
+            Assert::AreEqual(size_t(2), metrics.size());
 
             Assert::IsTrue(chain.lastPresent.has_value());
             // lastAppPresent should remain previous since last display was Repeated
