@@ -247,6 +247,7 @@ namespace p2c::kern
                 }
             };
             EnumWindows(&WindowEnum::Callback, reinterpret_cast<LPARAM>(&itProc->second));
+            pmlog_verb(v::procwatch)("Main window selected").pmwatch(itProc->second.hWnd);
             // check if promotion required
             if (itProc->second.hWnd && curPid == rootPid) {
                 pmlog_verb(v::procwatch)(std::format("handle-proc-spawn-sel | pid: {:5}", itProc->second.pid));

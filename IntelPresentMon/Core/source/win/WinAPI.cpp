@@ -26,7 +26,7 @@ namespace p2c::win
         RECT wr{};
         if (!::GetWindowRect(hWnd, &wr)) {
             const auto error = GetLastError();
-            pmlog_error("failed to get window rect").hr(error);
+            pmlog_error("failed to get window rect").hr(error).pmwatch(hWnd);
             throw Except<cwin::HrError>((HRESULT)error, "failed to get window rect");
         }
         return gfx::RectI{ wr.left, wr.top, wr.right, wr.bottom };
@@ -47,14 +47,14 @@ namespace p2c::win
         RECT cr{};
         if (!GetClientRect(hWnd, &cr))  {
             const auto error = GetLastError();
-            pmlog_error("failed to get window client rect").hr(error);
+            pmlog_error("failed to get window client rect").hr(error).pmwatch(hWnd);
             throw Except<cwin::HrError>((HRESULT)error, "failed to get window client rect");
         }
 
         POINT tl{ 0, 0 };
         if (!ClientToScreen(hWnd, &tl))  {
             const auto error = GetLastError();
-            pmlog_error("failed to convert window client rect to screen coordinates").hr(error);
+            pmlog_error("failed to convert window client rect to screen coordinates").hr(error).pmwatch(hWnd);
             throw Except<cwin::HrError>((HRESULT)error, "failed to convert window client rect to screen coordinates");
         }
         return gfx::RectI{ tl.x, tl.y, tl.x + cr.right, tl.y + cr.bottom };

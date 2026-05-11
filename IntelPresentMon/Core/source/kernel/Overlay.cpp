@@ -24,6 +24,7 @@
 #include "MetricPackMapper.h"
 #include <PresentMonAPIWrapper/StaticQuery.h>
 #include <CommonUtilities/Exception.h>
+#include <CommonUtilities/str/String.h>
 
 
 namespace p2c::kern
@@ -559,7 +560,7 @@ namespace p2c::kern
 
     std::unique_ptr<Overlay> Overlay::SacrificeClone(std::optional<HWND> hWnd_, std::shared_ptr<OverlaySpec> pSpec_)
     {
-        pmlog_info("doing SacrificeClone");
+        pmlog_info("doing SacrificeClone").pmwatch(hWnd_.value_or(nullptr));
 
         std::optional<Vec2I> pos;
         if (pWindow->Standard()) {
@@ -588,7 +589,11 @@ namespace p2c::kern
     }
     std::unique_ptr<Overlay> Overlay::RetargetPidClone(::pmon::util::win::Process proc_)
     {
-        pmlog_info("doing RetargetPidClone");
+        pmlog_info("doing RetargetPidClone")
+            .pmwatch(proc_.pid)
+            .pmwatch(proc_.parentId)
+            .pmwatch(proc_.hWnd)
+            .pmwatch(::pmon::util::str::ToNarrow(proc_.name));
 
         std::optional<Vec2I> pos;
         if (pWindow->Standard()) {

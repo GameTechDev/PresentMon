@@ -35,6 +35,12 @@ namespace p2c::kern
             return;
         }
 
+
+        if (!hWnd) {
+            pmlog_verb(v::procwatch)("win-activate-event | NULL hWnd");
+            return;
+        }
+
         const auto currentProc = pOverlay->GetProcess();
         const auto isTarget = hWnd == currentProc.hWnd;
         const auto rect = win::GetWindowClientRectIOpt(hWnd);
