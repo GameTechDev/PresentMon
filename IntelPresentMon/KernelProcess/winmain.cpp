@@ -120,7 +120,7 @@ namespace kproc
 		const auto width = pMonitorRect->right - pMonitorRect->left;
 		const auto height = pMonitorRect->bottom - pMonitorRect->top;
 
-		pmlog_info(std::format("Output monitor [{}] window space: left={} right={} top={} bottom={} width={} height={}",
+		pmlog_dbg(std::format("Output monitor [{}] window space: left={} right={} top={} bottom={} width={} height={}",
 			outputIndex,
 			pMonitorRect->left,
 			pMonitorRect->right,

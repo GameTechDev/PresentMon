@@ -80,6 +80,9 @@ namespace p2c::kern
         catch (const TargetLostException&) {
             // if lost target is a child process, revert to root
             if (curPid != rootPid) {
+                pmlog_dbg("Child target lost, reverting to root")
+                    .pmwatch(curPid)
+                    .pmwatch(rootPid);
                 curPid = rootPid;
                 pOverlay = pOverlay->RetargetPidClone(ancestorMap[curPid]);
             }

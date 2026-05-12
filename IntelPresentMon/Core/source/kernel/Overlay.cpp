@@ -124,7 +124,7 @@ namespace p2c::kern
         hProcess{ OpenProcess(SYNCHRONIZE, TRUE, proc.pid) },
         moveHandlerToken{ win::EventHookManager::AddHandler(std::make_shared<WindowMoveHandler>(proc, this)) },
         activateHandlerToken{ win::EventHookManager::AddHandler(std::make_shared<WindowActivateHandler>(proc, this)) },
-        targetRect{ win::GetWindowClientRectI(proc.hWnd) },
+        targetRect{ win::GetWindowClientRectIOpt(proc.hWnd).value_or(RectI{}) },
         position{ pSpec->overlayPosition },
         upscaleFactor{ pSpec->upscale ? pSpec->upscaleFactor : 1.f },
         graphicsDimensions{ pSpec->overlayWidth, 240 },
@@ -273,6 +273,9 @@ namespace p2c::kern
     void Overlay::UpdateGraphData_(double timestamp)
     {
         if (!IsTargetLive()) {
+            pmlog_dbg("Target found dead")
+                .pmwatch(proc.pid)
+                .pmwatch(proc.parentId);
             throw TargetLostException{};
         }
         pPackMapper->Populate(pm->GetTracker(), timestamp);
