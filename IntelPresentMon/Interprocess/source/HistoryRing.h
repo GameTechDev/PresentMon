@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "ShmRing.h"
 #include "../../CommonUtilities/log/Verbose.h"
+#include <functional>
 #include <format>
 #include <optional>
 #include <string>
@@ -165,7 +166,7 @@ namespace pmon::ipc
                     break;
                 }
                 // s.timestamp is guaranteed >= start by LowerBoundSerial
-                std::forward<F>(func)(s);
+                std::invoke(func, s);
                 ++count;
             }
 

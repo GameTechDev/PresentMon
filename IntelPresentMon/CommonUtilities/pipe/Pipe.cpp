@@ -18,7 +18,8 @@ namespace pmon::util::pipe
 		if (result) {
 			// some error has occurred during connect initiation
 			// (this is not expected for an overlapped connect operation)
-			pmlog_error("Failure accepting pipe connection (unexpected path)").hr().raise<PipeError>();
+			pmlog_error("Failure accepting pipe connection (unexpected path)").hr();
+			throw Except<PipeError>("Failure accepting pipe connection (unexpected path)");
 		}
 		if (const auto error = GetLastError(); error == ERROR_IO_PENDING) {
 			// async operation is in-flight and not yet complete, do async wait while not complete
@@ -32,7 +33,8 @@ namespace pmon::util::pipe
 					break;
 				}
 				if (GetLastError() != ERROR_IO_INCOMPLETE) {
-					pmlog_error("Failure accepting pipe connection").hr().raise<PipeError>();
+					pmlog_error("Failure accepting pipe connection").hr();
+					throw Except<PipeError>("Failure accepting pipe connection");
 				}
 			}
 			// now we have connected, so transfer pipe ownership to asio
@@ -45,7 +47,8 @@ namespace pmon::util::pipe
 		}
 		else {
 			// some error has occurred during connection
-			pmlog_error("Failure accepting pipe connection").hr().raise<PipeError>();
+			pmlog_error("Failure accepting pipe connection").hr();
+			throw Except<PipeError>("Failure accepting pipe connection");
 		}
 		pmlog_dbg(std::format("{}:{} has received a connection", name_, uid_));
 	}
@@ -148,7 +151,8 @@ namespace pmon::util::pipe
 			FILE_FLAG_OVERLAPPED,			// Use overlapped (asynchronous) mode
 			NULL));							// No template file 
 		if (!handle) {
-			pmlog_error("Client failed to connect to named pipe instance").pmwatch(name).hr().raise<PipeError>();
+			pmlog_error("Client failed to connect to named pipe instance").pmwatch(name).hr();
+			throw Except<PipeError>("Client failed to connect to named pipe instance");
 		}
 		return handle.Release();
 	}
@@ -180,7 +184,8 @@ namespace pmon::util::pipe
 			0,						// timeout
 			pSecurityAttributes));	// security
 		if (!handle) {
-			pmlog_error("Server failed to create named pipe instance").hr().raise<PipeError>();
+			pmlog_error("Server failed to create named pipe instance").hr();
+			throw Except<PipeError>("Server failed to create named pipe instance");
 		}
 		// release the owned handle to be captured by some other owner
 		return handle.Release();

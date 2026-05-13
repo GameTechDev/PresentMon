@@ -54,6 +54,8 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
         }
     }
 
+    std::lock_guard lock(session_mutex_);
+
     // Snapshot state so we can rollback tracking on failure.
     std::unordered_map<uint32_t, bool> previousState;
     {
@@ -316,7 +318,9 @@ void RealtimePresentMonSession::AddPresents(
             }
         }
 
-        pBroadcaster->Broadcast(*presentEvent);
+        if (pBroadcaster) {
+            pBroadcaster->Broadcast(*presentEvent);
+        }
 
     }
 

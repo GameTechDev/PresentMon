@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -42,7 +43,7 @@ namespace pmon::mid
 				if (TimestampOf_(metrics) > end) {
 					break;
 				}
-				std::forward<F>(func)(metrics);
+				std::invoke(func, metrics);
 				++visited;
 			}
 			return visited;

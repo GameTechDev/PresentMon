@@ -3,6 +3,7 @@
 #include "../../PresentData/PresentMonTraceConsumer.hpp"
 #include "../CommonUtilities/win/Utilities.h"
 #include "../CommonUtilities/str/String.h"
+#include <atomic>
 #include <unordered_map>
 #include <ranges>
 
@@ -28,7 +29,7 @@ namespace pmon::svc
             if (!book.bookkeepingInitComplete) {
                 book.processId = pid; // we can also init this static here
                 book.isPlayback = isPlayback;
-                book.startQpc = startQpc_; // this member is optionally lazy initialized
+                book.startQpc = startQpc_.load(std::memory_order_relaxed); // this member is optionally lazy initialized
                 book.bookkeepingInitComplete = true;
             }
             else { // sanity checks for subsequent opens
@@ -86,19 +87,20 @@ namespace pmon::svc
         // are able to be in flight simultaneously
         void SetStartQpc(int64_t startQpc)
         {
-            if (startQpc_ == 0) {
-                std::lock_guard lk{ mtx_ };
-                // set qpc here so that future stores are initialized with it
-                startQpc_ = startQpc;
-                // make sure all existing stores get updated right now
-                for (auto pid : comms_.GetFramePids()) {
-                    try {
-                        auto pSeg = comms_.GetFrameDataSegment(pid);
-                        pSeg->GetStore().bookkeeping.startQpc = startQpc_;
-                    }
-                    catch (...) {
-                        pmlog_warn("Failed getting store for pid, might just be closure race").pmwatch(pid);
-                    }
+            int64_t expected = 0;
+            if (!startQpc_.compare_exchange_strong(expected, startQpc, std::memory_order_relaxed)) {
+                return;
+            }
+
+            std::lock_guard lk{ mtx_ };
+            // publish qpc before taking the lock so future stores created in the gap observe it
+            for (auto pid : comms_.GetFramePids()) {
+                try {
+                    auto pSeg = comms_.GetFrameDataSegment(pid);
+                    pSeg->GetStore().bookkeeping.startQpc = startQpc;
+                }
+                catch (...) {
+                    pmlog_warn("Failed getting store for pid, might just be closure race").pmwatch(pid);
                 }
             }
         }
@@ -106,6 +108,6 @@ namespace pmon::svc
 		// data
 		ipc::ServiceComms& comms_;
         mutable std::mutex mtx_;
-        int64_t startQpc_ = 0;
+        std::atomic<int64_t> startQpc_{ 0 };
 	};
 }

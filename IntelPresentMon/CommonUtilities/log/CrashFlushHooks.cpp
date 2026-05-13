@@ -37,6 +37,11 @@ namespace pmon::util::log
 
 			struct Guard_
 			{
+				explicit Guard_(std::atomic_flag& flag) noexcept
+					: flag_{ flag }
+				{}
+				Guard_(const Guard_&) = delete;
+				Guard_& operator=(const Guard_&) = delete;
 				std::atomic_flag& flag_;
 				~Guard_() { flag_.clear(); }
 			} guard{ state.inFlush };

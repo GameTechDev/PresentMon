@@ -452,9 +452,9 @@ int wmain(int argc, wchar_t** argv)
     if (pmSession.mNumEventsLost > 0) {
         PrintWarning(L"warning: %lu ETW events were lost.\n", pmSession.mNumEventsLost);
     }
-    if (pmConsumer.mNumOverflowedPresents > 0) {
+    if (pmConsumer.GetNumOverflowedPresents() > 0) {
         PrintWarning(L"warning: %lu overflowed present events detected. This could be due to a high-fps application.\n",
-                     pmConsumer.mNumOverflowedPresents);
+                     pmConsumer.GetNumOverflowedPresents());
         PrintWarning(L"         Consider increasing the present event circular buffer size to a value larger\n");
         PrintWarning(L"         than the default of 2048, e.g., --set_circular_buffer_size 4096.\n");
 

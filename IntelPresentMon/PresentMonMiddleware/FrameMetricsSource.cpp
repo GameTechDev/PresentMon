@@ -40,7 +40,8 @@ namespace pmon::mid
 
 	void SwapChainState::ProcessFrame(const util::metrics::FrameData& frame, util::QpcConverter& qpc)
 	{
-		auto ready = unified_.Enqueue(frame, util::metrics::MetricsVersion::V2);
+		auto frameCopy = frame;
+		auto ready = unified_.Enqueue(std::move(frameCopy), util::metrics::MetricsVersion::V2);
 		for (auto& item : ready) {
 			auto& present = item.presentPtr ? *item.presentPtr : item.present;
 			auto* nextPtr = item.nextDisplayedPtr;

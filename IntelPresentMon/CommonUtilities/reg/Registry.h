@@ -29,10 +29,10 @@ namespace pmon::util::reg
 			{}
 			std::optional<T> AsOptional() const noexcept
 			{
-				if (!Exists()) {
-					return {};
-				}
 				try {
+					if (!Exists()) {
+						return {};
+					}
 					return Get();
 				}
 				catch (const RegistryNotOpen&) {
