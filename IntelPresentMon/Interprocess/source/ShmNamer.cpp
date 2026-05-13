@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ShmNamer.h"
 #include <format>
 #include <random>
@@ -13,6 +13,10 @@ namespace pmon::ipc
 	std::string ShmNamer::MakeIntrospectionName() const
 	{
 		return std::format("{}_{}_int", prefix_, salt_);
+	}
+	std::string ShmNamer::MakeIntrospectionReadyName() const
+	{
+		return std::format("{}_{}_int_ready_evt", prefix_, salt_);
 	}
 	std::string ShmNamer::MakeSystemName() const
 	{

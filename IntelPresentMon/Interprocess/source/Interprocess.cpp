@@ -1,4 +1,4 @@
-#include "../../CommonUtilities/win/WinAPI.h"
+﻿#include "../../CommonUtilities/win/WinAPI.h"
 #include "Interprocess.h"
 #include "IntrospectionTransfer.h"
 #include "IntrospectionPopulators.h"
@@ -6,15 +6,15 @@
 #include "OwnedDataSegment.h"
 #include "ViewedDataSegment.h"
 #include "IntrospectionCloneAllocators.h"
+#include "../../CommonUtilities/win/Event.h"
 #include "../../CommonUtilities/win/Security.h"
-#include <boost/interprocess/sync/interprocess_sharable_mutex.hpp>
-#include <boost/interprocess/sync/interprocess_semaphore.hpp>
-#include <boost/interprocess/sync/sharable_lock.hpp>
+#include "../../CommonUtilities/win/HrError.h"
 #include <algorithm>
 #include <chrono>
 #include "../../PresentMonService/GlobalIdentifiers.h"
 #include <windows.h>
 #include <sddl.h>
+#include <mutex>
 #include <optional>
 #include <unordered_map>
 
@@ -26,13 +26,35 @@ namespace pmon::ipc
 
     namespace
     {
+        util::win::Event MakeIntrospectionReadyEvent_(const std::string& name)
+        {
+            // Clients only need to wait on the publication event; do not grant modify rights.
+            auto pSecDesc = util::win::MakeSecurityDescriptor("D:(A;;0x00100000;;;AU)");
+            SECURITY_ATTRIBUTES secAttr{
+                .nLength = sizeof(secAttr),
+                .lpSecurityDescriptor = pSecDesc.get(),
+                .bInheritHandle = FALSE,
+            };
+            return util::win::Event::CreateNamed(name, true, false, &secAttr);
+        }
+
+        void WaitOnIntrospectionReadyEvent_(const util::win::Event& event, uint32_t timeoutMs)
+        {
+            switch (WaitForSingleObject(event, timeoutMs)) {
+            case WAIT_OBJECT_0:
+                return;
+            case WAIT_TIMEOUT:
+                throw std::runtime_error{ "timeout accessing introspection" };
+            default:
+                throw util::Except<util::win::HrError>("Failed waiting on introspection ready event");
+            }
+        }
+
         class CommsBase_
         {
         protected:
             static constexpr size_t introShmSize_ = 0x10'0000;
             static constexpr const char* introspectionRootName_ = "in-root";
-            static constexpr const char* introspectionMutexName_ = "in-mtx";
-            static constexpr const char* introspectionSemaphoreName_ = "in-sem";
         };
 
         class ServiceComms_ : public ServiceComms, CommsBase_
@@ -45,12 +67,9 @@ namespace pmon::ipc
                 namer_{ std::move(prefix) },
                 frameRingSamples_{ std::max(frameRingSamples, kMinRingSamples_) },
                 telemetryRingSamples_{ std::max(telemetryRingSamples, kMinRingSamples_) },
+                introReadyEvent_{ MakeIntrospectionReadyEvent_(namer_.MakeIntrospectionReadyName()) },
                 shm_{ bip::create_only, namer_.MakeIntrospectionName().c_str(),
-                    introShmSize_, nullptr, Permissions_{} },
-                pIntroMutex_{ ShmMakeNamedUnique<bip::interprocess_sharable_mutex>(
-                    introspectionMutexName_, shm_.get_segment_manager()) },
-                pIntroSemaphore_{ ShmMakeNamedUnique<bip::interprocess_semaphore>(
-                    introspectionSemaphoreName_, shm_.get_segment_manager(), 0) },
+                    introShmSize_, nullptr, Permissions_{ Permissions_::kReadOnly } },
                 pRoot_{ ShmMakeNamedUnique<intro::IntrospectionRoot>(introspectionRootName_,
                     shm_.get_segment_manager(), shm_.get_segment_manager()) }
             {
@@ -64,7 +83,7 @@ namespace pmon::ipc
                 std::string deviceName, const MetricCapabilities& caps,
                 std::span<const uint8_t> luidBytes) override
             {
-                auto lck = LockIntrospectionMutexExclusive_();
+                std::scoped_lock introLock{ introMutex_ };
                 pmlog_dbg("GPU metric capabilities")
                     .pmwatch(deviceId)
                     .pmwatch(deviceName)
@@ -81,7 +100,7 @@ namespace pmon::ipc
                     std::forward_as_tuple(deviceId),
                     std::forward_as_tuple(segmentName,
                         sizing,
-                        static_cast<const bip::permissions&>(Permissions_{}))
+                        static_cast<const bip::permissions&>(Permissions_{ Permissions_::kReadOnly }))
                 ).first->second;
                 // populate rings based on caps
                 PopulateTelemetryRings(gpuShm.GetStore().telemetryData,
@@ -96,10 +115,9 @@ namespace pmon::ipc
             }
             void FinalizeGpuDevices() override
             {
-                auto lck = LockIntrospectionMutexExclusive_();
+                std::scoped_lock introLock{ introMutex_ };
                 introGpuComplete_ = true;
                 if (introGpuComplete_ && introCpuComplete_) {
-                    lck.unlock();
                     FinalizeIntrospection_();
                 }
             }
@@ -107,7 +125,7 @@ namespace pmon::ipc
                 std::string deviceName,
                 const MetricCapabilities& caps) override
             {
-                auto lck = LockIntrospectionMutexExclusive_();
+                std::scoped_lock introLock{ introMutex_ };
                 constexpr size_t kWatchIndent = 5;
                 constexpr size_t kCapsTextIndent = kWatchIndent + (sizeof("capsText => ") - 1);
                 const auto capsText = caps.ToString(kCapsTextIndent);
@@ -122,7 +140,7 @@ namespace pmon::ipc
                 if (!systemShm_) {
                     systemShm_.emplace(segmentName,
                         sizing,
-                        static_cast<const bip::permissions&>(Permissions_{}));
+                        static_cast<const bip::permissions&>(Permissions_{ Permissions_::kReadOnly }));
                 }
                 // populate rings based on caps
                 PopulateTelemetryRings(systemShm_->GetStore().telemetryData,
@@ -135,7 +153,6 @@ namespace pmon::ipc
                     .pmwatch(systemShm_->GetBytesFree());
                 introCpuComplete_ = true;
                 if (introGpuComplete_ && introCpuComplete_) {
-                    lck.unlock();
                     FinalizeIntrospection_();
                 }
             }
@@ -162,7 +179,7 @@ namespace pmon::ipc
                         new OwnedDataSegment<FrameDataStore>(
                             segmentName,
                             sizing,
-                            static_cast<const bip::permissions&>(Permissions_{})),
+                            static_cast<const bip::permissions&>(Permissions_{ Permissions_::kReadOnly })),
                         [pid, segmentName](OwnedDataSegment<FrameDataStore>* pSegment) {
                             pmlog_dbg("Frame data segment destroyed")
                                 .pmwatch(pid)
@@ -234,9 +251,12 @@ namespace pmon::ipc
             class Permissions_
             {
             public:
-                Permissions_()
+                // Read-only for authenticated users - used for segments clients only read.
+                static constexpr const char* kReadOnly  = "D:(A;OICI;GR;;;AU)";
+
+                explicit Permissions_(const char* sddl = kReadOnly)
                     :
-                    pSecDesc_{ util::win::MakeSecurityDescriptor("D:(A;OICI;GA;;;WD)") },
+                    pSecDesc_{ util::win::MakeSecurityDescriptor(sddl) },
                     secAttr_{ .nLength = sizeof(secAttr_), .lpSecurityDescriptor = pSecDesc_.get() }
                 {}
                 operator bip::permissions()
@@ -268,20 +288,8 @@ namespace pmon::ipc
             {
                 // sort all ordered introspection entities in their principal containers
                 pRoot_->Sort();
-                // release semaphore holdoff once construction is complete
-                for (int i = 0; i < 8; i++) { pIntroSemaphore_->post(); }
-            }
-            bip::scoped_lock<bip::interprocess_sharable_mutex>
-                LockIntrospectionMutexExclusive_()
-            {
-                const auto result =
-                    shm_.find<bip::interprocess_sharable_mutex>(introspectionMutexName_);
-                if (!result.first) {
-                    throw std::runtime_error{
-                        "Failed to find introspection mutex in shared memory"
-                    };
-                }
-                return bip::scoped_lock{ *result.first };
+                // publish the completed immutable snapshot to readers
+                introReadyEvent_.Set();
             }
 
             // data
@@ -289,9 +297,9 @@ namespace pmon::ipc
             ShmNamer namer_;
             size_t frameRingSamples_;
             size_t telemetryRingSamples_;
+            util::win::Event introReadyEvent_;
+            std::mutex introMutex_;
             ShmSegment shm_;
-            ShmUniquePtr<bip::interprocess_sharable_mutex> pIntroMutex_;
-            ShmUniquePtr<bip::interprocess_semaphore> pIntroSemaphore_;
             ShmUniquePtr<intro::IntrospectionRoot> pRoot_;
             bool introGpuComplete_ = false;
             bool introCpuComplete_ = false;
@@ -307,9 +315,10 @@ namespace pmon::ipc
             MiddlewareComms_(std::string prefix, std::string salt)
                 :
                 namer_{ std::move(prefix), std::move(salt) },
-                shm_{ bip::open_only, namer_.MakeIntrospectionName().c_str() }
+                introReadyEvent_{ util::win::Event::OpenNamed(namer_.MakeIntrospectionReadyName(), SYNCHRONIZE) },
+                shm_{ bip::open_read_only, namer_.MakeIntrospectionName().c_str() }
             {
-                WaitOnIntrospectionHoldoff_(1500);
+                WaitOnIntrospectionReadyEvent_(introReadyEvent_, 1500);
                 systemShm_.emplace(namer_.MakeSystemName());
                 // Eager-load all GPU segments based on introspection
                 auto ids = GetGpuDeviceIds_();
@@ -323,10 +332,8 @@ namespace pmon::ipc
             }
             const PM_INTROSPECTION_ROOT* GetIntrospectionRoot(uint32_t timeoutMs) override
             {
-                // make sure holdoff semaphore has been released
-                WaitOnIntrospectionHoldoff_(timeoutMs);
-                // acquire shared lock on introspection data
-                auto sharedLock = LockIntrospectionMutexForShare_();
+                // make sure the immutable snapshot has been published
+                WaitOnIntrospectionReadyEvent_(introReadyEvent_, timeoutMs);
                 // find the introspection structure in shared memory
                 const auto result = shm_.find<intro::IntrospectionRoot>(introspectionRootName_);
                 if (!result.first) {
@@ -401,10 +408,8 @@ namespace pmon::ipc
             // functions
             std::vector<uint32_t> GetGpuDeviceIds_()
             {
-                // make sure holdoff semaphore has been released
-                WaitOnIntrospectionHoldoff_(1500);
-                // acquire shared lock on introspection data
-                auto sharedLock = LockIntrospectionMutexForShare_();
+                // make sure the immutable snapshot has been published
+                WaitOnIntrospectionReadyEvent_(introReadyEvent_, 1500);
                 // find the introspection structure in shared memory
                 const auto result = shm_.find<intro::IntrospectionRoot>(introspectionRootName_);
                 if (!result.first) {
@@ -419,39 +424,10 @@ namespace pmon::ipc
                 }
                 return ids;
             }
-            void WaitOnIntrospectionHoldoff_(uint32_t timeoutMs)
-            {
-                using namespace std::chrono_literals;
-                using clock = std::chrono::high_resolution_clock;
-                const auto result = shm_.find<bip::interprocess_semaphore>(introspectionSemaphoreName_);
-                if (!result.first) {
-                    throw std::runtime_error{
-                        "Failed to find introspection semaphore in shared memory"
-                    };
-                }
-                auto& sem = *result.first;
-                // wait for holdoff to be released (timeout after timeoutMs)
-                if (!sem.timed_wait(clock::now() + 1ms * timeoutMs)) {
-                    throw std::runtime_error{ "timeout accessing introspection" };
-                }
-                // return the slot we just took because holdoff should not limit entry once released
-                sem.post();
-            }
-            bip::sharable_lock<bip::interprocess_sharable_mutex>
-                LockIntrospectionMutexForShare_()
-            {
-                const auto result =
-                    shm_.find<bip::interprocess_sharable_mutex>(introspectionMutexName_);
-                if (!result.first) {
-                    throw std::runtime_error{
-                        "Failed to find introspection mutex in shared memory"
-                    };
-                }
-                return bip::sharable_lock{ *result.first };
-            }
 
             // data
             ShmNamer namer_;
+            util::win::Event introReadyEvent_;
             ShmSegment shm_; // introspection shm
 
             std::optional<ViewedDataSegment<SystemDataStore>> systemShm_;

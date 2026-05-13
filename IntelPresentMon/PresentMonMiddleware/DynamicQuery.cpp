@@ -102,8 +102,7 @@ static bool IsFrameTimeOrFpsMetric_(PM_METRIC metric)
 
 static uint64_t GetTargetStartQpc_(ipc::MiddlewareComms& comms, uint32_t processId)
 {
-	const int64_t startQpcSigned = comms.GetFrameDataStore(processId).bookkeeping.startQpc;
-	return startQpcSigned > 0 ? static_cast<uint64_t>(startQpcSigned) : 0u;
+	return uint64_t(processId ? comms.GetFrameDataStore(processId).bookkeeping.startQpc : 0);
 }
 
 static std::string BuildElapsedSinceTargetStartText_(uint64_t targetStartQpc, uint64_t nowTimestamp, double qpcPeriodSeconds)
@@ -346,7 +345,7 @@ void PM_DYNAMIC_QUERY::ValidatePendingIntegrityWindows_(FrameMetricsSource* fram
 				});
 
 			++tracking.loggedViolationCount;
-			pmlog_dbg("Dynamic query stats window integrity violation detected")
+			pmlog_verb(util::log::V::dyninteg)("Dynamic query stats window integrity violation detected")
 				.pmwatch(processId)
 				.watch("swapChainAddress", reinterpret_cast<void*>(static_cast<uintptr_t>(swapChainAddress)))
 				.pmwatch(pendingWindow.windowSequence)
@@ -377,7 +376,8 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 	}
 
 	const auto window = GenerateQueryWindow_(nowTimestamp);
-	const bool integrityCheckEnabled = util::log::GlobalPolicy::Get().GetLogLevel() >= util::log::Level::Debug;
+	const bool integrityCheckEnabled = util::log::GlobalPolicy::Get().GetLogLevel() >= util::log::Level::Verbose &&
+		util::log::GlobalPolicy::VCheck(util::log::V::dyninteg);
 
 	// Validate pending windows from previous polls before polling this window.
 	if (integrityCheckEnabled) {
@@ -440,7 +440,7 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 					.pollWindow = window,
 					.pollTimestampQpc = nowTimestamp,
 				});
-				pmlog_verb(util::log::V::middleware)("Dynamic query integrity potential violation window opened")
+				pmlog_verb(util::log::V::dyninteg)("Dynamic query integrity potential violation window opened")
 					.pmwatch(processId)
 					.watch("swapChainAddress", reinterpret_cast<void*>(static_cast<uintptr_t>(swapChainAddress)))
 					.pmwatch(windowSequence)
@@ -472,7 +472,7 @@ uint32_t PM_DYNAMIC_QUERY::Poll(uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
 			const uint64_t targetStartQpc = GetTargetStartQpc_(comms, processId);
 			const std::string elapsedSinceTargetStartSecondsText =
 				BuildElapsedSinceTargetStartText_(targetStartQpc, nowTimestamp, qpcPeriodSeconds_);
-			pmlog_dbg("Dynamic query poll found no swap chains in window")
+			pmlog_verb(util::log::V::dyninteg)("Dynamic query poll found no swap chains in window")
 				.watch("queryHandle", std::format("0x{:x}", reinterpret_cast<uintptr_t>(this)))
 				.pmwatch(processId)
 				.watch("window_oldest_ms_from_now", BuildRelativeMillisecondsText_(nowTimestamp, window.oldest, qpcPeriodSeconds_))

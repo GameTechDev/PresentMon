@@ -81,6 +81,9 @@ namespace pmon::svc::acts
         {
             std::shared_ptr<FrameBroadcaster::Segment> pSegment;
             util::win::Handle processHandle;
+            // Backpressured playback rings are SPSC: one producer in the service and
+            // one client-owned reader cursor reported via ReportFrameReadProgress.
+            std::optional<uint64_t> backpressureReadSerial;
         };
         std::map<uint32_t, TrackedTarget> trackedPids;
         // etl recording functionality support
@@ -111,5 +114,6 @@ namespace pmon::svc::acts
         void UpdateEtwFlushPeriod() const;
         void UpdateMetricUsage() const;
         std::unordered_set<uint32_t> GetTrackedPidSet() const;
+        void ReleaseBackpressure(uint32_t pid) const;
     };
 }

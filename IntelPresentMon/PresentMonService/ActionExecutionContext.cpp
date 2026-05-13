@@ -9,6 +9,11 @@ namespace pmon::svc::acts
 {
     void ActionExecutionContext::Dispose(SessionContextType& stx)
     {
+        for (auto const& [pid, target] : stx.trackedPids) {
+            if (target.backpressureReadSerial) {
+                ReleaseBackpressure(pid);
+            }
+        }
         // etw log trace cleanup
         auto& etw = pPmon->GetEtwLogger();
         for (auto id : stx.etwLogSessionIds) {
@@ -88,5 +93,14 @@ namespace pmon::svc::acts
             }
         }
         return trackedPids;
+    }
+
+    void ActionExecutionContext::ReleaseBackpressure(uint32_t pid) const
+    {
+        // Backpressured playback is SPSC, so tearing down the owner simply advances the
+        // single consumer cursor to the writer and releases any blocked producer.
+        pPmon->GetBroadcaster().UpdateReadSerial(
+            pid,
+            pPmon->GetBroadcaster().GetCurrentWriteSerial(pid).value_or(0));
     }
 }

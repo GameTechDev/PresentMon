@@ -174,8 +174,20 @@ namespace pmon::mid
             .isPlayback = true,
             .isBackpressured = isBackpressured
         });
+        // For backpressured playback, this middleware instance is the single consumer
+        // for the ring and reports its read progress back to the service.
+        std::function<void(uint64_t)> progressCallback;
+        if (isBackpressured) {
+            progressCallback = [this, targetPid](uint64_t nextReadSerial) {
+                pActionClient_->DispatchDetached(ReportFrameReadProgress::Params{
+                    .targetPid = targetPid,
+                    .nextReadSerial = nextReadSerial,
+                });
+            };
+        }
         frameMetricsSources_.emplace(targetPid,
-            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, kFrameMetricsPerSwapChainCapacity));
+            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, kFrameMetricsPerSwapChainCapacity,
+                std::move(progressCallback)));
 
         pmlog_info(std::format("Started playback tracking pid [{}]", targetPid)).diag();
     }

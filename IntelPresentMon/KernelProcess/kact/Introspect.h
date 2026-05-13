@@ -104,6 +104,9 @@ namespace ACT_NS
             namespace vi = std::views;
             namespace rn = std::ranges;
             using v = pmon::util::log::V;
+            const auto includeStat = [](PM_STAT stat) {
+                return stat != PM_STAT_MID_POINT;
+            };
 
             auto& intro = (*ctx.ppKernel)->GetIntrospectionRoot();
 
@@ -153,6 +156,7 @@ namespace ACT_NS
                 // generate stat list
                 auto stats = m.GetStatInfo()
                     | vi::transform([](auto&& s) { return s.GetStat(); })
+                    | vi::filter(includeStat)
                     | rn::to<std::vector>();
 
                 // add metric
@@ -172,6 +176,7 @@ namespace ACT_NS
             // --- stats ---
             auto&& statRange = intro.FindEnum(PM_ENUM_STAT).GetKeys();
             for (auto&& s : statRange) {
+                if (!includeStat((PM_STAT)s.GetId())) continue;
                 res.stats.push_back(Stat{
                     .id = (PM_STAT)s.GetId(),
                     .name = s.GetName(),

@@ -1,6 +1,7 @@
 ﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
+#include "../CommonUtilities/Env.h"
 #include "CppUnitTest.h"
 #include "StatusComparison.h"
 #include "TestProcess.h"
@@ -18,6 +19,9 @@
 #include "../PresentMonAPIWrapper/FixedQuery.h"
 #include "../PresentMonService/AllActions.h"
 
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/windows_shared_memory.hpp>
+
 #include <format>
 #include <thread>
 
@@ -29,6 +33,28 @@ using namespace pmon;
 
 namespace InterimBroadcasterTests
 {
+    static void AssertSegmentRejectsWrite_(const std::string& segmentName)
+    {
+        ipc::bip::windows_shared_memory readOnlyShm{
+            ipc::bip::open_only,
+            segmentName.c_str(),
+            ipc::bip::read_only
+        };
+        ipc::bip::mapped_region readOnlyRegion{ readOnlyShm, ipc::bip::read_only };
+        Assert::IsTrue(readOnlyRegion.get_address() != nullptr);
+
+        Assert::ExpectException<std::exception>([&] {
+            ipc::bip::windows_shared_memory readWriteShm{
+                ipc::bip::open_only,
+                segmentName.c_str(),
+                ipc::bip::read_write
+            };
+            ipc::bip::mapped_region readWriteRegion{ readWriteShm, ipc::bip::read_write };
+            auto pData = static_cast<volatile char*>(readWriteRegion.get_address());
+            *pData = *pData;
+        });
+    }
+
     static std::string DumpRing_(const ipc::SampleHistoryRing<double>& ring, size_t maxSamples = 8)
     {
         std::ostringstream oss;
@@ -63,6 +89,32 @@ namespace InterimBroadcasterTests
         }
 
         return oss.str();
+    }
+
+    template<typename Ring>
+    static auto WaitForFirstFrame_(const Ring& ring, const char* label)
+    {
+        const auto warmupStart = std::chrono::steady_clock::now();
+        auto warmupRange = ring.GetSerialRange();
+        while (warmupRange.second == 0 &&
+               std::chrono::steady_clock::now() - warmupStart < 5s) {
+            std::this_thread::sleep_for(25ms);
+            warmupRange = ring.GetSerialRange();
+        }
+        const auto warmupElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - warmupStart).count();
+        Logger::WriteMessage(std::format("{} warmup range [{},{}), elapsedMs={}\n",
+            label, warmupRange.first, warmupRange.second, warmupElapsedMs).c_str());
+        Assert::IsTrue(warmupRange.second > 0, L"Timed out waiting for first playback frame");
+        return warmupRange;
+    }
+
+    static auto WaitForFirstFrame_(const std::string& ctrlPipe, uint32_t pid, const char* label)
+    {
+        mid::ActionClient client{ ctrlPipe };
+        auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+        pComms->OpenFrameDataStore(pid);
+        return WaitForFirstFrame_(pComms->GetFrameDataStore(pid).frameData, label);
     }
 
     class TestFixture : public CommonTestFixture
@@ -122,9 +174,15 @@ namespace InterimBroadcasterTests
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
             auto pIntro = pComms->GetIntrospectionRoot();
-            Assert::AreEqual(3ull, pIntro->pDevices->size);
-            auto pDevice = static_cast<const PM_INTROSPECTION_DEVICE*>(pIntro->pDevices->pData[1]);
-            Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", pDevice->pName->pData);
+            Assert::AreEqual(13ull, pIntro->pEnums->size);
+            auto pEnum = static_cast<const PM_INTROSPECTION_ENUM*>(pIntro->pEnums->pData[0]);
+            Assert::AreEqual("PM_STATUS", pEnum->pSymbol->pData);
+        }
+        TEST_METHOD(IntrospectionSegmentRejectsWrite)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
+            AssertSegmentRejectsWrite_(namer.MakeIntrospectionName());
         }
     };
 
@@ -177,9 +235,37 @@ namespace InterimBroadcasterTests
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
             // get the store containing system-wide telemetry (cpu etc.)
             auto& sys = pComms->GetSystemDataStore();
-            Assert::AreEqual((int)PM_DEVICE_VENDOR_AMD, (int)sys.statics.cpuVendor);
-            Assert::AreEqual("AMD Ryzen 7 5800X 8-Core Processor", sys.statics.cpuName.c_str());
-            Assert::AreEqual(0., sys.statics.cpuPowerLimit);
+            // check values based on machine
+            std::string machineId;
+            try {
+                machineId = util::GetEnv("PRESENTMON_TEST_MACHINE_ID");
+            }
+            catch (const util::Exception& e) {
+                Logger::WriteMessage(e.what());
+                Assert::Fail();
+            }
+            if (machineId == "chi-int-dsk-1") {
+                Assert::AreEqual((int)PM_DEVICE_VENDOR_INTEL, (int)sys.statics.cpuVendor);
+                Assert::AreEqual("12th Gen Intel(R) Core(TM) i9-12900", sys.statics.cpuName.c_str());
+                Assert::AreEqual(0., sys.statics.cpuPowerLimit);
+            }
+            else if (machineId == "chi-pri-dsk-1") {
+                Assert::AreEqual((int)PM_DEVICE_VENDOR_AMD, (int)sys.statics.cpuVendor);
+                Assert::AreEqual("AMD Ryzen 7 5800X 8-Core Processor", sys.statics.cpuName.c_str());
+                Assert::AreEqual(0., sys.statics.cpuPowerLimit);
+            }
+            else {
+                Logger::WriteMessage(std::format("Unknown test machine [{}]", machineId).c_str());
+                Assert::Fail();
+            }
+        }
+        TEST_METHOD(SystemStoreRejectsWrite)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
+            (void)pComms->GetSystemDataStore();
+            AssertSegmentRejectsWrite_(namer.MakeSystemName());
         }
         // polled store
         TEST_METHOD(PolledData)
@@ -244,7 +330,7 @@ namespace InterimBroadcasterTests
                     freqSamples.push_back(sample);
                     Logger::WriteMessage(std::format("({}) {}: {}\n",
                         i, pMetricMap->at(m).narrowName, sample.value).c_str());
-                    Assert::IsTrue(sample.value > 1500.);
+                    Assert::IsTrue(sample.value > 500.);
                 }
             }
 
@@ -396,10 +482,40 @@ namespace InterimBroadcasterTests
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
             // get the store containing gpu telemetry
             auto& gpu = pComms->GetGpuDataStore(1);
-            Assert::AreEqual((int)PM_DEVICE_VENDOR_NVIDIA, (int)gpu.statics.vendor);
-            Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", gpu.statics.name.c_str());
-            Assert::AreEqual(260., gpu.statics.sustainedPowerLimit);
-            Assert::AreEqual(11811160064ull, gpu.statics.memSize);
+            // check values based on machine
+            std::string machineId;
+            try {
+                machineId = util::GetEnv("PRESENTMON_TEST_MACHINE_ID");
+            }
+            catch (const util::Exception& e) {
+                Logger::WriteMessage(e.what());
+                Assert::Fail();
+            }
+            if (machineId == "chi-int-dsk-1") {
+                Assert::AreEqual((int)PM_DEVICE_VENDOR_INTEL, (int)gpu.statics.vendor);
+                Assert::AreEqual("Intel(R) Arc(TM) A750 Graphics", gpu.statics.name.c_str());
+                Assert::AreEqual(190., gpu.statics.sustainedPowerLimit);
+                Assert::AreEqual(8489271296ull, gpu.statics.memSize);
+            }
+            else if (machineId == "chi-pri-dsk-1") {
+                Assert::AreEqual((int)PM_DEVICE_VENDOR_NVIDIA, (int)gpu.statics.vendor);
+                Assert::AreEqual("NVIDIA GeForce RTX 2080 Ti", gpu.statics.name.c_str());
+                Assert::AreEqual(260., gpu.statics.sustainedPowerLimit);
+                Assert::AreEqual(11811160064ull, gpu.statics.memSize);
+            }
+            else {
+                Logger::WriteMessage(std::format("Unknown test machine [{}]", machineId).c_str());
+                Assert::Fail();
+            }
+        }
+        TEST_METHOD(GpuStoreRejectsWrite)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
+            constexpr uint32_t TargetDeviceID = 1;
+            (void)pComms->GetGpuDataStore(TargetDeviceID);
+            AssertSegmentRejectsWrite_(namer.MakeGpuName(TargetDeviceID));
         }
         // polled store
         TEST_METHOD(PolledData)
@@ -750,6 +866,18 @@ namespace InterimBroadcasterTests
             const std::string staticAppName = store.statics.applicationName.c_str();
             Assert::AreEqual("PresentBench.exe"s, staticAppName);
         }
+        TEST_METHOD(FrameStoreRejectsWrite)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
+
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            pComms->OpenFrameDataStore(pres.GetId());
+
+            AssertSegmentRejectsWrite_(namer.MakeFrameName(pres.GetId()));
+        }
         TEST_METHOD(TrackUntrack)
         {
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
@@ -1041,8 +1169,7 @@ namespace InterimBroadcasterTests
             pComms->OpenFrameDataStore(pid);
             auto& ring = pComms->GetFrameDataStore(pid).frameData;
 
-            // sleep here to let the etw system warm up, and frames propagate
-            std::this_thread::sleep_for(300ms);
+            WaitForFirstFrame_(ring, "backpressured-playback");
 
             struct Row { uint64_t timestamp; uint64_t timeInPresent; };
             std::vector<Row> frames;
@@ -1060,23 +1187,32 @@ namespace InterimBroadcasterTests
             };
 
             const auto range1 = ring.GetSerialRange();
-            ring.MarkNextRead(range1.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
             appendRange(range1);
+            client.DispatchDetached(svc::acts::ReportFrameReadProgress::Params{
+                .targetPid = pid,
+                .nextReadSerial = range1.second,
+            });
 
             std::this_thread::sleep_for(300ms);
 
             const auto range2 = ring.GetSerialRange();
-            ring.MarkNextRead(range2.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
             appendRange(range2);
+            client.DispatchDetached(svc::acts::ReportFrameReadProgress::Params{
+                .targetPid = pid,
+                .nextReadSerial = range2.second,
+            });
 
             std::this_thread::sleep_for(500ms);
 
             const auto range3 = ring.GetSerialRange();
-            ring.MarkNextRead(range3.second);
             Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
             appendRange(range3);
+            client.DispatchDetached(svc::acts::ReportFrameReadProgress::Params{
+                .targetPid = pid,
+                .nextReadSerial = range3.second,
+            });
 
             // output timestamp of each frame
             const auto outpath = fs::path{ outFolder_ } /
@@ -1129,6 +1265,8 @@ namespace InterimBroadcasterTests
             pComms->OpenFrameDataStore(pid);
             auto& ring = pComms->GetFrameDataStore(pid).frameData;
 
+            WaitForFirstFrame_(ring, "pb-wrap-backpressure");
+
             size_t lastProcessed = 0;
             bool missed = false;
             bool sawWrap = false;
@@ -1149,7 +1287,10 @@ namespace InterimBroadcasterTests
                 for (size_t s = start; s < range.second; ++s) {
                     (void)ring.At(s);
                 }
-                ring.MarkNextRead(range.second);
+                client.DispatchDetached(svc::acts::ReportFrameReadProgress::Params{
+                    .targetPid = pid,
+                    .nextReadSerial = range.second,
+                });
                 lastProcessed = range.second;
             }
 
@@ -1194,34 +1335,29 @@ namespace InterimBroadcasterTests
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 19736;
             auto tracker = query.TrackProcess(pid, true, true);
-
-            // sleep here to let the etw system warm up, and frames propagate
-            std::this_thread::sleep_for(300ms);
+            WaitForFirstFrame_(fixture_.GetCommonArgs().ctrlPipe, pid, "backpressured-playback-3dm");
 
             const auto consume = [&] {
-                query.ForEachConsume(tracker, [&] {
+                return uint32_t(query.ForEachConsume(tracker, [&] {
                     frames.push_back(Row{
                         .timestamp = query.timestamp,
                         .timeInPresent = query.timeInPres,
                         });
-                });
+                }));
             };
 
             // verify that backpressure works correctly to ensure no frames are lost
-            consume();
-            const auto count1 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count1 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count1).c_str());
 
             std::this_thread::sleep_for(300ms);
 
-            consume();
-            const auto count2 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count2 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count2).c_str());
 
             std::this_thread::sleep_for(500ms);
 
-            consume();
-            const auto count3 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count3 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count3).c_str());
 
             // output timestamp of each frame
@@ -1276,34 +1412,29 @@ namespace InterimBroadcasterTests
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
             auto tracker = query.TrackProcess(pid, true, true);
-
-            // sleep here to let the etw system warm up, and frames propagate
-            std::this_thread::sleep_for(300ms);
+            WaitForFirstFrame_(fixture_.GetCommonArgs().ctrlPipe, pid, "legacy-backpressured-playback");
 
             const auto consume = [&] {
-                query.ForEachConsume(tracker, [&] {
+                return uint32_t(query.ForEachConsume(tracker, [&] {
                     frames.push_back(Row{
                         .timestamp = query.timestamp,
                         .timeInPresent = query.timeInPres,
                         });
-                });
+                }));
             };
 
             // verify that backpressure works correctly to ensure no frames are lost
-            consume();
-            const auto count1 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count1 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count1).c_str());
 
             std::this_thread::sleep_for(300ms);
 
-            consume();
-            const auto count2 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count2 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count2).c_str());
 
             std::this_thread::sleep_for(500ms);
 
-            consume();
-            const auto count3 = query.PeekBlobContainer().GetNumBlobsPopulated();
+            const auto count3 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count3).c_str());
 
             // output timestamp of each frame

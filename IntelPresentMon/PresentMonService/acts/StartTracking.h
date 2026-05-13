@@ -43,6 +43,11 @@ namespace pmon::svc::acts
 					.pmwatch(serviceIsPlayback).pmwatch(in.isPlayback);
 				throw util::Except<ActionExecutionError>(PM_STATUS_MODE_MISMATCH);
 			}
+			// backpressure requires playback mode
+			if (!in.isPlayback && in.isBackpressured) {
+				pmlog_error("StartTracking backpressured requires isPlayback=true");
+				throw util::Except<ActionExecutionError>(PM_STATUS_BAD_ARGUMENT);
+			}
 			// check if this session already tracking requested pid
 			if (stx.trackedPids.find(in.targetPid) != stx.trackedPids.end()) {
 				pmlog_error("StartTracking called for already tracked pid").pmwatch(in.targetPid);
@@ -56,22 +61,45 @@ namespace pmon::svc::acts
 					pmlog_error("StartTracking called for invalid pid").pmwatch(in.targetPid);
 					throw util::Except<ActionExecutionError>(PM_STATUS_INVALID_PID);
 				}
+            }
+            // build full tracking state for session sync
+            auto trackedPids = ctx.GetTrackedPidSet();
+            // Backpressured playback frame rings are SPSC. Reject a second owner for the
+            // same playback pid instead of trying to merge consumer cursors.
+            if (in.isBackpressured && trackedPids.contains(in.targetPid)) {
+                pmlog_error("StartTracking backpressured playback already has an owner")
+                    .pmwatch(in.targetPid);
+                throw util::Except<ActionExecutionError>(PM_STATUS_ALREADY_TRACKING_PROCESS);
+            }
+            trackedPids.emplace(in.targetPid);
+            // get the (possibly shared) segment (new or find operation in broadcaster)
+            auto pSegment = ctx.pPmon->GetBroadcaster().RegisterTarget(
+                in.targetPid, in.isPlayback, in.isBackpressured);
+            // the segment may have been created by an earlier session with a different mode;
+            // reject the join rather than silently binding to a segment with incompatible
+            // backpressure behavior.
+            if (pSegment->GetStore().frameData.IsBackpressured() != in.isBackpressured) {
+                pmlog_error("StartTracking backpressure mode conflicts with existing segment")
+                    .pmwatch(in.targetPid)
+                    .pmwatch(in.isBackpressured);
+                throw util::Except<ActionExecutionError>(PM_STATUS_BAD_ARGUMENT);
 			}
-			// build full tracking state for session sync
-			auto trackedPids = ctx.GetTrackedPidSet();
-			trackedPids.emplace(in.targetPid);
-			// get the (possibly shared) segment (new or find operation in broadcaster)
-			auto pSegment = ctx.pPmon->GetBroadcaster().RegisterTarget(
-				in.targetPid, in.isPlayback, in.isBackpressured);
-			if (auto sta = ctx.pPmon->UpdateTracking(trackedPids); sta != PM_STATUS_SUCCESS) {
-				pmlog_error("Start tracking call failed").code(sta);
-				throw util::Except<ActionExecutionError>(sta);
-			}
-			target.pSegment = std::move(pSegment);
-			stx.trackedPids.emplace(in.targetPid, std::move(target));
-			pmlog_info(std::format("StartTracking action from [{}] targeting [{}]",
-				stx.remotePid, in.targetPid));
-			return {};
+            if (auto sta = ctx.pPmon->UpdateTracking(trackedPids); sta != PM_STATUS_SUCCESS) {
+                pmlog_error("Start tracking call failed").code(sta);
+                throw util::Except<ActionExecutionError>(sta);
+            }
+            // For SPSC backpressured playback, seed the service-owned read cursor to the
+            // oldest currently readable frame and let this client advance it from there.
+            if (in.isBackpressured) {
+                const auto initialSerial = pSegment->GetStore().frameData.GetSerialRange().first;
+                target.backpressureReadSerial = initialSerial;
+                ctx.pPmon->GetBroadcaster().UpdateReadSerial(in.targetPid, initialSerial);
+            }
+            target.pSegment = std::move(pSegment);
+            stx.trackedPids.emplace(in.targetPid, std::move(target));
+            pmlog_info(std::format("StartTracking action from [{}] targeting [{}]",
+                stx.remotePid, in.targetPid));
+            return {};
 		}
 	};
 

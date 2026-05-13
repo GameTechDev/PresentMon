@@ -13,6 +13,9 @@
 
 #include "../PresentMonAPI2/PresentMonAPI.h"
 
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/windows_shared_memory.hpp>
+
 #include <algorithm>
 #include <chrono>
 #include <format>
@@ -37,6 +40,28 @@ namespace IpcComponentTests
     // Expected test child patterns
     static constexpr uint64_t kBaseTs = 10'000ull;
     static constexpr size_t kSampleCount = 12;
+
+    static void AssertSegmentRejectsWrite_(const std::string& segmentName)
+    {
+        ipc::bip::windows_shared_memory readOnlyShm{
+            ipc::bip::open_only,
+            segmentName.c_str(),
+            ipc::bip::read_only
+        };
+        ipc::bip::mapped_region readOnlyRegion{ readOnlyShm, ipc::bip::read_only };
+        Assert::IsTrue(readOnlyRegion.get_address() != nullptr);
+
+        Assert::ExpectException<std::exception>([&] {
+            ipc::bip::windows_shared_memory readWriteShm{
+                ipc::bip::open_only,
+                segmentName.c_str(),
+                ipc::bip::read_write
+            };
+            ipc::bip::mapped_region readWriteRegion{ readWriteShm, ipc::bip::read_write };
+            auto pData = static_cast<volatile char*>(readWriteRegion.get_address());
+            *pData = *pData;
+        });
+    }
 
     class TestFixture : public CommonTestFixture
     {
@@ -154,6 +179,14 @@ namespace IpcComponentTests
 
             Assert::AreEqual<size_t>(1, scalarVect.size(), L"Scalar metric should have 1 ring");
             Assert::AreEqual<size_t>(2, arrayVect.size(), L"Array metric should have 2 rings");
+        }
+
+        TEST_METHOD(ReadOnlySegmentRejectsWrite)
+        {
+            auto server = fixture_.LaunchClient();
+            std::this_thread::sleep_for(25ms);
+
+            AssertSegmentRejectsWrite_(kSystemSegName);
         }
 
         TEST_METHOD(EmptyRangeAndNewestWorkForScalar)
@@ -515,9 +548,9 @@ namespace IpcComponentTests
             Assert::AreEqual<size_t>(pushed, rangeBefore.second);
             Assert::AreEqual<size_t>(0, rangeBefore.first);
 
-            ring.MarkNextRead(rangeBefore.second);
+            ring.SetNextRead(rangeBefore.second);
 
-            Assert::IsTrue(ring.Push(sample, 30), L"Expected push after MarkNextRead");
+            Assert::IsTrue(ring.Push(sample, 30), L"Expected push after SetNextRead");
             const auto rangeAfter = ring.GetSerialRange();
             Assert::AreEqual<size_t>(pushed + 1, rangeAfter.second);
         }

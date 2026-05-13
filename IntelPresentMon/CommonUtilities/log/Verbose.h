@@ -18,6 +18,7 @@ namespace pmon::util::log
 		ipc_ring,
 		met_use,
 		middleware,
+		dyninteg,
 		chrome,
 		Count
 	};

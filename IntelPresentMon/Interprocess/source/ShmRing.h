@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "SharedMemoryTypes.h"
 #include "../../CommonUtilities/Exception.h"
 #include "../../CommonUtilities/log/Log.h"
@@ -97,11 +97,15 @@ namespace pmon::ipc
 				return { serial - data_.size() + ReadBufferSize, serial };
 			}
 		}
-		void MarkNextRead(size_t serial) const
+		// Service-side only: set the single consumer read serial for a backpressured
+		// playback ring.
+		void SetNextRead(size_t serial) const
 		{
-			if (serial > nextReadSerial_) {
-				nextReadSerial_ = serial;
-			}
+			nextReadSerial_ = serial;
+		}
+		bool IsBackpressured() const
+		{
+			return backpressured_;
 		}
 		bool Empty() const
 		{

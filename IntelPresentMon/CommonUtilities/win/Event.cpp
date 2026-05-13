@@ -1,4 +1,4 @@
-#include "Event.h"
+﻿#include "Event.h"
 #include "WinAPI.h"
 #include "HrError.h"
 #include <stdexcept>
@@ -6,7 +6,17 @@
 
 namespace pmon::util::win
 {
+	namespace
+	{
+		constexpr unsigned long kDefaultNamedEventOpenAccess_ = SYNCHRONIZE | EVENT_MODIFY_STATE;
+	}
+
 	Event::Event(ConstructEmptyTag) {}
+
+	Event::Event(HandleType handle)
+		:
+		Handle{ handle }
+	{}
 
 	Event::Event(bool manualReset, bool initialState)
 		:
@@ -15,6 +25,29 @@ namespace pmon::util::win
 		if (!*this) {
 			throw Except<HrError>("Failed to create event");
 		}
+	}
+
+	Event Event::CreateNamed(const std::string& name, bool manualReset, bool initialState, SECURITY_ATTRIBUTES* pSecurityAttributes)
+	{
+		auto evt = Event{ CreateEventA(pSecurityAttributes, (BOOL)manualReset, (BOOL)initialState, name.c_str()) };
+		if (!evt) {
+			throw Except<HrError>("Failed to create named event");
+		}
+		return evt;
+	}
+
+	Event Event::OpenNamed(const std::string& name)
+	{
+		return OpenNamed(name, kDefaultNamedEventOpenAccess_);
+	}
+
+	Event Event::OpenNamed(const std::string& name, unsigned long desiredAccess)
+	{
+		auto evt = Event{ OpenEventA(desiredAccess, FALSE, name.c_str()) };
+		if (!evt) {
+			throw Except<HrError>("Failed to open named event");
+		}
+		return evt;
 	}
 
 	void Event::Set()

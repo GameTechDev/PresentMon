@@ -45,6 +45,7 @@ namespace p2c::kern
         ~Overlay();
         void UpdateTargetRect(const gfx::RectI& newRect);
         void UpdateTargetOrder(bool topmost);
+        bool ConsiderTargetWindowCandidate(HWND hWnd, const gfx::RectI& r);
         void RebuildDocument(std::shared_ptr<OverlaySpec> pSpec_);
         void InitiateClose();
         void RunTick();

@@ -88,28 +88,8 @@ namespace p2c::pmon
 	}
 	void PresentMon::SetEtlLogging(bool active)
 	{
-		pmlog_info("Setting etl logging").pmwatch(active);
-		if (active) {
-			if (etlLogger) {
-				pmlog_error("Etl logging desync: session already active").pmwatch(etlLogger.GetHandle());
-			}
-			else {
-				etlLogger = pSession->StartEtlLogging();
-				pmlog_dbg("Got etl logging handle").pmwatch(etlLogger.GetHandle());
-			}
-		}
-		else {
-			if (!etlLogger) {
-				pmlog_error("Etl logging desync: no active session");
-			}
-			else {
-				using FR = infra::util::FolderResolver;
-				const auto folderPath = FR::Get().Resolve(FR::Folder::Documents, FR::etlSubdirectory);
-				const std::chrono::zoned_time now{ std::chrono::current_zone(), std::chrono::system_clock::now() };
-				const auto fullPath = std::format(L"{0}\\ipm-{1:%y}{1:%m}{1:%d}-{1:%H}{1:%M}{1:%OS}.etl", folderPath, now);
-				etlLogger.Finish(fullPath);
-			}
-		}
+        pmlog_warn("Ignoring ETL logging request because ETL logging is disabled").pmwatch(active);
+        etlLogger.Reset();
 	}
 	std::optional<uint32_t> PresentMon::GetPid() const {
 		return bool(processTracker) ? processTracker.GetPid() : std::optional<uint32_t>{};
