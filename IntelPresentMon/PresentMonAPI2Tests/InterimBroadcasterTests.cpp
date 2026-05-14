@@ -3,6 +3,7 @@
 #include "../CommonUtilities/win/WinAPI.h"
 #include "../CommonUtilities/Env.h"
 #include "CppUnitTest.h"
+#include "FirstFrameWait.h"
 #include "StatusComparison.h"
 #include "TestProcess.h"
 #include <string>
@@ -89,32 +90,6 @@ namespace InterimBroadcasterTests
         }
 
         return oss.str();
-    }
-
-    template<typename Ring>
-    static auto WaitForFirstFrame_(const Ring& ring, const char* label)
-    {
-        const auto warmupStart = std::chrono::steady_clock::now();
-        auto warmupRange = ring.GetSerialRange();
-        while (warmupRange.second == 0 &&
-               std::chrono::steady_clock::now() - warmupStart < 5s) {
-            std::this_thread::sleep_for(25ms);
-            warmupRange = ring.GetSerialRange();
-        }
-        const auto warmupElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now() - warmupStart).count();
-        Logger::WriteMessage(std::format("{} warmup range [{},{}), elapsedMs={}\n",
-            label, warmupRange.first, warmupRange.second, warmupElapsedMs).c_str());
-        Assert::IsTrue(warmupRange.second > 0, L"Timed out waiting for first playback frame");
-        return warmupRange;
-    }
-
-    static auto WaitForFirstFrame_(const std::string& ctrlPipe, uint32_t pid, const char* label)
-    {
-        mid::ActionClient client{ ctrlPipe };
-        auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-        pComms->OpenFrameDataStore(pid);
-        return WaitForFirstFrame_(pComms->GetFrameDataStore(pid).frameData, label);
     }
 
     class TestFixture : public CommonTestFixture
@@ -1169,7 +1144,7 @@ namespace InterimBroadcasterTests
             pComms->OpenFrameDataStore(pid);
             auto& ring = pComms->GetFrameDataStore(pid).frameData;
 
-            WaitForFirstFrame_(ring, "backpressured-playback");
+            pmon::tests::WaitForFirstFrame(ring, "backpressured-playback");
 
             struct Row { uint64_t timestamp; uint64_t timeInPresent; };
             std::vector<Row> frames;
@@ -1265,7 +1240,7 @@ namespace InterimBroadcasterTests
             pComms->OpenFrameDataStore(pid);
             auto& ring = pComms->GetFrameDataStore(pid).frameData;
 
-            WaitForFirstFrame_(ring, "pb-wrap-backpressure");
+            pmon::tests::WaitForFirstFrame(ring, "pb-wrap-backpressure");
 
             size_t lastProcessed = 0;
             bool missed = false;
@@ -1335,7 +1310,7 @@ namespace InterimBroadcasterTests
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 19736;
             auto tracker = query.TrackProcess(pid, true, true);
-            WaitForFirstFrame_(fixture_.GetCommonArgs().ctrlPipe, pid, "backpressured-playback-3dm");
+            pmon::tests::WaitForFirstFrame(fixture_.GetCommonArgs().ctrlPipe, pid, "backpressured-playback-3dm");
 
             const auto consume = [&] {
                 return uint32_t(query.ForEachConsume(tracker, [&] {
@@ -1412,7 +1387,7 @@ namespace InterimBroadcasterTests
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
             auto tracker = query.TrackProcess(pid, true, true);
-            WaitForFirstFrame_(fixture_.GetCommonArgs().ctrlPipe, pid, "legacy-backpressured-playback");
+            pmon::tests::WaitForFirstFrame(fixture_.GetCommonArgs().ctrlPipe, pid, "legacy-backpressured-playback");
 
             const auto consume = [&] {
                 return uint32_t(query.ForEachConsume(tracker, [&] {

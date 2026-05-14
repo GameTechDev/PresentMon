@@ -65,6 +65,9 @@
     <ClInclude Include="CsvHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FirstFrameWait.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="TestCommands.h">
       <Filter>Header Files</Filter>
     </ClInclude>

@@ -138,6 +138,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CsvHelper.h" />
+    <ClInclude Include="FirstFrameWait.h" />
     <ClInclude Include="Folders.h" />
     <ClInclude Include="JobManager.h" />
     <ClInclude Include="Logging.h" />

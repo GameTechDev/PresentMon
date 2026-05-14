@@ -3,6 +3,7 @@
 #include "../CommonUtilities/win/WinAPI.h"
 #include <fstream>
 #include "CppUnitTest.h"
+#include "FirstFrameWait.h"
 #include "StatusComparison.h"
 #include <boost/process/v1/child.hpp>
 #include <boost/process/v1/io.hpp>
@@ -142,7 +143,8 @@ namespace EtlTests
 				testCase.etlFile = fields[3];
 				testCase.goldCsvFile = pmon::util::str::ToWide(fields[4]);
 				testCase.pollCount = std::stoi(fields[5]);
-				testCase.waitTimeSecs = std::stoi(fields[6]);
+				// this is now maximum wait time, not absolute, so no more need to tune this per test
+				testCase.waitTimeSecs = 5;
 				testCase.isExpectedFailure = ParseBool(fields[7]);
 				testCase.failureReason = fields[8];
 				testCase.useAdditionalTestLocation = ParseBool(fields[9]);
@@ -170,7 +172,6 @@ namespace EtlTests
 		using namespace std::chrono_literals;
 		pmapi::ProcessTracker processTracker;
 		static constexpr uint32_t numberOfBlobs = 2000;
-		uint32_t totalFramesValidated = 0;
 
 		PM_QUERY_ELEMENT queryElements[]{
 			//{ PM_METRIC_APPLICATION, PM_STAT_NONE, 0, 0 },
@@ -210,8 +211,13 @@ namespace EtlTests
 
 		processTracker = pSession->TrackProcess(processId, true, true);
 
-		using Clock = std::chrono::high_resolution_clock;
-		const auto start = Clock::now();
+		if (!pmon::tests::TryWaitForFirstFrame(
+			controlPipe_,
+			processId,
+			"etl-playback",
+			std::chrono::seconds(waitTimeSecs))) {
+			throw CsvException("Timeout waiting to consume first frame");
+		}
 
 		int emptyPollCount = 0;
 		while (1) {
@@ -219,21 +225,13 @@ namespace EtlTests
 			if (blobs.GetNumBlobsPopulated() == 0) {
 				// if we poll 10 times in a row and get no new frames, consider this ETL finished
 				if (++emptyPollCount >= pollCount) {
-					if (totalFramesValidated > 0) {
-						// only finish if we have consumed at least one frame
-						break;
-					}
-					else if (Clock::now() - start >= std::chrono::seconds(waitTimeSecs)) {
-						// if it takes longer than alloted test time to consume the first frame, throw failure
-						throw CsvException("Timeout waiting to consume first frame");
-					}
+					break;
 				}
 				std::this_thread::sleep_for(8ms);
 			}
 			else {
 				emptyPollCount = 0;
 				goldCsvFile.VerifyBlobAgainstCsv(processName, processId, queryElements, blobs, debugCsvFile);
-				totalFramesValidated += blobs.GetNumBlobsPopulated();
 			}
 		}
 	}
