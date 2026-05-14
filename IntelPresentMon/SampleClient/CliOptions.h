@@ -31,7 +31,6 @@ namespace clio
 		PacedFramePlayback,
 		IpcComponentServer,
 		IntrospectionDevices,
-		LoggingCrashTest,
 		Count,
 	};
 

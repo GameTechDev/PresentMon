@@ -165,9 +165,6 @@
     <ClInclude Include="log\CopyDriver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="log\CrashFlushHooks.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="log\HrLogger.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -423,9 +420,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="log\CopyDriver.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="log\CrashFlushHooks.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="log\HrLogger.cpp">

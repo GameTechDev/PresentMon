@@ -39,7 +39,6 @@ namespace p2c::cli
 		Flag logSvcPipeEnable{ this, "--log-svc-pipe-enable", "Enable pipe connection to service IPC log stream" };
 		Flag logMiddlewareCopy{ this, "--log-middleware-copy", "Copy log entries from middleware channel to this client" };
 		Flag logSynchronous{ this, "--log-synchronous", "Enable synchronous logging (submit waits for processing and flush)" };
-		Flag logFlushOnCrash{ this, "--log-flush-on-crash", "Install best-effort crash/terminate log flush hooks" };
 		Option<std::vector<log::V>> logVerboseModules{ this, "--log-verbose-modules", {}, "Verbose logging modules to enable", logVmodTf_ };
 
 	private: Group gu_{ this, "CEF UI", "Options to pass thru to the CEF UI system" }; public:

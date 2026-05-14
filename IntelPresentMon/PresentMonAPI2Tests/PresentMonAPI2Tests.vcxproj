@@ -100,7 +100,6 @@
     <ClCompile Include="InterimBroadcasterTests.cpp" />
     <ClCompile Include="IpcComponentTests.cpp" />
     <ClCompile Include="IpcMcIntegrationTests.cpp" />
-    <ClCompile Include="LoggingTests.cpp" />
     <ClCompile Include="ModuleInit.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
     <ClCompile Include="PacedFrameTests.cpp" />
