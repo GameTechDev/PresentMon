@@ -5,10 +5,12 @@
 #include <chrono>
 #include <iostream>
 #include <span>
+#include <thread>
 #include <PresentMonAPI2Tests/TestCommands.h>
 #include <cereal/archives/json.hpp>
 #include <vincentlaucsb-csv-parser/csv.hpp>
-#include <CommonUtilities/IntervalWaiter.h>
+#include <CommonUtilities/PrecisionWaiter.h>
+#include <CommonUtilities/Qpc.h>
 #include <CommonUtilities/Exception.h>
 #include <CommonUtilities/log/Log.h>
 
@@ -153,29 +155,48 @@ public:
 		// wait to give time for the static data (startQpc specifically) to propagate to the shm
 		// wait until 500ms (buffer time) before the requested recordingStart
 		util::PrecisionWaiter{}.Wait(recordingStartSec - 0.5);
-		// capture session startQpc and setup interval waiter to sync with session start
-		const auto startQpc = pmapi::PollStatic(*pSession_, tracker, PM_METRIC_SESSION_START_QPC).As<uint64_t>();
-		util::IntervalWaiter waiter{ pollInterval, (int64_t)startQpc, 0.0015 };
+		// capture session startQpc and setup timer to sync with session start
+		const auto startQpcDeadline = Clock::now() + 5s;
+		uint64_t startQpc = 0;
+		while (true) {
+			startQpc = pmapi::PollStatic(*pSession_, tracker, PM_METRIC_SESSION_START_QPC).As<uint64_t>();
+			if (startQpc != 0) {
+				break;
+			}
+			if (Clock::now() >= startQpcDeadline) {
+				pmlog_error("Timed out waiting for valid session start QPC")
+					.pmwatch(startQpc)
+					.no_trace();
+			}
+			std::this_thread::sleep_for(25ms);
+		}
+		std::this_thread::sleep_for(200ms);
+		util::QpcTimer sessionTimer{ (int64_t)startQpc };
+		util::PrecisionWaiter waiter{ 0.0015 };
 		// run polling loop and poll into vector
 		std::vector<std::vector<double>> rows;
-		std::vector<double> cells;
 		BlobReader br{ qels_, pIntro_ };
 		br.Target(blobs_);
+		double targetSec = 0.;
 		while (true) {
-			const auto wr = waiter.Wait();
+			targetSec += pollInterval;
+			const auto secondsToTarget = targetSec - sessionTimer.Peek();
+			if (secondsToTarget > 0.) {
+				waiter.Wait(secondsToTarget);
+			}
 			// skip recording while time has not reached start time
-			if (wr.targetSec >= recordingStartSec) {
+			if (targetSec >= recordingStartSec) {
+				std::vector<double> cells;
 				cells.reserve(qels_.size() + 1);
-				query_.PollWithTimestamp(tracker, blobs_, (uint64_t)waiter.TargetTimeToTimestamp(wr.targetSec));
-				// first column is the time as measured in polling loop
-				cells.push_back(wr.targetSec + wr.errorSec);
+				query_.PollWithTimestamp(tracker, blobs_, (uint64_t)sessionTimer.TimeToTimestamp(targetSec));
+				cells.push_back(targetSec);
 				// remaining columns are from the query
 				for (size_t i = 0; i < qels_.size(); i++) {
 					cells.push_back(br.At<double>(i));
 				}
 				rows.push_back(std::move(cells));
 			}
-			if (wr.targetSec >= recordingStopSec) {
+			if (targetSec >= recordingStopSec) {
 				break;
 			}
 		}
