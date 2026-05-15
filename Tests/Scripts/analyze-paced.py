@@ -73,14 +73,14 @@ class PolledPlotApp(tk.Tk):
             return
 
         # Initialize columns/UI
-        cols = list(self.dfs[0][1].columns)
-        if len(cols) < 2:
+        cols = self.collect_y_columns()
+        if not cols:
             messagebox.showerror("Error", "CSV files must have at least two columns.")
             self.destroy()
             return
 
-        self.x_col = cols[0]
-        self.y_choices = cols[1:]
+        self.x_col = list(self.dfs[0][1].columns)[0]
+        self.y_choices = cols
 
         ctrl = ttk.Frame(self)
         ctrl.pack(side=tk.TOP, fill=tk.X, padx=8, pady=8)
@@ -91,7 +91,10 @@ class PolledPlotApp(tk.Tk):
 
         self.y_combo = AutocompleteCombobox(ctrl, state="normal", width=50)
         self.y_combo.set_completion_list(self.y_choices)
-        self.y_combo.set(self.y_choices[0])
+        default_y = "PM_METRIC_DISPLAYED_FPS(raw)"
+        if default_y not in self.y_choices:
+            default_y = self.y_choices[0]
+        self.y_combo.set(default_y)
         self.y_combo.pack(side=tk.LEFT, padx=(0, 10))
         self.y_combo.bind("<<ComboboxSelected>>", self.on_select)
 
@@ -113,7 +116,19 @@ class PolledPlotApp(tk.Tk):
         self.fig.canvas.mpl_connect("pick_event", self.on_pick)
 
         # Initial draw
-        self.draw_plot(self.x_col, self.y_choices[0])
+        self.draw_plot(self.x_col, default_y)
+
+    def collect_y_columns(self):
+        y_columns = []
+        seen = set()
+
+        for _, df in self.dfs:
+            for col in list(df.columns)[1:]:
+                if col not in seen:
+                    seen.add(col)
+                    y_columns.append(col)
+
+        return y_columns
 
     def load_csvs(self, folder, name, golds_folder, run_mode):
         """
@@ -223,6 +238,9 @@ class PolledPlotApp(tk.Tk):
 
         # Plot data and capture styles once for each label
         for label, df in self.dfs:
+            if x_col not in df.columns or y_col not in df.columns:
+                continue
+
             line, = self.ax.plot(df[x_col], df[y_col], label=label)
             line.set_visible(self.visible.get(label, True))
             plotted.append((label, line))
@@ -252,6 +270,12 @@ class PolledPlotApp(tk.Tk):
             proxy.set_alpha(1.0 if line.get_visible() else 0.2)
             proxies.append(proxy)
             labels.append(label)
+
+        if not plotted:
+            self.ax.text(0.5, 0.5, "No loaded CSV contains this column.",
+                         transform=self.ax.transAxes, ha="center", va="center")
+            self.canvas.draw()
+            return
 
         leg = self.ax.legend(handles=proxies, labels=labels, loc="best",
                              fancybox=True, shadow=True)

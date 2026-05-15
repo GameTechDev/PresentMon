@@ -183,6 +183,99 @@ namespace PacedPolling
 		return stats;
 	}
 
+	std::string MakeColumnMismatchReport(
+		std::span<const std::string> expected,
+		std::span<const std::string> actual,
+		const std::string& expectedLabel,
+		const std::string& actualLabel,
+		size_t& missingFromExpected,
+		size_t& missingFromActual)
+	{
+		missingFromExpected = 0;
+		missingFromActual = 0;
+		if (expected.size() == actual.size() && rn::equal(expected, actual)) {
+			return {};
+		}
+
+		std::string report = std::format(
+			"CSV column mismatch between {} and {}\n{} column count: {}\n{} column count: {}\n",
+			expectedLabel, actualLabel, expectedLabel, expected.size(), actualLabel, actual.size());
+
+		auto appendMissing = [](std::string& report, std::span<const std::string> src,
+			std::span<const std::string> dst, const std::string& srcLabel,
+			const std::string& dstLabel, size_t& missingCount) {
+			report += std::format("Columns missing from {}:\n", dstLabel);
+			bool found = false;
+			for (auto&& [i, col] : vi::enumerate(src)) {
+				if (!rn::contains(dst, col)) {
+					report += std::format("  {} [{}] {}\n", srcLabel, i, col);
+					found = true;
+					missingCount++;
+				}
+			}
+			if (!found) {
+				report += "  <none>\n";
+			}
+		};
+
+		appendMissing(report, expected, actual, expectedLabel, actualLabel, missingFromActual);
+		appendMissing(report, actual, expected, actualLabel, expectedLabel, missingFromExpected);
+
+		report += "Column positions:\n";
+		bool found = false;
+		for (auto&& [i, col] : vi::enumerate(expected)) {
+			const auto actualIt = rn::find(actual, col);
+			if (actualIt != actual.end()) {
+				const auto actualIndex = std::distance(actual.begin(), actualIt);
+				if (ptrdiff_t(i) != actualIndex) {
+					report += std::format("  {} {} [{}] | {} [{}]\n",
+						col, expectedLabel, i, actualLabel, actualIndex);
+					found = true;
+				}
+			}
+			else {
+				report += std::format("  {} {} [{}] | {} [missing]\n",
+					col, expectedLabel, i, actualLabel);
+				found = true;
+			}
+		}
+		for (auto&& [i, col] : vi::enumerate(actual)) {
+			if (!rn::contains(expected, col)) {
+				report += std::format("  {} {} [missing] | {} [{}]\n",
+					col, expectedLabel, actualLabel, i);
+				found = true;
+			}
+		}
+		if (!found) {
+			report += "  <none>\n";
+		}
+
+		return report;
+	}
+
+	void ValidateColumnHeaders(
+		std::span<const std::string> expected,
+		std::span<const std::string> actual,
+		const std::string& expectedLabel,
+		const std::string& actualLabel,
+		const std::string& reportPath)
+	{
+		size_t missingFromExpected = 0;
+		size_t missingFromActual = 0;
+		const auto report = MakeColumnMismatchReport(
+			expected, actual, expectedLabel, actualLabel, missingFromExpected, missingFromActual);
+		if (!report.empty()) {
+			std::ofstream reportStream{ reportPath };
+			reportStream << report;
+			Logger::WriteMessage(report.c_str());
+			Logger::WriteMessage(std::format("Column mismatch report: {}\n", reportPath).c_str());
+			Assert::Fail(pmon::util::str::ToWide(std::format(
+				"CSV column mismatch between {} and {} ({} vs {} columns; missing from {}: {}; missing from {}: {}). See report: {}",
+				expectedLabel, actualLabel, expected.size(), actual.size(),
+				expectedLabel, missingFromExpected, actualLabel, missingFromActual, reportPath)).c_str());
+		}
+	}
+
 	void WriteResults(
 		const std::string& csvFilePath,
 		const std::vector<std::string>& header,
@@ -240,7 +333,7 @@ namespace PacedPolling
 
 	auto DoPollingRunAndCompare(TestFixture& fix, const std::string& ctrlPipe, const StatMap& smap,
 		uint32_t targetPid, double recordingStart, double recordingStop, double pollPeriod,
-		const std::vector<std::vector<double>>& gold, double toleranceFactor,
+		const std::vector<std::string>& goldHeader, const std::vector<std::vector<double>>& gold, double toleranceFactor,
 		const std::string& testName, const std::string& phaseName)
 	{
 		// build output file path
@@ -257,6 +350,9 @@ namespace PacedPolling
 		});
 		// load up result
 		auto [header, run] = LoadRunFromCsv(outCsvPath);
+		// validate columns before comparing by position
+		ValidateColumnHeaders(goldHeader, header, "gold", phaseName,
+			std::format("{}\\{}_{}_columns.txt", outFolder_, testName, phaseName));
 		// extract stats from header
 		auto stats = HeaderToStats(header, smap);
 		// compare against gold
@@ -346,6 +442,7 @@ namespace PacedPolling
 				recordingStart,
 				recordingStop,
 				pollPeriod,
+				goldHeader,
 				gold,
 				toleranceFactor,
 				testName,
@@ -379,6 +476,7 @@ namespace PacedPolling
 						recordingStart,
 						recordingStop,
 						pollPeriod,
+						goldHeader,
 						gold,
 						toleranceFactor,
 						testName,
@@ -421,6 +519,10 @@ namespace PacedPolling
 				auto [runHeader, run] = LoadRunFromCsv(outCsvPath);
 				if (header.empty()) {
 					header = runHeader;
+				}
+				else {
+					ValidateColumnHeaders(header, runHeader, "robin_00", std::format("robin_{:02}", i),
+						std::format("{}\\{}_robin_{:02}_columns.txt", outFolder_, testName, i));
 				}
 				allRobinRuns.push_back(std::move(run));
 			}
