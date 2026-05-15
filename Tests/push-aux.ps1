@@ -18,7 +18,13 @@ $Headers = @{ Authorization = "Bearer $GitHubToken" }
 # Preserve original location; resolve paths
 $origLocation = Get-Location
 try {
-    # Resolve paths to absolute
+    # Resolve relative paths from this script's directory.
+    if (-not [System.IO.Path]::IsPathRooted($MainRepoPath)) {
+        $MainRepoPath = Join-Path $PSScriptRoot $MainRepoPath
+    }
+    if (-not [System.IO.Path]::IsPathRooted($AuxDataRepoPath)) {
+        $AuxDataRepoPath = Join-Path $PSScriptRoot $AuxDataRepoPath
+    }
     $MainRepoPath = (Resolve-Path $MainRepoPath).Path
     $AuxDataRepoPath = (Resolve-Path $AuxDataRepoPath).Path
 
@@ -43,22 +49,35 @@ try {
         Write-Warning "Lock file not found. Bootstrapping from origin/master..."
         $seedCommit = (git rev-parse origin/master).Trim()
         if (-not $seedCommit) { Write-Error "Failed to resolve origin/master for bootstrap."; exit 1 }
-        Write-Host "Checking out seed commit $seedCommit..."
-        git checkout $seedCommit
         $lock = @{ pinnedCommitHash = $seedCommit }
         $lock | ConvertTo-Json -Depth 3 | Set-Content -Path $lockFilePath
     } else {
         $lock = Get-Content -Path $lockFilePath | ConvertFrom-Json
     }
-    $pinnedCommit = $lock.pinnedCommitHash  # Commit hash from the main repo to pin to
 
-    # Ensure we're on a local branch (master) based on the pinned commit (avoid detached HEAD)
-    git rev-parse --verify master > $null 2>&1
+    # Push only from the head of master. Never reset the worktree; local changes are the data to commit.
+    $currentBranch = (git branch --show-current).Trim()
     if ($LASTEXITCODE -ne 0) {
-        git checkout -B master $pinnedCommit
-    } else {
-        git checkout master
-        git reset --hard $pinnedCommit
+        Write-Error "Failed to determine current AuxData branch."
+        exit 1
+    }
+    $currentHead = (git rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to determine current AuxData commit."
+        exit 1
+    }
+    $masterHead = (git rev-parse master).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to determine AuxData master commit."
+        exit 1
+    }
+    if ($currentBranch -ne "master") {
+        Write-Error "AuxData is not on master. Checkout master before running this script."
+        exit 1
+    }
+    if ($currentHead -ne $masterHead) {
+        Write-Error "AuxData HEAD is not the head of master. Checkout master before running this script."
+        exit 1
     }
     git branch --set-upstream-to=origin/master master > $null 2>&1
 
@@ -114,7 +133,7 @@ try {
                 $entry.releaseTag = $NewReleaseTag
             }
         } else {
-            # New file → create new entry with this release tag
+            # New file: create new entry with this release tag
             $addedETLs += $etl
             $manifest.etlFiles += @(
                 @{

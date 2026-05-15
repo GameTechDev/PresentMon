@@ -63,6 +63,11 @@ namespace PacedPolling
 		return expected == actual || (std::isnan(expected) && std::isnan(actual));
 	}
 
+	constexpr double PollPeriodFromHz(double pollRateHz)
+	{
+		return 1.0 / pollRateHz;
+	}
+
 	std::string MakeMismatchReport(const CsvData& expected, const CsvData& actual)
 	{
 		std::string report;
@@ -138,7 +143,7 @@ namespace PacedPolling
 			"--run-time"s, std::to_string(recordingStop - recordingStart),
 			"--run-start"s, std::to_string(recordingStart),
 			"--poll-period"s, std::to_string(pollPeriod),
-			"--metric-offset"s, "100"s,
+			"--metric-offset"s, "500"s,
 			"--window-size"s, "1000"s,
 		});
 		const auto analyzeCommand = MakeAnalyzeCommand(testName);
@@ -183,7 +188,7 @@ namespace PacedPolling
 				"--run-time"s, std::to_string(recordingStop - recordingStart),
 				"--run-start"s, std::to_string(recordingStart),
 				"--poll-period"s, std::to_string(pollPeriod),
-				"--metric-offset"s, "100"s,
+				"--metric-offset"s, "500"s,
 				"--window-size"s, "1000"s,
 			});
 			const auto analyzeCommand = MakeAnalyzeCommand(testName);
@@ -216,7 +221,7 @@ namespace PacedPolling
 			const uint32_t targetPid = 12820;
 			const auto recordingStart = 1.;
 			const auto recordingStop = 14.;
-			const auto pollPeriod = 0.1;
+			constexpr auto pollPeriod = PollPeriodFromHz(150.0);
 			// run test
 			ExecutePacedPollingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart, recordingStop,
 				pollPeriod, fixture_);
@@ -246,7 +251,7 @@ namespace PacedPolling
 			const uint32_t targetPid = 19736;
 			const auto recordingStart = 1.;
 			const auto recordingStop = 34.;
-			const auto pollPeriod = 0.1;
+			constexpr auto pollPeriod = PollPeriodFromHz(140.0);
 			// run test
 			ExecutePacedPollingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart, recordingStop,
 				pollPeriod, fixture_);

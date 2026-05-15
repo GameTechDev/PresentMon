@@ -231,6 +231,8 @@ class PolledPlotApp(tk.Tk):
         )
         if show_secondary:
             self.ax2 = self.ax.twinx()
+            self.ax.set_zorder(self.ax2.get_zorder() + 1)
+            self.ax.patch.set_visible(False)
 
         plotted = []  # list of (label, line)
 
