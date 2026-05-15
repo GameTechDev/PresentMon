@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
+import shutil
 
 _prev_excepthook = sys.excepthook
 
@@ -20,8 +21,6 @@ def _dep_hint_excepthook(exc_type, exc, tb):
 
 sys.excepthook = _dep_hint_excepthook
 
-import re
-from enum import Enum
 import argparse
 import pandas as pd
 import tkinter as tk
@@ -30,10 +29,8 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.lines import Line2D
 
-class RunMode(Enum):
-    OneShot = "one-shot"
-    Full = "full"
-    RoundRobin = "round-robin"
+COLD_COLORS = ["tab:blue", "tab:cyan", "tab:purple", "tab:gray"]
+WARM_COLORS = ["tab:orange", "tab:red", "tab:brown", "tab:pink"]
 
 class AutocompleteCombobox(ttk.Combobox):
     """A Combobox that filters its dropdown list as you type."""
@@ -55,7 +52,7 @@ class AutocompleteCombobox(ttk.Combobox):
         self['values'] = data
 
 class PolledPlotApp(tk.Tk):
-    def __init__(self, folder, name, run_mode, golds_folder=None):
+    def __init__(self, folder, name, golds_folder=None):
         super().__init__()
         self.title("Polled CSV Plotter")
         self.geometry("900x650")
@@ -65,8 +62,16 @@ class PolledPlotApp(tk.Tk):
         # Persist per-series style for legend proxies
         self.styles = {}   # {series_label: dict(color=..., linestyle=..., marker=...)}
 
-        # Load CSVs according to run mode
-        self.dfs = self.load_csvs(folder, name, golds_folder, run_mode)
+        self.folder = folder
+        self.name = name
+        self.golds_folder = golds_folder
+        self.actual_path = os.path.join(folder, f"{name}_actual.csv")
+        self.gold_path = (
+            os.path.join(golds_folder, f"{name}_gold.csv")
+            if golds_folder else None
+        )
+
+        self.dfs = self.load_csvs()
         if not self.dfs:
             messagebox.showerror("Error", "No valid CSV files found for the given inputs.")
             self.destroy()
@@ -87,7 +92,7 @@ class PolledPlotApp(tk.Tk):
 
         ttk.Label(ctrl, text="X-axis:").pack(side=tk.LEFT)
         ttk.Label(ctrl, text=self.x_col, width=15).pack(side=tk.LEFT, padx=(0, 20))
-        ttk.Label(ctrl, text="Y-axis:").pack(side=tk.LEFT)
+        ttk.Label(ctrl, text="Primary:").pack(side=tk.LEFT)
 
         self.y_combo = AutocompleteCombobox(ctrl, state="normal", width=50)
         self.y_combo.set_completion_list(self.y_choices)
@@ -98,11 +103,41 @@ class PolledPlotApp(tk.Tk):
         self.y_combo.pack(side=tk.LEFT, padx=(0, 10))
         self.y_combo.bind("<<ComboboxSelected>>", self.on_select)
 
+        ttk.Button(ctrl, text="Update Gold", command=self.update_gold).pack(side=tk.RIGHT)
         ttk.Button(ctrl, text="Exit", command=self.destroy).pack(side=tk.RIGHT)
+
+        ctrl2 = ttk.Frame(self)
+        ctrl2.pack(side=tk.TOP, fill=tk.X, padx=8, pady=(0, 8))
+
+        self.secondary_enabled = tk.BooleanVar(value=False)
+        self.secondary_check = ttk.Checkbutton(
+            ctrl2,
+            text="Show secondary",
+            variable=self.secondary_enabled,
+            command=self.on_select,
+        )
+        self.secondary_check.pack(side=tk.LEFT, padx=(0, 8))
+
+        self.secondary_combo = AutocompleteCombobox(ctrl2, state="normal", width=50)
+        self.secondary_combo.set_completion_list(self.y_choices)
+        secondary_default = self.y_choices[1] if len(self.y_choices) > 1 else default_y
+        self.secondary_combo.set(secondary_default)
+        self.secondary_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.secondary_combo.bind("<<ComboboxSelected>>", self.on_select)
+
+        self.match_y_extents = tk.BooleanVar(value=False)
+        self.match_y_check = ttk.Checkbutton(
+            ctrl2,
+            text="Match Y extents",
+            variable=self.match_y_extents,
+            command=self.on_select,
+        )
+        self.match_y_check.pack(side=tk.LEFT, padx=(0, 8))
 
         # Matplotlib figure/canvas/toolbar
         self.fig = Figure(figsize=(6, 4))
         self.ax = self.fig.add_subplot(111)
+        self.ax2 = None
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas.draw()
@@ -130,21 +165,9 @@ class PolledPlotApp(tk.Tk):
 
         return y_columns
 
-    def load_csvs(self, folder, name, golds_folder, run_mode):
+    def load_csvs(self):
         """
-        Returns list of (label, DataFrame) based on run mode.
-
-        RoundRobin:
-          - Load: folder/name_robin_#.csv
-
-        OneShot:
-          - Must load: folder/name_oneshot.csv (mandatory)
-          - Must also load: golds_folder/name_gold.csv
-
-        Full:
-          - Load: folder/name_full_#.csv
-          - Must also load: golds_folder/name_gold.csv
-          - Also try to include: folder/name_oneshot.csv (if present)
+        Returns the current test run and gold run as (label, DataFrame) pairs.
         """
         out = []
 
@@ -161,62 +184,16 @@ class PolledPlotApp(tk.Tk):
             except Exception as e:
                 print(f"Skipping {path}: {e}")
 
-        try:
-            folder_files = sorted(os.listdir(folder))
-        except FileNotFoundError:
-            print(f"Folder not found: {folder}")
-            folder_files = []
+        if os.path.isfile(self.actual_path):
+            try_load_csv(self.actual_path, "actual")
+        else:
+            print(f"ERROR: Actual file is mandatory but not found: {self.actual_path}")
+            return []
 
-        oneshot_fname = f"{name}_oneshot.csv"
-        gold_fname = f"{name}_gold.csv"
-
-        if run_mode == RunMode.RoundRobin:
-            robin_re = re.compile(rf'^{re.escape(name)}_robin_(\d+)\.csv$')
-            for fname in folder_files:
-                if robin_re.match(fname):
-                    try_load_csv(os.path.join(folder, fname))
-
-        elif run_mode == RunMode.OneShot:
-            # Mandatory oneshot
-            oneshot_path = os.path.join(folder, oneshot_fname)
-            if os.path.isfile(oneshot_path):
-                try_load_csv(oneshot_path)
-            else:
-                print(f"ERROR: Oneshot file is mandatory but not found: {oneshot_path}")
-                return []  # cause error popup upstream
-
-            # Gold must be available for the comparison basis
-            if not golds_folder:
-                print("ERROR: Golds folder is required in one-shot mode.")
-                return []
-            gold_path = os.path.join(golds_folder, gold_fname)
-            if os.path.isfile(gold_path):
-                try_load_csv(gold_path)
-            else:
-                print(f"ERROR: Gold file is mandatory but not found: {gold_path}")
-                return []
-
-        elif run_mode == RunMode.Full:
-            full_re = re.compile(rf'^{re.escape(name)}_full_(\d+)\.csv$')
-            for fname in folder_files:
-                if full_re.match(fname):
-                    try_load_csv(os.path.join(folder, fname))
-            # Always try to include oneshot and gold as context
-            oneshot_path = os.path.join(folder, oneshot_fname)
-            if os.path.isfile(oneshot_path):
-                try_load_csv(oneshot_path)
-            else:
-                print(f"Oneshot file not found (optional in full): {oneshot_path}")
-            if golds_folder:
-                gold_path = os.path.join(golds_folder, gold_fname)
-                if os.path.isfile(gold_path):
-                    try_load_csv(gold_path)
-                else:
-                    print(f"ERROR: Gold file is mandatory but not found: {gold_path}")
-                    return []
-            else:
-                print("ERROR: Golds folder is required in one-shot mode.")
-                return []
+        if self.gold_path and os.path.isfile(self.gold_path):
+            try_load_csv(self.gold_path, "gold")
+        else:
+            print(f"Gold file not found: {self.gold_path}")
 
         return out
 
@@ -231,30 +208,91 @@ class PolledPlotApp(tk.Tk):
             h = getattr(legend, "legendHandles", [])
         return h
 
+    def get_series_color(self, label, is_secondary, index):
+        if label == "gold":
+            return COLD_COLORS[0] if is_secondary else WARM_COLORS[0]
+        if label == "actual":
+            return WARM_COLORS[1] if is_secondary else COLD_COLORS[0]
+
+        colors = WARM_COLORS if is_secondary else COLD_COLORS
+        return colors[index % len(colors)]
+
     def draw_plot(self, x_col, y_col):
         self.ax.clear()
+        if self.ax2 is not None:
+            self.ax2.remove()
+            self.ax2 = None
+
+        secondary_y_col = self.secondary_combo.get()
+        show_secondary = (
+            self.secondary_enabled.get()
+            and secondary_y_col
+            and secondary_y_col in self.y_choices
+        )
+        if show_secondary:
+            self.ax2 = self.ax.twinx()
 
         plotted = []  # list of (label, line)
 
         # Plot data and capture styles once for each label
-        for label, df in self.dfs:
-            if x_col not in df.columns or y_col not in df.columns:
+        for data_index, (label, df) in enumerate(self.dfs):
+            if x_col not in df.columns:
                 continue
 
-            line, = self.ax.plot(df[x_col], df[y_col], label=label)
-            line.set_visible(self.visible.get(label, True))
-            plotted.append((label, line))
-
-            if label not in self.styles:
-                self.styles[label] = dict(
-                    color=line.get_color(),
-                    linestyle=line.get_linestyle(),
-                    marker=line.get_marker(),
+            if y_col in df.columns:
+                series_label = f"{label}: {y_col}"
+                style = self.styles.get(series_label, {})
+                line, = self.ax.plot(
+                    df[x_col],
+                    df[y_col],
+                    label=series_label,
+                    color=style.get("color", self.get_series_color(label, False, data_index)),
                 )
+                line.set_visible(self.visible.get(series_label, True))
+                plotted.append((series_label, line))
+
+                if series_label not in self.styles:
+                    self.styles[series_label] = dict(
+                        color=line.get_color(),
+                        linestyle=line.get_linestyle(),
+                        marker=line.get_marker(),
+                    )
+
+            if show_secondary and secondary_y_col in df.columns:
+                series_label = f"{label}: {secondary_y_col}"
+                style = self.styles.get(series_label, {})
+                line, = self.ax2.plot(
+                    df[x_col],
+                    df[secondary_y_col],
+                    label=series_label,
+                    color=style.get("color", self.get_series_color(label, True, data_index)),
+                    linestyle="--",
+                )
+                line.set_visible(self.visible.get(series_label, True))
+                plotted.append((series_label, line))
+
+                if series_label not in self.styles:
+                    self.styles[series_label] = dict(
+                        color=line.get_color(),
+                        linestyle=line.get_linestyle(),
+                        marker=line.get_marker(),
+                    )
 
         self.ax.set_xlabel(x_col)
         self.ax.set_ylabel(y_col)
-        self.ax.set_title(f"{y_col} vs {x_col}")
+        if self.ax2 is not None:
+            self.ax2.set_ylabel(secondary_y_col)
+            if self.match_y_extents.get():
+                primary_min, primary_max = self.ax.get_ylim()
+                secondary_min, secondary_max = self.ax2.get_ylim()
+                shared_min = min(primary_min, secondary_min)
+                shared_max = max(primary_max, secondary_max)
+                self.ax.set_ylim(shared_min, shared_max)
+                self.ax2.set_ylim(shared_min, shared_max)
+        title = f"{y_col} vs {x_col}"
+        if show_secondary:
+            title += f" with {secondary_y_col}"
+        self.ax.set_title(title)
 
         # Build legend from proxy artists so entries never disappear
         proxies = []
@@ -294,9 +332,40 @@ class PolledPlotApp(tk.Tk):
 
         self.canvas.draw()
 
-    def on_select(self, event):
+    def on_select(self, event=None):
         # Redraw with same visibility choices
         self.draw_plot(self.x_col, self.y_combo.get())
+
+    def update_gold(self):
+        if not self.gold_path:
+            messagebox.showerror("Error", "Golds folder was not provided.")
+            return
+
+        if not os.path.isfile(self.actual_path):
+            messagebox.showerror("Error", f"Actual file not found:\n{self.actual_path}")
+            return
+
+        if not messagebox.askyesno(
+            "Update Gold",
+            f"Replace gold with current test run?\n\n{self.gold_path}",
+        ):
+            return
+
+        try:
+            os.makedirs(os.path.dirname(self.gold_path), exist_ok=True)
+            if os.path.exists(self.gold_path):
+                os.remove(self.gold_path)
+            shutil.copy2(self.actual_path, self.gold_path)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to update gold:\n{e}")
+            return
+
+        self.dfs = self.load_csvs()
+        self.y_choices = self.collect_y_columns()
+        self.y_combo.set_completion_list(self.y_choices)
+        self.secondary_combo.set_completion_list(self.y_choices)
+        self.draw_plot(self.x_col, self.y_combo.get())
+        messagebox.showinfo("Update Gold", "Gold updated from current test run.")
 
     def on_pick(self, event):
         # Toggle for both legend handles and legend texts
@@ -332,23 +401,17 @@ def parse_args():
     )
     parser.add_argument(
         "--golds",
-        help="Folder containing gold run data (required for one-shot mode)."
+        help="Folder containing gold run data."
     )
     parser.add_argument(
         "--name", required=True,
         help="Test case name (prefix of CSV files)."
     )
-    parser.add_argument(
-        "--run-mode", required=True,
-        type=RunMode,
-        choices=list(RunMode),
-        help="Specify a mode of execution"
-    )
     return parser.parse_args()
 
 def main():
     args = parse_args()
-    app = PolledPlotApp(folder=args.folder, name=args.name, run_mode=args.run_mode, golds_folder=args.golds)
+    app = PolledPlotApp(folder=args.folder, name=args.name, golds_folder=args.golds)
     app.mainloop()
 
 if __name__ == "__main__":

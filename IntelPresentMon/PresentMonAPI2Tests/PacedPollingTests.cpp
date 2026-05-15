@@ -112,6 +112,19 @@ namespace PacedPolling
 		return report;
 	}
 
+	std::string MakeAnalyzeCommand(const std::string& testName)
+	{
+		const auto scriptPath = std::filesystem::absolute(R"(..\..\Tests\Scripts\analyze-paced.py)").string();
+		const auto outputPath = std::filesystem::absolute(outFolder_).string();
+		const auto goldPath = std::filesystem::absolute(R"(..\..\Tests\AuxData\Data)").string();
+		return std::format(
+			R"(python "{}" --folder "{}" --golds "{}" --name {})",
+			scriptPath,
+			outputPath,
+			goldPath,
+			testName);
+	}
+
 	void DoPollingRunAndCompare(TestFixture& fix,
 		uint32_t targetPid, double recordingStart, double recordingStop, double pollPeriod,
 		const CsvData& gold, const std::string& testName)
@@ -128,6 +141,8 @@ namespace PacedPolling
 			"--metric-offset"s, "100"s,
 			"--window-size"s, "1000"s,
 		});
+		const auto analyzeCommand = MakeAnalyzeCommand(testName);
+		Logger::WriteMessage(std::format("Analyze with: {}\n", analyzeCommand).c_str());
 		// load up result
 		auto run = LoadRunFromCsv(outCsvPath);
 		if (const auto report = MakeMismatchReport(gold, run); !report.empty()) {
@@ -136,7 +151,8 @@ namespace PacedPolling
 			reportStream << report;
 			Logger::WriteMessage(report.c_str());
 			Assert::Fail(pmon::util::str::ToWide(
-				std::format("Paced polling output differed from gold. See report: {}", reportPath)).c_str());
+				std::format("Paced polling output differed from gold. See report: {}\nAnalyze with: {}",
+					reportPath, analyzeCommand)).c_str());
 		}
 	}
 
@@ -170,8 +186,11 @@ namespace PacedPolling
 				"--metric-offset"s, "100"s,
 				"--window-size"s, "1000"s,
 			});
+			const auto analyzeCommand = MakeAnalyzeCommand(testName);
+			Logger::WriteMessage(std::format("Analyze with: {}\n", analyzeCommand).c_str());
 			Assert::Fail(pmon::util::str::ToWide(
-				std::format("Gold CSV does not exist. Generated candidate: {}", outCsvPath)).c_str());
+				std::format("Gold CSV does not exist. Generated candidate: {}\nAnalyze with: {}",
+					outCsvPath, analyzeCommand)).c_str());
 		}
 	}
 
