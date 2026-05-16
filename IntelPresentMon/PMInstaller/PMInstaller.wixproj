@@ -149,6 +149,10 @@
              Text="No wixlib found under $(SolutionDir)build\$(Configuration)\ (or ...\en-us\). Build produced nothing." />
   </Target>
 
+  <Target Name="ValidateCefInstallerInputs" BeforeTargets="Compile">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\AppCef\Batch\validate-cef.ps1&quot; -Mode Installer -OutputRoot &quot;$(PresentMon.TargetDir)&quot;" />
+  </Target>
+
     <!--
 	To modify your build process, add your task inside one of the targets below and uncomment it.
 	Other similar extension points exist, see Wix.targets.

@@ -26,31 +26,30 @@ you only need Visual Studio.  Ignore the other build and source dependency instr
     > build\vcpkg\vcpkg.exe install
     ```
 
-2. Build the Chromium Embedded Framework (CEF)
+2. Restore the Chromium Embedded Framework (CEF)
 
-    1. Download the CEF distribution and extract it to a local folder (e.g. C:\cef_133): https://cef-builds.spotifycdn.com/index.html
+    Restore the locked CEF distribution:
 
-        - Most recently tested release is version 136
+    ```bat
+    > IntelPresentMon\AppCef\Batch\pull-cef.ps1
+    ```
 
-        - Proximal versions will most likely be compatible, but are not officially supported.
+    The script downloads the URI recorded in `IntelPresentMon\AppCef\cef-lock.json`, extracts the archive, rebuilds the CEF C++ wrapper from a clean build directory, stages the AppCef CEF files, and verifies that the staged runtime payload matches the lock file. The normal restore path never modifies the lock.
 
-        - The "Minimal Distribution" is sufficient.
+    Maintainers intentionally updating CEF should use the upgrade path instead:
 
-    2. Build 64-bit Debug and Release configurations (replace "CefDir" with the full path to the directory you downloaded into):
+    ```bat
+    > IntelPresentMon\AppCef\Batch\upgrade-cef.ps1 https://example.com/path/to/cef_archive.tar.bz2
+    ```
 
-        ```bat
-        > cmake -G "Visual Studio 17" -A x64 -DUSE_SANDBOX=OFF -S CefDir -B CefDir\build
-        > cmake --build CefDir\build --config Debug
-        > cmake --build CefDir\build --config Release
-        ```
+    The upgrade script downloads the archive, stages the new payload, updates `IntelPresentMon\AppCef\cef-lock.json`, and regenerates the installer CEF WiX fragments. Review those generated changes with the CEF upgrade.
 
-    3. Copy the required build outputs into AppCef by running the following:
+    As a fallback, both scripts can accept a local archive path. If CEF was upgraded from a local archive instead of a URI, `pull-cef.ps1` must also be given a matching local archive path:
 
-        ```bat
-        > IntelPresentMon\AppCef\Batch\pull-cef.bat CefDir
-        ```
-
-    4. You can now delete the local cef directory if you wish.
+    ```bat
+    > IntelPresentMon\AppCef\Batch\pull-cef.ps1 path\to\cef_archive.tar.bz2
+    > IntelPresentMon\AppCef\Batch\upgrade-cef.ps1 path\to\cef_archive.tar.bz2
+    ```
 
 3. Download and build the web asset dependencies via NPM.  This only needs to be run once on fresh clone, or after new packages are added:
 
