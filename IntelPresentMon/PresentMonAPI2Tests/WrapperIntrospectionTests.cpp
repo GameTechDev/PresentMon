@@ -20,7 +20,6 @@ namespace EndToEndTests
 	TEST_CLASS(WrapperServiceTests)
 	{
 		std::string ctlPipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-		std::string introName = "PM_intro_test_nsm_2"s;
 		std::optional<boost::process::v1::child> oChild;
 		std::optional<Session> oSession;
 		std::shared_ptr<intro::Root> pData;
@@ -44,8 +43,7 @@ namespace EndToEndTests
 			oChild.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "4000"s,
 				"--control-pipe"s, ctlPipeName.c_str(),
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName);
+				"--shm-name-prefix"s, "pmon_nsm_utest_"s);
 
 			std::this_thread::sleep_for(100ms);
 

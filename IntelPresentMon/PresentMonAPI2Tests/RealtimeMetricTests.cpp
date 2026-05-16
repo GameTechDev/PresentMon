@@ -104,14 +104,12 @@ namespace RealtimeMetricTests
 			bp::opstream serviceIn;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
 			const auto etwSessionName = "RealtimeULTSession"s;
 
 			oService.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, "pmon_nsm_utest_"s,
 				"--etw-session-name"s, etwSessionName,
 				bp::std_out > serviceOut, bp::std_in < serviceIn);
 
@@ -121,6 +119,7 @@ namespace RealtimeMetricTests
 			bp::opstream AppIn;  // Stream for writing to the app's input
 
 			oApp.emplace("..\\..\\Tools\\PresentBench.exe"s,
+				"/FrameSleep=10"s,
 				bp::std_out > AppOut, bp::std_in < AppIn);
 			
 			std::this_thread::sleep_for(1000ms);
@@ -150,14 +149,12 @@ namespace RealtimeMetricTests
 			bp::opstream serviceIn;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
 			const auto etwSessionName = "RealtimeULTSession"s;
 
 			oService.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "10000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, "pmon_nsm_utest_"s,
 				"--etw-session-name"s, etwSessionName,
 				bp::std_out > serviceOut, bp::std_in < serviceIn);
 
@@ -167,6 +164,7 @@ namespace RealtimeMetricTests
 			bp::opstream AppIn;  // Stream for writing to the app's input
 
 			oApp.emplace("..\\..\\Tools\\PresentBench.exe"s,
+				"/FrameSleep=10"s,
 				bp::std_out > AppOut, bp::std_in < AppIn);
 
 			std::this_thread::sleep_for(1000ms);
@@ -210,14 +208,12 @@ namespace RealtimeMetricTests
 			bp::opstream serviceIn;  // Stream for writing to the process's input
 
 			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto introName = "PM_intro_test_nsm_2"s;
 			const auto etwSessionName = "RealtimeMetricSession"s;
 
 			oService.emplace("PresentMonService.exe"s,
 				"--timed-stop"s, "20000"s,
 				"--control-pipe"s, pipeName,
-				"--nsm-prefix"s, "pmon_nsm_utest_"s,
-				"--intro-nsm"s, introName,
+				"--shm-name-prefix"s, "pmon_nsm_utest_"s,
 				"--etw-session-name"s, etwSessionName,
 				bp::std_out > serviceOut, bp::std_in < serviceIn);
 
@@ -227,6 +223,7 @@ namespace RealtimeMetricTests
 			bp::opstream AppIn;  // Stream for writing to the app's input
 
 			oApp.emplace("..\\..\\Tools\\PresentBench.exe"s,
+				"/FrameSleep=10"s,
 				bp::std_out > AppOut, bp::std_in < AppIn);
 
 			std::this_thread::sleep_for(2000ms);
@@ -273,10 +270,9 @@ namespace RealtimeMetricTests
 				}
 			}
 
-			// Using the default frame wait for PresentBench it is reasonable to expect an
-			// average CPU frame time of around 11ms. 
-			double expectedFtAvg = 11.;
-			// We are allowing a tolerance of up to 1ms for the CPU frame time
+			// PresentBench is paced with Sleep(10), which typically yields an
+			// average CPU frame time near 15.3ms due to OS timer granularity.
+			double expectedFtAvg = 15.3;
 			double ftTolerance = 1.;
 			if (fabs(expectedFtAvg - dq.qeCpuFtAvg.As<double>()) > ftTolerance) {
 				Assert::AreEqual(expectedFtAvg, dq.qeCpuFtAvg.As<double>(), L"*** CPU Frame Time not within 1ms tolerance.");
