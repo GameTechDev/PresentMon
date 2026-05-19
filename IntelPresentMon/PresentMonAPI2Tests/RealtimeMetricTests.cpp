@@ -211,7 +211,7 @@ namespace RealtimeMetricTests
 			const auto etwSessionName = "RealtimeMetricSession"s;
 
 			oService.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "20000"s,
+				//"--timed-stop"s, "20000"s,
 				"--control-pipe"s, pipeName,
 				"--shm-name-prefix"s, "pmon_nsm_utest_"s,
 				"--etw-session-name"s, etwSessionName,
