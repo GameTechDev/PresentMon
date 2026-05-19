@@ -1,43 +1,43 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-    <Fragment>
-        <DirectoryRef Id="pm_app_folder" />
-    </Fragment>
-    <Fragment>
-        <ComponentGroup Id="CefBinaries">
-            <Component Id="chrome_elf.dll" Directory="pm_app_folder" Guid="*">
-                <File Id="chrome_elf.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\chrome_elf.dll" />
-            </Component>
-            <Component Id="d3dcompiler_47.dll" Directory="pm_app_folder" Guid="*">
-                <File Id="d3dcompiler_47.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\d3dcompiler_47.dll" />
-            </Component>
-            <Component Id="dxcompiler.dll" Directory="pm_app_folder" Guid="*">
-                <File Id="dxcompiler.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\dxcompiler.dll" />
-            </Component>
-            <Component Id="dxil.dll" Directory="pm_app_folder" Guid="*">
-                <File Id="dxil.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\dxil.dll" />
-            </Component>
-            <Component Id="libcef.dll" Directory="pm_app_folder" Guid="*">
-                <File Id="libcef.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\libcef.dll" />
-            </Component>
-            <Component Id="libEGL.dll" Directory="pm_app_folder" Guid="*">
-                <File Id="libEGL.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\libEGL.dll" />
-            </Component>
-            <Component Id="libGLESv2.dll" Directory="pm_app_folder" Guid="*">
-                <File Id="libGLESv2.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\libGLESv2.dll" />
-            </Component>
-            <Component Id="v8_context_snapshot.bin" Directory="pm_app_folder" Guid="*">
-                <File Id="v8_context_snapshot.bin" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\v8_context_snapshot.bin" />
-            </Component>
-            <Component Id="vk_swiftshader.dll" Directory="pm_app_folder" Guid="*">
-                <File Id="vk_swiftshader.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\vk_swiftshader.dll" />
-            </Component>
-            <Component Id="vk_swiftshader_icd.json" Directory="pm_app_folder" Guid="*">
-                <File Id="vk_swiftshader_icd.json" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\vk_swiftshader_icd.json" />
-            </Component>
-            <Component Id="vulkan_1.dll" Directory="pm_app_folder" Guid="*">
-                <File Id="vulkan_1.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\vulkan-1.dll" />
-            </Component>
-        </ComponentGroup>
-    </Fragment>
+  <Fragment>
+    <DirectoryRef Id="pm_app_folder" />
+  </Fragment>
+  <Fragment>
+    <ComponentGroup Id="CefBinaries">
+      <Component Id="cef_cmp_chrome_elf.dll_cca36a1c" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_chrome_elf.dll_cca36a1c" Name="chrome_elf.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\chrome_elf.dll" />
+      </Component>
+      <Component Id="cef_cmp_d3dcompiler_47.dll_e8d1d605" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_d3dcompiler_47.dll_e8d1d605" Name="d3dcompiler_47.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\d3dcompiler_47.dll" />
+      </Component>
+      <Component Id="cef_cmp_dxcompiler.dll_7a633c75" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_dxcompiler.dll_7a633c75" Name="dxcompiler.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\dxcompiler.dll" />
+      </Component>
+      <Component Id="cef_cmp_dxil.dll_d23905b1" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_dxil.dll_d23905b1" Name="dxil.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\dxil.dll" />
+      </Component>
+      <Component Id="cef_cmp_libcef.dll_6c2b3e22" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_libcef.dll_6c2b3e22" Name="libcef.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\libcef.dll" />
+      </Component>
+      <Component Id="cef_cmp_libEGL.dll_58c63ae9" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_libEGL.dll_58c63ae9" Name="libEGL.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\libEGL.dll" />
+      </Component>
+      <Component Id="cef_cmp_libGLESv2.dll_457a9ddd" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_libGLESv2.dll_457a9ddd" Name="libGLESv2.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\libGLESv2.dll" />
+      </Component>
+      <Component Id="cef_cmp_v8_context_snapshot.bin_06b859c1" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_v8_context_snapshot.bin_06b859c1" Name="v8_context_snapshot.bin" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\v8_context_snapshot.bin" />
+      </Component>
+      <Component Id="cef_cmp_vk_swiftshader.dll_fac46c08" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_vk_swiftshader.dll_fac46c08" Name="vk_swiftshader.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\vk_swiftshader.dll" />
+      </Component>
+      <Component Id="cef_cmp_vk_swiftshader_icd.json_3a8cc4f7" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_vk_swiftshader_icd.json_3a8cc4f7" Name="vk_swiftshader_icd.json" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\vk_swiftshader_icd.json" />
+      </Component>
+      <Component Id="cef_cmp_vulkan_1.dll_7408a0ac" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_vulkan_1.dll_7408a0ac" Name="vulkan-1.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\vulkan-1.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
 </Wix>
