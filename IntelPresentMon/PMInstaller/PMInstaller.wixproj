@@ -150,7 +150,7 @@
   </Target>
 
   <Target Name="ValidateCefInstallerInputs" BeforeTargets="Compile">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\AppCef\Batch\validate-cef.ps1&quot; -Mode Installer -OutputRoot &quot;$(PresentMon.TargetDir)&quot;" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\AppCef\Batch\validate-cef.ps1&quot; -Mode Installer -OutputRoot &quot;$(MSBuildThisFileDirectory)..\..\build\$(Configuration)&quot;" />
   </Target>
 
     <!--

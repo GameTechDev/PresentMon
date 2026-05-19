@@ -29,6 +29,33 @@ function Test-UriSource {
     return $uri.Scheme -in @('http', 'https')
 }
 
+function New-CefTempDirectory {
+    param([Parameter(Mandatory = $true)][string]$Prefix)
+
+    $name = $Prefix + '-' + ([System.IO.Path]::GetRandomFileName() -replace '\.', '')
+    $roots = @()
+    if ($env:SystemDrive) {
+        $roots += (Join-Path ($env:SystemDrive + '\') 'pcef')
+    }
+    $roots += [System.IO.Path]::GetTempPath()
+
+    foreach ($root in $roots) {
+        $path = $null
+        try {
+            New-Item -ItemType Directory -Force -Path $root | Out-Null
+            $path = Join-Path $root $name
+            New-Item -ItemType Directory -Path $path | Out-Null
+            return (Resolve-Path $path).ProviderPath
+        } catch {
+            if ($path -and (Test-Path $path)) {
+                Remove-Item -LiteralPath $path -Recurse -Force
+            }
+        }
+    }
+
+    throw "Failed to create a CEF temp directory."
+}
+
 function Read-CefLock {
     $path = Get-CefLockPath
     if (-not (Test-Path $path -PathType Leaf)) {
@@ -91,8 +118,7 @@ function Get-FileNameFromUri {
 function Save-CefUriArchive {
     param([Parameter(Mandatory = $true)][string]$Uri)
 
-    $downloadRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("presentmon-cef-download-" + [System.Guid]::NewGuid().ToString('N'))
-    New-Item -ItemType Directory -Path $downloadRoot | Out-Null
+    $downloadRoot = New-CefTempDirectory -Prefix 'download'
     $archivePath = Join-Path $downloadRoot (Get-FileNameFromUri -Uri $Uri)
     Write-Host "Downloading CEF archive from $Uri"
     Invoke-WebRequest -Uri $Uri -OutFile $archivePath
@@ -169,8 +195,7 @@ function Resolve-CefDistributionRoot {
 
     $resolved = (Resolve-Path $Path).ProviderPath
     if (Test-Path $resolved -PathType Leaf) {
-        $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("presentmon-cef-" + [System.Guid]::NewGuid().ToString('N'))
-        New-Item -ItemType Directory -Path $tempRoot | Out-Null
+        $tempRoot = New-CefTempDirectory -Prefix 'extract'
         Write-Host "Extracting CEF archive to $tempRoot"
         & tar -xf $resolved -C $tempRoot
         if ($LASTEXITCODE -ne 0) {
@@ -211,14 +236,17 @@ function Assert-CefWrapperBuilt {
 function Copy-DirectoryContents {
     param(
         [Parameter(Mandatory = $true)][string]$Source,
-        [Parameter(Mandatory = $true)][string]$Destination
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [Parameter()][string[]]$ExcludeFileName = @()
     )
 
     if (-not (Test-Path $Source -PathType Container)) {
         throw "Source directory not found: $Source"
     }
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-    Get-ChildItem -LiteralPath $Source -Force | Copy-Item -Destination $Destination -Recurse -Force
+    Get-ChildItem -LiteralPath $Source -Force |
+        Where-Object { $_.PSIsContainer -or ($_.Name -notin $ExcludeFileName) } |
+        Copy-Item -Destination $Destination -Recurse -Force
 }
 
 function Stage-CefDistribution {
@@ -244,7 +272,7 @@ function Stage-CefDistribution {
     New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Include') | Out-Null
     New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Resources') | Out-Null
 
-    Copy-DirectoryContents -Source (Join-Path $CefRoot 'Release') -Destination (Join-Path $stage 'Bin')
+    Copy-DirectoryContents -Source (Join-Path $CefRoot 'Release') -Destination (Join-Path $stage 'Bin') -ExcludeFileName @('cef_sandbox.lib', 'libcef.lib')
     Copy-DirectoryContents -Source (Join-Path $CefRoot 'include') -Destination (Join-Path $stage 'Include\include')
     Copy-DirectoryContents -Source (Join-Path $CefRoot 'Resources') -Destination (Join-Path $stage 'Resources')
 
