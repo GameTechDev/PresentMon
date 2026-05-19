@@ -2,6 +2,8 @@ Set-StrictMode -Version 3.0
 
 $ErrorActionPreference = 'Stop'
 
+$script:CefTempDirectories = New-Object System.Collections.Generic.List[string]
+
 function Get-AppCefRoot {
     return (Resolve-Path (Join-Path $PSScriptRoot '..')).ProviderPath
 }
@@ -29,15 +31,24 @@ function Test-UriSource {
     return $uri.Scheme -in @('http', 'https')
 }
 
-function New-CefTempDirectory {
-    param([Parameter(Mandatory = $true)][string]$Prefix)
-
-    $name = $Prefix + '-' + ([System.IO.Path]::GetRandomFileName() -replace '\.', '')
+function Get-CefTempRootCandidates {
     $roots = @()
+    if ($env:PRESENTMON_CEF_WORK_ROOT) {
+        return @($env:PRESENTMON_CEF_WORK_ROOT)
+    }
+
     if ($env:SystemDrive) {
         $roots += (Join-Path ($env:SystemDrive + '\') 'pcef')
     }
     $roots += [System.IO.Path]::GetTempPath()
+    return $roots
+}
+
+function New-CefTempDirectory {
+    param([Parameter(Mandatory = $true)][string]$Prefix)
+
+    $name = $Prefix + '-' + ([System.IO.Path]::GetRandomFileName() -replace '\.', '')
+    $roots = Get-CefTempRootCandidates
 
     foreach ($root in $roots) {
         $path = $null
@@ -45,15 +56,43 @@ function New-CefTempDirectory {
             New-Item -ItemType Directory -Force -Path $root | Out-Null
             $path = Join-Path $root $name
             New-Item -ItemType Directory -Path $path | Out-Null
-            return (Resolve-Path $path).ProviderPath
+            $resolvedPath = (Resolve-Path $path).ProviderPath
+            $script:CefTempDirectories.Add($resolvedPath)
+            return $resolvedPath
         } catch {
             if ($path -and (Test-Path $path)) {
                 Remove-Item -LiteralPath $path -Recurse -Force
+            }
+            if ($env:PRESENTMON_CEF_WORK_ROOT) {
+                throw "Failed to create a CEF temp directory under PRESENTMON_CEF_WORK_ROOT: $root"
             }
         }
     }
 
     throw "Failed to create a CEF temp directory."
+}
+
+function Test-CefKeepWorkDirectories {
+    return $env:PRESENTMON_CEF_KEEP_WORK -in @('1', 'true', 'True', 'TRUE', 'yes', 'Yes', 'YES')
+}
+
+function Get-CefTempDirectories {
+    return @($script:CefTempDirectories)
+}
+
+function Clear-CefTempDirectories {
+    foreach ($path in @($script:CefTempDirectories)) {
+        if (-not (Test-Path $path)) {
+            continue
+        }
+        try {
+            Remove-Item -LiteralPath $path -Recurse -Force
+            Write-Host "Removed CEF work directory: $path"
+        } catch {
+            Write-Warning "Failed to remove CEF work directory: $path"
+        }
+    }
+    $script:CefTempDirectories.Clear()
 }
 
 function Read-CefLock {

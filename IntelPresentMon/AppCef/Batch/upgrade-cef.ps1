@@ -19,11 +19,26 @@ param(
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'cef-lock.psm1') -Force -DisableNameChecking
 
-$resolvedSource = Resolve-CefSource -Source $Source
-$cefRoot = Resolve-CefDistributionRoot -Path (Get-ObjectPropertyValue -Object $resolvedSource -Name 'archivePath')
-Stage-CefDistribution -CefRoot $cefRoot
-$lock = New-CefLockObject -CefRoot $cefRoot -Source $resolvedSource
-Write-CefLock -Lock $lock
-Update-CefInstallerFragments
-Assert-CefStageMatchesLock
-Assert-CefInstallerInputsMatchLock
+$completed = $false
+try {
+    $resolvedSource = Resolve-CefSource -Source $Source
+    $cefRoot = Resolve-CefDistributionRoot -Path (Get-ObjectPropertyValue -Object $resolvedSource -Name 'archivePath')
+    Stage-CefDistribution -CefRoot $cefRoot
+    $lock = New-CefLockObject -CefRoot $cefRoot -Source $resolvedSource
+    Write-CefLock -Lock $lock
+    Update-CefInstallerFragments
+    Assert-CefStageMatchesLock
+    Assert-CefInstallerInputsMatchLock
+    $completed = $true
+} finally {
+    if ($completed) {
+        if (Test-CefKeepWorkDirectories) {
+            Write-Host "Keeping CEF work directories because PRESENTMON_CEF_KEEP_WORK is set."
+        } else {
+            Clear-CefTempDirectories
+        }
+    } elseif ((Get-CefTempDirectories).Count -ne 0) {
+        Write-Host "Leaving CEF work directories after failed upgrade:"
+        Get-CefTempDirectories | ForEach-Object { Write-Host "  $_" }
+    }
+}

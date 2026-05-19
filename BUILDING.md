@@ -44,6 +44,20 @@ you only need Visual Studio.  Ignore the other build and source dependency instr
 
     The upgrade script downloads the archive, stages the new payload, updates `IntelPresentMon\AppCef\cef-lock.json`, and regenerates the installer CEF WiX fragments. Review those generated changes with the CEF upgrade.
 
+    CEF download, extraction, and wrapper build work directories are created under a short temporary root by default, normally `C:\pcef` with a fallback to the system temp directory. To use a different root, set `PRESENTMON_CEF_WORK_ROOT` before running `pull-cef.ps1` or `upgrade-cef.ps1`:
+
+    ```bat
+    > set PRESENTMON_CEF_WORK_ROOT=D:\cef-work
+    > IntelPresentMon\AppCef\Batch\upgrade-cef.ps1 https://example.com/path/to/cef_archive.tar.bz2
+    ```
+
+    After a successful pull or upgrade, temporary CEF work directories created by the script are removed by default. Failed runs leave those directories in place for diagnosis. To keep work directories after a successful run, set `PRESENTMON_CEF_KEEP_WORK=1`:
+
+    ```bat
+    > set PRESENTMON_CEF_KEEP_WORK=1
+    > IntelPresentMon\AppCef\Batch\upgrade-cef.ps1 https://example.com/path/to/cef_archive.tar.bz2
+    ```
+
     As a fallback, both scripts can accept a local archive path. If CEF was upgraded from a local archive instead of a URI, `pull-cef.ps1` must also be given a matching local archive path:
 
     ```bat

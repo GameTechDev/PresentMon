@@ -37,16 +37,31 @@ if (-not $SourcePath) {
     throw 'The CEF lock does not define a source URI. Provide path\to\cef_archive.tar.bz2 as a fallback.'
 }
 
-$source = Resolve-CefSource -Source $SourcePath
-$sourceArchivePath = Get-ObjectPropertyValue -Object $source -Name 'archivePath'
-$lockedSha256 = Get-ObjectPropertyValue -Object $lock.source -Name 'sha256'
-if ((Test-Path $sourceArchivePath -PathType Leaf) -and $lockedSha256) {
-    $actualHash = Get-FileSha256 -Path $sourceArchivePath
-    if ($actualHash -ne $lockedSha256) {
-        throw "CEF archive hash does not match lock. Expected $lockedSha256, found $actualHash."
+$completed = $false
+try {
+    $source = Resolve-CefSource -Source $SourcePath
+    $sourceArchivePath = Get-ObjectPropertyValue -Object $source -Name 'archivePath'
+    $lockedSha256 = Get-ObjectPropertyValue -Object $lock.source -Name 'sha256'
+    if ((Test-Path $sourceArchivePath -PathType Leaf) -and $lockedSha256) {
+        $actualHash = Get-FileSha256 -Path $sourceArchivePath
+        if ($actualHash -ne $lockedSha256) {
+            throw "CEF archive hash does not match lock. Expected $lockedSha256, found $actualHash."
+        }
+    }
+
+    $cefRoot = Resolve-CefDistributionRoot -Path $sourceArchivePath
+    Stage-CefDistribution -CefRoot $cefRoot
+    Assert-CefStageMatchesLock
+    $completed = $true
+} finally {
+    if ($completed) {
+        if (Test-CefKeepWorkDirectories) {
+            Write-Host "Keeping CEF work directories because PRESENTMON_CEF_KEEP_WORK is set."
+        } else {
+            Clear-CefTempDirectories
+        }
+    } elseif ((Get-CefTempDirectories).Count -ne 0) {
+        Write-Host "Leaving CEF work directories after failed pull:"
+        Get-CefTempDirectories | ForEach-Object { Write-Host "  $_" }
     }
 }
-
-$cefRoot = Resolve-CefDistributionRoot -Path $sourceArchivePath
-Stage-CefDistribution -CefRoot $cefRoot
-Assert-CefStageMatchesLock
