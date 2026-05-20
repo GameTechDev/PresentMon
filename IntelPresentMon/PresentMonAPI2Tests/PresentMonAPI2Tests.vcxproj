@@ -107,7 +107,6 @@
     <ClCompile Include="MultiClientTests.cpp" />
     <ClCompile Include="PacedFrameTests.cpp" />
     <ClCompile Include="PacedPollingTests.cpp" />
-    <ClCompile Include="WrapperIntrospectionTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />
     <ClCompile Include="Logging.cpp" />
     <ClCompile Include="RealtimeMetricTests.cpp" />
