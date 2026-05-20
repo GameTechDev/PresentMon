@@ -287,7 +287,7 @@ int wmain(
     bool goldDirExists = true;
     bool outDirExists = true;
     std::wstring optTestDir;
-    bool optTestDirExists = false;
+    bool optTestDirExists = true;
     bool hasOptTestDir = optTestDirArg != nullptr;
     
     if (hasOptTestDir) {
