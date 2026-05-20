@@ -4,26 +4,26 @@
 #include <fstream>
 #include "CppUnitTest.h"
 #include "FirstFrameWait.h"
+#include "Folders.h"
 #include "StatusComparison.h"
-#include <boost/process/v1/child.hpp>
-#include <boost/process/v1/io.hpp>
+#include "TestProcess.h"
 #include "CsvHelper.h"
 #include "../PresentMonAPI2Loader/Loader.h"
 #include "../CommonUtilities/pipe/Pipe.h"
 #include "../CommonUtilities/str/String.h"
 #include <string>
-#include <iostream>
 #include <format>
 #include <filesystem>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-namespace bp = boost::process::v1;
 namespace fs = std::filesystem;
 
 namespace EtlTests
 {
 	static constexpr const char* controlPipe_ = R"(\\.\pipe\test-pipe-pmsvc-2)";
 	static constexpr const char* shmNamePrefix = "pm_etl_test_shm";
+	static constexpr const char* testCasesCsvPath_ =
+		R"(..\..\IntelPresentMon\PresentMonAPI2Tests\test_cases.csv)";
 
 	// Test case data structure - loaded from CSV file
 	struct TestCaseData {
@@ -34,10 +34,7 @@ namespace EtlTests
 		std::wstring goldCsvFile;
 		int pollCount;
 		int waitTimeSecs;
-		bool isExpectedFailure;
-		std::string failureReason;
 		bool useAdditionalTestLocation;   // Load from additional test directory (runsettings)
-		bool produceDebugCsv;             // Generate debug CSV output
 		bool runTest;                     // Whether to run this test (for selective debugging)
 	};
 
@@ -81,7 +78,7 @@ namespace EtlTests
 	}
 
 	// Load test cases from CSV file
-	// CSV Format: TestName,ProcessID,ProcessName,EtlFile,GoldCsvFile,PollCount,WaitTimeSecs,IsExpectedFailure,FailureReason,UseAdditionalTestLocation,ProduceDebugCsv,RunTest
+	// CSV Format: TestName,ProcessID,ProcessName,EtlFile,GoldCsvFile,PollCount,WaitTimeSecs,IsExpectedFailure,FailureReason,UseAdditionalTestLocation,RunTest
 	std::vector<TestCaseData> LoadTestCasesFromCsv(const std::string& csvFilePath) {
 		std::vector<TestCaseData> testCases;
 		
@@ -130,9 +127,9 @@ namespace EtlTests
 				auto fields = ParseCsvLine(line);
 				
 				// Validate field count
-				if (fields.size() < 12) {
+				if (fields.size() < 11) {
 					throw std::runtime_error(std::format(
-						"Line {}: Expected at least 12 fields, got {}",
+						"Line {}: Expected at least 11 fields, got {}",
 						lineNumber, fields.size()));
 				}
 
@@ -145,11 +142,8 @@ namespace EtlTests
 				testCase.pollCount = std::stoi(fields[5]);
 				// this is now maximum wait time, not absolute, so no more need to tune this per test
 				testCase.waitTimeSecs = 5;
-				testCase.isExpectedFailure = ParseBool(fields[7]);
-				testCase.failureReason = fields[8];
 				testCase.useAdditionalTestLocation = ParseBool(fields[9]);
-				testCase.produceDebugCsv = ParseBool(fields[10]);
-				testCase.runTest = ParseBool(fields[11]);
+				testCase.runTest = ParseBool(fields[10]);
 
 				testCases.push_back(testCase);
 			}
@@ -168,7 +162,7 @@ namespace EtlTests
 
 	void RunTestCaseV2(std::unique_ptr<pmapi::Session>&& pSession,
 		const uint32_t& processId, const std::string& processName, CsvParser& goldCsvFile,
-		std::optional<std::ofstream>& debugCsvFile, int pollCount, int waitTimeSecs) {
+		std::optional<std::ofstream>& outputCsvFile, int pollCount, int waitTimeSecs) {
 		using namespace std::chrono_literals;
 		pmapi::ProcessTracker processTracker;
 		static constexpr uint32_t numberOfBlobs = 2000;
@@ -231,15 +225,34 @@ namespace EtlTests
 			}
 			else {
 				emptyPollCount = 0;
-				goldCsvFile.VerifyBlobAgainstCsv(processName, processId, queryElements, blobs, debugCsvFile);
+				goldCsvFile.VerifyBlobAgainstCsv(processName, processId, queryElements, blobs, outputCsvFile);
 			}
 		}
 	}
 
 	TEST_CLASS(GoldEtlCsvTests)
 	{
-		std::optional<boost::process::v1::child> oChild;
 	private:
+		class EtlTestFixture : public CommonTestFixture
+		{
+		public:
+			const CommonProcessArgs& GetCommonArgs() const override
+			{
+				return commonArgs_;
+			}
+		private:
+			CommonProcessArgs commonArgs_{
+				controlPipe_,
+				shmNamePrefix,
+				"debug",
+				std::nullopt,
+				logFolder_,
+				"frames",
+			};
+		};
+
+		EtlTestFixture fixture_;
+
 		std::optional<std::string> GetAdditionalTestLocation() {
 			// Check for additional test directory from environment variable
 			// This allows developers to specify their own test directories without
@@ -258,22 +271,11 @@ namespace EtlTests
 		bool SetupTestEnvironment(const std::string& etlFile, const std::string& timedStop, std::unique_ptr<pmapi::Session>& outSession)
 		{
 			using namespace std::string_literals;
-			using namespace std::chrono_literals;
 
-			bp::ipstream out;
-			bp::opstream in;
-
-			oChild.emplace("PresentMonService.exe"s,
+			fixture_.Setup({
 				"--timed-stop"s, timedStop,
-				"--control-pipe"s, controlPipe_,
-				"--shm-name-prefix"s, shmNamePrefix,
 				"--etl-test-file"s, etlFile,
-				bp::std_out > out, bp::std_in < in);
-
-			if (!pmon::util::pipe::DuplexPipe::WaitForAvailability(std::string(controlPipe_), 500)) {
-				Assert::Fail(L"Timeout waiting for service control pipe");
-				return false;
-			}
+			});
 
 			try {
 				pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
@@ -282,15 +284,49 @@ namespace EtlTests
 				return true;
 			}
 			catch (const std::exception& e) {
-				std::cout << "Error: " << e.what() << std::endl;
+				Logger::WriteMessage(std::format("Error: {}\n", e.what()).c_str());
 				Assert::Fail(L"Failed to connect to service via named pipe");
+				CleanupTestEnvironment();
 				return false;
 			}
+		}
+		void CleanupTestEnvironment()
+		{
+			fixture_.Cleanup();
+		}
+		TestCaseData LoadTestCaseFromCsvRow(const std::string& csvFilePath, size_t rowIndex)
+		{
+			auto testCases = LoadTestCasesFromCsv(csvFilePath);
+			if (rowIndex >= testCases.size()) {
+				throw std::runtime_error(std::format(
+					"CSV row index {} is out of range for {} test cases",
+					rowIndex, testCases.size()));
+			}
+			return testCases[rowIndex];
+		}
+		fs::path GetTestPath(const TestCaseData& testCase)
+		{
+			return testCase.useAdditionalTestLocation
+				? fs::path(GetAdditionalTestLocation().value_or(R"(..\..\Tests\AuxData\Data)"))
+				: fs::path("..") / ".." / "tests" / "gold";
+		}
+		std::ofstream CreateOutputCsv(const TestCaseData& testCase)
+		{
+			auto outputDir = std::string{ outFolder_ };
+			auto outputCsvName = testCase.testName + "-actual";
+			auto outputCsv = CreateCsvFile(outputDir, outputCsvName);
+			if (!outputCsv.has_value()) {
+				Assert::Fail(pmon::util::str::ToWide(std::format(
+					"Failed to create ETL output CSV in {}", outFolder_)).c_str());
+			}
+			Logger::WriteMessage(std::format("ETL output CSV folder: {}\n",
+				fs::absolute(outFolder_).string()).c_str());
+			return std::move(*outputCsv);
 		}
 		// Returns true if test passed, false if test failed
 		// When throwOnFailure=false, returns status instead of throwing
 		// When throwOnFailure=true, throws Assert::Fail on failure
-		bool RunGoldCsvTest(const TestCaseData& testCase, const std::string& goldPath, std::optional<std::ofstream>& debugCsv, bool throwOnFailure = true)
+		bool RunGoldCsvTest(const TestCaseData& testCase, const std::string& goldPath, std::optional<std::ofstream>& outputCsv, bool throwOnFailure = true)
 		{
 			using namespace std::string_literals;
 
@@ -309,15 +345,21 @@ namespace EtlTests
 			}
 
 			std::unique_ptr<pmapi::Session> pSession;
-			if (!SetupTestEnvironment(etlFile.string(), "10000"s, pSession)) {
-				goldCsvFile.Close();
-				if (throwOnFailure) {
-					Assert::Fail(L"Failed to setup test environment");
+			try {
+				if (!SetupTestEnvironment(etlFile.string(), "10000"s, pSession)) {
+					goldCsvFile.Close();
+					if (throwOnFailure) {
+						Assert::Fail(L"Failed to setup test environment");
+					}
+					else {
+						throw std::runtime_error("Failed to setup test environment");
+					}
+					return false;
 				}
-				else {
-					throw std::runtime_error("Failed to setup test environment");
-				}
-				return false;
+			}
+			catch (...) {
+				CleanupTestEnvironment();
+				throw;
 			}
 
 			// Track if we encountered an assertion failure
@@ -326,7 +368,7 @@ namespace EtlTests
 
 			try {
 				RunTestCaseV2(std::move(pSession), testCase.processId, testCase.processName,
-					goldCsvFile, debugCsv, testCase.pollCount, testCase.waitTimeSecs);
+					goldCsvFile, outputCsv, testCase.pollCount, testCase.waitTimeSecs);
 			}
 			catch (const CsvValidationException& e) {
 				testPassed = false;
@@ -375,37 +417,11 @@ namespace EtlTests
 				Logger::WriteMessage(std::format("[ERROR] {}\n", exceptionMessage).c_str());
 			}
 
+			pSession.reset();
 			goldCsvFile.Close();
+			CleanupTestEnvironment();
 
-			// Now handle expected failure logic
-			if (testCase.isExpectedFailure) {
-				if (testPassed) {
-					// Test passed but was expected to fail - this is noteworthy!
-					if (throwOnFailure) {
-						Logger::WriteMessage(std::format(
-							"[PASS] UNEXPECTED PASS: Test '{}' passed but was marked as expected failure!\n"
-							"  Expected failure reason: {}\n"
-							"  ACTION: Update GOLD_TEST_CASES to set isExpectedFailure = false\n",
-							testCase.testName, testCase.failureReason).c_str());
-					}
-					// Return true because test technically passed (even though unexpected)
-					return true;
-				}
-				else {
-					// Test failed as expected
-					if (throwOnFailure) {
-						// For individual test methods, log and assert
-						Logger::WriteMessage(std::format(
-							"[FAIL] Expected failure: {}\n",
-							testCase.failureReason).c_str());
-						Assert::Fail(std::format(L"[EXPECTED FAILURE] {}",
-							pmon::util::str::ToWide(testCase.failureReason)).c_str());
-					}
-					// Return false to indicate test failed (even though expected)
-					return false;
-				}
-			}
-			else if (!testPassed) {
+			if (!testPassed) {
 				// Unexpected failure
 				if (throwOnFailure) {
 					Assert::Fail(pmon::util::str::ToWide(exceptionMessage).c_str());
@@ -420,15 +436,11 @@ namespace EtlTests
 			return true;
 		}
 
-		// Run all test cases from a CSV file
-		void RunTestsFromCsv(const std::string& csvFilePath)
+		void RunTestCaseFromCsvRow(const std::string& csvFilePath, size_t rowIndex)
 		{
-			// Load test cases from CSV
-			std::vector<TestCaseData> testCases;
+			TestCaseData testCase;
 			try {
-				testCases = LoadTestCasesFromCsv(csvFilePath);
-				Logger::WriteMessage(std::format("Loaded {} test cases from {}\n", 
-					testCases.size(), csvFilePath).c_str());
+				testCase = LoadTestCaseFromCsvRow(csvFilePath, rowIndex);
 			}
 			catch (const std::exception& e) {
 				Assert::Fail(pmon::util::str::ToWide(
@@ -436,135 +448,35 @@ namespace EtlTests
 				return;
 			}
 
-			// Statistics
-			int totalTests = 0;
-			int passedTests = 0;
-			int failedTests = 0;
-			int expectedFailures = 0;
-			int skippedTests = 0;
-			std::vector<std::string> failureDetails;
-
-			// Run each test case
-			for (const auto& testCase : testCases) {
-				// Skip if RunTest is false
-				if (!testCase.runTest) {
-					skippedTests++;
-					Logger::WriteMessage(std::format("[SKIP] {} (RunTest=false)\n", 
-						testCase.testName).c_str());
-					continue;
-				}
-
-				totalTests++;
-				Logger::WriteMessage(std::format("\n=== Running Test {}/{}: {} ===\n", 
-					totalTests, testCases.size() - skippedTests, testCase.testName).c_str());
-
-				// Determine test location
-				fs::path testPath = testCase.useAdditionalTestLocation
-					? fs::path(GetAdditionalTestLocation().value_or(R"(..\..\Tests\AuxData\Data)"))
-					: fs::path("..") / ".." / "tests" / "gold";
-
-				// Prepare debug CSV if requested
-				std::optional<std::ofstream> debugCsv;
-				if (testCase.produceDebugCsv) {
-					auto outputDir = testPath.string();
-					auto debugCsvName = testCase.testName + "-debug";
-					debugCsv = CreateCsvFile(outputDir, debugCsvName);
-					if (debugCsv.has_value()) {
-						Logger::WriteMessage(std::format("  Producing debug CSV: {}-debug.csv\n", 
-							testCase.testName).c_str());
-					}
-				}
-
-				// Run the test
-				bool testPassed = false;
-				std::string errorMessage;
-
-				try {
-					testPassed = RunGoldCsvTest(testCase, testPath.string(), debugCsv, false); // Returns true/false instead of throwing
-				}
-				catch (const std::exception& e) {
-					// Only unexpected failures throw exceptions
-					testPassed = false;
-					errorMessage = e.what();
-				}
-
-				// Handle the result
-				if (testPassed) {
-					if (testCase.isExpectedFailure) {
-						// Test passed but was expected to fail - this is noteworthy!
-						Logger::WriteMessage(std::format(
-							"[UNEXPECTED PASS] Test passed but was marked as expected failure!\n"
-							"  Expected failure reason: {}\n"
-							"  ACTION: Update CSV to set IsExpectedFailure = false\n",
-							testCase.failureReason).c_str());
-					}
-					else {
-						Logger::WriteMessage(std::format("[PASS] {}\n", testCase.testName).c_str());
-					}
-					passedTests++;
-				}
-				else {
-					// Test failed
-					if (testCase.isExpectedFailure) {
-						// Test failed as expected
-						expectedFailures++;
-						Logger::WriteMessage(std::format(
-							"[EXPECTED FAIL] {}\n  Reason: {}\n",
-							testCase.testName, testCase.failureReason).c_str());
-					}
-					else {
-						// Unexpected failure
-						failedTests++;
-						std::string detail = std::format("[FAIL] {}: {}", 
-							testCase.testName, errorMessage.empty() ? "Test failed" : errorMessage);
-						failureDetails.push_back(detail);
-						Logger::WriteMessage(std::format("{}\n", detail).c_str());
-					}
-				}
-
-				// Close debug CSV if it was created
-				if (debugCsv.has_value()) {
-					debugCsv->close();
-				}
+			if (!testCase.runTest) {
+				Logger::WriteMessage(std::format("[SKIP] {} (RunTest=false)\n",
+					testCase.testName).c_str());
+				return;
 			}
 
-			// Print summary
-			Logger::WriteMessage(std::format(
-				"\n========================================\n"
-				"Test Summary\n"
-				"========================================\n"
-				"Total Test Cases in CSV: {}\n"
-				"Skipped (RunTest=false): {}\n"
-				"Tests Run: {}\n"
-				"  Passed: {}\n"
-				"  Failed (Unexpected): {}\n"
-				"  Failed (Expected): {}\n"
-				"========================================\n",
-				testCases.size(), skippedTests, totalTests, 
-				passedTests, failedTests, expectedFailures).c_str());
+			Logger::WriteMessage(std::format("\n=== Running ETL CSV Test {}: {} ===\n",
+				rowIndex + 1, testCase.testName).c_str());
 
-			// Fail the overall test if there were unexpected failures
-			if (failedTests > 0) {
-				std::string summary = std::format(
-					"\n{} of {} tests failed unexpectedly:\n\n", 
-					failedTests, totalTests);
-				for (const auto& detail : failureDetails) {
-					summary += detail + "\n";
-				}
-				Assert::Fail(pmon::util::str::ToWide(summary).c_str());
+			auto testPath = GetTestPath(testCase);
+			std::optional<std::ofstream> outputCsv;
+			outputCsv.emplace(CreateOutputCsv(testCase));
+
+			try {
+				RunGoldCsvTest(testCase, testPath.string(), outputCsv);
+			}
+			catch (...) {
+				CleanupTestEnvironment();
+				throw;
+			}
+
+			if (outputCsv.has_value()) {
+				outputCsv->close();
 			}
 		}
 	public:
 		TEST_METHOD_CLEANUP(Cleanup)
 		{
-			if (oChild) {
-				oChild->terminate();
-				oChild->wait();
-				oChild.reset();
-			}
-			// sleep after every test to ensure that named pipe is no longer available
-			using namespace std::literals;
-			std::this_thread::sleep_for(50ms);
+			CleanupTestEnvironment();
 		}
 		TEST_METHOD(OpenCsvTest)
 		{
@@ -574,39 +486,16 @@ namespace EtlTests
 			goldCsvFile.Close();
 		}
 
-		// Example: Run all tests from CSV file
-		// This single test will run all test cases defined in the CSV
-		// Use the RunTest column in CSV to selectively enable/disable tests
-		TEST_METHOD(RunAllTestsFromCsv)
-		{
-			// CSV file is in the PresentMonAPI2Tests source directory
-			// Working dir is build/Debug, so go up to source tree
-			RunTestsFromCsv("..\\..\\IntelPresentMon\\PresentMonAPI2Tests\\test_cases.csv");
-		}
+#if __has_include("EtlCsvTestCases.g.h")
+#include "EtlCsvTestCases.g.h"
+#endif
 
 		TEST_METHOD(OpenServiceTest)
 		{
-			using namespace std::string_literals;
-			using namespace std::chrono_literals;
-
-			bp::ipstream out; // Stream for reading the process's output
-			bp::opstream in;  // Stream for writing to the process's input
-
-			const auto pipeName = R"(\\.\pipe\test-pipe-pmsvc-2)"s;
-			const auto shmNamePrefix = "pm_etl_test_shm"s;
 			const auto etlName = "..\\..\\tests\\gold\\test_case_0.etl";
-			const auto goldCsvName = L"..\\..\\tests\\gold\\test_case_0.csv";
-
-			oChild.emplace("PresentMonService.exe"s,
-				"--timed-stop"s, "10000"s,
-				"--control-pipe"s, pipeName,
-				"--shm-name-prefix"s, shmNamePrefix,
-				"--etl-test-file"s, etlName,
-				bp::std_out > out, bp::std_in < in);
-
-			std::this_thread::sleep_for(500ms);
-
-			Assert::IsTrue(oChild->running());
+			std::unique_ptr<pmapi::Session> pSession;
+			Assert::IsTrue(SetupTestEnvironment(etlName, "10000", pSession),
+				L"SetupTestEnvironment failed");
 		}
 		TEST_METHOD(OpenMockSessionTest)
 		{

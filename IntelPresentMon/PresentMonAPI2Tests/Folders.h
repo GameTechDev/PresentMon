@@ -11,6 +11,12 @@ namespace EtlLoggerTests
 	static constexpr const char* outFolder_ = "TestOutput\\EtlLogger";
 }
 
+namespace EtlTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\EtlTests";
+	static constexpr const char* outFolder_ = "TestOutput\\EtlTests";
+}
+
 namespace PacedPolling
 {
 	static constexpr const char* logFolder_ = "TestLogs\\PacedPolling";

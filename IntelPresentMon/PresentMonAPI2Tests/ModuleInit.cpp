@@ -32,6 +32,8 @@ TEST_MODULE_INITIALIZE(Api2TestModuleInit)
 	WipeAndRecreate(MultiClientTests::logFolder_);
 	WipeAndRecreate(EtlLoggerTests::logFolder_);
 	WipeAndRecreate(EtlLoggerTests::outFolder_);
+	WipeAndRecreate(EtlTests::logFolder_);
+	WipeAndRecreate(EtlTests::outFolder_);
 	WipeAndRecreate(PacedPolling::logFolder_);
 	WipeAndRecreate(PacedPolling::outFolder_);
 	WipeAndRecreate(PacedFrame::logFolder_);
