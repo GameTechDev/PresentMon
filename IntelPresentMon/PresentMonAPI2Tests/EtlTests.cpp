@@ -460,7 +460,7 @@ namespace EtlTests
 
 				// Determine test location
 				fs::path testPath = testCase.useAdditionalTestLocation
-					? fs::path(GetAdditionalTestLocation().value_or(""))
+					? fs::path(GetAdditionalTestLocation().value_or(R"(..\..\Tests\AuxData\Data)"))
 					: fs::path("..") / ".." / "tests" / "gold";
 
 				// Prepare debug CSV if requested
