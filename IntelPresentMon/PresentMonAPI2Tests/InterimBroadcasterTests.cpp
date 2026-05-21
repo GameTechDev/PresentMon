@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include "../CommonUtilities/Env.h"
+#include "../CommonUtilities/PrecisionWaiter.h"
 #include "CppUnitTest.h"
 #include "FirstFrameWait.h"
 #include "StatusComparison.h"
@@ -932,7 +933,7 @@ namespace InterimBroadcasterTests
         TEST_METHOD_INITIALIZE(Setup)
         {
             fixture_.Setup({
-                "--frame-ring-samples"s, "16"s,
+                "--frame-ring-samples"s, "64"s,
             });
         }
         TEST_METHOD_CLEANUP(Cleanup)
@@ -959,9 +960,10 @@ namespace InterimBroadcasterTests
             bool sawWrap = false;
             bool hasTimestamp = false;
             uint64_t lastTimestamp = 0;
+            util::PrecisionWaiter waiter;
 
-            for (size_t i = 0; i < 60; ++i) {
-                std::this_thread::sleep_for(25ms);
+            for (size_t i = 0; i < 229; ++i) {
+                waiter.Wait(0.008);
                 const auto range = ring.GetSerialRange();
                 Logger::WriteMessage(std::format(
                     "rt-wrap-no-miss: range [{}, {}), lastProcessed={}\n",
