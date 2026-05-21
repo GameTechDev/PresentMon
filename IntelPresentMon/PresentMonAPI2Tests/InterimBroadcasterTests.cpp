@@ -958,8 +958,10 @@ namespace InterimBroadcasterTests
             size_t lastProcessed = 0;
             bool missed = false;
             bool sawWrap = false;
-            bool hasTimestamp = false;
-            uint64_t lastTimestamp = 0;
+            bool hasPreviousFrame = false;
+            ipc::FrameData previousFrame{};
+            uint64_t previousStamp = 0;
+            size_t previousSerial = 0;
             util::PrecisionWaiter waiter;
 
             for (size_t i = 0; i < 229; ++i) {
@@ -976,13 +978,30 @@ namespace InterimBroadcasterTests
                 }
                 const size_t start = (std::max)(lastProcessed, range.first);
                 for (size_t s = start; s < range.second; ++s) {
-                    const auto& frame = ring.At(s);
+                    const auto frame = ring.At(s);
                     const uint64_t stamp = frame.presentStartTime + frame.timeInPresent;
-                    if (hasTimestamp) {
-                        Assert::IsTrue(stamp >= lastTimestamp);
+                    if (hasPreviousFrame) {
+                        const bool frameIdInOrder = frame.frameId >= previousFrame.frameId;
+                        const bool timestampInOrder = stamp >= previousStamp;
+                        const auto assertMessage = std::format(
+                            "Frame order assert failed: expected current frameId >= previous frameId and current stamp >= previous stamp.\n"
+                            "Checks: frameId {} >= {} is {}; stamp {} >= {} is {}.\n"
+                            "Previous: serial={} frameId={} appFrameId={} pid={} tid={} swapChain=0x{:X} presentStartTime={} timeInPresent={} stamp={}\n"
+                            "Current:  serial={} frameId={} appFrameId={} pid={} tid={} swapChain=0x{:X} presentStartTime={} timeInPresent={} stamp={}",
+                            frame.frameId, previousFrame.frameId, frameIdInOrder,
+                            stamp, previousStamp, timestampInOrder,
+                            previousSerial, previousFrame.frameId, previousFrame.appFrameId,
+                            previousFrame.processId, previousFrame.threadId, previousFrame.swapChainAddress,
+                            previousFrame.presentStartTime, previousFrame.timeInPresent, previousStamp,
+                            s, frame.frameId, frame.appFrameId, frame.processId, frame.threadId,
+                            frame.swapChainAddress, frame.presentStartTime, frame.timeInPresent, stamp);
+                        const std::wstring wideAssertMessage{ assertMessage.begin(), assertMessage.end() };
+                        Assert::IsTrue(frameIdInOrder && timestampInOrder, wideAssertMessage.c_str());
                     }
-                    lastTimestamp = stamp;
-                    hasTimestamp = true;
+                    previousFrame = frame;
+                    previousStamp = stamp;
+                    previousSerial = s;
+                    hasPreviousFrame = true;
                 }
                 lastProcessed = range.second;
             }
