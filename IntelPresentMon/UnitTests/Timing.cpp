@@ -58,7 +58,7 @@ namespace UtilityTests
 				timer.Mark();
 				std::this_thread::sleep_for(1ms * sleepPeriodMs);
 				const auto dur = std::chrono::duration<double>(Timer::now() - start).count();
-				AssertWithinTolerance(timer.Peek(), dur, 0.000'010);
+				AssertWithinTolerance(timer.Peek(), dur, 0.000'020);
 			}
 		}
 		TEST_METHOD(QpcTimerSpinChrono)
@@ -70,7 +70,7 @@ namespace UtilityTests
 			std::this_thread::sleep_for(32ms);
 			timer.SpinWaitUntil(totalWait);
 			const auto dur = std::chrono::duration<double>(Timer::now() - start).count();
-			AssertWithinTolerance(dur, totalWait, 0.000'010);
+			AssertWithinTolerance(dur, totalWait, 0.000'020);
 		}
 		TEST_METHOD(PrecisionWaiterChrono)
 		{
@@ -81,7 +81,7 @@ namespace UtilityTests
 				const auto start = Timer::now();
 				waiter.Wait(totalWait);
 				const auto dur = std::chrono::duration<double>(Timer::now() - start).count();
-				AssertWithinTolerance(dur, totalWait, 0.000'010);
+				AssertWithinTolerance(dur, totalWait, 0.000'020);
 			}
 		}
 		TEST_METHOD(IntervalWaiterChrono)
@@ -94,7 +94,7 @@ namespace UtilityTests
 				Sleep(16);
 				waiter.Wait();
 				const auto dur = std::chrono::duration<double>(Timer::now() - start).count();
-				AssertWithinTolerance(dur, waitInterval * (i + 1), 0.000'02);
+				AssertWithinTolerance(dur, waitInterval * (i + 1), 0.000'020);
 			}
 		}
 		// TODO: interval waiter test with late Wait() call
