@@ -4,6 +4,7 @@
 #include "CppUnitTest.h"
 #include "TestProcess.h"
 #include "Folders.h"
+#include "MachineExpectations.h"
 
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include "../Interprocess/source/SystemDeviceId.h"
@@ -23,6 +24,7 @@ namespace IpcMcIntegrationTests
 {
     namespace ipc = pmon::ipc;
     namespace util = pmon::util;
+    namespace machine = pmon::tests::machine;
 
     class TestFixture : public CommonTestFixture
     {
@@ -405,11 +407,53 @@ namespace IpcMcIntegrationTests
             const auto gpuMemSize = *reinterpret_cast<const uint64_t*>(firstBlob + (size_t)gpuMemSizeElement->dataOffset);
             const auto appName = std::string(reinterpret_cast<const char*>(firstBlob + (size_t)appNameElement->dataOffset));
 
-            Assert::IsTrue(!cpuName.empty(), L"CPU name empty");
-            Assert::IsTrue(!cpuVendorName.empty(), L"CPU vendor name empty");
-            Assert::IsTrue(!gpuName.empty(), L"GPU name empty");
-            Assert::IsTrue(!gpuVendorName.empty(), L"GPU vendor name empty");
-            Assert::IsTrue(gpuMemSize > 0, L"GPU memory size not available");
+            machine::MeasurementSet measurements{ "IpcMcIntegrationTests.IpcMcIntegrationTests.FrameQueryStaticMetricsAreFilled" };
+            if (cpuName.empty()) {
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_NAME, ipc::kSystemDeviceId) ?
+                    measurements.AddSystemUnavailable("PM_METRIC_CPU_NAME") :
+                    measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_NAME");
+            }
+            else {
+                measurements.AddSystem("PM_METRIC_CPU_NAME", cpuName);
+            }
+            if (cpuVendorName.empty()) {
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_VENDOR, ipc::kSystemDeviceId) ?
+                    measurements.AddSystemUnavailable("PM_METRIC_CPU_VENDOR") :
+                    measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_VENDOR");
+            }
+            else {
+                measurements.AddSystem("PM_METRIC_CPU_VENDOR", cpuVendorName);
+            }
+            if (gpuName.empty()) {
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_NAME, *gpuDeviceId) ?
+                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME") :
+                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME");
+            }
+            else {
+                measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_NAME", gpuName);
+            }
+            if (gpuVendorName.empty()) {
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_VENDOR, *gpuDeviceId) ?
+                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_VENDOR") :
+                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_VENDOR");
+            }
+            else {
+                measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_VENDOR", gpuVendorName);
+            }
+            if (gpuMemSize == 0) {
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_MEM_SIZE, *gpuDeviceId) ?
+                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_MEM_SIZE") :
+                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_MEM_SIZE");
+            }
+            else {
+                measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_MEM_SIZE", (double)gpuMemSize);
+            }
+            measurements.AppendToSharedFile();
+            const auto expectations = machine::ExpectationStore::Load();
+            if (expectations.HasUnavailableExpectation(measurements)) {
+                return;
+            }
+            expectations.AssertMeasurements(measurements);
             Assert::IsTrue(appName == "PresentBench.exe", L"Unexpected application name");
         }
 
@@ -428,13 +472,11 @@ namespace IpcMcIntegrationTests
             const auto cpuName = pmapi::PollStatic(session, tracker, PM_METRIC_CPU_NAME, ipc::kSystemDeviceId)
                 .As<std::string>();
             Logger::WriteMessage(std::format("CPU name: {}\n", cpuName).c_str());
-            Assert::IsTrue(!cpuName.empty(), L"CPU name empty");
 
             const auto cpuVendor = pmapi::PollStatic(session, tracker, PM_METRIC_CPU_VENDOR, ipc::kSystemDeviceId)
                 .As<PM_DEVICE_VENDOR>();
             const auto cpuVendorName = GetVendorName_(*intro, cpuVendor);
             Logger::WriteMessage(std::format("CPU vendor: {}\n", cpuVendorName).c_str());
-            Assert::IsTrue(!cpuVendorName.empty(), L"CPU vendor name empty");
 
             const auto gpuName = pmapi::PollStatic(session, tracker, PM_METRIC_GPU_NAME, *gpuDeviceId)
                 .As<std::string>();
@@ -443,15 +485,60 @@ namespace IpcMcIntegrationTests
             const auto gpuMemSize = pmapi::PollStatic(session, tracker, PM_METRIC_GPU_MEM_SIZE, *gpuDeviceId)
                 .As<uint64_t>();
             Logger::WriteMessage(std::format("GPU name: {}\n", gpuName).c_str());
-            Assert::IsTrue(!gpuName.empty(), L"GPU name empty");
             const auto gpuVendorName = GetVendorName_(*intro, gpuVendor);
             Logger::WriteMessage(std::format("GPU vendor: {}\n", gpuVendorName).c_str());
-            Assert::IsTrue(!gpuVendorName.empty(), L"GPU vendor name empty");
             Logger::WriteMessage(std::format("GPU memory size: {}\n", gpuMemSize).c_str());
-            Assert::IsTrue(gpuMemSize > 0, L"GPU memory size not available");
 
             const auto appName = pmapi::PollStatic(session, tracker, PM_METRIC_APPLICATION).As<std::string>();
             Logger::WriteMessage(std::format("Application name: {}\n", appName).c_str());
+
+            machine::MeasurementSet measurements{ "IpcMcIntegrationTests.IpcMcIntegrationTests.StaticQueryReturnsExpectedValues" };
+            if (cpuName.empty()) {
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_NAME, ipc::kSystemDeviceId) ?
+                    measurements.AddSystemUnavailable("PM_METRIC_CPU_NAME") :
+                    measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_NAME");
+            }
+            else {
+                measurements.AddSystem("PM_METRIC_CPU_NAME", cpuName);
+            }
+            if (cpuVendorName.empty()) {
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_VENDOR, ipc::kSystemDeviceId) ?
+                    measurements.AddSystemUnavailable("PM_METRIC_CPU_VENDOR") :
+                    measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_VENDOR");
+            }
+            else {
+                measurements.AddSystem("PM_METRIC_CPU_VENDOR", cpuVendorName);
+            }
+            if (gpuName.empty()) {
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_NAME, *gpuDeviceId) ?
+                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME") :
+                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME");
+            }
+            else {
+                measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_NAME", gpuName);
+            }
+            if (gpuVendorName.empty()) {
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_VENDOR, *gpuDeviceId) ?
+                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_VENDOR") :
+                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_VENDOR");
+            }
+            else {
+                measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_VENDOR", gpuVendorName);
+            }
+            if (gpuMemSize == 0) {
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_MEM_SIZE, *gpuDeviceId) ?
+                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_MEM_SIZE") :
+                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_MEM_SIZE");
+            }
+            else {
+                measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_MEM_SIZE", (double)gpuMemSize);
+            }
+            measurements.AppendToSharedFile();
+            const auto expectations = machine::ExpectationStore::Load();
+            if (expectations.HasUnavailableExpectation(measurements)) {
+                return;
+            }
+            expectations.AssertMeasurements(measurements);
             Assert::IsTrue(appName == "PresentBench.exe", L"Unexpected application name");
         }
 
@@ -548,7 +635,6 @@ namespace IpcMcIntegrationTests
 
             Logger::WriteMessage(std::format(
                 "Polling summary: polls={}, polls_with_data={}\n", pollCount, pollsWithData).c_str());
-            Assert::IsTrue(gotBlob, L"Expected dynamic poll with pid=0 to return data");
 
             const auto* cpuUtilElement = FindQueryElement_(elements, PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId);
             Assert::IsTrue(cpuUtilElement != nullptr, L"CPU utilization element missing");
@@ -556,10 +642,57 @@ namespace IpcMcIntegrationTests
             Assert::IsTrue(gpuTempElement != nullptr, L"GPU temperature element missing");
             const auto* gpuPowerElement = FindQueryElement_(elements, PM_METRIC_GPU_POWER, *gpuDeviceId);
             Assert::IsTrue(gpuPowerElement != nullptr, L"GPU power element missing");
+            machine::MeasurementSet measurements{ "IpcMcIntegrationTests.IpcMcIntegrationTests.DynamicQueryWithoutTrackedProcessPollsNonFrameMetrics" };
+            if (gotBlob) {
+                const uint8_t* firstBlob = blobs[0];
+                measurements.AddSystem("PM_METRIC_CPU_UTILIZATION",
+                    *reinterpret_cast<const double*>(firstBlob + (size_t)cpuUtilElement->dataOffset));
+                measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_TEMPERATURE",
+                    *reinterpret_cast<const double*>(firstBlob + (size_t)gpuTempElement->dataOffset));
+                measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_POWER",
+                    *reinterpret_cast<const double*>(firstBlob + (size_t)gpuPowerElement->dataOffset));
+                if (cpuName.empty()) {
+                    IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_NAME, ipc::kSystemDeviceId) ?
+                        measurements.AddSystemUnavailable("PM_METRIC_CPU_NAME") :
+                        measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_NAME");
+                }
+                else {
+                    measurements.AddSystem("PM_METRIC_CPU_NAME", cpuName);
+                }
+                if (gpuName.empty()) {
+                    IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_NAME, *gpuDeviceId) ?
+                        measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME") :
+                        measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME");
+                }
+                else {
+                    measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_NAME", gpuName);
+                }
+            }
+            else {
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId) ?
+                    measurements.AddSystemUnavailable("PM_METRIC_CPU_UTILIZATION") :
+                    measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_UTILIZATION");
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_TEMPERATURE, *gpuDeviceId) ?
+                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_TEMPERATURE") :
+                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_TEMPERATURE");
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_POWER, *gpuDeviceId) ?
+                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_POWER") :
+                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_POWER");
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_NAME, ipc::kSystemDeviceId) ?
+                    measurements.AddSystemUnavailable("PM_METRIC_CPU_NAME") :
+                    measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_NAME");
+                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_NAME, *gpuDeviceId) ?
+                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME") :
+                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME");
+            }
+            measurements.AppendToSharedFile();
+            const auto expectations = machine::ExpectationStore::Load();
+            if (expectations.HasUnavailableExpectation(measurements)) {
+                return;
+            }
+            expectations.AssertMeasurements(measurements);
             Logger::WriteMessage(std::format("Polled CPU name (pid=0): {}\n", cpuName).c_str());
             Logger::WriteMessage(std::format("Polled GPU name (pid=0): {}\n", gpuName).c_str());
-            Assert::IsTrue(!cpuName.empty(), L"CPU name static metric was empty");
-            Assert::IsTrue(!gpuName.empty(), L"GPU name static metric was empty");
         }
 
         TEST_METHOD(DynamicQueryWithoutTrackedProcessRejectsFrameMetric)

@@ -103,6 +103,7 @@
     <ClCompile Include="InterimBroadcasterTests.cpp" />
     <ClCompile Include="IpcComponentTests.cpp" />
     <ClCompile Include="IpcMcIntegrationTests.cpp" />
+    <ClCompile Include="MachineExpectations.cpp" />
     <ClCompile Include="ModuleInit.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
     <ClCompile Include="PacedFrameTests.cpp" />
@@ -143,6 +144,7 @@
     <ClInclude Include="Folders.h" />
     <ClInclude Include="JobManager.h" />
     <ClInclude Include="Logging.h" />
+    <ClInclude Include="MachineExpectations.h" />
     <ClInclude Include="TestCommands.h" />
     <ClInclude Include="StatusComparison.h" />
     <ClInclude Include="TestProcess.h" />
@@ -158,6 +160,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="GenerateEtlCsvTestCases.ps1" />
+    <None Include="update_machine_expectations.py" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

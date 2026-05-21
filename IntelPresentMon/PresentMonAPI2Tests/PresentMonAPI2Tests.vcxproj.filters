@@ -48,6 +48,9 @@
     <ClCompile Include="PacedFrameTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="MachineExpectations.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="test_cases.csv">
@@ -82,9 +85,15 @@
     <ClInclude Include="Logging.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="MachineExpectations.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="GenerateEtlCsvTestCases.ps1">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="update_machine_expectations.py">
       <Filter>Source Files</Filter>
     </None>
   </ItemGroup>

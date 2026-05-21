@@ -41,6 +41,7 @@ TEST_MODULE_INITIALIZE(Api2TestModuleInit)
 	WipeAndRecreate(InterimBroadcasterTests::logFolder_);
 	WipeAndRecreate(InterimBroadcasterTests::outFolder_);
 	WipeAndRecreate(IpcMcIntegrationTests::logFolder_);
+	WipeAndRecreate(MachineExpectations::outFolder_);
 	WipeAndRecreate(RealtimeMetricTests::logFolder_);
 	WipeAndRecreate(RealtimeMetricTests::outFolder_);
 	WipeAndRecreate(LoggingTests::logFolder_);
