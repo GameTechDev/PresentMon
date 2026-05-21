@@ -131,8 +131,7 @@ namespace p2c
 			// connect dll channel and id table to exe, get access to global settings in dll
 			LoggingSingletons getters;
 			if (linkMiddlewareLogs) {
-				getters = pmLinkLogging_(pChan, []() -> IdentificationTable& {
-					return IdentificationTable::Get_(); });
+				getters = pmLinkLogging_(pChan, IdentificationTable::MakeForwardingCallbacks());
 			}
 			// set the global policy settings
 			if (opt.logLevel) {

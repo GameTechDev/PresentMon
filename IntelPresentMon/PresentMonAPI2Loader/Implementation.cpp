@@ -59,7 +59,8 @@ PM_STATUS(*pFunc_pmDiagnosticUnblockWaitingThread_)() = nullptr;
 // pointers to runtime-resolved internal functions
 _CrtMemState(*pFunc_pmCreateHeapCheckpoint__)() = nullptr;
 LoggingSingletons(*pFunc_pmLinkLogging__)(std::shared_ptr<pmon::util::log::IChannel>,
-	std::function<pmon::util::log::IdentificationTable&()>) = nullptr;
+	pmon::util::log::IdentificationTableCallbacks) = nullptr;
+void(*pFunc_pmUnlinkLogging__)() = nullptr;
 void(*pFunc_pmFlushEntryPoint__)() = nullptr;
 void(*pFunc_pmSetupODSLogging__)(PM_DIAGNOSTIC_LEVEL, PM_DIAGNOSTIC_LEVEL, bool) = nullptr;
 PM_STATUS(*pFunc_pmSetupFileLogging__)(const char*, PM_DIAGNOSTIC_LEVEL,
@@ -190,6 +191,7 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 		// internal
 		RESOLVE_CPP(pmCreateHeapCheckpoint_);
 		RESOLVE_CPP(pmLinkLogging_);
+		RESOLVE_CPP(pmUnlinkLogging_);
 		RESOLVE_CPP(pmFlushEntryPoint_);
 		RESOLVE_CPP(pmSetupODSLogging_);
 		RESOLVE_CPP(pmSetupFileLogging_);
@@ -340,14 +342,20 @@ PRESENTMON_API2_EXPORT _CrtMemState pmCreateHeapCheckpoint_()
 	return pFunc_pmCreateHeapCheckpoint__();
 }
 PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(std::shared_ptr<pmon::util::log::IChannel> pChannel,
-	std::function<pmon::util::log::IdentificationTable& ()> getIdTable)
+	pmon::util::log::IdentificationTableCallbacks idTableCallbacks)
 {
 	if (!middlewareLoadedSuccessfully_) {
 		if (auto status = LoadLibrary_(); status != PM_STATUS_SUCCESS) {
 			throw LoaderExcept_(status);
 		}
 	}
-	return pFunc_pmLinkLogging__(pChannel, getIdTable);
+	return pFunc_pmLinkLogging__(pChannel, idTableCallbacks);
+}
+PRESENTMON_API2_EXPORT void pmUnlinkLogging_() noexcept
+{
+	if (middlewareLoadedSuccessfully_) {
+		pFunc_pmUnlinkLogging__();
+	}
 }
 // expose C / rethink?
 PRESENTMON_API2_EXPORT void pmFlushEntryPoint_() noexcept
