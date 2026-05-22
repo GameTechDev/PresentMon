@@ -17,6 +17,7 @@
 #include "GlobalIdentifiers.h"
 #include <array>
 #include <ranges>
+#include <tdh.h>
 #include "../CommonUtilities/IntervalWaiter.h"
 #include "../CommonUtilities/PrecisionWaiter.h"
 #include "../CommonUtilities/win/Event.h"
@@ -32,6 +33,35 @@ using namespace svc;
 using namespace util;
 using v = log::V;
 namespace vi = std::views;
+
+
+namespace
+{
+    void LoadNvidiaManifest_()
+    {
+        wchar_t path[MAX_PATH];
+        if (GetModuleFileNameW(nullptr, path, (DWORD)std::size(path)) == 0) {
+            pmlog_error("Failure to get path to service executable").no_trace().hr();
+            return;
+        }
+
+        auto manifestPath = std::filesystem::path{ path }.parent_path() / L"ddETWExternal.xml";
+
+        pmlog_dbg("Loading NVIDIA DisplayDriver manifest").pmwatch(manifestPath.string());
+
+        auto manifestPathString = manifestPath.wstring();
+        const auto status = TdhLoadManifest(manifestPathString.data());
+        if (status != ERROR_SUCCESS) {
+            pmlog_error(std::format(
+                "Failure to load NVIDIA DisplayDriver manifest [{}], status {}",
+                manifestPath.string(),
+                status)).no_trace();
+            return;
+        }
+
+        pmlog_dbg("Loaded NVIDIA DisplayDriver manifest").pmwatch(manifestPath.string());
+    }
+}
 
 
 void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
@@ -559,6 +589,8 @@ void PresentMonMainThread(Service* const pSvc)
     std::jthread cpuTelemetryThread;
 
     try {
+        LoadNvidiaManifest_();
+
         // alias for options
         auto& opt = clio::Options::Get();
         const auto& reg = Reg::Get();
