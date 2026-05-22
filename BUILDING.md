@@ -10,7 +10,7 @@
 
 - [Node.js / NPM](https://nodejs.org/en/download)
 
-- [v3 of the WiX toolset and VS extension](https://wixtoolset.org/docs/wix3/)
+- [v3 of the WiX toolset AND VS extension](https://wixtoolset.org/docs/wix3/)
 
 Note: if you only want to build the PresentData library, or the PresentMon Console application
 you only need Visual Studio.  Ignore the other build and source dependency instructions and build
@@ -54,7 +54,7 @@ Build `PresentMon.sln` in Visual Studio or msbuild.  e.g.:
 
 Intel PresentMon is the UI application, `PresentMon.exe`.
 
-For Debug builds, the easiest IDE workflow is to set `p2c/KernelProcess` as the startup project and launch `PresentMon.exe` with the service running as a child process:
+For Debug builds, the easiest IDE workflow is to set `Client/KernelProcess` as the startup project and launch `PresentMon.exe` with the service running as a child process:
 
 ```bat
 > --svc-as-child --files-working --log-level verbose --middleware-dll-path .\PresentMonAPI2.dll --log-middleware-copy
