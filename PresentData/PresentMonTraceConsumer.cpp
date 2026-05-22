@@ -111,6 +111,27 @@ static inline void SetScreenTime(std::shared_ptr<PresentEvent> const& p, uint64_
     }
 }
 
+static inline bool TryApplyFlipFrameType(
+    std::shared_ptr<PresentEvent> const& p,
+    uint64_t timestamp,
+    FrameType frameType)
+{
+    if (frameType == FrameType::Application &&
+        HasDisplayedFrameType(p, FrameType::Application)) {
+        DebugAssert(false);
+        pmlog_warn(
+            "Ignoring duplicate Application FlipFrameType event for ProcessId: " + std::to_string(p->ProcessId) +
+            " ThreadId: " + std::to_string(p->ThreadId) +
+            " PresentStartTime: " + std::to_string(p->PresentStartTime) +
+            " FrameId: " + std::to_string(p->FrameId) +
+            " AppFrameId: " + std::to_string(p->AppFrameId) + ".");
+        return false;
+    }
+
+    SetScreenTime(p, timestamp, frameType);
+    return true;
+}
+
 namespace {
     struct WaitOnAddressShim {
         using WaitOnAddressFn = BOOL(WINAPI*)(volatile VOID* Address, PVOID CompareAddress, SIZE_T AddressSize, DWORD dwMilliseconds);
@@ -1678,7 +1699,7 @@ void PMTraceConsumer::HandleWin32kEvent(EVENT_RECORD* pEventRecord)
                         // we get multiple back to back flips and token tracking thread 
                         // ends up marking the first frame in the burst as dropped. 
                         // To fix this issue, we mark the frame as discarded only if 
-                        // the frame already doesn’t have valid ScreenTime. 
+                        // the frame already doesn't have valid ScreenTime. 
                         if (!HasScreenTime(prevPresent)) {
                             prevPresent->FinalState = PresentResult::Discarded;
                         }
@@ -3503,13 +3524,13 @@ void PMTraceConsumer::ApplyFlipFrameType(
         if (p2->FinalState != PresentResult::Discarded) {
             VerboseTraceBeforeModifyingPresent(p2.get());
             p2->DisplayedViaFlipFrameType = true;
-            SetScreenTime(p2, timestamp, frameType);
+            TryApplyFlipFrameType(p2, timestamp, frameType);
         }
     }
 
     VerboseTraceBeforeModifyingPresent(present.get());
     present->DisplayedViaFlipFrameType = true;
-    SetScreenTime(present, timestamp, frameType);
+    TryApplyFlipFrameType(present, timestamp, frameType);
 }
 
 void PMTraceConsumer::ApplyPresentFrameType(
