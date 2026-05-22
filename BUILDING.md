@@ -4,6 +4,8 @@
 
 - Visual Studio 2022
 
+- [vcpkg](https://github.com/microsoft/vcpkg)
+
 - [CMake](https://cmake.org)
 
 - [Node.js / NPM](https://nodejs.org/en/download)
@@ -16,67 +18,22 @@ you only need Visual Studio.  Ignore the other build and source dependency instr
 
 ## Install Source Dependencies
 
-1. Download and install *vcpkg*, which will be used to obtain source package dependencies during the build:
+1. Run the repository bootstrap script:
 
-    ```bat
+    ```powershell
     > cd PresentMonRepoDir
-    > git clone https://github.com/Microsoft/vcpkg.git build\vcpkg
-    > build\vcpkg\bootstrap-vcpkg.bat
-    > build\vcpkg\vcpkg.exe integrate install
-    > build\vcpkg\vcpkg.exe install
+    > .\bootstrap.ps1
     ```
 
-2. Restore the Chromium Embedded Framework (CEF)
+    The bootstrap script:
 
-    Restore the locked CEF distribution:
+    - Restores the locked Chromium Embedded Framework (CEF) payload.
+    - Pulls the pinned auxiliary test data.
+    - Installs and builds the AppCef web UI.
 
-    ```bat
-    > IntelPresentMon\AppCef\Batch\pull-cef.ps1
-    ```
+    See the detailed guides for [CEF lock management](IntelPresentMon/AppCef/ceflock.md), [AppCef web UI setup](IntelPresentMon/AppCef/webui.md), and [auxiliary test data](Tests/auxdata.md).
 
-    The script downloads the URI recorded in `IntelPresentMon\AppCef\cef-lock.json`, extracts the archive, rebuilds the CEF C++ wrapper from a clean build directory, stages the AppCef CEF files, and verifies that the staged runtime payload matches the lock file. The normal restore path never modifies the lock.
-
-    Maintainers intentionally updating CEF should use the upgrade path instead:
-
-    ```bat
-    > IntelPresentMon\AppCef\Batch\upgrade-cef.ps1 https://example.com/path/to/cef_archive.tar.bz2
-    ```
-
-    The upgrade script downloads the archive, stages the new payload, updates `IntelPresentMon\AppCef\cef-lock.json`, and regenerates the installer CEF WiX fragments. Review those generated changes with the CEF upgrade.
-
-    CEF download, extraction, and wrapper build work directories are created under a short temporary root by default, normally `C:\pcef` with a fallback to the system temp directory. To use a different root, set `PRESENTMON_CEF_WORK_ROOT` before running `pull-cef.ps1` or `upgrade-cef.ps1`:
-
-    ```bat
-    > set PRESENTMON_CEF_WORK_ROOT=D:\cef-work
-    > IntelPresentMon\AppCef\Batch\upgrade-cef.ps1 https://example.com/path/to/cef_archive.tar.bz2
-    ```
-
-    After a successful pull or upgrade, temporary CEF work directories created by the script are removed by default. Failed runs leave those directories in place for diagnosis. To keep work directories after a successful run, set `PRESENTMON_CEF_KEEP_WORK=1`:
-
-    ```bat
-    > set PRESENTMON_CEF_KEEP_WORK=1
-    > IntelPresentMon\AppCef\Batch\upgrade-cef.ps1 https://example.com/path/to/cef_archive.tar.bz2
-    ```
-
-    As a fallback, both scripts can accept a local archive path. If CEF was upgraded from a local archive instead of a URI, `pull-cef.ps1` must also be given a matching local archive path:
-
-    ```bat
-    > IntelPresentMon\AppCef\Batch\pull-cef.ps1 path\to\cef_archive.tar.bz2
-    > IntelPresentMon\AppCef\Batch\upgrade-cef.ps1 path\to\cef_archive.tar.bz2
-    ```
-
-3. Download and build the web asset dependencies via NPM.  This only needs to be run once on fresh clone, or after new packages are added:
-
-    ```bat
-    > pushd IntelPresentMon\AppCef\ipm-ui-vue
-    > npm ci
-    > npm run build
-    > popd
-    ```
-
-    Note: instead of using the production build as described above, you can use a development process with a local server with hotloading support.  To do this, use `npm run dev` instead, and use the `--ui-option url "http://localhost:5173/"` command line argument when running the *PresentMon Capture Application*.  This causes the app to load web content from localhost rather than the files in ipm-ui-vue/.
-
-4. Create and install a trusted test certificate.  This is only required for the Release build.  Open a command shell as administrator and run the following:
+2. Create and install a trusted test certificate.  This is only required for the Release build.  Open a command shell as administrator and run the following:
 
     ```bat
     > makecert -r -pe -n "CN=Test Certificate - For Internal Use Only" -ss PrivateCertStore testcert.cer
@@ -93,13 +50,28 @@ Build `PresentMon.sln` in Visual Studio or msbuild.  e.g.:
 
 ## Running PresentMon
 
-- PresentMon Console Application: `build\Release\PresentMon-dev-x64.exe`
+### Intel PresentMon
 
-- PresentMon Console Tests: `build\Release\PresentMonTests-dev-x64.exe`
+Intel PresentMon is the UI application, `PresentMon.exe`.
 
-- PresentMon Service Command Line Interface: `build\Release\PresentMonCli.exe`
+For Debug builds, the easiest IDE workflow is to launch `PresentMon.exe` with the service running as a child process:
 
-- PresentMon Installer: `build\Release\en-us\PresentMon.msi`
+```bat
+> --svc-as-child --files-working --log-level verbose --middleware-dll-path .\PresentMonAPI2.dll --log-middleware-copy
+```
+
+For Debug builds from the output directory, run from the build output folder so the application can find the staged binaries and web assets:
+
+```bat
+> cd build\Debug
+> PresentMon.exe --svc-as-child --files-working
+```
+
+For Release builds, either move the full Release output payload to a secure directory such as "Program Files" or "System32", or disable the secure directory check for local development. The installer is often the easier path for Release validation:
+
+```bat
+> build\Release\en-us\PresentMon.msi
+```
 
 ### PresentMon Service
 
@@ -117,34 +89,43 @@ When you are finished, stop and remove the service with:
 > sc.exe delete PresentMonService
 ```
 
-### PresentMon Capture Application
+During development, Intel PresentMon can launch the service as a child process with `--svc-as-child` instead of using a separately installed service.
 
-You must run the PresentMon Capture Application from its directory, with the *PresentMon Service* already running.  e.g.:
+### PresentMon Standalone Console
+
+The standalone console application is `PresentMon-dev-x64.exe`:
 
 ```bat
-> cd build\Debug
-> PresentMon.exe
+> build\Release\PresentMon-dev-x64.exe
 ```
 
-Further, for the Release build, the application must be run from a secure location (e.g. "Program Files" or "System32") so it will need to be copied there first. The Release build also cannot be started from Visual Studio, irregardless of whether the debugger is attached, and even if VS is running with admin privilege.
 
 ## Troubleshooting
 
-- If you are seeing vcpkg errors when updating to a new version of PresentMon (e.g., "error: while checking out baseline from commit...") then try updating or removing and re-adding vcpkg:
+- If you are seeing vcpkg errors when updating to a new version of PresentMon (e.g., "error: while checking out baseline from commit...") then try updating your vcpkg checkout. Keep vcpkg wherever you normally install development tools, outside the PresentMon repository:
 
     ```bat
+    > set VCPKG_ROOT=C:\dev\vcpkg
+    > cd %VCPKG_ROOT%
+    > git pull
+    > bootstrap-vcpkg.bat
+    > vcpkg.exe integrate install
     > cd PresentMonRepoDir
-    > build\vcpkg\vcpkg.exe remove
-    > build\vcpkg\vcpkg.exe integrate remove
-    > rmdir /s /q build\vcpkg
-    > git clone https://github.com/Microsoft/vcpkg.git build\vcpkg
-    > build\vcpkg\bootstrap-vcpkg.bat
-    > build\vcpkg\vcpkg.exe integrate install
-    > build\vcpkg\vcpkg.exe install
+    > %VCPKG_ROOT%\vcpkg.exe install
+    ```
+
+    If the checkout needs to be recreated, clone vcpkg back to your external tools location and rerun the bootstrap and install commands.
+
+    Make sure vcpkg is using the same Visual Studio installation as the solution build. If needed, set `VCPKG_VISUAL_STUDIO_PATH` before running vcpkg:
+
+    ```bat
+    > set VCPKG_VISUAL_STUDIO_PATH=C:\Program Files\Microsoft Visual Studio\2022\Community
     ```
 
 - If you get an error dialog from PresentMon.exe stating "A referral was returned form the server."
   you most likely do not have the certificate that the PresentMon service was signed with installed
-  into your trusted root.  Ensure that the above step 4 completed successfully.  If you built the
-  installer on another PC or received it from a trusted third party, you need to install the
-  certificate on the target PC as well.
+  into your trusted root.  Ensure that the trusted test certificate setup completed successfully.  If
+  you built the installer on another PC or received it from a trusted third party, you need to
+  install the certificate on the target PC as well.
+
+- Add the development user to the Performance Log Users group to run from the IDE, run tests, etc. without launching the IDE as administrator.
