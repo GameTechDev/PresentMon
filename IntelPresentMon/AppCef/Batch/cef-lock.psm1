@@ -164,6 +164,45 @@ function Save-CefUriArchive {
     return $archivePath
 }
 
+function Invoke-CefArchiveExtract {
+    param(
+        [Parameter(Mandatory = $true)][string]$ArchivePath,
+        [Parameter(Mandatory = $true)][string]$Destination
+    )
+
+    $attemptErrors = New-Object System.Collections.Generic.List[string]
+    $cmake = Get-Command cmake -ErrorAction SilentlyContinue
+    if ($cmake) {
+        Push-Location $Destination
+        try {
+            $global:LASTEXITCODE = 0
+            & $cmake.Source -E tar xjf $ArchivePath
+            if ($LASTEXITCODE -eq 0) {
+                return
+            }
+            $attemptErrors.Add("cmake -E tar xjf failed with exit code $LASTEXITCODE.")
+        } finally {
+            Pop-Location
+        }
+    } else {
+        $attemptErrors.Add("cmake was not found in PATH.")
+    }
+
+    $tar = Get-Command tar -ErrorAction SilentlyContinue
+    if ($tar) {
+        $global:LASTEXITCODE = 0
+        & $tar.Source -xf $ArchivePath -C $Destination
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
+        $attemptErrors.Add("tar -xf failed with exit code $LASTEXITCODE.")
+    } else {
+        $attemptErrors.Add("tar was not found in PATH.")
+    }
+
+    throw "Failed to extract CEF archive: $ArchivePath`nTried CMake and tar extractors. Ensure CMake is installed or install bzip2 so tar can read .tar.bz2 archives.`n$($attemptErrors -join "`n")"
+}
+
 function Resolve-CefSource {
     param([Parameter(Mandatory = $true)][string]$Source)
 
@@ -236,10 +275,7 @@ function Resolve-CefDistributionRoot {
     if (Test-Path $resolved -PathType Leaf) {
         $tempRoot = New-CefTempDirectory -Prefix 'extract'
         Write-Host "Extracting CEF archive to $tempRoot"
-        & tar -xf $resolved -C $tempRoot
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to extract CEF archive: $resolved"
-        }
+        Invoke-CefArchiveExtract -ArchivePath $resolved -Destination $tempRoot
         $resolved = $tempRoot
     }
 
