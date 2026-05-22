@@ -4278,9 +4278,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
-            // Generated frames have no CPU/GPU work attribution
-            AssertAreEqualWithinTolerance(0.0, m.msCPUBusy, 0.0001);
-            AssertAreEqualWithinTolerance(0.0, m.msCPUWait, 0.0001);
+            // Generated frames have no CPU attribution.
+            Assert::IsTrue(IsMissingFrameMetricValue(m.msCPUBusy));
+            Assert::IsTrue(IsMissingFrameMetricValue(m.msCPUWait));
             AssertAreEqualWithinTolerance(0.0, m.msGPULatency, 0.0001);
             AssertAreEqualWithinTolerance(0.0, m.msGPUBusy, 0.0001);
             AssertAreEqualWithinTolerance(0.0, m.msGPUWait, 0.0001);
