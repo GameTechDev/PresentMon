@@ -60,14 +60,7 @@ For Debug builds, the easiest IDE workflow is to set `Client/KernelProcess` as t
 > --svc-as-child --files-working --log-level verbose --middleware-dll-path .\PresentMonAPI2.dll --log-middleware-copy
 ```
 
-For Debug builds from the output directory, run from the build output folder so the application can find the staged binaries and web assets:
-
-```bat
-> cd build\Debug
-> PresentMon.exe --svc-as-child --files-working
-```
-
-For Release builds, either move the full Release output payload to a secure directory such as "Program Files" or "System32", or disable the secure directory check for local development. The installer is often the easier path for Release validation:
+For Release builds, either move the full Release output payload to a secure directory such as "Program Files" or "System32", or disable the secure directory check for local development. You cannot run release builds from the IDE typically. The installer is often the easier path for Release validation:
 
 ```bat
 > build\Release\en-us\PresentMon.msi
@@ -89,8 +82,6 @@ When you are finished, stop and remove the service with:
 > sc.exe delete PresentMonService
 ```
 
-During development, Intel PresentMon can launch the service as a child process with `--svc-as-child` instead of using a separately installed service.
-
 ### PresentMon Standalone Console
 
 The standalone console application is `PresentMon-dev-x64.exe`:
@@ -102,25 +93,10 @@ The standalone console application is `PresentMon-dev-x64.exe`:
 
 ## Troubleshooting
 
-- If you are seeing vcpkg errors when updating to a new version of PresentMon (e.g., "error: while checking out baseline from commit...") then try updating your vcpkg checkout. Keep vcpkg wherever you normally install development tools, outside the PresentMon repository:
+- If you are seeing vcpkg errors when updating to a new version of PresentMon (e.g., "error: while checking out baseline from commit...") then try updating your vcpkg checkout.
 
-    ```bat
-    > set VCPKG_ROOT=C:\dev\vcpkg
-    > cd %VCPKG_ROOT%
-    > git pull
-    > bootstrap-vcpkg.bat
-    > vcpkg.exe integrate install
-    > cd PresentMonRepoDir
-    > %VCPKG_ROOT%\vcpkg.exe install
-    ```
+- Make sure vcpkg is using the same Visual Studio installation as the solution build. If needed, set `VCPKG_VISUAL_STUDIO_PATH` before running vcpkg.
 
-    If the checkout needs to be recreated, clone vcpkg back to your external tools location and rerun the bootstrap and install commands.
-
-    Make sure vcpkg is using the same Visual Studio installation as the solution build. If needed, set `VCPKG_VISUAL_STUDIO_PATH` before running vcpkg:
-
-    ```bat
-    > set VCPKG_VISUAL_STUDIO_PATH=C:\Program Files\Microsoft Visual Studio\2022\Community
-    ```
 
 - If you get an error dialog from PresentMon.exe stating "A referral was returned form the server."
   you most likely do not have the certificate that the PresentMon service was signed with installed
@@ -129,5 +105,3 @@ The standalone console application is `PresentMon-dev-x64.exe`:
   install the certificate on the target PC as well.
 
 - Add the development user to the Performance Log Users group to run from the IDE, run tests, etc. without launching the IDE as administrator.
-
-- If debugging `KernelProcess` from Visual Studio fails to find the staged runtime files, set the project's debugging working directory to `$(OutDir)`.
