@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include <CppUnitTest.h>
 #include <CommonUtilities/qpc.h>
@@ -396,9 +396,9 @@ namespace MetricsCoreTests
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
 
-            // Postpone all since no next, but also appIndex should be invalid since no app frame
+            // Process [0..1], postpone [2]
             Assert::AreEqual(size_t(0), result.startIndex);
-            Assert::AreEqual(size_t(0), result.endIndex);
+            Assert::AreEqual(size_t(2), result.endIndex);
             Assert::AreEqual(SIZE_MAX, result.appIndex);  // No app frame found
         }
 
@@ -1007,7 +1007,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsFalse(chain.lastAppPresent.has_value());
         }
 
-        TEST_METHOD(ComputeMetricsForPresent_DisplayedNoNext_MultipleDisplays_ProcessNone)
+        TEST_METHOD(ComputeMetricsForPresent_DisplayedNoNext_MultipleDisplays_ProcessesAllButLast)
         {
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
@@ -1015,13 +1015,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto frame = MakeFrame(PresentResult::Presented, 10'000, 300, 10'800,
                                    {
                                        { FrameType::Application, 11'000 },
-                                       { FrameType::Intel_XEFG,    11'500 },
-                                       { FrameType::Intel_XEFG,    12'000 }
+                                       { FrameType::Repeated,    11'500 },
+                                       { FrameType::Repeated,    12'000 } // postponed
                                    });
 
             auto metrics = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
 
-            Assert::AreEqual(size_t(0), metrics.size(), L"Generated frames require next displayed application frame.");
+            Assert::AreEqual(size_t(2), metrics.size(), L"Should process all but last display.");
             Assert::IsFalse(chain.lastPresent.has_value());
             Assert::IsFalse(chain.lastAppPresent.has_value());
         }
@@ -1034,28 +1034,28 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto frame = MakeFrame(PresentResult::Presented, 10'000, 300, 10'800,
                                    {
                                        { FrameType::Application, 11'000 },
-                                       { FrameType::Intel_XEFG,  11'500 },
-                                       { FrameType::Intel_XEFG,  12'000 }
+                                       { FrameType::Repeated,    11'500 },
+                                       { FrameType::Repeated,    12'000 }
                                    },
                                    0, 0, 777);
 
             auto nextDisplayed = MakeFrame(PresentResult::Presented, 13'000, 250, 13'600,
                                            { { FrameType::Application, 14'000 } });
 
-            // First call with generated frames and no nextDisplayed: postpone all
+            // First call without nextDisplayed: postpone last
             auto preMetrics = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
-            Assert::AreEqual(size_t(0), preMetrics.size());
+            Assert::AreEqual(size_t(2), preMetrics.size());
             Assert::IsFalse(chain.lastPresent.has_value());
 
-            // Second call with nextDisplayed: process all + update chain
+            // Second call with nextDisplayed: process postponed last + update chain
             auto postMetrics = ComputeMetricsForPresent(qpc, frame, &nextDisplayed, chain);
-            Assert::AreEqual(size_t(3), postMetrics.size(), L"Should process all frames.");
+            Assert::AreEqual(size_t(1), postMetrics.size(), L"Should process only the postponed last display this time.");
             Assert::IsTrue(chain.lastPresent.has_value());
             Assert::AreEqual(uint64_t(12'000), chain.lastDisplayedScreenTime);
             Assert::AreEqual(uint64_t(777), chain.lastDisplayedFlipDelay);
         }
 
-        TEST_METHOD(ComputeMetricsForPresent_DisplayedWithNext_LastDisplayIsGenerated_UpdatesWithNextDisplayedAppFrame)
+        TEST_METHOD(ComputeMetricsForPresent_DisplayedWithNext_LastDisplayIsRepeated_DoesNotUpdateLastAppPresent)
         {
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState chain{};
@@ -1068,14 +1068,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto frame = MakeFrame(PresentResult::Presented, 4'000, 120, 4'300,
                                    {
                                        { FrameType::Application, 4'500 },
-                                       { FrameType::AMD_AFMF,    4'900 } 
+                                       { FrameType::Repeated,    4'900 } // last (Repeated)
                                    });
 
             auto nextDisplayed = MakeFrame(PresentResult::Presented, 5'000, 110, 5'250,
                                            { { FrameType::Application, 5'600 } });
 
             auto metrics = ComputeMetricsForPresent(qpc, frame, &nextDisplayed, chain);
-            Assert::AreEqual(size_t(2), metrics.size());
+            Assert::AreEqual(size_t(1), metrics.size());
 
             Assert::IsTrue(chain.lastPresent.has_value());
             // lastAppPresent should remain previous since last display was Repeated
@@ -7340,6 +7340,407 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double displayElapsed = qpc.DeltaUnsignedMilliSeconds(1000, 2050);
             double expected = simElapsed - displayElapsed;
             Assert::AreEqual(expected, resultsPartial[1].metrics.msAnimationError, 0.0001);
+        }
+        TEST_METHOD(AnimationSyntheticSim_HoldsCurrentPresentUntilNextAppAnchor)
+        {
+            UnifiedSwapChain u{};
+            (void)u.Enqueue(MakeFrame(PresentResult::Presented, 100, 1, 100, {}), MetricsVersion::V2);
+
+            auto p1 = MakeFrame(
+                PresentResult::Presented,
+                1'000,
+                10,
+                1'010,
+                {
+                    { FrameType::Intel_XEFG, 10'000 },
+                    { FrameType::Application, 20'000 },
+                    { FrameType::Intel_XEFG, 30'000 },
+                },
+                1'000'000);
+
+            auto out1 = u.Enqueue(std::move(p1), MetricsVersion::V2);
+            Assert::AreEqual(size_t(0), out1.size(),
+                L"A present with generated frames after its app frame must wait for the next app display anchor.");
+
+            auto p2 = MakeFrame(
+                PresentResult::Presented,
+                2'000,
+                10,
+                2'010,
+                {
+                    { FrameType::Intel_XEFG, 40'000 },
+                    { FrameType::Application, 50'000 },
+                    { FrameType::Intel_XEFG, 60'000 },
+                },
+                1'000'300);
+
+            auto out2 = u.Enqueue(std::move(p2), MetricsVersion::V2);
+            Assert::AreEqual(size_t(1), out2.size(),
+                L"The next app display anchor should release only the interval ending at that anchor.");
+            Assert::AreEqual(uint64_t(1'000), out2[0].present.presentStartTime);
+            Assert::IsNotNull(out2[0].nextDisplayedPtr);
+            Assert::AreEqual(uint64_t(2'000), out2[0].nextDisplayedPtr->presentStartTime);
+        }
+
+        TEST_METHOD(AnimationSyntheticSim_InterpolatesGeneratedFramesAcrossAdjacentPresents)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::AppProvider;
+            state.firstAppSimStartTime = 1'000'000;
+            state.lastDisplayedSimStartTime = 1'000'000;
+            state.lastDisplayedAppScreenTime = 20'000;
+
+            FrameData p1 = MakeFrame(
+                PresentResult::Presented,
+                1'000,
+                10,
+                1'010,
+                {
+                    { FrameType::Intel_XEFG, 10'000 },
+                    { FrameType::Application, 20'000 },
+                    { FrameType::Intel_XEFG, 30'000 },
+                },
+                1'000'000);
+
+            FrameData p2 = MakeFrame(
+                PresentResult::Presented,
+                2'000,
+                10,
+                2'010,
+                {
+                    { FrameType::Intel_XEFG, 40'000 },
+                    { FrameType::Application, 50'000 },
+                    { FrameType::Intel_XEFG, 60'000 },
+                },
+                1'000'300);
+
+            auto rows = ComputeMetricsForPresent(qpc, p1, &p2, state, MetricsVersion::V2);
+
+            Assert::AreEqual(size_t(4), rows.size(),
+                L"Rows through the next app anchor should be emitted together for synthetic simulation timing.");
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[0].metrics.frameType);
+            Assert::AreEqual(uint64_t(10'000), rows[0].metrics.screenTimeQpc);
+            Assert::AreEqual((int)FrameType::Application, (int)rows[1].metrics.frameType);
+            Assert::AreEqual(uint64_t(20'000), rows[1].metrics.screenTimeQpc);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[2].metrics.frameType);
+            Assert::AreEqual(uint64_t(30'000), rows[2].metrics.screenTimeQpc);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[3].metrics.frameType);
+            Assert::AreEqual(uint64_t(40'000), rows[3].metrics.screenTimeQpc);
+
+            Assert::IsTrue(HasMetricValue(rows[2].metrics.msAnimationTime),
+                L"The generated frame after P1's app frame should get synthetic animation time.");
+            Assert::IsTrue(HasMetricValue(rows[3].metrics.msAnimationTime),
+                L"The generated frame before P2's app frame should get synthetic animation time.");
+
+            const double expectedP1GeneratedAnimationTime = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'100);
+            const double expectedP2GeneratedAnimationTime = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'200);
+            Assert::AreEqual(expectedP1GeneratedAnimationTime, rows[2].metrics.msAnimationTime, 0.0001);
+            Assert::AreEqual(expectedP2GeneratedAnimationTime, rows[3].metrics.msAnimationTime, 0.0001);
+        }
+
+        TEST_METHOD(AnimationSyntheticSim_InterpolatesGeneratedOnlyPresentBetweenAppPresents)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::AppProvider;
+            state.firstAppSimStartTime = 1'000'000;
+            state.lastDisplayedSimStartTime = 1'000'000;
+            state.lastDisplayedAppScreenTime = 10'000;
+
+            FrameData p1 = MakeFrame(
+                PresentResult::Presented,
+                1'000,
+                10,
+                1'010,
+                { { FrameType::Application, 10'000 } },
+                1'000'000);
+
+            FrameData p2 = MakeFrame(
+                PresentResult::Presented,
+                2'000,
+                10,
+                2'010,
+                { { FrameType::Intel_XEFG, 20'000 } },
+                0);
+
+            FrameData p3 = MakeFrame(
+                PresentResult::Presented,
+                3'000,
+                10,
+                3'010,
+                { { FrameType::Application, 30'000 } },
+                1'000'200);
+
+            (void)p1;
+            auto generatedRowsWithoutAnchor = ComputeMetricsForPresent(qpc, p2, nullptr, state, MetricsVersion::V2);
+            Assert::AreEqual(size_t(0), generatedRowsWithoutAnchor.size(),
+                L"A generated-only present should wait until the next app display anchor is known.");
+
+            auto generatedRows = ComputeMetricsForPresent(qpc, p2, &p3, state, MetricsVersion::V2);
+            Assert::AreEqual(size_t(1), generatedRows.size());
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)generatedRows[0].metrics.frameType);
+            Assert::AreEqual(uint64_t(20'000), generatedRows[0].metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(generatedRows[0].metrics.msAnimationTime),
+                L"Generated-only present should receive interpolated synthetic animation time.");
+
+            const double expectedAnimationTime = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'100);
+            Assert::AreEqual(expectedAnimationTime, generatedRows[0].metrics.msAnimationTime, 0.0001);
+        }
+        TEST_METHOD(AnimationSyntheticSim_InterpolatesTwoGeneratedFramesAfterApp)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::AppProvider;
+            state.firstAppSimStartTime = 1'000'000;
+            state.lastDisplayedSimStartTime = 1'000'000;
+            state.lastDisplayedAppScreenTime = 10'000;
+
+            FrameData p1 = MakeFrame(
+                PresentResult::Presented,
+                1'000,
+                10,
+                1'010,
+                {
+                    { FrameType::Application, 10'000 },
+                    { FrameType::Intel_XEFG, 20'000 },
+                    { FrameType::Intel_XEFG, 30'000 },
+                },
+                1'000'000);
+
+            FrameData p2 = MakeFrame(
+                PresentResult::Presented,
+                2'000,
+                10,
+                2'010,
+                { { FrameType::Application, 40'000 } },
+                1'000'300);
+
+            auto rows = ComputeMetricsForPresent(qpc, p1, &p2, state, MetricsVersion::V2);
+
+            Assert::AreEqual(size_t(3), rows.size());
+            Assert::AreEqual((int)FrameType::Application, (int)rows[0].metrics.frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[1].metrics.frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[2].metrics.frameType);
+            Assert::IsTrue(HasMetricValue(rows[1].metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(rows[2].metrics.msAnimationTime));
+
+            Assert::AreEqual(qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'100), rows[1].metrics.msAnimationTime, 0.0001);
+            Assert::AreEqual(qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'200), rows[2].metrics.msAnimationTime, 0.0001);
+        }
+
+        TEST_METHOD(AnimationSyntheticSim_InterpolatesMultipleGeneratedOnlyPresentBetweenAppPresents)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::AppProvider;
+            state.firstAppSimStartTime = 1'000'000;
+            state.lastDisplayedSimStartTime = 1'000'000;
+            state.lastDisplayedAppScreenTime = 10'000;
+
+            FrameData p2 = MakeFrame(
+                PresentResult::Presented,
+                2'000,
+                10,
+                2'010,
+                {
+                    { FrameType::Intel_XEFG, 20'000 },
+                    { FrameType::Intel_XEFG, 30'000 },
+                },
+                0);
+
+            FrameData p3 = MakeFrame(
+                PresentResult::Presented,
+                3'000,
+                10,
+                3'010,
+                { { FrameType::Application, 40'000 } },
+                1'000'300);
+
+            auto rows = ComputeMetricsForPresent(qpc, p2, &p3, state, MetricsVersion::V2);
+
+            Assert::AreEqual(size_t(2), rows.size());
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[0].metrics.frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[1].metrics.frameType);
+            Assert::AreEqual(uint64_t(20'000), rows[0].metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(30'000), rows[1].metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(rows[0].metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(rows[1].metrics.msAnimationTime));
+
+            Assert::AreEqual(qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'100), rows[0].metrics.msAnimationTime, 0.0001);
+            Assert::AreEqual(qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'200), rows[1].metrics.msAnimationTime, 0.0001);
+        }
+
+        TEST_METHOD(AnimationSyntheticSim_InterpolatesGeneratedFramesBeforeAndAfterApp)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::AppProvider;
+            state.firstAppSimStartTime = 1'000'000;
+            state.lastDisplayedSimStartTime = 1'000'000;
+            state.lastDisplayedAppScreenTime = 10'000;
+
+            FrameData p1 = MakeFrame(
+                PresentResult::Presented,
+                1'000,
+                10,
+                1'010,
+                {
+                    { FrameType::Intel_XEFG, 20'000 },
+                    { FrameType::Application, 30'000 },
+                    { FrameType::Intel_XEFG, 40'000 },
+                },
+                1'000'200);
+
+            FrameData p2 = MakeFrame(
+                PresentResult::Presented,
+                2'000,
+                10,
+                2'010,
+                { { FrameType::Application, 50'000 } },
+                1'000'400);
+
+            auto rows = ComputeMetricsForPresent(qpc, p1, &p2, state, MetricsVersion::V2);
+
+            Assert::AreEqual(size_t(3), rows.size());
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[0].metrics.frameType);
+            Assert::AreEqual((int)FrameType::Application, (int)rows[1].metrics.frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[2].metrics.frameType);
+            Assert::AreEqual(uint64_t(20'000), rows[0].metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(30'000), rows[1].metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(40'000), rows[2].metrics.screenTimeQpc);
+
+            Assert::IsTrue(HasMetricValue(rows[0].metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(rows[2].metrics.msAnimationTime));
+            Assert::AreEqual(qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'100), rows[0].metrics.msAnimationTime, 0.0001);
+            Assert::AreEqual(qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'300), rows[2].metrics.msAnimationTime, 0.0001);
+        }
+
+        TEST_METHOD(AnimationSyntheticSim_InterpolatesGeneratedFramesAcrossThreePresents)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::AppProvider;
+            state.firstAppSimStartTime = 1'000'000;
+            state.lastDisplayedSimStartTime = 1'000'000;
+            state.lastDisplayedAppScreenTime = 10'000;
+
+            FrameData p1 = MakeFrame(
+                PresentResult::Presented,
+                1'000,
+                10,
+                1'010,
+                {
+                    { FrameType::Application, 10'000 },
+                    { FrameType::Intel_XEFG, 20'000 },
+                },
+                1'000'000);
+
+            FrameData p2 = MakeFrame(
+                PresentResult::Presented,
+                2'000,
+                10,
+                2'010,
+                {
+                    { FrameType::Intel_XEFG, 30'000 },
+                    { FrameType::Intel_XEFG, 40'000 },
+                },
+                0);
+
+            FrameData p3 = MakeFrame(
+                PresentResult::Presented,
+                3'000,
+                10,
+                3'010,
+                { { FrameType::Application, 50'000 } },
+                1'000'400);
+
+            auto rowsP1 = ComputeMetricsForPresent(qpc, p1, &p2, state, MetricsVersion::V2);
+            Assert::AreEqual(size_t(2), rowsP1.size());
+            Assert::IsFalse(HasMetricValue(rowsP1[1].metrics.msAnimationTime),
+                L"The trailing generated interval cannot be finalized until a later app anchor is known.");
+
+            auto rowsP2 = ComputeMetricsForPresent(qpc, p2, &p3, state, MetricsVersion::V2);
+            Assert::AreEqual(size_t(2), rowsP2.size());
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rowsP2[0].metrics.frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rowsP2[1].metrics.frameType);
+            Assert::IsTrue(HasMetricValue(rowsP2[0].metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(rowsP2[1].metrics.msAnimationTime));
+            Assert::AreEqual(qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'200), rowsP2[0].metrics.msAnimationTime, 0.0001);
+            Assert::AreEqual(qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'300), rowsP2[1].metrics.msAnimationTime, 0.0001);
+        }
+
+        TEST_METHOD(AnimationSyntheticSim_HandlesAmdGeneratedFrames)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::AppProvider;
+            state.firstAppSimStartTime = 1'000'000;
+            state.lastDisplayedSimStartTime = 1'000'000;
+            state.lastDisplayedAppScreenTime = 10'000;
+
+            FrameData p1 = MakeFrame(
+                PresentResult::Presented,
+                1'000,
+                10,
+                1'010,
+                {
+                    { FrameType::Application, 10'000 },
+                    { FrameType::AMD_AFMF, 20'000 },
+                },
+                1'000'000);
+
+            FrameData p2 = MakeFrame(
+                PresentResult::Presented,
+                2'000,
+                10,
+                2'010,
+                { { FrameType::Application, 30'000 } },
+                1'000'200);
+
+            auto rows = ComputeMetricsForPresent(qpc, p1, &p2, state, MetricsVersion::V2);
+
+            Assert::AreEqual(size_t(2), rows.size());
+            Assert::AreEqual((int)FrameType::AMD_AFMF, (int)rows[1].metrics.frameType);
+            Assert::IsTrue(HasMetricValue(rows[1].metrics.msAnimationTime));
+            Assert::AreEqual(qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'100), rows[1].metrics.msAnimationTime, 0.0001);
+        }
+
+        TEST_METHOD(AnimationSyntheticSim_TreatsNotSetAsApplicationAnchor)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+            state.animationErrorSource = AnimationErrorSource::AppProvider;
+            state.firstAppSimStartTime = 1'000'000;
+            state.lastDisplayedSimStartTime = 1'000'000;
+            state.lastDisplayedAppScreenTime = 10'000;
+
+            FrameData p1 = MakeFrame(
+                PresentResult::Presented,
+                1'000,
+                10,
+                1'010,
+                {
+                    { FrameType::NotSet, 10'000 },
+                    { FrameType::Intel_XEFG, 20'000 },
+                },
+                1'000'000);
+
+            FrameData p2 = MakeFrame(
+                PresentResult::Presented,
+                2'000,
+                10,
+                2'010,
+                { { FrameType::Application, 30'000 } },
+                1'000'200);
+
+            auto rows = ComputeMetricsForPresent(qpc, p1, &p2, state, MetricsVersion::V2);
+
+            Assert::AreEqual(size_t(2), rows.size());
+            Assert::AreEqual((int)FrameType::NotSet, (int)rows[0].metrics.frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[1].metrics.frameType);
+            Assert::IsTrue(HasMetricValue(rows[1].metrics.msAnimationTime));
+            Assert::AreEqual(qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'100), rows[1].metrics.msAnimationTime, 0.0001);
         }
         TEST_METHOD(Animation_AppProvider_PendingSequence_P1P2P3)
         {
