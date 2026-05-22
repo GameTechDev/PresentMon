@@ -3,6 +3,7 @@
 
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
+#include "../CommonUtilities/test/FloatAssert.h"
 #include "TestProcess.h"
 #include "Folders.h"
 #include "JobManager.h"
@@ -25,6 +26,7 @@
 #include <vector>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+using pmon::util::test::AssertAreEqualWithinTolerance;
 using namespace std::literals;
 
 namespace IpcComponentTests
@@ -146,7 +148,7 @@ namespace IpcComponentTests
         const auto& sample = ring.At(serial);
         const uint64_t expectedTs = kBaseTs + static_cast<uint64_t>(serial);
         Assert::AreEqual(expectedTs, sample.timestamp);
-        Assert::AreEqual(ExpectedScalarValue_(expectedTs), sample.value, 1e-9);
+        AssertAreEqualWithinTolerance(ExpectedScalarValue_(expectedTs), sample.value, 1e-9);
     }
 
     TEST_CLASS(HistoryRingStoreBasicAccessTests)
@@ -214,10 +216,10 @@ namespace IpcComponentTests
             const auto& atLast = ring.At(last - 1);
 
             Assert::AreEqual(atLast.timestamp, newest.timestamp);
-            Assert::AreEqual(atLast.value, newest.value, 1e-9);
+            AssertAreEqualWithinTolerance(atLast.value, newest.value, 1e-9);
 
             Assert::AreEqual<uint64_t>(expectedNewestTs, newest.timestamp);
-            Assert::AreEqual(ExpectedScalarValue_(expectedNewestTs), newest.value, 1e-9);
+            AssertAreEqualWithinTolerance(ExpectedScalarValue_(expectedNewestTs), newest.value, 1e-9);
         }
 
         TEST_METHOD(AtReadsExpectedValuesForArrayElements)
@@ -253,8 +255,8 @@ namespace IpcComponentTests
                 Assert::AreEqual(ts, s0.timestamp);
                 Assert::AreEqual(ts, s1.timestamp);
 
-                Assert::AreEqual(ExpectedArray0Value_(ts), s0.value, 1e-9);
-                Assert::AreEqual(ExpectedArray1Value_(ts), s1.value, 1e-9);
+                AssertAreEqualWithinTolerance(ExpectedArray0Value_(ts), s0.value, 1e-9);
+                AssertAreEqualWithinTolerance(ExpectedArray1Value_(ts), s1.value, 1e-9);
             }
         }
 
@@ -285,7 +287,7 @@ namespace IpcComponentTests
                 const auto& sample = ring.At(s);
 
                 Assert::AreEqual(ts, sample.timestamp);
-                Assert::AreEqual(ExpectedScalarValue_(ts), sample.value, 1e-9);
+                AssertAreEqualWithinTolerance(ExpectedScalarValue_(ts), sample.value, 1e-9);
             }
 
             // After last timestamp -> should return last (one past end)
@@ -367,7 +369,7 @@ namespace IpcComponentTests
                 const auto& sample = ring.At(s);
 
                 Assert::AreEqual(ts, sample.timestamp);
-                Assert::AreEqual(ExpectedScalarValue_(ts), sample.value, 1e-9);
+                AssertAreEqualWithinTolerance(ExpectedScalarValue_(ts), sample.value, 1e-9);
             }
         }
 
@@ -408,7 +410,7 @@ namespace IpcComponentTests
 
             Logger::WriteMessage(std::format("ForEach visited={}, sum={}\n", visited, sum).c_str());
 
-            Assert::AreEqual(expectedSum, sum, 1e-9);
+            AssertAreEqualWithinTolerance(expectedSum, sum, 1e-9);
         }
     };
 
