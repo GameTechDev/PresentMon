@@ -54,7 +54,7 @@ Build `PresentMon.sln` in Visual Studio or msbuild.  e.g.:
 
 Intel PresentMon is the UI application, `PresentMon.exe`.
 
-For Debug builds, the easiest IDE workflow is to launch `PresentMon.exe` with the service running as a child process:
+For Debug builds, the easiest IDE workflow is to set `p2c/KernelProcess` as the startup project and launch `PresentMon.exe` with the service running as a child process:
 
 ```bat
 > --svc-as-child --files-working --log-level verbose --middleware-dll-path .\PresentMonAPI2.dll --log-middleware-copy
@@ -129,3 +129,5 @@ The standalone console application is `PresentMon-dev-x64.exe`:
   install the certificate on the target PC as well.
 
 - Add the development user to the Performance Log Users group to run from the IDE, run tests, etc. without launching the IDE as administrator.
+
+- If debugging `KernelProcess` from Visual Studio fails to find the staged runtime files, set the project's debugging working directory to `$(OutDir)`.
