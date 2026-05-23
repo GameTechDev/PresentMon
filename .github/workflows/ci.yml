@@ -1,0 +1,55 @@
+name: PresentMon CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Setup MSVC
+      uses: microsoft/setup-msvc@v1.1
+
+    - name: Define CEF Download URL
+      id: cef-url
+      run: echo "CEF_URL=https://cef-builds.spotifycdn.com/cef_binary_136.1.6%2Bg1ac1b14%2Bchromium-136.0.7103.114_windows64_minimal.tar.bz2" >> $env:GITHUB_ENV
+
+    - name: Cache CEF
+      id: cache-cef
+      uses: actions/cache@v4
+      with:
+        path: C:\cef
+        key: ${{ runner.os }}-cef-v136
+
+    - name: Download and extract CEF
+      if: steps.cache-cef.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        echo "Downloading CEF from ${{ env.CEF_URL }}"
+        Invoke-WebRequest -Uri ${{ env.CEF_URL }} -OutFile cef.tar.bz2
+
+        New-Item -ItemType Directory -Force -Path C:\cef_temp
+
+        tar -xjf cef.tar.bz2 -C C:\cef_temp
+
+        $extractedDir = Get-ChildItem -Path C:\cef_temp | Select-Object -First 1
+        Move-Item -Path $extractedDir.FullName\* -Destination C:\cef
+
+        Remove-Item -Path C:\cef_temp, cef.tar.bz2 -Recurse
+
+    - name: Run build script
+      shell: cmd
+      run: |
+        build.bat C:\cef

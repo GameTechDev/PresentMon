@@ -14,6 +14,18 @@ Note: if you only want to build the PresentData library, or the PresentMon Conso
 you only need Visual Studio.  Ignore the other build and source dependency instructions and build
 `PresentData\PresentData.vcxproj` or `PresentMon\ConsoleApplication.sln`.
 
+## Automated Build Script
+
+For convenience, a batch script `build.bat` is provided to automate the entire build process. This script will perform all the steps described below, including installing vcpkg dependencies, building CEF, building the web assets, and building the final PresentMon solution.
+
+To use the script:
+1. Open a Command Prompt or PowerShell terminal.
+2. Run the script from the root of the repository: `.\build.bat`
+3. The script will pause and ask you to provide the full path to your downloaded and extracted CEF (Chromium Embedded Framework) directory.
+4. The script will attempt to create and install a test certificate, which requires administrator privileges. It is recommended to run the script in a terminal with Administrator rights.
+
+The manual steps are still documented below if you prefer to execute the build process step-by-step.
+
 ## Install Source Dependencies
 
 1. Download and install *vcpkg*, which will be used to obtain source package dependencies during the build:
