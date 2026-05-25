@@ -86,7 +86,25 @@ private:
 	std::vector<LookupInfo_> qInfo_;
 };
 
-std::vector<PM_QUERY_ELEMENT> BuildQueryElementSet(const pmapi::intro::Root& intro)
+bool IsMinMaxPercentileStat(PM_STAT stat)
+{
+	switch (stat) {
+	case PM_STAT_PERCENTILE_99:
+	case PM_STAT_PERCENTILE_95:
+	case PM_STAT_PERCENTILE_90:
+	case PM_STAT_PERCENTILE_01:
+	case PM_STAT_PERCENTILE_05:
+	case PM_STAT_PERCENTILE_10:
+	case PM_STAT_MAX:
+	case PM_STAT_MIN:
+		return true;
+	default:
+		return false;
+	}
+}
+
+std::vector<PM_QUERY_ELEMENT> BuildQueryElementSet(const pmapi::intro::Root& intro,
+	bool minMaxPercentileStatsOnly)
 {
 	std::vector<PM_QUERY_ELEMENT> qels;
 	for (const auto& m : intro.GetMetrics()) {
@@ -108,6 +126,9 @@ std::vector<PM_QUERY_ELEMENT> BuildQueryElementSet(const pmapi::intro::Root& int
 			continue;
 		}
 		for (const auto& s : m.GetStatInfo()) {
+			if (minMaxPercentileStatsOnly && !IsMinMaxPercentileStat(s.GetStat())) {
+				continue;
+			}
 			qels.push_back(PM_QUERY_ELEMENT{ m.GetId(), s.GetStat() });
 		}
 	}
@@ -118,11 +139,11 @@ class TestClientModule
 {
 public:
 	TestClientModule(std::unique_ptr<pmapi::Session> pSession, double windowMs,
-		double offsetMs)
+		double offsetMs, bool minMaxPercentileStatsOnly)
 		:
 		pSession_{ std::move(pSession) },
 		pIntro_{ pSession_->GetIntrospectionRoot() },
-		qels_{ BuildQueryElementSet(*pIntro_) },
+		qels_{ BuildQueryElementSet(*pIntro_, minMaxPercentileStatsOnly) },
 		query_{ pSession_->RegisterDynamicQuery(qels_, windowMs, offsetMs) },
 		blobs_{ query_.MakeBlobContainer(1) }
 	{}
@@ -222,7 +243,8 @@ int PacedPlaybackTest(std::unique_ptr<pmapi::Session> pSession)
 		}
 
 		// connect to service and register query
-		TestClientModule client{ std::move(pSession), *opt.windowSize, *opt.metricOffset };
+		TestClientModule client{ std::move(pSession), *opt.windowSize, *opt.metricOffset,
+			opt.minMaxPercentileStatsOnly };
 		if (opt.etwFlushPeriodMs) {
 			client.SetETWFlushPeriod(*opt.etwFlushPeriodMs);
 		}
