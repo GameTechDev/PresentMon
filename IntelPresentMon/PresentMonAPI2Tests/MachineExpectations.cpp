@@ -10,9 +10,11 @@
 #include <filesystem>
 #include <fstream>
 #include <format>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <cstring>
+#include <chrono>
 #include <variant>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -364,6 +366,14 @@ namespace pmon::tests::machine
                 store.GetMeasurementPath()).c_str());
         }
 
+        std::string FormatMeasurementKey_(const MetricMeasurement& measurement)
+        {
+            return std::format("{}{}{}",
+                measurement.section,
+                measurement.section == "gpu" ? std::format("[{}].", measurement.gpuDeviceId) : ".",
+                measurement.metric);
+        }
+
         bool NumericMatches_(double actual, const MetricExpectation& exp)
         {
             if (exp.numericValue) {
@@ -377,6 +387,49 @@ namespace pmon::tests::machine
             }
             return true;
         }
+
+        bool HasNumericExpectation_(const MetricExpectation& exp)
+        {
+            return exp.numericValue || exp.minValue || exp.maxValue;
+        }
+
+        std::map<uint32_t, std::string> GetMeasuredGpuNames_(const MeasurementSet& measurements)
+        {
+            std::map<uint32_t, std::string> names;
+            for (const auto& measurement : measurements.GetMeasurements()) {
+                if (measurement.section == "gpu" &&
+                    measurement.metric == "PM_METRIC_GPU_NAME" &&
+                    measurement.available &&
+                    measurement.identityOnly &&
+                    measurement.stringValue) {
+                    names[measurement.gpuDeviceId] = *measurement.stringValue;
+                }
+            }
+            return names;
+        }
+
+        std::set<uint32_t> GetMeasuredGpuDeviceIds_(const MeasurementSet& measurements)
+        {
+            std::set<uint32_t> deviceIds;
+            for (const auto& measurement : measurements.GetMeasurements()) {
+                if (measurement.section == "gpu") {
+                    deviceIds.insert(measurement.gpuDeviceId);
+                }
+            }
+            return deviceIds;
+        }
+    }
+
+    double GetWaitMultiplier()
+    {
+        static const double multiplier = ExpectationStore::Load().GetWaitMultiplier();
+        return multiplier;
+    }
+
+    std::chrono::milliseconds ScaleWait(std::chrono::milliseconds wait)
+    {
+        const auto scaled = wait.count() * GetWaitMultiplier();
+        return std::chrono::milliseconds{ (std::max)(int64_t{ 1 }, static_cast<int64_t>(std::ceil(scaled))) };
     }
 
     MeasurementSet::MeasurementSet(std::string testCase)
@@ -418,6 +471,19 @@ namespace pmon::tests::machine
         Add_({ .section = "gpu", .gpuDeviceId = deviceId, .metric = std::move(metric), .stringValue = std::move(value) });
     }
 
+    void MeasurementSet::AddGpuIdentity(uint32_t deviceId, std::string name)
+    {
+        Add_({
+            .section = "gpu",
+            .gpuDeviceId = deviceId,
+            .metric = "PM_METRIC_GPU_NAME",
+            .available = true,
+            .introspectionAvailable = true,
+            .identityOnly = true,
+            .stringValue = std::move(name),
+            });
+    }
+
     void MeasurementSet::AddGpuUnavailable(uint32_t deviceId, std::string metric)
     {
         Add_({ .section = "gpu", .gpuDeviceId = deviceId, .metric = std::move(metric), .available = false });
@@ -451,6 +517,9 @@ namespace pmon::tests::machine
             file << "{\"section\":\"" << m.section << "\",\"metric\":\"" << Escape_(m.metric) << "\"";
             if (m.section == "gpu") {
                 file << ",\"device_id\":" << m.gpuDeviceId;
+            }
+            if (m.identityOnly) {
+                file << ",\"identity_only\":true";
             }
             if (!m.available) {
                 file << ",\"available\":false,\"introspection_available\":"
@@ -490,6 +559,17 @@ namespace pmon::tests::machine
             throw std::runtime_error("Machine expectation root must be an object");
         }
 
+        if (const auto waitMultiplier = Get_(*rootObject, "wait_multiplier")) {
+            if (const auto number = AsNumber_(*waitMultiplier)) {
+                store.waitMultiplier_ = (std::max)(1., *number);
+            }
+        }
+        else if (const auto waitMultiplier = Get_(*rootObject, "waitMultiplier")) {
+            if (const auto number = AsNumber_(*waitMultiplier)) {
+                store.waitMultiplier_ = (std::max)(1., *number);
+            }
+        }
+
         if (const auto system = Get_(*rootObject, "system")) {
             if (const auto systemObject = AsObject_(*system)) {
                 LoadMetricMap_(store.system_, *systemObject);
@@ -500,7 +580,23 @@ namespace pmon::tests::machine
             gpus = Get_(*rootObject, "gpus");
         }
         if (gpus) {
-            if (const auto gpuArray = AsArray_(*gpus)) {
+            if (const auto gpuObject = AsObject_(*gpus)) {
+                uint32_t id = 0;
+                if (const auto idValue = Get_(*gpuObject, "device_id")) {
+                    if (const auto number = AsNumber_(*idValue)) {
+                        id = static_cast<uint32_t>(*number);
+                    }
+                }
+                if (const auto metrics = Get_(*gpuObject, "metrics")) {
+                    if (const auto metricsObject = AsObject_(*metrics)) {
+                        LoadMetricMap_(store.gpus_[id], *metricsObject);
+                    }
+                }
+                else {
+                    LoadMetricMap_(store.gpus_[id], *gpuObject);
+                }
+            }
+            else if (const auto gpuArray = AsArray_(*gpus)) {
                 for (const auto& gpuValue : *gpuArray) {
                     const auto gpuObject = AsObject_(gpuValue);
                     if (gpuObject == nullptr) {
@@ -538,6 +634,11 @@ namespace pmon::tests::machine
         return measurementPath_;
     }
 
+    double ExpectationStore::GetWaitMultiplier() const
+    {
+        return waitMultiplier_;
+    }
+
     std::optional<MetricExpectation> ExpectationStore::Find_(const MetricMeasurement& measurement) const
     {
         if (measurement.section == "system") {
@@ -556,28 +657,6 @@ namespace pmon::tests::machine
         return std::nullopt;
     }
 
-    bool ExpectationStore::HasUnavailableExpectation(const MeasurementSet& measurements) const
-    {
-        if (!hasExpectationFile_) {
-            return false;
-        }
-        for (const auto& measurement : measurements.GetMeasurements()) {
-            const auto exp = Find_(measurement);
-            if (exp && !exp->expectedAvailable) {
-                if (!measurement.available && !measurement.introspectionAvailable) {
-                    Logger::WriteMessage(std::format(
-                        "Machine expectation marks {}{}{} as unavailable and introspection agrees; skipping assertions for [{}].\n",
-                        measurement.section,
-                        measurement.section == "gpu" ? std::format("[{}].", measurement.gpuDeviceId) : ".",
-                        measurement.metric,
-                        measurements.GetTestCase()).c_str());
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
     bool ExpectationStore::AssertMeasurements(const MeasurementSet& measurements) const
     {
         if (!hasExpectationFile_) {
@@ -591,10 +670,51 @@ namespace pmon::tests::machine
             return false;
         }
 
+        std::set<std::string> missingExpectations;
+        const auto measuredGpuNames = GetMeasuredGpuNames_(measurements);
+        for (const auto deviceId : GetMeasuredGpuDeviceIds_(measurements)) {
+            const auto measuredName = measuredGpuNames.find(deviceId);
+            if (measuredName == measuredGpuNames.end()) {
+                Assert::Fail(pmon::util::str::ToWide(std::format(
+                    "{} has GPU measurements for device id {}, but does not include AddGpuIdentity(...) data to verify the id matches the expectation.\n{}",
+                    measurements.GetTestCase(),
+                    deviceId,
+                    GetUpdateCommand_(measurementPath_, expectationPath_))).c_str());
+                return false;
+            }
+
+            const MetricMeasurement nameMeasurement{
+                .section = "gpu",
+                .gpuDeviceId = deviceId,
+                .metric = "PM_METRIC_GPU_NAME",
+                .stringValue = measuredName->second,
+            };
+            const auto nameExp = Find_(nameMeasurement);
+            if (!nameExp) {
+                missingExpectations.insert(FormatMeasurementKey_(nameMeasurement));
+                LogMissingExpectation_(*this, nameMeasurement);
+                continue;
+            }
+            if (!nameExp->expectedAvailable || !nameExp->stringValue || measuredName->second != *nameExp->stringValue) {
+                Assert::Fail(pmon::util::str::ToWide(std::format(
+                    "GPU device id {} was expected to be [{}], but measured [{}]. Update expectations if device ordering changed.\n{}",
+                    deviceId,
+                    nameExp->stringValue.value_or("<unavailable>"),
+                    measuredName->second,
+                    GetUpdateCommand_(measurementPath_, expectationPath_))).c_str());
+                return false;
+            }
+        }
+
         for (const auto& measurement : measurements.GetMeasurements()) {
+            if (measurement.identityOnly) {
+                continue;
+            }
             const auto exp = Find_(measurement);
             if (!exp) {
-                LogMissingExpectation_(*this, measurement);
+                if (missingExpectations.insert(FormatMeasurementKey_(measurement)).second) {
+                    LogMissingExpectation_(*this, measurement);
+                }
                 continue;
             }
             if (!exp->expectedAvailable) {
@@ -619,6 +739,14 @@ namespace pmon::tests::machine
                 return false;
             }
             if (measurement.numericValue) {
+                if (!HasNumericExpectation_(*exp)) {
+                    Assert::Fail(pmon::util::str::ToWide(std::format(
+                        "{} has a numeric measurement for {} but the machine expectation does not define a value, min, or max.\n{}",
+                        measurements.GetTestCase(),
+                        FormatMeasurementKey_(measurement),
+                        GetUpdateCommand_(measurementPath_, expectationPath_))).c_str());
+                    return false;
+                }
                 if (!NumericMatches_(*measurement.numericValue, *exp)) {
                     Assert::Fail(pmon::util::str::ToWide(std::format(
                         "{}{}{} value {} outside expectation from [{}].\n{}",
@@ -631,17 +759,45 @@ namespace pmon::tests::machine
                     return false;
                 }
             }
-            else if (exp->stringValue && measurement.stringValue.value_or("") != *exp->stringValue) {
-                Assert::Fail(pmon::util::str::ToWide(std::format(
-                    "{}{}{} value [{}] did not match expected [{}].\n{}",
-                    measurement.section,
-                    measurement.section == "gpu" ? std::format("[{}].", measurement.gpuDeviceId) : ".",
-                    measurement.metric,
-                    measurement.stringValue.value_or(""),
-                    *exp->stringValue,
-                    GetUpdateCommand_(measurementPath_, expectationPath_))).c_str());
-                return false;
+            else {
+                if (!exp->stringValue) {
+                    Assert::Fail(pmon::util::str::ToWide(std::format(
+                        "{} has a string measurement for {} but the machine expectation does not define a string value.\n{}",
+                        measurements.GetTestCase(),
+                        FormatMeasurementKey_(measurement),
+                        GetUpdateCommand_(measurementPath_, expectationPath_))).c_str());
+                    return false;
+                }
+                if (measurement.stringValue.value_or("") != *exp->stringValue) {
+                    Assert::Fail(pmon::util::str::ToWide(std::format(
+                        "{}{}{} value [{}] did not match expected [{}].\n{}",
+                        measurement.section,
+                        measurement.section == "gpu" ? std::format("[{}].", measurement.gpuDeviceId) : ".",
+                        measurement.metric,
+                        measurement.stringValue.value_or(""),
+                        *exp->stringValue,
+                        GetUpdateCommand_(measurementPath_, expectationPath_))).c_str());
+                    return false;
+                }
             }
+        }
+
+        if (!missingExpectations.empty()) {
+            std::string missingList;
+            for (const auto& missing : missingExpectations) {
+                missingList += "\n  ";
+                missingList += missing;
+            }
+            Assert::Fail(pmon::util::str::ToWide(std::format(
+                "Machine expectation file [{}] is missing {} expectation(s) for platform-dependent test [{}]."
+                "{}\nMeasurements were recorded to [{}].\n{}",
+                expectationPath_,
+                missingExpectations.size(),
+                measurements.GetTestCase(),
+                missingList,
+                measurementPath_,
+                GetUpdateCommand_(measurementPath_, expectationPath_))).c_str());
+            return false;
         }
         return true;
     }

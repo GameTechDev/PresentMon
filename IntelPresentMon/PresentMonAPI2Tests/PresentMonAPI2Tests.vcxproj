@@ -142,6 +142,7 @@
     <ClInclude Include="CsvHelper.h" />
     <ClInclude Include="FirstFrameWait.h" />
     <ClInclude Include="Folders.h" />
+    <ClInclude Include="GpuMetricSelection.h" />
     <ClInclude Include="JobManager.h" />
     <ClInclude Include="Logging.h" />
     <ClInclude Include="MachineExpectations.h" />

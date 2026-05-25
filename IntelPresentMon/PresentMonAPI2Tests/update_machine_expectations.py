@@ -36,14 +36,25 @@ def metric_bucket(root, measurement):
     metric = measurement["metric"]
     if section == "system":
         return root.setdefault("system", {}), metric
-    device_id = int(measurement["device_id"])
+    device_id = int(measurement.get("device_id", 0))
     gpus = root.setdefault("gpu", [])
+    if isinstance(gpus, dict):
+        gpus = [{"device_id": device_id, "metrics": gpus}]
+        root["gpu"] = gpus
     for gpu in gpus:
         if int(gpu.get("device_id", -1)) == device_id:
             return gpu.setdefault("metrics", {}), metric
     gpu = {"device_id": device_id, "metrics": {}}
     gpus.append(gpu)
     return gpu["metrics"], metric
+
+
+def normalize_gpu_expectations(root):
+    if "gpus" in root and "gpu" not in root:
+        root["gpu"] = root.pop("gpus")
+    gpu = root.setdefault("gpu", [])
+    if isinstance(gpu, dict):
+        root["gpu"] = [{"device_id": 0, "metrics": gpu}]
 
 
 def simplify_values(values):
@@ -96,17 +107,16 @@ def update_existing_value(old, new):
 
 
 def build_generated(records, existing=None):
-    generated = json.loads(json.dumps(existing or {"system": {}, "gpu": []}))
-    if "gpus" in generated and "gpu" not in generated:
-        generated["gpu"] = generated.pop("gpus")
+    generated = json.loads(json.dumps(existing or {"wait_multiplier": 1.0, "system": {}, "gpu": []}))
+    generated.setdefault("wait_multiplier", 1.0)
+    normalize_gpu_expectations(generated)
     grouped = {}
     for record in records:
         for measurement in record.get("measurements", []):
-            bucket, metric = metric_bucket({"system": {}, "gpu": []}, measurement)
             key = (
                 measurement["section"],
-                int(measurement.get("device_id", 0)),
-                metric,
+                int(measurement.get("device_id", 0)) if measurement["section"] == "gpu" else 0,
+                measurement["metric"],
             )
             grouped.setdefault(key, []).append(
                 (

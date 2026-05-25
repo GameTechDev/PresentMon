@@ -1,5 +1,6 @@
 #pragma once
 #include "CppUnitTest.h"
+#include "MachineExpectations.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../PresentMonMiddleware/ActionClient.h"
 #include <chrono>
@@ -18,6 +19,7 @@ namespace pmon::tests
 		const char* label,
 		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit)
 	{
+		waitLimit = machine::ScaleWait(waitLimit);
 		const auto warmupStart = std::chrono::steady_clock::now();
 		auto warmupRange = ring.GetSerialRange();
 		while (warmupRange.second == 0 &&

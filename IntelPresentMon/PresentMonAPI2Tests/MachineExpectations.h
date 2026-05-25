@@ -4,6 +4,7 @@
 
 #include "CppUnitTest.h"
 #include <cstdint>
+#include <chrono>
 #include <map>
 #include <optional>
 #include <string>
@@ -27,6 +28,7 @@ namespace pmon::tests::machine
         std::string metric;
         bool available = true;
         bool introspectionAvailable = true;
+        bool identityOnly = false;
         std::optional<double> numericValue;
         std::optional<std::string> stringValue;
     };
@@ -42,6 +44,7 @@ namespace pmon::tests::machine
         void AddSystemIntrospectionUnavailable(std::string metric);
         void AddGpu(uint32_t deviceId, std::string metric, double value);
         void AddGpu(uint32_t deviceId, std::string metric, std::string value);
+        void AddGpuIdentity(uint32_t deviceId, std::string name);
         void AddGpuUnavailable(uint32_t deviceId, std::string metric);
         void AddGpuIntrospectionUnavailable(uint32_t deviceId, std::string metric);
 
@@ -64,7 +67,7 @@ namespace pmon::tests::machine
         bool HasExpectationFile() const;
         std::string GetExpectationPath() const;
         std::string GetMeasurementPath() const;
-        bool HasUnavailableExpectation(const MeasurementSet& measurements) const;
+        double GetWaitMultiplier() const;
         bool AssertMeasurements(const MeasurementSet& measurements) const;
 
     private:
@@ -73,7 +76,11 @@ namespace pmon::tests::machine
         bool hasExpectationFile_ = false;
         std::string expectationPath_;
         std::string measurementPath_;
+        double waitMultiplier_ = 1.;
         std::map<std::string, MetricExpectation> system_;
         std::map<uint32_t, std::map<std::string, MetricExpectation>> gpus_;
     };
+
+    double GetWaitMultiplier();
+    std::chrono::milliseconds ScaleWait(std::chrono::milliseconds wait);
 }

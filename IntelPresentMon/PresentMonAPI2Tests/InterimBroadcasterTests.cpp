@@ -5,11 +5,15 @@
 #include "../CommonUtilities/PrecisionWaiter.h"
 #include "CppUnitTest.h"
 #include "FirstFrameWait.h"
+#include "GpuMetricSelection.h"
 #include "StatusComparison.h"
 #include "TestProcess.h"
 #include <string>
 #include <ranges>
 #include <fstream>
+#include <map>
+#include <unordered_set>
+#include <vector>
 #include "Folders.h"
 #include "JobManager.h"
 #include "MachineExpectations.h"
@@ -57,6 +61,11 @@ namespace InterimBroadcasterTests
             auto pData = static_cast<volatile char*>(readWriteRegion.get_address());
             *pData = *pData;
         });
+    }
+
+    static std::string GetVendorName_(const pmapi::intro::Root& intro, PM_DEVICE_VENDOR vendor)
+    {
+        return intro.FindEnumKey(PM_ENUM_DEVICE_VENDOR, (int)vendor).GetName();
     }
 
     static std::string DumpRing_(const ipc::SampleHistoryRing<double>& ring, size_t maxSamples = 8)
@@ -216,26 +225,27 @@ namespace InterimBroadcasterTests
             // allow warm-up period
             std::this_thread::sleep_for(650ms);
 
-            // we expect 0 data point in the rings for the system since it does not populate on init
-            Assert::AreEqual(0ull, sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION).at(0).Size());
+            if (IsMetricAvailableForDevice_(intro, PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId)) {
+                // we expect 0 data point in the rings for the system since it does not populate on init
+                Assert::AreEqual(0ull, sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION).at(0).Size());
+            }
         }
         // static store
         TEST_METHOD(StaticData)
         {
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            auto pIntro = pComms->GetIntrospectionRoot();
+            pmapi::intro::Root intro{ pIntro, [](auto* p) { delete p; } };
             // get the store containing system-wide telemetry (cpu etc.)
             auto& sys = pComms->GetSystemDataStore();
             machine::MeasurementSet measurements{ "InterimBroadcasterTests.SystemStoreTests.StaticData" };
-            measurements.AddSystem("PM_METRIC_CPU_VENDOR", (double)sys.statics.cpuVendor);
+            measurements.AddSystem("PM_METRIC_CPU_VENDOR", GetVendorName_(intro, sys.statics.cpuVendor));
             measurements.AddSystem("PM_METRIC_CPU_NAME", sys.statics.cpuName.c_str());
             measurements.AddSystem("PM_METRIC_CPU_POWER_LIMIT", sys.statics.cpuPowerLimit);
             measurements.AppendToSharedFile();
 
             const auto expectations = machine::ExpectationStore::Load();
-            if (expectations.HasUnavailableExpectation(measurements)) {
-                return;
-            }
             expectations.AssertMeasurements(measurements);
         }
         TEST_METHOD(SystemStoreRejectsWrite)
@@ -288,11 +298,11 @@ namespace InterimBroadcasterTests
                 std::this_thread::sleep_for(250ms);
                 {
                     constexpr auto m = PM_METRIC_CPU_UTILIZATION;
-                    auto& rings = sys.telemetryData.FindRing<double>(m);
                     if (!IsMetricAvailableForDevice_(intro, m, ipc::kSystemDeviceId)) {
                         measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_UTILIZATION");
                     }
                     else {
+                        auto& rings = sys.telemetryData.FindRing<double>(m);
                         auto& r = rings[0];
                         if (r.Empty()) {
                             measurements.AddSystemUnavailable("PM_METRIC_CPU_UTILIZATION");
@@ -311,11 +321,11 @@ namespace InterimBroadcasterTests
                 }
                 {
                     constexpr auto m = PM_METRIC_CPU_FREQUENCY;
-                    auto& rings = sys.telemetryData.FindRing<double>(m);
                     if (!IsMetricAvailableForDevice_(intro, m, ipc::kSystemDeviceId)) {
                         measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_FREQUENCY");
                     }
                     else {
+                        auto& rings = sys.telemetryData.FindRing<double>(m);
                         auto& r = rings[0];
                         if (r.Empty()) {
                             measurements.AddSystemUnavailable("PM_METRIC_CPU_FREQUENCY");
@@ -336,9 +346,6 @@ namespace InterimBroadcasterTests
 
             measurements.AppendToSharedFile();
             const auto expectations = machine::ExpectationStore::Load();
-            if (expectations.HasUnavailableExpectation(measurements)) {
-                return;
-            }
             expectations.AssertMeasurements(measurements);
 
             // make sure samples actually change over time
@@ -483,27 +490,33 @@ namespace InterimBroadcasterTests
             // allow warm-up period
             std::this_thread::sleep_for(650ms);
 
-            // we expect 0 data points in the rings for the gpu since it does not populate on init
-            Assert::AreEqual(0ull, gpu.telemetryData.FindRing<double>(PM_METRIC_GPU_TEMPERATURE).at(0).Size());
+            if (const auto choice = pmon::tests::SelectAndLogGpuMetric(
+                intro,
+                TargetDeviceID,
+                "InterimBroadcasterTests.GpuStoreTests.NoReport");
+                choice.introspectionAvailable) {
+                // we expect 0 data points in the rings for the gpu since it does not populate on init
+                Assert::AreEqual(0ull, gpu.telemetryData.FindRing<double>(choice.metric).at(0).Size());
+            }
         }
         // static store
         TEST_METHOD(StaticData)
         {
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+            auto pIntro = pComms->GetIntrospectionRoot();
+            pmapi::intro::Root intro{ pIntro, [](auto* p) { delete p; } };
             // get the store containing gpu telemetry
             auto& gpu = pComms->GetGpuDataStore(1);
             machine::MeasurementSet measurements{ "InterimBroadcasterTests.GpuStoreTests.StaticData" };
-            measurements.AddGpu(1, "PM_METRIC_GPU_VENDOR", (double)gpu.statics.vendor);
+            measurements.AddGpuIdentity(1, intro.FindDevice(1).GetName());
+            measurements.AddGpu(1, "PM_METRIC_GPU_VENDOR", GetVendorName_(intro, gpu.statics.vendor));
             measurements.AddGpu(1, "PM_METRIC_GPU_NAME", gpu.statics.name.c_str());
             measurements.AddGpu(1, "PM_METRIC_GPU_POWER_LIMIT", gpu.statics.sustainedPowerLimit);
             measurements.AddGpu(1, "PM_METRIC_GPU_MEM_SIZE", (double)gpu.statics.memSize);
             measurements.AppendToSharedFile();
 
             const auto expectations = machine::ExpectationStore::Load();
-            if (expectations.HasUnavailableExpectation(measurements)) {
-                return;
-            }
             expectations.AssertMeasurements(measurements);
         }
         TEST_METHOD(GpuStoreRejectsWrite)
@@ -533,12 +546,21 @@ namespace InterimBroadcasterTests
             // target gpu device 1 (hardcoded for test)
             const uint32_t TargetDeviceID = 1;
 
+            const auto metricChoices = pmon::tests::SelectAndLogGpuMetrics(
+                intro,
+                TargetDeviceID,
+                2,
+                "InterimBroadcasterTests.GpuStoreTests.PolledData");
+            std::unordered_set<svc::acts::MetricUse> uses;
+            for (const auto& choice : metricChoices) {
+                if (choice.introspectionAvailable) {
+                    uses.insert({ choice.metric, TargetDeviceID, 0 });
+                }
+            }
+
             // update server with metric/device usage information
             // this will trigger gpu telemetry collection
-            client.DispatchSync(svc::acts::ReportMetricUse::Params{ {
-                { PM_METRIC_GPU_TEMPERATURE, TargetDeviceID, 0 },
-                { PM_METRIC_GPU_POWER, TargetDeviceID, 0 },
-            } });
+            client.DispatchSync(svc::acts::ReportMetricUse::Params{ std::move(uses) });
 
             // get the store containing adapter telemetry
             auto& gpu = pComms->GetGpuDataStore(TargetDeviceID);
@@ -546,80 +568,48 @@ namespace InterimBroadcasterTests
             // allow a short warmup
             std::this_thread::sleep_for(150ms);
 
-            std::vector<ipc::TelemetrySample<double>> tempSamples;
-            std::vector<ipc::TelemetrySample<double>> powerSamples;
+            std::map<PM_METRIC, std::vector<ipc::TelemetrySample<double>>> samples;
             machine::MeasurementSet measurements{ "InterimBroadcasterTests.GpuStoreTests.PolledData" };
+            measurements.AddGpuIdentity(TargetDeviceID, intro.FindDevice(TargetDeviceID).GetName());
 
             for (int i = 0; i < 10; i++) {
                 std::this_thread::sleep_for(250ms);
 
-                {
-                    constexpr auto m = PM_METRIC_GPU_TEMPERATURE;
-                    auto& rings = gpu.telemetryData.FindRing<double>(m);
-                    if (!IsMetricAvailableForDevice_(intro, m, TargetDeviceID)) {
-                        measurements.AddGpuIntrospectionUnavailable(TargetDeviceID, "PM_METRIC_GPU_TEMPERATURE");
+                for (const auto& choice : metricChoices) {
+                    if (!choice.introspectionAvailable) {
+                        measurements.AddGpuIntrospectionUnavailable(TargetDeviceID, choice.symbol);
+                        continue;
+                    }
+                    auto& rings = gpu.telemetryData.FindRing<double>(choice.metric);
+                    auto& r = rings[0];
+                    if (r.Empty()) {
+                        measurements.AddGpuUnavailable(TargetDeviceID, choice.symbol);
                     }
                     else {
-                        auto& r = rings[0];
-                        if (r.Empty()) {
-                            measurements.AddGpuUnavailable(TargetDeviceID, "PM_METRIC_GPU_TEMPERATURE");
+                        if (i == 0 || i == 9) {
+                            Logger::WriteMessage(DumpRing_(r).c_str());
                         }
-                        else {
-                            if (i == 0 || i == 9) {
-                                Logger::WriteMessage(DumpRing_(r).c_str());
-                            }
 
-                            auto sample = r.Newest();
-                            tempSamples.push_back(sample);
-                            measurements.AddGpu(TargetDeviceID, "PM_METRIC_GPU_TEMPERATURE", sample.value);
+                        auto sample = r.Newest();
+                        samples[choice.metric].push_back(sample);
+                        measurements.AddGpu(TargetDeviceID, choice.symbol, sample.value);
 
-                            Logger::WriteMessage(std::format("({}) {}: {}\n",
-                                i, pMetricMap->at(m).narrowName, sample.value).c_str());
-                        }
-                    }
-                }
-
-                {
-                    constexpr auto m = PM_METRIC_GPU_POWER;
-                    auto& rings = gpu.telemetryData.FindRing<double>(m);
-                    if (!IsMetricAvailableForDevice_(intro, m, TargetDeviceID)) {
-                        measurements.AddGpuIntrospectionUnavailable(TargetDeviceID, "PM_METRIC_GPU_POWER");
-                    }
-                    else {
-                        auto& r = rings[0];
-                        if (r.Empty()) {
-                            measurements.AddGpuUnavailable(TargetDeviceID, "PM_METRIC_GPU_POWER");
-                        }
-                        else {
-                            if (i == 0 || i == 9) {
-                                Logger::WriteMessage(DumpRing_(r).c_str());
-                            }
-
-                            auto sample = r.Newest();
-                            powerSamples.push_back(sample);
-                            measurements.AddGpu(TargetDeviceID, "PM_METRIC_GPU_POWER", sample.value);
-
-                            Logger::WriteMessage(std::format("({}) {}: {}\n",
-                                i, pMetricMap->at(m).narrowName, sample.value).c_str());
-                        }
+                        Logger::WriteMessage(std::format("({}) {}: {}\n",
+                            i, pMetricMap->at(choice.metric).narrowName, sample.value).c_str());
                     }
                 }
             }
 
             measurements.AppendToSharedFile();
             const auto expectations = machine::ExpectationStore::Load();
-            if (expectations.HasUnavailableExpectation(measurements)) {
-                return;
-            }
             expectations.AssertMeasurements(measurements);
 
             // make sure samples actually change over time
-            if (!tempSamples.empty()) {
-                Assert::AreNotEqual(tempSamples.front().timestamp, tempSamples.back().timestamp);
-            }
-            if (!powerSamples.empty()) {
-                Assert::AreNotEqual(powerSamples.front().timestamp, powerSamples.back().timestamp);
-                Assert::AreNotEqual(powerSamples.front().value, powerSamples.back().value);
+            for (const auto& [metric, metricSamples] : samples) {
+                if (!metricSamples.empty()) {
+                    Assert::AreNotEqual(metricSamples.front().timestamp, metricSamples.back().timestamp,
+                        pMetricMap->at(metric).wideName.c_str());
+                }
             }
         }
         // full 1:1 correspondence between ring creation, ring population, and introspection availability
@@ -748,7 +738,7 @@ namespace InterimBroadcasterTests
             auto& sys = pComms->GetSystemDataStore();
             auto& gpu = pComms->GetGpuDataStore(TargetDeviceID);
 
-            std::this_thread::sleep_for(1500ms);
+            std::this_thread::sleep_for(machine::ScaleWait(1500ms));
             const auto logRing = [](const char* label, const ipc::SampleHistoryRing<double>& ring) {
                 const auto range = ring.GetSerialRange();
                 Logger::WriteMessage(std::format(
@@ -761,49 +751,56 @@ namespace InterimBroadcasterTests
                         label, s, sample.value, sample.timestamp).c_str());
                 }
             };
-            auto& sysRings = sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION);
-            auto& sysFreqRings = sys.telemetryData.FindRing<double>(PM_METRIC_CPU_FREQUENCY);
-            auto& gpuRings = gpu.telemetryData.FindRing<double>(PM_METRIC_GPU_TEMPERATURE);
-            const auto sysSize = sysRings[0].Size();
-            const auto sysFreqSize = sysFreqRings[0].Size();
-            const auto gpuSize = gpuRings[0].Size();
+            const auto sysAvailable = IsMetricAvailableForDevice_(intro, PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId);
+            const auto sysFreqAvailable = IsMetricAvailableForDevice_(intro, PM_METRIC_CPU_FREQUENCY, ipc::kSystemDeviceId);
+            const auto gpuChoice = pmon::tests::SelectAndLogGpuMetric(
+                intro,
+                TargetDeviceID,
+                "InterimBroadcasterTests.NewActivationIsolationTests.SystemOnlyLeavesGpuEmpty");
+            const auto sysSize = sysAvailable ? sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION)[0].Size() : 0ull;
+            const auto sysFreqSize = sysFreqAvailable ? sys.telemetryData.FindRing<double>(PM_METRIC_CPU_FREQUENCY)[0].Size() : 0ull;
+            const auto gpuSize = gpuChoice.introspectionAvailable ? gpu.telemetryData.FindRing<double>(gpuChoice.metric)[0].Size() : 0ull;
             Logger::WriteMessage(std::format(
-                "SystemOnlyLeavesGpuEmpty: sizes cpu_util={} cpu_freq={} gpu_temp={}\n",
-                sysSize, sysFreqSize, gpuSize).c_str());
+                "SystemOnlyLeavesGpuEmpty: sizes cpu_util={} cpu_freq={} {}={}\n",
+                sysSize, sysFreqSize, gpuChoice.symbol, gpuSize).c_str());
             machine::MeasurementSet measurements{ "InterimBroadcasterTests.NewActivationIsolationTests.SystemOnlyLeavesGpuEmpty" };
-            if (!IsMetricAvailableForDevice_(intro, PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId)) {
+            measurements.AddGpuIdentity(TargetDeviceID, intro.FindDevice(TargetDeviceID).GetName());
+            if (!sysAvailable) {
                 measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_UTILIZATION");
             }
             else if (sysSize == 0) {
                 measurements.AddSystemUnavailable("PM_METRIC_CPU_UTILIZATION");
             }
             else {
+                auto& sysRings = sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION);
                 logRing("cpu_util", sysRings[0]);
                 const auto range = sysRings[0].GetSerialRange();
                 measurements.AddSystem("PM_METRIC_CPU_UTILIZATION", sysRings[0].At(range.second - 1).value);
             }
-            if (!IsMetricAvailableForDevice_(intro, PM_METRIC_CPU_FREQUENCY, ipc::kSystemDeviceId)) {
+            if (!sysFreqAvailable) {
                 measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_FREQUENCY");
             }
             else if (sysFreqSize == 0) {
                 measurements.AddSystemUnavailable("PM_METRIC_CPU_FREQUENCY");
             }
             else {
+                auto& sysFreqRings = sys.telemetryData.FindRing<double>(PM_METRIC_CPU_FREQUENCY);
                 logRing("cpu_freq", sysFreqRings[0]);
                 const auto range = sysFreqRings[0].GetSerialRange();
                 measurements.AddSystem("PM_METRIC_CPU_FREQUENCY", sysFreqRings[0].At(range.second - 1).value);
             }
-            if (gpuSize != 0) {
-                logRing("gpu_temp", gpuRings[0]);
+            if (!gpuChoice.introspectionAvailable) {
+                measurements.AddGpuIntrospectionUnavailable(TargetDeviceID, gpuChoice.symbol);
+            }
+            else if (gpuSize != 0) {
+                auto& gpuRings = gpu.telemetryData.FindRing<double>(gpuChoice.metric);
+                logRing(gpuChoice.symbol, gpuRings[0]);
             }
             measurements.AppendToSharedFile();
             const auto expectations = machine::ExpectationStore::Load();
-            if (expectations.HasUnavailableExpectation(measurements)) {
-                return;
-            }
             expectations.AssertMeasurements(measurements);
             Assert::AreEqual(0ull, gpuSize,
-                std::format(L"Expected gpu temperature ring size == 0, got {}", gpuSize).c_str());
+                std::format(L"Expected selected GPU metric ring size == 0, got {}", gpuSize).c_str());
         }
         TEST_METHOD(GpuOnlyLeavesSystemEmpty)
         {
@@ -817,16 +814,24 @@ namespace InterimBroadcasterTests
 
             const uint32_t TargetDeviceID = 1;
 
-            client.DispatchSync(svc::acts::ReportMetricUse::Params{ {
-                { PM_METRIC_GPU_TEMPERATURE, TargetDeviceID, 0 },
-                { PM_METRIC_GPU_POWER, TargetDeviceID, 0 },
-            } });
-            Logger::WriteMessage("GpuOnlyLeavesSystemEmpty: reported GPU temperature/power usage\n");
+            const auto gpuMetricChoices = pmon::tests::SelectAndLogGpuMetrics(
+                intro,
+                TargetDeviceID,
+                2,
+                "InterimBroadcasterTests.NewActivationIsolationTests.GpuOnlyLeavesSystemEmpty");
+            std::unordered_set<svc::acts::MetricUse> uses;
+            for (const auto& choice : gpuMetricChoices) {
+                if (choice.introspectionAvailable) {
+                    uses.insert({ choice.metric, TargetDeviceID, 0 });
+                }
+            }
+            client.DispatchSync(svc::acts::ReportMetricUse::Params{ std::move(uses) });
+            Logger::WriteMessage("GpuOnlyLeavesSystemEmpty: reported selected GPU metric usage\n");
 
             auto& sys = pComms->GetSystemDataStore();
             auto& gpu = pComms->GetGpuDataStore(TargetDeviceID);
 
-            std::this_thread::sleep_for(1500ms);
+            std::this_thread::sleep_for(machine::ScaleWait(1500ms));
             const auto logRing = [](const char* label, const ipc::SampleHistoryRing<double>& ring) {
                 const auto range = ring.GetSerialRange();
                 Logger::WriteMessage(std::format(
@@ -839,46 +844,46 @@ namespace InterimBroadcasterTests
                         label, s, sample.value, sample.timestamp).c_str());
                 }
             };
-            auto& gpuRings = gpu.telemetryData.FindRing<double>(PM_METRIC_GPU_TEMPERATURE);
-            auto& gpuPowerRings = gpu.telemetryData.FindRing<double>(PM_METRIC_GPU_POWER);
-            auto& sysRings = sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION);
-            const auto gpuSize = gpuRings[0].Size();
-            const auto gpuPowerSize = gpuPowerRings[0].Size();
-            const auto sysSize = sysRings[0].Size();
+            const auto sysAvailable = IsMetricAvailableForDevice_(intro, PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId);
+            std::map<PM_METRIC, size_t> gpuSizes;
+            for (const auto& choice : gpuMetricChoices) {
+                gpuSizes[choice.metric] = choice.introspectionAvailable ?
+                    gpu.telemetryData.FindRing<double>(choice.metric)[0].Size() : 0ull;
+            }
+            const auto sysSize = sysAvailable ? sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION)[0].Size() : 0ull;
+            for (const auto& choice : gpuMetricChoices) {
+                Logger::WriteMessage(std::format(
+                    "GpuOnlyLeavesSystemEmpty: size {}={}\n",
+                    choice.symbol, gpuSizes[choice.metric]).c_str());
+            }
             Logger::WriteMessage(std::format(
-                "GpuOnlyLeavesSystemEmpty: sizes gpu_temp={} gpu_power={} cpu_util={}\n",
-                gpuSize, gpuPowerSize, sysSize).c_str());
+                "GpuOnlyLeavesSystemEmpty: size cpu_util={}\n", sysSize).c_str());
             machine::MeasurementSet measurements{ "InterimBroadcasterTests.NewActivationIsolationTests.GpuOnlyLeavesSystemEmpty" };
-            if (!IsMetricAvailableForDevice_(intro, PM_METRIC_GPU_TEMPERATURE, TargetDeviceID)) {
-                measurements.AddGpuIntrospectionUnavailable(TargetDeviceID, "PM_METRIC_GPU_TEMPERATURE");
+            measurements.AddGpuIdentity(TargetDeviceID, intro.FindDevice(TargetDeviceID).GetName());
+            for (const auto& choice : gpuMetricChoices) {
+                const auto gpuSize = gpuSizes[choice.metric];
+                if (!choice.introspectionAvailable) {
+                    measurements.AddGpuIntrospectionUnavailable(TargetDeviceID, choice.symbol);
+                }
+                else if (gpuSize == 0) {
+                    measurements.AddGpuUnavailable(TargetDeviceID, choice.symbol);
+                }
+                else {
+                    auto& gpuRings = gpu.telemetryData.FindRing<double>(choice.metric);
+                    logRing(choice.symbol, gpuRings[0]);
+                    const auto range = gpuRings[0].GetSerialRange();
+                    measurements.AddGpu(TargetDeviceID, choice.symbol, gpuRings[0].At(range.second - 1).value);
+                }
             }
-            else if (gpuSize == 0) {
-                measurements.AddGpuUnavailable(TargetDeviceID, "PM_METRIC_GPU_TEMPERATURE");
+            if (!sysAvailable) {
+                measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_UTILIZATION");
             }
-            else {
-                logRing("gpu_temp", gpuRings[0]);
-                const auto range = gpuRings[0].GetSerialRange();
-                measurements.AddGpu(TargetDeviceID, "PM_METRIC_GPU_TEMPERATURE", gpuRings[0].At(range.second - 1).value);
-            }
-            if (!IsMetricAvailableForDevice_(intro, PM_METRIC_GPU_POWER, TargetDeviceID)) {
-                measurements.AddGpuIntrospectionUnavailable(TargetDeviceID, "PM_METRIC_GPU_POWER");
-            }
-            else if (gpuPowerSize == 0) {
-                measurements.AddGpuUnavailable(TargetDeviceID, "PM_METRIC_GPU_POWER");
-            }
-            else {
-                logRing("gpu_power", gpuPowerRings[0]);
-                const auto range = gpuPowerRings[0].GetSerialRange();
-                measurements.AddGpu(TargetDeviceID, "PM_METRIC_GPU_POWER", gpuPowerRings[0].At(range.second - 1).value);
-            }
-            if (sysSize != 0) {
+            else if (sysSize != 0) {
+                auto& sysRings = sys.telemetryData.FindRing<double>(PM_METRIC_CPU_UTILIZATION);
                 logRing("cpu_util", sysRings[0]);
             }
             measurements.AppendToSharedFile();
             const auto expectations = machine::ExpectationStore::Load();
-            if (expectations.HasUnavailableExpectation(measurements)) {
-                return;
-            }
             expectations.AssertMeasurements(measurements);
             Assert::AreEqual(0ull, sysSize,
                 std::format(L"Expected cpu utilization ring size == 0, got {}", sysSize).c_str());
@@ -982,16 +987,15 @@ namespace InterimBroadcasterTests
             pComms->OpenFrameDataStore(pres.GetId());
             auto& frames = pComms->GetFrameDataStore(pres.GetId()).frameData;
 
-            // sleep here to let the presenter init, etw system warm up, and frames propagate
-            std::this_thread::sleep_for(550ms);
+            pmon::tests::WaitForFirstFrame(frames, "realtime-read");
 
             // verify that frames are added over time
             const auto range1 = frames.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
-            std::this_thread::sleep_for(100ms);
+            std::this_thread::sleep_for(machine::ScaleWait(100ms));
             const auto range2 = frames.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
-            std::this_thread::sleep_for(100ms);
+            std::this_thread::sleep_for(machine::ScaleWait(100ms));
             const auto range3 = frames.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
 
@@ -1027,7 +1031,7 @@ namespace InterimBroadcasterTests
             pComms->OpenFrameDataStore(pres.GetId());
             auto& ring = pComms->GetFrameDataStore(pres.GetId()).frameData;
 
-            std::this_thread::sleep_for(200ms);
+            pmon::tests::WaitForFirstFrame(ring, "rt-wrap-no-miss");
 
             size_t lastProcessed = 0;
             bool missed = false;
@@ -1138,11 +1142,9 @@ namespace InterimBroadcasterTests
             // open the store
             pComms->OpenFrameDataStore(pid);
 
-            // wait for population of frame data-initialized statics
-            std::this_thread::sleep_for(500ms);
-
             // verify static data
             auto& store = pComms->GetFrameDataStore(pid);
+            pmon::tests::WaitForFirstFrame(store.frameData, "paced-playback-static");
             Assert::AreEqual(pid, store.bookkeeping.processId);
             const std::string staticAppName = store.statics.applicationName.c_str();
             Assert::AreEqual("Heaven.exe"s, staticAppName);
@@ -1165,16 +1167,15 @@ namespace InterimBroadcasterTests
             pComms->OpenFrameDataStore(pid);
             auto& frames = pComms->GetFrameDataStore(pid).frameData;
 
-            // sleep here to let the etw system warm up, and frames propagate
-            std::this_thread::sleep_for(450ms);
+            pmon::tests::WaitForFirstFrame(frames, "paced-playback-read");
 
             // verify that frames are added over time
             const auto range1 = frames.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
-            std::this_thread::sleep_for(100ms);
+            std::this_thread::sleep_for(machine::ScaleWait(100ms));
             const auto range2 = frames.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
-            std::this_thread::sleep_for(100ms);
+            std::this_thread::sleep_for(machine::ScaleWait(100ms));
             const auto range3 = frames.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
 
@@ -1210,11 +1211,9 @@ namespace InterimBroadcasterTests
             // open the store
             pComms->OpenFrameDataStore(pid);
 
-            // wait for population of frame data-initialized statics
-            std::this_thread::sleep_for(500ms);
-
             // verify static data
             auto& store = pComms->GetFrameDataStore(pid);
+            pmon::tests::WaitForFirstFrame(store.frameData, "backpressured-playback-static");
             Assert::AreEqual(pid, store.bookkeeping.processId);
             const std::string staticAppName = store.statics.applicationName.c_str();
             Assert::AreEqual("Heaven.exe"s, staticAppName);
@@ -1264,7 +1263,7 @@ namespace InterimBroadcasterTests
                 .nextReadSerial = range1.second,
             });
 
-            std::this_thread::sleep_for(300ms);
+            std::this_thread::sleep_for(machine::ScaleWait(300ms));
 
             const auto range2 = ring.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
@@ -1274,7 +1273,7 @@ namespace InterimBroadcasterTests
                 .nextReadSerial = range2.second,
             });
 
-            std::this_thread::sleep_for(500ms);
+            std::this_thread::sleep_for(machine::ScaleWait(500ms));
 
             const auto range3 = ring.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
@@ -1342,7 +1341,7 @@ namespace InterimBroadcasterTests
             bool sawWrap = false;
 
             for (size_t i = 0; i < 10; ++i) {
-                std::this_thread::sleep_for(300ms);
+                std::this_thread::sleep_for(machine::ScaleWait(300ms));
                 const auto range = ring.GetSerialRange();
                 Logger::WriteMessage(std::format(
                     "pb-wrap-backpressure: range [{}, {}), lastProcessed={}\n",
@@ -1420,12 +1419,12 @@ namespace InterimBroadcasterTests
             const auto count1 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count1).c_str());
 
-            std::this_thread::sleep_for(300ms);
+            std::this_thread::sleep_for(machine::ScaleWait(300ms));
 
             const auto count2 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count2).c_str());
 
-            std::this_thread::sleep_for(500ms);
+            std::this_thread::sleep_for(machine::ScaleWait(500ms));
 
             const auto count3 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count3).c_str());
@@ -1497,12 +1496,12 @@ namespace InterimBroadcasterTests
             const auto count1 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count1).c_str());
 
-            std::this_thread::sleep_for(300ms);
+            std::this_thread::sleep_for(machine::ScaleWait(300ms));
 
             const auto count2 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count2).c_str());
 
-            std::this_thread::sleep_for(500ms);
+            std::this_thread::sleep_for(machine::ScaleWait(500ms));
 
             const auto count3 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count3).c_str());

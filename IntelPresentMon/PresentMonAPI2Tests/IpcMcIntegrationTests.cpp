@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
+#include "FirstFrameWait.h"
+#include "GpuMetricSelection.h"
 #include "TestProcess.h"
 #include "Folders.h"
 #include "MachineExpectations.h"
@@ -87,6 +89,11 @@ namespace IpcMcIntegrationTests
     static std::string GetVendorName_(const pmapi::intro::Root& intro, PM_DEVICE_VENDOR vendor)
     {
         return intro.FindEnumKey(PM_ENUM_DEVICE_VENDOR, (int)vendor).GetName();
+    }
+
+    static std::string GetDeviceName_(const pmapi::intro::Root& intro, uint32_t deviceId)
+    {
+        return intro.FindDevice(deviceId).GetName();
     }
 
     static std::vector<PM_QUERY_ELEMENT> BuildStaticFrameQueryElements_(uint32_t gpuDeviceId)
@@ -205,15 +212,12 @@ namespace IpcMcIntegrationTests
 
     static std::optional<PM_METRIC> FindGpuDynamicMetric_(const pmapi::intro::Root& intro, uint32_t gpuDeviceId)
     {
-        static constexpr PM_METRIC preferredMetrics[] = {
-            PM_METRIC_GPU_UTILIZATION,
-            PM_METRIC_GPU_TEMPERATURE,
-            PM_METRIC_GPU_POWER,
-        };
-        for (const auto metric : preferredMetrics) {
-            if (IsMetricAvailableForDevice_(intro, metric, gpuDeviceId, 0)) {
-                return metric;
-            }
+        if (const auto choice = pmon::tests::SelectAndLogGpuMetric(
+            intro,
+            gpuDeviceId,
+            "IpcMcIntegrationTests.FindGpuDynamicMetric");
+            choice.introspectionAvailable) {
+            return choice.metric;
         }
         for (auto metric : intro.GetMetrics()) {
             if (metric.GetType() != PM_METRIC_TYPE_DYNAMIC &&
@@ -331,6 +335,10 @@ namespace IpcMcIntegrationTests
             session.SetEtwFlushPeriod(8);
             std::this_thread::sleep_for(1ms);
             auto tracker = session.TrackProcess(presenter.GetId());
+            pmon::tests::WaitForFirstFrame(
+                fixture_.GetCommonArgs().ctrlPipe,
+                presenter.GetId(),
+                "ipcmc-universal-frame-query");
 
             auto blobs = query.MakeBlobContainer(16);
             bool gotFrames = false;
@@ -368,6 +376,10 @@ namespace IpcMcIntegrationTests
             session.SetEtwFlushPeriod(8);
             std::this_thread::sleep_for(1ms);
             auto tracker = session.TrackProcess(presenter.GetId());
+            pmon::tests::WaitForFirstFrame(
+                fixture_.GetCommonArgs().ctrlPipe,
+                presenter.GetId(),
+                "ipcmc-static-frame-query");
 
             auto blobs = query.MakeBlobContainer(16);
             bool gotFrames = false;
@@ -408,6 +420,7 @@ namespace IpcMcIntegrationTests
             const auto appName = std::string(reinterpret_cast<const char*>(firstBlob + (size_t)appNameElement->dataOffset));
 
             machine::MeasurementSet measurements{ "IpcMcIntegrationTests.IpcMcIntegrationTests.FrameQueryStaticMetricsAreFilled" };
+            measurements.AddGpuIdentity(*gpuDeviceId, GetDeviceName_(*intro, *gpuDeviceId));
             if (cpuName.empty()) {
                 IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_NAME, ipc::kSystemDeviceId) ?
                     measurements.AddSystemUnavailable("PM_METRIC_CPU_NAME") :
@@ -450,9 +463,6 @@ namespace IpcMcIntegrationTests
             }
             measurements.AppendToSharedFile();
             const auto expectations = machine::ExpectationStore::Load();
-            if (expectations.HasUnavailableExpectation(measurements)) {
-                return;
-            }
             expectations.AssertMeasurements(measurements);
             Assert::IsTrue(appName == "PresentBench.exe", L"Unexpected application name");
         }
@@ -493,6 +503,7 @@ namespace IpcMcIntegrationTests
             Logger::WriteMessage(std::format("Application name: {}\n", appName).c_str());
 
             machine::MeasurementSet measurements{ "IpcMcIntegrationTests.IpcMcIntegrationTests.StaticQueryReturnsExpectedValues" };
+            measurements.AddGpuIdentity(*gpuDeviceId, GetDeviceName_(*intro, *gpuDeviceId));
             if (cpuName.empty()) {
                 IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_NAME, ipc::kSystemDeviceId) ?
                     measurements.AddSystemUnavailable("PM_METRIC_CPU_NAME") :
@@ -535,9 +546,6 @@ namespace IpcMcIntegrationTests
             }
             measurements.AppendToSharedFile();
             const auto expectations = machine::ExpectationStore::Load();
-            if (expectations.HasUnavailableExpectation(measurements)) {
-                return;
-            }
             expectations.AssertMeasurements(measurements);
             Assert::IsTrue(appName == "PresentBench.exe", L"Unexpected application name");
         }
@@ -551,31 +559,36 @@ namespace IpcMcIntegrationTests
             const auto gpuDeviceId = FindFirstGpuDeviceId_(*intro);
             Assert::IsTrue(gpuDeviceId.has_value(), L"No GPU device found");
 
-            std::vector<PM_QUERY_ELEMENT> elements{
-                PM_QUERY_ELEMENT{
+            const auto gpuMetricChoices = pmon::tests::SelectAndLogGpuMetrics(
+                *intro,
+                *gpuDeviceId,
+                2,
+                "IpcMcIntegrationTests.DynamicQueryWithoutTrackedProcessPollsNonFrameMetrics");
+
+            std::vector<PM_QUERY_ELEMENT> elements;
+            if (IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId)) {
+                elements.push_back(PM_QUERY_ELEMENT{
                     .metric = PM_METRIC_CPU_UTILIZATION,
                     .stat = PM_STAT_AVG,
                     .deviceId = ipc::kSystemDeviceId,
                     .arrayIndex = 0,
                     .dataOffset = 0,
                     .dataSize = 0,
-                },
-                PM_QUERY_ELEMENT{
-                    .metric = PM_METRIC_GPU_TEMPERATURE,
-                    .stat = PM_STAT_AVG,
-                    .deviceId = *gpuDeviceId,
-                    .arrayIndex = 0,
-                    .dataOffset = 0,
-                    .dataSize = 0,
-                },
-                PM_QUERY_ELEMENT{
-                    .metric = PM_METRIC_GPU_POWER,
-                    .stat = PM_STAT_AVG,
-                    .deviceId = *gpuDeviceId,
-                    .arrayIndex = 0,
-                    .dataOffset = 0,
-                    .dataSize = 0,
-                },
+                    });
+            }
+            for (const auto& choice : gpuMetricChoices) {
+                if (choice.introspectionAvailable) {
+                    elements.push_back(PM_QUERY_ELEMENT{
+                        .metric = choice.metric,
+                        .stat = PM_STAT_AVG,
+                        .deviceId = *gpuDeviceId,
+                        .arrayIndex = 0,
+                        .dataOffset = 0,
+                        .dataSize = 0,
+                        });
+                }
+            }
+            elements.insert(elements.end(), {
                 PM_QUERY_ELEMENT{
                     .metric = PM_METRIC_CPU_NAME,
                     .stat = PM_STAT_NONE,
@@ -584,18 +597,9 @@ namespace IpcMcIntegrationTests
                     .dataOffset = 0,
                     .dataSize = 0,
                 },
-                PM_QUERY_ELEMENT{
-                    .metric = PM_METRIC_GPU_NAME,
-                    .stat = PM_STAT_NONE,
-                    .deviceId = *gpuDeviceId,
-                    .arrayIndex = 0,
-                    .dataOffset = 0,
-                    .dataSize = 0,
-                },
-            };
+            });
 
-            Logger::WriteMessage(std::format(
-                "Polling pid=0 with metrics: cpu_utilization, cpu_name, gpu_temperature, gpu_power, gpu_name\n").c_str());
+            Logger::WriteMessage("Polling pid=0 with selected GPU non-frame metrics\n");
 
             session.SetTelemetryPollingPeriod(ipc::kSystemDeviceId, 50);
             session.SetTelemetryPollingPeriod(*gpuDeviceId, 50);
@@ -604,15 +608,13 @@ namespace IpcMcIntegrationTests
             auto blobs = query.MakeBlobContainer(4);
             const auto* cpuNameElement = FindQueryElement_(elements, PM_METRIC_CPU_NAME, ipc::kSystemDeviceId);
             Assert::IsTrue(cpuNameElement != nullptr, L"CPU name static element missing");
-            const auto* gpuNameElement = FindQueryElement_(elements, PM_METRIC_GPU_NAME, *gpuDeviceId);
-            Assert::IsTrue(gpuNameElement != nullptr, L"GPU name static element missing");
 
             bool gotBlob = false;
             uint32_t pollsWithData = 0;
             uint32_t pollCount = 0;
             std::string cpuName;
-            std::string gpuName;
-            const auto runDuration = 1500ms;
+            const std::string gpuName = GetDeviceName_(*intro, *gpuDeviceId);
+            const auto runDuration = machine::ScaleWait(1500ms);
             const auto pollPeriod = 50ms;
             const auto start = std::chrono::steady_clock::now();
             auto nextPollTime = start;
@@ -627,7 +629,6 @@ namespace IpcMcIntegrationTests
                     Logger::WriteMessage("Poll data:\n");
                     LogDynamicQueryResults_(*intro, elements, blobs[0]);
                     cpuName = std::string(reinterpret_cast<const char*>(blobs[0] + (size_t)cpuNameElement->dataOffset));
-                    gpuName = std::string(reinterpret_cast<const char*>(blobs[0] + (size_t)gpuNameElement->dataOffset));
                 }
                 nextPollTime += pollPeriod;
                 std::this_thread::sleep_until(nextPollTime);
@@ -637,20 +638,27 @@ namespace IpcMcIntegrationTests
                 "Polling summary: polls={}, polls_with_data={}\n", pollCount, pollsWithData).c_str());
 
             const auto* cpuUtilElement = FindQueryElement_(elements, PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId);
-            Assert::IsTrue(cpuUtilElement != nullptr, L"CPU utilization element missing");
-            const auto* gpuTempElement = FindQueryElement_(elements, PM_METRIC_GPU_TEMPERATURE, *gpuDeviceId);
-            Assert::IsTrue(gpuTempElement != nullptr, L"GPU temperature element missing");
-            const auto* gpuPowerElement = FindQueryElement_(elements, PM_METRIC_GPU_POWER, *gpuDeviceId);
-            Assert::IsTrue(gpuPowerElement != nullptr, L"GPU power element missing");
             machine::MeasurementSet measurements{ "IpcMcIntegrationTests.IpcMcIntegrationTests.DynamicQueryWithoutTrackedProcessPollsNonFrameMetrics" };
+            measurements.AddGpuIdentity(*gpuDeviceId, gpuName);
             if (gotBlob) {
                 const uint8_t* firstBlob = blobs[0];
-                measurements.AddSystem("PM_METRIC_CPU_UTILIZATION",
-                    *reinterpret_cast<const double*>(firstBlob + (size_t)cpuUtilElement->dataOffset));
-                measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_TEMPERATURE",
-                    *reinterpret_cast<const double*>(firstBlob + (size_t)gpuTempElement->dataOffset));
-                measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_POWER",
-                    *reinterpret_cast<const double*>(firstBlob + (size_t)gpuPowerElement->dataOffset));
+                if (cpuUtilElement != nullptr) {
+                    measurements.AddSystem("PM_METRIC_CPU_UTILIZATION",
+                        *reinterpret_cast<const double*>(firstBlob + (size_t)cpuUtilElement->dataOffset));
+                }
+                else {
+                    measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_UTILIZATION");
+                }
+                for (const auto& choice : gpuMetricChoices) {
+                    const auto* element = FindQueryElement_(elements, choice.metric, *gpuDeviceId);
+                    if (element != nullptr) {
+                        measurements.AddGpu(*gpuDeviceId, choice.symbol,
+                            *reinterpret_cast<const double*>(firstBlob + (size_t)element->dataOffset));
+                    }
+                    else {
+                        measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, choice.symbol);
+                    }
+                }
                 if (cpuName.empty()) {
                     IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_NAME, ipc::kSystemDeviceId) ?
                         measurements.AddSystemUnavailable("PM_METRIC_CPU_NAME") :
@@ -659,40 +667,25 @@ namespace IpcMcIntegrationTests
                 else {
                     measurements.AddSystem("PM_METRIC_CPU_NAME", cpuName);
                 }
-                if (gpuName.empty()) {
-                    IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_NAME, *gpuDeviceId) ?
-                        measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME") :
-                        measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME");
-                }
-                else {
-                    measurements.AddGpu(*gpuDeviceId, "PM_METRIC_GPU_NAME", gpuName);
-                }
             }
             else {
                 IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId) ?
                     measurements.AddSystemUnavailable("PM_METRIC_CPU_UTILIZATION") :
                     measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_UTILIZATION");
-                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_TEMPERATURE, *gpuDeviceId) ?
-                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_TEMPERATURE") :
-                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_TEMPERATURE");
-                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_POWER, *gpuDeviceId) ?
-                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_POWER") :
-                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_POWER");
+                for (const auto& choice : gpuMetricChoices) {
+                    choice.introspectionAvailable ?
+                        measurements.AddGpuUnavailable(*gpuDeviceId, choice.symbol) :
+                        measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, choice.symbol);
+                }
                 IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_NAME, ipc::kSystemDeviceId) ?
                     measurements.AddSystemUnavailable("PM_METRIC_CPU_NAME") :
                     measurements.AddSystemIntrospectionUnavailable("PM_METRIC_CPU_NAME");
-                IsMetricAvailableForDevice_(*intro, PM_METRIC_GPU_NAME, *gpuDeviceId) ?
-                    measurements.AddGpuUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME") :
-                    measurements.AddGpuIntrospectionUnavailable(*gpuDeviceId, "PM_METRIC_GPU_NAME");
             }
             measurements.AppendToSharedFile();
             const auto expectations = machine::ExpectationStore::Load();
-            if (expectations.HasUnavailableExpectation(measurements)) {
-                return;
-            }
             expectations.AssertMeasurements(measurements);
             Logger::WriteMessage(std::format("Polled CPU name (pid=0): {}\n", cpuName).c_str());
-            Logger::WriteMessage(std::format("Polled GPU name (pid=0): {}\n", gpuName).c_str());
+            Logger::WriteMessage(std::format("Introspected GPU name (pid=0): {}\n", gpuName).c_str());
         }
 
         TEST_METHOD(DynamicQueryWithoutTrackedProcessRejectsFrameMetric)
@@ -704,43 +697,40 @@ namespace IpcMcIntegrationTests
             const auto gpuDeviceId = FindFirstGpuDeviceId_(*intro);
             Assert::IsTrue(gpuDeviceId.has_value(), L"No GPU device found");
 
-            std::vector<PM_QUERY_ELEMENT> elements{
-                PM_QUERY_ELEMENT{
+            const auto gpuMetricChoices = pmon::tests::SelectAndLogGpuMetrics(
+                *intro,
+                *gpuDeviceId,
+                2,
+                "IpcMcIntegrationTests.DynamicQueryWithoutTrackedProcessRejectsFrameMetric");
+
+            std::vector<PM_QUERY_ELEMENT> elements;
+            if (IsMetricAvailableForDevice_(*intro, PM_METRIC_CPU_UTILIZATION, ipc::kSystemDeviceId)) {
+                elements.push_back(PM_QUERY_ELEMENT{
                     .metric = PM_METRIC_CPU_UTILIZATION,
                     .stat = PM_STAT_AVG,
                     .deviceId = ipc::kSystemDeviceId,
                     .arrayIndex = 0,
                     .dataOffset = 0,
                     .dataSize = 0,
-                },
-                PM_QUERY_ELEMENT{
-                    .metric = PM_METRIC_GPU_TEMPERATURE,
-                    .stat = PM_STAT_AVG,
-                    .deviceId = *gpuDeviceId,
-                    .arrayIndex = 0,
-                    .dataOffset = 0,
-                    .dataSize = 0,
-                },
-                PM_QUERY_ELEMENT{
-                    .metric = PM_METRIC_GPU_POWER,
-                    .stat = PM_STAT_AVG,
-                    .deviceId = *gpuDeviceId,
-                    .arrayIndex = 0,
-                    .dataOffset = 0,
-                    .dataSize = 0,
-                },
+                    });
+            }
+            for (const auto& choice : gpuMetricChoices) {
+                if (choice.introspectionAvailable) {
+                    elements.push_back(PM_QUERY_ELEMENT{
+                        .metric = choice.metric,
+                        .stat = PM_STAT_AVG,
+                        .deviceId = *gpuDeviceId,
+                        .arrayIndex = 0,
+                        .dataOffset = 0,
+                        .dataSize = 0,
+                        });
+                }
+            }
+            elements.insert(elements.end(), {
                 PM_QUERY_ELEMENT{
                     .metric = PM_METRIC_CPU_NAME,
                     .stat = PM_STAT_NONE,
                     .deviceId = ipc::kSystemDeviceId,
-                    .arrayIndex = 0,
-                    .dataOffset = 0,
-                    .dataSize = 0,
-                },
-                PM_QUERY_ELEMENT{
-                    .metric = PM_METRIC_GPU_NAME,
-                    .stat = PM_STAT_NONE,
-                    .deviceId = *gpuDeviceId,
                     .arrayIndex = 0,
                     .dataOffset = 0,
                     .dataSize = 0,
@@ -753,7 +743,7 @@ namespace IpcMcIntegrationTests
                     .dataOffset = 0,
                     .dataSize = 0,
                 },
-            };
+            });
 
             Logger::WriteMessage(
                 "Polling pid=0 with metrics including frame data: cpu_frame_time\n");
