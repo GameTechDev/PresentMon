@@ -5,6 +5,12 @@
     </Fragment>
     <Fragment>
         <ComponentGroup Id="CefBinaries">
+            <Component Id="bootstrap.exe" Directory="pm_app_folder" Guid="*">
+                <File Id="bootstrap.exe" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\bootstrap.exe" />
+            </Component>
+            <Component Id="bootstrapc.exe" Directory="pm_app_folder" Guid="*">
+                <File Id="bootstrapc.exe" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\bootstrapc.exe" />
+            </Component>
             <Component Id="chrome_elf.dll" Directory="pm_app_folder" Guid="*">
                 <File Id="chrome_elf.dll" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\chrome_elf.dll" />
             </Component>
