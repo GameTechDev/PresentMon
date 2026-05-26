@@ -15,6 +15,20 @@ if (-not $GitHubToken) {
 }
 $Headers = @{ Authorization = "Bearer $GitHubToken" }
 
+function Get-GitOutputText {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    $output = & git @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        return $null
+    }
+
+    return ([string]$output).Trim()
+}
+
 # Preserve original location; resolve paths
 $origLocation = Get-Location
 try {
@@ -47,7 +61,7 @@ try {
     $lockFilePath = Join-Path $MainRepoPath $LockFile
     if (-not (Test-Path $lockFilePath)) {
         Write-Warning "Lock file not found. Bootstrapping from origin/master..."
-        $seedCommit = (git rev-parse origin/master).Trim()
+        $seedCommit = Get-GitOutputText -Arguments @("rev-parse", "origin/master")
         if (-not $seedCommit) { Write-Error "Failed to resolve origin/master for bootstrap."; exit 1 }
         $lock = @{ pinnedCommitHash = $seedCommit }
         $lock | ConvertTo-Json -Depth 3 | Set-Content -Path $lockFilePath
@@ -56,18 +70,22 @@ try {
     }
 
     # Push only from the head of master. Never reset the worktree; local changes are the data to commit.
-    $currentBranch = (git branch --show-current).Trim()
-    if ($LASTEXITCODE -ne 0) {
+    $currentBranch = Get-GitOutputText -Arguments @("branch", "--show-current")
+    if ($null -eq $currentBranch) {
         Write-Error "Failed to determine current AuxData branch."
         exit 1
     }
-    $currentHead = (git rev-parse HEAD).Trim()
-    if ($LASTEXITCODE -ne 0) {
+    if (-not $currentBranch) {
+        Write-Error "AuxData is in a detached HEAD state. Checkout master before running this script."
+        exit 1
+    }
+    $currentHead = Get-GitOutputText -Arguments @("rev-parse", "HEAD")
+    if (-not $currentHead) {
         Write-Error "Failed to determine current AuxData commit."
         exit 1
     }
-    $masterHead = (git rev-parse master).Trim()
-    if ($LASTEXITCODE -ne 0) {
+    $masterHead = Get-GitOutputText -Arguments @("rev-parse", "master")
+    if (-not $masterHead) {
         Write-Error "Failed to determine AuxData master commit."
         exit 1
     }
@@ -190,7 +208,11 @@ try {
         }
 
         # Current HEAD (after potential commit/push)
-        $currentHead = (git rev-parse HEAD).Trim()
+        $currentHead = Get-GitOutputText -Arguments @("rev-parse", "HEAD")
+        if (-not $currentHead) {
+            Write-Error "Failed to determine current AuxData commit for release."
+            exit 1
+        }
 
         # Create new GitHub release for the ETLs (tag pointing to the new commit)
         $releaseUrl = "https://api.github.com/repos/$Owner/$Repo/releases"
