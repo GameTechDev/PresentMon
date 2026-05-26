@@ -12,6 +12,8 @@
 #include "wmi/WmiTelemetryProvider.h"
 #include "../CommonUtilities/Exception.h"
 #include "../CommonUtilities/Qpc.h"
+#include "../CommonUtilities/win/Privileges.h"
+#include "../CommonUtilities/win/WinAPI.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../Interprocess/source/metadata/MetricList.h"
@@ -49,6 +51,22 @@ namespace pmon::tel
         const char* GetDeviceNameOrUnknown_(const TelemetryDeviceFingerprint& fingerprint) noexcept
         {
             return fingerprint.deviceName.empty() ? "UNKNOWN_GPU" : fingerprint.deviceName.c_str();
+        }
+
+        bool CanLoadUciProvider_() noexcept
+        {
+            if (!util::win::WeAreElevated()) {
+                pmlog_dbg("UCI telemetry provider disabled because service is not elevated");
+                return false;
+            }
+
+            if (LoadLibraryW(L"unified-collector-interface.dll") == nullptr) {
+                pmlog_dbg("UCI telemetry provider unavailable because unified-collector-interface.dll is not present")
+                    .pmwatch(GetLastError());
+                return false;
+            }
+
+            return true;
         }
 
     }
@@ -302,9 +320,11 @@ namespace pmon::tel
         tryAddProvider.operator()<wmi::WmiTelemetryProvider>(
             "WMI telemetry provider unavailable",
             "WMI telemetry provider construction failed");
-        tryAddProvider.operator()<uci::UciTelemetryProvider>(
-            "UCI telemetry provider unavailable",
-            "UCI telemetry provider construction failed");
+        if (CanLoadUciProvider_()) {
+            tryAddProvider.operator()<uci::UciTelemetryProvider>(
+                "UCI telemetry provider unavailable",
+                "UCI telemetry provider construction failed");
+        }
         tryAddProvider.operator()<adl::AdlTelemetryProvider>(
             "ADL telemetry provider unavailable",
             "ADL telemetry provider construction failed");
