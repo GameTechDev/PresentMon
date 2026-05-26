@@ -551,7 +551,7 @@ namespace InterimBroadcasterTests
                 TargetDeviceID,
                 2,
                 "InterimBroadcasterTests.GpuStoreTests.PolledData");
-            std::unordered_set<svc::acts::MetricUse> uses;
+            std::unordered_set<svc::MetricUse> uses;
             for (const auto& choice : metricChoices) {
                 if (choice.introspectionAvailable) {
                     uses.insert({ choice.metric, TargetDeviceID, 0 });
@@ -819,7 +819,7 @@ namespace InterimBroadcasterTests
                 TargetDeviceID,
                 2,
                 "InterimBroadcasterTests.NewActivationIsolationTests.GpuOnlyLeavesSystemEmpty");
-            std::unordered_set<svc::acts::MetricUse> uses;
+            std::unordered_set<svc::MetricUse> uses;
             for (const auto& choice : gpuMetricChoices) {
                 if (choice.introspectionAvailable) {
                     uses.insert({ choice.metric, TargetDeviceID, 0 });
