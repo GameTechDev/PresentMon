@@ -16,7 +16,7 @@
 #include <vector>
 #include "Folders.h"
 #include "JobManager.h"
-#include "MachineExpectations.h"
+#include "../CommonUtilities/test/MachineExpectations.h"
 
 #include "../PresentMonMiddleware/ActionClient.h"
 #include "../Interprocess/source/Interprocess.h"
@@ -37,7 +37,7 @@ namespace vi = std::views;
 namespace rn = std::ranges;
 using namespace std::literals;
 using namespace pmon;
-namespace machine = pmon::tests::machine;
+namespace machine = pmon::util::test;
 
 namespace InterimBroadcasterTests
 {

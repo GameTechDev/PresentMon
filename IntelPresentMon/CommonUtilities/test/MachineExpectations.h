@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
-#include "CppUnitTest.h"
 #include <cstdint>
 #include <chrono>
 #include <map>
@@ -10,8 +9,10 @@
 #include <string>
 #include <vector>
 
-namespace pmon::tests::machine
+namespace pmon::util::test
 {
+    static constexpr const char* MachineExpectationOutputFolder = "TestOutput\\MachineExpectations";
+
     struct MetricExpectation
     {
         bool expectedAvailable = true;

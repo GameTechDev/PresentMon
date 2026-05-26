@@ -48,7 +48,7 @@
     <ClCompile Include="PacedFrameTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MachineExpectations.cpp">
+    <ClCompile Include="..\CommonUtilities\test\MachineExpectations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -86,9 +86,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Logging.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="MachineExpectations.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

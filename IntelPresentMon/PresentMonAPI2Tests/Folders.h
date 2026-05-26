@@ -46,11 +46,6 @@ namespace IpcMcIntegrationTests
 	static constexpr const char* logFolder_ = "TestLogs\\IpcMcIntegration";
 }
 
-namespace MachineExpectations
-{
-	static constexpr const char* outFolder_ = "TestOutput\\MachineExpectations";
-}
-
 namespace RealtimeMetricTests
 {
 	static constexpr const char* logFolder_ = "TestLogs\\RealtimeMetric";

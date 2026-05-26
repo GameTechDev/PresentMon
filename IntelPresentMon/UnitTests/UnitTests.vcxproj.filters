@@ -8,5 +8,6 @@
     <ClCompile Include="MetricsCore.cpp" />
     <ClCompile Include="SwapChainTests.cpp" />
     <ClCompile Include="Timing.cpp" />
+    <ClCompile Include="..\CommonUtilities\test\MachineExpectations.cpp" />
   </ItemGroup>
 </Project>

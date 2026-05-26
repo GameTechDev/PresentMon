@@ -6,7 +6,7 @@
 #include "GpuMetricSelection.h"
 #include "TestProcess.h"
 #include "Folders.h"
-#include "MachineExpectations.h"
+#include "../CommonUtilities/test/MachineExpectations.h"
 
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include "../Interprocess/source/SystemDeviceId.h"
@@ -26,7 +26,7 @@ namespace IpcMcIntegrationTests
 {
     namespace ipc = pmon::ipc;
     namespace util = pmon::util;
-    namespace machine = pmon::tests::machine;
+    namespace machine = pmon::util::test;
 
     class TestFixture : public CommonTestFixture
     {

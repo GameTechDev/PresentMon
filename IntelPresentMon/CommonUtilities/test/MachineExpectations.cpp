@@ -1,8 +1,8 @@
 // Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MachineExpectations.h"
-#include "Folders.h"
-#include "../CommonUtilities/str/String.h"
+#include "../str/String.h"
+#include "CppUnitTest.h"
 #include <algorithm>
 #include <cassert>
 #include <cctype>
@@ -19,7 +19,7 @@
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
-namespace pmon::tests::machine
+namespace pmon::util::test
 {
     namespace fs = std::filesystem;
 
@@ -55,7 +55,7 @@ namespace pmon::tests::machine
 
             void SkipWs_()
             {
-                while (pos_ < text_.size() && std::isspace(static_cast<unsigned char>(text_[pos_]))) {
+                while (pos_ < text_.size() && std::isspace((unsigned char)text_[pos_])) {
                     ++pos_;
                 }
             }
@@ -181,12 +181,12 @@ namespace pmon::tests::machine
                 if (pos_ < text_.size() && text_[pos_] == '-') {
                     ++pos_;
                 }
-                while (pos_ < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_]))) {
+                while (pos_ < text_.size() && std::isdigit((unsigned char)text_[pos_])) {
                     ++pos_;
                 }
                 if (pos_ < text_.size() && text_[pos_] == '.') {
                     ++pos_;
-                    while (pos_ < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_]))) {
+                    while (pos_ < text_.size() && std::isdigit((unsigned char)text_[pos_])) {
                         ++pos_;
                     }
                 }
@@ -195,7 +195,7 @@ namespace pmon::tests::machine
                     if (pos_ < text_.size() && (text_[pos_] == '+' || text_[pos_] == '-')) {
                         ++pos_;
                     }
-                    while (pos_ < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_]))) {
+                    while (pos_ < text_.size() && std::isdigit((unsigned char)text_[pos_])) {
                         ++pos_;
                     }
                 }
@@ -276,7 +276,7 @@ namespace pmon::tests::machine
 
         fs::path GetOutputFolder_()
         {
-            return fs::path{ ::MachineExpectations::outFolder_ };
+            return fs::path{ MachineExpectationOutputFolder };
         }
 
         fs::path GetExpectationPath_()
@@ -429,7 +429,7 @@ namespace pmon::tests::machine
     std::chrono::milliseconds ScaleWait(std::chrono::milliseconds wait)
     {
         const auto scaled = wait.count() * GetWaitMultiplier();
-        return std::chrono::milliseconds{ (std::max)(int64_t{ 1 }, static_cast<int64_t>(std::ceil(scaled))) };
+        return std::chrono::milliseconds{ (std::max)(int64_t{ 1 }, (int64_t)std::ceil(scaled)) };
     }
 
     MeasurementSet::MeasurementSet(std::string testCase)
@@ -584,7 +584,7 @@ namespace pmon::tests::machine
                 uint32_t id = 0;
                 if (const auto idValue = Get_(*gpuObject, "device_id")) {
                     if (const auto number = AsNumber_(*idValue)) {
-                        id = static_cast<uint32_t>(*number);
+                        id = (uint32_t)*number;
                     }
                 }
                 if (const auto metrics = Get_(*gpuObject, "metrics")) {
@@ -605,7 +605,7 @@ namespace pmon::tests::machine
                     uint32_t id = 0;
                     if (const auto idValue = Get_(*gpuObject, "device_id")) {
                         if (const auto number = AsNumber_(*idValue)) {
-                            id = static_cast<uint32_t>(*number);
+                            id = (uint32_t)*number;
                         }
                     }
                     if (const auto metrics = Get_(*gpuObject, "metrics")) {

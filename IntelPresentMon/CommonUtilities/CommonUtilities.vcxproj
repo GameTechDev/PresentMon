@@ -103,6 +103,7 @@
     <ClInclude Include="rng\PairToRange.h" />
     <ClInclude Include="str\String.h" />
     <ClInclude Include="test\FloatAssert.h" />
+    <ClInclude Include="test\MachineExpectations.h" />
     <ClInclude Include="third\reflect.hpp" />
     <ClInclude Include="win\com\Comdef.h" />
     <ClInclude Include="win\com\ComManager.h" />
@@ -197,6 +198,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="vcpkg.json" />
+    <None Include="test\MachineExpectations.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

@@ -5,6 +5,7 @@
 #include <CommonUtilities/PrecisionWaiter.h>
 #include <CommonUtilities/IntervalWaiter.h>
 #include <CommonUtilities/win/Handle.h>
+#include <CommonUtilities/test/MachineExpectations.h>
 #include <format>
 #include <chrono>
 #include <cmath>
@@ -21,10 +22,16 @@ namespace UtilityTests
 	using namespace std::literals;
 	using namespace pmon;
 
+	double ScaleTolerance(double tolerance)
+	{
+		return tolerance * util::test::GetWaitMultiplier();
+	}
+
 	void AssertWithinTolerance(double test, double expected, double tolerance)
 	{
+		const auto scaledTolerance = ScaleTolerance(tolerance);
 		const auto diff = test - expected;
-		Assert::IsTrue(diff <= tolerance, std::format(L"{} - {} = {} | exceeds {}", test, expected, diff, tolerance).c_str());
+		Assert::IsTrue(diff <= scaledTolerance, std::format(L"{} - {} = {} | exceeds {}", test, expected, diff, scaledTolerance).c_str());
 	}
 
 	double SecondsToMilliseconds(double seconds)
@@ -34,8 +41,9 @@ namespace UtilityTests
 
 	void AssertErrorWithinTolerance(std::wstring_view name, int iteration, double actual, double expected, double error, double tolerance)
 	{
+		const auto scaledTolerance = ScaleTolerance(tolerance);
 		const auto absError = std::abs(error);
-		if (absError > tolerance) {
+		if (absError > scaledTolerance) {
 			Logger::WriteMessage(std::format(
 				L"{} iteration {} failed: actual={:.6f}ms expected={:.6f}ms error={:.6f}ms tolerance={:.6f}ms\n",
 				name,
@@ -43,36 +51,37 @@ namespace UtilityTests
 				SecondsToMilliseconds(actual),
 				SecondsToMilliseconds(expected),
 				SecondsToMilliseconds(error),
-				SecondsToMilliseconds(tolerance)).c_str());
+				SecondsToMilliseconds(scaledTolerance)).c_str());
 		}
-		Assert::IsTrue(absError <= tolerance, std::format(
+		Assert::IsTrue(absError <= scaledTolerance, std::format(
 			L"{} iteration {}: actual={:.6f}ms expected={:.6f}ms error={:.6f}ms tolerance={:.6f}ms",
 			name,
 			iteration,
 			SecondsToMilliseconds(actual),
 			SecondsToMilliseconds(expected),
 			SecondsToMilliseconds(error),
-			SecondsToMilliseconds(tolerance)).c_str());
+			SecondsToMilliseconds(scaledTolerance)).c_str());
 	}
 
 	void AssertAggregateErrorWithinTolerance(std::wstring_view name, double actual, double expected, double aggregateError, double tolerance)
 	{
-		if (aggregateError > tolerance) {
+		const auto scaledTolerance = ScaleTolerance(tolerance);
+		if (aggregateError > scaledTolerance) {
 			Logger::WriteMessage(std::format(
 				L"{} total failed: actual={:.6f}ms expected={:.6f}ms avgError={:.6f}ms tolerance={:.6f}ms\n",
 				name,
 				SecondsToMilliseconds(actual),
 				SecondsToMilliseconds(expected),
 				SecondsToMilliseconds(aggregateError),
-				SecondsToMilliseconds(tolerance)).c_str());
+				SecondsToMilliseconds(scaledTolerance)).c_str());
 		}
-		Assert::IsTrue(aggregateError <= tolerance, std::format(
+		Assert::IsTrue(aggregateError <= scaledTolerance, std::format(
 			L"{} total: actual={:.6f}ms expected={:.6f}ms avgError={:.6f}ms tolerance={:.6f}ms",
 			name,
 			SecondsToMilliseconds(actual),
 			SecondsToMilliseconds(expected),
 			SecondsToMilliseconds(aggregateError),
-			SecondsToMilliseconds(tolerance)).c_str());
+			SecondsToMilliseconds(scaledTolerance)).c_str());
 	}
 
 	struct WaitIterationData

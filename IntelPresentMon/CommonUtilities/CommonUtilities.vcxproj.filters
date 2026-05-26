@@ -30,6 +30,9 @@
     <ClInclude Include="test\FloatAssert.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="test\MachineExpectations.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Memory.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -538,6 +541,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="test\MachineExpectations.cpp">
+      <Filter>Source Files</Filter>
+    </None>
     <None Include="vcpkg.json" />
   </ItemGroup>
 </Project>
