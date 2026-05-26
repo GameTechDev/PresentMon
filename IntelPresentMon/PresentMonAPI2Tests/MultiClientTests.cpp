@@ -4,6 +4,7 @@
 #include "CppUnitTest.h"
 #include "StatusComparison.h"
 #include "TestProcess.h"
+#include "MachineExpectations.h"
 #include <string>
 #include <ranges>
 #include "Folders.h"
@@ -538,11 +539,12 @@ namespace MultiClientTests
 			auto presenter = fixture_.LaunchPresenter();
 			std::this_thread::sleep_for(150ms);
 			// launch clients
+			const auto runTime = std::format("{:.3f}", tests::machine::ScaleWait(1250ms).count() / 1000.);
 			std::vector<std::unique_ptr<ClientProcess>> clientPtrs;
 			for (int i = 0; i < 32; i++) {
 				clientPtrs.push_back(fixture_.LaunchClientAsPtr({
 					"--process-id"s, std::to_string(presenter.GetId()),
-					"--run-time"s, "1.25"s,
+					"--run-time"s, runTime,
 					"--etw-flush-period-ms"s, "8"s,
 				}));
 			}
