@@ -44,6 +44,7 @@ namespace p2c::cli
 	private: Group gu_{ this, "CEF UI", "Options to pass thru to the CEF UI system" }; public:
 		Option<std::vector<std::pair<std::string, std::string>>> uiOptions{ this, "--ui-option", {}, "Parameterized options to pass to UI process (omit --p2c- prefix)" };
 		Option<std::vector<std::string>> uiFlags{ this, "--ui-flag", {}, "Parameterized options to pass to UI process (omit --p2c- prefix)" };
+		Option<std::string> uiMutexName{ this, "--ui-mutex-name", "UiBrowserProcess", "Suffix for the UI browser process mutex name" };
 
 	private: Group gi_{ this, "Internal", "Internal options, do not supply manually"}; public:
 		Option<std::string> middlewareDllPath{ this, "--middleware-dll-path", "", "Override middleware DLL path discovery with custom path" };

@@ -9,6 +9,7 @@
 #include "../AppCef/source/util/cact/PresentmonInitFailedAction.h"
 #include "../AppCef/source/util/cact/StalePidAction.h"
 #include "../AppCef/source/util/cact/HotkeyFiredAction.h"
+#include "../AppCef/source/util/UiProcessGuard.h"
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include "../PresentMonAPIWrapperCommon/EnumMap.h"
 #include <Core/source/cli/CliOptions.h>
@@ -274,6 +275,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		if (headless) {
 			ConfigureHeadlessLogging();
 		}
+		else if (client::util::IsUiBrowserProcessActive(*opt.uiMutexName)) {
+			pmlog_warn("UI browser process already active; aborting duplicate UI launch");
+			client::util::BringUiBrowserWindowToFront(*opt.uiMutexName);
+			return client::util::UiAlreadyRunningExitCode;
+		}
 
 		// set the app id so that windows get grouped
 		// TODO: verify operation when multiple app instances running concurrently
@@ -467,6 +473,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			args.append_range(std::vector{
 				"--p2c-log-level"s, util::log::GetLevelName(*opt.logLevel),
 				"--p2c-log-trace-level"s, util::log::GetLevelName(*opt.logTraceLevel),
+				"--p2c-ui-mutex-name"s, *opt.uiMutexName,
 				"--p2c-act-name"s, actName,
 				"--p2c-log-pipe-name"s, cefLogPipe
 			});
@@ -498,7 +505,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			ConnectToLoggingSourcePipe(cefLogPipe);
 
 			// don't exit this process until the CEF control panel exits
-			cefChild.wait();
+			const auto cefExitCode = cefChild.wait();
+			if (cefExitCode != 0) {
+				pmlog_warn(std::format("UI client exited with code {}", cefExitCode));
+				if (cefExitCode == client::util::UiAlreadyRunningExitCode) {
+					client::util::BringUiBrowserWindowToFront(*opt.uiMutexName);
+				}
+				return cefExitCode;
+			}
 		}
 		// TODO: organize headless CLI code into own source modules
 		else if (opt.subcCapture.Active()) {

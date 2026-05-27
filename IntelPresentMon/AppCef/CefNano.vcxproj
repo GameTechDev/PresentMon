@@ -76,6 +76,7 @@
     <ClInclude Include="source\util\SignalManager.h" />
     <ClInclude Include="source\util\FontEnumerator.h" />
     <ClInclude Include="source\util\ThreadCompass.h" />
+    <ClInclude Include="source\util\UiProcessGuard.h" />
     <ClInclude Include="source\util\V8Transfer.h" />
   </ItemGroup>
   <ItemGroup>
