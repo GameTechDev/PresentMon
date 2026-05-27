@@ -280,6 +280,29 @@ namespace pmon::tel::adl
             adapterInfo.strAdapterName[0] != '\0' ? adapterInfo.strAdapterName : "Unknown AMD Adapter";
         device.fingerprint.pciBusId = (uint32_t)adapterInfo.iBusNumber;
 
+        int asicTypes = 0;
+        int asicValids = 0;
+        const auto asicResult = pAdl_->Adapter_ASICFamilyType_Get(
+            device.adlAdapterIndex,
+            &asicTypes,
+            &asicValids);
+        if (Adl2Wrapper::Ok(asicResult)) {
+            device.fingerprint.isIntegratedAdapter =
+                HasFlag_(asicTypes, ADL_ASIC_INTEGRATED) ||
+                HasFlag_(asicTypes, ADL_ASIC_FUSION);
+            pmlog_verb(v::tele_gpu)("ADL2_Adapter_ASICFamilyType_Get output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(asicTypes)
+                .pmwatch(asicValids)
+                .pmwatch(device.fingerprint.isIntegratedAdapter);
+        }
+        else {
+            pmlog_warn("ADL2_Adapter_ASICFamilyType_Get failed").code(asicResult)
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName);
+        }
+
         int overdriveSupported = 0;
         int overdriveEnabled = 0;
         int overdriveVersion = 0;
