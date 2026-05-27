@@ -7,6 +7,7 @@
 #include "../../CommonUtilities/Exception.h"
 #include "../../CommonUtilities/log/GlobalPolicy.h"
 #include "../../CommonUtilities/str/String.h"
+#include "../../CommonUtilities/win/Privileges.h"
 
 #include "inc/uci/uci-versions.h"
 
@@ -178,6 +179,16 @@ namespace pmon::tel::uci
 
     UciTelemetryProvider::UciTelemetryProvider()
     {
+        if (!util::win::WeAreElevated()) {
+            throw Except<TelemetrySubsystemAbsent>("UCI telemetry provider disabled because service is not elevated");
+        }
+
+        if (LoadLibraryW(L"unified-collector-interface.dll") == nullptr) {
+            throw Except<TelemetrySubsystemAbsent>(std::format(
+                "UCI telemetry provider unavailable because unified-collector-interface.dll is not present; error={}",
+                GetLastError()));
+        }
+
         CheckUciCall_(
             uciGetCollectorFromIdentifier(SoCWatchIdentifier, &collector_),
             "uciGetCollectorFromIdentifier",
