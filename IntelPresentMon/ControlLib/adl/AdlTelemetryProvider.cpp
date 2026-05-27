@@ -577,17 +577,17 @@ namespace pmon::tel::adl
         auto& snapshot = cache.output;
 
         int vramUsageMb = 0;
-        const auto vramUsageResult = pAdl_->Adapter_VRAMUsage_Get(device.adlAdapterIndex, &vramUsageMb);
+        const auto vramUsageResult = pAdl_->Adapter_DedicatedVRAMUsage_Get(device.adlAdapterIndex, &vramUsageMb);
         if (Adl2Wrapper::Ok(vramUsageResult)) {
             snapshot.hasGpuMemUsed = true;
             snapshot.gpuMemUsedBytes = (uint64_t)vramUsageMb * 1000000ull;
-            pmlog_verb(v::tele_gpu)("ADL2_Adapter_VRAMUsage_Get output")
+            pmlog_verb(v::tele_gpu)("ADL2_Adapter_DedicatedVRAMUsage_Get output")
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName)
                 .pmwatch(vramUsageMb);
         }
         else {
-            pmlog_warn("ADL2_Adapter_VRAMUsage_Get failed").code(vramUsageResult).every(60s)
+            pmlog_warn("ADL2_Adapter_DedicatedVRAMUsage_Get failed").code(vramUsageResult).every(60s)
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName);
         }

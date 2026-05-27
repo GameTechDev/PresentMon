@@ -15,6 +15,8 @@
   X_(Adapter_Active_Get, int, iAdapterIndex, int*, lpStatus)                   \
   X_(Adapter_ASICFamilyType_Get, int, iAdapterIndex, int*, lpAsicTypes,        \
      int*, lpValids)                                                           \
+  X_(Adapter_DedicatedVRAMUsage_Get, int, iAdapterIndex, int*,                 \
+     iVRAMUsageInMB)                                                           \
   X_(Adapter_VRAMUsage_Get, int, iAdapterIndex, int*, iVRAMUsageInMB)          \
   X_(Adapter_MemoryInfoX4_Get, int, iAdapterIndex, ADLMemoryInfoX4*,           \
      lpMemoryInfoX4)                                                           \
