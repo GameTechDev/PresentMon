@@ -51,6 +51,9 @@
     <ClCompile Include="..\CommonUtilities\test\MachineExpectations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="UiLaunchTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="test_cases.csv">
