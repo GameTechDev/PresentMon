@@ -20,28 +20,69 @@ function Get-DeterministicGuid {
     return (New-Object System.Guid -ArgumentList (, $bytes)).ToString().ToUpperInvariant()
 }
 
+function Write-EmptyUciDistFragment {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$OutPath
+    )
+
+    $settings = New-Object System.Xml.XmlWriterSettings
+    $settings.Encoding = New-Object System.Text.UTF8Encoding($false)
+    $settings.Indent = $true
+    $settings.IndentChars = '    '
+    $settings.NewLineChars = "`r`n"
+    $settings.NewLineHandling = [System.Xml.NewLineHandling]::Replace
+
+    $writer = [System.Xml.XmlWriter]::Create((Join-Path $PSScriptRoot $OutPath), $settings)
+    try {
+        $writer.WriteStartDocument()
+        $writer.WriteStartElement('Wix', 'http://schemas.microsoft.com/wix/2006/wi')
+        $writer.WriteStartElement('Fragment')
+        $writer.WriteStartElement('ComponentGroup')
+        $writer.WriteAttributeString('Id', 'uci_dist_files')
+        $writer.WriteEndElement()
+        $writer.WriteEndElement()
+        $writer.WriteEndElement()
+        $writer.WriteEndDocument()
+    }
+    finally {
+        $writer.Dispose()
+    }
+}
+
+Push-Location $PSScriptRoot
+
+$distPath = '..\ControlLib\uci\dist'
+$outPath = 'UciDist.wxs'
+
+if (-not (Test-Path $distPath -PathType Container)) {
+    Pop-Location
+    Write-Warning "UCI dist directory '$distPath' was not found. Skipping UCI payload files."
+    Write-EmptyUciDistFragment -OutPath $outPath
+    exit 0
+}
+
+if ($null -eq (Get-ChildItem -Path $distPath -Recurse -File -Force | Select-Object -First 1)) {
+    Pop-Location
+    Write-Warning "UCI dist directory '$distPath' contains no files. Skipping UCI payload files."
+    Write-EmptyUciDistFragment -OutPath $outPath
+    exit 0
+}
+
 if (-not $env:WIX) {
+    Pop-Location
     Write-Error 'Environment variable WIX is not set. Please install WIX or set WIX to the WiX installation directory.'
     exit 1
 }
 
 $heatExe = Join-Path $env:WIX 'bin\heat.exe'
 if (-not (Test-Path $heatExe)) {
+    Pop-Location
     Write-Error "heat.exe not found at '$heatExe'. Verify your WIX environment variable points to the correct location."
     exit 1
 }
 
-Push-Location $PSScriptRoot
-
-if (-not (Test-Path '..\ControlLib\uci\dist')) {
-    Pop-Location
-    Write-Error "Expected '..\\ControlLib\\uci\\dist' to exist before harvesting UCI payload files."
-    exit 1
-}
-
-$outPath = 'UciDist.wxs'
-
-& $heatExe dir '..\ControlLib\uci\dist' `
+& $heatExe dir $distPath `
     -srd -sreg -scom `
     -dr service_folder `
     -cg uci_dist_files `
@@ -52,7 +93,7 @@ $outPath = 'UciDist.wxs'
 $code = $LASTEXITCODE
 if ($code -ne 0) {
     Pop-Location
-    Write-Error "heat.exe failed for '..\\ControlLib\\uci\\dist' (exit code $code)"
+    Write-Error "heat.exe failed for '$distPath' (exit code $code)"
     exit $code
 }
 
