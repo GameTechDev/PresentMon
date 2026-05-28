@@ -30,7 +30,6 @@
     <ClInclude Include="IntervalWaiter.h" />
     <ClInclude Include="log\ChannelFlusher.h" />
     <ClInclude Include="log\CopyDriver.h" />
-    <ClInclude Include="log\CrashFlushHooks.h" />
     <ClInclude Include="log\DiagnosticDriver.h" />
     <ClInclude Include="log\ErrorCode.h" />
     <ClInclude Include="log\EntryMarshallInjector.h" />
@@ -103,6 +102,8 @@
     <ClInclude Include="rng\OptionalMinMax.h" />
     <ClInclude Include="rng\PairToRange.h" />
     <ClInclude Include="str\String.h" />
+    <ClInclude Include="test\FloatAssert.h" />
+    <ClInclude Include="test\MachineExpectations.h" />
     <ClInclude Include="third\reflect.hpp" />
     <ClInclude Include="win\com\Comdef.h" />
     <ClInclude Include="win\com\ComManager.h" />
@@ -135,7 +136,6 @@
     <ClCompile Include="IntervalWaiter.cpp" />
     <ClCompile Include="log\ChannelFlusher.cpp" />
     <ClCompile Include="log\CopyDriver.cpp" />
-    <ClCompile Include="log\CrashFlushHooks.cpp" />
     <ClCompile Include="log\DiagnosticDriver.cpp" />
     <ClCompile Include="log\EntryMarshallInjector.cpp" />
     <ClCompile Include="Hash.cpp" />
@@ -198,6 +198,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="vcpkg.json" />
+    <None Include="test\MachineExpectations.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

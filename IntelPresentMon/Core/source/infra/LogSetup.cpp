@@ -18,7 +18,6 @@
 #include <CommonUtilities/win/HrErrorCodeProvider.h>
 #include <CommonUtilities/str/String.h>
 #include <CommonUtilities/log/PanicLogger.h>
-#include <CommonUtilities/log/CrashFlushHooks.h>
 #include <PresentMonAPIWrapperCommon/PmErrorCodeProvider.h>
 #include <PresentMonAPI2/Internal.h>
 #include <PresentMonAPI2/PresentMonDiagnostics.h>
@@ -120,7 +119,6 @@ namespace p2c
 			// shortcut for command line
 			const auto& opt = cli::Options::Get();
 			const bool enableDiagnostics = *opt.enableDiagnostic;
-			const bool enableCrashFlush = *opt.logFlushOnCrash;
 			const bool linkMiddlewareLogs = *opt.logMiddlewareCopy || enableDiagnostics;
 
 			// determine log folder path through resolver (possibly with override)
@@ -133,8 +131,7 @@ namespace p2c
 			// connect dll channel and id table to exe, get access to global settings in dll
 			LoggingSingletons getters;
 			if (linkMiddlewareLogs) {
-				getters = pmLinkLogging_(pChan, []() -> IdentificationTable& {
-					return IdentificationTable::Get_(); });
+				getters = pmLinkLogging_(pChan, IdentificationTable::MakeForwardingCallbacks());
 			}
 			// set the global policy settings
 			if (opt.logLevel) {
@@ -178,13 +175,6 @@ namespace p2c
 				}
 			}
 
-			if (enableCrashFlush) {
-				InstallCrashFlushHooks();
-			}
-			else {
-				UninstallCrashFlushHooks();
-			}
-
 			if (enableDiagnostics) {
 				PM_DIAGNOSTIC_CONFIGURATION diagConfig{};
 				diagConfig.filterLevel = (PM_DIAGNOSTIC_LEVEL)pol.GetLogLevel();
@@ -194,7 +184,6 @@ namespace p2c
 				diagConfig.enableLocation = false;
 				diagConfig.disableDiagnosticFilter = true;
 				diagConfig.enableSynchronousLogging = *opt.logSynchronous;
-				diagConfig.enableFlushOnCrash = enableCrashFlush;
 
 				// diagnostics own debugger output when enabled, keep non-debugger channels active
 				pChan->AttachComponent(std::shared_ptr<IChannelComponent>{}, "drv:dbg");

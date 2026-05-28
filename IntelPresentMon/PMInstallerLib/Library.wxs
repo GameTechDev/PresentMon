@@ -50,6 +50,20 @@
               Vital="yes" />
       </Component>
 
+      <!-- NVIDIA DisplayDriver TDH manifest -->
+      <Component Id="present_mon_shared_nvidia_manifest_component"
+                 Guid="{E79E4899-46E9-45D0-965E-8ECD268C5C64}"
+                 Win64="yes"
+                 SharedDllRefCount="yes"
+                 NeverOverwrite="no"
+                 Permanent="no">
+        <File Id="present_mon_shared_nvidia_manifest"
+              Name="ddETWExternal.xml"
+              Source="$(var.PresentMonService.TargetDir)ddETWExternal.xml"
+              KeyPath="yes"
+              Vital="yes" />
+      </Component>
+
     </DirectoryRef>
 
     <!-- Smart service start - only if service is not already running -->
@@ -69,6 +83,7 @@
     <ComponentGroup Id="service_files">
       <ComponentRef Id="pmon_shared_service_component" />
       <ComponentRef Id="present_mon_shared_dll_component" />
+      <ComponentRef Id="present_mon_shared_nvidia_manifest_component" />
     </ComponentGroup>
 
   </Fragment>

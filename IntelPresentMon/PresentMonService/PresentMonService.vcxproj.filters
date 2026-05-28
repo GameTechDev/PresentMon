@@ -57,5 +57,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="build-scripts\pre-build.bat" />
+    <None Include="..\..\PresentMon\ddETWExternal.xml" />
   </ItemGroup>
 </Project>

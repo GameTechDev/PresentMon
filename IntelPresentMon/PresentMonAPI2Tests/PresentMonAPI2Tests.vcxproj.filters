@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="WrapperIntrospectionTests.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Logging.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -51,9 +48,14 @@
     <ClCompile Include="PacedFrameTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="LoggingTests.cpp">
+    <ClCompile Include="..\CommonUtilities\test\MachineExpectations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="test_cases.csv">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Utilities.h">
@@ -65,10 +67,16 @@
     <ClInclude Include="CsvHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FirstFrameWait.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="TestCommands.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Folders.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GpuMetricSelection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="JobManager.h">
@@ -80,5 +88,13 @@
     <ClInclude Include="Logging.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="GenerateEtlCsvTestCases.ps1">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="update_machine_expectations.py">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

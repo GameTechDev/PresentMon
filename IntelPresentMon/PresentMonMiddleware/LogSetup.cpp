@@ -11,7 +11,6 @@
 #include "../PresentMonAPIWrapperCommon/PmErrorCodeProvider.h"
 #include "../CommonUtilities/log/CopyDriver.h"
 #include "../CommonUtilities/log/DiagnosticDriver.h"
-#include "../CommonUtilities/log/CrashFlushHooks.h"
 #include "LogSetup.h"
 #include <memory>
 
@@ -153,12 +152,6 @@ namespace pmon::util::log
 			GlobalPolicy::Get().StoreVerboseModules(pConfig->verboseModuleBitset);
 			if (!pConfig->enableTrace) {
 				GlobalPolicy::Get().SetTraceLevel(Level::None);
-			}
-			if (pConfig->enableFlushOnCrash) {
-				InstallCrashFlushHooks();
-			}
-			else {
-				UninstallCrashFlushHooks();
 			}
 		}
 		catch (...) {

@@ -4,6 +4,7 @@
 #include "CppUnitTest.h"
 #include "StatusComparison.h"
 #include "TestProcess.h"
+#include "../CommonUtilities/test/MachineExpectations.h"
 #include <string>
 #include <ranges>
 #include "Folders.h"
@@ -536,7 +537,7 @@ namespace MultiClientTests
 		{
 			// launch target for tracking
 			auto presenter = fixture_.LaunchPresenter();
-			std::this_thread::sleep_for(150ms);
+			std::this_thread::sleep_for(util::test::ScaleWait(150ms));
 			// launch clients
 			std::vector<std::unique_ptr<ClientProcess>> clientPtrs;
 			for (int i = 0; i < 32; i++) {

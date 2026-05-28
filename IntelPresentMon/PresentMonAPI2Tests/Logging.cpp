@@ -169,9 +169,9 @@ namespace pmon::test
 			{
 				std::lock_guard lock{ linkState.mtx };
 				if (!linkState.linked) {
-					linkState.getters = pmLinkLogging_(pChannel, []() -> util::log::IdentificationTable& {
-						return util::log::IdentificationTable::Get_();
-						});
+					linkState.getters = pmLinkLogging_(
+						pChannel,
+						util::log::IdentificationTable::MakeForwardingCallbacks());
 					linkState.linked = true;
 				}
 				gettersCopy = linkState.getters;
@@ -199,7 +199,11 @@ namespace pmon::test
 
 	LogChannelManager::~LogChannelManager()
 	{
-		pmFlushEntryPoint_();
+		pmUnlinkLogging_();
 		util::log::FlushEntryPoint();
+		auto& linkState = GetLogLinkState_();
+		std::lock_guard lock{ linkState.mtx };
+		linkState.getters = {};
+		linkState.linked = false;
 	}
 }
