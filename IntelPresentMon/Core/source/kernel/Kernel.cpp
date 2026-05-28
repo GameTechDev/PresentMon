@@ -61,7 +61,6 @@ namespace p2c::kern
         const GfxLayer::Extension::OverlayConfig& cfg)
     {
         HandleMarshalledException_();
-        auto config = cfg;
         pInjectorComplex->SetActive(enableInjection);
         if (enableInjection) {
             if (overrideTargetName) {

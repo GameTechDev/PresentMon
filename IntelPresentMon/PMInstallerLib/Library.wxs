@@ -51,13 +51,13 @@
       </Component>
 
       <!-- NVIDIA DisplayDriver TDH manifest -->
-      <Component Id="present_mon_shared_nvidia_manifest_component"
+      <Component Id="pmon_nv_manifest_comp"
                  Guid="{E79E4899-46E9-45D0-965E-8ECD268C5C64}"
                  Win64="yes"
                  SharedDllRefCount="yes"
                  NeverOverwrite="no"
                  Permanent="no">
-        <File Id="present_mon_shared_nvidia_manifest"
+        <File Id="pmon_nv_manifest"
               Name="ddETWExternal.xml"
               Source="$(var.PresentMonService.TargetDir)ddETWExternal.xml"
               KeyPath="yes"
@@ -83,7 +83,7 @@
     <ComponentGroup Id="service_files">
       <ComponentRef Id="pmon_shared_service_component" />
       <ComponentRef Id="present_mon_shared_dll_component" />
-      <ComponentRef Id="present_mon_shared_nvidia_manifest_component" />
+      <ComponentRef Id="pmon_nv_manifest_comp" />
     </ComponentGroup>
 
   </Fragment>
