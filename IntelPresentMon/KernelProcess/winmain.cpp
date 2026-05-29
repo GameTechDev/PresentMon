@@ -150,6 +150,37 @@ namespace kproc
 		return p2c::client::util::UiAlreadyRunningExitCode;
 	}
 
+	class KillOnCloseJob
+	{
+	public:
+		KillOnCloseJob(HANDLE hProcess)
+			:
+			hJob_{ CreateJobObjectW(nullptr, nullptr) }
+		{
+			if (!hJob_) {
+				pmlog_warn("failed to create UI process job object").hr();
+				return;
+			}
+
+			JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+			limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+			if (!SetInformationJobObject(
+				hJob_.Get(), JobObjectExtendedLimitInformation, &limits, sizeof(limits))) {
+				pmlog_warn("failed to configure UI process job object").hr();
+				hJob_.Clear();
+				return;
+			}
+
+			if (!AssignProcessToJobObject(hJob_.Get(), hProcess)) {
+				pmlog_warn("failed to attach UI process to job object").hr();
+				hJob_.Clear();
+			}
+		}
+
+	private:
+		::pmon::util::win::Handle hJob_;
+	};
+
 #ifndef NDEBUG
 	BOOL CALLBACK LogOutputMonitorCoordinatesCallback_(HMONITOR, HDC, LPRECT pMonitorRect, LPARAM pUserData)
 	{
@@ -538,6 +569,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 						ioctx, "PresentMonUI.exe"s, args
 						);
 				}();
+
+				KillOnCloseJob uiJob{ cefChild.native_handle() };
 
 				// connect logging to the CEF process constellation
 				ConnectToLoggingSourcePipe(cefLogPipe);
