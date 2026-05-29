@@ -9,8 +9,6 @@
 #include "../../CommonUtilities/str/String.h"
 #include "../../CommonUtilities/win/Privileges.h"
 
-#include "inc/uci/uci-versions.h"
-
 #include <algorithm>
 #include <exception>
 #include <format>
@@ -22,11 +20,139 @@
 using namespace pmon;
 using namespace std::literals;
 
+#if PMON_HAS_UCI_SDK
+
+#include <uci/uci-versions.h>
+
 namespace pmon::tel::uci
 {
     namespace
     {
         using v = util::log::V;
+
+        struct UciApi_
+        {
+            HMODULE module = nullptr;
+            decltype(&::uciGetCollectorFromIdentifier) uciGetCollectorFromIdentifier = nullptr;
+            decltype(&::uciInitialize) uciInitialize = nullptr;
+            decltype(&::uciDestroy) uciDestroy = nullptr;
+            decltype(&::uciEnumerateMetrics) uciEnumerateMetrics = nullptr;
+            decltype(&::uciGetMetricContainerMetrics) uciGetMetricContainerMetrics = nullptr;
+            decltype(&::uciGetMetricId) uciGetMetricId = nullptr;
+            decltype(&::uciGetMetricName) uciGetMetricName = nullptr;
+            decltype(&::uciGetMetricDescription) uciGetMetricDescription = nullptr;
+            decltype(&::uciGetMetricEvents) uciGetMetricEvents = nullptr;
+            decltype(&::uciGetEventId) uciGetEventId = nullptr;
+            decltype(&::uciGetMetricEventName) uciGetMetricEventName = nullptr;
+            decltype(&::uciGetMetricEventDescription) uciGetMetricEventDescription = nullptr;
+            decltype(&::uciGetMetricContainerGroups) uciGetMetricContainerGroups = nullptr;
+            decltype(&::uciGetMetricGroupId) uciGetMetricGroupId = nullptr;
+            decltype(&::uciGetMetricGroupName) uciGetMetricGroupName = nullptr;
+            decltype(&::uciGetMetricGroupDescription) uciGetMetricGroupDescription = nullptr;
+            decltype(&::uciGetMetricsInGroup) uciGetMetricsInGroup = nullptr;
+            decltype(&::uciGetMetricContainerEvents) uciGetMetricContainerEvents = nullptr;
+            decltype(&::uciFreeMetricContainer) uciFreeMetricContainer = nullptr;
+            decltype(&::uciMetricRecordGetMetricName) uciMetricRecordGetMetricName = nullptr;
+            decltype(&::uciMetricRecordGetEntity) uciMetricRecordGetEntity = nullptr;
+            decltype(&::uciMetricRecordGetDescriptor) uciMetricRecordGetDescriptor = nullptr;
+            decltype(&::uciMetricRecordGetUnit) uciMetricRecordGetUnit = nullptr;
+            decltype(&::uciMetricRecordGetSample) uciMetricRecordGetSample = nullptr;
+            decltype(&::uciMetricRecordGetRecordTimestamp) uciMetricRecordGetRecordTimestamp = nullptr;
+            decltype(&::uciMetricRecordGetRecordDuration) uciMetricRecordGetRecordDuration = nullptr;
+            decltype(&::uciConfigureCollection) uciConfigureCollection = nullptr;
+            decltype(&::uciSetDataCallback) uciSetDataCallback = nullptr;
+            decltype(&::uciStartCollection) uciStartCollection = nullptr;
+            decltype(&::uciStopCollection) uciStopCollection = nullptr;
+
+            UciApi_()
+            {
+                module = LoadLibraryW(L"unified-collector-interface.dll");
+                if (module == nullptr) {
+                    throw Except<TelemetrySubsystemAbsent>(std::format(
+                        "UCI telemetry provider unavailable because unified-collector-interface.dll is not present; error={}",
+                        GetLastError()));
+                }
+
+                LoadProc_(uciGetCollectorFromIdentifier, "uciGetCollectorFromIdentifier");
+                LoadProc_(uciInitialize, "uciInitialize");
+                LoadProc_(uciDestroy, "uciDestroy");
+                LoadProc_(uciEnumerateMetrics, "uciEnumerateMetrics");
+                LoadProc_(uciGetMetricContainerMetrics, "uciGetMetricContainerMetrics");
+                LoadProc_(uciGetMetricId, "uciGetMetricId");
+                LoadProc_(uciGetMetricName, "uciGetMetricName");
+                LoadProc_(uciGetMetricDescription, "uciGetMetricDescription");
+                LoadProc_(uciGetMetricEvents, "uciGetMetricEvents");
+                LoadProc_(uciGetEventId, "uciGetEventId");
+                LoadProc_(uciGetMetricEventName, "uciGetMetricEventName");
+                LoadProc_(uciGetMetricEventDescription, "uciGetMetricEventDescription");
+                LoadProc_(uciGetMetricContainerGroups, "uciGetMetricContainerGroups");
+                LoadProc_(uciGetMetricGroupId, "uciGetMetricGroupId");
+                LoadProc_(uciGetMetricGroupName, "uciGetMetricGroupName");
+                LoadProc_(uciGetMetricGroupDescription, "uciGetMetricGroupDescription");
+                LoadProc_(uciGetMetricsInGroup, "uciGetMetricsInGroup");
+                LoadProc_(uciGetMetricContainerEvents, "uciGetMetricContainerEvents");
+                LoadProc_(uciFreeMetricContainer, "uciFreeMetricContainer");
+                LoadProc_(uciMetricRecordGetMetricName, "uciMetricRecordGetMetricName");
+                LoadProc_(uciMetricRecordGetEntity, "uciMetricRecordGetEntity");
+                LoadProc_(uciMetricRecordGetDescriptor, "uciMetricRecordGetDescriptor");
+                LoadProc_(uciMetricRecordGetUnit, "uciMetricRecordGetUnit");
+                LoadProc_(uciMetricRecordGetSample, "uciMetricRecordGetSample");
+                LoadProc_(uciMetricRecordGetRecordTimestamp, "uciMetricRecordGetRecordTimestamp");
+                LoadProc_(uciMetricRecordGetRecordDuration, "uciMetricRecordGetRecordDuration");
+                LoadProc_(uciConfigureCollection, "uciConfigureCollection");
+                LoadProc_(uciSetDataCallback, "uciSetDataCallback");
+                LoadProc_(uciStartCollection, "uciStartCollection");
+                LoadProc_(uciStopCollection, "uciStopCollection");
+            }
+
+            template<class T>
+            void LoadProc_(T& proc, const char* name)
+            {
+                proc = reinterpret_cast<T>(GetProcAddress(module, name));
+                if (proc == nullptr) {
+                    throw Except<TelemetrySubsystemAbsent>(std::format(
+                        "UCI telemetry provider unavailable because {} is missing from unified-collector-interface.dll",
+                        name));
+                }
+            }
+        };
+
+        UciApi_& Api_()
+        {
+            static UciApi_ api;
+            return api;
+        }
+
+#define uciConfigureCollection Api_().uciConfigureCollection
+#define uciDestroy Api_().uciDestroy
+#define uciEnumerateMetrics Api_().uciEnumerateMetrics
+#define uciFreeMetricContainer Api_().uciFreeMetricContainer
+#define uciGetCollectorFromIdentifier Api_().uciGetCollectorFromIdentifier
+#define uciGetEventId Api_().uciGetEventId
+#define uciGetMetricContainerEvents Api_().uciGetMetricContainerEvents
+#define uciGetMetricContainerGroups Api_().uciGetMetricContainerGroups
+#define uciGetMetricContainerMetrics Api_().uciGetMetricContainerMetrics
+#define uciGetMetricDescription Api_().uciGetMetricDescription
+#define uciGetMetricEventDescription Api_().uciGetMetricEventDescription
+#define uciGetMetricEventName Api_().uciGetMetricEventName
+#define uciGetMetricEvents Api_().uciGetMetricEvents
+#define uciGetMetricGroupDescription Api_().uciGetMetricGroupDescription
+#define uciGetMetricGroupId Api_().uciGetMetricGroupId
+#define uciGetMetricGroupName Api_().uciGetMetricGroupName
+#define uciGetMetricId Api_().uciGetMetricId
+#define uciGetMetricName Api_().uciGetMetricName
+#define uciGetMetricsInGroup Api_().uciGetMetricsInGroup
+#define uciInitialize Api_().uciInitialize
+#define uciMetricRecordGetDescriptor Api_().uciMetricRecordGetDescriptor
+#define uciMetricRecordGetEntity Api_().uciMetricRecordGetEntity
+#define uciMetricRecordGetMetricName Api_().uciMetricRecordGetMetricName
+#define uciMetricRecordGetRecordDuration Api_().uciMetricRecordGetRecordDuration
+#define uciMetricRecordGetRecordTimestamp Api_().uciMetricRecordGetRecordTimestamp
+#define uciMetricRecordGetSample Api_().uciMetricRecordGetSample
+#define uciMetricRecordGetUnit Api_().uciMetricRecordGetUnit
+#define uciSetDataCallback Api_().uciSetDataCallback
+#define uciStartCollection Api_().uciStartCollection
+#define uciStopCollection Api_().uciStopCollection
 
         constexpr std::string_view kCpuPowerMetricName_ = "pkg-pwr";
         constexpr std::string_view kCpuTemperatureMetricName_ = "core-temp";
@@ -181,12 +307,6 @@ namespace pmon::tel::uci
     {
         if (!util::win::WeAreElevated()) {
             throw Except<TelemetrySubsystemAbsent>("UCI telemetry provider disabled because service is not elevated");
-        }
-
-        if (LoadLibraryW(L"unified-collector-interface.dll") == nullptr) {
-            throw Except<TelemetrySubsystemAbsent>(std::format(
-                "UCI telemetry provider unavailable because unified-collector-interface.dll is not present; error={}",
-                GetLastError()));
         }
 
         CheckUciCall_(
@@ -737,3 +857,52 @@ namespace pmon::tel::uci
         collectionStarted_ = false;
     }
 }
+
+#else
+
+namespace pmon::tel::uci
+{
+    UciTelemetryProvider::UciTelemetryProvider()
+    {
+        throw Except<TelemetrySubsystemAbsent>("UCI telemetry provider unavailable because service was built without UCI dependency present.");
+    }
+
+    UciTelemetryProvider::~UciTelemetryProvider() = default;
+
+    ProviderCapabilityMap UciTelemetryProvider::GetCaps()
+    {
+        return {};
+    }
+
+    const TelemetryDeviceFingerprint& UciTelemetryProvider::GetFingerPrint(
+        ProviderDeviceId providerDeviceId) const
+    {
+        (void)providerDeviceId;
+        throw Except<UciException>("UCI provider device not found");
+    }
+
+    TelemetryMetricValue UciTelemetryProvider::PollMetric(
+        ProviderDeviceId providerDeviceId,
+        PM_METRIC metricId,
+        uint32_t arrayIndex,
+        int64_t requestQpc)
+    {
+        (void)providerDeviceId;
+        (void)metricId;
+        (void)arrayIndex;
+        (void)requestQpc;
+        throw Except<UciException>("UCI provider unavailable");
+    }
+
+    void UciTelemetryProvider::SetPollRate(uint32_t pollRateMs)
+    {
+        (void)pollRateMs;
+    }
+
+    void UciTelemetryProvider::SetMetricUse(const svc::DeviceMetricUse& metricUse)
+    {
+        (void)metricUse;
+    }
+}
+
+#endif

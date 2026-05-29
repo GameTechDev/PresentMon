@@ -5,8 +5,7 @@
 #include "../../CommonUtilities/win/WinAPI.h"
 #include "../../Interprocess/source/SystemDeviceId.h"
 #include "../TelemetryProvider.h"
-#include "inc/uci/uci-data-records.h"
-#include "inc/uci/uci.h"
+#include "UciSdk.h"
 
 #include <atomic>
 #include <cstdint>
@@ -44,7 +43,6 @@ namespace pmon::tel::uci
             std::vector<std::optional<double>> cpuCoreTemperaturesSample{};
         };
 
-        static void StaticDataCallback_(uciDataBundle* dataBundle);
         static uint32_t CountPhysicalCores_();
         static std::optional<double> ComputeAverageCpuTemperature_(const DeviceState_& device);
         static void ValidateMetricIndex_(const DeviceState_& device, PM_METRIC metricId, uint32_t arrayIndex);
@@ -53,16 +51,21 @@ namespace pmon::tel::uci
             const std::unordered_set<std::string>& enumeratedMetricNames,
             uint32_t physicalCoreCount);
 
+#if PMON_HAS_UCI_SDK
+        static void StaticDataCallback_(uciDataBundle* dataBundle);
         void OnDataCallback_(uciDataBundle* dataBundle);
         void ApplyMetricRecord_(DeviceState_& device, void* recordHandle);
         std::unordered_set<std::string> EnumerateMetrics_();
         void DumpMetricEnumeration_(uciMetricContainerHandle metricContainer) const;
         void ReconfigureCollection_();
         void StopCollection_() noexcept;
+#endif
 
     private:
         static constexpr ProviderDeviceId kProviderDeviceId_ = 1;
+#if PMON_HAS_UCI_SDK
         uciCollectorHandle collector_ = nullptr;
+#endif
         DeviceState_ systemDevice_{};
         std::mutex configMutex_{};
         std::mutex dataMutex_{};
@@ -72,6 +75,8 @@ namespace pmon::tel::uci
         bool wantsCpuTemperature_ = false;
         bool wantsCpuCoreTemperature_ = false;
 
+#if PMON_HAS_UCI_SDK
         static std::atomic<UciTelemetryProvider*> activeProvider_;
+#endif
     };
 }

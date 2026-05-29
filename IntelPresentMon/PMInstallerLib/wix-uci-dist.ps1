@@ -52,7 +52,12 @@ function Write-EmptyUciDistFragment {
 
 Push-Location $PSScriptRoot
 
-$distPath = '..\ControlLib\uci\dist'
+$uciSdkDir = $env:PMON_UCI_SDK_DIR
+if ([string]::IsNullOrWhiteSpace($uciSdkDir)) {
+    $uciSdkDir = '..\ControlLib\uci\external'
+}
+
+$distPath = Join-Path $uciSdkDir 'bin'
 $outPath = 'UciDist.wxs'
 
 if (-not (Test-Path $distPath -PathType Container)) {
