@@ -139,7 +139,7 @@
     <!-- Build the wixlib first -->
     <MSBuild Projects="..\PMInstallerLib\PMInstallerLib.wixproj"
              Targets="Build"
-             Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+             Properties="Configuration=$(Configuration);Platform=$(Platform);PMON_UCI_SDK_DIR=$(PMON_UCI_SDK_DIR)" />
     <ItemGroup>
       <WixLibrary Include="$(SolutionDir)build\$(Configuration)\PMInstallerLib.wixlib"
                   Condition="Exists('$(SolutionDir)build\$(Configuration)\PMInstallerLib.wixlib')" />

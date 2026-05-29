@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-    <Fragment>
-        <ComponentGroup Id="uci_dist_files" />
-    </Fragment>
-</Wix>

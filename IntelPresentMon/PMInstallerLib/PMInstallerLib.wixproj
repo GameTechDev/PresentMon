@@ -17,7 +17,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Library.wxs" />
-    <Compile Include="UciDist.wxs" />
+    <Compile Include="$(IntermediateOutputPath)\UciDist.wxs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PresentMonAPI2\PresentMonAPI2.vcxproj">
@@ -37,8 +37,9 @@
       <RefTargetDir>INSTALLFOLDER</RefTargetDir>
     </ProjectReference>
   </ItemGroup>
-  <Target Name="BeforeBuild">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\wix-uci-dist.ps1&quot;" />
+  <Target Name="GenerateUciDistFragment" BeforeTargets="Compile">
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\wix-uci-dist.ps1&quot; -UciSdkDir &quot;$(UciSdkDir)&quot; -OutPath &quot;$(IntermediateOutputPath)\UciDist.wxs&quot;" />
   </Target>
   <Import Project="$(WixTargetsPath)" />
 </Project>
