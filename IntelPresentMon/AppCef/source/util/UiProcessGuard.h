@@ -1,10 +1,13 @@
 #pragma once
 #include <CommonUtilities/win/Handle.h>
+#include <CommonUtilities/win/ProcessMapBuilder.h>
 #include <CommonUtilities/win/WinAPI.h>
 #include <array>
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace p2c::client::util
 {
@@ -110,6 +113,73 @@ namespace p2c::client::util
 		std::pair<std::string_view, HWND> params{ mutexSuffix, nullptr };
 		EnumWindows(FindUiBrowserWindowCallback, reinterpret_cast<LPARAM>(&params));
 		return params.second;
+	}
+
+	inline DWORD FindUiBrowserWindowProcessId(std::string_view mutexSuffix)
+	{
+		const auto hWnd = FindUiBrowserWindow(mutexSuffix);
+		if (hWnd == nullptr) {
+			return 0;
+		}
+		DWORD processId = 0;
+		GetWindowThreadProcessId(hWnd, &processId);
+		return processId;
+	}
+
+	inline DWORD FindUiInstanceRootProcessId(std::string_view mutexSuffix)
+	{
+		const auto uiProcessId = FindUiBrowserWindowProcessId(mutexSuffix);
+		if (uiProcessId == 0) {
+			return 0;
+		}
+
+		const ::pmon::util::win::ProcessMapBuilder processMap;
+		const auto& processes = processMap.Peek();
+		const auto uiIt = processes.find(uiProcessId);
+		if (uiIt == processes.end()) {
+			return uiProcessId;
+		}
+
+		const auto parentIt = processes.find(uiIt->second.parentId);
+		if (parentIt == processes.end()) {
+			return uiProcessId;
+		}
+
+		if (parentIt->second.name == L"PresentMon.exe") {
+			return parentIt->second.pid;
+		}
+		return uiProcessId;
+	}
+
+	inline bool TerminateUiInstanceProcessTree(std::string_view mutexSuffix)
+	{
+		const auto rootProcessId = FindUiInstanceRootProcessId(mutexSuffix);
+		if (rootProcessId == 0 || rootProcessId == GetCurrentProcessId()) {
+			return false;
+		}
+
+		const ::pmon::util::win::ProcessMapBuilder processMap;
+		const auto& processes = processMap.Peek();
+		if (!processes.contains(rootProcessId)) {
+			return false;
+		}
+
+		auto processIds = processMap.GetChildTreePostOrder(rootProcessId);
+		std::erase(processIds, GetCurrentProcessId());
+
+		bool terminatedAny = false;
+		std::vector<::pmon::util::win::Handle> handles;
+		for (const auto processId : processIds) {
+			::pmon::util::win::Handle process{ OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, processId) };
+			if (process) {
+				terminatedAny = TerminateProcess(process.Get(), 1) != FALSE || terminatedAny;
+				handles.push_back(std::move(process));
+			}
+		}
+		for (const auto& process : handles) {
+			WaitForSingleObject(process.Get(), 5000);
+		}
+		return terminatedAny;
 	}
 
 	inline bool BringUiBrowserWindowToFront(std::string_view mutexSuffix)
