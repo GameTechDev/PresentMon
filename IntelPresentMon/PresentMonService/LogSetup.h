@@ -14,4 +14,5 @@ namespace logsetup
 	};
 	// call after command line arguments have been parsed
 	void ConfigureLogging(bool asApp) noexcept;
+	void SetPeriodicLogFlushingEnabled(bool enabled) noexcept;
 }
