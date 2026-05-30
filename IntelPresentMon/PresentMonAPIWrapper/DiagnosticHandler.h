@@ -3,6 +3,7 @@
 #include <span>
 #include <functional>
 #include <memory>
+#include <cstdint>
 
 namespace pmapi
 {
@@ -30,7 +31,9 @@ namespace pmapi
 			// capture stack traces as a string when available (typically for error-level messages)
 			bool enableTrace = false,
 			// capture source file and line number as a string
-			bool enableLocation = false
+			bool enableLocation = false,
+			// bitset of verbose logging modules to enable
+			uint64_t verboseModuleBitset = 0
 		);
 		DiagnosticHandler(const DiagnosticHandler& other) = delete;
 		DiagnosticHandler(DiagnosticHandler&& other) = delete;

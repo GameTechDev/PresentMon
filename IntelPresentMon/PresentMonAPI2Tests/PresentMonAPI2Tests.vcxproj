@@ -61,7 +61,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir)Generated;$(VCInstallDir)UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UseFullPaths>true</UseFullPaths>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -80,7 +80,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir)Generated;$(VCInstallDir)UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UseFullPaths>true</UseFullPaths>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -96,11 +96,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="EtlLoggerTests.cpp" />
+    <ClCompile Include="EtlLoggerTests.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="InterimBroadcasterTests.cpp" />
+    <ClCompile Include="IpcComponentTests.cpp" />
+    <ClCompile Include="IpcMcIntegrationTests.cpp" />
+    <ClCompile Include="..\CommonUtilities\test\MachineExpectations.cpp" />
     <ClCompile Include="ModuleInit.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
+    <ClCompile Include="PacedFrameTests.cpp" />
     <ClCompile Include="PacedPollingTests.cpp" />
-    <ClCompile Include="WrapperIntrospectionTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />
     <ClCompile Include="Logging.cpp" />
     <ClCompile Include="RealtimeMetricTests.cpp" />
@@ -109,8 +116,14 @@
     <ProjectReference Include="..\CommonUtilities\CommonUtilities.vcxproj">
       <Project>{08a704d8-ca1c-45e9-8ede-542a1a43b53e}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\Interprocess\Interprocess.vcxproj">
+      <Project>{ca23d648-daef-4f06-81d5-fe619bd31f0b}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\PresentMonAPI2Loader\PresentMonAPI2Loader.vcxproj">
       <Project>{8f86d067-2437-46fc-8f82-4d7155ceced7}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\PresentMonAPI2\PresentMonAPI2.vcxproj">
+      <Project>{5ddba061-53a0-4835-8aaf-943f403f924f}</Project>
     </ProjectReference>
     <ProjectReference Include="..\PresentMonAPIWrapper\PresentMonAPIWrapper.vcxproj">
       <Project>{cee032ed-b0d3-47f8-bdae-d46757b0061b}</Project>
@@ -127,12 +140,27 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CsvHelper.h" />
+    <ClInclude Include="FirstFrameWait.h" />
     <ClInclude Include="Folders.h" />
+    <ClInclude Include="GpuMetricSelection.h" />
     <ClInclude Include="JobManager.h" />
+    <ClInclude Include="Logging.h" />
     <ClInclude Include="TestCommands.h" />
     <ClInclude Include="StatusComparison.h" />
     <ClInclude Include="TestProcess.h" />
     <ClInclude Include="Utilities.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="test_cases.csv">
+      <Message>Generating ETL CSV MSTest cases</Message>
+      <Command>powershell.exe -ExecutionPolicy Bypass -File "$(ProjectDir)GenerateEtlCsvTestCases.ps1" -InputCsv "%(FullPath)" -OutputHeader "$(IntDir)Generated\EtlCsvTestCases.g.h"</Command>
+      <AdditionalInputs>$(ProjectDir)GenerateEtlCsvTestCases.ps1;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs>$(IntDir)Generated\EtlCsvTestCases.g.h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="GenerateEtlCsvTestCases.ps1" />
+    <None Include="update_machine_expectations.py" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

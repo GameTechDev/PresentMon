@@ -6,22 +6,18 @@
 #include "TestProcess.h"
 #include "Folders.h"
 #include <vincentlaucsb-csv-parser/csv.hpp>
-#include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include <string>
-#include <iostream>
+#include <vector>
+#include <array>
+#include <algorithm>
 #include <format>
 #include <fstream>
 #include <filesystem>
-#include <array>
-#include <ranges>
 #include <cmath>
-#include <numeric>
-#include <regex>
+#include <map>
+#include <optional>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-namespace fs = std::filesystem;
-namespace rn = std::ranges;
-namespace vi = rn::views;
 using namespace std::literals;
 using namespace pmon;
 
@@ -34,8 +30,7 @@ namespace PacedPolling
 		{
 			static CommonProcessArgs args{
 				.ctrlPipe = R"(\\.\pipe\pm-paced-polling-test-ctrl)",
-				.introNsm = "pm_paced_polling_test_intro",
-				.frameNsm = "pm_paced_polling_test_nsm",
+				.shmNamePrefix = "pm_paced_polling_test_intro",
 				.logLevel = "debug",
 				.logFolder = logFolder_,
 				.sampleClientMode = "PacedPlayback",
@@ -44,208 +39,258 @@ namespace PacedPolling
 		}
 	};
 
-	struct Mismatch
+	struct CsvData
 	{
-		size_t sampleIndex;
-		double val0;
-		double val1;
+		std::vector<std::string> header;
+		std::vector<std::vector<double>> rows;
 	};
 
-	struct MetricCompareResult
+	CsvData LoadRunFromCsv(const std::string& path)
 	{
-		std::vector<Mismatch> mismatches;
-		double meanSquareError;
-	};
-
-	std::pair<double, double> CalculateDynamicRange(
-		const std::vector<double>& run0,
-		const std::vector<double>& run1)
-	{
-		const auto [minIt0, maxIt0] = rn::minmax_element(run0);
-		const auto [minIt1, maxIt1] = rn::minmax_element(run1);
-		double lo = std::min(*minIt0, *minIt1);
-		double hi = std::max(*maxIt0, *maxIt1);
-		return { lo, hi };
-	}
-
-	MetricCompareResult CompareRunsForMetric(
-		const std::vector<double>& run0,
-		const std::vector<double>& run1,
-		double toleranceFactor)
-	{
-		// 1) compute dynamic range & tolerance
-		auto [lo, hi] = CalculateDynamicRange(run0, run1);
-		double tolerance = (hi - lo) * toleranceFactor;
-
-		// 2) loop over corresponding samples and compare for individual mismatch and mse
-		MetricCompareResult result;
-		double sumSq = 0.0;
-		for (auto&& [i, v0, v1] : vi::zip(vi::iota(0ull), run0, run1)) {
-			const auto diff = v0 - v1;
-			sumSq += diff * diff;
-			if (std::abs(diff) > tolerance) {
-				result.mismatches.push_back({ i, v0, v1 });
-			}
-		}
-
-		// 3) finish computing MSE
-		if (run0.size() > 0) {
-			result.meanSquareError = sumSq / double(run0.size());
-		}
-		else {
-			result.meanSquareError = 0.;
-		}
-
-		return result;
-	}
-
-	std::vector<double> ExtractColumn(const std::vector<std::vector<double>>& mat, std::size_t i)
-	{
-		return mat | vi::transform([i](auto const& row) { return row[i]; }) | rn::to<std::vector>();
-	}
-
-	std::vector<MetricCompareResult> CompareRuns(
-		std::span<const PM_STAT> qStats,
-		const std::vector<std::vector<double>>& run0,
-		const std::vector<std::vector<double>>& run1,
-		double toleranceFactor)
-	{
-		std::vector<MetricCompareResult> results;
-		for (auto&& [i, s] : vi::enumerate(qStats)) {
-			// triple tolerance for sensitive stats
-			if (rn::contains(std::array{
-				PM_STAT_MAX,
-				PM_STAT_MIN,
-				PM_STAT_PERCENTILE_01,
-				PM_STAT_PERCENTILE_99,
-				PM_STAT_MID_POINT }, s)) {
-				toleranceFactor *= 3.;
-			}
-			// compare columns for each query element
-			results.push_back(CompareRunsForMetric(
-				ExtractColumn(run0, i),
-				ExtractColumn(run1, i),
-				toleranceFactor
-			));
-		}
-		return results;
-	}
-
-	auto LoadRunFromCsv(const std::string& path)
-	{
- 		csv::CSVReader gold{ path };
-		auto header = gold.get_col_names();
-		std::vector<std::vector<double>> dataRows;
+		csv::CSVReader gold{ path };
+		CsvData data;
+		data.header = gold.get_col_names();
 		for (auto& row : gold) {
 			std::vector<double> rowData;
 			rowData.reserve(row.size());
 			for (auto& field : row) {
 				rowData.push_back(field.get<double>());
 			}
-			dataRows.push_back(std::move(rowData));
+			data.rows.push_back(std::move(rowData));
 		}
-		return std::make_pair(std::move(header), std::move(dataRows));
+		return data;
 	}
 
-	using StatMap = std::unordered_map<std::string, PM_STAT>;
-	StatMap MakeStatMap(const pmapi::intro::Root& intro)
+	bool ValuesMatch(double expected, double actual)
 	{
-		std::unordered_map<std::string, PM_STAT> statMap;
-		for (auto s : intro.FindEnum(PM_ENUM_STAT).GetKeys()) {
-			statMap[s.GetShortName()] = (PM_STAT)s.GetId();
-		}
-		return statMap;
+		return expected == actual || (std::isnan(expected) && std::isnan(actual));
 	}
 
-	std::vector<PM_STAT> HeaderToStats(std::span<const std::string> header, const StatMap& map)
+	constexpr double PollPeriodFromHz(double pollRateHz)
 	{
-		// Capture text inside final parentheses, trimming optional whitespace.
-		static const std::regex paren_capture{ R"(.*\(\s*([^)]+?)\s*\)\s*$)", std::regex::ECMAScript };
+		return 1.0 / pollRateHz;
+	}
 
-		std::vector<PM_STAT> stats;
-		stats.reserve(header.size());
+	std::string MakeMismatchReport(const CsvData& expected, const CsvData& actual)
+	{
+		std::string report;
+		if (expected.header != actual.header) {
+			report += std::format("Header mismatch: expected {} columns, actual {} columns\n",
+				expected.header.size(), actual.header.size());
+			const auto columnCount = std::min(expected.header.size(), actual.header.size());
+			for (size_t i = 0; i < columnCount; ++i) {
+				if (expected.header[i] != actual.header[i]) {
+					report += std::format("  column {}: expected [{}], actual [{}]\n",
+						i, expected.header[i], actual.header[i]);
+				}
+			}
+		}
 
-		for (const auto& col : header) {
-			std::smatch m;
-			if (!std::regex_match(col, m, paren_capture) || m.size() < 2) {
+		if (expected.rows.size() != actual.rows.size()) {
+			report += std::format("Row count mismatch: expected {}, actual {}\n",
+				expected.rows.size(), actual.rows.size());
+		}
+
+		constexpr size_t maxMismatchesToReport = 100;
+		size_t mismatchCount = 0;
+		const auto rowCount = std::min(expected.rows.size(), actual.rows.size());
+		for (size_t r = 0; r < rowCount; ++r) {
+			if (expected.rows[r].size() != actual.rows[r].size()) {
+				report += std::format("Row {} column count mismatch: expected {}, actual {}\n",
+					r, expected.rows[r].size(), actual.rows[r].size());
+				++mismatchCount;
 				continue;
 			}
-
-			const auto shortname = m[1].str();
-			if (auto it = map.find(shortname); it != map.end()) {
-				stats.push_back(it->second);
-			}
-			else {
-				stats.push_back(PM_STAT_NONE);
-				Logger::WriteMessage(std::format("Failed to look up stat: {}\n", shortname).c_str());
+			for (size_t c = 0; c < expected.rows[r].size(); ++c) {
+				if (!ValuesMatch(expected.rows[r][c], actual.rows[r][c])) {
+					++mismatchCount;
+					if (mismatchCount <= maxMismatchesToReport) {
+						const auto columnName = c < expected.header.size() ? expected.header[c] : "<unknown>"s;
+						report += std::format("  row {}, column {} [{}]: expected {}, actual {}\n",
+							r, c, columnName, expected.rows[r][c], actual.rows[r][c]);
+					}
+				}
 			}
 		}
+		if (mismatchCount > maxMismatchesToReport) {
+			report += std::format("  ... {} additional value mismatches omitted\n",
+				mismatchCount - maxMismatchesToReport);
+		}
 
-		return stats;
+		return report;
 	}
 
-	void WriteResults(
-		const std::string& csvFilePath,
-		const std::vector<std::string>& header,
-		std::vector<MetricCompareResult> results)
+	std::string MakeAnalyzeCommand(const std::string& testName)
 	{
-		// output results to csvs
-		std::ofstream resStream{ csvFilePath };
-		auto resWriter = csv::make_csv_writer(resStream);
-		resWriter << std::array{ "metric"s, "n-miss"s, "mse"s };
-		for (auto&& [i, res] : vi::enumerate(results)) {
-			resWriter << std::make_tuple(header[i], res.mismatches.size(), res.meanSquareError);
-		}
+		const auto scriptPath = std::filesystem::absolute(R"(..\..\Tests\Scripts\analyze-paced.py)").string();
+		const auto outputPath = std::filesystem::absolute(outFolder_).string();
+		const auto goldPath = std::filesystem::absolute(R"(..\..\Tests\AuxData\Data)").string();
+		return std::format(
+			R"(python "{}" --folder "{}" --golds "{}" --name {})",
+			scriptPath,
+			outputPath,
+			goldPath,
+			testName);
 	}
 
-	// works on the set of all results comparing one run (test) against another (gold)
-	// outputs aggregate showing at a glance how each test run compares to the gold
-	int ValidateAndAggregateResults(double sampleCount, std::string fileName,
-		const std::vector<std::vector<MetricCompareResult>>& allResults)
+	std::string MakeAbsolutePath(const std::string& path)
 	{
-		// output aggregate results of all runs
-		std::ofstream aggStream{ outFolder_ + "\\"s + fileName };
-		auto aggWriter = csv::make_csv_writer(aggStream);
-		aggWriter << std::array{ "#"s, "n-miss-total"s, "n-miss-max"s, "mse-total"s, "mse-max"s };
-		int nFail = 0;
-		for (auto&& [i, runResult] : vi::enumerate(allResults)) {
-			size_t nMissTotal = 0;
-			size_t nMissMax = 0;
-			double mseTotal = 0.;
-			double mseMax = 0.;
-			for (auto& colRes : runResult) {
-				nMissTotal += colRes.mismatches.size();
-				nMissMax = std::max(colRes.mismatches.size(), nMissMax);
-				mseTotal += colRes.meanSquareError;
-				mseMax = std::max(colRes.meanSquareError, mseMax);
-			}
-			aggWriter << std::make_tuple(i, nMissTotal, nMissMax, mseTotal, mseMax);
-			// factors to tweak the pass/fail decision points
-			const auto overallMissRatio = 0.033;
-			const auto perColumnMissRatio = 0.01;
-			const auto mseTotalFactor = 2.5;
-			const auto mseMaxFactor = 1.;
-			// fail if any single column has too many mismatches, or if the total across all
-			// columns exceeds a threshold (same idea for mse below as well)
-			if (nMissTotal > size_t(sampleCount * overallMissRatio) ||
-				nMissMax > size_t(sampleCount * perColumnMissRatio)) {
-				nFail++;
-			}
-			else if (mseTotal > sampleCount * mseTotalFactor ||
-				mseMax > sampleCount * mseMaxFactor) {
-				nFail++;
-			}
-		}
-		return nFail;
+		return std::filesystem::absolute(path).string();
 	}
 
-	auto DoPollingRunAndCompare(TestFixture& fix, const std::string& ctrlPipe, const StatMap& smap,
+	struct StatColumnSet
+	{
+		std::optional<size_t> min;
+		std::optional<size_t> p01;
+		std::optional<size_t> p05;
+		std::optional<size_t> p10;
+		std::optional<size_t> p90;
+		std::optional<size_t> p95;
+		std::optional<size_t> p99;
+		std::optional<size_t> max;
+	};
+
+	std::optional<std::pair<std::string, std::string>> ParseMetricStatColumn(const std::string& column)
+	{
+		const auto open = column.rfind('(');
+		const auto close = column.rfind(')');
+		if (open == std::string::npos || close == std::string::npos || close <= open) {
+			return std::nullopt;
+		}
+		return std::pair{
+			column.substr(0, open),
+			column.substr(open + 1, close - open - 1),
+		};
+	}
+
+	bool Ordered(double left, double right)
+	{
+		constexpr auto tolerance = 1e-9;
+		return left <= right || std::abs(left - right) <= tolerance;
+	}
+
+	std::string MakeStatOrderingReport(const CsvData& run)
+	{
+		std::map<std::string, StatColumnSet> statColumnsByMetric;
+		for (size_t i = 0; i < run.header.size(); ++i) {
+			const auto parsed = ParseMetricStatColumn(run.header[i]);
+			if (!parsed) {
+				continue;
+			}
+			auto& columns = statColumnsByMetric[parsed->first];
+			if (parsed->second == "min") {
+				columns.min = i;
+			}
+			else if (parsed->second == "1%") {
+				columns.p01 = i;
+			}
+			else if (parsed->second == "5%") {
+				columns.p05 = i;
+			}
+			else if (parsed->second == "10%") {
+				columns.p10 = i;
+			}
+			else if (parsed->second == "90%") {
+				columns.p90 = i;
+			}
+			else if (parsed->second == "95%") {
+				columns.p95 = i;
+			}
+			else if (parsed->second == "99%") {
+				columns.p99 = i;
+			}
+			else if (parsed->second == "max") {
+				columns.max = i;
+			}
+		}
+
+		std::string report;
+		size_t checkedMetricCount = 0;
+		for (const auto& [metric, columns] : statColumnsByMetric) {
+			if (!columns.min || !columns.p01 || !columns.p05 || !columns.p10 ||
+				!columns.p90 || !columns.p95 || !columns.p99 || !columns.max) {
+				continue;
+			}
+			++checkedMetricCount;
+			const std::array<std::pair<const char*, size_t>, 8> orderedColumns{
+				std::pair{ "min", *columns.min },
+				std::pair{ "1%", *columns.p01 },
+				std::pair{ "5%", *columns.p05 },
+				std::pair{ "10%", *columns.p10 },
+				std::pair{ "90%", *columns.p90 },
+				std::pair{ "95%", *columns.p95 },
+				std::pair{ "99%", *columns.p99 },
+				std::pair{ "max", *columns.max },
+			};
+			for (size_t rowIndex = 0; rowIndex < run.rows.size(); ++rowIndex) {
+				const auto& row = run.rows[rowIndex];
+				if (row.size() != run.header.size()) {
+					report += std::format("Row {} column count mismatch: expected {}, actual {}\n",
+						rowIndex, run.header.size(), row.size());
+					continue;
+				}
+				for (size_t i = 1; i < orderedColumns.size(); ++i) {
+					const auto& previous = orderedColumns[i - 1];
+					const auto& current = orderedColumns[i];
+					const auto previousValue = row[previous.second];
+					const auto currentValue = row[current.second];
+					if (std::isnan(previousValue) || std::isnan(currentValue)) {
+						continue;
+					}
+					if (!Ordered(previousValue, currentValue)) {
+						report += std::format(
+							"row {}, metric {}: {} ({}) > {} ({})\n",
+							rowIndex, metric, previous.first, previousValue,
+							current.first, currentValue);
+					}
+				}
+			}
+		}
+
+		if (checkedMetricCount == 0) {
+			report += "No metrics with complete min/percentile/max stat columns were found\n";
+		}
+
+		return report;
+	}
+
+	void ExecutePacedPollingOrderingTest(const std::string& testName, uint32_t targetPid,
+		double recordingStart, double recordingStop, double pollPeriod, TestFixture& fixture)
+	{
+		const auto outCsvPath = MakeAbsolutePath(std::format("{}\\{}_ordering_actual.csv", outFolder_, testName));
+		Logger::WriteMessage(std::format("Paced polling ordering output csv: {}\n",
+			outCsvPath).c_str());
+		fixture.LaunchClient({
+			"--process-id"s, std::to_string(targetPid),
+			"--output-path"s, outCsvPath,
+			"--run-time"s, std::to_string(recordingStop - recordingStart),
+			"--run-start"s, std::to_string(recordingStart),
+			"--poll-period"s, std::to_string(pollPeriod),
+			"--metric-offset"s, "500"s,
+			"--window-size"s, "1000"s,
+			"--min-max-percentile-stats-only"s,
+		});
+
+		auto run = LoadRunFromCsv(outCsvPath);
+		Assert::IsTrue(!run.rows.empty(), L"Paced polling ordering run produced no rows");
+		if (const auto report = MakeStatOrderingReport(run); !report.empty()) {
+			const auto reportPath = MakeAbsolutePath(std::format("{}\\{}_ordering_mismatch.txt", outFolder_, testName));
+			std::ofstream reportStream{ reportPath };
+			reportStream << report;
+			Logger::WriteMessage(std::format("Paced polling ordering mismatch report: {}\n",
+				reportPath).c_str());
+			Logger::WriteMessage(report.c_str());
+			Assert::Fail(pmon::util::str::ToWide(
+				"Paced polling stat ordering failed.").c_str());
+		}
+	}
+
+	void DoPollingRunAndCompare(TestFixture& fix,
 		uint32_t targetPid, double recordingStart, double recordingStop, double pollPeriod,
-		const std::vector<std::vector<double>>& gold, double toleranceFactor,
-		const std::string& testName, const std::string& phaseName)
+		const CsvData& gold, const std::string& testName)
 	{
 		// build output file path
-		auto outCsvPath = std::format("{}\\{}_{}.csv", outFolder_, testName, phaseName);
+		auto outCsvPath = MakeAbsolutePath(std::format("{}\\{}_actual.csv", outFolder_, testName));
 		// execute a test run and record samples, sync on exit
 		fix.LaunchClient({
 			"--process-id"s, std::to_string(targetPid),
@@ -253,213 +298,61 @@ namespace PacedPolling
 			"--run-time"s, std::to_string(recordingStop - recordingStart),
 			"--run-start"s, std::to_string(recordingStart),
 			"--poll-period"s, std::to_string(pollPeriod),
-			"--metric-offset"s, "64"s,
+			"--metric-offset"s, "500"s,
 			"--window-size"s, "1000"s,
 		});
+		const auto analyzeCommand = MakeAnalyzeCommand(testName);
+		Logger::WriteMessage(std::format("Analyze with: {}\n", analyzeCommand).c_str());
 		// load up result
-		auto [header, run] = LoadRunFromCsv(outCsvPath);
-		// extract stats from header
-		auto stats = HeaderToStats(header, smap);
-		// compare against gold
-		auto compResults = CompareRuns(stats, run, gold, toleranceFactor);
-		// record results for possible post-mortem
-		WriteResults(std::format("{}\\{}_{}_rslt.csv", outFolder_, testName, phaseName),
-			header, compResults);
-		// return the results
-		return compResults;
-	}
-
-	void PrintAnalysisHint(const std::string& testName, const std::string& mode)
-	{
-		// script analysis command line info
-		const auto rootPath = fs::current_path().parent_path().parent_path();
-		static const auto scriptPath = (rootPath / "Tests\\Scripts\\analyze-paced.py").string();
-		static const auto outPath = (rootPath / "build\\Debug\\TestOutput\\PacedPolling").string();
-		static const auto goldPath = (rootPath / "Tests\\AuxData\\Data").string();
-		// print command to run
-		Logger::WriteMessage("Analyze with:\n");
-		Logger::WriteMessage(std::format(R"(python "{}" --run-mode {} --folder "{}" --name {} --golds "{}")",
-			scriptPath, mode, outPath, testName, goldPath).c_str());
-		Logger::WriteMessage("\n");
-	}
-
-	// ordering results by misses w/ column ids
-	// returns column index,column compare result
-	std::vector<std::tuple<ptrdiff_t, MetricCompareResult>> GetRankedResults(
-		const std::vector<MetricCompareResult>& columnResults, size_t nOut)
-	{
-		// attach column index to results and filter out those with zero mismatches
-		auto enumeratedResults = columnResults | vi::enumerate | vi::filter(
-			[](const std::tuple<ptrdiff_t, MetricCompareResult>& rslt) {
-			return !std::get<1>(rslt).mismatches.empty(); }) |
-			rn::to<std::vector>();
-		// sort indices by mismatch count
-		rn::sort(enumeratedResults, [](const std::tuple<ptrdiff_t, MetricCompareResult>& a,
-			const std::tuple<ptrdiff_t, MetricCompareResult>& b) {
-			return std::get<1>(a).mismatches.size() > std::get<1>(b).mismatches.size();
-		});
-		// limit max results
-		if (enumeratedResults.size() > nOut) enumeratedResults.resize(nOut);
-		// return results
-		return enumeratedResults;
-	}
-
-	// print ranked column results
-	void PrintRankedResults(const std::vector<MetricCompareResult>& columnResults, size_t nOut,
-		const std::vector<std::string>& header, size_t indentation = 3)
-	{
-		auto tabs = std::string(indentation, ' ');
-		for (auto&& [idx, rslt] : GetRankedResults(columnResults, nOut)) {
-			Logger::WriteMessage(std::format("{}[{}] {}: {}\n",
-				tabs, idx, header[idx], rslt.mismatches.size()).c_str());
+		auto run = LoadRunFromCsv(outCsvPath);
+		if (const auto report = MakeMismatchReport(gold, run); !report.empty()) {
+			const auto reportPath = MakeAbsolutePath(std::format("{}\\{}_mismatch.txt", outFolder_, testName));
+			std::ofstream reportStream{ reportPath };
+			reportStream << report;
+			Logger::WriteMessage(std::format("Paced polling mismatch report: {}\n",
+				reportPath).c_str());
+			Logger::WriteMessage(report.c_str());
+			Assert::Fail(pmon::util::str::ToWide(
+				"Paced polling output differed from gold.").c_str());
 		}
 	}
 
 	void ExecutePacedPollingTest(const std::string& testName, uint32_t targetPid, double recordingStart,
-		double recordingStop, double pollPeriod, double toleranceFactor, double fullFailRatio,
-		TestFixture& fixture)
+		double recordingStop, double pollPeriod, TestFixture& fixture)
 	{
-		// hardcoded constants
-		const size_t nRunsFull = 9;
-		const size_t nRoundRobin = 12;
-
 		// derived parameters
-		const auto goldCsvPath = std::format(R"(..\..\Tests\AuxData\Data\{}_gold.csv)", testName);
-		const auto sampleCount = (recordingStop - recordingStart) / pollPeriod;
+		const auto goldCsvPath = MakeAbsolutePath(std::format(R"(..\..\Tests\AuxData\Data\{}_gold.csv)", testName));
 
-
-		auto& common = fixture.GetCommonArgs();
-		const auto smap = [&] {
-			pmapi::Session tempSession{ common.ctrlPipe };
-			const auto pTempIntro = tempSession.GetIntrospectionRoot();
-			return MakeStatMap(*pTempIntro);
-		}();
-
-		// compare all runs against gold if exists
 		if (std::filesystem::exists(goldCsvPath)) {
-			auto [goldHeader, gold] = LoadRunFromCsv(goldCsvPath);
-			// do one polling run and compare against gold
-			auto oneshotCompRes = DoPollingRunAndCompare(
+			const auto gold = LoadRunFromCsv(goldCsvPath);
+			DoPollingRunAndCompare(
 				fixture,
-				common.ctrlPipe,
-				smap,
 				targetPid,
 				recordingStart,
 				recordingStop,
 				pollPeriod,
 				gold,
-				toleranceFactor,
-				testName,
-				"oneshot"
+				testName
 			);
-			const auto nFailOneshot = ValidateAndAggregateResults(sampleCount,
-				testName + "_oneshot_agg.csv", { oneshotCompRes });
-			// if oneshot run succeeds with zero failures, we finish here
-			if (nFailOneshot == 0) {
-				Logger::WriteMessage("One-shot success\n");
-				// output commandline to run to visually analyze results
-				PrintAnalysisHint(testName, "one-shot");
-				// output ranked results
-				PrintRankedResults(oneshotCompRes, 3, goldHeader);
-			}
-			else {
-				Logger::WriteMessage("One-shot failed, executing full run...\n");
-				// output ranked results
-				PrintRankedResults(oneshotCompRes, 3, goldHeader);
-				// oneshot failed, run N times and see if enough pass to seem plausible
-				std::vector<std::vector<MetricCompareResult>> allResults;
-				for (size_t i = 0; i < nRunsFull; i++) {
-					// restart service to restart playback
-					fixture.RebootService();
-					// do Nth polling run and compare against gold
-					auto compRes = DoPollingRunAndCompare(
-						fixture,
-						common.ctrlPipe,
-						smap,
-						targetPid,
-						recordingStart,
-						recordingStop,
-						pollPeriod,
-						gold,
-						toleranceFactor,
-						testName,
-						std::format("full_{:02}", i)
-					);
-					allResults.push_back(std::move(compRes));
-				}
-				// validate comparison results
-				const auto nFail = ValidateAndAggregateResults(sampleCount, testName + "_full_agg.csv", allResults);
-				// output commandline to run to visually analyze results
-				PrintAnalysisHint(testName, "full");
-				for (auto&& [j, r] : allResults | vi::enumerate) {
-					Logger::WriteMessage(std::format("   Run [{}]\n", j).c_str());
-					// output ranked results
-					PrintRankedResults(r, 3, goldHeader, 6);
-				}
-				Assert::IsTrue(nFail < (int)std::round(nRunsFull * fullFailRatio),
-					std::format(L"Failed [{}] runs (of {})", nFail, nRunsFull).c_str());
-				Logger::WriteMessage(std::format(L"Retry success (failed [{}] of [{}])\n", nFail, nRunsFull).c_str());
-			}
+			Logger::WriteMessage("Paced polling output matched gold\n");
 		}
-		else { // if gold doesn't exist, do cartesian product comparison over many runs to generate data for a new gold
-			std::vector<std::vector<std::vector<double>>> allRobinRuns;
-			std::vector<std::string> header;
-			for (size_t i = 0; i < nRoundRobin; i++) {
-				// restart service to restart playback
-				fixture.RebootService();
-				// execute a test run and record samples, sync on exit
-				auto outCsvPath = std::format("{}\\{}_robin_{:02}.csv", outFolder_, testName, i);
-				fixture.LaunchClient({
-					"--process-id"s, std::to_string(targetPid),
-					"--output-path"s, outCsvPath,
-					"--run-time"s, std::to_string(recordingStop - recordingStart),
-					"--run-start"s, std::to_string(recordingStart),
-					"--poll-period"s, std::to_string(pollPeriod),
-					"--metric-offset"s, "64"s,
-					"--window-size"s, "1000"s,
-				});
-				// load up result and collect in memory
-				auto [runHeader, run] = LoadRunFromCsv(outCsvPath);
-				if (header.empty()) {
-					header = runHeader;
-				}
-				allRobinRuns.push_back(std::move(run));
-			}
-			const auto stats = HeaderToStats(header, smap);
-			// do cartesian product and record all results
-			std::vector<std::vector<std::vector<MetricCompareResult>>> allRobinResults(allRobinRuns.size());
-			for (size_t iA = 0; iA < allRobinRuns.size(); ++iA) {
-				for (size_t iB = 0; iB < allRobinRuns.size(); ++iB) {
-					// compare run A vs run B
-					auto results = CompareRuns(stats, allRobinRuns[iA], allRobinRuns[iB], toleranceFactor);
-					// write per-pair results
-					WriteResults(
-						std::format("{}\\{}_robin_{:02}_{:02}_rslt.csv", outFolder_, testName, iA, iB),
-						header,
-						results
-					);
-					allRobinResults[iA].push_back(std::move(results));
-				}
-			}
-			// aggregate for each candidate
-			std::ofstream robinUberAggStream{ std::format("{}\\{}_robin_uber_agg.csv", outFolder_, testName) };
-			auto aggWriter = csv::make_csv_writer(robinUberAggStream);
-			aggWriter << std::array{ "#"s, "n-fail-total"s };
-			Logger::WriteMessage("Round Robin Results\n===================\n");
-			for (size_t i = 0; i < allRobinRuns.size(); i++) {
-				const auto nFail = ValidateAndAggregateResults(
-					sampleCount,
-					std::format("{}_robin_{:02}_agg.csv", testName, i),
-					allRobinResults[i]
-				);
-				aggWriter << std::make_tuple(i, nFail);
-				Logger::WriteMessage(std::format("#{:02}: {}\n", i, nFail).c_str());
-			}
-			// output commandline to run to visually analyze results
-			PrintAnalysisHint(testName, "round-robin");
-			// hardcode a fail because this execution path requires analysis and
-			// selection of a gold result to lock in
-			Assert::IsTrue(false, L"Run complete, analysis is required to select gold result.");
+		else {
+			const auto outCsvPath = MakeAbsolutePath(std::format("{}\\{}_actual.csv", outFolder_, testName));
+			fixture.LaunchClient({
+				"--process-id"s, std::to_string(targetPid),
+				"--output-path"s, outCsvPath,
+				"--run-time"s, std::to_string(recordingStop - recordingStart),
+				"--run-start"s, std::to_string(recordingStart),
+				"--poll-period"s, std::to_string(pollPeriod),
+				"--metric-offset"s, "500"s,
+				"--window-size"s, "1000"s,
+			});
+			const auto analyzeCommand = MakeAnalyzeCommand(testName);
+			Logger::WriteMessage(std::format("Gold CSV search path: {}\n", goldCsvPath).c_str());
+			Logger::WriteMessage(std::format("Generated candidate CSV: {}\n", outCsvPath).c_str());
+			Logger::WriteMessage(std::format("Analyze with: {}\n", analyzeCommand).c_str());
+			Assert::Fail(pmon::util::str::ToWide(
+				"Gold CSV does not exist.").c_str());
 		}
 	}
 
@@ -485,12 +378,19 @@ namespace PacedPolling
 			const uint32_t targetPid = 12820;
 			const auto recordingStart = 1.;
 			const auto recordingStop = 14.;
-			const auto pollPeriod = 0.1;
-			const auto toleranceFactor = 0.005;
-			const auto fullFailRatio = 0.667;
+			constexpr auto pollPeriod = PollPeriodFromHz(150.0);
 			// run test
 			ExecutePacedPollingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart, recordingStop,
-				pollPeriod, toleranceFactor, fullFailRatio, fixture_);
+				pollPeriod, fixture_);
+		}
+		TEST_METHOD(MinPercentileMaxOrdering)
+		{
+			const uint32_t targetPid = 12820;
+			const auto recordingStart = 1.;
+			const auto recordingStop = 5.;
+			constexpr auto pollPeriod = PollPeriodFromHz(150.0);
+			ExecutePacedPollingOrderingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart,
+				recordingStop, pollPeriod, fixture_);
 		}
 	};
 #undef TEST_NAME
@@ -517,12 +417,19 @@ namespace PacedPolling
 			const uint32_t targetPid = 19736;
 			const auto recordingStart = 1.;
 			const auto recordingStop = 34.;
-			const auto pollPeriod = 0.1;
-			const auto toleranceFactor = 0.005;
-			const auto fullFailRatio = 0.667;
+			constexpr auto pollPeriod = PollPeriodFromHz(140.0);
 			// run test
 			ExecutePacedPollingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart, recordingStop,
-				pollPeriod, toleranceFactor, fullFailRatio, fixture_);
+				pollPeriod, fixture_);
+		}
+		TEST_METHOD(MinPercentileMaxOrdering)
+		{
+			const uint32_t targetPid = 19736;
+			const auto recordingStart = 1.;
+			const auto recordingStop = 5.;
+			constexpr auto pollPeriod = PollPeriodFromHz(140.0);
+			ExecutePacedPollingOrderingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart,
+				recordingStop, pollPeriod, fixture_);
 		}
 	};
 #undef TEST_NAME

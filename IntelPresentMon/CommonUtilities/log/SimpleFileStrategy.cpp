@@ -19,11 +19,13 @@ namespace pmon::util::log
 	{}
 	void SimpleFileStrategy::CreateFile_()
 	{
-		// create any directories in the path that don't yet exist
-		if (const auto dirs = path_.parent_path(); !dirs.empty()) {
-			std::filesystem::create_directories(dirs);
+		if (!pFileStream_) {
+			// create any directories in the path that don't yet exist
+			if (const auto dirs = path_.parent_path(); !dirs.empty()) {
+				std::filesystem::create_directories(dirs);
+			}
+			// open file, append if already exists
+			pFileStream_ = std::make_shared<std::ofstream>(path_, std::ios::out | std::ios::app);
 		}
-		// open file, append if already exists
-		pFileStream_ = std::make_shared<std::ofstream>(path_, std::ios::out | std::ios::app);
 	}
 }

@@ -1,4 +1,4 @@
-#include "../CommonUtilities/log/Log.h"
+﻿#include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/log/Channel.h"
 #include "../CommonUtilities/log/MsvcDebugDriver.h"
 #include "../CommonUtilities/log/BasicFileDriver.h"
@@ -64,8 +64,7 @@ namespace p2sam
 			// get the channel to work on it
 			auto pChan = GetDefaultChannel();
 			// connect dll channel and id table to exe, get access to global settings in dll
-			const auto getters = pmLinkLogging_(pChan, []() -> IdentificationTable&
-				{ return IdentificationTable::Get_(); });
+			const auto getters = pmLinkLogging_(pChan, IdentificationTable::MakeForwardingCallbacks());
 			// shortcut for command line
 			const auto& opt = clio::Options::Get();
 			// configure logging based on command line
@@ -82,6 +81,12 @@ namespace p2sam
 			if (opt.logLevel) {
 				GlobalPolicy::Get().SetLogLevel(*opt.logLevel);
 				getters.getGlobalPolicy().SetLogLevel(*opt.logLevel);
+			}
+			if (opt.logVerboseModules) {
+				for (auto mod : *opt.logVerboseModules) {
+					GlobalPolicy::Get().ActivateVerboseModule(mod);
+					getters.getGlobalPolicy().ActivateVerboseModule(mod);
+				}
 			}
 			if (opt.logTraceLevel) {
 				GlobalPolicy::Get().SetTraceLevel(*opt.logTraceLevel);

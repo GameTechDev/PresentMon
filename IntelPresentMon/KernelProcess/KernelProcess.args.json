@@ -34,7 +34,7 @@
     },
     {
       "Id": "49b6fc1f-b969-4280-b0d8-17a213e80f16",
-      "Command": "--log-verbose-modules core_window v8async etwq"
+      "Command": "--log-verbose-modules procwatch"
     },
     {
       "Id": "bab48d6d-3a48-4b3b-9ed9-903e381824c6",
@@ -55,6 +55,14 @@
     {
       "Id": "5cef3a6c-d5a7-4ef3-ba5a-ee1aa9144241",
       "Command": "--enable-diagnostic"
+    },
+    {
+      "Id": "5ef261e6-17dc-4857-a3ff-ec2ca69def00",
+      "Command": "--log-synchronous"
+    },
+    {
+      "Id": "159d4f89-6346-472d-8be1-bb96ca18f95b",
+      "Command": "--log-synchronous"
     },
     {
       "Id": "907ff44e-4734-41ba-8eb1-1ee21d94bfcf",
@@ -115,6 +123,10 @@
     {
       "Id": "5217575f-37d8-4f60-a2d2-a85992ce4341",
       "Command": "--ui-flag enable-chromium-debug"
+    },
+    {
+      "Id": "f4a7ccc2-978f-4bd0-af05-a70ce115b1eb",
+      "Command": "list --devices"
     },
     {
       "Id": "a82f2a21-c9de-460e-8f38-b10026e23809",

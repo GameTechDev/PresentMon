@@ -154,6 +154,9 @@
     <ProjectReference Include="..\PresentMonAPIWrapper\PresentMonAPIWrapper.vcxproj">
       <Project>{cee032ed-b0d3-47f8-bdae-d46757b0061b}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\PresentMonService\PresentMonService.vcxproj">
+      <Project>{3a848e5b-a376-4a22-bbac-e9b3c01bd385}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\Versioning\Versioning.vcxproj">
       <Project>{c73aa532-e532-4d93-9279-905444653c08}</Project>
     </ProjectReference>
@@ -172,7 +175,6 @@
     <ClInclude Include="kact\KernelExecutionContext.h" />
     <ClInclude Include="kact\OpenSession.h" />
     <ClInclude Include="kact\PushSpecification.h" />
-    <ClInclude Include="kact\SetAdapter.h" />
     <ClInclude Include="kact\SetCapture.h" />
     <ClInclude Include="kact\SetEtlLogging.h" />
     <ClInclude Include="MakeOverlaySpec.h" />
@@ -192,6 +194,10 @@
       <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</DeploymentContent>
     </CopyFileToFolders>
   </ItemGroup>
+  <Target Name="CopyPathedPresentMonCli" AfterTargets="Build">
+    <MakeDir Directories="$(OutDir)pathed" />
+    <Copy SourceFiles="$(ProjectDir)presentmon-cli.bat" DestinationFiles="$(OutDir)pathed\presentmon-cli.bat" SkipUnchangedFiles="true" />
+  </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

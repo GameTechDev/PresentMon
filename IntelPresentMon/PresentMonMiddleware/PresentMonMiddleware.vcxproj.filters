@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
@@ -18,13 +18,16 @@
     <ClInclude Include="Middleware.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ConcreteMiddleware.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="MockCommon.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="DynamicQuery.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DynamicMetric.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DynamicStat.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MetricBinding.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="FrameEventQuery.h">
@@ -36,21 +39,42 @@
     <ClInclude Include="ActionClient.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="FrameTimingData.h">
+    <ClInclude Include="FrameMetricsSource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DynamicQueryWindow.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="QueryValidation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ConcreteMiddleware.cpp">
+    <ClCompile Include="Middleware.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DynamicQuery.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DynamicStat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameMetricsSource.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FrameEventQuery.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="MetricBinding.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="LogSetup.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="LogSetup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="QueryValidation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

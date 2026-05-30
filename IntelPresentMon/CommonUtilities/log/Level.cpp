@@ -8,7 +8,7 @@ namespace pmon::util::log
 {
 	std::string GetLevelName(Level lv)
 	{
-		return std::string{ reflect::enum_name<Level, "Unknown", 0, int(Level::EndOfEnumKeys)>(lv)};
+		return std::string{ reflect::enum_name(lv) };
 	}
 
 	std::map<std::string, Level> GetLevelMapNarrow()
@@ -18,7 +18,7 @@ namespace pmon::util::log
 		for (int n = 0; n < (int)Level::EndOfEnumKeys; n++) {
 			const auto lvl = Level(n);
 			auto key = ToLower(GetLevelName(lvl));
-			if (key != "Unknown") {
+			if (!key.starts_with("level")) {
 				map[std::move(key)] = lvl;
 			}
 		}

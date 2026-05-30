@@ -2,6 +2,7 @@
 #include "CppUnitTest.h"
 #include <filesystem>
 #include "Folders.h"
+#include "../CommonUtilities/test/MachineExpectations.h"
 #include "../PresentMonAPI2Loader/Loader.h"
 #include "../PresentMonAPI2/Internal.h"
 
@@ -32,6 +33,17 @@ TEST_MODULE_INITIALIZE(Api2TestModuleInit)
 	WipeAndRecreate(MultiClientTests::logFolder_);
 	WipeAndRecreate(EtlLoggerTests::logFolder_);
 	WipeAndRecreate(EtlLoggerTests::outFolder_);
+	WipeAndRecreate(EtlTests::logFolder_);
+	WipeAndRecreate(EtlTests::outFolder_);
 	WipeAndRecreate(PacedPolling::logFolder_);
 	WipeAndRecreate(PacedPolling::outFolder_);
+	WipeAndRecreate(PacedFrame::logFolder_);
+	WipeAndRecreate(PacedFrame::outFolder_);
+	WipeAndRecreate(InterimBroadcasterTests::logFolder_);
+	WipeAndRecreate(InterimBroadcasterTests::outFolder_);
+	WipeAndRecreate(IpcMcIntegrationTests::logFolder_);
+	WipeAndRecreate(pmon::util::test::MachineExpectationOutputFolder);
+	WipeAndRecreate(RealtimeMetricTests::logFolder_);
+	WipeAndRecreate(RealtimeMetricTests::outFolder_);
+	WipeAndRecreate(LoggingTests::logFolder_);
 }

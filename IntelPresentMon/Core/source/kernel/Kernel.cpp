@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Kernel.h"
 #include <Core/source/win/WinAPI.h>
@@ -61,7 +61,6 @@ namespace p2c::kern
         const GfxLayer::Extension::OverlayConfig& cfg)
     {
         HandleMarshalledException_();
-        auto config = cfg;
         pInjectorComplex->SetActive(enableInjection);
         if (enableInjection) {
             if (overrideTargetName) {
@@ -95,22 +94,21 @@ namespace p2c::kern
         cv.notify_one();
     }
 
-    void Kernel::SetAdapter(uint32_t id)
-    {
-        HandleMarshalledException_();
-        std::lock_guard lk{ mtx };
-        if (!pm) {
-            pmlog_warn("presentmon not initialized");
-            return;
-        }
-        pm->SetAdapter(id);
-    }
-
     const pmapi::intro::Root& Kernel::GetIntrospectionRoot() const
     {
         HandleMarshalledException_();
         std::lock_guard g{ mtx };
         return pm->GetIntrospectionRoot();
+    }
+
+    uint32_t Kernel::GetDefaultGpuDeviceId() const
+    {
+        HandleMarshalledException_();
+        std::lock_guard g{ mtx };
+        if (!pm) {
+            return 0;
+        }
+        return pm->GetDefaultGpuDeviceId();
     }
 
     std::vector<pmon::AdapterInfo> Kernel::EnumerateAdapters() const

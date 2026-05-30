@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -20,8 +20,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cli\CliFramework.h" />
+    <ClInclude Include="cnr\FixedVector.h" />
+    <ClInclude Include="Env.h" />
     <ClInclude Include="Exception.h" />
     <ClInclude Include="file\FileUtils.h" />
+    <ClInclude Include="file\PathUtils.h" />
     <ClInclude Include="file\SecureSubdirectory.h" />
     <ClInclude Include="file\TempFile.h" />
     <ClInclude Include="IntervalWaiter.h" />
@@ -68,6 +71,13 @@
     <ClInclude Include="log\Verbose.h" />
     <ClInclude Include="Macro.h" />
     <ClInclude Include="Math.h" />
+    <ClInclude Include="SampleStatistics.h" />
+    <ClInclude Include="mc\FrameMetricsMemberMap.h" />
+    <ClInclude Include="mc\MetricsCalculator.h" />
+    <ClInclude Include="mc\MetricsCalculatorInternal.h" />
+    <ClInclude Include="mc\MetricsTypes.h" />
+    <ClInclude Include="mc\SwapChainState.h" />
+    <ClInclude Include="mc\UnifiedSwapChain.h" />
     <ClInclude Include="Memory.h" />
     <ClInclude Include="Hash.h" />
     <ClInclude Include="Meta.h" />
@@ -92,6 +102,8 @@
     <ClInclude Include="rng\OptionalMinMax.h" />
     <ClInclude Include="rng\PairToRange.h" />
     <ClInclude Include="str\String.h" />
+    <ClInclude Include="test\FloatAssert.h" />
+    <ClInclude Include="test\MachineExpectations.h" />
     <ClInclude Include="third\reflect.hpp" />
     <ClInclude Include="win\com\Comdef.h" />
     <ClInclude Include="win\com\ComManager.h" />
@@ -115,8 +127,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cli\CliFramework.cpp" />
+    <ClCompile Include="Env.cpp" />
     <ClCompile Include="Exception.cpp" />
     <ClCompile Include="file\FileUtils.cpp" />
+    <ClCompile Include="file\PathUtils.cpp" />
     <ClCompile Include="file\SecureSubdirectory.cpp" />
     <ClCompile Include="file\TempFile.cpp" />
     <ClCompile Include="IntervalWaiter.cpp" />
@@ -150,6 +164,15 @@
     <ClCompile Include="log\NamedPipeMarshallSender.cpp" />
     <ClCompile Include="log\TimePoint.cpp" />
     <ClCompile Include="log\Verbose.cpp" />
+    <ClCompile Include="mc\MetricsCalculator.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorCpuGpu.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorDisplay.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorInput.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorInstrumented.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorAnimation.cpp" />
+    <ClCompile Include="mc\MetricsTypes.cpp" />
+    <ClCompile Include="mc\SwapChainState.cpp" />
+    <ClCompile Include="mc\UnifiedSwapChain.cpp" />
     <ClCompile Include="mt\Thread.cpp" />
     <ClCompile Include="pipe\CoroMutex.cpp" />
     <ClCompile Include="pipe\Pipe.cpp" />
@@ -175,6 +198,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="vcpkg.json" />
+    <None Include="test\MachineExpectations.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

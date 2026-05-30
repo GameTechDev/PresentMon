@@ -21,6 +21,7 @@ enum class CpuTelemetryCapBits {
   cpu_power_limit,
   cpu_temperature,
   cpu_frequency,
+  cpu_core_utility,
   cpu_telemetry_count
 };
 

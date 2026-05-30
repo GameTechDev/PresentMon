@@ -6,6 +6,7 @@
 #include "Transfer.h"
 #include "AsyncActionCollection.h"
 #include <boost/asio/experimental/awaitable_operators.hpp>
+#include <type_traits>
 
 
 namespace pmon::ipc::act
@@ -29,7 +30,7 @@ namespace pmon::ipc::act
                 if (header.identifier != "OpenSession") {
                     assert(bool(stx.remotePid));
                     if (!stx.remotePid) {
-                        pmlog_warn("Received action without a valid session opened");
+                        pmlog_warn("Received action without a valid session opened").diag();
                     }
                 }
                 // lookup the command by identifier and execute it with remaining buffer contents
@@ -69,17 +70,18 @@ namespace pmon::ipc::act
         template<class Params>
         auto DispatchDetached(Params&& params, as::io_context& ioctx, SessionContextType& stx)
         {
-            LogDispatch_<Params>(stx);
+            using ParamsT = std::decay_t<Params>;
+            LogDispatch_<ParamsT>(stx);
             // wrap the AsyncEmit in a coro so we can assure non-concurrent increment of the token
-            const auto coro = [](auto&& params, SessionContextType& stx, util::pipe::DuplexPipe& pipe) -> as::awaitable<void> {
+            const auto coro = [](ParamsT params, SessionContextType& stx, util::pipe::DuplexPipe& pipe) -> as::awaitable<void> {
                 try {
-                    co_await AsyncEmit<ActionFromParams<Params>>(std::forward<Params>(params), stx.nextCommandToken++, pipe);
+                    co_await AsyncEmit<ActionFromParams<ParamsT>>(params, stx.nextCommandToken++, pipe);
                 }
                 catch (...) {
                     pmlog_error(ReportException());
                 }
             };
-            as::co_spawn(ioctx, coro(std::forward<Params>(params), stx, *pOutPipe_), as::detached);
+            as::co_spawn(ioctx, coro(ParamsT{ std::forward<Params>(params) }, stx, *pOutPipe_), as::detached);
         }
         template<class Params>
         void DispatchWithContinuation(Params&& params, as::io_context& ioctx, SessionContextType& stx,

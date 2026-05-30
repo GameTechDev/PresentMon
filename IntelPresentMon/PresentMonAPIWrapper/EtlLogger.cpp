@@ -79,9 +79,12 @@ namespace pmapi
         :
         hSession_{ hSession }
     {
-        if (auto sta = pmStartEtlLogging(hSession_, &hLogger_, 0, 0);
-            sta != PM_STATUS_SUCCESS) {
-            throw ApiErrorException{ sta, "Failed to start etl logging session" };
+        const auto sta = pmStartEtlLogging(hSession_, &hLogger_, 0, 0);
+        if (sta != PM_STATUS_SUCCESS) {
+            const char* msg = sta == PM_STATUS_FEATURE_DISABLED ? 
+                "ETL logging is not currently supported" :
+                "Failed to start etl logging session";
+            throw ApiErrorException{ sta, msg };
         }
     }
     // zero out members, useful after emptying via move or reset

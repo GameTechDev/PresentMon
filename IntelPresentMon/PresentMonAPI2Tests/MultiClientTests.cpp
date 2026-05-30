@@ -4,6 +4,7 @@
 #include "CppUnitTest.h"
 #include "StatusComparison.h"
 #include "TestProcess.h"
+#include "../CommonUtilities/test/MachineExpectations.h"
 #include <string>
 #include <ranges>
 #include "Folders.h"
@@ -24,8 +25,7 @@ namespace MultiClientTests
 		{
 			static CommonProcessArgs args{
 				.ctrlPipe = R"(\\.\pipe\pm-multi-test-ctrl)",
-				.introNsm = "pm_multi_test_intro",
-				.frameNsm = "pm_multi_test_nsm",
+				.shmNamePrefix = "pm_multi_test_intro",
 				.logLevel = "debug",
 				.logFolder = logFolder_,
 				.sampleClientMode = "MultiClient",
@@ -52,10 +52,10 @@ namespace MultiClientTests
 		{
 			// verify initial status
 			const auto status = fixture_.service->QueryStatus();
-			Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+			Assert::AreEqual(0ull, status.trackedPids.size());
+			Assert::AreEqual(0ull, status.frameStorePids.size());
 			Assert::AreEqual(16u, status.telemetryPeriodMs);
-			Assert::IsTrue((bool)status.etwFlushPeriodMs);
-			Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+			Assert::IsFalse((bool)status.etwFlushPeriodMs);
 		}
 		// verify client lifetime
 		TEST_METHOD(ClientLaunchTest)
@@ -381,12 +381,11 @@ namespace MultiClientTests
 				Assert::AreEqual(50u, *status.etwFlushPeriodMs);
 			}
 
-			// kill client 1; should revert to default (1000 ms per ServiceStatusTest)
+			// kill client 1; should revert to default (manual flush disabled)
 			client1.Quit();
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::IsTrue((bool)status.etwFlushPeriodMs);
-				Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+				Assert::IsFalse((bool)status.etwFlushPeriodMs);
 			}
 		}
 		// verify reversion on sudden client death
@@ -430,8 +429,7 @@ namespace MultiClientTests
 			// verify reversion to default
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::IsTrue((bool)status.etwFlushPeriodMs);
-				Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+				Assert::IsFalse((bool)status.etwFlushPeriodMs);
 			}
 		}
 		// verify range check error high
@@ -476,21 +474,24 @@ namespace MultiClientTests
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// one client quits
 			client1.Quit();
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// other client quits
 			client2.Quit();
 			// verify tracking stopped at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(0ull, status.trackedPids.size());
+				Assert::AreEqual(0ull, status.frameStorePids.size());
 			}
 		}
 		// verify process untrack (stream stop) when clients die suddenly
@@ -509,7 +510,8 @@ namespace MultiClientTests
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// one client dies
 			client1.Murder();
@@ -517,7 +519,8 @@ namespace MultiClientTests
 			// verify tracking status at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(1ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(1ull, status.trackedPids.size());
+				Assert::AreEqual(1ull, status.frameStorePids.size());
 			}
 			// other client dies
 			client2.Murder();
@@ -525,7 +528,8 @@ namespace MultiClientTests
 			// verify tracking stopped at service
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(0ull, status.nsmStreamedPids.size());
+				Assert::AreEqual(0ull, status.trackedPids.size());
+				Assert::AreEqual(0ull, status.frameStorePids.size());
 			}
 		}
 		// test a large number of clients running
@@ -533,7 +537,7 @@ namespace MultiClientTests
 		{
 			// launch target for tracking
 			auto presenter = fixture_.LaunchPresenter();
-			std::this_thread::sleep_for(150ms);
+			std::this_thread::sleep_for(util::test::ScaleWait(150ms));
 			// launch clients
 			std::vector<std::unique_ptr<ClientProcess>> clientPtrs;
 			for (int i = 0; i < 32; i++) {
@@ -563,8 +567,7 @@ namespace MultiClientTests
 			{
 				static CommonProcessArgs args{
 					.ctrlPipe = R"(\\.\pipe\pm-multi-test-ctrl)",
-					.introNsm = "pm_multi_test_intro",
-					.frameNsm = "pm_multi_test_nsm",
+					.shmNamePrefix = "pm_multi_test_intro",
 					.logLevel = "debug",
 					.logFolder = logFolder_,
 					.sampleClientMode = "ServiceCrashClient",

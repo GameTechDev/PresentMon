@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "../CommonUtilities/win/WinAPI.h"
 #include "../CommonUtilities/ref/StaticReflection.h"
 #include "../Interprocess/source/PmStatusError.h"
@@ -44,14 +44,16 @@ namespace pmon::mid
             });
             if (res.serviceBuildId != bid::BuildIdShortHash()) {
                 pmlog_error("build id mismatch between middleware and service")
-                    .pmwatch(res.serviceBuildId).pmwatch(bid::BuildIdShortHash());
+                    .pmwatch(res.serviceBuildId).pmwatch(bid::BuildIdShortHash()).diag();
                 throw Except<ipc::PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH);
             }
             if (res.serviceBuildConfig != bid::BuildIdConfig()) {
                 pmlog_error("build config mismatch between middleware and service")
-                    .pmwatch(res.serviceBuildConfig).pmwatch(bid::BuildIdConfig());
+                    .pmwatch(res.serviceBuildConfig).pmwatch(bid::BuildIdConfig()).diag();
                 throw Except<ipc::PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH);
             }
+            shmPrefix_ = res.shmPrefix;
+            shmSalt_ = res.shmSalt;
             pmlog_info(std::format("Opened session with server, pid = [{}]", res.servicePid));
             EstablishSession_(res.servicePid);
         }
@@ -75,7 +77,8 @@ namespace pmon::mid
                 ClientBase::DispatchDetached(std::forward<Params>(params));
             }
             catch (const ipc::act::ServerDroppedError& e) {
-                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN).raise<ipc::PmStatusError>();
+                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN);
+                throw util::Except<ipc::PmStatusError>(PM_STATUS_SESSION_NOT_OPEN, e.GetNote());
             }
         }
         template<class Params>
@@ -86,8 +89,20 @@ namespace pmon::mid
                 ClientBase::DispatchWithContinuation(std::forward<Params>(params), std::move(cont));
             }
             catch (const ipc::act::ServerDroppedError& e) {
-                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN).raise<ipc::PmStatusError>();
+                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN);
+                throw util::Except<ipc::PmStatusError>(PM_STATUS_SESSION_NOT_OPEN, e.GetNote());
             }
         }
+        const std::string& GetShmPrefix() const
+        {
+            return shmPrefix_;
+        }
+        const std::string& GetShmSalt() const
+        {
+            return shmSalt_;
+        }
+    private:
+        std::string shmPrefix_;
+        std::string shmSalt_;
     };
 }

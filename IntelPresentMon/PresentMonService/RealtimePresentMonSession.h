@@ -1,21 +1,21 @@
-// Copyright (C) 2022-2023 Intel Corporation
+﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "PresentMonSession.h"
+#include "../CommonUtilities/SampleStatistics.h"
 #include "../CommonUtilities/win/Event.h"
 
 class RealtimePresentMonSession : public PresentMonSession
 {
 public:
     // functions
-    RealtimePresentMonSession();
+    RealtimePresentMonSession(svc::FrameBroadcaster& broadcaster);
     RealtimePresentMonSession(const RealtimePresentMonSession& t) = delete;
     RealtimePresentMonSession& operator=(const RealtimePresentMonSession& t) = delete;
     ~RealtimePresentMonSession() override = default;
 
     bool IsTraceSessionActive() override;
-    PM_STATUS StartStreaming(uint32_t client_process_id, uint32_t target_process_id, std::string& nsmFileName) override;
-    void StopStreaming(uint32_t client_process_id, uint32_t target_process_id) override;
+    PM_STATUS UpdateTracking(const std::unordered_set<uint32_t>& trackedPids) override;
     bool CheckTraceSessions(bool forceTerminate) override;
     HANDLE GetStreamingStartHandle() override;
     void FlushEvents() override;
@@ -23,8 +23,8 @@ public:
 
 private:
     // functions
-    PM_STATUS StartTraceSession();
-    void StopTraceSession();
+    PM_STATUS StartEtwSession();
+    void StopEtwSession();
 
     void DequeueAnalyzedInfo(
         std::vector<ProcessEvent>* processEvents,
@@ -33,6 +33,10 @@ private:
         std::vector<std::shared_ptr<PresentEvent>> const& presentEvents,
         size_t* presentEventIndex, bool recording, bool checkStopQpc,
         uint64_t stopQpc, bool* hitStopQpc);
+    void ProcessEtwLatencyLogging_(
+        std::vector<std::shared_ptr<PresentEvent>> const& presentEvents);
+    void FlushFrameLatencyStatsWindow_(int64_t now, double periodSeconds);
+    void ResetFrameLatencyStats_();
     void ProcessEvents(
         std::vector<ProcessEvent>* processEvents,
         std::vector<std::shared_ptr<PresentEvent>>* presentEvents,
@@ -45,9 +49,6 @@ private:
     void Consume(TRACEHANDLE traceHandle);
     void Output();
 
-    ProcessInfo* GetProcessInfo(uint32_t processId);
-    void InitProcessInfo(ProcessInfo* processInfo, uint32_t processId,
-        HANDLE handle, std::wstring const& processName);
     void UpdateProcesses(
         std::vector<ProcessEvent> const& processEvents,
         std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses);
@@ -55,6 +56,7 @@ private:
 
     void CheckForTerminatedRealtimeProcesses(
         std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses);
+    void StopProvidersAndResetConsumer(bool shrink);
 
     // data
     std::wstring pm_session_name_;
@@ -66,13 +68,11 @@ private:
 
     std::atomic<bool> quit_output_thread_ = false;
 
-    std::unordered_map<uint32_t, ProcessInfo> processes_;
-    uint32_t target_process_count_ = 0;
-
     // Event for when streaming has started
     pmon::util::win::Event evtStreamingStarted_;
+    pmon::util::SampleStatistics<double> frameLatencyStatsMs_;
+    int64_t frameLatencyStatsWindowStartQpc_ = 0;
 
     mutable std::mutex session_mutex_;
-    mutable std::mutex process_mutex_;
     std::atomic<bool> session_active_{false};  // Lock-free session state for hot path queries
 };

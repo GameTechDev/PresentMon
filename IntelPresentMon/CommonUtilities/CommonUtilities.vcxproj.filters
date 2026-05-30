@@ -18,7 +18,19 @@
     <ClInclude Include="cli\CliFramework.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="cnr\FixedVector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Env.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="str\String.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="test\FloatAssert.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="test\MachineExpectations.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Memory.h">
@@ -234,6 +246,9 @@
     <ClInclude Include="Math.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SampleStatistics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="win\MessageBox.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -291,12 +306,36 @@
     <ClInclude Include="file\FileUtils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="file\PathUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="win\Security.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mc\MetricsCalculator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mc\MetricsTypes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mc\SwapChainState.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mc\UnifiedSwapChain.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mc\MetricsCalculatorInternal.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mc\FrameMetricsMemberMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cli\CliFramework.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Env.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="str\String.cpp">
@@ -464,14 +503,47 @@
     <ClCompile Include="file\FileUtils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="file\PathUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="win\Security.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Memory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="mc\MetricsTypes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsCalculator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\SwapChainState.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\UnifiedSwapChain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsCalculatorDisplay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsCalculatorInstrumented.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsCalculatorAnimation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsCalculatorCpuGpu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\MetricsCalculatorInput.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="test\MachineExpectations.cpp">
+      <Filter>Source Files</Filter>
+    </None>
     <None Include="vcpkg.json" />
   </ItemGroup>
 </Project>

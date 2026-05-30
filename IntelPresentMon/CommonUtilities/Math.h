@@ -8,7 +8,7 @@ namespace pmon::util
 	template<typename T>
 	T CommonEpsilonStrict(T a, T b)
 	{
-		return std::numeric_limits<T>::epsilon() * std::max(std::abs(a), std::abs(b));
+		return std::numeric_limits<T>::epsilon() * std::max<T>(std::abs(a), std::abs(b));
 	}
 
 	template<typename T>

@@ -1,6 +1,8 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
+#include "../../CommonUtilities/win/Utilities.h"
 #include <format>
+#include <unordered_set>
 
 #define ACT_NAME StartTracking
 #define ACT_EXEC_CTX ActionExecutionContext
@@ -18,33 +20,86 @@ namespace pmon::svc::acts
 		struct Params
 		{
 			uint32_t targetPid;
+			bool isPlayback = false;
+			bool isBackpressured = false;
 
 			template<class A> void serialize(A& ar) {
-				ar(targetPid);
+				ar(targetPid, isPlayback, isBackpressured);
 			}
 		};
 		struct Response
 		{
-			std::string nsmFileName;
-
 			template<class A> void serialize(A& ar) {
-				ar(nsmFileName);
 			}
 		};
 	private:
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
-			std::string nsmFileName;
-			if (auto sta = ctx.pPmon->StartStreaming(stx.remotePid, in.targetPid, nsmFileName); sta != PM_STATUS_SUCCESS) {
-				pmlog_error("Start stream failed").code(sta);
-				throw util::Except<ActionExecutionError>(sta);
+			// playback mode compatibility check
+			const bool serviceIsPlayback = ctx.pPmon->IsPlayback();
+			if (serviceIsPlayback != in.isPlayback) {
+				pmlog_error("StartTracking playback mode mismatch")
+					.pmwatch(serviceIsPlayback).pmwatch(in.isPlayback);
+				throw util::Except<ActionExecutionError>(PM_STATUS_MODE_MISMATCH);
 			}
-			stx.trackedPids.insert(in.targetPid);
-			const Response out{ .nsmFileName = std::move(nsmFileName) };
-			pmlog_info(std::format("StartTracking action from [{}] targeting [{}] assigned nsm [{}]",
-				stx.remotePid, in.targetPid, out.nsmFileName));
-			return out;
+			// backpressure requires playback mode
+			if (!in.isPlayback && in.isBackpressured) {
+				pmlog_error("StartTracking backpressured requires isPlayback=true");
+				throw util::Except<ActionExecutionError>(PM_STATUS_BAD_ARGUMENT);
+			}
+			// check if this session already tracking requested pid
+			if (stx.trackedPids.find(in.targetPid) != stx.trackedPids.end()) {
+				pmlog_error("StartTracking called for already tracked pid").pmwatch(in.targetPid);
+				throw util::Except<ActionExecutionError>(PM_STATUS_ALREADY_TRACKING_PROCESS);
+			}
+			// lock in handle to process for pid parking purposes
+			ActionSessionContext::TrackedTarget target{};
+			if (!in.isPlayback) {
+				target.processHandle = util::win::OpenProcess(in.targetPid);
+				if (!target.processHandle) {
+					pmlog_error("StartTracking called for invalid pid").pmwatch(in.targetPid);
+					throw util::Except<ActionExecutionError>(PM_STATUS_INVALID_PID);
+				}
+            }
+            // build full tracking state for session sync
+            auto trackedPids = ctx.GetTrackedPidSet();
+            // Backpressured playback frame rings are SPSC. Reject a second owner for the
+            // same playback pid instead of trying to merge consumer cursors.
+            if (in.isBackpressured && trackedPids.contains(in.targetPid)) {
+                pmlog_error("StartTracking backpressured playback already has an owner")
+                    .pmwatch(in.targetPid);
+                throw util::Except<ActionExecutionError>(PM_STATUS_ALREADY_TRACKING_PROCESS);
+            }
+            trackedPids.emplace(in.targetPid);
+            // get the (possibly shared) segment (new or find operation in broadcaster)
+            auto pSegment = ctx.pPmon->GetBroadcaster().RegisterTarget(
+                in.targetPid, in.isPlayback, in.isBackpressured);
+            // the segment may have been created by an earlier session with a different mode;
+            // reject the join rather than silently binding to a segment with incompatible
+            // backpressure behavior.
+            if (pSegment->GetStore().frameData.IsBackpressured() != in.isBackpressured) {
+                pmlog_error("StartTracking backpressure mode conflicts with existing segment")
+                    .pmwatch(in.targetPid)
+                    .pmwatch(in.isBackpressured);
+                throw util::Except<ActionExecutionError>(PM_STATUS_BAD_ARGUMENT);
+			}
+            if (auto sta = ctx.pPmon->UpdateTracking(trackedPids); sta != PM_STATUS_SUCCESS) {
+                pmlog_error("Start tracking call failed").code(sta);
+                throw util::Except<ActionExecutionError>(sta);
+            }
+            // For SPSC backpressured playback, seed the service-owned read cursor to the
+            // oldest currently readable frame and let this client advance it from there.
+            if (in.isBackpressured) {
+                const auto initialSerial = pSegment->GetStore().frameData.GetSerialRange().first;
+                target.backpressureReadSerial = initialSerial;
+                ctx.pPmon->GetBroadcaster().UpdateReadSerial(in.targetPid, initialSerial);
+            }
+            target.pSegment = std::move(pSegment);
+            stx.trackedPids.emplace(in.targetPid, std::move(target));
+            pmlog_info(std::format("StartTracking action from [{}] targeting [{}]",
+                stx.remotePid, in.targetPid));
+            return {};
 		}
 	};
 

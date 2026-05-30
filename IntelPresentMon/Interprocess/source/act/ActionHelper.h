@@ -5,6 +5,7 @@
 #include <cereal/types/string.hpp>
 #include <cereal/types/utility.hpp>
 #include <cereal/types/optional.hpp>
+#include <cereal/types/unordered_set.hpp>
 
 #ifndef PM_ASYNC_ACTION_CUSTOM_REG_
 #define PM_ASYNC_ACTION_CUSTOM_REG_(name)

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "../../PresentMonAPI2/PresentMonAPI.h"
 #include "metadata/EnumDataType.h"
 #include "metadata/MasterEnumList.h"
@@ -37,6 +37,11 @@ namespace pmon::ipc::intro {
 	constexpr size_t DataTypeToStaticType_sz = sizeof(DataTypeToStaticType_t<T>);
 	template<>
 	constexpr size_t DataTypeToStaticType_sz<PM_DATA_TYPE::PM_DATA_TYPE_VOID> = 0ull;
+
+	template<PM_DATA_TYPE T>
+	constexpr size_t DataTypeToStaticType_align = alignof(DataTypeToStaticType_t<T>);
+	template<>
+	constexpr size_t DataTypeToStaticType_align<PM_DATA_TYPE::PM_DATA_TYPE_VOID> = 1ull;
 
 	template<template<PM_DATA_TYPE> class F, typename...P>
 	auto BridgeDataType(PM_DATA_TYPE dataType, P&&...args)

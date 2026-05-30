@@ -44,9 +44,6 @@
     <ClInclude Include="kact\PushSpecification.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="kact\SetAdapter.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="kact\SetCapture.h">
       <Filter>Header Files</Filter>
     </ClInclude>

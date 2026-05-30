@@ -13,15 +13,16 @@ namespace pmon::test
 	{
 		struct Status
 		{
-			std::set<uint32_t> nsmStreamedPids;
-			uint32_t activeAdapterId;
+			// new ipc tracking
+			std::set<uint32_t> trackedPids;
+			std::set<uint32_t> frameStorePids;
 			uint32_t telemetryPeriodMs;
 			std::optional<uint32_t> etwFlushPeriodMs;
 
 			template <class Archive>
 			void serialize(Archive& ar)
 			{
-				ar(nsmStreamedPids, activeAdapterId, telemetryPeriodMs, etwFlushPeriodMs);
+				ar(trackedPids, frameStorePids, telemetryPeriodMs, etwFlushPeriodMs);
 			}
 		};
 	}

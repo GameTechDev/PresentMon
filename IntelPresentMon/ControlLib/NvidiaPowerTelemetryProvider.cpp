@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "NvidiaPowerTelemetryProvider.h"
 #include "NvidiaPowerTelemetryAdapter.h"
@@ -7,7 +7,7 @@
 
 namespace pwr::nv
 {
-    NvidiaPowerTelemetryProvider::NvidiaPowerTelemetryProvider()
+    NvidiaPowerTelemetryProvider::NvidiaPowerTelemetryProvider(DeviceIdAllocator& allocator)
     {
         // enumerate nvapi gpu device handles
         std::vector<std::pair<NvPhysicalGpuHandle, NvapiAdapterSignature>> nvapiHandlePairs;
@@ -62,10 +62,10 @@ namespace pwr::nv
 
         // create adaptor object for each api adapter handle pair
         // lambda to factor out repeated code pattern adapter creation and insertion into container, with exception quelling
-        const auto TryCreateAddAdapter = [this](NvPhysicalGpuHandle nvapiHandle, std::optional<nvmlDevice_t> nvmlHandle) {
+        const auto TryCreateAddAdapter = [this, &allocator](NvPhysicalGpuHandle nvapiHandle, std::optional<nvmlDevice_t> nvmlHandle) {
             try {
                 adapterPtrs.push_back(std::make_shared<NvidiaPowerTelemetryAdapter>(
-                    &nvapi, &nvml, nvapiHandle, nvmlHandle
+                    allocator.Next(), &nvapi, &nvml, nvapiHandle, nvmlHandle
                 ));
             }
             catch (const std::exception& e) { TELE_ERR(e.what()); }

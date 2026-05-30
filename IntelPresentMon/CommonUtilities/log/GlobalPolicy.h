@@ -39,7 +39,7 @@ namespace pmon::util::log
 		// data
 		std::atomic<Level> logLevel_;
 		std::atomic<bool> resolveTraceInClientThread_ = false;
-		std::atomic<Level> traceLevel_ = Level::Error;
+		std::atomic<Level> traceLevel_;
 		std::atomic<bool> exceptionTracePolicy_ = false;
 		std::atomic<bool> sehTraceOn_ = false;
 		std::atomic<Subsystem> subsystem_ = Subsystem::None;

@@ -18,9 +18,9 @@ namespace pmon::util
 		PrecisionWaiter(PrecisionWaiter&&) = delete;
 		PrecisionWaiter& operator=(PrecisionWaiter&&) = delete;
 		~PrecisionWaiter() = default;
-		void Wait(double seconds, bool alertable = false) noexcept;
-		void WaitUnbuffered(double seconds, bool alertable = false) noexcept;
-		void WaitWithBuffer(double seconds, double buffer, bool alertable = false) noexcept;
+		double Wait(double seconds, bool alertable = false) noexcept;
+		double WaitUnbuffered(double seconds, bool alertable = false) noexcept;
+		double WaitWithBuffer(double seconds, double buffer, bool alertable = false) noexcept;
 		// todo: add function to set wait and receive handle, make compatible with event wait functions
 	private:
 		// amount of time we should wake up early by to do hyper-accurate spin wait

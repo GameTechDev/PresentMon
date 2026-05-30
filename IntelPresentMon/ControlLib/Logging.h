@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Intel Corporation
+﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <string>
@@ -19,5 +19,4 @@ namespace pwr::log
     }
 }
 
-#define IGCL_ERR(ec) pmlog_error("IGCL").code(ec);
-#define TELE_ERR(msg) OutputDebugStringA(pwr::log::MakeTelemetryDebugErrorString((msg), __LINE__, __FILE__, __FUNCTION__).c_str())
+#define TELE_ERR(msg) pmlog_error(msg)

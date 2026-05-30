@@ -253,6 +253,7 @@ namespace pmon::util::file
     {
         if (!Empty()) {
             Clear();
+            hDirectory_.Clear();
             fs::remove(path_);
             path_.clear();
         }

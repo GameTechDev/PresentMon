@@ -1,14 +1,16 @@
-#include "MultiClient.h"
+﻿#include "MultiClient.h"
 #include "CliOptions.h"
 #include <PresentMonAPIWrapperCommon/EnumMap.h>
 #include <PresentMonAPIWrapper/FixedQuery.h>
 #include <chrono>
 #include <iostream>
 #include <span>
+#include <thread>
 #include <PresentMonAPI2Tests/TestCommands.h>
 #include <cereal/archives/json.hpp>
 #include <vincentlaucsb-csv-parser/csv.hpp>
-#include <CommonUtilities/IntervalWaiter.h>
+#include <CommonUtilities/PrecisionWaiter.h>
+#include <CommonUtilities/Qpc.h>
 #include <CommonUtilities/Exception.h>
 #include <CommonUtilities/log/Log.h>
 
@@ -84,24 +86,28 @@ private:
 	std::vector<LookupInfo_> qInfo_;
 };
 
-std::vector<PM_QUERY_ELEMENT> BuildQueryElementSet(const pmapi::intro::Root& intro)
+bool IsMinMaxPercentileStat(PM_STAT stat)
+{
+	switch (stat) {
+	case PM_STAT_PERCENTILE_99:
+	case PM_STAT_PERCENTILE_95:
+	case PM_STAT_PERCENTILE_90:
+	case PM_STAT_PERCENTILE_01:
+	case PM_STAT_PERCENTILE_05:
+	case PM_STAT_PERCENTILE_10:
+	case PM_STAT_MAX:
+	case PM_STAT_MIN:
+		return true;
+	default:
+		return false;
+	}
+}
+
+std::vector<PM_QUERY_ELEMENT> BuildQueryElementSet(const pmapi::intro::Root& intro,
+	bool minMaxPercentileStatsOnly)
 {
 	std::vector<PM_QUERY_ELEMENT> qels;
 	for (const auto& m : intro.GetMetrics()) {
-		// there is no reliable way of distinguishing CPU telemetry metrics from PresentData-based metrics via introspection
-		// adding CPU device type is an idea, however that would require changing device id of the cpu metrics from 0 to
-		// whatever id is assigned to cpu (probably an upper range like 1024+) and this might break existing code that just
-		// hardcodes device id for the CPU metrics; for the time being use a hardcoded blacklist here
-		if (rn::contains(std::array{
-			PM_METRIC_CPU_UTILIZATION,
-			PM_METRIC_CPU_POWER_LIMIT,
-			PM_METRIC_CPU_POWER,
-			PM_METRIC_CPU_TEMPERATURE,
-			PM_METRIC_CPU_FREQUENCY,
-			PM_METRIC_CPU_CORE_UTILITY,
-			}, m.GetId())) {
-			continue;
-		}
 		// only allow dynamic metrics
 		if (m.GetType() != PM_METRIC_TYPE_DYNAMIC && m.GetType() != PM_METRIC_TYPE_DYNAMIC_FRAME) {
 			continue;
@@ -120,8 +126,7 @@ std::vector<PM_QUERY_ELEMENT> BuildQueryElementSet(const pmapi::intro::Root& int
 			continue;
 		}
 		for (const auto& s : m.GetStatInfo()) {
-			// skip displayed fps (max) as it is broken now
-			if (m.GetId() == PM_METRIC_DISPLAYED_FPS && s.GetStat() == PM_STAT_MAX) {
+			if (minMaxPercentileStatsOnly && !IsMinMaxPercentileStat(s.GetStat())) {
 				continue;
 			}
 			qels.push_back(PM_QUERY_ELEMENT{ m.GetId(), s.GetStat() });
@@ -134,11 +139,11 @@ class TestClientModule
 {
 public:
 	TestClientModule(std::unique_ptr<pmapi::Session> pSession, double windowMs,
-		double offsetMs)
+		double offsetMs, bool minMaxPercentileStatsOnly)
 		:
 		pSession_{ std::move(pSession) },
 		pIntro_{ pSession_->GetIntrospectionRoot() },
-		qels_{ BuildQueryElementSet(*pIntro_) },
+		qels_{ BuildQueryElementSet(*pIntro_, minMaxPercentileStatsOnly) },
 		query_{ pSession_->RegisterDynamicQuery(qels_, windowMs, offsetMs) },
 		blobs_{ query_.MakeBlobContainer(1) }
 	{}
@@ -161,34 +166,60 @@ public:
 	std::vector<std::vector<double>> RecordPolling(uint32_t targetPid, double recordingStartSec,
 		double recordingStopSec, double pollInterval)
 	{
+		if (recordingStartSec < 1.) {
+			pmlog_error("Insufficient recording start leeway").pmwatch(recordingStartSec).no_trace();
+		}
 		// start tracking target
-		auto tracker = pSession_->TrackProcess(targetPid);
+		auto tracker = pSession_->TrackProcess(targetPid, true, false);
 		// get the waiter and the timer clocks ready
 		using Clock = std::chrono::high_resolution_clock;
-		const auto startTime = Clock::now();
-		util::IntervalWaiter waiter{ pollInterval, 0.001 };
+		// wait to give time for the static data (startQpc specifically) to propagate to the shm
+		// wait until 500ms (buffer time) before the requested recordingStart
+		util::PrecisionWaiter{}.Wait(recordingStartSec - 0.5);
+		// capture session startQpc and setup timer to sync with session start
+		const auto startQpcDeadline = Clock::now() + 5s;
+		uint64_t startQpc = 0;
+		while (true) {
+			startQpc = pmapi::PollStatic(*pSession_, tracker, PM_METRIC_SESSION_START_QPC).As<uint64_t>();
+			if (startQpc != 0) {
+				break;
+			}
+			if (Clock::now() >= startQpcDeadline) {
+				pmlog_error("Timed out waiting for valid session start QPC")
+					.pmwatch(startQpc)
+					.no_trace();
+			}
+			std::this_thread::sleep_for(25ms);
+		}
+		std::this_thread::sleep_for(200ms);
+		util::QpcTimer sessionTimer{ (int64_t)startQpc };
+		util::PrecisionWaiter waiter{ 0.0015 };
 		// run polling loop and poll into vector
 		std::vector<std::vector<double>> rows;
-		std::vector<double> cells;
 		BlobReader br{ qels_, pIntro_ };
 		br.Target(blobs_);
-		const auto recordingStart = recordingStartSec * 1s;
-		const auto recordingStop = recordingStopSec * 1s;
-		for (auto now = Clock::now(), start = Clock::now();
-			now - start <= recordingStop; now = Clock::now()) {
+		double targetSec = 0.;
+		while (true) {
+			targetSec += pollInterval;
+			const auto secondsToTarget = targetSec - sessionTimer.Peek();
+			if (secondsToTarget > 0.) {
+				waiter.Wait(secondsToTarget);
+			}
 			// skip recording while time has not reached start time
-			if (now - start >= recordingStart) {
+			if (targetSec >= recordingStartSec) {
+				std::vector<double> cells;
 				cells.reserve(qels_.size() + 1);
-				query_.Poll(tracker, blobs_);
-				// first column is the time as measured in polling loop
-				cells.push_back(std::chrono::duration<double>(now - start).count());
+				query_.PollWithTimestamp(tracker, blobs_, (uint64_t)sessionTimer.TimeToTimestamp(targetSec));
+				cells.push_back(targetSec);
 				// remaining columns are from the query
 				for (size_t i = 0; i < qels_.size(); i++) {
 					cells.push_back(br.At<double>(i));
 				}
 				rows.push_back(std::move(cells));
 			}
-			waiter.Wait();
+			if (targetSec >= recordingStopSec) {
+				break;
+			}
 		}
 		return rows;
 	}
@@ -212,7 +243,8 @@ int PacedPlaybackTest(std::unique_ptr<pmapi::Session> pSession)
 		}
 
 		// connect to service and register query
-		TestClientModule client{ std::move(pSession), *opt.windowSize, *opt.metricOffset };
+		TestClientModule client{ std::move(pSession), *opt.windowSize, *opt.metricOffset,
+			opt.minMaxPercentileStatsOnly };
 		if (opt.etwFlushPeriodMs) {
 			client.SetETWFlushPeriod(*opt.etwFlushPeriodMs);
 		}

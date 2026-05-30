@@ -1,6 +1,6 @@
 # PresentMon Tests
 
-PresentMon testing is primarily done by having a specific PresentMon build analyze a collection of ETW logs and ensuring its output matches the expected result.  The PresentMonTests application will add a test for every .etl/.csv pair it finds under a specified root directory.
+PresentMon testing is primarily done by having a specific PresentMon build analyze a collection of ETW logs and ensuring its output matches the expected result.  The PresentMonTests application will add a test for every matching `test_case_<number>.etl`/.csv pair it finds under a specified root directory.
 
 `Tools\run_tests.cmd` will build all configurations of PresentMon, and use PresentMonTests to validate the x86 and x64 builds using the contents of the Tests\Gold directory.
 
@@ -76,10 +76,10 @@ PresentMonTests.exe
 ### Test Directory Structure
 
 Your test directory should contain:
-- ETL files (e.g., `test_case.etl`)
-- Corresponding CSV files (e.g., `test_case.csv`, `test_case_v1.csv`, etc.)
+- ETL files named `test_case_<number>.etl` (e.g., `test_case_8.etl`)
+- Corresponding CSV files named `test_case_<number>.csv` or `test_case_<number>_v<number>.csv` (e.g., `test_case_8.csv`, `test_case_8_v1.csv`, etc.)
 
-The test system will automatically discover and register tests for each ETL/CSV pair.
+The test system will automatically discover and register tests for each matching ETL/CSV pair.
 
 ### Notes
 

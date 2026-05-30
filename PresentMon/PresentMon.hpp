@@ -29,10 +29,18 @@ which is controlled from MainThread based on user input or timer.
 
 #include "../PresentData/PresentMonTraceConsumer.hpp"
 #include "../PresentData/PresentMonTraceSession.hpp"
+#include "../IntelPresentMon/CommonUtilities/mc/UnifiedSwapChain.h"
+#include "../IntelPresentMon/CommonUtilities/mc/SwapChainState.h"
+#include "../IntelPresentMon/CommonUtilities/Qpc.h"
 
 #include <unordered_map>
 #include <queue>
 #include <optional>
+#include <deque>
+
+#ifndef PM_KEEP_LEGACY_SWAPCHAIN_DATA
+#define PM_KEEP_LEGACY_SWAPCHAIN_DATA 0
+#endif
 
 // Verbosity of console output for normal operation:
 enum class ConsoleOutput {
@@ -184,6 +192,7 @@ struct FrameMetrics2 {
 // - pending presents whose metrics cannot be computed until future presents are received,
 // - exponential averages of key metrics displayed in console output.
 struct SwapChainData {
+#if PM_KEEP_LEGACY_SWAPCHAIN_DATA
     // Pending presents waiting for the next displayed present.
     std::vector<std::shared_ptr<PresentEvent>> mPendingPresents;
 
@@ -228,6 +237,10 @@ struct SwapChainData {
 
     // Internal NVIDIA Metrics
     uint64_t mLastDisplayedFlipDelay = 0;
+#endif
+
+    // Unified swap chain for unfied metrics calculations
+    pmon::util::metrics::UnifiedSwapChain mUnifiedSwapChain;
 };
 
 struct ProcessInfo {
@@ -267,6 +280,9 @@ const char* PresentModeToString(PresentMode mode);
 const char* RuntimeToString(Runtime rt);
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics const& metrics);
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics1 const& metrics);
+void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, pmon::util::metrics::FrameData const& p, FrameMetrics1 const& metrics);
+void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, pmon::util::metrics::FrameMetrics const& metrics);
+void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, pmon::util::metrics::FrameData const& p, pmon::util::metrics::FrameMetrics const& metrics);
 
 // MainThread.cpp:
 void ExitMainThread();

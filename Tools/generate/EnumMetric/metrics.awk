@@ -29,7 +29,6 @@ BEGIN{
     gsub(/ /, "", shortname)
     gsub(/-/, "", shortname)
 
-    if (shortname == "ProcessID") next
     if (shortname == "VideoBusy") next
 
     printf " \\\n\t\tX_(METRIC, %s, \"%s\", \"%s\", \"%s\")", substr(a[1], 11), name, shortname, desc

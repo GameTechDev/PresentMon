@@ -10,5 +10,5 @@ export interface LoadoutFile {
 
 export const signature: Signature = {
     code: "p2c-cap-load",
-    version: "0.13.0"
+    version: "0.14.0"
 }

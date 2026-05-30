@@ -7,12 +7,20 @@
 #define PMLOG_GPOL_DEFAULT_LEVEL Level::Error
 #endif
 #endif
+#ifndef PMLOG_GPOL_DEFAULT_TRACE_LEVEL
+#ifndef NDEBUG
+#define PMLOG_GPOL_DEFAULT_TRACE_LEVEL Level::Error
+#else
+#define PMLOG_GPOL_DEFAULT_TRACE_LEVEL Level::None
+#endif
+#endif
 
 namespace pmon::util::log
 {
 	GlobalPolicy::GlobalPolicy() noexcept
 		:
-		logLevel_{ PMLOG_GPOL_DEFAULT_LEVEL }
+		logLevel_{ PMLOG_GPOL_DEFAULT_LEVEL },
+		traceLevel_{ PMLOG_GPOL_DEFAULT_TRACE_LEVEL }
 	{}
 	GlobalPolicy& GlobalPolicy::Get() noexcept
 	{
@@ -43,7 +51,7 @@ namespace pmon::util::log
 	}
 	void GlobalPolicy::SetTraceLevelDefault() noexcept
 	{
-		SetTraceLevel(Level::Error);
+		SetTraceLevel(PMLOG_GPOL_DEFAULT_TRACE_LEVEL);
 	}
 	bool GlobalPolicy::GetResolveTraceInClientThread() const noexcept
 	{

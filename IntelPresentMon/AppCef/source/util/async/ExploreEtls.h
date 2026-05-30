@@ -5,9 +5,7 @@
 #include "../CefValues.h"
 #include <fstream>
 #include <Core/source/infra/util/FolderResolver.h>
-#include <CommonUtilities/win/WinAPI.h>
-#include <CommonUtilities/Exception.h>
-#include <shellapi.h>
+#include <CommonUtilities/win/Utilities.h>
 
 namespace p2c::client::util::async
 {
@@ -22,11 +20,7 @@ namespace p2c::client::util::async
             using FR = infra::util::FolderResolver;
             // try to resolve app folder, fallback to cwd
             auto path = FR::Get().Resolve(FR::Folder::Documents, FR::etlSubdirectory);
-
-            if ((INT_PTR)ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWDEFAULT) <= 32) {
-                pmlog_error("Failed to explore Captures folder");
-                throw ::pmon::util::Except<::pmon::util::Exception>();
-            }
+            ::pmon::util::win::ExplorePath(path);
 
             return Result{ true, CefValueNull() };
         }

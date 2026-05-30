@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <map>
 
@@ -13,6 +13,13 @@ namespace pmon::util::log
 		core_hotkey,
 		core_window,
 		etwq,
+		kact,
+		ipc_sto,
+		ipc_ring,
+		met_use,
+		middleware,
+		dyninteg,
+		chrome,
 		Count
 	};
 

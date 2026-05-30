@@ -28,11 +28,12 @@ namespace pmon::ipc::act
 			pipe.ConsumePacketPayload<EmptyPayload>();
 			if (resHeader.executionStatus) {
 				const auto code = (PM_STATUS)resHeader.executionStatus;
-				pmlog_error("Execution error response to SyncRequest").code(code);
+				pmlog_error("Execution error response to SyncRequest").code(code).diag();
 				throw util::Except<ActionExecutionError>((PM_STATUS)resHeader.executionStatus);
 			}
 			else {
-				pmlog_error("Execution error response to SyncRequest").raise<util::Exception>();
+				pmlog_error("Execution error response to SyncRequest").diag();
+				throw util::Except<util::Exception>("Execution error response to SyncRequest");
 			}
 		}
 		co_return pipe.ConsumePacketPayload<typename C::Response>();

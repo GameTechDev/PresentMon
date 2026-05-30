@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "FolderResolver.h"
 #include <Core/source/win/WinAPI.h>
+#include <CommonUtilities/file/PathUtils.h>
 #include <ShlObj.h>
 #include <filesystem>
 #include <format>
@@ -11,6 +12,25 @@
 namespace p2c::infra::util
 {
 	using namespace ::pmon::util;
+
+	namespace
+	{
+		std::filesystem::path AppendRelativePath_(const std::filesystem::path& base, const std::filesystem::path& path)
+		{
+			if (path.empty()) {
+				return base;
+			}
+			auto relative = path.has_root_path() ? path.relative_path() : path;
+			auto native = relative.native();
+			while (!native.empty() && (native.front() == L'\\' || native.front() == L'/')) {
+				native.erase(native.begin());
+			}
+			if (native.empty()) {
+				return base;
+			}
+			return base / std::filesystem::path{ native };
+		}
+	}
 
 	void CreateSubdir(const std::wstring& docPath, const wchar_t* subdir)
 	{
@@ -87,7 +107,25 @@ namespace p2c::infra::util
 		}
 	}
 
+	std::filesystem::path FolderResolver::ResolveInstallPath(std::filesystem::path path)
+	{
+		return AppendRelativePath_(file::GetCurrentProcessModuleDirectory(), path);
+	}
+
 	std::wstring FolderResolver::Resolve(Folder f, std::wstring path) const
+	{
+		return ResolvePath(f, std::filesystem::path{ path }).wstring();
+	}
+
+	std::filesystem::path FolderResolver::ResolveLogPath(std::filesystem::path path) const
+	{
+		if (logPathOverride && !logPathOverride->empty()) {
+			return AppendRelativePath_(*logPathOverride, path);
+		}
+		return AppendRelativePath_(ResolvePath(Folder::App, logsSubdirectory), path);
+	}
+
+	std::filesystem::path FolderResolver::ResolvePath(Folder f, std::filesystem::path path) const
 	{
 		switch (f) {
 		case Folder::App:
@@ -95,37 +133,25 @@ namespace p2c::infra::util
 				pmlog_error("Failed to resolve app path: not initialized");
 				throw Except<Exception>();
 			}
-			if (path.empty()) {
-				return appPath;
-			}
-			else {
-				return std::format(L"{}\\{}", appPath, path);
-			}
+			return AppendRelativePath_(std::filesystem::path{ appPath }, path);
 		case Folder::Documents: {
 			if (docPath.empty()) {
 				pmlog_error("Failed to resolve documents path: not initialized");
 				throw Except<Exception>();
 			}
-			if (path.empty()) {
-				return docPath;
-			}
-			else {
-				return std::format(L"{}\\{}", docPath, path);
-			}
+			return AppendRelativePath_(std::filesystem::path{ docPath }, path);
 		}
 		case Folder::Temp: {
-			wchar_t tempPath[MAX_PATH + 1];
-			if (!GetTempPathW(MAX_PATH, tempPath)) {
-				pmlog_error("failed resolving temp dir").hr();
+			try {
+				return AppendRelativePath_(std::filesystem::temp_directory_path(), path);
+			}
+			catch (...) {
+				pmlog_error("failed resolving temp dir");
 				throw Except<Exception>();
 			}
-			return std::format(L"{}{}", tempPath, path);
 		}
 		case Folder::Install: {
-			wchar_t modulePath[MAX_PATH];
-			::GetModuleFileNameW(nullptr, modulePath, (DWORD)std::size(modulePath));
-			const auto dir = std::filesystem::path{ modulePath }.remove_filename().wstring();
-			return std::format(L"{}{}", dir, path);
+			return ResolveInstallPath(path);
 		}
 		}
 		return {};
@@ -142,5 +168,15 @@ namespace p2c::infra::util
 	void FolderResolver::SetDevMode()
 	{
 		useDevMode = true;
+	}
+
+	void FolderResolver::SetLogPathOverride(std::filesystem::path path)
+	{
+		if (path.empty()) {
+			logPathOverride.reset();
+		}
+		else {
+			logPathOverride = std::move(path);
+		}
 	}
 }

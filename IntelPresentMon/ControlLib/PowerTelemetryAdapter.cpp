@@ -1,4 +1,4 @@
-#include "PowerTelemetryAdapter.h"
+﻿#include "PowerTelemetryAdapter.h"
 #include "Logging.h"
 #include "../CommonUtilities/ref/WrapReflect.h"
 #include "../CommonUtilities/ref/StaticReflection.h"
@@ -11,6 +11,14 @@ namespace pwr
     using namespace pmon::util;
     using v = ::pmon::util::log::V;
     using ::pmon::util::log::GlobalPolicy;
+
+    PowerTelemetryAdapter::PowerTelemetryAdapter(uint32_t deviceId) noexcept
+        : deviceId_{ deviceId } {}
+
+    uint32_t PowerTelemetryAdapter::GetDeviceId() const noexcept
+    {
+        return deviceId_;
+    }
 
     void PowerTelemetryAdapter::SetTelemetryCapBit(GpuTelemetryCapBits telemetryCapBit) noexcept
     {

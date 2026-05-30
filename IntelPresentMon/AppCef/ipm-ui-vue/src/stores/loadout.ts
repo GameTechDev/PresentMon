@@ -1,13 +1,13 @@
-import { ref, reactive, readonly, computed } from 'vue'
+﻿import { ref, reactive, readonly, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { Api } from '@/core/api'
 import { getEnumValues } from '@/core/meta'
-import { asGraph, asReadout, WidgetType, type Widget } from '@/core/widget'
+import { asGraph, asReadout, WidgetType, type Widget, regenerateKeys as regenerateWidgetKeys, resetKeySequence as resetWidgetKeySequence } from '@/core/widget'
 import { signature, type LoadoutFile } from '@/core/loadout'
 import type { QualifiedMetric } from '@/core/qualified-metric'
 import { makeDefaultGraph, type Graph } from '@/core/graph'
 import { makeDefaultReadout, type Readout } from '@/core/readout'
-import { makeDefaultWidgetMetric, type WidgetMetric } from '@/core/widget-metric'
+import { makeDefaultWidgetMetric, type WidgetMetric, resetKeySequence as resetWidgetMetricKeySequence } from '@/core/widget-metric'
 import { debounce, type DelayedTask } from '@/core/timing'
 import { migrateLoadout } from '@/core/loadout-migration'
 import { useIntrospectionStore } from './introspection'
@@ -34,6 +34,14 @@ export const useLoadoutStore = defineStore('loadout', () => {
     })
 
     // === Functions ===
+    function normalizeWidgetKeys(items: Widget[]) {
+        resetWidgetKeySequence()
+        resetWidgetMetricKeySequence()
+        for (const widget of items) {
+            regenerateWidgetKeys(widget)
+        }
+    }
+
     // loads loadout from json string data without any error handling
     async function parseAndReplace(payload: string) {
         const loadout = JSON.parse(payload) as LoadoutFile
@@ -45,6 +53,7 @@ export const useLoadoutStore = defineStore('loadout', () => {
             console.info(`loadout migrated to ${signature.version}`)
         }
         loadout.widgets = loadout.widgets.filter(w => w.metrics.length > 0)
+        normalizeWidgetKeys(loadout.widgets)
         widgets.value.splice(0, widgets.value.length, ...loadout.widgets)
     }
 
@@ -138,8 +147,25 @@ export const useLoadoutStore = defineStore('loadout', () => {
     }
 
     async function moveWidget(from: number, to: number) {
-        const movedItem = widgets.value.splice(from, 1)[0]
-        widgets.value.splice(to, 0, movedItem)
+        if (!Number.isInteger(from) || !Number.isInteger(to)) {
+            return
+        }
+        if (from < 0 || from >= widgets.value.length) {
+            return
+        }
+        if (to < 0 || to > widgets.value.length) {
+            return
+        }
+        if (from === to) {
+            return
+        }
+        const movedItem = widgets.value[from]
+        if (movedItem === undefined) {
+            return
+        }
+        widgets.value.splice(from, 1)
+        const insertIndex = Math.min(to, widgets.value.length)
+        widgets.value.splice(insertIndex, 0, movedItem)
     }
 
     // wraps parseAndReplace in try/catch and handles errors
