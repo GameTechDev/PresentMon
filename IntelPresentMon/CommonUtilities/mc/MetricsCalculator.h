@@ -42,8 +42,12 @@ namespace pmon::util::metrics
         const QpcConverter& qpc,
         FrameData& present,
         FrameData* nextDisplayed,
-        SwapChainCoreState& chainState,
-        MetricsVersion version = MetricsVersion::V2);
+        SwapChainCoreState& chainState);
+
+    ComputedMetrics ComputeMetricsForReadyDisplayRow(
+        const QpcConverter& qpc,
+        const ReadyDisplayRow& row,
+        SwapChainCoreState& chainState);
 
     // === Pure Calculation Functions ===
 
@@ -56,22 +60,11 @@ namespace pmon::util::metrics
         bool isDisplayed,
         bool isAppFrame,
         FrameType frameType,
+        const AnimationDisplayContext& animation,
         const SwapChainCoreState& chain);
 
     // Helper: Calculate CPU start time
     uint64_t CalculateCPUStart(
         const SwapChainCoreState& chainState,
         const FrameData& present);
-
-    // Helper: Calculate simulation start time (for animation error)
-    uint64_t CalculateAnimationErrorSimStartTime(
-        const SwapChainCoreState& chainState,
-        const FrameData& present,
-        AnimationErrorSource source);
-
-    // Helper: Calculate animation time
-    double CalculateAnimationTime(
-        const QpcConverter& qpc,
-        uint64_t firstAppSimStartTime,
-        uint64_t currentSimTime);
 }

@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MetricsCalculator.h"
 #include "MetricsCalculatorInternal.h"
@@ -59,7 +59,7 @@ namespace pmon::util::metrics
                     *d.newLastReceivedPclSimStart;
             }
 
-            // Accumulated PC latency input→frame-start time
+            // Accumulated PC latency input->frame-start time
             if (d.newAccumulatedInput2FrameStart)
             {
                 chainState.accumulatedInput2FrameStartTime =
@@ -92,8 +92,7 @@ namespace pmon::util::metrics
         const QpcConverter& qpc,
         FrameData& present,
         FrameData* nextDisplayed,
-        SwapChainCoreState& chainState,
-        MetricsVersion version)
+        SwapChainCoreState& chainState)
     {
         std::vector<ComputedMetrics> results;
 
@@ -125,6 +124,7 @@ namespace pmon::util::metrics
                 isDisplayed,
                 isAppFrame,
                 frameType,
+                AnimationDisplayContext{},
                 chainState);
 
             ApplyStateDeltas(chainState, metrics.stateDeltas);
@@ -136,104 +136,69 @@ namespace pmon::util::metrics
             return results;
         }
 
-        // V1: displayed presents are computed immediately (no look-ahead / no postponing).
-        // Emit exactly one row per present (legacy V1 behavior).
-        if (version == MetricsVersion::V1) {
-            const size_t displayIndex = 0;
-            uint64_t screenTime = present.displayed[displayIndex].second;
-            uint64_t nextScreenTime = 0;
+        const size_t displayIndex = 0;
+        uint64_t screenTime = present.displayed[displayIndex].second;
+        uint64_t nextScreenTime = 0;
 
-            AdjustScreenTimeForCollapsedPresentNV(
-                present,
-                nextDisplayed,
-                chainState.lastDisplayedFlipDelay,
-                chainState.lastDisplayedScreenTime,
-                screenTime,
-                nextScreenTime,
-                version);
-            
-            // This is so msDisplayedTime comes back as 0 instead of garbage for V1 single-row output.
-            // TODO: Better option is to have display metrics be optional. Update metrics struct accordingly.
-            nextScreenTime = screenTime;
-            const auto indexing = DisplayIndexing::Calculate(present, nullptr);
-            const bool isAppFrame = (displayIndex == indexing.appIndex);
-            const bool isDisplayedInstance = isDisplayed && screenTime != 0;
-            const FrameType frameType = isDisplayedInstance ? present.displayed[displayIndex].first : FrameType::NotSet;
+        AdjustScreenTimeForCollapsedPresentNV(
+            present,
+            nextDisplayed,
+            chainState.lastDisplayedFlipDelay,
+            chainState.lastDisplayedScreenTime,
+            screenTime,
+            nextScreenTime,
+            MetricsVersion::V1);
 
-            auto metrics = ComputeFrameMetrics(
-                qpc,
-                present,
-                chainState.lastDisplayedScreenTime,
-                screenTime,
-                nextScreenTime,
-                isDisplayedInstance,
-                isAppFrame,
-                frameType,
-                chainState);
+        // This is so msDisplayedTime comes back as 0 instead of garbage for V1 single-row output.
+        // TODO: Better option is to have display metrics be optional. Update metrics struct accordingly.
+        nextScreenTime = screenTime;
+        const auto indexing = DisplayIndexing::Calculate(present, nullptr);
+        const bool isAppFrame = (displayIndex == indexing.appIndex);
+        const bool isDisplayedInstance = isDisplayed && screenTime != 0;
+        const FrameType frameType = isDisplayedInstance ? present.displayed[displayIndex].first : FrameType::NotSet;
 
-            ApplyStateDeltas(chainState, metrics.stateDeltas);
-            results.push_back(std::move(metrics));
+        auto metrics = ComputeFrameMetrics(
+            qpc,
+            present,
+            chainState.lastDisplayedScreenTime,
+            screenTime,
+            nextScreenTime,
+            isDisplayedInstance,
+            isAppFrame,
+            frameType,
+            AnimationDisplayContext{},
+            chainState);
 
-            chainState.UpdateAfterPresent(present);
-            return results;
-        }
+        ApplyStateDeltas(chainState, metrics.stateDeltas);
+        results.push_back(std::move(metrics));
 
-        // There is at least one displayed frame to process
-        const auto indexing = DisplayIndexing::Calculate(present, nextDisplayed);
-
-        // Determine if we should update the swap chain based on nextDisplayed
-        const bool shouldUpdateSwapChain = (nextDisplayed != nullptr);
-
-        for (size_t displayIndex = indexing.startIndex; displayIndex < indexing.endIndex; ++displayIndex) {
-            const uint64_t previousDisplayedScreenTime =
-                displayIndex > 0
-                ? present.displayed[displayIndex - 1].second
-                : chainState.lastDisplayedScreenTime;
-            uint64_t screenTime = present.displayed[displayIndex].second;
-            uint64_t nextScreenTime = 0;
-
-            if (displayIndex + 1 < displayCount) {
-                // Next display instance of the same present
-                nextScreenTime = present.displayed[displayIndex + 1].second;
-            }
-            else if (nextDisplayed != nullptr && !nextDisplayed->displayed.Empty()) {
-                // First display of the *next* presented frame
-                nextScreenTime = nextDisplayed->displayed[0].second;
-            }
-            else {
-                break;  // No next screen time available
-            }
-
-            AdjustScreenTimeForCollapsedPresentNV(present, nextDisplayed, 0, 0, screenTime, nextScreenTime, version);
-
-            const bool isAppFrame = (displayIndex == indexing.appIndex);
-            const bool isDisplayedInstance = isDisplayed && screenTime != 0 && nextScreenTime != 0;
-            const FrameType frameType = isDisplayedInstance ? present.displayed[displayIndex].first : FrameType::NotSet;
-
-            auto metrics = ComputeFrameMetrics(
-                qpc,
-                present,
-                previousDisplayedScreenTime,
-                screenTime,
-                nextScreenTime,
-                isDisplayedInstance,
-                isAppFrame,
-                frameType,
-                chainState);
-
-            ApplyStateDeltas(chainState, metrics.stateDeltas);
-
-            results.push_back(std::move(metrics));
-        }
-
-        // Matches old ReportMetricsHelper:
-        // - Case 2 (no nextDisplayed): no UpdateChain yet.
-        // - Case 3 (has nextDisplayed): this is the call that finally updates the chain.
-        if (shouldUpdateSwapChain) {
-            chainState.UpdateAfterPresent(present);
-        }
-
+        chainState.UpdateAfterPresent(present);
         return results;
+    }
+
+    ComputedMetrics ComputeMetricsForReadyDisplayRow(
+        const QpcConverter& qpc,
+        const ReadyDisplayRow& row,
+        SwapChainCoreState& chainState)
+    {
+        auto metrics = ComputeFrameMetrics(
+            qpc,
+            row.present,
+            row.previousDisplayedScreenTime,
+            row.screenTime,
+            row.nextScreenTime,
+            row.isDisplayed,
+            row.isAppFrame,
+            row.frameType,
+            row.animation,
+            chainState);
+
+        ApplyStateDeltas(chainState, metrics.stateDeltas);
+        if (row.updateSwapChainAfterRow) {
+            chainState.UpdateAfterReadyDisplayRow(row);
+        }
+
+        return metrics;
     }
 
     // ============================================================================
@@ -248,6 +213,7 @@ namespace pmon::util::metrics
         bool isDisplayed,
         bool isAppFrame,
         FrameType frameType,
+        const AnimationDisplayContext& animation,
         const SwapChainCoreState& chain)
     {
 
@@ -280,12 +246,7 @@ namespace pmon::util::metrics
             metrics);
 
         CalculateAnimationMetrics(
-            qpc,
-            chain,
-            present,
-            isDisplayed,
-            isAppFrame,
-            screenTime,
+            animation,
             metrics);
 
         CalculateInputLatencyMetrics(
@@ -346,36 +307,4 @@ namespace pmon::util::metrics
         return cpuStart;
     }
 
-    // Helper: Calculate simulation start time (for animation error)
-    uint64_t CalculateAnimationErrorSimStartTime(
-        const SwapChainCoreState& chainState,
-        const FrameData& present,
-        AnimationErrorSource source)
-    {
-        uint64_t simStartTime = 0;
-        if (source == AnimationErrorSource::CpuStart) {
-            simStartTime = CalculateCPUStart(chainState, present);
-        }
-        else if (source == AnimationErrorSource::AppProvider) {
-            simStartTime = present.appSimStartTime;
-        }
-        else if (source == AnimationErrorSource::PCLatency) {
-            simStartTime = present.pclSimStartTime;
-        }
-        return simStartTime;
-    }
-
-    // Helper: Calculate animation time
-    double CalculateAnimationTime(
-        const QpcConverter& qpc,
-        uint64_t firstAppSimStartTime,
-        uint64_t currentSimTime)
-    {
-        double animationTime = 0.0;
-        uint64_t firstSimStartTime = firstAppSimStartTime != 0 ? firstAppSimStartTime : qpc.GetSessionStartTimestamp();
-        if (currentSimTime > firstSimStartTime) {
-            animationTime = qpc.DeltaUnsignedMilliSeconds(firstSimStartTime, currentSimTime);
-        }
-        return animationTime;
-    }
 }

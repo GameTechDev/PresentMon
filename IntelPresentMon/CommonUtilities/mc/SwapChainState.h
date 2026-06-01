@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 
@@ -68,6 +68,7 @@ struct SwapChainCoreState {
     uint64_t lastDisplayedFlipDelay = 0;
 
     void UpdateAfterPresent(const FrameData& present);
+    void UpdateAfterReadyDisplayRow(const ReadyDisplayRow& row);
 };
 
 }

@@ -309,6 +309,12 @@
     <ClInclude Include="mc\MetricsCalculator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="mc\AnimationErrorTracker.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mc\DisplayFrameQueue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="mc\MetricsTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -510,6 +516,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="mc\MetricsCalculator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\AnimationErrorTracker.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mc\DisplayFrameQueue.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="mc\SwapChainState.cpp">

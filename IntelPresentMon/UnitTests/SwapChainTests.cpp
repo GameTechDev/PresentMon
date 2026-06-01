@@ -246,5 +246,26 @@ namespace MetricsCoreTests
             Assert::AreEqual(uint64_t(1234), swapChainOne.lastSimStartTime);
             //Assert::AreEqual(presents[1], *swapChainOne.lastPresent);
         }
+
+        TEST_METHOD(UpdateAfterReadyDisplayRow_NotDisplayed_PreservesLastDisplayedState)
+        {
+            // Regression: the not-displayed branch was resetting lastDisplayedScreenTime
+            // and lastDisplayedFlipDelay to 0. A dropped present does not change what is
+            // currently on screen, so those fields must be preserved.
+            pmon::util::metrics::SwapChainCoreState chain{};
+            chain.lastDisplayedScreenTime = 12345;
+            chain.lastDisplayedFlipDelay  = 99;
+
+            pmon::util::metrics::ReadyDisplayRow row{};
+            row.isDisplayed = false;
+            row.isAppFrame  = true;
+
+            chain.UpdateAfterReadyDisplayRow(row);
+
+            Assert::AreEqual(uint64_t(12345), chain.lastDisplayedScreenTime,
+                L"lastDisplayedScreenTime must not be cleared by a not-displayed row.");
+            Assert::AreEqual(uint64_t(99), chain.lastDisplayedFlipDelay,
+                L"lastDisplayedFlipDelay must not be cleared by a not-displayed row.");
+        }
     };
 }

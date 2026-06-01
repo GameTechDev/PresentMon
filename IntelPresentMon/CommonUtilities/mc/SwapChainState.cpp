@@ -7,6 +7,9 @@ namespace pmon::util::metrics {
 
     void SwapChainCoreState::UpdateAfterPresent(const FrameData& present)
     {
+        // Legacy V1 present-level update path. This intentionally preserves the old
+        // Displayed.Back()-based app attribution. Frame-generation paths must use
+        // UpdateAfterReadyDisplayRow(), where app attribution is resolved per display row.
         const auto finalState = present.finalState;
         const size_t displayCnt = present.displayed.Size();
 
@@ -105,6 +108,47 @@ namespace pmon::util::metrics {
         }
 
         // Always advance lastPresent
+        lastPresent = present;
+    }
+
+    void SwapChainCoreState::UpdateAfterReadyDisplayRow(const ReadyDisplayRow& row)
+    {
+        const auto& present = row.present;
+
+        if (row.isDisplayed) {
+            lastDisplayedScreenTime = row.screenTime;
+            lastDisplayedFlipDelay = present.flipDelay;
+
+            if (row.isAppFrame) {
+                lastDisplayedAppScreenTime = row.screenTime;
+                lastAppPresent = present;
+
+                if (row.animation.hasResolvedSimStart) {
+                    animationErrorSource = row.animation.source;
+                    lastDisplayedSimStartTime = row.animation.resolvedSimStartTime;
+                    if (row.animation.firstSimStartTime != 0) {
+                        firstAppSimStartTime = row.animation.firstSimStartTime;
+                    }
+                    else if (firstAppSimStartTime == 0) {
+                        firstAppSimStartTime = row.animation.resolvedSimStartTime;
+                    }
+                }
+            }
+        }
+        else {
+            // Not displayed: advance present/input history but leave last displayed
+            // screen time and flip delay unchanged. The screen is still showing
+            // whatever it last showed; a dropped present does not change that.
+            lastAppPresent = present;
+        }
+
+        if (present.pclSimStartTime != 0) {
+            lastSimStartTime = present.pclSimStartTime;
+        }
+        else if (present.appSimStartTime != 0) {
+            lastSimStartTime = present.appSimStartTime;
+        }
+
         lastPresent = present;
     }
 

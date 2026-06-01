@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025 Intel Corporation
 #include "FrameMetricsSource.h"
 #include <algorithm>
 
@@ -40,21 +40,8 @@ namespace pmon::mid
 
 	void SwapChainState::ProcessFrame(const util::metrics::FrameData& frame, util::QpcConverter& qpc)
 	{
-		auto ready = unified_.Enqueue(frame, util::metrics::MetricsVersion::V2);
-		for (auto& item : ready) {
-			auto& present = item.presentPtr ? *item.presentPtr : item.present;
-			auto* nextPtr = item.nextDisplayedPtr;
-
-			auto computed = util::metrics::ComputeMetricsForPresent(
-				qpc,
-				present,
-				nextPtr,
-				unified_.swapChain,
-				util::metrics::MetricsVersion::V2);
-
-			for (auto& cm : computed) {
-				PushMetrics_(cm.metrics);
-			}
+		for (auto& row : unified_.ProcessPresent(qpc, frame)) {
+			PushMetrics_(row.computed.metrics);
 		}
 	}
 

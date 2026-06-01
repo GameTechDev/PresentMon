@@ -1,35 +1,47 @@
-// Copyright (C) 2025 Intel Corporation
+﻿// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 
 #include <cstdint>
-#include <optional>
 #include <vector>
-#include <deque>
 
+#include "../qpc.h"
+#include "AnimationErrorTracker.h"
+#include "DisplayFrameQueue.h"
+#include "MetricsCalculator.h"
 #include "SwapChainState.h"
-#include "MetricsCalculator.h" // ComputeMetricsForPresent()
 
 namespace pmon::util::metrics
 {
+    struct ProcessPresentRow
+    {
+        FrameData present;
+        ComputedMetrics computed;
+    };
+
     struct UnifiedSwapChain
     {
-        struct ReadyItem
-        {
-            FrameData present;                     // owned (used when presentPtr==nullptr)
-            FrameData* presentPtr = nullptr;       // points into waitingDisplayed_ (optional)
-            FrameData* nextDisplayedPtr = nullptr; // points into waitingDisplayed_ (optional)
-        };
-
         SwapChainCoreState swapChain;
 
-        // Seed without needing a QPC converter (needed for console GetPresentProcessInfo() early-return).
-        void SeedFromFirstPresent(FrameData present);
+        // Frame-generation pipeline entry point: Ingest, Apply, then Publish.
+        // Middleware and CSV paths use this; only Publish differs by product surface.
+        std::vector<ProcessPresentRow> ProcessPresent(
+            const QpcConverter& qpc,
+            FrameData present);
 
-        std::vector<ReadyItem> Enqueue(FrameData present, MetricsVersion version);
+        // Ingest only (display queue + animation tracker). Does not apply publish policy.
+        // Unit tests may call this with ComputeMetricsForReadyDisplayRow to apply without publishing.
+        std::vector<ReadyDisplayRow> EnqueueReadyDisplayRows(
+            const QpcConverter& qpc,
+            FrameData present);
 
         uint64_t GetLastPresentQpc() const;
         bool IsPrunableBefore(uint64_t minTimestampQpc) const;
+
+        // Applied before both the V1 (ComputeMetricsForPresent) and V2 (EnqueueReadyDisplayRows)
+        // paths so that a single Repeated entry adjacent to an Application is collapsed as in the
+        // original OutputThread "Remove Repeated flips" pre-pass.
+        static void SanitizeDisplayedRepeatedPresents(FrameData& present);
 
         // Frame statistics
         float avgCPUDuration = 0.f;
@@ -42,8 +54,15 @@ namespace pmon::util::metrics
         double accumulatedInput2FrameStartTime = 0.f;
 
     private:
-        static void SanitizeDisplayedRepeatedPresents(FrameData& present);
-        std::optional<FrameData> waitingDisplayed;
-        std::deque<FrameData> blocked;
+        std::vector<ProcessPresentRow> ApplyReadyDisplayRows(
+            const QpcConverter& qpc,
+            std::vector<ReadyDisplayRow>& ready);
+
+        static std::vector<ProcessPresentRow> PublishAppliedRows(
+            std::vector<ProcessPresentRow> applied,
+            bool suppressForSeedPresent);
+
+        AnimationErrorTracker animationTracker;
+        DisplayFrameQueue displayQueue;
     };
 }
