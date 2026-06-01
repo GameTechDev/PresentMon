@@ -9,6 +9,8 @@
 #include "../../CommonUtilities/str/String.h"
 #include "../../CommonUtilities/win/Privileges.h"
 
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <exception>
 #include <format>
@@ -159,157 +161,29 @@ namespace pmon::tel::uci
             capabilitiesJson += std::format(R"json({{ "name": "{}" }})json", metricName);
         }
 
-        size_t SkipJsonWhitespace_(const std::string& json, size_t pos)
-        {
-            while (pos < json.size() &&
-                (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) {
-                ++pos;
-            }
-            return pos;
-        }
-
-        bool ParseJsonString_(const std::string& json, size_t& pos, std::string& value)
-        {
-            value.clear();
-            if (pos >= json.size() || json[pos] != '"') {
-                return false;
-            }
-
-            ++pos;
-            while (pos < json.size()) {
-                const auto c = json[pos++];
-                if (c == '"') {
-                    return true;
-                }
-                if (c != '\\') {
-                    value.push_back(c);
-                    continue;
-                }
-                if (pos >= json.size()) {
-                    return false;
-                }
-
-                const auto escaped = json[pos++];
-                switch (escaped) {
-                case '"':
-                case '\\':
-                case '/':
-                    value.push_back(escaped);
-                    break;
-                case 'b':
-                    value.push_back('\b');
-                    break;
-                case 'f':
-                    value.push_back('\f');
-                    break;
-                case 'n':
-                    value.push_back('\n');
-                    break;
-                case 'r':
-                    value.push_back('\r');
-                    break;
-                case 't':
-                    value.push_back('\t');
-                    break;
-                case 'u':
-                    if (pos + 4 > json.size()) {
-                        return false;
-                    }
-                    pos += 4;
-                    value.push_back('?');
-                    break;
-                default:
-                    return false;
-                }
-            }
-            return false;
-        }
-
-        size_t FindMatchingJsonArrayEnd_(const std::string& json, size_t arrayStart)
-        {
-            bool inString = false;
-            bool escaped = false;
-            uint32_t depth = 0;
-            for (size_t pos = arrayStart; pos < json.size(); ++pos) {
-                const auto c = json[pos];
-                if (inString) {
-                    if (escaped) {
-                        escaped = false;
-                    }
-                    else if (c == '\\') {
-                        escaped = true;
-                    }
-                    else if (c == '"') {
-                        inString = false;
-                    }
-                    continue;
-                }
-
-                if (c == '"') {
-                    inString = true;
-                }
-                else if (c == '[') {
-                    ++depth;
-                }
-                else if (c == ']') {
-                    if (depth == 0) {
-                        return std::string::npos;
-                    }
-                    --depth;
-                    if (depth == 0) {
-                        return pos;
-                    }
-                }
-            }
-            return std::string::npos;
-        }
-
         std::unordered_set<std::string> ExtractCapabilityNames_(const std::string& capabilitiesJson)
         {
             std::unordered_set<std::string> names;
-            const auto capabilitiesKey = capabilitiesJson.find("\"capabilities\"");
-            if (capabilitiesKey == std::string::npos) {
+            const auto doc = nlohmann::json::parse(capabilitiesJson, nullptr, false);
+            if (doc.is_discarded() || !doc.is_object()) {
+                pmlog_warn("Failed to parse UCI capabilities JSON");
                 return names;
             }
 
-            const auto arrayStart = capabilitiesJson.find('[', capabilitiesKey);
-            if (arrayStart == std::string::npos) {
+            const auto capabilities = doc.find("capabilities");
+            if (capabilities == doc.end() || !capabilities->is_array()) {
                 return names;
             }
 
-            const auto arrayEnd = FindMatchingJsonArrayEnd_(capabilitiesJson, arrayStart);
-            if (arrayEnd == std::string::npos) {
-                return names;
-            }
-
-            size_t pos = arrayStart + 1;
-            while (pos < arrayEnd) {
-                const auto quote = capabilitiesJson.find('"', pos);
-                if (quote == std::string::npos || quote >= arrayEnd) {
-                    break;
-                }
-
-                pos = quote;
-                std::string key;
-                if (!ParseJsonString_(capabilitiesJson, pos, key)) {
-                    break;
-                }
-
-                pos = SkipJsonWhitespace_(capabilitiesJson, pos);
-                if (pos >= arrayEnd || capabilitiesJson[pos] != ':') {
+            for (const auto& capability : *capabilities) {
+                if (!capability.is_object()) {
                     continue;
                 }
-                ++pos;
-
-                if (key != "name") {
+                const auto name = capability.value("name", std::string{});
+                if (name.empty()) {
                     continue;
                 }
-
-                pos = SkipJsonWhitespace_(capabilitiesJson, pos);
-                std::string name;
-                if (ParseJsonString_(capabilitiesJson, pos, name) && !name.empty()) {
-                    names.emplace(util::str::ToLower(name));
-                }
+                names.emplace(util::str::ToLower(name));
             }
 
             return names;
