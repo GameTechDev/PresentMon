@@ -26,37 +26,6 @@ pmon::test::service::Status PresentMonSession::GetTestingStatus() const
     };
 }
 
-void PresentMonSession::SetCpu(const std::shared_ptr<pwr::cpu::CpuTelemetry>& pCpu) {
-    cpu_ = pCpu.get();
-}
-
-std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> PresentMonSession::EnumerateAdapters() {
-    if (telemetry_container_) {
-        return telemetry_container_->GetPowerTelemetryAdapters();
-    }
-    else {
-        return {};
-    }
-}
-
-std::string PresentMonSession::GetCpuName() {
-    if (cpu_) {
-        return cpu_->GetCpuName();
-    }
-    else {
-        return std::string{ "UNKOWN_CPU" };
-    }
-}
-
-double PresentMonSession::GetCpuPowerLimit() {
-    if (cpu_) {
-        return cpu_->GetCpuPowerLimit();
-    }
-    else {
-        return 0.;
-    }
-}
-
 PM_STATUS PresentMonSession::SetGpuTelemetryPeriod(std::optional<uint32_t> period_ms)
 {
     gpu_telemetry_period_ms_ = period_ms.value_or(default_gpu_telemetry_period_ms_);
@@ -85,10 +54,6 @@ std::optional<uint32_t> PresentMonSession::GetEtwFlushPeriod()
 
 bool PresentMonSession::HasLiveTargets() const {
     return HasLiveTrackedProcesses();
-}
-
-void PresentMonSession::SetPowerTelemetryContainer(PowerTelemetryContainer* ptc) {
-    telemetry_container_ = ptc;
 }
 
 void PresentMonSession::SyncTrackedPidState(const std::unordered_set<uint32_t>& trackedPids)

@@ -1,7 +1,6 @@
-#include "IntrospectionHelpers.h"
+﻿#include "IntrospectionHelpers.h"
 #include "IntrospectionMetadata.h"
 #include "IntrospectionTransfer.h"
-#include "IntrospectionCapsLookup.h"
 #include "MetricCapabilities.h"
 #include "IntrospectionPopulators.h"
 #include "../../CommonUtilities/log/Log.h"
@@ -30,11 +29,10 @@ namespace pmon::ipc::intro
 #undef X_REG_KEYS
 	}
 
-	template<PM_METRIC metricId>
+	template<PM_METRIC metricId, PM_DEVICE_TYPE deviceType>
 	void RegisterUniversalMetricDeviceInfo_(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root, IntrospectionMetric& metric)
 	{
-		using Lookup = IntrospectionCapsLookup<metricId>;
-		if constexpr (IsUniversalMetric<Lookup>) {
+		if constexpr (deviceType == PM_DEVICE_TYPE_INDEPENDENT) {
 			metric.AddDeviceMetricInfo(IntrospectionDeviceMetricInfo{
 				0, PM_METRIC_AVAILABILITY_AVAILABLE, 1 });
 		}
@@ -52,7 +50,7 @@ namespace pmon::ipc::intro
 #define X_REG_METRIC(metric, metric_type, unit, data_type_polled, data_type_frame, enum_id, device_type, ...) { \
 		auto pMetric = ShmMakeUnique<IntrospectionMetric>(pSegmentManager, pSegmentManager, \
 			metric, metric_type, unit, IntrospectionDataTypeInfo{ data_type_polled, data_type_frame, (PM_ENUM)enum_id }, std::vector{ __VA_ARGS__ }); \
-		RegisterUniversalMetricDeviceInfo_<metric>(pSegmentManager, root, *pMetric); \
+		RegisterUniversalMetricDeviceInfo_<metric, device_type>(pSegmentManager, root, *pMetric); \
 		if (preferredMetricOverrides.contains(metric)) pMetric->SetPreferredUnitHint(preferredMetricOverrides[metric]); \
 		root.AddMetric(std::move(pMetric)); }
 

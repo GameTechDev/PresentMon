@@ -1,8 +1,6 @@
 // GENERATED HEADER
 #pragma once
-#include "acts/EnumerateAdapters.h"
 #include "acts/FinishEtlLogging.h"
-#include "acts/GetStaticCpuMetrics.h"
 #include "acts/OpenSession.h"
 #include "acts/ReportFrameReadProgress.h"
 #include "acts/ReportMetricUse.h"

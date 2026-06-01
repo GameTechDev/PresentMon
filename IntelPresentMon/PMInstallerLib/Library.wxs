@@ -84,6 +84,7 @@
       <ComponentRef Id="pmon_shared_service_component" />
       <ComponentRef Id="present_mon_shared_dll_component" />
       <ComponentRef Id="pmon_nv_manifest_comp" />
+      <ComponentGroupRef Id="uci_dist_files" />
     </ComponentGroup>
 
   </Fragment>
