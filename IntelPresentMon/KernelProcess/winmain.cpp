@@ -508,6 +508,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		pKernel = &kernel;
 		// run the UI when not headless
 		if (!headless) {
+			uint64_t uiLaunchAttempt = 0;
 			for (;;) {
 				// compose optional cli args for cef process tree
 				auto args = std::vector<std::string>{
@@ -537,7 +538,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 					args.push_back("--p2c-" + o.first);
 					args.push_back(o.second);
 				}
-				const auto cefLogPipe = std::format("pm-ui-log-{}", GetCurrentProcessId());
+				const auto cefLogPipe = std::format("pm-ui-log-{}-{}", GetCurrentProcessId(), uiLaunchAttempt++);
 				// add fixed CLI options to the args vector
 				args.append_range(std::vector{
 					"--p2c-log-level"s, util::log::GetLevelName(*opt.logLevel),
