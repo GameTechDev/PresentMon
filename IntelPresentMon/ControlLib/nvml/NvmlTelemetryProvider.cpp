@@ -122,7 +122,7 @@ namespace pmon::tel::nvml
             if (pMemoryInfo == nullptr) {
                 return (uint64_t)0;
             }
-            return GetLegacyTotalMemoryBytes_(*pMemoryInfo);
+            return GetTotalMemoryBytes_(*pMemoryInfo);
         }
         case PM_METRIC_GPU_MEM_USED:
         {
@@ -141,7 +141,7 @@ namespace pmon::tel::nvml
                 return 0.0;
             }
 
-            const auto totalBytes = GetLegacyTotalMemoryBytes_(*pMemoryInfo);
+            const auto totalBytes = GetTotalMemoryBytes_(*pMemoryInfo);
             if (totalBytes == 0) {
                 return 0.0;
             }
@@ -160,9 +160,9 @@ namespace pmon::tel::nvml
         (void)metricId;
     }
 
-    uint64_t NvmlTelemetryProvider::GetLegacyTotalMemoryBytes_(const nvmlMemory_t& memoryInfo) noexcept
+    uint64_t NvmlTelemetryProvider::GetTotalMemoryBytes_(const nvmlMemory_t& memoryInfo) noexcept
     {
-        return (uint64_t)memoryInfo.free;
+        return (uint64_t)memoryInfo.total;
     }
 
     bool NvmlTelemetryProvider::TryInitializeDevice_(DeviceState_& device, nvmlDevice_t handle) const
@@ -232,7 +232,7 @@ namespace pmon::tel::nvml
         }
 
         if (const auto* pMemoryInfo = PollMemoryInfoEndpoint_(device, requestQpc)) {
-            const auto totalBytes = GetLegacyTotalMemoryBytes_(*pMemoryInfo);
+            const auto totalBytes = GetTotalMemoryBytes_(*pMemoryInfo);
             if (totalBytes != 0) {
                 caps.Set(PM_METRIC_GPU_MEM_SIZE, 1);
                 caps.Set(PM_METRIC_GPU_MEM_USED, 1);
