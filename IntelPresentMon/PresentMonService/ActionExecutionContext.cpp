@@ -2,6 +2,7 @@
 #include <CommonUtilities/rng/MemberSlice.h>
 #include <CommonUtilities/rng/OptionalMinMax.h>
 #include "../Interprocess/source/act/ActionHelper.h"
+#include "LogSetup.h"
 #include <cereal/types/unordered_set.hpp>
 #include <vector>
 
@@ -24,6 +25,7 @@ namespace pmon::svc::acts
         // tracked pids cleanup
         stx.trackedPids.clear();
         pPmon->UpdateTracking(GetTrackedPidSet());
+        UpdatePeriodicLogFlushing();
         // telemetry period cleanup
         stx.requestedTelemetryPeriodMs.reset();
         UpdateTelemetryPeriod();
@@ -71,6 +73,21 @@ namespace pmon::svc::acts
             }
         }
         pPmon->SetDeviceMetricUsage(std::move(deviceMetricUsage));
+        UpdatePeriodicLogFlushing();
+    }
+    void ActionExecutionContext::UpdatePeriodicLogFlushing() const
+    {
+        bool active = false;
+        if (pSessionMap != nullptr) {
+            for (const auto& sessionEntry : *pSessionMap) {
+                const auto& session = sessionEntry.second;
+                if (!session.trackedPids.empty() || !session.metricUsage.empty()) {
+                    active = true;
+                    break;
+                }
+            }
+        }
+        logsetup::SetPeriodicLogFlushingEnabled(active);
     }
 
     std::unordered_set<uint32_t> ActionExecutionContext::GetTrackedPidSet() const

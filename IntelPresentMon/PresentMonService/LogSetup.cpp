@@ -47,7 +47,7 @@ namespace pmon::util::log
 			pChannel->AttachComponent(std::make_shared<MsvcDebugDriver>(pFormatter), "drv:dbg");
 			pChannel->AttachComponent(std::make_shared<StdioDriver>(pFormatter), "drv:std");
 			// flusher
-			pChannel->AttachComponent(std::make_shared<ChannelFlusher>(pChannel), "obj:fsh");
+			pChannel->AttachComponent(std::make_shared<ChannelFlusher>(pChannel, false), "obj:fsh");
 
 			return pChannel;
 		}
@@ -128,6 +128,21 @@ namespace logsetup
 		}
 		catch (...) {
 			pmlog_panic_("Failed configuring log in server");
+		}
+	}
+	void SetPeriodicLogFlushingEnabled(bool enabled) noexcept
+	{
+		try {
+			if (auto pChannel = GetDefaultChannel()) {
+				if (auto pComponent = pChannel->GetComponent("obj:fsh")) {
+					if (auto pFlusher = std::dynamic_pointer_cast<ChannelFlusher>(pComponent)) {
+						pFlusher->SetEnabled(enabled);
+					}
+				}
+			}
+		}
+		catch (...) {
+			pmlog_panic_("Failed setting periodic log flushing state in server");
 		}
 	}
 

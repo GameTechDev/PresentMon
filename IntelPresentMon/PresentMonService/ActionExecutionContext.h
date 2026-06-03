@@ -68,6 +68,7 @@ namespace pmon::svc::acts
         void UpdateTelemetryPeriod() const;
         void UpdateEtwFlushPeriod() const;
         void UpdateMetricUsage() const;
+        void UpdatePeriodicLogFlushing() const;
         std::unordered_set<uint32_t> GetTrackedPidSet() const;
         void ReleaseBackpressure(uint32_t pid) const;
     };

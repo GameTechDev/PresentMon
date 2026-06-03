@@ -98,6 +98,7 @@ namespace pmon::svc::acts
             }
             target.pSegment = std::move(pSegment);
             stx.trackedPids.emplace(in.targetPid, std::move(target));
+            ctx.UpdatePeriodicLogFlushing();
             pmlog_info(std::format("StartTracking action from [{}] targeting [{}]",
                 stx.remotePid, in.targetPid));
             return {};
