@@ -5,12 +5,14 @@ import type { Metric } from '@/core/metric';
 import type { Stat } from '@/core/stat';
 import type { Unit } from '@/core/unit';
 import type { MetricOption } from '@/core/metric-option';
+import type { Adapter } from '@/core/adapter';
 
 export const useIntrospectionStore = defineStore('introspection', () => {
   // === State ===
   const metrics = ref<Metric[]>([]);
   const stats = ref<Stat[]>([]);
   const units = ref<Unit[]>([]);
+  const adapters = ref<Adapter[]>([]);
   const systemDeviceId = ref<number>(0);
   const defaultAdapterId = ref<number>(0);
 
@@ -32,6 +34,7 @@ export const useIntrospectionStore = defineStore('introspection', () => {
       metrics.value = intro.metrics;
       stats.value = intro.stats;
       units.value = intro.units;
+      adapters.value = intro.adapters;
       systemDeviceId.value = intro.systemDeviceId;
       defaultAdapterId.value = intro.defaultAdapterId;
     }
@@ -42,6 +45,7 @@ export const useIntrospectionStore = defineStore('introspection', () => {
     metrics,
     stats,
     units,
+    adapters,
     systemDeviceId,
     defaultAdapterId,
     metricOptions,

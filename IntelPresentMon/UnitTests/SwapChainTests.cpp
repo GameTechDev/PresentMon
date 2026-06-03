@@ -1,11 +1,13 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "CppUnitTest.h"
+#include <CommonUtilities/test/FloatAssert.h>
 #include "../CommonUtilities/mc/SwapChainState.h"
 #include "../CommonUtilities/mc/MetricsTypes.h"
 #include <memory>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+using pmon::util::test::AssertAreEqualWithinTolerance;
 
 namespace MetricsCoreTests
 {
@@ -124,11 +126,11 @@ namespace MetricsCoreTests
             
             // Set value
             swapChain.accumulatedInput2FrameStartTime = 16.7;
-            Assert::AreEqual(16.7, swapChain.accumulatedInput2FrameStartTime, 0.001);
+            AssertAreEqualWithinTolerance(16.7, swapChain.accumulatedInput2FrameStartTime, 0.001);
             
             // Accumulate more
             swapChain.accumulatedInput2FrameStartTime += 8.3;
-            Assert::AreEqual(25.0, swapChain.accumulatedInput2FrameStartTime, 0.001);
+            AssertAreEqualWithinTolerance(25.0, swapChain.accumulatedInput2FrameStartTime, 0.001);
             
             // Reset
             swapChain.accumulatedInput2FrameStartTime = 0.0;
@@ -236,7 +238,7 @@ namespace MetricsCoreTests
             // Verify core2 has same values
             Assert::AreEqual(uint64_t(1234), swapChainTwo.lastSimStartTime);
             //Assert::AreEqual(presents[1], *swapChainTwo.lastPresent);
-            Assert::AreEqual(16.7, swapChainTwo.accumulatedInput2FrameStartTime, 0.001);
+            AssertAreEqualWithinTolerance(16.7, swapChainTwo.accumulatedInput2FrameStartTime, 0.001);
             
             // Modify SwapChainTwo
             swapChainTwo.lastSimStartTime = 5678;

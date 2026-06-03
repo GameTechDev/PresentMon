@@ -117,7 +117,8 @@ namespace pmon::util::win
         auto processes_snapshot = (Handle)CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (processes_snapshot == INVALID_HANDLE_VALUE)
         {
-            pmlog_error("Failed to get process snapshot").hr().raise<HrError>();
+            pmlog_error("Failed to get process snapshot").hr();
+            throw Except<HrError>("Failed to get process snapshot");
         }
 
         Process32FirstW(processes_snapshot, &process_info);

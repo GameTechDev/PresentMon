@@ -22,7 +22,18 @@ export async function doGpuUtilizationTopPolling(specifiedDelayMs: number): Prom
         utilizationPollTask = dispatchDelayedTask(async () => {
             return await Api.getTopGpuProcess(getBlocklist());        
         }, delayMs);
-        const result = await awaitDelayedPromise(utilizationPollTask.promise);
+        let result: Process|null;
+        try {
+            result = await awaitDelayedPromise(utilizationPollTask.promise);
+        }
+        catch (e) {
+            console.error('Error during autotargetting polling:', e);
+            if (utilizationPollTask === null) {
+                return null;
+            }
+            delayMs = specifiedDelayMs;
+            continue;
+        }
         // if result is not null, we have a process to target
         // otherwise, the delayed task was cancelled
         if (result !== null) {

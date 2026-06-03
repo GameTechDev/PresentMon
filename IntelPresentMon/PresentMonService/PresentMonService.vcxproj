@@ -122,7 +122,6 @@
     <ClCompile Include="MockPresentMonSession.cpp" />
     <ClCompile Include="ActionServer.cpp" />
     <ClCompile Include="PMMainThread.cpp" />
-    <ClCompile Include="PowerTelemetryContainer.cpp" />
     <ClCompile Include="RealtimePresentMonSession.cpp" />
     <ClCompile Include="Service.cpp" />
     <ClCompile Include="ServiceMain.cpp" />
@@ -131,10 +130,9 @@
     <ClCompile Include="testing\TestControl.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="acts\EnumerateAdapters.h" />
     <ClInclude Include="acts\FinishEtlLogging.h" />
-    <ClInclude Include="acts\GetStaticCpuMetrics.h" />
     <ClInclude Include="acts\OpenSession.h" />
+    <ClInclude Include="acts\ReportFrameReadProgress.h" />
     <ClInclude Include="acts\ReportMetricUse.h" />
     <ClInclude Include="acts\SetEtwFlushPeriod.h" />
     <ClInclude Include="acts\SetTelemetryPeriod.h" />
@@ -152,8 +150,8 @@
     <ClInclude Include="LogSetup.h" />
     <ClInclude Include="MockPresentMonSession.h" />
     <ClInclude Include="LateStageReprojectionData.hpp" />
+    <ClInclude Include="MetricUse.h" />
     <ClInclude Include="ActionServer.h" />
-    <ClInclude Include="PowerTelemetryContainer.h" />
     <ClInclude Include="PresentMon.h" />
     <ClInclude Include="PMMainThread.h" />
     <ClInclude Include="PresentMonSession.h" />
@@ -192,7 +190,17 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="build-scripts\pre-build.bat" />
+    <None Include="..\..\PresentMon\ddETWExternal.xml" />
   </ItemGroup>
+  <Target Name="CopyNvidiaManifest" AfterTargets="Build">
+    <Copy SourceFiles="$(ProjectDir)..\..\PresentMon\ddETWExternal.xml" DestinationFiles="$(OutDir)ddETWExternal.xml" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="DeployUciRuntime" AfterTargets="Build" Condition="Exists('$(UciSdkBinDir)')">
+    <ItemGroup>
+      <UciRuntimeFiles Include="$(UciSdkBinDir)\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(UciRuntimeFiles)" DestinationFiles="@(UciRuntimeFiles->'$(OutDir)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.1.8.1.5\build\native\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.targets" Condition="Exists('..\packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.1.8.1.5\build\native\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.targets')" />

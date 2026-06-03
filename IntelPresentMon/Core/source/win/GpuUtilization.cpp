@@ -3,6 +3,9 @@
 #include "GpuUtilization.h"
 #include <CommonUtilities/rng/PairToRange.h>
 #include <CommonUtilities/Exception.h>
+#include <CommonUtilities/Memory.h>
+#include <CommonUtilities/win/Utilities.h>
+#include <Core/source/infra/Logging.h>
 #include <chrono>
 #include <vector>
 #include <regex>
@@ -10,6 +13,9 @@
 #include <format>
 #include <thread>
 #include <unordered_map>
+#include <string_view>
+#include <memory>
+#include <type_traits>
 
 #include <pdh.h>
 #include <pdhmsg.h>
@@ -22,6 +28,84 @@ namespace p2c::win
 {
     PM_DEFINE_EX(PdhException);
 
+    namespace
+    {
+        std::string TrimFormattedMessage_(std::string message)
+        {
+            while (!message.empty() && (message.back() == '\r' || message.back() == '\n')) {
+                message.pop_back();
+            }
+            return message;
+        }
+
+        std::string TryFormatPdhStatusFromModule_(PDH_STATUS status) noexcept
+        {
+            try {
+                const auto hPdh = GetModuleHandleA("pdh.dll");
+                if (!hPdh) {
+                    return {};
+                }
+
+                UniqueLocalPtr<CHAR> messageLocal;
+                if (!FormatMessageA(
+                    FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS,
+                    hPdh, static_cast<DWORD>(status), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                    reinterpret_cast<LPSTR>(static_cast<char**>(OutPtr(messageLocal))), 0, nullptr))
+                {
+                    return {};
+                }
+
+                return TrimFormattedMessage_(messageLocal.get());
+            }
+            catch (...) {
+                return {};
+            }
+        }
+
+        std::string FormatPdhStatus_(PDH_STATUS status) noexcept
+        {
+            try {
+                if (auto message = TryFormatPdhStatusFromModule_(status); !message.empty()) {
+                    return message;
+                }
+
+                const auto message = ::pmon::util::win::GetErrorDescription(static_cast<HRESULT>(status));
+                if (message != "COULD NOT FORMAT") {
+                    return message;
+                }
+
+                return std::format("PDH status 0x{:08X}", static_cast<uint32_t>(status));
+            }
+            catch (...) {
+                return "COULD NOT FORMAT";
+            }
+        }
+
+        std::string MakePdhFailureLogMessage_(
+            std::string_view operation,
+            PDH_STATUS status,
+            const std::string& statusDescription)
+        {
+            return std::format(
+                "{} failed: status=0x{:08X} ({})",
+                operation,
+                static_cast<uint32_t>(status),
+                statusDescription);
+        }
+
+        struct PdhQueryDeleter_
+        {
+            void operator()(std::remove_pointer_t<HQUERY>* hQuery) const noexcept
+            {
+                if (hQuery) {
+                    PdhCloseQuery(hQuery);
+                }
+            }
+        };
+
+        using PdhQueryPtr_ = std::unique_ptr<std::remove_pointer_t<HQUERY>, PdhQueryDeleter_>;
+    }
+
     std::optional<uint32_t> GetTopGpuProcess(const std::vector<::pmon::util::win::Process>& candidates)
 	{
         // query size of counter and instance buffers
@@ -30,7 +114,18 @@ namespace p2c::win
         if (auto status = PdhEnumObjectItemsA(
             nullptr, nullptr, "GPU Engine", nullptr,
             &counterListSize, nullptr, &instanceListSize,
-            PERF_DETAIL_WIZARD, 0); status != PDH_MORE_DATA) {
+            PERF_DETAIL_WIZARD, 0); status != PDH_MORE_DATA)
+        {
+            const auto statusDescription = FormatPdhStatus_(status);
+            const char* object = "GPU Engine";
+            const char* phase = "query sizes";
+            pmlog_error(MakePdhFailureLogMessage_("PdhEnumObjectItemsA", status, statusDescription))
+                .hr(static_cast<uint32_t>(status))
+                .pmwatch(status)
+                .pmwatch(statusDescription)
+                .pmwatch(object)
+                .pmwatch(phase)
+                .pmwatch(candidates.size());
             throw Except<PdhException>("failed PdhEnumObjectItems()");
         }
 
@@ -41,7 +136,20 @@ namespace p2c::win
             nullptr, nullptr, "GPU Engine",
             counterList.data(), &counterListSize,
             instanceList.data(), &instanceListSize,
-            PERF_DETAIL_WIZARD, 0)) {
+            PERF_DETAIL_WIZARD, 0); status != ERROR_SUCCESS)
+        {
+            const auto statusDescription = FormatPdhStatus_(status);
+            const char* object = "GPU Engine";
+            const char* phase = "enumerate items";
+            pmlog_error(MakePdhFailureLogMessage_("PdhEnumObjectItemsA", status, statusDescription))
+                .hr(static_cast<uint32_t>(status))
+                .pmwatch(status)
+                .pmwatch(statusDescription)
+                .pmwatch(object)
+                .pmwatch(phase)
+                .pmwatch(counterListSize)
+                .pmwatch(instanceListSize)
+                .pmwatch(candidates.size());
             throw Except<PdhException>("failed PdhEnumObjectItems()");
         }
 
@@ -72,25 +180,50 @@ namespace p2c::win
         }
 
         // open pdh query
-        HQUERY hQuery = nullptr;
-        if (PdhOpenQueryA(NULL, 0, &hQuery)) {
+        HQUERY hRawQuery = nullptr;
+        if (auto status = PdhOpenQueryA(NULL, 0, &hRawQuery); status != ERROR_SUCCESS)
+        {
+            const auto statusDescription = FormatPdhStatus_(status);
+            pmlog_error(MakePdhFailureLogMessage_("PdhOpenQueryA", status, statusDescription))
+                .hr(static_cast<uint32_t>(status))
+                .pmwatch(status)
+                .pmwatch(statusDescription)
+                .pmwatch(candidates.size())
+                .pmwatch(instanceMap3D.size());
             throw Except<PdhException>("Failed opening pdh query");
         }
+        PdhQueryPtr_ hQuery{ hRawQuery };
 
         // matching instances with filter candidates and add counters to query
+        struct CountedCounter
+        {
+            HCOUNTER handle;
+            std::string path;
+        };
         struct CountedProcess
         {
             uint32_t pid;
-            std::vector<HCOUNTER> counters;
+            std::vector<CountedCounter> counters;
             double totalValue;
         };
         std::vector<CountedProcess> countedProcesses;
         for (auto& proc : candidates) {
-            std::vector<HCOUNTER> counterHandles;
+            std::vector<CountedCounter> counterHandles;
             for (auto&&[instPid, inst] : instanceMap3D.equal_range(proc.pid) | rng::PairToRange) {
-                counterHandles.emplace_back();
                 const auto counterPath = std::format("\\GPU Engine({})\\Running time", inst);
-                if (PdhAddCounterA(hQuery, counterPath.c_str(), 0, &counterHandles.back())) {
+                counterHandles.push_back({ HCOUNTER{}, counterPath });
+                auto& counter = counterHandles.back();
+                if (auto status = PdhAddCounterA(hQuery.get(), counterPath.c_str(), 0, &counter.handle);
+                    status != ERROR_SUCCESS)
+                {
+                    const auto statusDescription = FormatPdhStatus_(status);
+                    pmlog_error(MakePdhFailureLogMessage_("PdhAddCounterA", status, statusDescription))
+                        .hr(static_cast<uint32_t>(status))
+                        .pmwatch(status)
+                        .pmwatch(statusDescription)
+                        .pmwatch(proc.pid)
+                        .pmwatch(inst)
+                        .pmwatch(counterPath);
                     throw Except<PdhException>("Failed adding pdh counter");
                 }
             }
@@ -104,20 +237,61 @@ namespace p2c::win
             return {};
         }
 
+        const auto GetCounterCount = [&] {
+            size_t count = 0;
+            for (const auto& proc : countedProcesses) {
+                count += proc.counters.size();
+            }
+            return count;
+        };
+
         // prime the counter with an initial polling call
-        if (PdhCollectQueryData(hQuery)) {
+        if (auto status = PdhCollectQueryData(hQuery.get()); status != ERROR_SUCCESS)
+        {
+            const auto statusDescription = FormatPdhStatus_(status);
+            const char* phase = "prime";
+            const auto counterCount = GetCounterCount();
+            pmlog_error(MakePdhFailureLogMessage_("PdhCollectQueryData", status, statusDescription))
+                .hr(static_cast<uint32_t>(status))
+                .pmwatch(status)
+                .pmwatch(statusDescription)
+                .pmwatch(phase)
+                .pmwatch(countedProcesses.size())
+                .pmwatch(counterCount);
             throw Except<PdhException>("Failed collecting query data");
         }
 
         // lambda to poll counters and gather results
         const auto RunPoll = [&](double factor) {
-            if (PdhCollectQueryData(hQuery)) {
+            if (auto status = PdhCollectQueryData(hQuery.get()); status != ERROR_SUCCESS)
+            {
+                const auto statusDescription = FormatPdhStatus_(status);
+                const char* phase = "poll";
+                const auto counterCount = GetCounterCount();
+                pmlog_error(MakePdhFailureLogMessage_("PdhCollectQueryData", status, statusDescription))
+                    .hr(static_cast<uint32_t>(status))
+                    .pmwatch(status)
+                    .pmwatch(statusDescription)
+                    .pmwatch(phase)
+                    .pmwatch(factor)
+                    .pmwatch(countedProcesses.size())
+                    .pmwatch(counterCount);
                 throw Except<PdhException>("Failed collecting query data");
             }
             for (auto& proc : countedProcesses) {
-                for (auto& hCounter : proc.counters) {
+                for (auto& counter : proc.counters) {
                     PDH_FMT_COUNTERVALUE counterValue;
-                    if (PdhGetFormattedCounterValue(hCounter, PDH_FMT_DOUBLE, nullptr, &counterValue)) {
+                    if (auto status = PdhGetFormattedCounterValue(counter.handle, PDH_FMT_DOUBLE, nullptr, &counterValue);
+                        status != ERROR_SUCCESS)
+                    {
+                        const auto statusDescription = FormatPdhStatus_(status);
+                        pmlog_error(MakePdhFailureLogMessage_("PdhGetFormattedCounterValue", status, statusDescription))
+                            .hr(static_cast<uint32_t>(status))
+                            .pmwatch(status)
+                            .pmwatch(statusDescription)
+                            .pmwatch(proc.pid)
+                            .pmwatch(factor)
+                            .pmwatch(counter.path);
                         throw Except<PdhException>("Failed formatting counter value");
                     }
                     proc.totalValue += counterValue.doubleValue * factor;

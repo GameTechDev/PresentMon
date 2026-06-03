@@ -13,10 +13,10 @@ namespace pmon::util::log
 	{}
 	ErrorCode::ErrorCode(ErrorCode&&) = default;
 	ErrorCode& ErrorCode::operator=(ErrorCode&& rhs) = default;
-	bool ErrorCode::HasUnsigned() const { return std::holds_alternative<uint64_t>(integral_); }
-	bool ErrorCode::HasSigned() const { return std::holds_alternative<int64_t>(integral_); }
-	bool ErrorCode::HasIntegral() const { return !std::holds_alternative<std::monostate>(integral_); }
-	bool ErrorCode::Fits32() const
+	bool ErrorCode::HasUnsigned() const noexcept { return std::holds_alternative<uint64_t>(integral_); }
+	bool ErrorCode::HasSigned() const noexcept { return std::holds_alternative<int64_t>(integral_); }
+	bool ErrorCode::HasIntegral() const noexcept { return !std::holds_alternative<std::monostate>(integral_); }
+	bool ErrorCode::Fits32() const noexcept
 	{
 		if (auto u = AsUnsigned()) {
 			return *u <= std::numeric_limits<uint32_t>::max();
@@ -28,15 +28,21 @@ namespace pmon::util::log
 		// doesn't really apply, but return true anyways
 		return true;
 	}
-	std::optional<uint64_t> ErrorCode::AsUnsigned() const {
-		return HasUnsigned() ?
-			std::optional{ std::get<uint64_t>(integral_) } : std::nullopt;
+	std::optional<uint64_t> ErrorCode::AsUnsigned() const noexcept
+	{
+		if (const auto pUnsigned = std::get_if<uint64_t>(&integral_)) {
+			return *pUnsigned;
+		}
+		return std::nullopt;
 	}
-	std::optional<int64_t> ErrorCode::AsSigned() const {
-		return HasSigned() ?
-			std::optional{ std::get<int64_t>(integral_) } : std::nullopt;
+	std::optional<int64_t> ErrorCode::AsSigned() const noexcept
+	{
+		if (const auto pSigned = std::get_if<int64_t>(&integral_)) {
+			return *pSigned;
+		}
+		return std::nullopt;
 	}
-	bool ErrorCode::Empty() const
+	bool ErrorCode::Empty() const noexcept
 	{
 		return std::holds_alternative<std::monostate>(integral_);
 	}
@@ -50,15 +56,15 @@ namespace pmon::util::log
 		pStrings_ = std::make_unique<IErrorCodeResolver::Strings>();
 		return false;
 	}
-	bool ErrorCode::HasTypeInfo() const
+	bool ErrorCode::HasTypeInfo() const noexcept
 	{
 		return bool(pTypeInfo_);
 	}
-	bool ErrorCode::IsResolved() const
+	bool ErrorCode::IsResolved() const noexcept
 	{
 		return bool(pStrings_);
 	}
-	bool ErrorCode::IsResolvedNontrivial() const
+	bool ErrorCode::IsResolvedNontrivial() const noexcept
 	{
 		return IsResolved() && !pStrings_->type.empty();
 	}
@@ -89,7 +95,7 @@ namespace pmon::util::log
 	{
 		return pStrings_.get();
 	}
-	ErrorCode::operator bool() const
+	ErrorCode::operator bool() const noexcept
 	{
 		return !Empty();
 	}

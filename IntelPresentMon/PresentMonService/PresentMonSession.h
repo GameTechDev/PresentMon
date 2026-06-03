@@ -14,11 +14,9 @@
 #include <vector>
 #include <VersionHelpers.h>
 
-#include "../ControlLib/PowerTelemetryProvider.h"
-#include "../ControlLib/CpuTelemetry.h"
+#include "../ControlLib/TelemetryCoordinator.h"
 #include "../../PresentData/PresentMonTraceConsumer.hpp"
 #include "../../PresentData/PresentMonTraceSession.hpp"
-#include "PowerTelemetryContainer.h"
 #include "FrameBroadcaster.h"
 
 #include "../PresentMonAPI2Tests/TestCommands.h"
@@ -41,17 +39,12 @@ public:
     virtual void FlushEvents() {}
     virtual void ResetEtwFlushPeriod() = 0;
 
-    void SetCpu(const std::shared_ptr<pwr::cpu::CpuTelemetry>& pCpu);
-    std::vector<std::shared_ptr<pwr::PowerTelemetryAdapter>> EnumerateAdapters();
-    std::string GetCpuName();
-    double GetCpuPowerLimit();
     pmon::test::service::Status GetTestingStatus() const;
     PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> period_ms);
     PM_STATUS SetEtwFlushPeriod(std::optional<uint32_t> periodMs);
     std::optional<uint32_t> GetEtwFlushPeriod();
     uint32_t GetGpuTelemetryPeriod();
     bool HasLiveTargets() const;
-    void SetPowerTelemetryContainer(PowerTelemetryContainer* ptc);
 
     void MarkProcessExited(uint32_t pid);
     bool IsProcessTracked(uint32_t pid) const;
@@ -64,9 +57,6 @@ protected:
     // TODO: review all of these members and consider fixing the unsound thread safety aspects
     // data
     std::wstring pm_session_name_;
-
-    pwr::cpu::CpuTelemetry* cpu_ = nullptr;
-    PowerTelemetryContainer* telemetry_container_ = nullptr;
 
     // Set the initial telemetry period to 16ms
     static constexpr uint32_t default_gpu_telemetry_period_ms_ = 16;

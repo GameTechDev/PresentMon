@@ -319,6 +319,8 @@ public:
 		if (!logManager_) {
 			logManager_.emplace();
 		}
+		Logger::WriteMessage(std::format("Test log directory: {}\n",
+			fs::absolute(GetCommonArgs().logFolder).string()).c_str());
 		pmon::test::SetupTestLogging(GetCommonArgs().logFolder, GetCommonArgs().logLevel,
 			GetCommonArgs().logVerboseModules);
 		svcArgs_ = std::move(args);

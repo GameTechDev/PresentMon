@@ -9,6 +9,11 @@ namespace pmon::svc::acts
 {
     void ActionExecutionContext::Dispose(SessionContextType& stx)
     {
+        for (auto const& [pid, target] : stx.trackedPids) {
+            if (target.backpressureReadSerial) {
+                ReleaseBackpressure(pid);
+            }
+        }
         // etw log trace cleanup
         auto& etw = pPmon->GetEtwLogger();
         for (auto id : stx.etwLogSessionIds) {
@@ -58,20 +63,12 @@ namespace pmon::svc::acts
     }
     void ActionExecutionContext::UpdateMetricUsage() const
     {
-        std::unordered_set<MetricUse> aggregateMetricUsage;
-        std::unordered_set<uint32_t> deviceMetricUsage;
+        auto deviceMetricUsage = std::make_shared<PresentMon::DeviceMetricUsage>();
         auto&& allUsageSets = util::rng::MemberSlice(*pSessionMap, &SessionContextType::metricUsage);
         for (auto&& clientUsageSet : allUsageSets) {
             for (auto&& usage : clientUsageSet) {
-                aggregateMetricUsage.insert(usage);
-                deviceMetricUsage.insert(usage.deviceId);
+                (*deviceMetricUsage)[usage.deviceId].insert(usage);
             }
-        }
-        if (!hasLastAggregateMetricUsage || aggregateMetricUsage != lastAggregateMetricUsage) {
-            pmlog_verb(pmon::util::log::V::met_use)("Aggregate metric usage updated")
-                .serialize("aggregateMetricUsage", aggregateMetricUsage);
-            lastAggregateMetricUsage = aggregateMetricUsage;
-            hasLastAggregateMetricUsage = true;
         }
         pPmon->SetDeviceMetricUsage(std::move(deviceMetricUsage));
     }
@@ -88,5 +85,14 @@ namespace pmon::svc::acts
             }
         }
         return trackedPids;
+    }
+
+    void ActionExecutionContext::ReleaseBackpressure(uint32_t pid) const
+    {
+        // Backpressured playback is SPSC, so tearing down the owner simply advances the
+        // single consumer cursor to the writer and releases any blocked producer.
+        pPmon->GetBroadcaster().UpdateReadSerial(
+            pid,
+            pPmon->GetBroadcaster().GetCurrentWriteSerial(pid).value_or(0));
     }
 }

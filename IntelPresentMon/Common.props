@@ -6,6 +6,11 @@
   <PropertyGroup>
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)build\obj\$(ProjectName)-$(Platform)-$(Configuration)\</IntDir>
+    <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
+    <UciSdkDir Condition="'$(PMON_UCI_SDK_DIR)'!=''">$(PMON_UCI_SDK_DIR)</UciSdkDir>
+    <UciSdkDir Condition="'$(UciSdkDir)'==''">$(MSBuildThisFileDirectory)ControlLib\uci\external</UciSdkDir>
+    <UciSdkIncludeDir>$(UciSdkDir)\include</UciSdkIncludeDir>
+    <UciSdkBinDir>$(UciSdkDir)\bin</UciSdkBinDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile />

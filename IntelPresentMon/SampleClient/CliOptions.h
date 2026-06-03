@@ -31,7 +31,6 @@ namespace clio
 		PacedFramePlayback,
 		IpcComponentServer,
 		IntrospectionDevices,
-		LoggingCrashTest,
 		Count,
 	};
 
@@ -73,6 +72,8 @@ namespace clio
 		Option<std::string> serviceEtlPath{ this, "--service-etl-path", "", "Path of the ETL file to pass to the service for playback" };
 	private: Group gt_{ this, "Testing", "Control testing support options" }; public:
 		Flag testExpectError{ this, "--test-expect-error", "Indicates to test modes that fail state is being tested" };
+		Flag minMaxPercentileStatsOnly{ this, "--min-max-percentile-stats-only",
+			"Limits paced playback dynamic queries to min, percentile, and max stats" };
 		Option<size_t> ipcSystemRingCapacity{ this, "--ipc-system-ring-capacity", 32,
 			"System telemetry ring capacity for the IPC component server" };
 		Option<size_t> ipcSystemSamplesPerPush{ this, "--ipc-system-samples-per-push", 12,

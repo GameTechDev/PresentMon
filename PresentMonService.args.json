@@ -28,11 +28,7 @@
     },
     {
       "Id": "bc1dd7da-c628-48fe-b073-19c243473c15",
-      "Command": "--intro-nsm pm_my_intro"
-    },
-    {
-      "Id": "17589058-a147-412f-b7ba-0ef6f8c4ad08",
-      "Command": "--nsm-prefix pm_my_nsm"
+      "Command": "--shm-name-prefix pm_my_nsm"
     },
     {
       "Id": "aafe8ea9-f424-4996-9b6d-109bd2a76f40",

@@ -21,7 +21,16 @@
     <ClInclude Include="cnr\FixedVector.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Env.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="str\String.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="test\FloatAssert.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="test\MachineExpectations.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Memory.h">
@@ -160,9 +169,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="log\CopyDriver.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="log\CrashFlushHooks.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="log\HrLogger.h">
@@ -335,6 +341,9 @@
     <ClCompile Include="cli\CliFramework.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Env.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="str\String.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -423,9 +432,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="log\CopyDriver.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="log\CrashFlushHooks.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="log\HrLogger.cpp">
@@ -547,6 +553,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="test\MachineExpectations.cpp">
+      <Filter>Source Files</Filter>
+    </None>
     <None Include="vcpkg.json" />
   </ItemGroup>
 </Project>

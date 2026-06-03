@@ -696,7 +696,7 @@ bool PMTraceSession::QueryEtwStatus(EtwStatus* status) const
     mCachedEtwStatus.mEtwTotalBuffers = sessionProps.NumberOfBuffers;
     mCachedEtwStatus.mEtwEventsLost = sessionProps.EventsLost;
     mCachedEtwStatus.mEtwBuffersLost = sessionProps.LogBuffersLost + sessionProps.RealTimeBuffersLost;
-    mCachedEtwStatus.mNumOverflowedPresents = mPMConsumer->mNumOverflowedPresents;
+    mCachedEtwStatus.mNumOverflowedPresents = mPMConsumer->GetNumOverflowedPresents();
 
     if (sessionProps.NumberOfBuffers > 0) {
         mCachedEtwStatus.mEtwBufferFillPct = 100.0 * mCachedEtwStatus.mEtwBuffersInUse / sessionProps.NumberOfBuffers;

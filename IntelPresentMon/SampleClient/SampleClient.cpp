@@ -41,7 +41,6 @@
 #include "LogDemo.h"
 #include "DiagnosticDemo.h"
 #include "LogSetup.h"
-#include "LoggingCrashTest.h"
 
 #include "../CommonUtilities/IntervalWaiter.h"
 #include "../CommonUtilities/pipe/Pipe.h"
@@ -336,18 +335,6 @@ int main(int argc, char* argv[])
 
 	auto& opt = clio::Options::Get();
 	const auto mode = *opt.mode;
-
-	// crash logging mode intentionally runs without top-level exception handling
-	if (mode == clio::Mode::LoggingCrashTest) {
-		if (opt.middlewareDllPath) {
-			pmLoaderSetPathToMiddlewareDll_(opt.middlewareDllPath->c_str());
-		}
-
-		p2sam::LogChannelManager zLogMan_;
-		p2sam::ConfigureLogging();
-
-		return RunLoggingCrashTest(*opt.submode);
-	}
 
 	try {
 		// use the middleware in the dev path esp. if we are running debug build

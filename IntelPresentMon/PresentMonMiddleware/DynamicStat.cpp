@@ -320,6 +320,18 @@ namespace pmon::mid
 
     namespace
     {
+        double AdjustPercentileForReciprocation_(double percentile, std::optional<double> reciprocationFactor)
+        {
+            // For reciprocal metrics, e.g. frame time converted to FPS, rank order reverses.
+            return reciprocationFactor ? 1.0 - percentile : percentile;
+        }
+
+        bool AdjustMinMaxForReciprocation_(bool isMax, std::optional<double> reciprocationFactor)
+        {
+            // Selecting a raw minimum produces a displayed maximum after reciprocation.
+            return reciprocationFactor ? !isMax : isMax;
+        }
+
         template<typename T>
         std::unique_ptr<DynamicStat<T>> MakeDynamicStatTyped_(PM_STAT stat, PM_DATA_TYPE inType, PM_DATA_TYPE outType,
             size_t offsetBytes, std::optional<double> reciprocationFactor)
@@ -330,21 +342,29 @@ namespace pmon::mid
             case PM_STAT_NON_ZERO_AVG:
                 return std::make_unique<detail::DynamicStatAverage_<T>>(inType, outType, offsetBytes, reciprocationFactor, true);
             case PM_STAT_PERCENTILE_99:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.99);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor,
+                    AdjustPercentileForReciprocation_(0.99, reciprocationFactor));
             case PM_STAT_PERCENTILE_95:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.95);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor,
+                    AdjustPercentileForReciprocation_(0.95, reciprocationFactor));
             case PM_STAT_PERCENTILE_90:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.90);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor,
+                    AdjustPercentileForReciprocation_(0.90, reciprocationFactor));
             case PM_STAT_PERCENTILE_01:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.01);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor,
+                    AdjustPercentileForReciprocation_(0.01, reciprocationFactor));
             case PM_STAT_PERCENTILE_05:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.05);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor,
+                    AdjustPercentileForReciprocation_(0.05, reciprocationFactor));
             case PM_STAT_PERCENTILE_10:
-                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor, 0.10);
+                return std::make_unique<detail::DynamicStatPercentile_<T>>(inType, outType, offsetBytes, reciprocationFactor,
+                    AdjustPercentileForReciprocation_(0.10, reciprocationFactor));
             case PM_STAT_MAX:
-                return std::make_unique<detail::DynamicStatMinMax_<T>>(inType, outType, offsetBytes, reciprocationFactor, true);
+                return std::make_unique<detail::DynamicStatMinMax_<T>>(inType, outType, offsetBytes, reciprocationFactor,
+                    AdjustMinMaxForReciprocation_(true, reciprocationFactor));
             case PM_STAT_MIN:
-                return std::make_unique<detail::DynamicStatMinMax_<T>>(inType, outType, offsetBytes, reciprocationFactor, false);
+                return std::make_unique<detail::DynamicStatMinMax_<T>>(inType, outType, offsetBytes, reciprocationFactor,
+                    AdjustMinMaxForReciprocation_(false, reciprocationFactor));
             case PM_STAT_MID_POINT:
                 return std::make_unique<detail::DynamicStatPoint_<T>>(inType, outType, offsetBytes, reciprocationFactor, PM_STAT_MID_POINT);
             case PM_STAT_NEWEST_POINT:

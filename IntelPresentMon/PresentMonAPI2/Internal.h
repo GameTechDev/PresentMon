@@ -28,7 +28,9 @@ struct LoggingSingletons
 // return getters for config singletons in the dll to config from the exe
 PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(
 	std::shared_ptr<pmon::util::log::IChannel> pChannel,
-	std::function<pmon::util::log::IdentificationTable&()> getIdTable);
+	pmon::util::log::IdentificationTableCallbacks idTableCallbacks);
+// disconnect any logging bridge created by pmLinkLogging_
+PRESENTMON_API2_EXPORT void pmUnlinkLogging_() noexcept;
 // function to flush the dll's log channel worker queue when before exiting
 PRESENTMON_API2_EXPORT void pmFlushEntryPoint_() noexcept;
 // set middleware to log using OutputDebugString

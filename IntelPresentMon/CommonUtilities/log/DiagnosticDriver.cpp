@@ -191,8 +191,7 @@ namespace pmon::util::log
 			.enableLocation{ false },
 			.disableDiagnosticFilter{ false },
 			.verboseModuleBitset{ 0 },
-			.enableSynchronousLogging{ false },
-			.enableFlushOnCrash{ false }
+			.enableSynchronousLogging{ false }
 		}
 	{}
 	DiagnosticMessage::DiagnosticMessage(const PM_DIAGNOSTIC_MESSAGE& msg)

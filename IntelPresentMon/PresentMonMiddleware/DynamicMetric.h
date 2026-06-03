@@ -126,7 +126,7 @@ namespace pmon::mid
             const auto metricView = intro.FindMetric(metric_);
             const auto inType = GetSampleType_();
             auto outType = SelectOutputType_(qel.stat, metricView.GetDataTypeInfo().GetPolledType());
-            qel.dataSize = (uint32_t)ipc::intro::GetDataTypeSize(outType);
+            qel.dataSize = (uint32_t)ipc::intro::GetDataTypeSizeChecked(outType);
             // adjust offset written in qel when padding is needed for type alignment
             qel.dataOffset = util::PadToAlignment(qel.dataOffset, qel.dataSize);
             auto statPtr = MakeDynamicStat<T>(qel.stat, inType, outType, qel.dataOffset, reciprocationFactor_);

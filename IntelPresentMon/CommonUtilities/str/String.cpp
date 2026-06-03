@@ -55,6 +55,9 @@ namespace pmon::util::str
 	std::string ToNarrow(const std::wstring& wide) noexcept
 	{
 		try {
+			if (wide.empty()) {
+				return {};
+			}
 			std::string narrow;
 			// TODO: replace with resize_and_overwrite when it becomes widely available
 			narrow.resize(wide.size() * 2);
@@ -64,7 +67,19 @@ namespace pmon::util::str
 				narrow.resize(actual);
 				return narrow;
 			}
-			// TODO: (maybe) check for insufficient buffer error and do redo with two-pass (or just double buffer again)
+			if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+				const auto required = WideCharToMultiByte(CP_UTF8, 0, wide.data(), (int)wide.size(),
+					nullptr, 0, nullptr, nullptr);
+				if (required > 0) {
+					narrow.resize(required);
+					const auto actual = WideCharToMultiByte(CP_UTF8, 0, wide.data(), (int)wide.size(),
+						narrow.data(), (int)narrow.size(), nullptr, nullptr);
+					if (actual > 0) {
+						narrow.resize(actual);
+						return narrow;
+					}
+				}
+			}
 			pmlog_error("failed conversion to narrow").hr();
 		}
 		catch (...) {

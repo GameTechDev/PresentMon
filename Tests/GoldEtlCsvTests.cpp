@@ -11,6 +11,67 @@ struct TestArgs {
     std::wstring testCsv_;
 };
 
+bool IsAsciiDigit(wchar_t ch)
+{
+    return ch >= L'0' && ch <= L'9';
+}
+
+bool IsTestCaseEtlName(wchar_t const* fileName)
+{
+    wchar_t const prefix[] = L"test_case_";
+    auto prefixLen = _countof(prefix) - 1;
+    auto len = wcslen(fileName);
+
+    if (len <= prefixLen + 4 || _wcsicmp(fileName + len - 4, L".etl") != 0) {
+        return false;
+    }
+
+    if (_wcsnicmp(fileName, prefix, prefixLen) != 0) {
+        return false;
+    }
+
+    for (auto i = prefixLen; i < len - 4; ++i) {
+        if (!IsAsciiDigit(fileName[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool IsGoldCsvForTestCase(
+    std::wstring const& etlStem,
+    wchar_t const* fileName)
+{
+    auto len = wcslen(fileName);
+    if (len <= 4 || _wcsicmp(fileName + len - 4, L".csv") != 0) {
+        return false;
+    }
+
+    auto csvStemLen = len - 4;
+    if (_wcsnicmp(fileName, etlStem.c_str(), etlStem.size()) != 0) {
+        return false;
+    }
+
+    if (csvStemLen == etlStem.size()) {
+        return true;
+    }
+
+    if (csvStemLen <= etlStem.size() + 2 ||
+        fileName[etlStem.size()] != L'_' ||
+        fileName[etlStem.size() + 1] != L'v') {
+        return false;
+    }
+
+    for (auto i = etlStem.size() + 2; i < csvStemLen; ++i) {
+        if (!IsAsciiDigit(fileName[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 class Tests : public ::testing::Test, TestArgs {
 public:
     explicit Tests(TestArgs const& args)
@@ -170,9 +231,9 @@ void AddGoldEtlCsvTests(
             AddGoldEtlCsvTests(dir + ff.cFileName + L'\\', relIdx);
         } else {
             // Confirm fileName is an ETL
-            auto len = wcslen(ff.cFileName);
-            if (len >= 4 && _wcsicmp(ff.cFileName + len - 4, L".etl") == 0) {
+            if (IsTestCaseEtlName(ff.cFileName)) {
                 std::wstring etl(dir + ff.cFileName);
+                std::wstring etlStem(ff.cFileName, wcslen(ff.cFileName) - 4);
                 uint32_t csvCount = 0;
 
                 // Add a test for each filename*.csv
@@ -182,6 +243,10 @@ void AddGoldEtlCsvTests(
                     do
                     {
                         if ((csvff.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+                            if (!IsGoldCsvForTestCase(etlStem, csvff.cFileName)) {
+                                continue;
+                            }
+
                             std::wstring fileName(csvff.cFileName);
 
                             TestArgs args;

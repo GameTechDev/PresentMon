@@ -1,6 +1,7 @@
-﻿// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include <CppUnitTest.h>
+#include <CommonUtilities/test/FloatAssert.h>
 #include <CommonUtilities/qpc.h>
 #include <CommonUtilities/mc/MetricsTypes.h>
 #include <CommonUtilities/mc/MetricsCalculator.h>
@@ -10,6 +11,7 @@
 #include <memory>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+using pmon::util::test::AssertAreEqualWithinTolerance;
 using namespace pmon::util::metrics;
 using namespace pmon::util;
 
@@ -244,7 +246,7 @@ namespace MetricsCoreTests
             swapChain.accumulatedInput2FrameStartTime += 16.666;
             swapChain.accumulatedInput2FrameStartTime += 16.666;
 
-            Assert::AreEqual(49.998, swapChain.accumulatedInput2FrameStartTime, 0.001);
+            AssertAreEqualWithinTolerance(49.998, swapChain.accumulatedInput2FrameStartTime, 0.001);
         }
 
         TEST_METHOD(AnimationErrorSource_DefaultsToCpuStart)
@@ -1018,7 +1020,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), firstMetrics.size(), L"First not-displayed frame should produce one metrics entry.");
 
             // With no prior lastPresent, msBetweenPresents should be zero
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 0.0,
                 firstMetrics[0].metrics.msBetweenPresents,
                 0.0001,
@@ -1054,7 +1056,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 first.presentStartTime,
                 second.presentStartTime);
 
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 expectedDelta,
                 secondMetrics[0].metrics.msBetweenPresents,
                 0.0001,
@@ -1100,7 +1102,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // msInPresentApi = delta for TimeInPresent
             double expectedMsInPresentFirst = qpc.DurationMilliSeconds(first.timeInPresent);
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 expectedMsInPresentFirst,
                 firstMetrics.msInPresentApi,
                 0.0001,
@@ -1109,7 +1111,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // msUntilRenderComplete = delta between PresentStart and Ready
             double expectedMsUntilRenderCompleteFirst =
                 qpc.DeltaUnsignedMilliSeconds(first.presentStartTime, first.readyTime);
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 expectedMsUntilRenderCompleteFirst,
                 firstMetrics.msUntilRenderComplete,
                 0.0001,
@@ -1118,7 +1120,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // msUntilRenderStart = delta between PresentStart and GPU start
             double expectedMsUntilRenderStart =
                 qpc.DeltaUnsignedMilliSeconds(first.presentStartTime, first.gpuStartTime);
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 expectedMsUntilRenderStart,
                 firstMetrics.msUntilRenderStart,
                 0.0001,
@@ -1167,7 +1169,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // msBetweenPresents should be based on lastPresent.start -> second.start
             double expectedBetween =
                 qpc.DeltaUnsignedMilliSeconds(first.presentStartTime, second.presentStartTime);
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 expectedBetween,
                 secondMetrics.msBetweenPresents,
                 0.0001,
@@ -1180,12 +1182,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedMsUntilRenderStartSecond =
                 qpc.DeltaUnsignedMilliSeconds(second.presentStartTime, second.gpuStartTime);
 
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 expectedMsInPresentSecond,
                 secondMetrics.msInPresentApi,
                 0.0001,
                 L"Second frame msInPresentApi should match timeInPresent.");
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 expectedMsUntilRenderCompleteSecond,
                 secondMetrics.msUntilRenderComplete,
                 0.0001,
@@ -1271,7 +1273,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // msBetweenPresents: lastPresent.start (first) -> second.start
             double expectedBetween =
                 qpc.DeltaUnsignedMilliSeconds(first.presentStartTime, second.presentStartTime);
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 expectedBetween,
                 secondMetrics.msBetweenPresents,
                 0.0001,
@@ -1279,7 +1281,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // msInPresentApi from timeInPresent
             double expectedMsInPresentSecond = qpc.DurationMilliSeconds(second.timeInPresent);
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 expectedMsInPresentSecond,
                 secondMetrics.msInPresentApi,
                 0.0001,
@@ -1288,7 +1290,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // msUntilRenderComplete from start -> ready
             double expectedMsUntilRenderCompleteSecond =
                 qpc.DeltaUnsignedMilliSeconds(second.presentStartTime, second.readyTime);
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 expectedMsUntilRenderCompleteSecond,
                 secondMetrics.msUntilRenderComplete,
                 0.0001,
@@ -1297,7 +1299,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // msUntilRenderStart from start -> GPU start
             double expectedMsUntilRenderStartSecond =
                 qpc.DeltaUnsignedMilliSeconds(second.presentStartTime, second.gpuStartTime);
-            Assert::AreEqual(
+            AssertAreEqualWithinTolerance(
                 expectedMsUntilRenderStartSecond,
                 secondMetrics.msUntilRenderStart,
                 0.0001,
@@ -1328,7 +1330,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
-            Assert::AreEqual(0.0, m.msUntilDisplayed, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msUntilDisplayed, 0.0001);
         }
         TEST_METHOD(Displayed_ReturnsDeltaFromPresentStartToScreenTime)
         {
@@ -1351,7 +1353,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
             double expected = qpc.DeltaUnsignedMilliSeconds(frame.presentStartTime, frame.displayed[0].second);
-            Assert::AreEqual(expected, m.msUntilDisplayed, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msUntilDisplayed, 0.0001);
         }
         TEST_METHOD(DisplayedGeneratedFrame_AlsoReturnsDelta)
         {
@@ -1374,7 +1376,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
             double expected = qpc.DeltaUnsignedMilliSeconds(frame.presentStartTime, frame.displayed[0].second);
-            Assert::AreEqual(expected, m.msUntilDisplayed, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msUntilDisplayed, 0.0001);
         }
     };
     TEST_CLASS(MsDisplayedTimeTests)
@@ -1394,7 +1396,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto results = ComputeMetricsForPresent(qpc, frame, nullptr, chain);
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
-            Assert::AreEqual(0.0, m.msDisplayedTime, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msDisplayedTime, 0.0001);
         }
 
         TEST_METHOD(DisplayedSingleDisplay_WithNextDisplay_ReturnsDeltaToNextScreenTime)
@@ -1418,7 +1420,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
 
             double expected = qpc.DeltaUnsignedMilliSeconds(2'500'000, 2'800'000);
-            Assert::AreEqual(expected, m.msDisplayedTime, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msDisplayedTime, 0.0001);
         }
 
         TEST_METHOD(DisplayedMultipleDisplays_ProcessEachWithNextScreenTime)
@@ -1443,16 +1445,16 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(2), results1.size());
 
             double expected0 = qpc.DeltaUnsignedMilliSeconds(3'100'000, 3'400'000);
-            Assert::AreEqual(expected0, results1[0].metrics.msDisplayedTime, 0.0001);
+            AssertAreEqualWithinTolerance(expected0, results1[0].metrics.msDisplayedTime, 0.0001);
 
             double expected1 = qpc.DeltaUnsignedMilliSeconds(3'400'000, 3'700'000);
-            Assert::AreEqual(expected1, results1[1].metrics.msDisplayedTime, 0.0001);
+            AssertAreEqualWithinTolerance(expected1, results1[1].metrics.msDisplayedTime, 0.0001);
 
             auto results2 = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results2.size());
 
             double expected2 = qpc.DeltaUnsignedMilliSeconds(3'700'000, 4'000'000);
-            Assert::AreEqual(expected2, results2[0].metrics.msDisplayedTime, 0.0001);
+            AssertAreEqualWithinTolerance(expected2, results2[0].metrics.msDisplayedTime, 0.0001);
         }
     };
 
@@ -1479,7 +1481,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
 
-            Assert::AreEqual(0.0, m.msBetweenDisplayChange, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msBetweenDisplayChange, 0.0001);
         }
 
         TEST_METHOD(SubsequentDisplayedFrame_UsesChainLastDisplayedScreenTime)
@@ -1504,7 +1506,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
 
             double expected = qpc.DeltaUnsignedMilliSeconds(4'000'000, 5'500'000);
-            Assert::AreEqual(expected, m.msBetweenDisplayChange, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msBetweenDisplayChange, 0.0001);
         }
 
         TEST_METHOD(NotDisplayed_ReturnsZero)
@@ -1523,7 +1525,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
 
-            Assert::AreEqual(0.0, m.msBetweenDisplayChange, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msBetweenDisplayChange, 0.0001);
         }
 
         TEST_METHOD(MultipleDisplays_EachComputesDeltaFromPreviousDisplayedEntry)
@@ -1549,7 +1551,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(2), results1.size());
 
             double expected0 = qpc.DeltaUnsignedMilliSeconds(3'000'000, 5'500'000);
-            Assert::AreEqual(expected0, results1[0].metrics.msBetweenDisplayChange, 0.0001);
+            AssertAreEqualWithinTolerance(expected0, results1[0].metrics.msBetweenDisplayChange, 0.0001);
 
             double expected1 = qpc.DeltaUnsignedMilliSeconds(5'500'000, 5'800'000);
             Assert::AreEqual(expected1, results1[1].metrics.msBetweenDisplayChange, 0.0001);
@@ -1608,7 +1610,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             if (HasMetricValue(m.msFlipDelay)) {
                 double expected = qpc.DurationMilliSeconds(100'000);
-                Assert::AreEqual(expected, m.msFlipDelay, 0.0001);
+                AssertAreEqualWithinTolerance(expected, m.msFlipDelay, 0.0001);
             }
         }
 
@@ -1660,7 +1662,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             if (HasMetricValue(m.msFlipDelay)) {
                 double expected = qpc.DurationMilliSeconds(50'000);
-                Assert::AreEqual(expected, m.msFlipDelay, 0.0001);
+                AssertAreEqualWithinTolerance(expected, m.msFlipDelay, 0.0001);
             }
         }
     };
@@ -1820,7 +1822,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsTrue(HasMetricValue(secondMetrics.msFlipDelay),
                 L"msFlipDelay should be set for displayed frame");
             if (HasMetricValue(secondMetrics.msFlipDelay)) {
-                Assert::AreEqual(expectedMsFlipDelaySecond, secondMetrics.msFlipDelay, 0.0001,
+                AssertAreEqualWithinTolerance(expectedMsFlipDelaySecond, secondMetrics.msFlipDelay, 0.0001,
                     L"NV2 should adjust second's flipDelay to account for screenTime catch-up");
             }
         }
@@ -1865,7 +1867,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsTrue(HasMetricValue(metrics.msFlipDelay),
                 L"msFlipDelay should be set for displayed frame");
             if (HasMetricValue(metrics.msFlipDelay)) {
-                Assert::AreEqual(expectedMsFlipDelay, metrics.msFlipDelay, 0.0001,
+                AssertAreEqualWithinTolerance(expectedMsFlipDelay, metrics.msFlipDelay, 0.0001,
                     L"No collapse: flipDelay should remain at original value");
             }
         }
@@ -1920,7 +1922,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsTrue(HasMetricValue(secondMetrics.msFlipDelay),
                 L"msFlipDelay should be set for displayed frame");
             if (HasMetricValue(secondMetrics.msFlipDelay)) {
-                Assert::AreEqual(expectedMsFlipDelay, secondMetrics.msFlipDelay, 0.0001,
+                AssertAreEqualWithinTolerance(expectedMsFlipDelay, secondMetrics.msFlipDelay, 0.0001,
                     L"NV2: when no collapse, flipDelay should remain unchanged");
             }
         }
@@ -1956,7 +1958,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const uint64_t expectedFlipDelay = 100'000 + (5'500'000 - 5'000'000);
             Assert::IsTrue(HasMetricValue(m.msFlipDelay), L"msFlipDelay should be set for displayed frame");
             if (HasMetricValue(m.msFlipDelay)) {
-                Assert::AreEqual(qpc.DurationMilliSeconds(expectedFlipDelay), m.msFlipDelay, 0.0001,
+                AssertAreEqualWithinTolerance(qpc.DurationMilliSeconds(expectedFlipDelay), m.msFlipDelay, 0.0001,
                     L"NV1 should adjust current flipDelay to account for screenTime catch-up");
             }
 
@@ -2007,7 +2009,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // cpuStart = 800'000 + 200'000 = 1'000'000
             // msDisplayLatency = screenTime - cpuStart = 2'000'000 - 1'000'000 = 1'000'000 ticks = 0.1 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000, 2'000'000);
-            Assert::AreEqual(expected, m.msDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msDisplayLatency, 0.0001);
         }
 
         TEST_METHOD(DisplayLatency_CpuStartEqualsScreenTime)
@@ -2041,7 +2043,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // cpuStart = 1'700'000 + 300'000 = 2'000'000
             // msDisplayLatency = 2'000'000 - 2'000'000 = 0
-            Assert::AreEqual(0.0, m.msDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msDisplayLatency, 0.0001);
         }
 
         TEST_METHOD(DisplayLatency_NotDisplayed_ReturnsZero)
@@ -2063,7 +2065,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
             const auto& m = results[0].metrics;
 
-            Assert::AreEqual(0.0, m.msDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msDisplayLatency, 0.0001);
         }
 
         TEST_METHOD(DisplayLatency_ZeroCpuStart)
@@ -2094,7 +2096,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // cpuStart = 0 (no prior app present)
             // msDisplayLatency = 3'000'000 - 0 = 3'000'000 ticks = 0.3 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(0, 3'000'000);
-            Assert::AreEqual(expected, m.msDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msDisplayLatency, 0.0001);
         }
     };
 
@@ -2129,7 +2131,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // msReadyTimeToDisplayLatency = screenTime - readyTime = 2'000'000 - 1'500'000 = 500'000 ticks = 0.05 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'000'000);
             Assert::IsTrue(HasMetricValue(m.msReadyTimeToDisplayLatency));
-            Assert::AreEqual(expected, m.msReadyTimeToDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msReadyTimeToDisplayLatency, 0.0001);
         }
 
         TEST_METHOD(ReadyTimeToDisplay_ReadyTimeEqualsScreenTime)
@@ -2157,7 +2159,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
 
             Assert::IsTrue(HasMetricValue(m.msReadyTimeToDisplayLatency));
-            Assert::AreEqual(0.0, m.msReadyTimeToDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msReadyTimeToDisplayLatency, 0.0001);
         }
 
         TEST_METHOD(ReadyTimeToDisplay_NotDisplayed_ReturnsZero)
@@ -2209,7 +2211,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // msReadyTimeToDisplayLatency = 2'000'000 - 70'000 = 1'930'000 ticks = 0.193 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(70'000, 2'000'000);
             Assert::IsTrue(HasMetricValue(m.msReadyTimeToDisplayLatency));
-            Assert::AreEqual(expected, m.msReadyTimeToDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msReadyTimeToDisplayLatency, 0.0001);
         }
     };
 
@@ -2256,11 +2258,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // First display: cpuStart = 1'000'000, screenTime = 2'000'000 -> 0.1 ms
             double expected0 = qpc.DeltaUnsignedMilliSeconds(1'000'000, 2'000'000);
-            Assert::AreEqual(expected0, results1[0].metrics.msDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected0, results1[0].metrics.msDisplayLatency, 0.0001);
 
             // Second display: cpuStart = 1'000'000, screenTime = 2'100'000 -> 0.11 ms
             double expected1 = qpc.DeltaUnsignedMilliSeconds(1'000'000, 2'100'000);
-            Assert::AreEqual(expected1, results1[1].metrics.msDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected1, results1[1].metrics.msDisplayLatency, 0.0001);
 
             // Second call with next: process [2]
             auto results2 = ComputeMetricsForPresent(qpc, frame, &next, chain);
@@ -2268,7 +2270,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Third display: cpuStart = 1'000'000, screenTime = 2'200'000 -> 0.12 ms
             double expected2 = qpc.DeltaUnsignedMilliSeconds(1'000'000, 2'200'000);
-            Assert::AreEqual(expected2, results2[0].metrics.msDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected2, results2[0].metrics.msDisplayLatency, 0.0001);
         }
 
         TEST_METHOD(ReadyTimeToDisplay_MultipleDisplays_IndependentDeltas)
@@ -2311,19 +2313,19 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // Display 0: readyTime = 1'500'000, screenTime = 2'000'000 -> 0.05 ms
             double expected0 = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'000'000);
             Assert::IsTrue(HasMetricValue(results[0].metrics.msReadyTimeToDisplayLatency));
-            Assert::AreEqual(expected0, results[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected0, results[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
 
             // Display 0: readyTime = 1'500'000, screenTime = 2'000'000 -> 0.05 ms
             double expected1 = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'100'000);
             Assert::IsTrue(HasMetricValue(results[1].metrics.msReadyTimeToDisplayLatency));
-            Assert::AreEqual(expected1, results[1].metrics.msReadyTimeToDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected1, results[1].metrics.msReadyTimeToDisplayLatency, 0.0001);
 
             // Second call with next: process [2]
             auto results2 = ComputeMetricsForPresent(qpc, frame, &next, chain);
             Assert::AreEqual(size_t(1), results2.size());
             double expected2 = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'200'000);
             Assert::IsTrue(HasMetricValue(results2[0].metrics.msReadyTimeToDisplayLatency));
-            Assert::AreEqual(expected2, results2[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected2, results2[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
         }
     };
 
@@ -2379,10 +2381,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // No adjust of first frame msDisplayLatency = 4'000'000 - 1'000'000 = 3'000'000 ticks = 0.3 ms
             double expectedDisplayLatency = qpc.DeltaUnsignedMilliSeconds(1'000'000, 4'000'000);
-            Assert::AreEqual(expectedDisplayLatency, results1[0].metrics.msDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expectedDisplayLatency, results1[0].metrics.msDisplayLatency, 0.0001);
             double expectedFlipDelay = qpc.DurationMilliSeconds(frame.flipDelay);
             Assert::IsTrue(HasMetricValue(results1[0].metrics.msFlipDelay));
-            Assert::AreEqual(expectedFlipDelay, results1[0].metrics.msFlipDelay, 0.0001);
+            AssertAreEqualWithinTolerance(expectedFlipDelay, results1[0].metrics.msFlipDelay, 0.0001);
 
             auto results2 = ComputeMetricsForPresent(qpc, next1, &next2, chain);
             Assert::AreEqual(size_t(1), results1.size());
@@ -2391,10 +2393,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // msDisplayLatency = 4'000'000 - 1'050'000 = 2'950'000 ticks = 0.295 ms
             // msFlipDelay = original 30'000 + (4'000'000 - 3'000'000) = 1'030'000 ticks = 0.103 ms
             double expectedDisplayLatency2 = qpc.DeltaUnsignedMilliSeconds(1'050'000, 4'000'000);
-            Assert::AreEqual(expectedDisplayLatency2, results2[0].metrics.msDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expectedDisplayLatency2, results2[0].metrics.msDisplayLatency, 0.0001);
             double expectedFlipDelay2 = qpc.DurationMilliSeconds(1'030'000);
             Assert::IsTrue(HasMetricValue(results2[0].metrics.msFlipDelay));
-            Assert::AreEqual(expectedFlipDelay2, results2[0].metrics.msFlipDelay, 0.0001);
+            AssertAreEqualWithinTolerance(expectedFlipDelay2, results2[0].metrics.msFlipDelay, 0.0001);
         }
 
         TEST_METHOD(ReadyTimeToDisplay_NvCollapsed_UsesAdjustedScreenTime)
@@ -2444,7 +2446,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // No adjust of first frame ready time = 4'000'000 - 1'100'000 = 2'900'000 ticks = 0.29 ms
             double expectedReadyTimeLatency = qpc.DeltaUnsignedMilliSeconds(1'100'000, 4'000'000);
             Assert::IsTrue(HasMetricValue(results1[0].metrics.msReadyTimeToDisplayLatency));
-            Assert::AreEqual(expectedReadyTimeLatency, results1[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expectedReadyTimeLatency, results1[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
 
             auto results2 = ComputeMetricsForPresent(qpc, next1, &next2, chain);
             Assert::AreEqual(size_t(1), results1.size());
@@ -2452,7 +2454,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // After NV adjustment: ready time latency = 4'000'000 - 2'100'000 = 1'900'000 ticks = 0.19 ms
             double expectedReadyTimeLatency2 = qpc.DeltaUnsignedMilliSeconds(2'100'000, 4'000'000);
             Assert::IsTrue(HasMetricValue(results2[0].metrics.msReadyTimeToDisplayLatency));
-            Assert::AreEqual(expectedReadyTimeLatency2, results2[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expectedReadyTimeLatency2, results2[0].metrics.msReadyTimeToDisplayLatency, 0.0001);
         }
     };
 
@@ -2554,7 +2556,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // No prior present, so cpuStart = 0
             // msDisplayLatency = 2'000'000 - 0 = 2'000'000 ticks = 0.2 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(0, 2'000'000);
-            Assert::AreEqual(expected, m.msDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msDisplayLatency, 0.0001);
         }
 
         TEST_METHOD(DisplayLatency_FrameWithAppPropagatedData)
@@ -2595,7 +2597,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // cpuStart = 800'000 + 150'000 = 950'000
             // msDisplayLatency = 2'000'000 - 950'000 = 1'050'000 ticks = 0.105 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(950'000, 2'000'000);
-            Assert::AreEqual(expected, m.msDisplayLatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msDisplayLatency, 0.0001);
         }
     };
     TEST_CLASS(CPUMetricsTests)
@@ -2637,7 +2639,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // cpuStart = 800'000 + 200'000 = 1'000'000
             // msCPUBusy = 1'100'000 - 1'000'000 = 100'000 ticks = 10 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'100'000);
-            Assert::AreEqual(expected, m.msCPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msCPUBusy, 0.0001);
         }
 
         TEST_METHOD(CPUBusy_WithAppPropagatedData)
@@ -2682,7 +2684,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // cpuStart = 800'000 + 200'000 = 1'000'000 (uses appPropagated from priorApp)
             // msCPUBusy = 1'500'000 - 1'000'000 = 500'000 ticks = 50 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'500'000);
-            Assert::AreEqual(expected, m.msCPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msCPUBusy, 0.0001);
         }
 
         TEST_METHOD(CPUBusy_FirstFrameNoPriorAppPresent)
@@ -2718,7 +2720,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // cpuStart = 0 (no prior app present)
             // msCPUBusy = 5'000'000 - 0 = 5'000'000 ticks = 500 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(0, 5'000'000);
-            Assert::AreEqual(expected, m.msCPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msCPUBusy, 0.0001);
         }
 
         TEST_METHOD(CPUBusy_ZeroTimeInPresent)
@@ -2763,7 +2765,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // cpuStart = 800'000 + 200'000 = 1'000'000
             // presentStartTime = 1'000'000 (same as cpuStart)
             // msCPUBusy = 1'000'000 - 1'000'000 = 0 ticks = 0 ms
-            Assert::AreEqual(0.0, m.msCPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msCPUBusy, 0.0001);
         }
 
         TEST_METHOD(CPUWait_BasicCase_StandardPath)
@@ -2805,7 +2807,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
             // msCPUWait = 200'000 ticks = 20 ms
             double expected = qpc.DurationMilliSeconds(200'000);
-            Assert::AreEqual(expected, m.msCPUWait, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msCPUWait, 0.0001);
         }
 
         TEST_METHOD(CPUWait_WithAppPropagatedTimeInPresent)
@@ -2849,7 +2851,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // When appPropagated is available, use it instead of regular timeInPresent
             // msCPUWait = 150'000 ticks = 15 ms
             double expected = qpc.DurationMilliSeconds(150'000);
-            Assert::AreEqual(expected, m.msCPUWait, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msCPUWait, 0.0001);
         }
 
         TEST_METHOD(CPUWait_ZeroDuration)
@@ -2890,7 +2892,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             const auto& m = results[0].metrics;
             // msCPUWait = 0 ticks = 0 ms
-            Assert::AreEqual(0.0, m.msCPUWait, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msCPUWait, 0.0001);
         }
 
         TEST_METHOD(CPUTime_IsDerivedCorrectly)
@@ -2932,9 +2934,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedWait = qpc.DurationMilliSeconds(200'000);
             double expectedCpuTime = expectedBusy + expectedWait;
          
-            Assert::AreEqual(expectedBusy, m.msCPUBusy, 0.0001);
-            Assert::AreEqual(expectedWait, m.msCPUWait, 0.0001);
-            Assert::AreEqual(expectedCpuTime, m.msCPUTime, 0.0001);
+            AssertAreEqualWithinTolerance(expectedBusy, m.msCPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expectedWait, m.msCPUWait, 0.0001);
+            AssertAreEqualWithinTolerance(expectedCpuTime, m.msCPUTime, 0.0001);
          }
     };
 
@@ -2986,7 +2988,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // cpuStart = 800'000 + 200'000 = 1'000'000
             // msGPULatency = 1'050'000 - 1'000'000 = 50'000 ticks = 5 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'050'000);
-            Assert::AreEqual(expected, m.msGPULatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msGPULatency, 0.0001);
         }
 
         TEST_METHOD(GPULatency_WithAppPropagatedGPUStart)
@@ -3031,7 +3033,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // cpuStart = 1'000'000
             // msGPULatency = 1'080'000 - 1'000'000 = 80'000 ticks = 8 ms
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'080'000);
-            Assert::AreEqual(expected, m.msGPULatency, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msGPULatency, 0.0001);
         }
 
         TEST_METHOD(GPULatency_GPUStartBeforeCpuStart)
@@ -3117,7 +3119,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
             // msGPUBusy = 500'000 ticks = 50 ms
             double expected = qpc.DurationMilliSeconds(500'000);
-            Assert::AreEqual(expected, m.msGPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msGPUBusy, 0.0001);
         }
 
         TEST_METHOD(GPUBusy_ZeroDuration)
@@ -3160,7 +3162,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             const auto& m = results[0].metrics;
             // msGPUBusy = 0 ticks = 0 ms
-            Assert::AreEqual(0.0, m.msGPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msGPUBusy, 0.0001);
         }
 
         TEST_METHOD(GPUBusy_WithAppPropagatedDuration)
@@ -3206,7 +3208,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
             // Uses appPropagated: 450'000 ticks = 45 ms
             double expected = qpc.DurationMilliSeconds(450'000);
-            Assert::AreEqual(expected, m.msGPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msGPUBusy, 0.0001);
         }
 
         TEST_METHOD(GPUWait_BasicCase_BusyLessThanTotal)
@@ -3255,7 +3257,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedTotal = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'600'000);
             double expectedBusy = qpc.DurationMilliSeconds(500'000);
             double expectedWait = std::max(0.0, expectedTotal - expectedBusy);
-            Assert::AreEqual(expectedWait, m.msGPUWait, 0.0001);
+            AssertAreEqualWithinTolerance(expectedWait, m.msGPUWait, 0.0001);
         }
 
         TEST_METHOD(GPUWait_BusyEqualsTotal)
@@ -3301,7 +3303,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // Total = 1'600'000 - 1'000'000 = 600'000
             // msGPUBusy = 600'000 ticks = 60 ms (equal to total)
             // msGPUWait = 600'000 - 600'000 = 0 ms
-            Assert::AreEqual(0.0, m.msGPUWait, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msGPUWait, 0.0001);
         }
 
         TEST_METHOD(GPUWait_BusyGreaterThanTotal)
@@ -3347,7 +3349,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // Total = 1'600'000 - 1'000'000 = 600'000
             // msGPUBusy = 700'000 ticks = 70 ms (greater than total)
             // msGPUWait should clamp to 0
-            Assert::AreEqual(0.0, m.msGPUWait, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msGPUWait, 0.0001);
         }
 
         TEST_METHOD(GPUWait_WithAppPropagatedData)
@@ -3399,7 +3401,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedTotal = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'550'000);
             double expectedBusy = qpc.DurationMilliSeconds(450'000);
             double expectedWait = std::max(0.0, expectedTotal - expectedBusy);
-            Assert::AreEqual(expectedWait, m.msGPUWait, 0.0001);
+            AssertAreEqualWithinTolerance(expectedWait, m.msGPUWait, 0.0001);
         }
     };
 
@@ -3448,7 +3450,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
             // msVideoBusy = 200'000 ticks = 20 ms
             double expected = qpc.DurationMilliSeconds(200'000);
-            Assert::AreEqual(expected, m.msVideoBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msVideoBusy, 0.0001);
         }
 
         TEST_METHOD(VideoBusy_ZeroDuration)
@@ -3491,7 +3493,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
-            Assert::AreEqual(0.0, m.msVideoBusy, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msVideoBusy, 0.0001);
         }
 
         TEST_METHOD(VideoBusy_WithAppPropagatedData)
@@ -3539,7 +3541,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
             // Uses appPropagated: 180'000 ticks = 18 ms
             double expected = qpc.DurationMilliSeconds(180'000);
-            Assert::AreEqual(expected, m.msVideoBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msVideoBusy, 0.0001);
         }
 
         TEST_METHOD(VideoBusy_OverlapWithGPUBusy)
@@ -3586,8 +3588,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedGpuBusy = qpc.DurationMilliSeconds(500'000);
             double expectedVideoBusy = qpc.DurationMilliSeconds(200'000);
 
-            Assert::AreEqual(expectedGpuBusy, m.msGPUBusy, 0.0001);
-            Assert::AreEqual(expectedVideoBusy, m.msVideoBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expectedGpuBusy, m.msGPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expectedVideoBusy, m.msVideoBusy, 0.0001);
         }
 
         TEST_METHOD(VideoBusy_LargerThanGPUBusy)
@@ -3677,10 +3679,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // CPU metrics should be non-zero
             Assert::IsTrue(m.msCPUBusy > 0);
             // GPU metrics should be zero
-            Assert::AreEqual(0.0, m.msGPULatency, 0.0001);
-            Assert::AreEqual(0.0, m.msGPUBusy, 0.0001);
-            Assert::AreEqual(0.0, m.msGPUWait, 0.0001);
-            Assert::AreEqual(0.0, m.msVideoBusy, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msGPULatency, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msGPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msGPUWait, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msVideoBusy, 0.0001);
         }
 
         TEST_METHOD(GeneratedFrameMetrics_NotAppFrame_CPUGPUMetricsZero)
@@ -3720,12 +3722,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), results.size());
 
             const auto& m = results[0].metrics;
-            // Generated frames have no CPU/GPU work attribution
-            Assert::AreEqual(0.0, m.msCPUBusy, 0.0001);
-            Assert::AreEqual(0.0, m.msCPUWait, 0.0001);
-            Assert::AreEqual(0.0, m.msGPULatency, 0.0001);
-            Assert::AreEqual(0.0, m.msGPUBusy, 0.0001);
-            Assert::AreEqual(0.0, m.msGPUWait, 0.0001);
+            // Generated frames have no CPU attribution.
+            Assert::IsTrue(IsMissingFrameMetricValue(m.msCPUBusy));
+            Assert::IsTrue(IsMissingFrameMetricValue(m.msCPUWait));
+            AssertAreEqualWithinTolerance(0.0, m.msGPULatency, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msGPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, m.msGPUWait, 0.0001);
         }
 
         TEST_METHOD(NotDisplayedFrame_AppFrameMetrics_Computed)
@@ -3955,7 +3957,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // cpuStart = 900'000'000 + 100'000'000 = 1'000'000'000
             // msCPUBusy = 1'100'000'000 - 1'000'000'000 = 100'000'000 ticks = 10'000 ms (10 seconds)
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000'000, 1'100'000'000);
-            Assert::AreEqual(expected, m.msCPUBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expected, m.msCPUBusy, 0.0001);
             // Verify large value is reasonable (10 seconds)
             Assert::IsTrue(m.msCPUBusy > 9000 && m.msCPUBusy < 11000);
         }
@@ -4000,7 +4002,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& m = results[0].metrics;
             // msGPULatency = 1 tick at 10 MHz = 0.0001 ms (very small but non-zero)
             double expected = qpc.DeltaUnsignedMilliSeconds(1'000'000, 1'000'001);
-            Assert::AreEqual(expected, m.msGPULatency, 0.00001);
+            AssertAreEqualWithinTolerance(expected, m.msGPULatency, 0.00001);
             Assert::IsTrue(m.msGPULatency > 0.0 && m.msGPULatency < 0.001);
         }
 
@@ -4031,7 +4033,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto resultsA = ComputeMetricsForPresent(qpc, frameA, &nextA, chain);
             Assert::AreEqual(size_t(1), resultsA.size());
-            Assert::AreEqual(0.0, resultsA[0].metrics.msVideoBusy, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, resultsA[0].metrics.msVideoBusy, 0.0001);
 
             // Frame B: with video
             FrameData frameB{};
@@ -4054,7 +4056,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto resultsB = ComputeMetricsForPresent(qpc, frameB, &nextB, chain);
             Assert::AreEqual(size_t(1), resultsB.size());
             double expectedVideoBusy = qpc.DurationMilliSeconds(300'000);
-            Assert::AreEqual(expectedVideoBusy, resultsB[0].metrics.msVideoBusy, 0.0001);
+            AssertAreEqualWithinTolerance(expectedVideoBusy, resultsB[0].metrics.msVideoBusy, 0.0001);
         }
     };
 
@@ -4653,7 +4655,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"P1 should have msClickToPhotonLatency");
 
             double expected = qpc.DeltaUnsignedMilliSeconds(400'000, 1'000'000);
-            Assert::AreEqual(expected, p1_final[0].metrics.msClickToPhotonLatency, 0.0001,
+            AssertAreEqualWithinTolerance(expected, p1_final[0].metrics.msClickToPhotonLatency, 0.0001,
                 L"P1's click-to-photon should use its own click time");
 
             // Verify no pending click remains
@@ -4729,7 +4731,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"P2 should have msClickToPhotonLatency using P1's stored click");
 
             double expected = qpc.DeltaUnsignedMilliSeconds(400'000, 1'000'000);
-            Assert::AreEqual(expected, p2_final[0].metrics.msClickToPhotonLatency, 0.0001,
+            AssertAreEqualWithinTolerance(expected, p2_final[0].metrics.msClickToPhotonLatency, 0.0001,
                 L"P2's click-to-photon should use P1's stored click");
 
             // Optional: verify pending click is consumed
@@ -4818,7 +4820,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"P3 should have msAllInputPhotonLatency using last stored input");
 
             double expected = qpc.DeltaUnsignedMilliSeconds(450'000, 1'000'000);
-            Assert::AreEqual(expected, p3_final[0].metrics.msAllInputPhotonLatency, 0.0001,
+            AssertAreEqualWithinTolerance(expected, p3_final[0].metrics.msAllInputPhotonLatency, 0.0001,
                 L"P3's all-input-to-photon should use P2's input (last wins)");
         }
 
@@ -4882,7 +4884,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"P1 should have msAllInputPhotonLatency using its own input");
 
             double expected = qpc.DeltaUnsignedMilliSeconds(500'000, 1'000'000);
-            Assert::AreEqual(expected, p1_final[0].metrics.msAllInputPhotonLatency, 0.0001,
+            AssertAreEqualWithinTolerance(expected, p1_final[0].metrics.msAllInputPhotonLatency, 0.0001,
                 L"P1's all-input-to-photon should use its own input (500'000), not pending (300'000)");
         }
 
@@ -4959,7 +4961,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             // Calculate expected: app input -> p2 screen
             double expectedInstr = qpc.DeltaUnsignedMilliSeconds(500'000, 1'100'000);
-            Assert::AreEqual(expectedInstr, p2_final[0].metrics.msInstrumentedInputTime, 0.0001,
+            AssertAreEqualWithinTolerance(expectedInstr, p2_final[0].metrics.msInstrumentedInputTime, 0.0001,
                 L"msInstrumentedInputTime should be P2 app input time to P2 screen time");
         }
     };
@@ -5141,7 +5143,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"P2 (phase 1): first call with nextDisplayed=nullptr should produce no metrics (pending only).");
 
             // The pending call MUST NOT disturb the accumulated PCL chain.
-            Assert::AreEqual(accumAfterP1, state.accumulatedInput2FrameStartTime, 1e-9,
+            AssertAreEqualWithinTolerance(accumAfterP1, state.accumulatedInput2FrameStartTime, 1e-9,
                 L"P2 (phase 1): accumulatedInput2FrameStartTime should remain unchanged while pending.");
             Assert::AreEqual(uint64_t(30'000), state.lastReceivedNotDisplayedPclSimStart,
                 L"P2 (phase 1): lastReceivedNotDisplayedPclSimStart should remain at P1's sim start (30'000).");
@@ -5194,7 +5196,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // 2) After completion, the accumulated input->frame-start time and the
             //    last-not-displayed PCL sim start should be reset to zero, matching
             //    the legacy PCL behavior.
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 1e-9,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 1e-9,
                 L"P2 (final): accumulatedInput2FrameStartTime should be reset to 0 after completion.");
             Assert::AreEqual(uint64_t{ 0 }, state.lastReceivedNotDisplayedPclSimStart,
                 L"P2 (final): lastReceivedNotDisplayedPclSimStart should be reset to 0 after completion.");
@@ -5236,7 +5238,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"P0 (dropped) should emit one metrics record.");
             Assert::IsFalse(HasMetricValue(p0_results[0].metrics.msPcLatency),
                 L"P0 should not report msPcLatency without PCL data.");
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"P0 should not modify accumulatedInput2FrameStartTime when there is no PCL data.");
             Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
                 L"P0 should leave lastReceivedNotDisplayedPclSimStart at 0.");
@@ -5253,7 +5255,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
             Assert::AreEqual(size_t(0), p1_phase1.size(),
                 L"P1 pending pass should not emit metrics.");
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"State.accumulatedInput2FrameStartTime must remain 0 after P1 pending pass.");
             Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
                 L"lastReceivedNotDisplayedPclSimStart should remain 0 after P1 pending pass.");
@@ -5272,7 +5274,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"Finalizing P1 should emit exactly one metrics record.");
             Assert::IsFalse(HasMetricValue(p1_final[0].metrics.msPcLatency),
                 L"P1 final metrics should not report msPcLatency without PCL data.");
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Accumulated input-to-frame-start time must remain 0 after finalizing P1.");
             Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
                 L"lastReceivedNotDisplayedPclSimStart should remain 0 after finalizing P1.");
@@ -5295,7 +5297,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"Finalizing P2 should emit exactly one metrics record.");
             Assert::IsFalse(HasMetricValue(p2_final[0].metrics.msPcLatency),
                 L"P2 final metrics should not report msPcLatency without PCL data.");
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Accumulated input-to-frame-start time must still be 0 after P2.");
             Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
                 L"lastReceivedNotDisplayedPclSimStart should remain 0 through the entire sequence.");
@@ -5341,7 +5343,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"P0 should report msPcLatency for a direct PCL sample.");
             Assert::IsTrue(p0_metrics.msPcLatency > 0.0,
                 L"P0 msPcLatency should be positive.");
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Direct PCL sample should not touch accumulatedInput2FrameStartTime.");
             Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
                 L"No dropped frames occurred, so there should be no pending pclSimStart.");
@@ -5352,7 +5354,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"Input2FrameStartTimeEma should be seeded from the first Delta(PING,SIM).");
 
             double expectedLatency = expectedEma + qpc.DeltaSignedMilliSeconds(20'000, 50'000);
-            Assert::AreEqual(expectedLatency, p0_metrics.msPcLatency, 0.0001,
+            AssertAreEqualWithinTolerance(expectedLatency, p0_metrics.msPcLatency, 0.0001,
                 L"msPcLatency should use pclSimStartTime (not lastSimStartTime) plus the seeded EMA.");
         }
 
@@ -5403,7 +5405,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double emaAfterP0 = state.Input2FrameStartTimeEma;
             Assert::IsTrue(emaAfterP0 > 0.0,
                 L"EMA after P0 should be positive.");
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Accumulated input-to-frame-start time should remain zero after P0.");
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
@@ -5427,7 +5429,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"EMA after P1 should stay positive.");
             Assert::IsTrue(emaAfterP1 != emaAfterP0,
                 L"EMA after P1 must differ from the first-sample EMA after P0.");
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"No dropped chain should mean accumulatedInput2FrameStartTime stays at 0.");
 
             auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
@@ -5530,7 +5532,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(1), p0_results.size());
             Assert::IsFalse(HasMetricValue(p0_results[0].metrics.msPcLatency));
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Accumulator should remain 0 when a sim-only drop has no pending chain.");
             Assert::AreEqual(uint64_t(25'000), state.lastReceivedNotDisplayedPclSimStart,
                 L"Sim-only drop should remember its pclSimStartTime even if no accumulator exists yet.");
@@ -5587,7 +5589,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 L"P1 should report msPcLatency despite missing pclInputPingTime.");
             Assert::IsTrue(p1_metrics.msPcLatency > 0.0,
                 L"P1 msPcLatency should stay positive.");
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"No dropped chain means the accumulator must stay zero.");
             Assert::IsTrue(state.Input2FrameStartTimeEma > 0.0,
                 L"EMA should not be reset when a sim-only displayed frame uses existing history.");
@@ -5649,12 +5651,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             const auto& p1_metrics = p1_final[0].metrics;
             Assert::IsTrue(HasMetricValue(p1_metrics.msPcLatency),
                 L"P1 should still report msPcLatency using the fallback lastSimStartTime.");
-            Assert::AreEqual(emaAfterP0, state.Input2FrameStartTimeEma, 0.0001,
+            AssertAreEqualWithinTolerance(emaAfterP0, state.Input2FrameStartTimeEma, 0.0001,
                 L"EMA should remain unchanged when no new PCL sample exists.");
             double expectedLatency = emaAfterP0 + qpc.DeltaSignedMilliSeconds(fallbackSimStart, 90'000);
-            Assert::AreEqual(expectedLatency, p1_metrics.msPcLatency, 0.0001,
+            AssertAreEqualWithinTolerance(expectedLatency, p1_metrics.msPcLatency, 0.0001,
                 L"msPcLatency should use the stored EMA plus the delta from lastSimStartTime to screen time.");
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Accumulator should remain zero in this scenario.");
 
             auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
@@ -5701,7 +5703,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsFalse(HasMetricValue(p2_results[0].metrics.msPcLatency));
 
             double expectedAccum = qpc.DeltaUnsignedMilliSeconds(100'000, 120'000);
-            Assert::AreEqual(expectedAccum, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(expectedAccum, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"New dropped frame with Ping+Sim should overwrite the accumulator with its own delta.");
             Assert::AreEqual(uint64_t(120'000), state.lastReceivedNotDisplayedPclSimStart,
                 L"lastReceivedNotDisplayedPclSimStart should latch the newest sim start.");
@@ -5768,9 +5770,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedFirstEma = pmon::util::CalculateEma(0.0,
                 qpc.DeltaUnsignedMilliSeconds(100'000, 120'000),
                 0.1);
-            Assert::AreEqual(expectedFirstEma, state.Input2FrameStartTimeEma, 0.0001,
+            AssertAreEqualWithinTolerance(expectedFirstEma, state.Input2FrameStartTimeEma, 0.0001,
                 L"EMA after P0 should match a first-sample EMA that ignores stale accumulation.");
-            Assert::AreEqual(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
                 L"Accumulator must be cleared once the displayed frame consumes the chain.");
             Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
                 L"Pending pclSimStart markers should be cleared once the chain completes.");
@@ -5913,7 +5915,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // 3) Between sim starts: PCL sim (20'000) must win over App sim (100'000)
             Assert::IsTrue(HasMetricValue(m0.msBetweenSimStarts),
                 L"P0: msBetweenSimStarts should have a value when lastSimStartTime and PclSimStartTime are non-zero.");
-            Assert::AreEqual(expectedBetween, m0.msBetweenSimStarts, 1e-6,
+            AssertAreEqualWithinTolerance(expectedBetween, m0.msBetweenSimStarts, 1e-6,
                 L"P0: msBetweenSimStarts should be based on PCL sim start, not App sim start.");
         }
         TEST_METHOD(InstrumentedDisplay_AppFrame_FullData_ComputesAll)
@@ -6233,13 +6235,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedBetweenMs = qpc.DeltaUnsignedMilliSeconds(5'000, 30'000);
 
             Assert::IsTrue(HasMetricValue(m0.msInstrumentedSleep));
-            Assert::AreEqual(expectedSleepMs, m0.msInstrumentedSleep, 1e-6);
+            AssertAreEqualWithinTolerance(expectedSleepMs, m0.msInstrumentedSleep, 1e-6);
 
             Assert::IsTrue(HasMetricValue(m0.msInstrumentedGpuLatency));
-            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency, 1e-6);
+            AssertAreEqualWithinTolerance(expectedGpuMs, m0.msInstrumentedGpuLatency, 1e-6);
 
             Assert::IsTrue(HasMetricValue(m0.msBetweenSimStarts));
-            Assert::AreEqual(expectedBetweenMs, m0.msBetweenSimStarts, 1e-6);
+            AssertAreEqualWithinTolerance(expectedBetweenMs, m0.msBetweenSimStarts, 1e-6);
 
             Assert::IsFalse(HasMetricValue(m0.msInstrumentedRenderLatency),
                 L"Display-dependent metrics must stay off for non-displayed frames.");
@@ -6347,10 +6349,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsFalse(HasMetricValue(m0.msInstrumentedRenderLatency),
                 L"Render latency must remain off without appRenderSubmitStartTime.");
             Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
-            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
+            AssertAreEqualWithinTolerance(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
 
             Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency));
-            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency, 1e-6);
+            AssertAreEqualWithinTolerance(expectedTotalMs, m0.msInstrumentedLatency, 1e-6);
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
             Assert::AreEqual(size_t(0), p1_phase1.size());
@@ -6403,11 +6405,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(5'000, 60'000);
 
             Assert::IsTrue(HasMetricValue(m0.msInstrumentedRenderLatency));
-            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6);
+            AssertAreEqualWithinTolerance(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6);
             Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
-            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
+            AssertAreEqualWithinTolerance(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
             Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency));
-            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency, 1e-6,
+            AssertAreEqualWithinTolerance(expectedTotalMs, m0.msInstrumentedLatency, 1e-6,
                 L"Total latency should fall back to AppSimStartTime when sleep end is missing.");
 
             auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
@@ -6453,9 +6455,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(32'000, 70'000);
 
             Assert::IsTrue(HasMetricValue(m0.msInstrumentedRenderLatency));
-            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6);
+            AssertAreEqualWithinTolerance(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6);
             Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
-            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
+            AssertAreEqualWithinTolerance(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
             Assert::IsFalse(HasMetricValue(m0.msInstrumentedLatency),
                 L"Total instrumented latency must stay off without an instrumented start.");
 
@@ -6591,7 +6593,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsTrue(HasMetricValue(m1.msInstrumentedInputTime),
                 L"P1 should consume the cached provider input time once it is displayed.");
             double expectedInputMs = qpc.DeltaUnsignedMilliSeconds(pendingInputTime, 70'000);
-            Assert::AreEqual(expectedInputMs, m1.msInstrumentedInputTime, 1e-6);
+            AssertAreEqualWithinTolerance(expectedInputMs, m1.msInstrumentedInputTime, 1e-6);
 
             Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime,
                 L"Pending provider input cache must be cleared after consumption.");
@@ -6650,7 +6652,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             double expectedInputMs = qpc.DeltaUnsignedMilliSeconds(directInputTime, 60'000);
             Assert::IsTrue(HasMetricValue(m1.msInstrumentedInputTime));
-            Assert::AreEqual(expectedInputMs, m1.msInstrumentedInputTime, 1e-6,
+            AssertAreEqualWithinTolerance(expectedInputMs, m1.msInstrumentedInputTime, 1e-6,
                 L"P1 must prefer its own input marker over pending values.");
 
             Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime);

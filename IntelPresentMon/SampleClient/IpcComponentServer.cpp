@@ -6,6 +6,7 @@
 
 #include "../CommonUtilities/Exception.h"
 #include "../CommonUtilities/log/Log.h"
+#include "../CommonUtilities/win/Security.h"
 #include "../PresentMonAPI2/PresentMonAPI.h"
 #include "CliOptions.h"
 
@@ -33,6 +34,24 @@ static constexpr size_t kDefaultSystemRingCapacity = 32;
 static constexpr size_t kDefaultSamplesPerPush = 12;
 static constexpr uint64_t kBaseTimestamp = 10'000ull;
 static constexpr size_t kSystemSegmentBytes = 512 * 1024;
+
+class ReadOnlyShmPermissions_
+{
+public:
+    ReadOnlyShmPermissions_()
+        :
+        pSecDesc_{ pmon::util::win::MakeSecurityDescriptor("D:(A;OICI;GR;;;AU)") },
+        secAttr_{ .nLength = sizeof(secAttr_), .lpSecurityDescriptor = pSecDesc_.get() }
+    {}
+    operator ipc::bip::permissions()
+    {
+        return ipc::bip::permissions{ &secAttr_ };
+    }
+
+private:
+    pmon::util::UniqueLocalPtr<void> pSecDesc_;
+    SECURITY_ATTRIBUTES secAttr_{ sizeof(secAttr_) };
+};
 
 static void BuildRings_(ipc::SystemDataStore& store, size_t ringCapacity)
 {
@@ -89,9 +108,12 @@ int IpcComponentServer()
     sizing.overrideBytes = kSystemSegmentBytes;
 
     // Create the shared memory segment hosting SystemDataStore.
+    ReadOnlyShmPermissions_ readOnlyPermissions;
+    const ipc::bip::permissions permissions = readOnlyPermissions;
     ipc::OwnedDataSegment<ipc::SystemDataStore> seg{
         kSystemSegName,
-        sizing
+        sizing,
+        permissions
     };
     auto& store = seg.GetStore();
 

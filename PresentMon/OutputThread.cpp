@@ -248,6 +248,12 @@ static void PruneOldSwapChainData(
     PMTraceSession const& pmSession,
     uint64_t latestTimestamp)
 {
+    // ETL replay can process large present batches with a wide QPC span; end-of-batch
+    // pruning is unreliable and breaks steady-presenter debugging. Realtime keeps pruning.
+    if (GetCommandLineArgs().mEtlFileName != nullptr) {
+        return;
+    }
+
     // sometimes we arrive here after skipping all frame events in the processing loop,
     // in which case we don't have a valid timestamp for the latest frame and should not
     // attempt to do any pruning during this pass

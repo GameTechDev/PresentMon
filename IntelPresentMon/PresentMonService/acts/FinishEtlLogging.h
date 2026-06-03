@@ -1,5 +1,6 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
+#include "../ActionExecutionContext.h"
 #include <format>
 
 #define ACT_NAME FinishEtlLogging
@@ -35,24 +36,11 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
-			if (!stx.etwLogSessionIds.contains(in.etwLogSessionHandle)) {
-				pmlog_error("Client accessing etw log session without ownership");
-				throw util::Except<ActionExecutionError>(PM_STATUS_SESSION_NOT_OPEN);
-			}
-			try {
-				auto& etl = ctx.pPmon->GetEtwLogger();
-				auto file = etl.FinishLogSession(in.etwLogSessionHandle);
-				// move file one level higher from protected staging dir and give public ACL
-				file.Ascend().MakePublic();
-				stx.etwLogSessionIds.erase(in.etwLogSessionHandle);
-				pmlog_info("Finished ETL log session").pmwatch(in.etwLogSessionHandle)
-					.pmwatch(file.GetPath().string());
-				return Response{ .etlFilePath = file.Release().string() };
-			}
-			catch (...) {
-				pmlog_error(ReportException("Failed to finish etw log session"));
-				throw util::Except<ActionExecutionError>(PM_STATUS_FAILURE);
-			}
+			(void)ctx;
+			(void)stx;
+			(void)in;
+			pmlog_warn("ETL logging finish requested while ETL logging is disabled");
+            throw util::Except<ActionExecutionError>(PM_STATUS_FEATURE_DISABLED);
 		}
 	};
 

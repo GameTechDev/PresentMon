@@ -24,6 +24,7 @@
 #include "MetricPackMapper.h"
 #include <PresentMonAPIWrapper/StaticQuery.h>
 #include <CommonUtilities/Exception.h>
+#include <CommonUtilities/str/String.h>
 
 
 namespace p2c::kern
@@ -123,7 +124,7 @@ namespace p2c::kern
         hProcess{ OpenProcess(SYNCHRONIZE, TRUE, proc.pid) },
         moveHandlerToken{ win::EventHookManager::AddHandler(std::make_shared<WindowMoveHandler>(proc, this)) },
         activateHandlerToken{ win::EventHookManager::AddHandler(std::make_shared<WindowActivateHandler>(proc, this)) },
-        targetRect{ win::GetWindowClientRect(proc.hWnd) },
+        targetRect{ win::GetWindowClientRectIOpt(proc.hWnd).value_or(RectI{}) },
         position{ pSpec->overlayPosition },
         upscaleFactor{ pSpec->upscale ? pSpec->upscaleFactor : 1.f },
         graphicsDimensions{ pSpec->overlayWidth, 240 },
@@ -272,6 +273,9 @@ namespace p2c::kern
     void Overlay::UpdateGraphData_(double timestamp)
     {
         if (!IsTargetLive()) {
+            pmlog_dbg("Target found dead")
+                .pmwatch(proc.pid)
+                .pmwatch(proc.parentId);
             throw TargetLostException{};
         }
         pPackMapper->Populate(pm->GetTracker(), timestamp);
@@ -293,6 +297,39 @@ namespace p2c::kern
         // hide window during move, record timepoint to determine when to show again
         pWindow->Hide();
         lastMoveTime = std::chrono::high_resolution_clock::now();
+    }
+
+    bool Overlay::ConsiderTargetWindowCandidate(HWND hWnd, const RectI& r)
+    {
+        if (!pWindow || !hWnd || hWnd == proc.hWnd) {
+            return false;
+        }
+
+        DWORD pid = 0;
+        GetWindowThreadProcessId(hWnd, &pid);
+        if (pid != proc.pid || GetWindow(hWnd, GW_OWNER) != nullptr || !IsWindowVisible(hWnd)) {
+            return false;
+        }
+
+        const auto currentRect = win::GetWindowClientRectIOpt(proc.hWnd).value_or(RectI{});
+
+        const auto candidateDims = r.GetDimensions();
+        const auto currentDims = currentRect.GetDimensions();
+        if (candidateDims.GetArea() <= 0 || candidateDims.GetArea() <= currentDims.GetArea()) {
+            return false;
+        }
+
+        pmlog_verb(v::procwatch)(std::format("target-window-candidate-upg | hwn: {:8x}@{} sq px => {:8x}@{} sq px",
+            (uintptr_t)proc.hWnd, currentDims.GetArea(), (uintptr_t)hWnd, candidateDims.GetArea()));
+
+        proc.hWnd = hWnd;
+        targetRect = r;
+        UpdateTargetFullscreenStatus();
+        if (!pWindow->Standard()) {
+            pWindow->Move(CalculateOverlayPosition_());
+            pWindow->Reorder(proc.hWnd);
+        }
+        return true;
     }
 
     void Overlay::UpdateTargetOrder(bool topmost)
@@ -526,7 +563,7 @@ namespace p2c::kern
 
     std::unique_ptr<Overlay> Overlay::SacrificeClone(std::optional<HWND> hWnd_, std::shared_ptr<OverlaySpec> pSpec_)
     {
-        pmlog_info("doing SacrificeClone");
+        pmlog_info("doing SacrificeClone").pmwatch(hWnd_.value_or(nullptr));
 
         std::optional<Vec2I> pos;
         if (pWindow->Standard()) {
@@ -555,7 +592,11 @@ namespace p2c::kern
     }
     std::unique_ptr<Overlay> Overlay::RetargetPidClone(::pmon::util::win::Process proc_)
     {
-        pmlog_info("doing RetargetPidClone");
+        pmlog_info("doing RetargetPidClone")
+            .pmwatch(proc_.pid)
+            .pmwatch(proc_.parentId)
+            .pmwatch(proc_.hWnd)
+            .pmwatch(::pmon::util::str::ToNarrow(proc_.name));
 
         std::optional<Vec2I> pos;
         if (pWindow->Standard()) {

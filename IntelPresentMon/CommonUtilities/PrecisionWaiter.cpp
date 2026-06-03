@@ -53,11 +53,13 @@ namespace pmon::util
 					nullptr,
 					0
 				)) {
-					pmlog_error("Failed setting high resolution timer").hr().raise<Exception>();
+					pmlog_error("Failed setting high resolution timer").hr();
+					throw Except<Exception>("Failed setting high resolution timer");
 				}
 				// wait on the timer
 				if (WaitForSingleObject(waitableTimer_, INFINITE)) {
-					pmlog_error("Failed waiting on high resolution timer").hr().raise<Exception>();
+					pmlog_error("Failed waiting on high resolution timer").hr();
+					throw Except<Exception>("Failed waiting on high resolution timer");
 				}
 				// spin wait for the remainder buffer time
 				if (buffer > 0.) {

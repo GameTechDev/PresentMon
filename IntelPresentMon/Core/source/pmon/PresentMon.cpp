@@ -71,45 +71,10 @@ namespace p2c::pmon
 	{
 		return telemetrySamplePeriod;
 	}
-	std::vector<AdapterInfo> PresentMon::EnumerateAdapters() const
-	{
-		std::vector<AdapterInfo> infos;
-		for (const auto& info : pIntrospectionRoot->GetDevices()) {
-			if (info.GetType() != PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
-				continue;
-			}
-			infos.push_back(AdapterInfo{
-				.id = info.GetId(),
-				.vendor = info.IntrospectVendor().GetName(),
-				.name = info.GetName(),
-			});
-		}
-		return infos;
-	}
 	void PresentMon::SetEtlLogging(bool active)
 	{
-		pmlog_info("Setting etl logging").pmwatch(active);
-		if (active) {
-			if (etlLogger) {
-				pmlog_error("Etl logging desync: session already active").pmwatch(etlLogger.GetHandle());
-			}
-			else {
-				etlLogger = pSession->StartEtlLogging();
-				pmlog_dbg("Got etl logging handle").pmwatch(etlLogger.GetHandle());
-			}
-		}
-		else {
-			if (!etlLogger) {
-				pmlog_error("Etl logging desync: no active session");
-			}
-			else {
-				using FR = infra::util::FolderResolver;
-				const auto folderPath = FR::Get().Resolve(FR::Folder::Documents, FR::etlSubdirectory);
-				const std::chrono::zoned_time now{ std::chrono::current_zone(), std::chrono::system_clock::now() };
-				const auto fullPath = std::format(L"{0}\\ipm-{1:%y}{1:%m}{1:%d}-{1:%H}{1:%M}{1:%OS}.etl", folderPath, now);
-				etlLogger.Finish(fullPath);
-			}
-		}
+        pmlog_warn("Ignoring ETL logging request because ETL logging is disabled").pmwatch(active);
+        etlLogger.Reset();
 	}
 	std::optional<uint32_t> PresentMon::GetPid() const {
 		return bool(processTracker) ? processTracker.GetPid() : std::optional<uint32_t>{};
@@ -165,39 +130,13 @@ namespace p2c::pmon
 	{
 		const auto& intro = *pIntrospectionRoot;
 		uint32_t bestId = 0;
-		uint64_t bestMem = 0;
 
 		for (const auto& device : intro.GetDevices()) {
 			if (device.GetType() != PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
 				continue;
 			}
-			uint64_t memSize = 0;
-			bool hasValue = false;
-			try {
-				memSize = pmapi::PollStatic(*pSession,
-					PM_METRIC_GPU_MEM_SIZE, device.GetId(), 0).As<uint64_t>();
-				hasValue = true;
-			}
-			catch (...) {
-				hasValue = false;
-			}
-
-			if (hasValue) {
-				if (memSize > bestMem) {
-					bestMem = memSize;
-					bestId = device.GetId();
-				}
-			}
-			else if (bestId == 0) {
+			if (bestId == 0 || device.GetId() < bestId) {
 				bestId = device.GetId();
-			}
-		}
-
-		if (bestId == 0) {
-			for (const auto& device : intro.GetDevices()) {
-				if (device.GetType() == PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
-					return device.GetId();
-				}
 			}
 		}
 
