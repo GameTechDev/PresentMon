@@ -23,8 +23,8 @@ namespace pmon::util::metrics
     {
         SwapChainCoreState swapChain;
 
-        // Frame-generation pipeline entry point: Ingest, Apply, then Publish.
-        // Middleware and CSV paths use this; only Publish differs by product surface.
+        // Frame-generation pipeline entry point: seed first present, then Ingest, Apply, Publish.
+        // Console, middleware, and API paths all use this entry point.
         std::vector<ProcessPresentRow> ProcessPresent(
             const QpcConverter& qpc,
             FrameData present);
@@ -57,10 +57,6 @@ namespace pmon::util::metrics
         std::vector<ProcessPresentRow> ApplyReadyDisplayRows(
             const QpcConverter& qpc,
             std::vector<ReadyDisplayRow>& ready);
-
-        static std::vector<ProcessPresentRow> PublishAppliedRows(
-            std::vector<ProcessPresentRow> applied,
-            bool suppressForSeedPresent);
 
         AnimationErrorTracker animationTracker;
         DisplayFrameQueue displayQueue;

@@ -72,4 +72,18 @@ namespace pmon::util::metrics
         metrics.msAnimationError = animation.msAnimationError;
         metrics.msAnimationTime = animation.msAnimationTime;
     }
+
+    double CalculateAnimationTime(
+        const QpcConverter& qpc,
+        uint64_t firstAppSimStartTime,
+        uint64_t currentSimTime)
+    {
+        const uint64_t firstSimStartTime = firstAppSimStartTime != 0
+            ? firstAppSimStartTime
+            : qpc.GetSessionStartTimestamp();
+        if (currentSimTime <= firstSimStartTime) {
+            return MissingFrameMetricValue();
+        }
+        return qpc.DeltaUnsignedMilliSeconds(firstSimStartTime, currentSimTime);
+    }
 }

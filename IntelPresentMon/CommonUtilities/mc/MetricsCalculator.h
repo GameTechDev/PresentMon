@@ -67,4 +67,11 @@ namespace pmon::util::metrics
     uint64_t CalculateCPUStart(
         const SwapChainCoreState& chainState,
         const FrameData& present);
+
+    // Elapsed animation time from firstAppSimStartTime (or session QPC) to currentSimTime.
+    // Returns missing when currentSimTime is not after the baseline (non-transition rows never emit 0).
+    double CalculateAnimationTime(
+        const QpcConverter& qpc,
+        uint64_t firstAppSimStartTime,
+        uint64_t currentSimTime);
 }

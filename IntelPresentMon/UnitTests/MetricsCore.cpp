@@ -4149,11 +4149,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual((int)FrameType::Application, (int)originAnchorRows[0].frameType);
             Assert::AreEqual(uint64_t(136), originAnchorRows[0].screenTimeQpc);
             Assert::AreEqual(8.0, originAnchorRows[0].msDisplayedTime, 0.0001);
-            Assert::AreEqual(0.0, originAnchorRows[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(1000.0, originAnchorRows[0].msAnimationTime, 0.0001);
             Assert::IsFalse(HasMetricValue(originAnchorRows[0].msAnimationError));
         }
 
-        TEST_METHOD(FirstAppAnchor_PublishesTimelineOriginWithAnimationTimeZero)
+        TEST_METHOD(FirstAppAnchor_PublishesTimelineOriginWithAnimationTimeFromSession)
         {
             QpcConverter qpc(1000, 0);
             UnifiedSwapChain swapChain{};
@@ -4169,7 +4169,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual((int)FrameType::Application, (int)heldThenReleased[0].frameType);
             Assert::AreEqual(uint64_t(100), heldThenReleased[0].screenTimeQpc);
             Assert::AreEqual(8.0, heldThenReleased[0].msDisplayedTime, 0.0001);
-            Assert::AreEqual(0.0, heldThenReleased[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(1000.0, heldThenReleased[0].msAnimationTime, 0.0001);
             Assert::IsFalse(HasMetricValue(heldThenReleased[0].msAnimationError));
 
             UnifiedSwapChain swapChain2{};
@@ -4184,7 +4184,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), samePresentLookahead.size());
             Assert::AreEqual((int)FrameType::Application, (int)samePresentLookahead[0].frameType);
             Assert::AreEqual(8.0, samePresentLookahead[0].msDisplayedTime, 0.0001);
-            Assert::AreEqual(0.0, samePresentLookahead[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(1000.0, samePresentLookahead[0].msAnimationTime, 0.0001);
             Assert::IsFalse(HasMetricValue(samePresentLookahead[0].msAnimationError));
         }
 
@@ -4207,25 +4207,22 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto publishedOnSecondPresent = swapChain.ProcessPresent(qpc, MakeFrame(PresentResult::Presented, 1000, 1, 1000,
                 { { FrameType::Application, 116 }, { FrameType::Intel_XEFG, 124 } },
                 1016));
-            Assert::AreEqual(size_t(2), publishedOnSecondPresent.size());
-            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)publishedOnSecondPresent[0].computed.metrics.frameType);
-            Assert::AreEqual((int)FrameType::Application, (int)publishedOnSecondPresent[1].computed.metrics.frameType);
+            Assert::AreEqual(size_t(1), publishedOnSecondPresent.size());
+            Assert::AreEqual((int)FrameType::Application, (int)publishedOnSecondPresent[0].computed.metrics.frameType);
         }
 
-        TEST_METHOD(FirstPresent_AppAndGen_GenIncludedInFirstClosedInterval)
+        TEST_METHOD(AppAndGen_OnSecondPresent_GenIncludedInFirstClosedInterval)
         {
-            // Regression: the first present on a swap chain must go through the display queue
-            // (seed-only output) so a first present shaped [app, gen] keeps the generated row.
+            // Seed present does not ingest; app+gen on the next present enters the queue.
             QpcConverter qpc(1000, 0);
             UnifiedSwapChain swapChain{};
 
-            // First present: app seeds animation, gen is buffered as a pending interval row.
+            (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1, 1, 1, {}));
+
             Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 100, 900,
                 { { FrameType::Application, 100 }, { FrameType::Intel_XEFG, 108 } },
                 1000)).size());
 
-            // Second present closes the interval. Its gen@124 acts as the lookahead that
-            // supplies app@116.nextScreenTime before the interval is released.
             auto rows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 1, 1000,
                 { { FrameType::Application, 116 }, { FrameType::Intel_XEFG, 124 } },
                 1016));

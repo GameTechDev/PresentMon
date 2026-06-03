@@ -65,11 +65,14 @@ namespace pmon::util::metrics
         const QpcConverter& qpc,
         FrameData present)
     {
-        const bool suppressPublishForSeedPresent = !swapChain.lastPresent.has_value();
+        if (!swapChain.lastPresent.has_value()) {
+            SanitizeDisplayedRepeatedPresents(present);
+            swapChain.UpdateAfterPresent(present);
+            return {};
+        }
 
         auto ready = EnqueueReadyDisplayRows(qpc, std::move(present));
-        auto applied = ApplyReadyDisplayRows(qpc, ready);
-        return PublishAppliedRows(std::move(applied), suppressPublishForSeedPresent);
+        return ApplyReadyDisplayRows(qpc, ready);
     }
 
     std::vector<ProcessPresentRow> UnifiedSwapChain::ApplyReadyDisplayRows(
@@ -87,21 +90,11 @@ namespace pmon::util::metrics
         return applied;
     }
 
-    std::vector<ProcessPresentRow> UnifiedSwapChain::PublishAppliedRows(
-        std::vector<ProcessPresentRow> applied,
-        bool suppressForSeedPresent)
-    {
-        if (suppressForSeedPresent) {
-            return {};
-        }
-        return applied;
-    }
-
     std::vector<ReadyDisplayRow> UnifiedSwapChain::EnqueueReadyDisplayRows(
         const QpcConverter& qpc,
         FrameData present)
     {
         SanitizeDisplayedRepeatedPresents(present);
-        return displayQueue.Enqueue(qpc, std::move(present), animationTracker, swapChain);
+        return displayQueue.Ingest(qpc, std::move(present), animationTracker, swapChain);
     }
 }
