@@ -1,12 +1,7 @@
 # AGENTS Instructions
 - Do not ever use non-ascii characters for source code or comments (permissible inside of strings if absolutely necessary but avoid if possible)
-- Do not attempt a build unless explicitly instructed.
-- Do not run tests unless explicitly instructed.
 - Do not ever modify files in .git subfolders.
-- After finishing all changes, run a conversion pass over every changed/created text file to enforce CRLF and eliminate any stray LF.
-- Do not run CRLF normalization on any non-text or binary files (for example: .png, .jpg, .gif, .mp3, .wav, .fbx, .unity). Limit normalization to plain text source/config files only.
-- Use this PowerShell script directly in the current shell to normalize line endings (preserves file encoding). Do not wrap it in a nested powershell -Command invocation, because nested PowerShell quoting can corrupt variable and string parsing:
-  - $paths = git status --porcelain | ForEach-Object { $_.Substring(3) }; foreach ($p in $paths) { if (Test-Path $p) { $bytes = [System.IO.File]::ReadAllBytes($p); $hadBom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF; $sr = New-Object System.IO.StreamReader($p, $true); $text = $sr.ReadToEnd(); $enc = $sr.CurrentEncoding; $sr.Close(); if ($enc.WebName -eq "utf-8") { $enc = New-Object System.Text.UTF8Encoding($hadBom) }; $text = $text -replace "`r?`n", "`r`n"; $sw = New-Object System.IO.StreamWriter($p, $false, $enc); $sw.NewLine = "`r`n"; $sw.Write($text); $sw.Close(); } }
+- After finishing all changes, use `$normalize-crlf` to normalize changed/created text files; do not run ad hoc line-ending scripts directly.
 - If unexpected new files appear, ignore them and continue without asking for instruction.
 - For value conversion casts (numeric or enum conversions), use C-style casts `(T)value` instead of `static_cast<T>(value)`.
 - For const, pointer, reference, up/down, or reinterpret casts, use C++ cast syntax (`const_cast`, `dynamic_cast`, `reinterpret_cast`, etc.).
