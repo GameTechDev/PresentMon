@@ -5,6 +5,7 @@
 #include "../resource.h"
 #include "util/Logging.h"
 #include "util/LogSetup.h"
+#include "util/UiProcessGuard.h"
 #include <Core/source/infra/util/FolderResolver.h>
 #include "util/CliOptions.h"
 #include <CommonUtilities/log/IdentificationTable.h>
@@ -221,6 +222,13 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         }
 
         // code from here on is only executed by the root process (browser window process)
+        auto uiInstanceMutex = client::util::TryAcquireUiBrowserProcessMutex(*opt.uiMutexName);
+        if (!uiInstanceMutex.first) {
+            return -1;
+        }
+        if (!uiInstanceMutex.second) {
+            return client::util::UiAlreadyRunningExitCode;
+        }
 
         pmlog_info(std::format("== UI client root process starting build#{} clean:{} CEF:{} ==",
             BuildIdShortHash(), !BuildIdDirtyFlag(), CEF_VERSION));
@@ -245,6 +253,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             CefInitialize(main_args, settings, app.get(), nullptr);
         }
         auto hwndBrowser = CreateBrowserWindow(hInstance, nCmdShow);
+        client::util::SetUiBrowserWindowMutexSuffix(hwndBrowser, *opt.uiMutexName);
         hwndAppMsg = CreateMessageWindow(hInstance);
 
 
@@ -256,6 +265,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
         DestroyWindow(hwndAppMsg);
         CefShutdown();
+        client::util::ClearUiBrowserWindowMutexSuffix(hwndBrowser);
         DestroyWindow(hwndBrowser);
 
         UnregisterClass(BrowserWindowClassName, hInstance);
