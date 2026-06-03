@@ -353,6 +353,7 @@ private:
 			"--log-level"s, common.logLevel,
 			"--control-pipe"s, common.ctrlPipe,
 			"--shm-name-prefix"s, common.shmNamePrefix,
+			"--middleware-dll-path"s, "PresentMonAPI2.dll"s,
 			"--ui-option"s, "url"s, "about:blank"s,
 		};
 		AppendVerboseModulesArgs_(allArgs, common.logVerboseModules, "--log-verbose-modules");
@@ -446,6 +447,10 @@ public:
 	KernelProcess LaunchKernel(const std::vector<std::string>& args = {})
 	{
 		return KernelProcess{ ioctx_, jobMan_, args, GetCommonArgs() };
+	}
+	std::unique_ptr<KernelProcess> LaunchKernelAsPtr(const std::vector<std::string>& args = {})
+	{
+		return std::make_unique<KernelProcess>(ioctx_, jobMan_, args, GetCommonArgs());
 	}
 	virtual const CommonProcessArgs& GetCommonArgs() const = 0;
 private:

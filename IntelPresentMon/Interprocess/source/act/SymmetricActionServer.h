@@ -72,11 +72,8 @@ namespace pmon::ipc::act
             assert(IsRunning());
             // TODO: server needs an actual way to specify which client endpoint to transmit to
             if (sessions_.empty()) {
-                if (allowConnectionlessSend_) {
-                    return;
-                }
-                assert(false && "Server attempting to send when no client is connected");
-                pmlog_error("Server attempting to send when no client is connected");
+                pmlog_warn("Server dropping detached send because no client is connected");
+                return;
             }
             auto& stx = sessions_.begin()->second;
             stx.pConn->DispatchDetached(std::forward<Params>(params), ioctx_, stx);

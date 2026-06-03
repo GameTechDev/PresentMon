@@ -133,11 +133,27 @@ namespace kproc
 			ConcurrentUiInstanceAction::KillPrevious;
 	}
 
-	int HandleConcurrentUiInstance_(std::string_view uiMutexName)
+	ConcurrentUiInstanceAction MakeConcurrentUiInstanceAction_(p2c::cli::DuplicateUiResponse response)
 	{
-		if (ShowConcurrentUiInstanceDialog_() == ConcurrentUiInstanceAction::KillPrevious) {
+		switch (response) {
+		case p2c::cli::DuplicateUiResponse::Yes:
+			return ConcurrentUiInstanceAction::BringToForeground;
+		case p2c::cli::DuplicateUiResponse::No:
+			return ConcurrentUiInstanceAction::KillPrevious;
+		default:
+			return ShowConcurrentUiInstanceDialog_();
+		}
+	}
+
+	int HandleConcurrentUiInstance_(std::string_view uiMutexName, p2c::cli::DuplicateUiResponse response)
+	{
+		if (MakeConcurrentUiInstanceAction_(response) == ConcurrentUiInstanceAction::KillPrevious) {
 			if (p2c::client::util::TerminateUiInstanceProcessTree(uiMutexName)) {
 				return 0;
+			}
+			if (response == p2c::cli::DuplicateUiResponse::No) {
+				pmlog_warn("Unable to close the previous Intel PresentMon instance");
+				return p2c::client::util::UiAlreadyRunningExitCode;
 			}
 			MessageBoxW(nullptr,
 				L"Unable to close the previous Intel PresentMon instance.",
@@ -343,8 +359,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			ConfigureHeadlessLogging();
 		}
 		else if (p2c::client::util::IsUiBrowserProcessActive(*opt.uiMutexName)) {
-			pmlog_warn("UI browser process already active; prompting user for duplicate UI launch action");
-			if (const auto duplicateResult = HandleConcurrentUiInstance_(*opt.uiMutexName)) {
+			pmlog_warn("UI browser process already active; handling duplicate UI launch action");
+			if (const auto duplicateResult = HandleConcurrentUiInstance_(*opt.uiMutexName, *opt.duplicateUiResponse)) {
 				return duplicateResult;
 			}
 		}
@@ -579,8 +595,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				// don't exit this process until the CEF control panel exits
 				const auto cefExitCode = cefChild.wait();
 				if (cefExitCode == p2c::client::util::UiAlreadyRunningExitCode) {
-					pmlog_warn("UI client reported existing browser process; prompting user for duplicate UI launch action");
-					if (const auto duplicateResult = HandleConcurrentUiInstance_(*opt.uiMutexName)) {
+					pmlog_warn("UI client reported existing browser process; handling duplicate UI launch action");
+					if (const auto duplicateResult = HandleConcurrentUiInstance_(*opt.uiMutexName, *opt.duplicateUiResponse)) {
 						return duplicateResult;
 					}
 					continue;

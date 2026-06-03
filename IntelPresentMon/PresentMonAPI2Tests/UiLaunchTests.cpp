@@ -31,7 +31,6 @@ namespace UiLaunchTests
 				.logLevel = "debug",
 				.logFolder = logFolder_,
 				.sampleClientMode = "MultiClient",
-				.suppressService = true,
 			};
 			return args;
 		}
@@ -72,6 +71,65 @@ namespace UiLaunchTests
 		Assert::AreEqual(ui::UiAlreadyRunningExitCode, process.GetExitCode());
 	}
 
+	static std::vector<std::string> MakeKernelArgs_(const std::string& mutexSuffix)
+	{
+		return {
+			"--ui-mutex-name"s, mutexSuffix,
+			"--ui-flag"s, "no-net-fail"s,
+		};
+	}
+
+	static std::vector<std::string> MakeDuplicateKernelArgs_(const std::string& mutexSuffix, const std::string& response)
+	{
+		return {
+			"--ui-mutex-name"s, mutexSuffix,
+			"--duplicate-ui-response"s, response,
+			"--ui-flag"s, "no-net-fail"s,
+		};
+	}
+
+	static std::vector<std::unique_ptr<KernelProcess>> LaunchSimultaneousDuplicateKernels_(
+		TestFixture& fixture,
+		const std::string& mutexSuffix,
+		const std::string& response)
+	{
+		std::promise<void> launchGate;
+		auto launchSignal = launchGate.get_future().share();
+		std::vector<std::future<std::unique_ptr<KernelProcess>>> duplicateFutures;
+		for (int i = 0; i < 5; ++i) {
+			duplicateFutures.push_back(std::async(std::launch::async,
+				[&fixture, mutexSuffix, response, launchSignal] {
+					launchSignal.wait();
+					return fixture.LaunchKernelAsPtr(MakeDuplicateKernelArgs_(mutexSuffix, response));
+				}));
+		}
+
+		launchGate.set_value();
+
+		std::vector<std::unique_ptr<KernelProcess>> duplicates;
+		for (auto& future : duplicateFutures) {
+			duplicates.push_back(future.get());
+		}
+		return duplicates;
+	}
+
+	static size_t CountRunningProcesses_(std::vector<std::unique_ptr<KernelProcess>>& processes)
+	{
+		size_t count = 0;
+		for (auto& process : processes) {
+			if (process->IsRunning()) {
+				++count;
+			}
+		}
+		return count;
+	}
+
+	static void TerminateUiInstanceAndWait_(const std::string& mutexSuffix, TestProcess& process)
+	{
+		Assert::IsTrue(ui::TerminateUiInstanceProcessTree(mutexSuffix), L"UI process tree was not terminated");
+		Assert::IsTrue(process.WaitForExit(5s), L"Kernel process did not exit");
+	}
+
 	TEST_CLASS(UiProcessGuardTests)
 	{
 		TestFixture fixture_;
@@ -87,54 +145,10 @@ namespace UiLaunchTests
 			fixture_.Cleanup();
 		}
 
-		TEST_METHOD(SecondUiLaunchExitsBeforeFullLaunch)
-		{
-			const auto mutexSuffix = MakeMutexSuffix_("Serial");
-			auto first = fixture_.LaunchUi({ "--p2c-ui-mutex-name"s, mutexSuffix });
-			WaitForUiWindow_(mutexSuffix);
-
-			auto second = fixture_.LaunchUi({ "--p2c-ui-mutex-name"s, mutexSuffix });
-			AssertUiAlreadyRunningExit_(second);
-
-			Assert::IsTrue(first.IsRunning(), L"Original UI process should remain active");
-			first.Murder();
-		}
-
-		TEST_METHOD(SimultaneousDuplicateUiLaunchesExitBeforeFullLaunch)
-		{
-			const auto mutexSuffix = MakeMutexSuffix_("Simultaneous");
-			auto first = fixture_.LaunchUi({ "--p2c-ui-mutex-name"s, mutexSuffix });
-			WaitForUiWindow_(mutexSuffix);
-
-			std::promise<void> launchGate;
-			auto launchSignal = launchGate.get_future().share();
-			std::vector<std::future<std::unique_ptr<UiProcess>>> duplicateFutures;
-			for (int i = 0; i < 5; ++i) {
-				duplicateFutures.push_back(std::async(std::launch::async,
-					[&fixture = fixture_, mutexSuffix, launchSignal] {
-						launchSignal.wait();
-						return fixture.LaunchUiAsPtr({ "--p2c-ui-mutex-name"s, mutexSuffix });
-					}));
-			}
-
-			launchGate.set_value();
-
-			std::vector<std::unique_ptr<UiProcess>> duplicates;
-			for (auto& future : duplicateFutures) {
-				duplicates.push_back(future.get());
-			}
-			for (auto& duplicate : duplicates) {
-				AssertUiAlreadyRunningExit_(*duplicate);
-			}
-
-			Assert::IsTrue(first.IsRunning(), L"Original UI process should remain active");
-			first.Murder();
-		}
-
-		TEST_METHOD(SecondApplicationLaunchBringsExistingUiToForeground)
+		TEST_METHOD(ApplicationLaunchBringsExistingUiToForeground)
 		{
 			const auto mutexSuffix = MakeMutexSuffix_("Foreground");
-			auto first = fixture_.LaunchUi({ "--p2c-ui-mutex-name"s, mutexSuffix });
+			auto first = fixture_.LaunchKernel(MakeKernelArgs_(mutexSuffix));
 			const auto hWnd = WaitForUiWindow_(mutexSuffix);
 
 			ShowWindow(hWnd, SW_MINIMIZE);
@@ -142,8 +156,12 @@ namespace UiLaunchTests
 				return IsIconic(hWnd) != FALSE;
 			}), L"Timed out waiting for UI window to minimize");
 
-			auto second = fixture_.LaunchKernel({ "--ui-mutex-name"s, mutexSuffix });
+			auto second = fixture_.LaunchKernel({
+				"--ui-mutex-name"s, mutexSuffix,
+				"--duplicate-ui-response"s, "yes"s,
+			});
 			AssertUiAlreadyRunningExit_(second);
+			Assert::IsTrue(first.IsRunning(), L"Original kernel process should remain active");
 
 			Assert::IsTrue(WaitFor_(5s, [hWnd] {
 				const auto hForeground = GetForegroundWindow();
@@ -151,7 +169,68 @@ namespace UiLaunchTests
 				return IsIconic(hWnd) == FALSE && hRootForeground == hWnd;
 			}), L"Existing UI window was not brought to the foreground");
 
-			first.Murder();
+			TerminateUiInstanceAndWait_(mutexSuffix, first);
+		}
+
+		TEST_METHOD(ApplicationLaunchReplacesExistingUi)
+		{
+			const auto mutexSuffix = MakeMutexSuffix_("Replace");
+			auto first = fixture_.LaunchKernel(MakeKernelArgs_(mutexSuffix));
+			WaitForUiWindow_(mutexSuffix);
+
+			auto second = fixture_.LaunchKernel(MakeDuplicateKernelArgs_(mutexSuffix, "no"s));
+
+			Assert::IsTrue(first.WaitForExit(5s), L"Original kernel process was not terminated");
+			WaitForUiWindow_(mutexSuffix);
+			Assert::IsTrue(second.IsRunning(), L"Replacement kernel process should remain active");
+
+			TerminateUiInstanceAndWait_(mutexSuffix, second);
+		}
+
+		TEST_METHOD(SimultaneousApplicationLaunchesBringExistingUiToForeground)
+		{
+			const auto mutexSuffix = MakeMutexSuffix_("SimultaneousForeground");
+			auto first = fixture_.LaunchKernel(MakeKernelArgs_(mutexSuffix));
+			const auto hWnd = WaitForUiWindow_(mutexSuffix);
+
+			ShowWindow(hWnd, SW_MINIMIZE);
+			Assert::IsTrue(WaitFor_(5s, [hWnd] {
+				return IsIconic(hWnd) != FALSE;
+			}), L"Timed out waiting for UI window to minimize");
+
+			auto duplicates = LaunchSimultaneousDuplicateKernels_(fixture_, mutexSuffix, "yes"s);
+			for (auto& duplicate : duplicates) {
+				AssertUiAlreadyRunningExit_(*duplicate);
+			}
+			Assert::IsTrue(first.IsRunning(), L"Original kernel process should remain active");
+
+			Assert::IsTrue(WaitFor_(5s, [hWnd] {
+				const auto hForeground = GetForegroundWindow();
+				const auto hRootForeground = hForeground ? GetAncestor(hForeground, GA_ROOT) : nullptr;
+				return IsIconic(hWnd) == FALSE && hRootForeground == hWnd;
+			}), L"Existing UI window was not brought to the foreground");
+
+			TerminateUiInstanceAndWait_(mutexSuffix, first);
+		}
+
+		TEST_METHOD(SimultaneousApplicationLaunchesReplaceExistingUi)
+		{
+			const auto mutexSuffix = MakeMutexSuffix_("SimultaneousReplace");
+			auto first = fixture_.LaunchKernel(MakeKernelArgs_(mutexSuffix));
+			WaitForUiWindow_(mutexSuffix);
+
+			auto duplicates = LaunchSimultaneousDuplicateKernels_(fixture_, mutexSuffix, "no"s);
+
+			Assert::IsTrue(first.WaitForExit(5s), L"Original kernel process was not terminated");
+			Assert::IsTrue(WaitFor_(15s, [&] {
+				return ui::FindUiBrowserWindow(mutexSuffix) != nullptr &&
+					CountRunningProcesses_(duplicates) == 1;
+			}), L"Replacement launches did not settle to one active UI instance");
+
+			Assert::IsTrue(ui::TerminateUiInstanceProcessTree(mutexSuffix), L"Replacement UI process tree was not terminated");
+			for (auto& duplicate : duplicates) {
+				Assert::IsTrue(duplicate->WaitForExit(5s), L"Replacement kernel process did not exit");
+			}
 		}
 	};
 }
