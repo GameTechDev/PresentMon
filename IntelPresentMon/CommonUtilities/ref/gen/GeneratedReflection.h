@@ -326,8 +326,8 @@ namespace pmon::util::ref::gen
 			const auto& s = *static_cast<const nvmlMemory_t*>(pStruct);
 			std::ostringstream oss;
 			oss << std::boolalpha << "struct nvmlMemory_t {"
-				<< " .free = " << s.free
 				<< " .total = " << s.total
+				<< " .free = " << s.free
 				<< " .used = " << s.used
 				<< " }";
 			return oss.str();

@@ -111,8 +111,8 @@ struct nvmlPciInfo_t {
 };
 
 struct nvmlMemory_t {
-	unsigned long long free;
 	unsigned long long total;
+	unsigned long long free;
 	unsigned long long used;
 };
 
