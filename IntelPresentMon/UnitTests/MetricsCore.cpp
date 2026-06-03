@@ -4097,6 +4097,32 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(16.0, rows[0].msDisplayedTime, 0.0001);
         }
 
+        TEST_METHOD(AppOnly_CpuStartAnchorUsesIngestPreviousPresentWhenOriginHeld)
+        {
+            // Seed P11, P12 origin held (no Apply), P13 closes interval. CpuStart sim for P13 must
+            // use P12 present end, not stale swap chain lastAppPresent (P11 only).
+            QpcConverter qpc(1000, 0);
+            UnifiedSwapChain swapChain{};
+
+            (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1, 1, 1, {}));
+            (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 100, 900,
+                { { FrameType::Application, 100 } }));
+
+            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
+                { { FrameType::Application, 116 } })).size());
+
+            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1016, 16, 1016,
+                { { FrameType::Application, 132 } })).size());
+
+            auto rows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1032, 16, 1032,
+                { { FrameType::Application, 148 } }));
+
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::AreEqual(uint64_t(132), rows[0].screenTimeQpc);
+            Assert::AreEqual(16.0, rows[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(0.0, rows[0].msAnimationError, 0.0001);
+        }
+
         TEST_METHOD(TraceStart_PreFirstAppAnchorGeneratedRows_EmitWithAnimationNotSet)
         {
             QpcConverter qpc(1000, 0);

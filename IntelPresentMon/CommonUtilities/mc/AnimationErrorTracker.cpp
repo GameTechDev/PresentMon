@@ -98,7 +98,8 @@ namespace pmon::util::metrics
     AnimationErrorTracker::AppAnchor AnimationErrorTracker::ResolveAnchor(
         const SwapChainCoreState& chainState,
         const FrameData& present,
-        size_t displayIndex) const
+        size_t displayIndex,
+        const FrameData* ingestPreviousPresent) const
     {
         AppAnchor anchor{};
         anchor.present = present;
@@ -106,7 +107,11 @@ namespace pmon::util::metrics
         anchor.screenTime = present.displayed[displayIndex].second;
         anchor.frameType = present.displayed[displayIndex].first;
         anchor.source = ResolveSource_(present);
-        anchor.simStartTime = ResolveSimStart_(chainState, present, anchor.source);
+        anchor.simStartTime = ResolveSimStart_(
+            chainState,
+            present,
+            anchor.source,
+            ingestPreviousPresent);
         return anchor;
     }
     AnimationErrorSource AnimationErrorTracker::ResolveSource_(const FrameData& present)
@@ -122,7 +127,8 @@ namespace pmon::util::metrics
     uint64_t AnimationErrorTracker::ResolveSimStart_(
         const SwapChainCoreState& chainState,
         const FrameData& present,
-        AnimationErrorSource source)
+        AnimationErrorSource source,
+        const FrameData* ingestPreviousPresent)
     {
         if (source == AnimationErrorSource::AppProvider) {
             return present.appSimStartTime;
@@ -130,6 +136,6 @@ namespace pmon::util::metrics
         if (source == AnimationErrorSource::PCLatency) {
             return present.pclSimStartTime;
         }
-        return CalculateCPUStart(chainState, present);
+        return CalculateCPUStart(chainState, present, ingestPreviousPresent);
     }
 }

@@ -63,10 +63,13 @@ namespace pmon::util::metrics
         const AnimationDisplayContext& animation,
         const SwapChainCoreState& chain);
 
-    // Helper: Calculate CPU start time
+    // Helper: Calculate CPU start time for the current present.
+    // When ingestPreviousPresent is set (Ingest path), use that present's end instead of
+    // swap chain history, which only advances on Apply after held rows are released.
     uint64_t CalculateCPUStart(
         const SwapChainCoreState& chainState,
-        const FrameData& present);
+        const FrameData& present,
+        const FrameData* ingestPreviousPresent = nullptr);
 
     // Elapsed animation time from firstAppSimStartTime (or session QPC) to currentSimTime.
     // Returns missing when currentSimTime is not after the baseline (non-transition rows never emit 0).

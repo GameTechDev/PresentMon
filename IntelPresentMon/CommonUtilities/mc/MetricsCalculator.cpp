@@ -284,10 +284,26 @@ namespace pmon::util::metrics
     // ============================================================================
     // 4) Exported helper definitions (declared in MetricsCalculator.h)
     // ============================================================================
+    namespace
+    {
+        uint64_t PresentEndQpc_(const FrameData& present)
+        {
+            if (present.appPropagatedPresentStartTime != 0) {
+                return present.appPropagatedPresentStartTime + present.appPropagatedTimeInPresent;
+            }
+            return present.presentStartTime + present.timeInPresent;
+        }
+    }
+
     uint64_t CalculateCPUStart(
         const SwapChainCoreState& chainState,
-        const FrameData& present)
+        const FrameData& present,
+        const FrameData* ingestPreviousPresent)
     {
+        if (ingestPreviousPresent != nullptr) {
+            return PresentEndQpc_(*ingestPreviousPresent);
+        }
+
         uint64_t cpuStart = 0;
         if (chainState.lastAppPresent.has_value()) {
             const auto& lastAppPresent = chainState.lastAppPresent.value();

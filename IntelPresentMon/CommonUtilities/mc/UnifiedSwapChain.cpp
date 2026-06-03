@@ -68,6 +68,7 @@ namespace pmon::util::metrics
         if (!swapChain.lastPresent.has_value()) {
             SanitizeDisplayedRepeatedPresents(present);
             swapChain.UpdateAfterPresent(present);
+            displayQueue.NoteSeedPresent(present);
             return {};
         }
 

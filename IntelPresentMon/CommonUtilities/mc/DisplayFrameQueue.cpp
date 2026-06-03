@@ -53,10 +53,16 @@ namespace pmon::util::metrics
         AnimationErrorTracker& animation,
         SwapChainCoreState& chain)
     {
+        const FrameData* ingestPreviousPresent =
+            lastIngestedPresent_.has_value() ? &lastIngestedPresent_.value() : nullptr;
+
+        FrameData presentForIngestHistory = present;
+
         std::vector<ReadyDisplayRow> ready;
         if (!IsDisplayed_(present)) {
             IngestNotDisplayedPresent_(std::move(present), animation, ready);
             MarkPresentUpdateRows_(ready);
+            lastIngestedPresent_ = std::move(presentForIngestHistory);
             return ready;
         }
         const size_t displayCount = present.displayed.Size();
@@ -72,11 +78,22 @@ namespace pmon::util::metrics
                 IngestGeneratedDisplayInstance_(std::move(row), animation, ready);
             }
             else {
-                IngestAppAnchorDisplayInstance_(qpc, std::move(row), animation, chain, ready);
+                IngestAppAnchorDisplayInstance_(
+                    qpc,
+                    std::move(row),
+                    animation,
+                    chain,
+                    ingestPreviousPresent,
+                    ready);
             }
         }
         MarkPresentUpdateRows_(ready);
+        lastIngestedPresent_ = std::move(presentForIngestHistory);
         return ready;
+    }
+    void DisplayFrameQueue::NoteSeedPresent(const FrameData& seedPresent)
+    {
+        lastIngestedPresent_ = seedPresent;
     }
     void DisplayFrameQueue::Clear()
     {
@@ -88,6 +105,7 @@ namespace pmon::util::metrics
         preFirstAppAnchorAwaitingLookahead_.clear();
         timelineOriginAwaitingLookahead_.reset();
         blockedNotDisplayedPresents_.clear();
+        lastIngestedPresent_.reset();
     }
     // -------------------------------------------------------------------------
     // Ready display row (design: Ready Display Row)
@@ -219,9 +237,14 @@ namespace pmon::util::metrics
         ReadyDisplayRow row,
         AnimationErrorTracker& animation,
         SwapChainCoreState& chain,
+        const FrameData* ingestPreviousPresent,
         std::vector<ReadyDisplayRow>& ready)
     {
-        const auto anchor = animation.ResolveAnchor(chain, row.present, row.displayIndex);
+        const auto anchor = animation.ResolveAnchor(
+            chain,
+            row.present,
+            row.displayIndex,
+            ingestPreviousPresent);
         if (!animation.HasAnchor()) {
             ReleaseLastHeldRowLookahead_(preFirstAppAnchorAwaitingLookahead_, row.screenTime, ready);
             PublishFirstTimelineOrigin_(qpc, std::move(row), animation, chain, anchor, ready);
@@ -229,7 +252,13 @@ namespace pmon::util::metrics
             return;
         }
         if (animation.IsTransition(anchor)) {
-            PublishSourceTransition_(qpc, std::move(row), animation, chain, ready);
+            PublishSourceTransition_(
+                qpc,
+                std::move(row),
+                animation,
+                chain,
+                ingestPreviousPresent,
+                ready);
             return;
         }
         std::vector<ReadyDisplayRow> closedInterval = std::move(openIntervalBeforeClosingApp_);
@@ -285,6 +314,7 @@ namespace pmon::util::metrics
         ReadyDisplayRow transitionAppRow,
         AnimationErrorTracker& animation,
         const SwapChainCoreState& chain,
+        const FrameData* ingestPreviousPresent,
         std::vector<ReadyDisplayRow>& ready)
     {
         if (!openIntervalBeforeClosingApp_.empty()) {
@@ -298,7 +328,8 @@ namespace pmon::util::metrics
         const auto anchor = animation.ResolveAnchor(
             chain,
             transitionAppRow.present,
-            transitionAppRow.displayIndex);
+            transitionAppRow.displayIndex,
+            ingestPreviousPresent);
         std::vector<ReadyDisplayRow> transitionInterval;
         transitionInterval.push_back(std::move(transitionAppRow));
         const auto contexts = animation.CloseInterval(qpc, anchor, transitionInterval);

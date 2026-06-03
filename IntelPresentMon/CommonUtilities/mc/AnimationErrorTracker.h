@@ -33,13 +33,15 @@ namespace pmon::util::metrics
         AppAnchor ResolveAnchor(
             const SwapChainCoreState& chainState,
             const FrameData& present,
-            size_t displayIndex) const;
+            size_t displayIndex,
+            const FrameData* ingestPreviousPresent = nullptr) const;
     private:
         static AnimationErrorSource ResolveSource_(const FrameData& present);
         static uint64_t ResolveSimStart_(
             const SwapChainCoreState& chainState,
             const FrameData& present,
-            AnimationErrorSource source);
+            AnimationErrorSource source,
+            const FrameData* ingestPreviousPresent);
         std::vector<AnimationDisplayContext> CloseSameSourceInterval_(
             const QpcConverter& qpc,
             const AppAnchor& closingAnchor,

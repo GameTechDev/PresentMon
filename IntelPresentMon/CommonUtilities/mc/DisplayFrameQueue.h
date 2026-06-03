@@ -21,6 +21,7 @@ namespace pmon::util::metrics
             FrameData present,
             AnimationErrorTracker& animation,
             SwapChainCoreState& chain);
+        void NoteSeedPresent(const FrameData& seedPresent);
         void Clear();
     private:
         // --- Display instance construction (design: Ready Display Row) ---
@@ -53,6 +54,7 @@ namespace pmon::util::metrics
             ReadyDisplayRow row,
             AnimationErrorTracker& animation,
             SwapChainCoreState& chain,
+            const FrameData* ingestPreviousPresent,
             std::vector<ReadyDisplayRow>& ready);
         void PublishFirstTimelineOrigin_(
             const QpcConverter& qpc,
@@ -71,6 +73,7 @@ namespace pmon::util::metrics
             ReadyDisplayRow transitionAppRow,
             AnimationErrorTracker& animation,
             const SwapChainCoreState& chain,
+            const FrameData* ingestPreviousPresent,
             std::vector<ReadyDisplayRow>& ready);
         static bool IsAppAnchor_(FrameType frameType);
         static bool IsDisplayed_(const FrameData& present);
@@ -90,5 +93,8 @@ namespace pmon::util::metrics
         std::optional<ReadyDisplayRow> timelineOriginAwaitingLookahead_;
         // Not-displayed presents held while an app anchor exists.
         std::deque<FrameData> blockedNotDisplayedPresents_;
+        // Last present that entered Ingest (including held rows). Used for anchor CpuStart
+        // when swap chain lastPresent has not advanced yet.
+        std::optional<FrameData> lastIngestedPresent_;
     };
 }
