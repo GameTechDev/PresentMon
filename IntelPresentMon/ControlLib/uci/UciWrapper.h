@@ -51,7 +51,7 @@ namespace pmon::tel::uci
 #undef X_
 
     private:
-        DllModule dll{ { "unified-collector-interface.dll" }, 0 };
+        DllModule dll{ { "unified-collector-interface.dll" }, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS };
         uciSession* session_ = nullptr;
 
 #define X_(name, ...) uc_result_t (*p##name)(uciSession* session, NVW_ARGS(__VA_ARGS__)) = nullptr;

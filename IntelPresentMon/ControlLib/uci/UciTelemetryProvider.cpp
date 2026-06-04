@@ -585,7 +585,9 @@ namespace pmon::tel::uci
             result != UC_ERROR_COLLECTION_NOT_RUNNING) {
             pmlog_warn("uciStop failed").pmwatch((int)result);
         }
-        collectionStarted_ = false;
+        else {
+            collectionStarted_ = false;
+        }
     }
 }
 
