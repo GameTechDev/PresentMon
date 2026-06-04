@@ -300,7 +300,10 @@ namespace UtilityTests
 			constexpr auto workMillis = 16;
 			constexpr auto singleErrorThreshold = 0.000'180;
 			constexpr auto aggregateErrorThresholdPerIteration = 0.000'070;
-			util::IntervalWaiter waiter{ waitInterval };
+			util::IntervalWaiter waiter{ waitInterval, util::IntervalWaiter::Options{
+				.mechanism = util::WaitMechanism::HighPrecisionTimer,
+				.spinBufferSeconds = util::PrecisionWaiter::standardWaitBuffer,
+			} };
 			RunWaitAccuracyTest(L"IntervalWaiterChrono", waitInterval, iterations, singleErrorThreshold, aggregateErrorThresholdPerIteration, [&]() {
 				Sleep(workMillis);
 				waiter.Wait();
@@ -326,7 +329,10 @@ namespace UtilityTests
 			double totalOnTimeCadenceSeconds = 0.;
 			double aggregateOnTimeCadenceError = 0.;
 			int onTimeIterations = 0;
-			util::IntervalWaiter waiter{ waitInterval };
+			util::IntervalWaiter waiter{ waitInterval, util::IntervalWaiter::Options{
+				.mechanism = util::WaitMechanism::HighPrecisionTimer,
+				.spinBufferSeconds = util::PrecisionWaiter::standardWaitBuffer,
+			} };
 			util::QpcTimer iterationTimer;
 			util::QpcTimer workTimer;
 			util::QpcTimer waitTimer;

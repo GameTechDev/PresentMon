@@ -1,19 +1,39 @@
 #include "IntervalWaiter.h"
+#include "win/WinAPI.h"
+#include <cmath>
 #include <thread>
 
 namespace pmon::util
 {
-	IntervalWaiter::IntervalWaiter(double intervalSeconds, int64_t syncTimestamp, double waitBuffer)
+	IntervalWaiter::IntervalWaiter(double intervalSeconds, int64_t syncTimestamp, Options options)
 		:
 		intervalSeconds_{ intervalSeconds },
-		waiter_{ waitBuffer },
+		options_{ options },
+		waiter_{ options.spinBufferSeconds },
 		timer_{ syncTimestamp }
+	{}
+
+	IntervalWaiter::IntervalWaiter(double intervalSeconds, Options options)
+		:
+		intervalSeconds_{ intervalSeconds },
+		options_{ options },
+		waiter_{ options.spinBufferSeconds }
+	{}
+
+	IntervalWaiter::IntervalWaiter(double intervalSeconds, int64_t syncTimestamp, double waitBuffer)
+		:
+		IntervalWaiter{ intervalSeconds, syncTimestamp, Options{
+			.mechanism = WaitMechanism::HighPrecisionTimer,
+			.spinBufferSeconds = waitBuffer,
+		} }
 	{}
 
 	IntervalWaiter::IntervalWaiter(double intervalSeconds, double waitBuffer)
 		:
-		intervalSeconds_{ intervalSeconds },
-		waiter_{ waitBuffer }
+		IntervalWaiter{ intervalSeconds, Options{
+			.mechanism = WaitMechanism::HighPrecisionTimer,
+			.spinBufferSeconds = waitBuffer,
+		} }
 	{}
 
 	void IntervalWaiter::SetInterval(double intervalSeconds)
@@ -24,6 +44,16 @@ namespace pmon::util
 	void IntervalWaiter::SetInterval(std::chrono::nanoseconds interval)
 	{
 		intervalSeconds_ = double(interval.count()) / 1'000'000'000.;
+	}
+
+	void IntervalWaiter::SetOptions(Options options)
+	{
+		options_ = options;
+	}
+
+	IntervalWaiter::Options IntervalWaiter::GetOptions() const
+	{
+		return options_;
 	}
 
 	IntervalWaiter::WaitResult IntervalWaiter::Wait()
@@ -43,7 +73,7 @@ namespace pmon::util
 			return 0.;
 		}();
 		if (waitTimeSeconds > 0.) {
-			res.errorSec = waiter_.Wait(waitTimeSeconds);
+			res.errorSec = WaitFor(waitTimeSeconds);
 		}
 		return res;
 	}
@@ -51,5 +81,17 @@ namespace pmon::util
 	int64_t IntervalWaiter::TargetTimeToTimestamp(double targetTime) const
 	{
 		return timer_.TimeToTimestamp(targetTime);
+	}
+
+	double IntervalWaiter::WaitFor(double seconds)
+	{
+		switch (options_.mechanism) {
+		case WaitMechanism::HighPrecisionTimer:
+			return waiter_.WaitWithBuffer(seconds, options_.spinBufferSeconds);
+		case WaitMechanism::Sleep:
+		default:
+			Sleep((DWORD)std::ceil(seconds * 1000.));
+			return 0.;
+		}
 	}
 }
