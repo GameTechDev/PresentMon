@@ -16,13 +16,13 @@ namespace pmon::tel
     public:
         DllModule(const DllModule& t) = delete;
         DllModule& operator=(const DllModule& t) = delete;
-        DllModule(const std::vector<std::string>& dllFiles)
+        DllModule(const std::vector<std::string>& dllFiles, DWORD loadFlags = LOAD_LIBRARY_SEARCH_SYSTEM32)
         {
             assert(!dllFiles.empty());
 
             // try list of dll candidates in order
             for (const auto& file : dllFiles) {
-                if (hModule = LoadLibraryExA(file.c_str(), NULL, LOAD_LIBRARY_SEARCH_SYSTEM32)) {
+                if (hModule = LoadLibraryExA(file.c_str(), NULL, loadFlags)) {
                     return;
                 }
             }

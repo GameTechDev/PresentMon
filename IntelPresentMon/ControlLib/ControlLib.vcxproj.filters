@@ -88,6 +88,9 @@
     <ClInclude Include="uci\UciSdk.h">
       <Filter>Uci</Filter>
     </ClInclude>
+    <ClInclude Include="uci\UciWrapper.h">
+      <Filter>Uci</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="nvapi\NvapiWrapper.cpp">
@@ -123,6 +126,9 @@
       <Filter>Wmi</Filter>
     </ClCompile>
     <ClCompile Include="uci\UciTelemetryProvider.cpp">
+      <Filter>Uci</Filter>
+    </ClCompile>
+    <ClCompile Include="uci\UciWrapper.cpp">
       <Filter>Uci</Filter>
     </ClCompile>
   </ItemGroup>

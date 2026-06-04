@@ -60,7 +60,7 @@ if ([string]::IsNullOrWhiteSpace($UciSdkDir)) {
     $UciSdkDir = Join-Path $PSScriptRoot '..\ControlLib\uci\external'
 }
 
-$distPath = Join-Path $UciSdkDir 'bin'
+$distPath = $UciSdkDir
 $outDir = Split-Path -Parent $OutPath
 if (-not [string]::IsNullOrWhiteSpace($outDir) -and -not (Test-Path $outDir -PathType Container)) {
     New-Item -Path $outDir -ItemType Directory -Force | Out-Null
