@@ -270,7 +270,7 @@ namespace p2c::kern
         }
     }
 
-    void Overlay::UpdateGraphData_(double timestamp)
+    void Overlay::UpdateGraphData_(uint64_t timestamp)
     {
         if (!IsTargetLive()) {
             pmlog_dbg("Target found dead")
@@ -429,12 +429,13 @@ namespace p2c::kern
     {
         const auto wait = scheduler_.GetNextWait();
         samplingWaiter.SetInterval(wait);
-        samplingWaiter.Wait();
+        const auto waitResult = samplingWaiter.Wait();
+        const auto targetTimestamp = samplingWaiter.TargetTimeToTimestamp(waitResult.targetSec);
         pmon::Timekeeper::LockNow();
 
         if (scheduler_.AtPoll() && !IsHidden_()) {
             pmlog_mark mkPoll;
-            UpdateGraphData_(pmon::Timekeeper::GetLockedNow());
+            UpdateGraphData_((uint64_t)targetTimestamp);
             pmlog_perf(clog::p::overlay)("Data update time").mark(mkPoll);
         }
         if (scheduler_.AtRender()) {
