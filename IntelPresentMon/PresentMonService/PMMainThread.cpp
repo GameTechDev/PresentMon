@@ -64,6 +64,8 @@ void EventFlushThreadEntry_(Service* const srv, PresentMon* const pm)
         return;
     }
 
+    util::log::IdentificationTable::AddThisThread("etw-flush");
+
     // this is the interval to wait when manual flush is disabled
     // we still want to run the inner loop to poll in case it gets enabled
     const uint32_t disabledIntervalMs = 250u;

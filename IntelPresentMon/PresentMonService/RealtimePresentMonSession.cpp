@@ -8,6 +8,7 @@
 #include "../CommonUtilities/win/Utilities.h"
 #include "../CommonUtilities/Qpc.h"
 #include "../CommonUtilities/Exception.h"
+#include "../CommonUtilities/log/IdentificationTable.h"
 
 using namespace pmon;
 using namespace std::literals;
@@ -493,6 +494,7 @@ void RealtimePresentMonSession::ProcessEvents(
 }
 
 void RealtimePresentMonSession::Consume(TRACEHANDLE traceHandle) {
+    util::log::IdentificationTable::AddThisThread("etw-consume");
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
     // You must call OpenTrace() prior to calling this function
@@ -516,6 +518,7 @@ void RealtimePresentMonSession::Consume(TRACEHANDLE traceHandle) {
 }
 
 void RealtimePresentMonSession::Output() {
+    util::log::IdentificationTable::AddThisThread("frame-out");
     try {
         // Structures to track processes and statistics from recorded events.
         std::vector<ProcessEvent> processEvents;
