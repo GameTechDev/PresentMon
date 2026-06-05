@@ -3688,7 +3688,7 @@ AppTimingData* PMTraceConsumer::ExtractAppTimingData(
     } else {
         auto itToReturn = timingDataByFrameId.end();
         if (isPcLatency) {
-            // For PC latency we want to match the app timing data to the present based
+            // For PC latency we match the app timing data to the present by selecting the unassigned entry whose selected time is closest to (but earlier than) PresentStartTime.
             uint64_t smallestPresentStartDelta = std::numeric_limits<uint64_t>::max();
             // Search for the timing data with the closest PresentStartTime to the passed
             // in PresentStartTime that has not been assigned. This is a hack and will not work for x-platform.
