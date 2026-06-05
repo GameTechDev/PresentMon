@@ -220,6 +220,7 @@ struct PresentEvent {
     uint32_t QueueSubmitSequence;         // mPresentBySubmitSequence
     uint32_t RingIndex;                   // mTrackedPresents and mCompletedPresents
     std::unordered_map<uint64_t, uint64_t> PresentIds; // mPresentByVidPnLayerId
+    // first u64: vidPnLayerId (high 32 vidPnSourceId, low 32 layerIndex); second u64: PresentId
     std::vector<std::pair<uint64_t, uint64_t>> ReportedPresentIds;
     // Note: the following index tracking structures as well but are defined elsewhere:
     //       ProcessId                 -> mOrderedPresentsByProcessId

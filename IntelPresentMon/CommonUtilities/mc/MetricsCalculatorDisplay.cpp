@@ -91,10 +91,7 @@ namespace pmon::util::metrics
         {
             auto vidPnSourceId = uint32_t(present.vidPnLayerId >> 32); // vidPnSourceId
             auto layerIndex = uint32_t(present.vidPnLayerId & 0xFFFFFFFF); // layerIndex
-            if (vidPnSourceId != 0 || layerIndex != 0) {
-                return {vidPnSourceId, layerIndex};
-            }
-            return {0, 0};
+            return {vidPnSourceId, layerIndex};
         }
     }
 
