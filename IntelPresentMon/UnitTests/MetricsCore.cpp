@@ -4110,7 +4110,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 100, 900,
                 { { FrameType::Application, 100 } }));
 
-            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
+            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
                 { { FrameType::Application, 116 } })).size());
 
             Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1016, 16, 1016,
@@ -4239,15 +4239,18 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual((int)FrameType::Application, (int)publishedOnSecondPresent[0].computed.metrics.frameType);
         }
 
-        TEST_METHOD(AppAndGen_OnSecondPresent_GenIncludedInFirstClosedInterval)
+        TEST_METHOD(GenAndApp_OnSecondPresent_GenIncludedInFirstClosedInterval)
         {
-            // Seed present does not ingest; app+gen on the next present enters the queue.
+            // Seed present does not ingest; app+gen on first process emits only app row (gen held);
+            // second process emits gen row with animation time from first present, and app row with animation 
+            // time from second present. This verifies that the gen frame is included in the first closed 
+            // interval, even though it was not ingested at the time of the first present.
             QpcConverter qpc(1000, 0);
             UnifiedSwapChain swapChain{};
 
             (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1, 1, 1, {}));
 
-            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 100, 900,
+            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 100, 900,
                 { { FrameType::Application, 100 }, { FrameType::Intel_XEFG, 108 } },
                 1000)).size());
 
