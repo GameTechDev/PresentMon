@@ -422,6 +422,7 @@ extern "C" {
 	// free the introspection tree structure
 	PRESENTMON_API2_EXPORT PM_STATUS pmFreeIntrospectionRoot(const PM_INTROSPECTION_ROOT* pRoot);
 	// sets the rate at which hardware telemetry (including CPU) is polled
+	// a value of zero indicates to use current service setting (default or value requested by other client)
 	PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE handle, uint32_t reserved, uint32_t timeMs);
 #define PM_TELEMETRY_PERIOD_MIN 50
 #define PM_TELEMETRY_PERIOD_MAX 5000

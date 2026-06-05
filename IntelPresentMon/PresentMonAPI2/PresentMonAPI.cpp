@@ -287,7 +287,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE h
 {
 	try {
 		pmlog_dbg("pmSetTelemetryPollingPeriod").pmwatch(handle).pmwatch(deviceId).pmwatch(timeMs);
-		LookupMiddleware_(handle).SetTelemetryPollingPeriod(deviceId, timeMs);
+		LookupMiddleware_(handle).SetTelemetryPollingPeriod(deviceId, timeMs ? std::optional{ timeMs } : std::nullopt);
 		return PM_STATUS_SUCCESS;
 	}
 	pmcatch_report_diag(true);

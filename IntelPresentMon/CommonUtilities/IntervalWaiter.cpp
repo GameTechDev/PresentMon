@@ -59,19 +59,41 @@ namespace pmon::util
 	IntervalWaiter::WaitResult IntervalWaiter::Wait()
 	{
 		WaitResult res{};
+		// Decide how long to block (if at all) and update the cadence anchor (lastTargetTime_).
+		// lastTargetTime_ is the scheduled instant of the last completed tick; the next tick is
+		// always lastTargetTime_ + intervalSeconds_. res.targetSec is that next tick and is always
+		// the on-time deadline for this call, even when we arrive late.
 		const auto waitTimeSeconds = [=, this, &res] {
 			const auto t = timer_.Peek();
 			res.targetSec = lastTargetTime_ + intervalSeconds_;
-			// if we are on-time
+
 			if (t <= res.targetSec) {
+				// On time: wait until the scheduled tick, then advance the anchor to that tick.
 				lastTargetTime_ = res.targetSec;
 				return res.targetSec - t;
 			}
-			// if we are late, reset target to NOW and do not wait
-			lastTargetTime_ = t;
+
+			// Late for res.targetSec. Do not wait; report how far past the deadline we are.
+			// errorSec < 0 means lateness (targetSec - t). Consumers can map targetSec to a
+			// timestamp via TargetTimeToTimestamp() for poll/window alignment on that grid slot.
 			res.errorSec = res.targetSec - t;
+
+			const auto nextTargetSec = res.targetSec + intervalSeconds_;
+			if (t <= nextTargetSec) {
+				// Moderately late: we missed this tick but can still hit the following one on the
+				// same phase grid. Anchor stays on the missed tick so the next Wait() targets
+				// nextTargetSec (shorter sleep catches up).
+				lastTargetTime_ = res.targetSec;
+			}
+			else {
+				// Too late for the next tick as well; abandon the old grid and re-anchor from now
+				// so the next Wait() schedules intervalSeconds_ from t instead of chasing missed slots.
+				lastTargetTime_ = t;
+			}
 			return 0.;
 		}();
+
+		// On-time path only: sleep/spin until the deadline. errorSec is wait overrun (>= 0), not lateness.
 		if (waitTimeSeconds > 0.) {
 			res.errorSec = WaitFor(waitTimeSeconds);
 		}

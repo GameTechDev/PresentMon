@@ -19,7 +19,9 @@ namespace pmon::util
 		// types
 		struct WaitResult
 		{
+			// Scheduled tick for this Wait() in timer seconds (on-time grid instant).
 			double targetSec;
+			// On-time: non-negative wait overrun from WaitFor. Late: negative lateness (targetSec - now).
 			double errorSec;
 		};
 		struct Options
@@ -46,6 +48,7 @@ namespace pmon::util
 	private:
 		double WaitFor(double seconds);
 		double intervalSeconds_;
+		// Cadence anchor: scheduled time of the last completed (or re-synced) tick.
 		double lastTargetTime_ = 0.;
 		Options options_;
 		PrecisionWaiter waiter_;

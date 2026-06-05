@@ -21,7 +21,7 @@ namespace pmon::svc::acts
 		static constexpr const char* Identifier = STRINGIFY(ACT_NAME);
 		struct Params
 		{
-			uint32_t telemetrySamplePeriodMs;
+			std::optional<uint32_t> telemetrySamplePeriodMs;
 
 			template<class A> void serialize(A& ar) {
 				ar(telemetrySamplePeriodMs);
@@ -33,23 +33,25 @@ namespace pmon::svc::acts
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
 			auto telemetrySamplePeriodMs = in.telemetrySamplePeriodMs;
-			if (telemetrySamplePeriodMs && telemetrySamplePeriodMs < PM_TELEMETRY_PERIOD_MIN) {
+			if (telemetrySamplePeriodMs && *telemetrySamplePeriodMs < PM_TELEMETRY_PERIOD_MIN) {
 				pmlog_warn("Telemetry period out of range; clamping to minimum")
-					.pmwatch(telemetrySamplePeriodMs).pmwatch(PM_TELEMETRY_PERIOD_MIN).diag();
+					.pmwatch(*telemetrySamplePeriodMs).pmwatch(PM_TELEMETRY_PERIOD_MIN).diag();
 				telemetrySamplePeriodMs = PM_TELEMETRY_PERIOD_MIN;
 			}
-			else if (telemetrySamplePeriodMs > PM_TELEMETRY_PERIOD_MAX) {
+			else if (telemetrySamplePeriodMs && *telemetrySamplePeriodMs > PM_TELEMETRY_PERIOD_MAX) {
 				pmlog_warn("Telemetry period out of range; clamping to maximum")
-					.pmwatch(telemetrySamplePeriodMs).pmwatch(PM_TELEMETRY_PERIOD_MAX).diag();
+					.pmwatch(*telemetrySamplePeriodMs).pmwatch(PM_TELEMETRY_PERIOD_MAX).diag();
 				telemetrySamplePeriodMs = PM_TELEMETRY_PERIOD_MAX;
 			}
-			// set request for this session
 			stx.requestedTelemetryPeriodMs = telemetrySamplePeriodMs;
-			// update the service
 			ctx.UpdateTelemetryPeriod();
-
-			pmlog_dbg(std::format("Requested telemetry sample period of {}ms by client [{}]",
-				telemetrySamplePeriodMs, stx.remotePid));
+			if (telemetrySamplePeriodMs) {
+				pmlog_dbg(std::format("Requested telemetry sample period of {}ms by client [{}]",
+					*telemetrySamplePeriodMs, stx.remotePid));
+			}
+			else {
+				pmlog_dbg(std::format("Releasing manual telemetry period override for client [{}]", stx.remotePid));
+			}
 			return {};
 		}
 	};
