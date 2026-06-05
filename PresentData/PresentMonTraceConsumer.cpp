@@ -2638,7 +2638,7 @@ void PMTraceConsumer::RuntimePresentStop(Runtime runtime, EVENT_HEADER const& hd
         return;
     }
     auto present = eventIter->second;
-    auto PresentStopTime = *(uint64_t*)&hdr.TimeStamp;
+    auto PresentStopTime = static_cast<uint64_t>(hdr.TimeStamp.QuadPart);
 
     if (mTrackAppTiming) {
         if (IsApplicationPresent(present)) {
