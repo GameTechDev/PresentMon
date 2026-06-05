@@ -111,13 +111,20 @@
     <ClCompile Include="EtlTests.cpp" />
     <ClCompile Include="Logging.cpp" />
     <ClCompile Include="RealtimeMetricTests.cpp" />
+    <ClCompile Include="UiLaunchTests.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\AppCef\CefNano.vcxproj">
+      <Project>{3c80b001-e165-4e0e-a92d-5767cf4fb1f8}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\CommonUtilities\CommonUtilities.vcxproj">
       <Project>{08a704d8-ca1c-45e9-8ede-542a1a43b53e}</Project>
     </ProjectReference>
     <ProjectReference Include="..\Interprocess\Interprocess.vcxproj">
       <Project>{ca23d648-daef-4f06-81d5-fe619bd31f0b}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\KernelProcess\KernelProcess.vcxproj">
+      <Project>{8524c555-b172-46ef-be42-7b7b7bb102e4}</Project>
     </ProjectReference>
     <ProjectReference Include="..\PresentMonAPI2Loader\PresentMonAPI2Loader.vcxproj">
       <Project>{8f86d067-2437-46fc-8f82-4d7155ceced7}</Project>

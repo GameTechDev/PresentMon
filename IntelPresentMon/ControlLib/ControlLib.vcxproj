@@ -134,6 +134,7 @@
     <ClInclude Include="TelemetryProvider.h" />
     <ClInclude Include="uci\UciSdk.h" />
     <ClInclude Include="uci\UciTelemetryProvider.h" />
+    <ClInclude Include="uci\UciWrapper.h" />
     <ClInclude Include="wmi\WmiTelemetryProvider.h" />
   </ItemGroup>
   <ItemGroup>
@@ -149,6 +150,7 @@
     <ClCompile Include="TelemetryCoordinator.cpp" />
     <ClCompile Include="TelemetryDeviceFingerprint.cpp" />
     <ClCompile Include="uci\UciTelemetryProvider.cpp" />
+    <ClCompile Include="uci\UciWrapper.cpp" />
     <ClCompile Include="wmi\WmiTelemetryProvider.cpp" />
   </ItemGroup>
   <ItemGroup>

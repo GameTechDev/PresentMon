@@ -3,19 +3,15 @@
 #include "MachineExpectations.h"
 #include "../str/String.h"
 #include "CppUnitTest.h"
+#include <nlohmann/json.hpp>
 #include <algorithm>
-#include <cassert>
-#include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <format>
 #include <set>
-#include <sstream>
 #include <stdexcept>
-#include <cstring>
 #include <chrono>
-#include <variant>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -25,239 +21,7 @@ namespace pmon::util::test
 
     namespace
     {
-        struct JsonValue
-        {
-            using Object = std::map<std::string, JsonValue>;
-            using Array = std::vector<JsonValue>;
-            std::variant<std::nullptr_t, bool, double, std::string, Object, Array> value;
-        };
-
-        class JsonParser
-        {
-        public:
-            explicit JsonParser(std::string text) : text_{ std::move(text) } {}
-
-            JsonValue Parse()
-            {
-                auto value = ParseValue_();
-                SkipWs_();
-                if (pos_ != text_.size()) {
-                    Throw_("Unexpected trailing JSON content");
-                }
-                return value;
-            }
-
-        private:
-            [[noreturn]] void Throw_(const char* message) const
-            {
-                throw std::runtime_error(std::format("{} at byte {}", message, pos_));
-            }
-
-            void SkipWs_()
-            {
-                while (pos_ < text_.size() && std::isspace((unsigned char)text_[pos_])) {
-                    ++pos_;
-                }
-            }
-
-            bool TryConsume_(char c)
-            {
-                SkipWs_();
-                if (pos_ < text_.size() && text_[pos_] == c) {
-                    ++pos_;
-                    return true;
-                }
-                return false;
-            }
-
-            void Consume_(char c)
-            {
-                if (!TryConsume_(c)) {
-                    Throw_("Unexpected JSON token");
-                }
-            }
-
-            JsonValue ParseValue_()
-            {
-                SkipWs_();
-                if (pos_ >= text_.size()) {
-                    Throw_("Unexpected end of JSON");
-                }
-                switch (text_[pos_]) {
-                case '{': return JsonValue{ ParseObject_() };
-                case '[': return JsonValue{ ParseArray_() };
-                case '"': return JsonValue{ ParseString_() };
-                case 'n': return ParseLiteral_("null", JsonValue{ nullptr });
-                case 't': return ParseLiteral_("true", JsonValue{ true });
-                case 'f': return ParseLiteral_("false", JsonValue{ false });
-                default:
-                    return JsonValue{ ParseNumber_() };
-                }
-            }
-
-            JsonValue ParseLiteral_(const char* literal, JsonValue value)
-            {
-                const auto len = strlen(literal);
-                if (text_.compare(pos_, len, literal) != 0) {
-                    Throw_("Unexpected JSON literal");
-                }
-                pos_ += len;
-                return value;
-            }
-
-            JsonValue::Object ParseObject_()
-            {
-                JsonValue::Object object;
-                Consume_('{');
-                if (TryConsume_('}')) {
-                    return object;
-                }
-                for (;;) {
-                    auto key = ParseString_();
-                    Consume_(':');
-                    object.emplace(std::move(key), ParseValue_());
-                    if (TryConsume_('}')) {
-                        break;
-                    }
-                    Consume_(',');
-                }
-                return object;
-            }
-
-            JsonValue::Array ParseArray_()
-            {
-                JsonValue::Array array;
-                Consume_('[');
-                if (TryConsume_(']')) {
-                    return array;
-                }
-                for (;;) {
-                    array.push_back(ParseValue_());
-                    if (TryConsume_(']')) {
-                        break;
-                    }
-                    Consume_(',');
-                }
-                return array;
-            }
-
-            std::string ParseString_()
-            {
-                Consume_('"');
-                std::string s;
-                while (pos_ < text_.size()) {
-                    const auto c = text_[pos_++];
-                    if (c == '"') {
-                        return s;
-                    }
-                    if (c != '\\') {
-                        s.push_back(c);
-                        continue;
-                    }
-                    if (pos_ >= text_.size()) {
-                        Throw_("Unterminated JSON escape");
-                    }
-                    const auto e = text_[pos_++];
-                    switch (e) {
-                    case '"': s.push_back('"'); break;
-                    case '\\': s.push_back('\\'); break;
-                    case '/': s.push_back('/'); break;
-                    case 'b': s.push_back('\b'); break;
-                    case 'f': s.push_back('\f'); break;
-                    case 'n': s.push_back('\n'); break;
-                    case 'r': s.push_back('\r'); break;
-                    case 't': s.push_back('\t'); break;
-                    default:
-                        Throw_("Unsupported JSON escape");
-                    }
-                }
-                Throw_("Unterminated JSON string");
-            }
-
-            double ParseNumber_()
-            {
-                SkipWs_();
-                const auto begin = pos_;
-                if (pos_ < text_.size() && text_[pos_] == '-') {
-                    ++pos_;
-                }
-                while (pos_ < text_.size() && std::isdigit((unsigned char)text_[pos_])) {
-                    ++pos_;
-                }
-                if (pos_ < text_.size() && text_[pos_] == '.') {
-                    ++pos_;
-                    while (pos_ < text_.size() && std::isdigit((unsigned char)text_[pos_])) {
-                        ++pos_;
-                    }
-                }
-                if (pos_ < text_.size() && (text_[pos_] == 'e' || text_[pos_] == 'E')) {
-                    ++pos_;
-                    if (pos_ < text_.size() && (text_[pos_] == '+' || text_[pos_] == '-')) {
-                        ++pos_;
-                    }
-                    while (pos_ < text_.size() && std::isdigit((unsigned char)text_[pos_])) {
-                        ++pos_;
-                    }
-                }
-                if (begin == pos_) {
-                    Throw_("Expected JSON number");
-                }
-                return std::stod(text_.substr(begin, pos_ - begin));
-            }
-
-            std::string text_;
-            size_t pos_ = 0;
-        };
-
-        const JsonValue::Object* AsObject_(const JsonValue& value)
-        {
-            return std::get_if<JsonValue::Object>(&value.value);
-        }
-
-        const JsonValue::Array* AsArray_(const JsonValue& value)
-        {
-            return std::get_if<JsonValue::Array>(&value.value);
-        }
-
-        const std::string* AsString_(const JsonValue& value)
-        {
-            return std::get_if<std::string>(&value.value);
-        }
-
-        const double* AsNumber_(const JsonValue& value)
-        {
-            return std::get_if<double>(&value.value);
-        }
-
-        bool IsNull_(const JsonValue& value)
-        {
-            return std::holds_alternative<std::nullptr_t>(value.value);
-        }
-
-        std::optional<JsonValue> Get_(const JsonValue::Object& object, const char* key)
-        {
-            if (const auto it = object.find(key); it != object.end()) {
-                return it->second;
-            }
-            return std::nullopt;
-        }
-
-        std::string Escape_(const std::string& value)
-        {
-            std::string out;
-            out.reserve(value.size() + 8);
-            for (const auto ch : value) {
-                switch (ch) {
-                case '\\': out += "\\\\"; break;
-                case '"': out += "\\\""; break;
-                case '\n': out += "\\n"; break;
-                case '\r': out += "\\r"; break;
-                case '\t': out += "\\t"; break;
-                default: out.push_back(ch); break;
-                }
-            }
-            return out;
-        }
+        using Json = nlohmann::json;
 
         std::optional<std::string> GetEnv_(const wchar_t* name)
         {
@@ -305,54 +69,50 @@ namespace pmon::util::test
                 absoluteExpectationPath.string());
         }
 
-        MetricExpectation ParseExpectation_(const JsonValue& value)
+        MetricExpectation ParseExpectation_(const Json& value)
         {
             MetricExpectation exp;
-            if (IsNull_(value)) {
+            if (value.is_null()) {
                 exp.expectedAvailable = false;
                 return exp;
             }
-            if (const auto text = AsString_(value)) {
-                exp.stringValue = *text;
+            if (value.is_string()) {
+                exp.stringValue = value.get<std::string>();
                 return exp;
             }
-            if (const auto number = AsNumber_(value)) {
-                exp.numericValue = *number;
+            if (value.is_number()) {
+                exp.numericValue = value.get<double>();
                 return exp;
             }
-            const auto object = AsObject_(value);
-            if (object == nullptr) {
+            if (!value.is_object()) {
                 throw std::runtime_error("Metric expectation must be null, scalar, or object");
             }
-            if (const auto v = Get_(*object, "value")) {
-                if (const auto text = AsString_(*v)) {
-                    exp.stringValue = *text;
+
+            if (const auto v = value.find("value"); v != value.end()) {
+                if (v->is_string()) {
+                    exp.stringValue = v->get<std::string>();
                 }
-                else if (const auto number = AsNumber_(*v)) {
-                    exp.numericValue = *number;
+                else if (v->is_number()) {
+                    exp.numericValue = v->get<double>();
                 }
-                else if (IsNull_(*v)) {
+                else if (v->is_null()) {
                     exp.expectedAvailable = false;
                 }
             }
-            if (const auto v = Get_(*object, "min")) {
-                if (const auto number = AsNumber_(*v)) {
-                    exp.minValue = *number;
-                }
+            if (const auto v = value.find("min"); v != value.end() && v->is_number()) {
+                exp.minValue = v->get<double>();
             }
-            if (const auto v = Get_(*object, "max")) {
-                if (const auto number = AsNumber_(*v)) {
-                    exp.maxValue = *number;
-                }
+            if (const auto v = value.find("max"); v != value.end() && v->is_number()) {
+                exp.maxValue = v->get<double>();
             }
             return exp;
         }
 
         void LoadMetricMap_(std::map<std::string, MetricExpectation>& dst,
-            const JsonValue::Object& object)
+            const Json& object)
         {
-            for (const auto& [name, value] : object) {
-                dst[name] = ParseExpectation_(value);
+            for (const auto& entry : object.items()) {
+                dst[entry.key()] = ParseExpectation_(entry.value());
             }
         }
 
@@ -508,31 +268,34 @@ namespace pmon::util::test
     {
         fs::create_directories(GetOutputFolder_());
         std::ofstream file{ GetMeasurementPath_(), std::ios::app };
-        file << "{\"test_case\":\"" << Escape_(testCase_) << "\",\"measurements\":[";
-        for (size_t i = 0; i < measurements_.size(); ++i) {
-            const auto& m = measurements_[i];
-            if (i != 0) {
-                file << ",";
-            }
-            file << "{\"section\":\"" << m.section << "\",\"metric\":\"" << Escape_(m.metric) << "\"";
+
+        Json record;
+        record["test_case"] = testCase_;
+        record["measurements"] = Json::array();
+        for (const auto& m : measurements_) {
+            Json measurement;
+            measurement["section"] = m.section;
+            measurement["metric"] = m.metric;
             if (m.section == "gpu") {
-                file << ",\"device_id\":" << m.gpuDeviceId;
+                measurement["device_id"] = m.gpuDeviceId;
             }
             if (m.identityOnly) {
-                file << ",\"identity_only\":true";
+                measurement["identity_only"] = true;
             }
             if (!m.available) {
-                file << ",\"available\":false,\"introspection_available\":"
-                    << (m.introspectionAvailable ? "true" : "false") << ",\"value\":null}";
+                measurement["available"] = false;
+                measurement["introspection_available"] = m.introspectionAvailable;
+                measurement["value"] = nullptr;
             }
             else if (m.numericValue) {
-                file << ",\"value\":" << std::format("{}", *m.numericValue) << "}";
+                measurement["value"] = *m.numericValue;
             }
             else {
-                file << ",\"value\":\"" << Escape_(m.stringValue.value_or("")) << "\"}";
+                measurement["value"] = m.stringValue.value_or("");
             }
+            record["measurements"].push_back(std::move(measurement));
         }
-        file << "]}\n";
+        file << record.dump() << "\n";
     }
 
     ExpectationStore ExpectationStore::Load()
@@ -551,67 +314,50 @@ namespace pmon::util::test
         }
 
         std::ifstream file{ store.expectationPath_ };
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        const auto root = JsonParser{ buffer.str() }.Parse();
-        const auto rootObject = AsObject_(root);
-        if (rootObject == nullptr) {
+        const auto root = Json::parse(file);
+        if (!root.is_object()) {
             throw std::runtime_error("Machine expectation root must be an object");
         }
 
-        if (const auto waitMultiplier = Get_(*rootObject, "wait_multiplier")) {
-            if (const auto number = AsNumber_(*waitMultiplier)) {
-                store.waitMultiplier_ = (std::max)(1., *number);
-            }
+        if (const auto waitMultiplier = root.find("wait_multiplier"); waitMultiplier != root.end() && waitMultiplier->is_number()) {
+            store.waitMultiplier_ = (std::max)(1., waitMultiplier->get<double>());
         }
-        else if (const auto waitMultiplier = Get_(*rootObject, "waitMultiplier")) {
-            if (const auto number = AsNumber_(*waitMultiplier)) {
-                store.waitMultiplier_ = (std::max)(1., *number);
-            }
+        else if (const auto waitMultiplier = root.find("waitMultiplier"); waitMultiplier != root.end() && waitMultiplier->is_number()) {
+            store.waitMultiplier_ = (std::max)(1., waitMultiplier->get<double>());
         }
 
-        if (const auto system = Get_(*rootObject, "system")) {
-            if (const auto systemObject = AsObject_(*system)) {
-                LoadMetricMap_(store.system_, *systemObject);
-            }
+        if (const auto system = root.find("system"); system != root.end() && system->is_object()) {
+            LoadMetricMap_(store.system_, *system);
         }
-        auto gpus = Get_(*rootObject, "gpu");
-        if (!gpus) {
-            gpus = Get_(*rootObject, "gpus");
+
+        auto gpus = root.find("gpu");
+        if (gpus == root.end()) {
+            gpus = root.find("gpus");
         }
-        if (gpus) {
-            if (const auto gpuObject = AsObject_(*gpus)) {
+        if (gpus != root.end()) {
+            if (gpus->is_object()) {
                 uint32_t id = 0;
-                if (const auto idValue = Get_(*gpuObject, "device_id")) {
-                    if (const auto number = AsNumber_(*idValue)) {
-                        id = (uint32_t)*number;
-                    }
+                if (const auto idValue = gpus->find("device_id"); idValue != gpus->end() && idValue->is_number()) {
+                    id = (uint32_t)idValue->get<double>();
                 }
-                if (const auto metrics = Get_(*gpuObject, "metrics")) {
-                    if (const auto metricsObject = AsObject_(*metrics)) {
-                        LoadMetricMap_(store.gpus_[id], *metricsObject);
-                    }
+                if (const auto metrics = gpus->find("metrics"); metrics != gpus->end() && metrics->is_object()) {
+                    LoadMetricMap_(store.gpus_[id], *metrics);
                 }
                 else {
-                    LoadMetricMap_(store.gpus_[id], *gpuObject);
+                    LoadMetricMap_(store.gpus_[id], *gpus);
                 }
             }
-            else if (const auto gpuArray = AsArray_(*gpus)) {
-                for (const auto& gpuValue : *gpuArray) {
-                    const auto gpuObject = AsObject_(gpuValue);
-                    if (gpuObject == nullptr) {
+            else if (gpus->is_array()) {
+                for (const auto& gpuValue : *gpus) {
+                    if (!gpuValue.is_object()) {
                         continue;
                     }
                     uint32_t id = 0;
-                    if (const auto idValue = Get_(*gpuObject, "device_id")) {
-                        if (const auto number = AsNumber_(*idValue)) {
-                            id = (uint32_t)*number;
-                        }
+                    if (const auto idValue = gpuValue.find("device_id"); idValue != gpuValue.end() && idValue->is_number()) {
+                        id = (uint32_t)idValue->get<double>();
                     }
-                    if (const auto metrics = Get_(*gpuObject, "metrics")) {
-                        if (const auto metricsObject = AsObject_(*metrics)) {
-                            LoadMetricMap_(store.gpus_[id], *metricsObject);
-                        }
+                    if (const auto metrics = gpuValue.find("metrics"); metrics != gpuValue.end() && metrics->is_object()) {
+                        LoadMetricMap_(store.gpus_[id], *metrics);
                     }
                 }
             }

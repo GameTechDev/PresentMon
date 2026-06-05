@@ -40,6 +40,7 @@ namespace pmon::svc::acts
             }
             stx.trackedPids.erase(tpidIt);
             ctx.pPmon->UpdateTracking(ctx.GetTrackedPidSet());
+            ctx.UpdatePeriodicLogFlushing();
             pmlog_info(std::format("StopTracking action from [{}] un-targeting [{}]", stx.remotePid, in.targetPid));
             return {};
 		}

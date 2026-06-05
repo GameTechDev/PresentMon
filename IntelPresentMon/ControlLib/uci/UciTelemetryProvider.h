@@ -6,9 +6,13 @@
 #include "../../Interprocess/source/SystemDeviceId.h"
 #include "../TelemetryProvider.h"
 #include "UciSdk.h"
+#if PMON_HAS_UCI_SDK
+#include "UciWrapper.h"
+#endif
 
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -56,7 +60,7 @@ namespace pmon::tel::uci
         void OnDataCallback_(uciDataBundle* dataBundle);
         void ApplyMetricRecord_(DeviceState_& device, void* recordHandle);
         std::unordered_set<std::string> EnumerateMetrics_();
-        void DumpMetricEnumeration_(uciMetricContainerHandle metricContainer) const;
+        void DumpCapabilitiesJson_(const std::string& capabilitiesJson) const;
         void ReconfigureCollection_();
         void StopCollection_() noexcept;
 #endif
@@ -64,7 +68,7 @@ namespace pmon::tel::uci
     private:
         static constexpr ProviderDeviceId kProviderDeviceId_ = 1;
 #if PMON_HAS_UCI_SDK
-        uciCollectorHandle collector_ = nullptr;
+        std::unique_ptr<UciWrapper> pUci_{};
 #endif
         DeviceState_ systemDevice_{};
         std::mutex configMutex_{};

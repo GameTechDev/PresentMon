@@ -39,12 +39,12 @@ namespace pmon::mid
         {
             auto res = DispatchSync(OpenSession::Params{
                 .clientPid = GetCurrentProcessId(),
-                .clientBuildId = bid::BuildIdShortHash(),
+                .clientBuildId = bid::BuildIdLongHash(),
                 .clientBuildConfig = bid::BuildIdConfig(),
             });
-            if (res.serviceBuildId != bid::BuildIdShortHash()) {
+            if (res.serviceBuildId != bid::BuildIdLongHash()) {
                 pmlog_error("build id mismatch between middleware and service")
-                    .pmwatch(res.serviceBuildId).pmwatch(bid::BuildIdShortHash()).diag();
+                    .pmwatch(res.serviceBuildId).pmwatch(bid::BuildIdLongHash()).diag();
                 throw Except<ipc::PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH);
             }
             if (res.serviceBuildConfig != bid::BuildIdConfig()) {

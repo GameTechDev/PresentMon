@@ -5,6 +5,7 @@
 #include "Process.h"
 #include <unordered_map>
 #include <tlhelp32.h>
+#include <vector>
 
 
 namespace pmon::util::win
@@ -21,10 +22,12 @@ namespace pmon::util::win
         void FillWindowHandles();
         void FilterHavingWindow();
         void FilterHavingAncestor(DWORD pidRoot);
+        std::vector<DWORD> GetChildTreePostOrder(DWORD pidRoot) const;
         NameMap AsNameMap(bool lowercase = false) const;
         std::wstring ToString() const;
         static std::wstring MapToString(const ProcMap& map);
     private:
+        void AppendChildTreePostOrder_(DWORD pidRoot, const std::unordered_multimap<DWORD, DWORD>& parentMap, std::vector<DWORD>& order) const;
         void PopulateProcessMap_();
         static bool WindowIsMain_(HWND hWnd);
         static BOOL CALLBACK EnumWindowsCallback_(HWND hWnd, LPARAM lParam);

@@ -39,7 +39,7 @@ namespace pmon::tel::nvml
         };
 
         static void ValidateScalarMetricIndex_(PM_METRIC metricId, uint32_t arrayIndex);
-        static uint64_t GetLegacyTotalMemoryBytes_(const nvmlMemory_t& memoryInfo) noexcept;
+        static uint64_t GetTotalMemoryBytes_(const nvmlMemory_t& memoryInfo) noexcept;
 
         bool TryInitializeDevice_(DeviceState_& device, nvmlDevice_t handle) const;
         ipc::MetricCapabilities BuildCapsForDevice_(DeviceState_& device) const;

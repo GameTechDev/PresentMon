@@ -9,6 +9,7 @@
 #include "../AppCef/source/util/cact/PresentmonInitFailedAction.h"
 #include "../AppCef/source/util/cact/StalePidAction.h"
 #include "../AppCef/source/util/cact/HotkeyFiredAction.h"
+#include "../AppCef/source/util/UiProcessGuard.h"
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include "../PresentMonAPIWrapperCommon/EnumMap.h"
 #include <Core/source/cli/CliOptions.h>
@@ -25,7 +26,6 @@
 #include <ranges>
 #include <iostream>
 #include <filesystem>
-
 
 using namespace pmon;
 namespace vi = std::views;
@@ -112,6 +112,90 @@ namespace kproc
 		freopen_s(&f, "CONOUT$", "w", stderr);
 		freopen_s(&f, "CONIN$", "r", stdin);
 	}
+
+	enum class ConcurrentUiInstanceAction
+	{
+		BringToForeground,
+		KillPrevious,
+	};
+
+	ConcurrentUiInstanceAction ShowConcurrentUiInstanceDialog_()
+	{
+		const auto result = MessageBoxW(nullptr,
+			L"Intel PresentMon is already running; concurrent instances are not supported. "
+			L"Bring previous instance to the foreground?\n\n"
+			L"Select Yes to bring previous instance to the foreground.\n"
+			L"Select No to terminate it and launch a new one.",
+			L"Intel PresentMon",
+			MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING | MB_APPLMODAL | MB_SETFOREGROUND);
+		return result == IDYES ?
+			ConcurrentUiInstanceAction::BringToForeground :
+			ConcurrentUiInstanceAction::KillPrevious;
+	}
+
+	ConcurrentUiInstanceAction MakeConcurrentUiInstanceAction_(p2c::cli::DuplicateUiResponse response)
+	{
+		switch (response) {
+		case p2c::cli::DuplicateUiResponse::Yes:
+			return ConcurrentUiInstanceAction::BringToForeground;
+		case p2c::cli::DuplicateUiResponse::No:
+			return ConcurrentUiInstanceAction::KillPrevious;
+		default:
+			return ShowConcurrentUiInstanceDialog_();
+		}
+	}
+
+	int HandleConcurrentUiInstance_(std::string_view uiMutexName, p2c::cli::DuplicateUiResponse response)
+	{
+		if (MakeConcurrentUiInstanceAction_(response) == ConcurrentUiInstanceAction::KillPrevious) {
+			if (p2c::client::util::TerminateUiInstanceProcessTree(uiMutexName)) {
+				return 0;
+			}
+			if (response == p2c::cli::DuplicateUiResponse::No) {
+				pmlog_warn("Unable to close the previous Intel PresentMon instance");
+				return p2c::client::util::UiAlreadyRunningExitCode;
+			}
+			MessageBoxW(nullptr,
+				L"Unable to close the previous Intel PresentMon instance.",
+				L"Intel PresentMon",
+				MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
+			return p2c::client::util::UiAlreadyRunningExitCode;
+		}
+
+		p2c::client::util::BringUiBrowserWindowToFront(uiMutexName);
+		return p2c::client::util::UiAlreadyRunningExitCode;
+	}
+
+	class KillOnCloseJob
+	{
+	public:
+		KillOnCloseJob(HANDLE hProcess)
+			:
+			hJob_{ CreateJobObjectW(nullptr, nullptr) }
+		{
+			if (!hJob_) {
+				pmlog_warn("failed to create UI process job object").hr();
+				return;
+			}
+
+			JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+			limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+			if (!SetInformationJobObject(
+				hJob_.Get(), JobObjectExtendedLimitInformation, &limits, sizeof(limits))) {
+				pmlog_warn("failed to configure UI process job object").hr();
+				hJob_.Clear();
+				return;
+			}
+
+			if (!AssignProcessToJobObject(hJob_.Get(), hProcess)) {
+				pmlog_warn("failed to attach UI process to job object").hr();
+				hJob_.Clear();
+			}
+		}
+
+	private:
+		::pmon::util::win::Handle hJob_;
+	};
 
 #ifndef NDEBUG
 	BOOL CALLBACK LogOutputMonitorCoordinatesCallback_(HMONITOR, HDC, LPRECT pMonitorRect, LPARAM pUserData)
@@ -274,6 +358,12 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		if (headless) {
 			ConfigureHeadlessLogging();
 		}
+		else if (p2c::client::util::IsUiBrowserProcessActive(*opt.uiMutexName)) {
+			pmlog_warn("UI browser process already active; handling duplicate UI launch action");
+			if (const auto duplicateResult = HandleConcurrentUiInstance_(*opt.uiMutexName, *opt.duplicateUiResponse)) {
+				return duplicateResult;
+			}
+		}
 
 		// set the app id so that windows get grouped
 		// TODO: verify operation when multiple app instances running concurrently
@@ -434,71 +524,89 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		pKernel = &kernel;
 		// run the UI when not headless
 		if (!headless) {
-			// compose optional cli args for cef process tree
-			auto args = std::vector<std::string>{
-				opt.filesWorking ? "--p2c-files-working"s : ""s,
-				opt.traceExceptions ? "--p2c-trace-exceptions"s : ""s,
-				opt.logFolder ? "--p2c-log-folder"s : ""s, *opt.logFolder,
-			} | vi::filter(std::not_fn(&std::string::empty)) | rn::to<std::vector>();
-			// forward verbose module options
-			if (opt.logVerboseModules) {
-				args.push_back("--p2c-log-verbose-modules"s);
-				args.append_range(*opt.logVerboseModules | vi::transform(util::log::GetVerboseModuleName));
-			}
-			bool allOriginsAllowed = false;
-			for (auto& f : *opt.uiFlags) {
-				if (f == "enable-chromium-debug") {
-					// needed in order to connect Chrome debuggers to CEF
-					args.push_back("--remote-allow-origins=*");
-					allOriginsAllowed = true;
+			uint64_t uiLaunchAttempt = 0;
+			for (;;) {
+				// compose optional cli args for cef process tree
+				auto args = std::vector<std::string>{
+					opt.filesWorking ? "--p2c-files-working"s : ""s,
+					opt.traceExceptions ? "--p2c-trace-exceptions"s : ""s,
+					opt.logFolder ? "--p2c-log-folder"s : ""s, *opt.logFolder,
+				} | vi::filter(std::not_fn(&std::string::empty)) | rn::to<std::vector>();
+				// forward verbose module options
+				if (opt.logVerboseModules) {
+					args.push_back("--p2c-log-verbose-modules"s);
+					args.append_range(*opt.logVerboseModules | vi::transform(util::log::GetVerboseModuleName));
 				}
-				args.push_back("--p2c-" + f);
-			}
-			for (auto& o : *opt.uiOptions) {
-				if (o.first == "url" && is_debug && !allOriginsAllowed) {
-					// needed in order to connect Chrome debuggers to CEF
-					args.push_back("--remote-allow-origins=*");
-				}
-				args.push_back("--p2c-" + o.first);
-				args.push_back(o.second);
-			}
-			const auto cefLogPipe = std::format("pm-ui-log-{}", GetCurrentProcessId());
-			// add fixed CLI options to the args vector
-			args.append_range(std::vector{
-				"--p2c-log-level"s, util::log::GetLevelName(*opt.logLevel),
-				"--p2c-log-trace-level"s, util::log::GetLevelName(*opt.logTraceLevel),
-				"--p2c-act-name"s, actName,
-				"--p2c-log-pipe-name"s, cefLogPipe
-			});
-			// launch the CEF browser process, which in turn launches all the other processes in the CEF process constellation
-			auto cefChild = [&] {
-				// WORKAROUND: keep a relative exe name while forcing install-dir cwd for child startup.
-				// Remove this when our Boost.Process version no longer breaks cli args for absolute exe paths.
-				::pmon::util::file::ScopedWorkingDirectory setInstallWorkingDirectory{
-					infra::util::FolderResolver::ResolveInstallPath()
-				};
-				if (util::win::WeAreElevated()) {
-					try {
-						pmlog_info("detected elevation, attempting integrity downgrade");
-						auto mediumTokenPack = util::win::PrepareMediumIntegrityToken();
-						return bp2::windows::as_user_launcher{ mediumTokenPack.hMediumToken.Get() }(
-							ioctx, "PresentMonUI.exe"s, args
-							);
+				bool allOriginsAllowed = false;
+				for (auto& f : *opt.uiFlags) {
+					if (f == "enable-chromium-debug") {
+						// needed in order to connect Chrome debuggers to CEF
+						args.push_back("--remote-allow-origins=*");
+						allOriginsAllowed = true;
 					}
-					catch (...) {
-						pmlog_warn(util::ReportException("Failed to downgrade integrity, falling back to standard process spawn"));
-					}
+					args.push_back("--p2c-" + f);
 				}
-				return bp2::windows::default_launcher{}(
-					ioctx, "PresentMonUI.exe"s, args
-					);
-			}();
+				for (auto& o : *opt.uiOptions) {
+					if (o.first == "url" && is_debug && !allOriginsAllowed) {
+						// needed in order to connect Chrome debuggers to CEF
+						args.push_back("--remote-allow-origins=*");
+					}
+					args.push_back("--p2c-" + o.first);
+					args.push_back(o.second);
+				}
+				const auto cefLogPipe = std::format("pm-ui-log-{}-{}", GetCurrentProcessId(), uiLaunchAttempt++);
+				// add fixed CLI options to the args vector
+				args.append_range(std::vector{
+					"--p2c-log-level"s, util::log::GetLevelName(*opt.logLevel),
+					"--p2c-log-trace-level"s, util::log::GetLevelName(*opt.logTraceLevel),
+					"--p2c-ui-mutex-name"s, *opt.uiMutexName,
+					"--p2c-act-name"s, actName,
+					"--p2c-log-pipe-name"s, cefLogPipe
+				});
+				// launch the CEF browser process, which in turn launches all the other processes in the CEF process constellation
+				auto cefChild = [&] {
+					// WORKAROUND: keep a relative exe name while forcing install-dir cwd for child startup.
+					// Remove this when our Boost.Process version no longer breaks cli args for absolute exe paths.
+					::pmon::util::file::ScopedWorkingDirectory setInstallWorkingDirectory{
+						infra::util::FolderResolver::ResolveInstallPath()
+					};
+					if (util::win::WeAreElevated()) {
+						try {
+							pmlog_info("detected elevation, attempting integrity downgrade");
+							auto mediumTokenPack = util::win::PrepareMediumIntegrityToken();
+							return bp2::windows::as_user_launcher{ mediumTokenPack.hMediumToken.Get() }(
+								ioctx, "PresentMonUI.exe"s, args
+								);
+						}
+						catch (...) {
+							pmlog_warn(util::ReportException("Failed to downgrade integrity, falling back to standard process spawn"));
+						}
+					}
+					return bp2::windows::default_launcher{}(
+						ioctx, "PresentMonUI.exe"s, args
+						);
+				}();
 
-			// connect logging to the CEF process constellation
-			ConnectToLoggingSourcePipe(cefLogPipe);
+				KillOnCloseJob uiJob{ cefChild.native_handle() };
 
-			// don't exit this process until the CEF control panel exits
-			cefChild.wait();
+				// connect logging to the CEF process constellation
+				ConnectToLoggingSourcePipe(cefLogPipe);
+
+				// don't exit this process until the CEF control panel exits
+				const auto cefExitCode = cefChild.wait();
+				if (cefExitCode == p2c::client::util::UiAlreadyRunningExitCode) {
+					pmlog_warn("UI client reported existing browser process; handling duplicate UI launch action");
+					if (const auto duplicateResult = HandleConcurrentUiInstance_(*opt.uiMutexName, *opt.duplicateUiResponse)) {
+						return duplicateResult;
+					}
+					continue;
+				}
+				if (cefExitCode != 0) {
+					pmlog_warn(std::format("UI client exited with code {}", cefExitCode));
+					return cefExitCode;
+				}
+				break;
+			}
 		}
 		// TODO: organize headless CLI code into own source modules
 		else if (opt.subcCapture.Active()) {

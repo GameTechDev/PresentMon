@@ -56,3 +56,8 @@ namespace LoggingTests
 {
 	static constexpr const char* logFolder_ = "TestLogs\\LoggingTests";
 }
+
+namespace UiLaunchTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\UiLaunch";
+}

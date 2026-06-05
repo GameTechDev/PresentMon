@@ -9,6 +9,7 @@ import CaptureConfigView from '@/views/CaptureConfigView.vue'
 import FlashConfigView from '@/views/FlashConfigView.vue'
 import OtherConfigView from '@/views/OtherConfigView.vue'
 import LoggingConfigView from '@/views/LoggingConfigView.vue'
+import AboutConfigView from '@/views/AboutConfigView.vue'
 
 const router = createRouter({
   history: createMemoryHistory(),
@@ -63,6 +64,11 @@ const router = createRouter({
       path: '/other',
       name: 'other-config',
       component: OtherConfigView,
+    },
+    {
+      path: '/about',
+      name: 'about-config',
+      component: AboutConfigView,
     },
     {
       path: '/flash',
