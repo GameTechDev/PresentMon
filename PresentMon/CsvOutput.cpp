@@ -1099,15 +1099,18 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
     }
     if (args.mWriteFrameId) {
         fwprintf(fp, L",%u", p.FrameId);
+    }
+    if (args.mWriteDisplayMetadata) {
+        fwprintf(fp, L",%llu", metrics.presentId);
+    }
+    if (args.mWriteFrameId) {
+        fwprintf(fp, L",%u", p.FrameId);
         if (args.mTrackAppTiming) {
             fwprintf(fp, L",%u", p.AppFrameId);
         }
         if (args.mTrackPcLatency) {
             fwprintf(fp, L",%u", p.PclFrameId);
         }
-    }
-    if (args.mWriteDisplayMetadata) {
-        fwprintf(fp, L",%llu", metrics.presentId);
     }
     fwprintf(fp, L"\n");
 
