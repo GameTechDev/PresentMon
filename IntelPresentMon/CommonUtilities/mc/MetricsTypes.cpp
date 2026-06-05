@@ -68,7 +68,8 @@ namespace pmon::util::metrics {
         frame.appFrameId = p.AppFrameId;
         frame.pclFrameId = p.PclFrameId;
 
-        // Extract VidPnSourceId and layer index from PresentIds if available for display identification
+        // Extract VidPnSourceId and layer index from ReportedPresentIds if available 
+        // for display identification
         if (!p.ReportedPresentIds.empty()) {
             auto presentIdEntry = p.ReportedPresentIds.begin();
             // VidPnSourceId and Layer Index are encoded in the key
