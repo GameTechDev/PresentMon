@@ -1104,7 +1104,6 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
         fwprintf(fp, L",%llu", metrics.presentId);
     }
     if (args.mWriteFrameId) {
-        fwprintf(fp, L",%u", p.FrameId);
         if (args.mTrackAppTiming) {
             fwprintf(fp, L",%u", p.AppFrameId);
         }
