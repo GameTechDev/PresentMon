@@ -44,9 +44,12 @@ namespace pmon::util::metrics
             holdBucket.pop_back();
         }
     }
-    // -------------------------------------------------------------------------
-    // Ingest (design: Pipeline -> Ingest)
-    // -------------------------------------------------------------------------
+
+    // Ingest is called for every present and is responsible for expanding presents into display instances,
+    // attaching animation contexts from the AnimationErrorTracker, and buffering until the publish policy allows
+    // rows to be released. The general flow is: if not displayed, buffer if there's an anchor or emit immediately if not;
+    // if displayed and not an app anchor, buffer until the next app anchor; if displayed and an app anchor,
+    // close the prior interval with this anchor and buffer until lookahead information is available to release.
     std::vector<ReadyDisplayRow> DisplayFrameQueue::Ingest(
         const QpcConverter& qpc,
         FrameData present,
@@ -56,6 +59,8 @@ namespace pmon::util::metrics
         const FrameData* ingestPreviousPresent =
             lastIngestedPresent_.has_value() ? &lastIngestedPresent_.value() : nullptr;
 
+        // Ingest may move `present` (not-displayed path); keep a copy for lastIngestedPresent_
+        // after processing while ingestPreviousPresent still refers to the prior ingest above.
         FrameData presentForIngestHistory = present;
 
         std::vector<ReadyDisplayRow> ready;
@@ -91,6 +96,12 @@ namespace pmon::util::metrics
         lastIngestedPresent_ = std::move(presentForIngestHistory);
         return ready;
     }
+
+    // NoteSeedPresent is used to track the most recent present that has been ingested,
+    // regardless of whether it's displayed or not. This is used by the AnimationErrorTracker
+    // to resolve anchors for app anchor rows that are ingested before the next app anchor
+    // closes the interval, as well as for generated rows that are ingested before any app
+    // anchor has been seen.
     void DisplayFrameQueue::NoteSeedPresent(const FrameData& seedPresent)
     {
         lastIngestedPresent_ = seedPresent;
@@ -107,9 +118,9 @@ namespace pmon::util::metrics
         blockedNotDisplayedPresents_.clear();
         lastIngestedPresent_.reset();
     }
-    // -------------------------------------------------------------------------
-    // Ready display row (design: Ready Display Row)
-    // -------------------------------------------------------------------------
+
+    // BuildDisplayInstanceRow_ takes the incoming present, display
+    // index and chain state to start building up a display ready row
     ReadyDisplayRow DisplayFrameQueue::BuildDisplayInstanceRow_(
         const FrameData& present,
         size_t displayIndex,
@@ -129,6 +140,8 @@ namespace pmon::util::metrics
         row.displayIndex = displayIndex;
         row.previousDisplayedScreenTime = previousScreenTime;
         row.screenTime = screenTime;
+        // Note that nextScreenTime will be equal to screenTime if the
+        // display count is 1
         row.nextScreenTime = nextScreenTime;
         row.isDisplayed = true;
         row.isAppFrame = IsAppAnchor_(frameType);
@@ -169,16 +182,14 @@ namespace pmon::util::metrics
             awaitingLookaheadBucket.push_back(std::move(row));
         }
     }
-    // -------------------------------------------------------------------------
-    // Release rule (design: Release Rule)
-    // -------------------------------------------------------------------------
+
+    // OnNextDisplayedFrame_ is invoked for each displayed instance during ingest. It uses the new
+    // instance's screen time as nextScreenTime for rows that were held until display timing was known,
+    // then moves them to ready.
     void DisplayFrameQueue::OnNextDisplayedFrame_(
         uint64_t nextScreenTime,
         std::vector<ReadyDisplayRow>& ready)
     {
-        // If the closedIntervalAwaitingLookahead_ is not empty, it means we've closed an interval with an app anchor and
-        // are waiting for the next displayed frame to release those rows with animation metrics. Set the next screen time 
-        // for those rows and move them to ready as we now have the necessary lookahead information to release them. 
         if (!closedIntervalAwaitingLookahead_.empty()) {
             closedIntervalAwaitingLookahead_.back().nextScreenTime = nextScreenTime;
             MoveAllToReady_(closedIntervalAwaitingLookahead_, ready);

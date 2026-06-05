@@ -61,10 +61,15 @@ namespace pmon::util::metrics
         }
     }
 
+    // ProcessPresent is the main entry point for processing a present through the
+    // metric calculation and publish policy. It returns the ProcessPresentRows that
+    // should be published.
     std::vector<ProcessPresentRow> UnifiedSwapChain::ProcessPresent(
         const QpcConverter& qpc,
         FrameData present)
     {
+        // If this is the first present for the swap chain, seed the swap chain state and display queue without
+        // applying any publish policy since some metrics require swap chain history to compute.
         if (!swapChain.lastPresent.has_value()) {
             SanitizeDisplayedRepeatedPresents(present);
             swapChain.UpdateAfterPresent(present);
@@ -72,6 +77,7 @@ namespace pmon::util::metrics
             return {};
         }
 
+        // Enqueue the present and get any ready display rows that can be applied according to the publish policy.
         auto ready = EnqueueReadyDisplayRows(qpc, std::move(present));
         return ApplyReadyDisplayRows(qpc, ready);
     }
