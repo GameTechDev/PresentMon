@@ -1,9 +1,7 @@
-#pragma once
+﻿#pragma once
 #include <optional>
 #include <string>
 #include <memory>
-#include "../../ControlLib/PresentMonPowerTelemetry.h"
-#include "../../ControlLib/CpuTelemetryInfo.h"
 #include "../../PresentMonAPI2/PresentMonAPI.h"
 #include "DataStores.h"
 #include "OwnedDataSegment.h"

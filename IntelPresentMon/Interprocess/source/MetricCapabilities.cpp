@@ -1,9 +1,24 @@
 ﻿#include "MetricCapabilities.h"
+#include "metadata/MetricList.h"
 #include <sstream>
 #include <type_traits>
 
 namespace pmon::ipc
 {
+    namespace
+    {
+        const char* GetMetricSymbol_(PM_METRIC metricId) noexcept
+        {
+            switch (metricId) {
+#define X_(id_, ...) case id_: return #id_;
+                METRIC_LIST(X_)
+#undef X_
+            default:
+                return "PM_METRIC_UNKNOWN";
+            }
+        }
+    }
+
     void MetricCapabilities::Set(PM_METRIC metricId, size_t arraySize)
     {
         if (arraySize == 0) {
@@ -51,7 +66,8 @@ namespace pmon::ipc
                 oss << indent;
             }
             first = false;
-            oss << "metricId=" << static_cast<std::underlying_type_t<PM_METRIC>>(kv.first)
+            oss << "metric=" << GetMetricSymbol_(kv.first)
+                << " metricId=" << static_cast<std::underlying_type_t<PM_METRIC>>(kv.first)
                 << " arraySize=" << kv.second;
         }
         return oss.str();

@@ -46,6 +46,18 @@ namespace pmon::util::win
 
     void ProcessMapBuilder::FilterHavingAncestor(DWORD pidRoot)
     {
+        std::unordered_set<DWORD> whiteList;
+        for (const auto pid : GetChildTreePostOrder(pidRoot)) {
+            whiteList.emplace(pid);
+        }
+        // prune all processes not in ancestry set
+        std::erase_if(map, [&](const ProcMap::value_type& v) {
+            return !whiteList.contains(v.second.pid);
+        });
+    }
+
+    std::vector<DWORD> ProcessMapBuilder::GetChildTreePostOrder(DWORD pidRoot) const
+    {
         // building a map of parentId => childId
         std::unordered_multimap<DWORD, DWORD> parentMap;
         for (auto& e : map) {
@@ -53,23 +65,10 @@ namespace pmon::util::win
                 parentMap.emplace(e.second.parentId, e.second.pid);
             }
         }
-        std::unordered_set<DWORD> whiteList;
-        std::function<void(DWORD)> visit;
-        visit = [&](DWORD pidRoot) {
-            // add root to whitelist
-            whiteList.emplace(pidRoot);
-            // visit all children
-            const auto r = parentMap.equal_range(pidRoot);
-            for (auto i = r.first; i != r.second; i++) {
-                visit(i->second);
-            }
-        };
-        // recursive building of ancestry tree (set)
-        visit(pidRoot);
-        // prune all processes not in ancestry set
-        std::erase_if(map, [&](const ProcMap::value_type& v) {
-            return !whiteList.contains(v.second.pid);
-        });
+
+        std::vector<DWORD> order;
+        AppendChildTreePostOrder_(pidRoot, parentMap, order);
+        return order;
     }
 
     ProcessMapBuilder::NameMap ProcessMapBuilder::AsNameMap(bool lowercase) const
@@ -117,7 +116,8 @@ namespace pmon::util::win
         auto processes_snapshot = (Handle)CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (processes_snapshot == INVALID_HANDLE_VALUE)
         {
-            pmlog_error("Failed to get process snapshot").hr().raise<HrError>();
+            pmlog_error("Failed to get process snapshot").hr();
+            throw Except<HrError>("Failed to get process snapshot");
         }
 
         Process32FirstW(processes_snapshot, &process_info);
@@ -131,6 +131,19 @@ namespace pmon::util::win
                 .name =     process_info.szExeFile,
             });
         }
+    }
+
+    void ProcessMapBuilder::AppendChildTreePostOrder_(
+        DWORD pidRoot,
+        const std::unordered_multimap<DWORD, DWORD>& parentMap,
+        std::vector<DWORD>& order) const
+    {
+        // visit all children first so callers can act child-before-parent
+        const auto r = parentMap.equal_range(pidRoot);
+        for (auto i = r.first; i != r.second; i++) {
+            AppendChildTreePostOrder_(i->second, parentMap, order);
+        }
+        order.push_back(pidRoot);
     }
 
     bool ProcessMapBuilder::WindowIsMain_(HWND hWnd)

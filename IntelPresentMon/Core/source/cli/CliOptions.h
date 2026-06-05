@@ -3,16 +3,34 @@
 #include <CommonUtilities/log/Level.h>
 #include <PresentMonService/GlobalIdentifiers.h>
 #include <format>
+#include <map>
 
 namespace p2c::cli
 {
 	using namespace ::pmon::util;
 	using namespace ::pmon::util::cli;
+	enum class DuplicateUiResponse
+	{
+		Ask,
+		Yes,
+		No,
+	};
+
+	inline std::map<std::string, DuplicateUiResponse> GetDuplicateUiResponseMap()
+	{
+		return {
+			{ "ask", DuplicateUiResponse::Ask },
+			{ "yes", DuplicateUiResponse::Yes },
+			{ "no", DuplicateUiResponse::No },
+		};
+	}
+
 	struct Options : public OptionsBase<Options>
 	{
 	private:
 		CLI::CheckedTransformer logLevelTf_{ log::GetLevelMapNarrow(), CLI::ignore_case };
 		CLI::CheckedTransformer logVmodTf_{ log::GetVerboseModuleMapNarrow(), CLI::ignore_case };
+		CLI::CheckedTransformer duplicateUiResponseTf_{ GetDuplicateUiResponseMap(), CLI::ignore_case };
 
 	private: Group gs_{ this, "Standard", "Useful to end users in production"}; public:
 		Flag allowTearing{ this, "--allow-tearing", "Allow tearing presents for overlay (optional, might affect VRR)" };
@@ -39,12 +57,14 @@ namespace p2c::cli
 		Flag logSvcPipeEnable{ this, "--log-svc-pipe-enable", "Enable pipe connection to service IPC log stream" };
 		Flag logMiddlewareCopy{ this, "--log-middleware-copy", "Copy log entries from middleware channel to this client" };
 		Flag logSynchronous{ this, "--log-synchronous", "Enable synchronous logging (submit waits for processing and flush)" };
-		Flag logFlushOnCrash{ this, "--log-flush-on-crash", "Install best-effort crash/terminate log flush hooks" };
 		Option<std::vector<log::V>> logVerboseModules{ this, "--log-verbose-modules", {}, "Verbose logging modules to enable", logVmodTf_ };
 
 	private: Group gu_{ this, "CEF UI", "Options to pass thru to the CEF UI system" }; public:
 		Option<std::vector<std::pair<std::string, std::string>>> uiOptions{ this, "--ui-option", {}, "Parameterized options to pass to UI process (omit --p2c- prefix)" };
 		Option<std::vector<std::string>> uiFlags{ this, "--ui-flag", {}, "Parameterized options to pass to UI process (omit --p2c- prefix)" };
+		Option<std::string> uiMutexName{ this, "--ui-mutex-name", "UiBrowserProcess", "Suffix for the UI browser process mutex name" };
+		Option<DuplicateUiResponse> duplicateUiResponse{ this, "--duplicate-ui-response", DuplicateUiResponse::Ask,
+			"Automatic response for duplicate UI prompt: ask, yes, or no", duplicateUiResponseTf_ };
 
 	private: Group gi_{ this, "Internal", "Internal options, do not supply manually"}; public:
 		Option<std::string> middlewareDllPath{ this, "--middleware-dll-path", "", "Override middleware DLL path discovery with custom path" };

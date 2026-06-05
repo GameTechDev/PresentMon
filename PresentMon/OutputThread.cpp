@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -248,6 +248,12 @@ static void PruneOldSwapChainData(
     PMTraceSession const& pmSession,
     uint64_t latestTimestamp)
 {
+    // ETL replay can process large present batches with a wide QPC span; end-of-batch
+    // pruning is unreliable and breaks steady-presenter debugging. Realtime keeps pruning.
+    if (GetCommandLineArgs().mEtlFileName != nullptr) {
+        return;
+    }
+
     // sometimes we arrive here after skipping all frame events in the processing loop,
     // in which case we don't have a valid timestamp for the latest frame and should not
     // attempt to do any pruning during this pass
@@ -394,7 +400,7 @@ static FrameMetrics1 ToFrameMetrics1(pmon::util::metrics::FrameMetrics const& m)
     out.msVideoDuration = m.msVideoDuration;
     out.msSinceInput = m.msSinceInput;
     out.qpcScreenTime = m.screenTimeQpc;
-    out.msFlipDelay = m.msFlipDelay.has_value() ? m.msFlipDelay.value() : 0.0;
+    out.msFlipDelay = pmon::util::metrics::IsMissingFrameMetricValue(m.msFlipDelay) ? 0.0 : m.msFlipDelay;
     return out;
 }
 

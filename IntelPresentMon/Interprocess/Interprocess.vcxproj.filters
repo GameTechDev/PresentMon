@@ -33,9 +33,6 @@
     <ClCompile Include="source\ShmNamer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\MetricCapabilitiesShim.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="source\MetricCapabilities.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -107,9 +104,6 @@
     <ClInclude Include="source\metadata\StatsShortcuts.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\IntrospectionCapsLookup.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="source\IntrospectionHelpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -177,9 +171,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="source\ViewedDataSegment.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="source\MetricCapabilitiesShim.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="source\SystemDeviceId.h">

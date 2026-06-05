@@ -34,6 +34,7 @@ namespace p2c::kern
 	private:
         // functions
         void HandleProcessSpawnEvents_();
+        void RegisterExistingWindows_(DWORD pid);
         // data
         ::pmon::util::win::com::WbemConnection& wbemConn;
 		std::unique_ptr<Overlay> pOverlay;

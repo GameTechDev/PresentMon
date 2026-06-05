@@ -3,7 +3,6 @@
   <ItemGroup>
     <ClCompile Include="ActionServer.cpp" />
     <ClCompile Include="PMMainThread.cpp" />
-    <ClCompile Include="PowerTelemetryContainer.cpp" />
     <ClCompile Include="PresentMon.cpp" />
     <ClCompile Include="Service.cpp" />
     <ClCompile Include="ServiceMain.cpp" />
@@ -20,7 +19,6 @@
   <ItemGroup>
     <ClInclude Include="LateStageReprojectionData.hpp" />
     <ClInclude Include="ActionServer.h" />
-    <ClInclude Include="PowerTelemetryContainer.h" />
     <ClInclude Include="PresentMon.h" />
     <ClInclude Include="Service.h" />
     <ClInclude Include="CliOptions.h" />
@@ -31,10 +29,9 @@
     <ClInclude Include="MockPresentMonSession.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="LogSetup.h" />
+    <ClInclude Include="MetricUse.h" />
     <ClInclude Include="acts\OpenSession.h" />
     <ClInclude Include="acts\StartTracking.h" />
-    <ClInclude Include="acts\GetStaticCpuMetrics.h" />
-    <ClInclude Include="acts\EnumerateAdapters.h" />
     <ClInclude Include="acts\SetTelemetryPeriod.h" />
     <ClInclude Include="acts\StopTracking.h" />
     <ClInclude Include="AllActions.h" />
@@ -50,11 +47,13 @@
     <ClInclude Include="acts\FinishEtlLogging.h" />
     <ClInclude Include="FrameBroadcaster.h" />
     <ClInclude Include="acts\ReportMetricUse.h" />
+    <ClInclude Include="acts\ReportFrameReadProgress.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PresentMonService.rc" />
   </ItemGroup>
   <ItemGroup>
     <None Include="build-scripts\pre-build.bat" />
+    <None Include="..\..\PresentMon\ddETWExternal.xml" />
   </ItemGroup>
 </Project>

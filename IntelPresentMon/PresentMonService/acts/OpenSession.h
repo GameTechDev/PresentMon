@@ -1,7 +1,12 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
+#include "../ActionExecutionContext.h"
 #include "../../Versioning/BuildId.h"
 #include <format>
+
+#ifndef PM_VER_PRODUCT_STR
+#define PM_VER_PRODUCT_STR "unknown"
+#endif
 
 #define ACT_NAME OpenSession
 #define ACT_EXEC_CTX ActionExecutionContext
@@ -29,12 +34,14 @@ namespace pmon::svc::acts
 		struct Response {
 			uint32_t servicePid;
 			std::string serviceBuildId;
+			std::string serviceBuildTime;
+			std::string serviceVersion;
 			std::string serviceBuildConfig;
 			std::string shmPrefix;
 			std::string shmSalt;
 
 			template<class A> void serialize(A& ar) {
-				ar(servicePid, serviceBuildId, serviceBuildConfig, shmPrefix, shmSalt);
+				ar(servicePid, serviceBuildId, serviceBuildTime, serviceVersion, serviceBuildConfig, shmPrefix, shmSalt);
 			}
 		};
 	private:
@@ -45,11 +52,13 @@ namespace pmon::svc::acts
 			stx.clientBuildId = in.clientBuildId;
 			ctx.pSvc->SignalClientSessionOpened();
 			pmlog_info(std::format("Open action for session #{} pid={}; [BID] cli={} svc={} [CFG] cli={} svc={}",
-				stx.pConn->GetId(), in.clientPid, in.clientBuildId, bid::BuildIdShortHash(),
+				stx.pConn->GetId(), in.clientPid, in.clientBuildId, bid::BuildIdLongHash(),
 				in.clientBuildConfig, bid::BuildIdConfig()));
 			return Response{
 				.servicePid = GetCurrentProcessId(),
-				.serviceBuildId = bid::BuildIdShortHash(),
+				.serviceBuildId = bid::BuildIdLongHash(),
+				.serviceBuildTime = bid::BuildIdTimestamp(),
+				.serviceVersion = PM_VER_PRODUCT_STR,
 				.serviceBuildConfig = bid::BuildIdConfig(),
 				.shmPrefix = ctx.pPmon->GetBroadcaster().GetNamer().GetPrefix(),
 				.shmSalt = ctx.pPmon->GetBroadcaster().GetNamer().GetSalt(),

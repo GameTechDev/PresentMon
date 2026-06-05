@@ -7,6 +7,16 @@
 static FILE* gGlobalOutputCsv = nullptr;
 static uint32_t gRecordingCount = 1;
 
+static bool HasFrameMetricValue(double value)
+{
+    return !pmon::util::metrics::IsMissingFrameMetricValue(value);
+}
+
+static void WriteMetricOrZero(FILE* fp, double value, int precision = 4)
+{
+    fwprintf(fp, L",%.*lf", precision, HasFrameMetricValue(value) ? value : 0);
+}
+
 void IncrementRecordingCount()
 {
     gRecordingCount += 1;
@@ -195,6 +205,15 @@ void WriteCsvHeader<FrameMetrics1>(FILE* fp)
     if (args.mCSVOutput == CSVOutput::Stdout) {
         fflush(fp);
     }
+}
+
+// This is a generic template that will be specialized for FrameMetrics1 and FrameMetrics.
+template<typename FrameMetricsT>
+void WriteCsvRow(FILE* fp, PMTraceSession const& pmSession, ProcessInfo const& processInfo, PresentEvent const& p, FrameMetricsT const& metrics)
+{
+    // This template should not be called directly.
+    // Specializations for FrameMetrics1 and FrameMetrics are provided below.
+    static_assert(sizeof(FrameMetricsT) == 0, "WriteCsvRow must be specialized for the given FrameMetricsT type.");
 }
 
 template<>
@@ -780,9 +799,9 @@ void WriteCsvRow<FrameMetrics>(
     }
 
     // MsBetweenAppStart, MsCPUBusy, MsCPUWait
-    fwprintf(fp, L",%.4lf,%.4lf,%.4lf", metrics.mMsCPUBusy + metrics.mMsCPUWait,
-        metrics.mMsCPUBusy,
-        metrics.mMsCPUWait);
+    WriteMetricOrZero(fp, metrics.mMsCPUBusy + metrics.mMsCPUWait);
+    WriteMetricOrZero(fp, metrics.mMsCPUBusy);
+    WriteMetricOrZero(fp, metrics.mMsCPUWait);
 
     if (args.mTrackGPU) {
         fwprintf(fp, L",%.4lf,%.4lf,%.4lf,%.4lf", metrics.mMsGPULatency,
@@ -932,8 +951,8 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
         }
 
         // MsBetweenSimulationStart
-        if (metrics.msBetweenSimStarts.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msBetweenSimStarts.value());
+        if (HasFrameMetricValue(metrics.msBetweenSimStarts)) {
+            fwprintf(fp, L",%.4lf", metrics.msBetweenSimStarts);
         }
         else {
             fwprintf(fp, L",NA");
@@ -968,8 +987,8 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
             }
         }
         if (args.mTrackPcLatency) {
-            if (metrics.msPcLatency.has_value()) {
-                fwprintf(fp, L",%.4lf", metrics.msPcLatency.value());
+            if (HasFrameMetricValue(metrics.msPcLatency)) {
+                fwprintf(fp, L",%.4lf", metrics.msPcLatency);
             }
             else {
                 fwprintf(fp, L",NA");
@@ -1006,9 +1025,9 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
     }
 
     // MsBetweenAppStart, MsCPUBusy, MsCPUWait
-    fwprintf(fp, L",%.4lf,%.4lf,%.4lf", metrics.msCPUBusy + metrics.msCPUWait,
-        metrics.msCPUBusy,
-        metrics.msCPUWait);
+    WriteMetricOrZero(fp, metrics.msCPUBusy + metrics.msCPUWait);
+    WriteMetricOrZero(fp, metrics.msCPUBusy);
+    WriteMetricOrZero(fp, metrics.msCPUWait);
 
     if (args.mTrackGPU) {
         fwprintf(fp, L",%.4lf,%.4lf,%.4lf,%.4lf", metrics.msGPULatency,
@@ -1029,42 +1048,42 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
                     metrics.msDisplayedTime);
             }
         }
-        if (metrics.msAnimationError.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAnimationError.value());
+        if (HasFrameMetricValue(metrics.msAnimationError)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationError);
         }
         else {
             fwprintf(fp, L",NA");
         }
-        if (metrics.msAnimationTime.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAnimationTime.value());
+        if (HasFrameMetricValue(metrics.msAnimationTime)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationTime);
         }
         else {
             fwprintf(fp, L",NA");
         }
-        if (metrics.msFlipDelay.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msFlipDelay.value());
+        if (HasFrameMetricValue(metrics.msFlipDelay)) {
+            fwprintf(fp, L",%.4lf", metrics.msFlipDelay);
         }
         else {
             fwprintf(fp, L",NA");
         }
     }
     if (args.mTrackInput) {
-        if (metrics.msAllInputPhotonLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAllInputPhotonLatency.value());
+        if (HasFrameMetricValue(metrics.msAllInputPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msAllInputPhotonLatency);
         }
         else {
             fwprintf(fp, L",NA");
         }
-        if (metrics.msClickToPhotonLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msClickToPhotonLatency.value());
+        if (HasFrameMetricValue(metrics.msClickToPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msClickToPhotonLatency);
         }
         else {
             fwprintf(fp, L",NA");
         }
     }
     if (args.mTrackAppTiming) {
-        if (metrics.msInstrumentedLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msInstrumentedLatency.value());
+        if (HasFrameMetricValue(metrics.msInstrumentedLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msInstrumentedLatency);
         }
         else {
             fwprintf(fp, L",NA");
@@ -1157,8 +1176,8 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
         }
 
         // MsBetweenSimulationStart
-        if (metrics.msBetweenSimStarts.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msBetweenSimStarts.value());
+        if (HasFrameMetricValue(metrics.msBetweenSimStarts)) {
+            fwprintf(fp, L",%.4lf", metrics.msBetweenSimStarts);
         }
         else {
             fwprintf(fp, L",NA");
@@ -1193,8 +1212,8 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
             }
         }
         if (args.mTrackPcLatency) {
-            if (metrics.msPcLatency.has_value()) {
-                fwprintf(fp, L",%.4lf", metrics.msPcLatency.value());
+            if (HasFrameMetricValue(metrics.msPcLatency)) {
+                fwprintf(fp, L",%.4lf", metrics.msPcLatency);
             }
             else {
                 fwprintf(fp, L",NA");
@@ -1231,9 +1250,9 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
     }
 
     // MsBetweenAppStart, MsCPUBusy, MsCPUWait
-    fwprintf(fp, L",%.4lf,%.4lf,%.4lf", metrics.msCPUBusy + metrics.msCPUWait,
-        metrics.msCPUBusy,
-        metrics.msCPUWait);
+    WriteMetricOrZero(fp, metrics.msCPUBusy + metrics.msCPUWait);
+    WriteMetricOrZero(fp, metrics.msCPUBusy);
+    WriteMetricOrZero(fp, metrics.msCPUWait);
 
     if (args.mTrackGPU) {
         fwprintf(fp, L",%.4lf,%.4lf,%.4lf,%.4lf", metrics.msGPULatency,
@@ -1254,14 +1273,14 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
                     metrics.msDisplayedTime);
             }
         }
-        if (metrics.msAnimationError.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAnimationError.value());
+        if (HasFrameMetricValue(metrics.msAnimationError)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationError);
         }
         else {
             fwprintf(fp, L",NA");
         }
-        if (metrics.msAnimationTime.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAnimationTime.value());
+        if (HasFrameMetricValue(metrics.msAnimationTime)) {
+            fwprintf(fp, L",%.4lf", metrics.msAnimationTime);
         }
         else {
             if (metrics.msDisplayedTime == 0.0 || (metrics.frameType != FrameType::Application && metrics.frameType != FrameType::NotSet)) {
@@ -1271,30 +1290,30 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
                 fwprintf(fp, L",%.4lf", 0.0);
             }
         }
-        if (metrics.msFlipDelay.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msFlipDelay.value());
+        if (HasFrameMetricValue(metrics.msFlipDelay)) {
+            fwprintf(fp, L",%.4lf", metrics.msFlipDelay);
         }
         else {
             fwprintf(fp, L",NA");
         }
     }
     if (args.mTrackInput) {
-        if (metrics.msAllInputPhotonLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msAllInputPhotonLatency.value());
+        if (HasFrameMetricValue(metrics.msAllInputPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msAllInputPhotonLatency);
         }
         else {
             fwprintf(fp, L",NA");
         }
-        if (metrics.msClickToPhotonLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msClickToPhotonLatency.value());
+        if (HasFrameMetricValue(metrics.msClickToPhotonLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msClickToPhotonLatency);
         }
         else {
             fwprintf(fp, L",NA");
         }
     }
     if (args.mTrackAppTiming) {
-        if (metrics.msInstrumentedLatency.has_value()) {
-            fwprintf(fp, L",%.4lf", metrics.msInstrumentedLatency.value());
+        if (HasFrameMetricValue(metrics.msInstrumentedLatency)) {
+            fwprintf(fp, L",%.4lf", metrics.msInstrumentedLatency);
         }
         else {
             fwprintf(fp, L",NA");

@@ -29,9 +29,6 @@
     <ClInclude Include="kact\AllActions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="kact\EnumerateAdapters.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="kact\Introspect.h">
       <Filter>Header Files</Filter>
     </ClInclude>

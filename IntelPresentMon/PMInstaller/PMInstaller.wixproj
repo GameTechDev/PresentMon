@@ -139,7 +139,7 @@
     <!-- Build the wixlib first -->
     <MSBuild Projects="..\PMInstallerLib\PMInstallerLib.wixproj"
              Targets="Build"
-             Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+             Properties="Configuration=$(Configuration);Platform=$(Platform);PMON_UCI_SDK_DIR=$(PMON_UCI_SDK_DIR)" />
     <ItemGroup>
       <WixLibrary Include="$(SolutionDir)build\$(Configuration)\PMInstallerLib.wixlib"
                   Condition="Exists('$(SolutionDir)build\$(Configuration)\PMInstallerLib.wixlib')" />
@@ -147,6 +147,10 @@
       <Message Text="@@ Linking wixlibs: @(WixLibrary)" Importance="High" />
       <Error Condition="'@(WixLibrary)' == ''"
              Text="No wixlib found under $(SolutionDir)build\$(Configuration)\ (or ...\en-us\). Build produced nothing." />
+  </Target>
+
+  <Target Name="ValidateCefInstallerInputs" BeforeTargets="Compile">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\AppCef\Batch\validate-cef.ps1&quot; -Mode Installer -OutputRoot &quot;$(MSBuildThisFileDirectory)..\..\build\$(Configuration)&quot;" />
   </Target>
 
     <!--

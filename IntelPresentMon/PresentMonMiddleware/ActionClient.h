@@ -39,12 +39,12 @@ namespace pmon::mid
         {
             auto res = DispatchSync(OpenSession::Params{
                 .clientPid = GetCurrentProcessId(),
-                .clientBuildId = bid::BuildIdShortHash(),
+                .clientBuildId = bid::BuildIdLongHash(),
                 .clientBuildConfig = bid::BuildIdConfig(),
             });
-            if (res.serviceBuildId != bid::BuildIdShortHash()) {
+            if (res.serviceBuildId != bid::BuildIdLongHash()) {
                 pmlog_error("build id mismatch between middleware and service")
-                    .pmwatch(res.serviceBuildId).pmwatch(bid::BuildIdShortHash()).diag();
+                    .pmwatch(res.serviceBuildId).pmwatch(bid::BuildIdLongHash()).diag();
                 throw Except<ipc::PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH);
             }
             if (res.serviceBuildConfig != bid::BuildIdConfig()) {
@@ -77,7 +77,8 @@ namespace pmon::mid
                 ClientBase::DispatchDetached(std::forward<Params>(params));
             }
             catch (const ipc::act::ServerDroppedError& e) {
-                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN).raise<ipc::PmStatusError>();
+                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN);
+                throw util::Except<ipc::PmStatusError>(PM_STATUS_SESSION_NOT_OPEN, e.GetNote());
             }
         }
         template<class Params>
@@ -88,7 +89,8 @@ namespace pmon::mid
                 ClientBase::DispatchWithContinuation(std::forward<Params>(params), std::move(cont));
             }
             catch (const ipc::act::ServerDroppedError& e) {
-                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN).raise<ipc::PmStatusError>();
+                pmlog_error(e.GetNote()).code(PM_STATUS_SESSION_NOT_OPEN);
+                throw util::Except<ipc::PmStatusError>(PM_STATUS_SESSION_NOT_OPEN, e.GetNote());
             }
         }
         const std::string& GetShmPrefix() const

@@ -2,6 +2,7 @@
 #include <CommonUtilities/rng/MemberSlice.h>
 #include <CommonUtilities/rng/OptionalMinMax.h>
 #include "../Interprocess/source/act/ActionHelper.h"
+#include "LogSetup.h"
 #include <cereal/types/unordered_set.hpp>
 #include <vector>
 
@@ -9,6 +10,11 @@ namespace pmon::svc::acts
 {
     void ActionExecutionContext::Dispose(SessionContextType& stx)
     {
+        for (auto const& [pid, target] : stx.trackedPids) {
+            if (target.backpressureReadSerial) {
+                ReleaseBackpressure(pid);
+            }
+        }
         // etw log trace cleanup
         auto& etw = pPmon->GetEtwLogger();
         for (auto id : stx.etwLogSessionIds) {
@@ -19,6 +25,7 @@ namespace pmon::svc::acts
         // tracked pids cleanup
         stx.trackedPids.clear();
         pPmon->UpdateTracking(GetTrackedPidSet());
+        UpdatePeriodicLogFlushing();
         // telemetry period cleanup
         stx.requestedTelemetryPeriodMs.reset();
         UpdateTelemetryPeriod();
@@ -58,22 +65,29 @@ namespace pmon::svc::acts
     }
     void ActionExecutionContext::UpdateMetricUsage() const
     {
-        std::unordered_set<MetricUse> aggregateMetricUsage;
-        std::unordered_set<uint32_t> deviceMetricUsage;
+        auto deviceMetricUsage = std::make_shared<PresentMon::DeviceMetricUsage>();
         auto&& allUsageSets = util::rng::MemberSlice(*pSessionMap, &SessionContextType::metricUsage);
         for (auto&& clientUsageSet : allUsageSets) {
             for (auto&& usage : clientUsageSet) {
-                aggregateMetricUsage.insert(usage);
-                deviceMetricUsage.insert(usage.deviceId);
+                (*deviceMetricUsage)[usage.deviceId].insert(usage);
             }
         }
-        if (!hasLastAggregateMetricUsage || aggregateMetricUsage != lastAggregateMetricUsage) {
-            pmlog_verb(pmon::util::log::V::met_use)("Aggregate metric usage updated")
-                .serialize("aggregateMetricUsage", aggregateMetricUsage);
-            lastAggregateMetricUsage = aggregateMetricUsage;
-            hasLastAggregateMetricUsage = true;
-        }
         pPmon->SetDeviceMetricUsage(std::move(deviceMetricUsage));
+        UpdatePeriodicLogFlushing();
+    }
+    void ActionExecutionContext::UpdatePeriodicLogFlushing() const
+    {
+        bool active = false;
+        if (pSessionMap != nullptr) {
+            for (const auto& sessionEntry : *pSessionMap) {
+                const auto& session = sessionEntry.second;
+                if (!session.trackedPids.empty() || !session.metricUsage.empty()) {
+                    active = true;
+                    break;
+                }
+            }
+        }
+        logsetup::SetPeriodicLogFlushingEnabled(active);
     }
 
     std::unordered_set<uint32_t> ActionExecutionContext::GetTrackedPidSet() const
@@ -88,5 +102,14 @@ namespace pmon::svc::acts
             }
         }
         return trackedPids;
+    }
+
+    void ActionExecutionContext::ReleaseBackpressure(uint32_t pid) const
+    {
+        // Backpressured playback is SPSC, so tearing down the owner simply advances the
+        // single consumer cursor to the writer and releases any blocked producer.
+        pPmon->GetBroadcaster().UpdateReadSerial(
+            pid,
+            pPmon->GetBroadcaster().GetCurrentWriteSerial(pid).value_or(0));
     }
 }

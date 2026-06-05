@@ -1,6 +1,7 @@
 #include "IdentificationTable.h"
 #include "../win/WinAPI.h"
 #include <ranges>
+#include <algorithm>
 #include "../Exception.h"
 
 namespace pmon::util::log
@@ -50,10 +51,30 @@ namespace pmon::util::log
 		}
 	}
 
+	IdentificationTableCallbacks IdentificationTable::MakeForwardingCallbacks() noexcept
+	{
+		return {
+			.addThread = [](uint32_t tid, uint32_t pid, const char* name) {
+				IdentificationTable::AddThread(tid, pid, name ? name : "");
+			},
+			.addProcess = [](uint32_t pid, const char* name) {
+				IdentificationTable::AddProcess(pid, name ? name : "");
+			}
+		};
+	}
+
 	void IdentificationTable::RegisterSink(std::shared_ptr<IIdentificationSink> pSink) noexcept
 	{
 		try {
 			Get_().RegisterSink_(std::move(pSink));
+		}
+		catch (...) {}
+	}
+
+	void IdentificationTable::UnregisterSink(const IIdentificationSink* pSink) noexcept
+	{
+		try {
+			Get_().UnregisterSink_(pSink);
 		}
 		catch (...) {}
 	}
@@ -134,5 +155,13 @@ namespace pmon::util::log
 	{
 		std::lock_guard lk{ mtx_ };
 		sinks_.push_back(std::move(pSink));
+	}
+
+	void IdentificationTable::UnregisterSink_(const IIdentificationSink* pSink)
+	{
+		std::lock_guard lk{ mtx_ };
+		std::erase_if(sinks_, [pSink](const auto& pRegistered) {
+			return pRegistered.get() == pSink;
+		});
 	}
 }

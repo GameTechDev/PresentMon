@@ -11,9 +11,14 @@
 #include <string>
 #include <stdexcept>
 #include <map>
+#include <cmath>
+#include <limits>
 #include <optional>
+#include <cctype>
+#include <filesystem>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+namespace fs = std::filesystem;
 
 enum Header {
     Header_Application,
@@ -42,6 +47,7 @@ enum Header {
     Header_MsVideoBusy,
     Header_MsAnimationError,
     Header_AnimationTime,
+    Header_MsFlipDelay,
     Header_MsClickToPhotonLatency,
     Header_MsAllInputToPhotonLatency,
 
@@ -72,6 +78,8 @@ enum Header {
     UnknownHeader,
 };
 
+constexpr double kMissingMetricValue = std::numeric_limits<double>::quiet_NaN();
+
 struct v2Metrics {
     std::string appName;
     uint32_t processId = 0;
@@ -95,20 +103,21 @@ struct v2Metrics {
     double msGpuBusy = 0.;
     double msGpuWait = 0.;
     double msVideoBusy = 0.;
-    std::optional<double> msBetweenSimStart;
-    std::optional<double> msUntilDisplayed;
-    std::optional<double> msBetweenDisplayChange;
-    std::optional<double> msPcLatency;
-    std::optional<double> msAnimationError;
-    std::optional<double> animationTime;
-    std::optional<double> msClickToPhotonLatency;
-    std::optional<double> msAllInputToPhotonLatency;
-    std::optional<double> msInstrumentedLatency;
-    std::optional<double> msInstrumentedRenderLatency;
-    std::optional<double> msInstrumentedSleep;
-    std::optional<double> msInstrumentedGPULatency;
-    std::optional<double> msReadyTimeToDisplayLatency;
-    std::optional<double> msReprojectedLatency;
+    double msBetweenSimStart = kMissingMetricValue;
+    double msUntilDisplayed = kMissingMetricValue;
+    double msBetweenDisplayChange = kMissingMetricValue;
+    double msPcLatency = kMissingMetricValue;
+    double msAnimationError = kMissingMetricValue;
+    double animationTime = kMissingMetricValue;
+    double msFlipDelay = kMissingMetricValue;
+    double msClickToPhotonLatency = kMissingMetricValue;
+    double msAllInputToPhotonLatency = kMissingMetricValue;
+    double msInstrumentedLatency = kMissingMetricValue;
+    double msInstrumentedRenderLatency = kMissingMetricValue;
+    double msInstrumentedSleep = kMissingMetricValue;
+    double msInstrumentedGPULatency = kMissingMetricValue;
+    double msReadyTimeToDisplayLatency = kMissingMetricValue;
+    double msReprojectedLatency = kMissingMetricValue;
 };
 
 constexpr char const* GetHeaderString(Header h)
@@ -136,6 +145,7 @@ constexpr char const* GetHeaderString(Header h)
     case Header_MsGPULatency:               return "MsGPULatency";
     case Header_MsGPUTime:                  return "MsGPUTime";
     case Header_MsGPUBusy:                  return "MsGPUBusy";
+    case Header_MsFlipDelay:                return "MsFlipDelay";
     case Header_MsVideoBusy:                return "MsVideoBusy";
     case Header_MsGPUWait:                  return "MsGPUWait";
     case Header_MsAnimationError:           return "MsAnimationError";
@@ -176,6 +186,63 @@ std::wstring CreateErrorString(Header columnId, size_t line)
     return errorMessage;
 }
 
+class CsvException : public std::runtime_error {
+public:
+    explicit CsvException(const std::string& msg) : std::runtime_error(msg) {}
+};
+
+class CsvConversionException : public CsvException {
+    Header columnId_;
+    size_t line_;
+    std::string value_;
+public:
+    CsvConversionException(Header columnId, size_t line, const std::string& value)
+        : CsvException(std::format("Invalid {} at line {}: '{}'",
+            GetHeaderString(columnId), line, value))
+        , columnId_(columnId)
+        , line_(line)
+        , value_(value)
+    {
+    }
+
+    Header GetColumnId() const { return columnId_; }
+    size_t GetLine() const { return line_; }
+    const std::string& GetValue() const { return value_; }
+};
+
+class CsvFileException : public CsvException {
+public:
+    explicit CsvFileException(const std::string& msg) : CsvException(msg) {}
+};
+
+class CsvValidationException : public CsvException {
+    Header columnId_;
+    size_t line_;
+    
+    // Helper to format values for error messages
+    template<typename T>
+    static auto FormatValue(const T& value) {
+        if constexpr (std::is_enum_v<T>) {
+            return static_cast<std::underlying_type_t<T>>(value);
+        } else {
+            return value;
+        }
+    }
+    
+public:
+    template<typename T>
+    CsvValidationException(Header columnId, size_t line, const T& receivedValue, const T& expectedValue)
+        : CsvException(std::format("{} at line {}: Do not match. Received value {}, Expected value {}",
+            GetHeaderString(columnId), line, FormatValue(receivedValue), FormatValue(expectedValue)))
+        , columnId_(columnId)
+        , line_(line)
+    {
+    }
+
+    Header GetColumnId() const { return columnId_; }
+    size_t GetLine() const { return line_; }
+};
+
 template <typename T>
 class CharConvert {
 public:
@@ -190,7 +257,7 @@ void CharConvert<T>::Convert(const std::string data, T& convertedData, Header co
             convertedData = std::stod(data);
         }
         catch (...) {
-            Assert::Fail(CreateErrorString(columnId, line).c_str());
+            throw CsvConversionException(columnId, line, data);
         }
     }
     else if constexpr (std::is_same<T, uint32_t>::value) {
@@ -199,7 +266,7 @@ void CharConvert<T>::Convert(const std::string data, T& convertedData, Header co
             convertedData = std::stoul(data);
         }
         catch (...) {
-            Assert::Fail(CreateErrorString(columnId, line).c_str());
+            throw CsvConversionException(columnId, line, data);
         }
     }
     else if constexpr (std::is_same<T, int32_t>::value) {
@@ -208,7 +275,7 @@ void CharConvert<T>::Convert(const std::string data, T& convertedData, Header co
             convertedData = std::stoi(data);
         }
         catch (...) {
-            Assert::Fail(CreateErrorString(columnId, line).c_str());
+            throw CsvConversionException(columnId, line, data);
         }
     }
     else if constexpr (std::is_same<T, uint64_t>::value) {
@@ -228,7 +295,7 @@ void CharConvert<T>::Convert(const std::string data, T& convertedData, Header co
             convertedData = static_cast<uint64_t>(result1);
         }
         catch (...) {
-            Assert::Fail(CreateErrorString(columnId, line).c_str());
+            throw CsvConversionException(columnId, line, data);
 
         }
     }
@@ -243,7 +310,7 @@ void CharConvert<T>::Convert(const std::string data, T& convertedData, Header co
             convertedData = PM_GRAPHICS_RUNTIME_UNKNOWN;
         }
         else {
-            Assert::Fail(CreateErrorString(columnId, line).c_str());
+            throw CsvConversionException(columnId, line, data);
         }
 
     }
@@ -273,7 +340,7 @@ void CharConvert<T>::Convert(const std::string data, T& convertedData, Header co
             convertedData = PM_PRESENT_MODE_UNKNOWN;
         }
         else {
-            Assert::Fail(CreateErrorString(Header_PresentMode, line).c_str());
+            throw CsvConversionException(Header_PresentMode, line, data);
         }
     }
     else if constexpr (std::is_same<T, PM_FRAME_TYPE>::value) {
@@ -296,13 +363,59 @@ void CharConvert<T>::Convert(const std::string data, T& convertedData, Header co
             convertedData = PM_FRAME_TYPE_INTEL_XEFG;
         }
         else {
-            Assert::Fail(CreateErrorString(Header_FrameType, line).c_str());
+            throw CsvConversionException(Header_FrameType, line, data);
         }
     }
     else
     {
-        Assert::Fail(CreateErrorString(UnknownHeader, line).c_str());
+        throw CsvException("Unknown type conversion requested");
     }
+}
+
+bool IsMissingMetricToken(const char* data)
+{
+    if (data == nullptr) {
+        return true;
+    }
+
+    const char* tokenBegin = data;
+    while (*tokenBegin != '\0' && std::isspace(static_cast<unsigned char>(*tokenBegin))) {
+        ++tokenBegin;
+    }
+
+    const char* tokenEnd = tokenBegin;
+    while (*tokenEnd != '\0') {
+        ++tokenEnd;
+    }
+
+    while (tokenEnd > tokenBegin && std::isspace(static_cast<unsigned char>(*(tokenEnd - 1)))) {
+        --tokenEnd;
+    }
+
+    if (tokenBegin == tokenEnd) {
+        return true;
+    }
+
+    std::string token(tokenBegin, tokenEnd);
+    return _stricmp(token.c_str(), "NA") == 0 ||
+           _stricmp(token.c_str(), "N/A") == 0 ||
+           _stricmp(token.c_str(), "NaN") == 0;
+}
+
+double ParseMetricValue(const char* data, Header columnId, size_t line)
+{
+    if (IsMissingMetricToken(data)) {
+        return kMissingMetricValue;
+    }
+
+    double convertedData = 0.;
+    CharConvert<double> converter;
+    converter.Convert(data, convertedData, columnId, line);
+    if (std::isnan(convertedData)) {
+        return kMissingMetricValue;
+    }
+
+    return convertedData;
 }
 
 size_t countDecimalPlaces(double value) {
@@ -341,6 +454,44 @@ bool ValidateFrameType(PM_FRAME_TYPE gold, PM_FRAME_TYPE test) {
 }
 
 template<typename T>
+void ValidateOrThrow(Header columnId, size_t line, const T& received, const T& expected) {
+    if constexpr (std::is_same_v<T, double>) {
+        // Both NaN is considered a match (both represent missing/invalid data)
+        if (std::isnan(received) && std::isnan(expected)) {
+            return;
+        }
+        // One NaN and one value is a mismatch
+        if (std::isnan(received) || std::isnan(expected)) {
+            throw CsvValidationException(columnId, line, received, expected);
+        }
+        // Both are valid numbers, compare with threshold
+        auto min = std::min(countDecimalPlaces(received), countDecimalPlaces(expected));
+        double threshold = pow(0.1, min);
+        double difference = received - expected;
+        if (difference <= -threshold || difference >= threshold) {
+            throw CsvValidationException(columnId, line, received, expected);
+        }
+    }
+    else {
+        if (received != expected) {
+            throw CsvValidationException(columnId, line, received, expected);
+        }
+    }
+}
+
+// Overload for std::optional - treats empty optional as NaN
+void ValidateOrThrow(Header columnId, size_t line, const std::optional<double>& received, double expected) {
+    if (received.has_value()) {
+        ValidateOrThrow(columnId, line, received.value(), expected);
+    } else {
+        // No value in CSV (optional is empty), expected should be NaN
+        if (!std::isnan(expected)) {
+            throw CsvValidationException(columnId, line, std::nan(""), expected);
+        }
+    }
+}
+
+template<typename T>
 bool Validate(const T& param1, const T& param2) {
     if constexpr (std::is_same<T, double>::value) {
         auto min = std::min(countDecimalPlaces(param1), countDecimalPlaces(param2));
@@ -360,20 +511,56 @@ bool Validate(const T& param1, const T& param2) {
 
 }
 
+
+
+bool ValidateMetricValue(double expected, double actual)
+{
+    const auto expectedMissing = std::isnan(expected);
+    const auto actualMissing = std::isnan(actual);
+    if (actualMissing) {
+        // If actual is missing, it's only valid if expected is exactly 0.0,
+        // otherwise it would be a mismatch with the gold file. The intent is to eventually
+        // migrate all gold files to use NA or NAN for missing metrics, but in the meantime
+        // we want to allow 0.0 as a valid expected value for metrics yet to be transitioned.
+        return expectedMissing || expected == 0.0;
+    }
+
+    if (expectedMissing) {
+        return false;
+    }
+
+    return Validate(expected, actual);
+}
+
 std::optional<std::ofstream> CreateCsvFile(std::string& output_dir, std::string& processName)
 {
     // Setup csv file
     time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     tm local_time;
     localtime_s(&local_time, &now);
-    std::ofstream csvFile;
-    std::string csvFileName = output_dir + processName;
+
     try {
-        csvFile.open(csvFileName);
+        // Use filesystem to construct the path properly
+        fs::path outputPath(output_dir);
+        fs::path fileName = processName + "_" +
+            std::to_string(local_time.tm_year + 1900) +
+            std::to_string(local_time.tm_mon + 1) +
+            std::to_string(local_time.tm_mday) +
+            std::to_string(local_time.tm_hour) +
+            std::to_string(local_time.tm_min) +
+            std::to_string(local_time.tm_sec) + ".csv";
+
+        fs::path fullPath = outputPath / fileName;
+
+        std::ofstream csvFile(fullPath);
+        if (!csvFile.is_open()) {
+            return std::nullopt;
+        }
+
         csvFile <<
             "Application,ProcessID,SwapChainAddress,PresentRuntime"
             ",SyncInterval,PresentFlags,AllowsTearing,PresentMode"
-            ",FrameType,TimeInSec,MsBetweenSimulationStart,MsBetweenPresents"
+            ",FrameType,TimeInQPC,MsBetweenSimulationStart,MsBetweenPresents"
             ",MsBetweenDisplayChange,MsInPresent,MsRenderPresentLatency"
             ",MsUntilDisplayed,MsPCLatency,CPUStartQPC,MsBetweenAppStart"
             ",MsCPUBusy,MsCPUWait,MsGPULatency,MsGPUTime,MsGPUBusy,MsGPUWait"
@@ -609,204 +796,93 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
             switch (pair.second)
             {
             case Header_Application:
-                columnsMatch = true;
+                // Skip validation for application name
                 break;
             case Header_ProcessID:
-                columnsMatch = Validate(v2MetricRow_.processId, processId_);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.processId, processId_);
                 break;
             case Header_SwapChainAddress:
-                    columnsMatch = Validate(v2MetricRow_.swapChain, swapChain);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.swapChain, swapChain);
                 break;
             case Header_Runtime:
-                columnsMatch = Validate(v2MetricRow_.runtime, graphicsRuntime);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.runtime, graphicsRuntime);
                 break;
             case Header_SyncInterval:
-                columnsMatch = Validate(v2MetricRow_.syncInterval, syncInterval);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.syncInterval, syncInterval);
                 break;
             case Header_PresentFlags:
-                columnsMatch = Validate(v2MetricRow_.presentFlags, presentFlags);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.presentFlags, presentFlags);
                 break;
             case Header_AllowsTearing:
-                columnsMatch = Validate(v2MetricRow_.allowsTearing, (uint32_t)allowsTearing);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.allowsTearing, (uint32_t)allowsTearing);
                 break;
             case Header_PresentMode:
-                columnsMatch = Validate(v2MetricRow_.presentMode, presentMode);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.presentMode, presentMode);
                 break;
             case Header_FrameType:
                 columnsMatch = ValidateFrameType(v2MetricRow_.frameType, frameType);
                 break;
             case Header_TimeInSeconds:
-                columnsMatch = Validate(v2MetricRow_.presentStartQPC, timeQpc);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.presentStartQPC, timeQpc);
                 break;
             case Header_CPUStartQPC:
-                columnsMatch = Validate(v2MetricRow_.cpuFrameQpc, cpuStartQpc);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.cpuFrameQpc, cpuStartQpc);
                 break;
             case Header_MsBetweenAppStart:
-                columnsMatch = Validate(v2MetricRow_.msBetweenAppStart, msBetweenAppStart);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msBetweenAppStart, msBetweenAppStart);
                 break;
             case Header_MsCPUBusy:
-                columnsMatch = Validate(v2MetricRow_.msCpuBusy, msCpuBusy);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msCpuBusy, msCpuBusy);
                 break;
             case Header_MsCPUWait:
-                columnsMatch = Validate(v2MetricRow_.msCpuWait, msCpuWait);
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msCpuWait, msCpuWait);
                 break;
             case Header_MsGPULatency:
-                columnsMatch = Validate(v2MetricRow_.msGpuLatency, msGpuLatency);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.msGpuLatency, msGpuLatency);
                 break;
             case Header_MsGPUTime:
-                columnsMatch = Validate(v2MetricRow_.msGpuTime, msGpuTime);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.msGpuTime, msGpuTime);
                 break;
             case Header_MsGPUBusy:
-                columnsMatch = Validate(v2MetricRow_.msGpuBusy, msGpuBusy);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.msGpuBusy, msGpuBusy);
                 break;
             case Header_MsGPUWait:
-                columnsMatch = Validate(v2MetricRow_.msGpuWait, msGpuWait);
+                ValidateOrThrow(pair.second, line_, v2MetricRow_.msGpuWait, msGpuWait);
                 break;
             case Header_MsBetweenSimulationStart:
-                if (v2MetricRow_.msBetweenSimStart.has_value()) {
-                    columnsMatch = Validate(v2MetricRow_.msBetweenSimStart.value(), msBetweenSimStartTime);
-                }
-                else
-                {
-                    if (std::isnan(msBetweenSimStartTime)) {
-                        columnsMatch = true;
-                    }
-                    else
-                    {
-                        columnsMatch = false;
-                    }
-                }
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msBetweenSimStart, msBetweenSimStartTime);
                 break;
             case Header_MsUntilDisplayed:
-                if (v2MetricRow_.msUntilDisplayed.has_value()) {
-                    columnsMatch = Validate(v2MetricRow_.msUntilDisplayed.value(), msUntilDisplayed);
-                }
-                else
-                {
-                    if (std::isnan(msUntilDisplayed)) {
-                        columnsMatch = true;
-                    }
-                    else
-                    {
-                        columnsMatch = false;
-                    }
-                }
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msUntilDisplayed, msUntilDisplayed);
                 break;
             case Header_MsBetweenDisplayChange:
-                if (v2MetricRow_.msBetweenDisplayChange.has_value()) {
-                    columnsMatch = Validate(v2MetricRow_.msBetweenDisplayChange.value(), msBetweenDisplayChange);
-                }
-                else
-                {
-                    if (std::isnan(msBetweenDisplayChange)) {
-                        columnsMatch = true;
-                    }
-                    else
-                    {
-                        columnsMatch = false;
-                    }
-                }
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msBetweenDisplayChange, msBetweenDisplayChange);
                 break;
             case Header_MsPCLatency:
-                if (v2MetricRow_.msPcLatency.has_value()) {
-                    columnsMatch = Validate(v2MetricRow_.msPcLatency.value(), msPcLatency);
-                }
-                else
-                {
-                    if (std::isnan(msPcLatency)) {
-                        columnsMatch = true;
-                    }
-                    else
-                    {
-                        columnsMatch = false;
-                    }
-                }
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msPcLatency, msPcLatency);
                 break;
             case Header_MsAnimationError:
-                if (v2MetricRow_.msAnimationError.has_value()) {
-                    columnsMatch = Validate(v2MetricRow_.msAnimationError.value(), msAnimationError);
-                }
-                else
-                {
-                    if (std::isnan(msAnimationError)) {
-                        columnsMatch = true;
-                    }
-                    else
-                    {
-                        columnsMatch = false;
-                    }
-                }
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msAnimationError, msAnimationError);
                 break;
             case Header_AnimationTime:
-                if (v2MetricRow_.animationTime.has_value()) {
-                    columnsMatch = Validate(v2MetricRow_.animationTime.value(), animationTime);
-                }
-                else
-                {
-                    if (std::isnan(animationTime)) {
-                        columnsMatch = true;
-                    }
-                    else
-                    {
-                        columnsMatch = false;
-                    }
-                }
+                columnsMatch = ValidateMetricValue(v2MetricRow_.animationTime, animationTime);
+                break;
+            case Header_MsFlipDelay:
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msFlipDelay, msFrameDelay);
                 break;
             case Header_MsClickToPhotonLatency:
-                if (v2MetricRow_.msClickToPhotonLatency.has_value()) {
-                    columnsMatch = Validate(v2MetricRow_.msClickToPhotonLatency.value(), msClickToPhotonLatency);
-                }
-                else
-                {
-                    if (std::isnan(msClickToPhotonLatency)) {
-                        columnsMatch = true;
-                    }
-                    else
-                    {
-                        columnsMatch = false;
-                    }
-                }
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msClickToPhotonLatency, msClickToPhotonLatency);
                 break;
             case Header_MsAllInputToPhotonLatency:
-                if (v2MetricRow_.msAllInputToPhotonLatency.has_value()) {
-                    columnsMatch = Validate(v2MetricRow_.msAllInputToPhotonLatency.value(), msAllInputToPhotonLatency);
-                }
-                else
-                {
-                    if (std::isnan(msAllInputToPhotonLatency)) {
-                        columnsMatch = true;
-                    }
-                    else
-                    {
-                        columnsMatch = false;
-                    }
-                }
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msAllInputToPhotonLatency, msAllInputToPhotonLatency);
                 break;
             case Header_MsInstrumentedLatency:
-                if (v2MetricRow_.msInstrumentedLatency.has_value()) {
-                    columnsMatch = Validate(v2MetricRow_.msInstrumentedLatency.value(), msInstrumentedLatency);
-                }
-                else
-                {
-                    if (std::isnan(msInstrumentedLatency)) {
-                        columnsMatch = true;
-                    }
-                    else
-                    {
-                        columnsMatch = false;
-                    }
-                }
+                columnsMatch = ValidateMetricValue(v2MetricRow_.msInstrumentedLatency, msInstrumentedLatency);
                 break;
             default:
-                columnsMatch = true;
+                // Unknown header, skip validation
                 break;
             }
-            if (columnsMatch == false) {
-                // If the columns do not match, create an error string
-                // and assert failure.
-                Assert::Fail(CreateErrorString(pair.second, line_).c_str());
-            }
-            Assert::IsTrue(columnsMatch, CreateErrorString(pair.second, line_).c_str());
         }
     }
 
@@ -853,7 +929,8 @@ bool CsvParser::Open(std::wstring const& path, uint32_t processId) {
     cols_.clear();
 
     if (_wfopen_s(&fp_, path.c_str(), L"r")) {
-        return false;
+        throw CsvFileException(std::format("Failed to open CSV file: {}",
+            pmon::util::str::ToNarrow(path)));
     }
 
     // Remove UTF-8 marker if there is one.
@@ -879,9 +956,7 @@ bool CsvParser::Open(std::wstring const& path, uint32_t processId) {
         default:
             if ((size_t)h < KnownHeaderCount) {
                 if (headerColumnIndex_[(size_t)h] != SIZE_MAX) {
-                    std::wstring errorMessage = L"Duplicate column: ";
-                    errorMessage += pmon::util::str::ToWide(cols_[i]);
-                    Assert::Fail(errorMessage.c_str());
+                    throw CsvFileException(std::format("Duplication column: {}", cols_[i]));
                 }
                 else {
                     headerColumnIndex_[(size_t)h] = i;
@@ -889,8 +964,7 @@ bool CsvParser::Open(std::wstring const& path, uint32_t processId) {
                 break;
             }
             else {
-                std::wstring errorMessage = L"Index outside of known headers.";
-                Assert::Fail(errorMessage.c_str());
+                throw CsvFileException("Index outside of known headers");
             }
         }
     }
@@ -918,13 +992,14 @@ bool CsvParser::Open(std::wstring const& path, uint32_t processId) {
                                                Header_MsBetweenDisplayChange,
                                                Header_MsAnimationError,
                                                Header_AnimationTime,
+                                               Header_MsFlipDelay,
                                                Header_MsClickToPhotonLatency,
                                                Header_MsAllInputToPhotonLatency,
                                                Header_MsBetweenSimulationStart,
                                                Header_MsPCLatency});
 
     if (!columnsOK) {
-        Assert::Fail(L"Missing required columns");
+        throw CsvFileException("Missing required columns in CSV file");
     }
 
     // Create a vector of active headers to be used when reading
@@ -1076,16 +1151,7 @@ void CsvParser::ConvertToMetricDataType(const char* data, Header columnId)
     break;
     case Header_MsBetweenSimulationStart:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msBetweenSimStart = convertedData;
-        }
-        else
-        {
-            v2MetricRow_.msBetweenSimStart.reset();
-        }
+        v2MetricRow_.msBetweenSimStart = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsBetweenPresents:
@@ -1096,15 +1162,7 @@ void CsvParser::ConvertToMetricDataType(const char* data, Header columnId)
     break;
     case Header_MsBetweenDisplayChange:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msBetweenDisplayChange = convertedData;
-        }
-        else {
-            v2MetricRow_.msBetweenDisplayChange.reset();
-        }
+        v2MetricRow_.msBetweenDisplayChange = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsInPresentAPI: {
@@ -1120,99 +1178,46 @@ void CsvParser::ConvertToMetricDataType(const char* data, Header columnId)
     break;
     case Header_MsUntilDisplayed:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msUntilDisplayed = convertedData;
-        }
-        else
-        {
-            v2MetricRow_.msUntilDisplayed.reset();
-        }
+        v2MetricRow_.msUntilDisplayed = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsPCLatency:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msPcLatency = convertedData;
-        }
-        else {
-            v2MetricRow_.msPcLatency.reset();
-        }
+        v2MetricRow_.msPcLatency = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsAnimationError:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msAnimationError = convertedData;
-        }
-        else {
-            v2MetricRow_.msAnimationError.reset();
-        }
+        v2MetricRow_.msAnimationError = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_AnimationTime:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.animationTime = convertedData;
-        }
-        else {
-            v2MetricRow_.animationTime.reset();
-        }
+        v2MetricRow_.animationTime = ParseMetricValue(data, columnId, line_);
+    }
+    break;
+    case Header_MsFlipDelay:
+    {
+        v2MetricRow_.msFlipDelay = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsClickToPhotonLatency:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msClickToPhotonLatency = convertedData;
-        }
-        else {
-            v2MetricRow_.msClickToPhotonLatency.reset();
-        }
+        v2MetricRow_.msClickToPhotonLatency = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsAllInputToPhotonLatency:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msAllInputToPhotonLatency = convertedData;
-        }
-        else {
-            v2MetricRow_.msAllInputToPhotonLatency.reset();
-        }
+        v2MetricRow_.msAllInputToPhotonLatency = ParseMetricValue(data, columnId, line_);
     }
     break;
     case Header_MsInstrumentedLatency:
     {
-        if (strncmp(data, "NA", 2) != 0) {
-            double convertedData = 0.;
-            CharConvert<double> converter;
-            converter.Convert(data, convertedData, columnId, line_);
-            v2MetricRow_.msInstrumentedLatency = convertedData;
-        }
-        else
-        {
-            v2MetricRow_.msInstrumentedLatency.reset();
-        }
+        v2MetricRow_.msInstrumentedLatency = ParseMetricValue(data, columnId, line_);
     }
     break;
     default:
-        Assert::Fail(CreateErrorString(UnknownHeader, line_).c_str());
+        throw CsvConversionException(UnknownHeader, line_, data);
     }
 
     return;
@@ -1226,9 +1231,8 @@ bool CsvParser::ReadRow(bool gatherMetrics)
     // Read a line
     if (fgets(row_, _countof(row_), fp_) == nullptr) {
         if (ferror(fp_) != 0) {
-            std::wstring errorMessage = L"File read error at line: ";
-            errorMessage += std::to_wstring(line_);
-            Assert::Fail(errorMessage.c_str());
+            throw CsvFileException(std::format("File read error at line: {}",
+            std::to_string(line_)));
         }
         return false;
     }

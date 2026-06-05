@@ -107,10 +107,13 @@ export const usePreferencesStore = defineStore('preferences', () => {
       writeCapture(true);
     }
   }
+  function notifyEtlLoggingDisabled() {
+    etlLogging.value = false;
+    notes.notify({ text: 'ETL capture is currently disabled.' });
+  }
 
   function toggleEtlLogging() {
-    etlLogging.value = !etlLogging.value;
-    Api.setEtlLogging(etlLogging.value);
+    notifyEtlLoggingDisabled
   }
   
   async function pushSpecification() {
@@ -182,6 +185,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
     writeCapture,
     toggleCapture,
     toggleEtlLogging,
+    notifyEtlLoggingDisabled,
     pushSpecification,
     initPreferences,
     resetPreferences

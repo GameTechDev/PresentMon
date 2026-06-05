@@ -49,8 +49,6 @@ private:
 		uint32_t frameMetricsOffset = 0;
 		uint32_t deviceId = 0;
 		uint32_t arrayIdx = 0;
-		// indicates whether the source data is gatherType or optional<gatherType>
-		bool isOptional = false;
 		bool isStatic = false;
 	};
 	// functions

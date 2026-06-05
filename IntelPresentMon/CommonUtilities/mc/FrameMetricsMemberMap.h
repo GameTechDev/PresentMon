@@ -3,7 +3,7 @@
 #pragma once
 #include <optional>
 #include "MetricsTypes.h"
-#include "../PresentMonAPI2/PresentMonAPI.h"
+#include <IntelPresentMon/PresentMonAPI2/PresentMonAPI.h>
 
 namespace pmon::util::metrics
 {

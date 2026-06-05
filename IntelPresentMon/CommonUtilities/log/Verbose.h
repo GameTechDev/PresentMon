@@ -9,6 +9,7 @@ namespace pmon::util::log
 		v8async,
 		procwatch,
 		tele_gpu,
+		uci,
 		core_metric,
 		core_hotkey,
 		core_window,
@@ -18,6 +19,7 @@ namespace pmon::util::log
 		ipc_ring,
 		met_use,
 		middleware,
+		dyninteg,
 		chrome,
 		Count
 	};

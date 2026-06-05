@@ -16,7 +16,10 @@
 
 param(
     [Parameter(Mandatory=$true, Position=0)]
-    [string]$RedistPath
+    [string]$RedistPath,
+
+    [Parameter()]
+    [switch]$Clean
 )
 
 # Resolve & verify
@@ -27,12 +30,23 @@ if (-not (Test-Path $RedistPath -PathType Container)) {
     Write-Error "Not a valid directory: $RedistPath"; exit 1
 }
 
-# Skip if already built
+# Skip if already built, unless the caller requested a clean wrapper build.
 $buildDir = Join-Path $RedistPath "build"
 if (Test-Path $buildDir) {
-    Write-Host "Found existing build directory: $buildDir"
-    Write-Host "→ Skipping configuration & build."
-    exit 0
+    if ($Clean) {
+        $resolvedBuildDir = (Resolve-Path $buildDir).ProviderPath
+        $resolvedRedistPath = (Resolve-Path $RedistPath).ProviderPath
+        if (-not $resolvedBuildDir.StartsWith($resolvedRedistPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Error "Refusing to clean unexpected build directory: $resolvedBuildDir"
+            exit 1
+        }
+        Write-Host "Removing existing CEF wrapper build directory: $buildDir"
+        Remove-Item -LiteralPath $buildDir -Recurse -Force
+    } else {
+        Write-Host "Found existing build directory: $buildDir"
+        Write-Host "Skipping configuration and build."
+        exit 0
+    }
 }
 
 # Locate VS / vcvarsall
@@ -56,25 +70,25 @@ $Generator = "Visual Studio 17"
 $Solution  = Join-Path $buildDir "cef.sln"
 
 # 1) Configure with CMake (no vcvars needed)
-Write-Host "→ Running CMake configure..."
+Write-Host "Running CMake configure..."
 cmake -G "$Generator" -A $Platform -DUSE_SANDBOX=OFF "$RedistPath"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "CMake configuration failed (exit code $LASTEXITCODE)"; Pop-Location; exit $LASTEXITCODE
 }
 
 # 2) Build Release
-Write-Host "`n→ Building Release..."
+Write-Host "`nBuilding Release..."
 & cmd.exe /c "`"$vcvars`" $Arch && msbuild `"$Solution`" /m /p:Configuration=Release;Platform=$Platform"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Release build failed (exit code $LASTEXITCODE)"; Pop-Location; exit $LASTEXITCODE
 }
 
 # 3) Build Debug
-Write-Host "`n→ Building Debug..."
+Write-Host "`nBuilding Debug..."
 & cmd.exe /c "`"$vcvars`" $Arch && msbuild `"$Solution`" /m /p:Configuration=Debug;Platform=$Platform"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Debug build failed (exit code $LASTEXITCODE)"; Pop-Location; exit $LASTEXITCODE
 }
 
 Pop-Location
-Write-Host "`n✅ All done: CEF wrapper built in $buildDir"
+Write-Host "`nAll done: CEF wrapper built in $buildDir"
