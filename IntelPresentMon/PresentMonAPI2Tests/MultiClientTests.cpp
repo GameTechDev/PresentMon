@@ -155,12 +155,12 @@ namespace MultiClientTests
 
 			// launch a client
 			auto client2 = fixture_.LaunchClient({
-				"--telemetry-period-ms"s, "36"s,
+				"--telemetry-period-ms"s, "50"s,
 			});
 			// check that telemetry period has been overrided
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(36u, status.telemetryPeriodMs);
+				Assert::AreEqual(50u, status.telemetryPeriodMs);
 			}
 		}
 		// two client test, verify override and then reversion when clients disconnect
@@ -178,12 +178,12 @@ namespace MultiClientTests
 
 			// launch a client
 			auto client2 = fixture_.LaunchClient({
-				"--telemetry-period-ms"s, "36"s,
+				"--telemetry-period-ms"s, "50"s,
 			});
 			// check that telemetry period has been overrided
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(36u, status.telemetryPeriodMs);
+				Assert::AreEqual(50u, status.telemetryPeriodMs);
 			}
 
 			// kill client 2
@@ -217,12 +217,12 @@ namespace MultiClientTests
 
 			// launch a client
 			auto client2 = fixture_.LaunchClient({
-				"--telemetry-period-ms"s, "36"s,
+				"--telemetry-period-ms"s, "50"s,
 			});
 			// check that telemetry period has been overrided
 			{
 				const auto status = fixture_.service->QueryStatus();
-				Assert::AreEqual(36u, status.telemetryPeriodMs);
+				Assert::AreEqual(50u, status.telemetryPeriodMs);
 			}
 
 			// murder client 2
@@ -247,27 +247,27 @@ namespace MultiClientTests
 				Assert::AreEqual(16u, status.telemetryPeriodMs);
 			}
 		}
-		// verify range check error low
+		// verify out-of-range low clamps instead of failing
 		TEST_METHOD(OutOfRangeLow)
 		{
 			// launch a client
 			auto client = fixture_.LaunchClient({
 				"--telemetry-period-ms"s, "3"s,
-				"--test-expect-error"s,
 			});
-			// check for expected error
-			Assert::AreEqual("err-check-ok:PM_STATUS_OUT_OF_RANGE"s, client.Command("err-check"));
+			// check that telemetry period has been clamped
+			const auto status = fixture_.service->QueryStatus();
+			Assert::AreEqual(50u, status.telemetryPeriodMs);
 		}
-		// verify range check error high
+		// verify out-of-range high clamps instead of failing
 		TEST_METHOD(OutOfRangeHigh)
 		{
 			// launch a client
 			auto client = fixture_.LaunchClient({
 				"--telemetry-period-ms"s, "6000"s,
-				"--test-expect-error"s,
 			});
-			// check for expected error
-			Assert::AreEqual("err-check-ok:PM_STATUS_OUT_OF_RANGE"s, client.Command("err-check"));
+			// check that telemetry period has been clamped
+			const auto status = fixture_.service->QueryStatus();
+			Assert::AreEqual(5000u, status.telemetryPeriodMs);
 		}
 	};
 
@@ -432,16 +432,29 @@ namespace MultiClientTests
 				Assert::IsFalse((bool)status.etwFlushPeriodMs);
 			}
 		}
-		// verify range check error high
+		// verify out-of-range high clamps instead of failing
 		TEST_METHOD(OutOfRangeHigh)
 		{
 			// launch a client
 			auto client = fixture_.LaunchClient({
 				"--etw-flush-period-ms"s, "1500"s,
-				"--test-expect-error"s,
 			});
-			// check for expected error
-			Assert::AreEqual("err-check-ok:PM_STATUS_OUT_OF_RANGE"s, client.Command("err-check"));
+			// check that flush period has been clamped
+			const auto status = fixture_.service->QueryStatus();
+			Assert::IsTrue((bool)status.etwFlushPeriodMs);
+			Assert::AreEqual(1000u, *status.etwFlushPeriodMs);
+		}
+		// verify out-of-range low clamps instead of failing
+		TEST_METHOD(OutOfRangeLow)
+		{
+			// launch a client
+			auto client = fixture_.LaunchClient({
+				"--etw-flush-period-ms"s, "7"s,
+			});
+			// check that flush period has been clamped
+			const auto status = fixture_.service->QueryStatus();
+			Assert::IsTrue((bool)status.etwFlushPeriodMs);
+			Assert::AreEqual(8u, *status.etwFlushPeriodMs);
 		}
 	};
 
