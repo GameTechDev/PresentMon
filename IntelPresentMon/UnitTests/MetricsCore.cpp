@@ -4099,10 +4099,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(16.0, rows[0].msDisplayedTime, 0.0001);
         }
 
-        TEST_METHOD(AppOnly_CpuStartAnchorUsesIngestPreviousPresentWhenOriginHeld)
+        TEST_METHOD(AppOnly_CpuStartUsesBootstrapThenIngestPreviousWhenOriginHeld)
         {
-            // Seed P11, P12 origin held (no Apply), P13 closes interval. CpuStart sim for P13 must
-            // use P12 present end, not stale swap chain lastAppPresent (P11 only).
+            // CpuStart uses the previous present end as the simulation start. The
+            // first app anchor uses the bootstrap seed as its predecessor, then the
+            // next app anchor must use ingest-time previous present history while
+            // the prior rows are still held.
             QpcConverter qpc(1000, 0);
             UnifiedSwapChain swapChain{};
 
@@ -4110,20 +4112,29 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 100, 900,
                 { { FrameType::Application, 100 } }));
 
-            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
-                { { FrameType::Application, 116 } })).size());
+            auto firstIntervalRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
+                { { FrameType::Application, 116 } }));
+            Assert::AreEqual(size_t(1), firstIntervalRows.size());
+            Assert::AreEqual(uint64_t(100), firstIntervalRows[0].screenTimeQpc);
+            Assert::AreEqual(0.0, firstIntervalRows[0].msAnimationTime, 0.0001);
+            Assert::IsFalse(HasMetricValue(firstIntervalRows[0].msAnimationError));
 
-            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1016, 16, 1016,
-                { { FrameType::Application, 132 } })).size());
+            auto bootstrapIntervalRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1016, 16, 1016,
+                { { FrameType::Application, 132 } }));
+            Assert::AreEqual(size_t(1), bootstrapIntervalRows.size());
+            Assert::AreEqual(uint64_t(116), bootstrapIntervalRows[0].screenTimeQpc);
+            Assert::AreEqual(998.0, bootstrapIntervalRows[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(982.0, bootstrapIntervalRows[0].msAnimationError, 0.0001);
 
             auto rows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1032, 16, 1032,
                 { { FrameType::Application, 148 } }));
 
             Assert::AreEqual(size_t(1), rows.size());
             Assert::AreEqual(uint64_t(132), rows[0].screenTimeQpc);
-            Assert::AreEqual(16.0, rows[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(1014.0, rows[0].msAnimationTime, 0.0001);
             Assert::AreEqual(0.0, rows[0].msAnimationError, 0.0001);
         }
+
 
         TEST_METHOD(TraceStart_PreFirstAppAnchorGeneratedRows_EmitWithAnimationNotSet)
         {
@@ -4197,7 +4208,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual((int)FrameType::Application, (int)heldThenReleased[0].frameType);
             Assert::AreEqual(uint64_t(100), heldThenReleased[0].screenTimeQpc);
             Assert::AreEqual(8.0, heldThenReleased[0].msDisplayedTime, 0.0001);
-            Assert::AreEqual(1000.0, heldThenReleased[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(0.0, heldThenReleased[0].msAnimationTime, 0.0001);
             Assert::IsFalse(HasMetricValue(heldThenReleased[0].msAnimationError));
 
             UnifiedSwapChain swapChain2{};
@@ -4212,7 +4223,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(1), samePresentLookahead.size());
             Assert::AreEqual((int)FrameType::Application, (int)samePresentLookahead[0].frameType);
             Assert::AreEqual(8.0, samePresentLookahead[0].msDisplayedTime, 0.0001);
-            Assert::AreEqual(1000.0, samePresentLookahead[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(0.0, samePresentLookahead[0].msAnimationTime, 0.0001);
             Assert::IsFalse(HasMetricValue(samePresentLookahead[0].msAnimationError));
         }
 
@@ -4279,7 +4290,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 100, 900,
                 { { FrameType::Application, 100 } }, 1000));
 
-            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 1, 1000,
+            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 1, 1000,
                 { { FrameType::Intel_XEFG, 106 } })).size());
             Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1001, 1, 1001,
                 { { FrameType::Intel_XEFG, 112 } })).size());
@@ -4376,8 +4387,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(8.0,  rows[2].msDisplayedTime, 0.0001);
         }
 
-        TEST_METHOD(CpuStartFallback_UsedWhenProviderAndPclAreUnavailable)
+        TEST_METHOD(CpuStartFallback_UsesPreviousPresentEndWhenProviderAndPclAreUnavailable)
         {
+            // With no app-provider or PC-latency sim start, CpuStart falls back to
+            // previous present end. The bootstrap seed is a valid first predecessor.
             QpcConverter qpc(1000, 0);
             UnifiedSwapChain swapChain{};
 
@@ -4385,15 +4398,20 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 100, 900,
                 { { FrameType::Application, 100 } }));
 
-            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
-                { { FrameType::Application, 116 } })).size());
+            auto bootstrapIntervalRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
+                { { FrameType::Application, 116 } }));
+            Assert::AreEqual(size_t(1), bootstrapIntervalRows.size());
+            Assert::AreEqual(uint64_t(100), bootstrapIntervalRows[0].screenTimeQpc);
+            Assert::AreEqual(0.0, bootstrapIntervalRows[0].msAnimationTime, 0.0001);
+            Assert::IsFalse(HasMetricValue(bootstrapIntervalRows[0].msAnimationError));
 
             auto rows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1100, 16, 1100,
                 { { FrameType::Application, 132 } }));
 
             Assert::AreEqual(size_t(1), rows.size());
-            Assert::AreEqual(16.0, rows[0].msAnimationTime, 0.0001);
-            Assert::AreEqual(0.0, rows[0].msAnimationError, 0.0001);
+            Assert::AreEqual(uint64_t(116), rows[0].screenTimeQpc);
+            Assert::AreEqual(998.0, rows[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(982.0, rows[0].msAnimationError, 0.0001);
             Assert::AreEqual(16.0, rows[0].msDisplayedTime, 0.0001);
         }
 
@@ -4406,7 +4424,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 100, 900,
                 { { FrameType::Application, 100 } }));
 
-            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
+            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
                 { { FrameType::Application, 116 } }, 2000)).size());
 
             auto transitionRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1100, 16, 1100,
@@ -4473,7 +4491,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 100, 900,
                 { { FrameType::Application, 100 } }, 0, 1000));
 
-            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
+            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
                 { { FrameType::Application, 116 } }, 2000, 1016)).size());
 
             auto transitionRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1100, 16, 1100,
@@ -4492,7 +4510,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1, 1, 1, {}));
             (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 1, 900,
                 { { FrameType::Application, 100 } }, 1000));
-            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 1, 1000,
+            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 1, 1000,
                 { { FrameType::Application, 116 } }, 1016)).size());
 
             auto firstRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1010, 1, 1010,
@@ -4560,10 +4578,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 { { FrameType::Application, 100 } }, 1000));
             Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Discarded, 950, 10, 950,
                 {}, 1008)).size());
-
-            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
+            // Expect 1 row from the second application frame, the discarded frame will be be waiting in the
+            // blocked rows and not emitted until the next displayed app frame below.
+            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
                 { { FrameType::Application, 116 } }, 1016)).size());
 
+            // Both discarded and application frame now will be emitted.
             auto rows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1100, 16, 1100,
                 { { FrameType::Application, 132 } }, 1032));
 
@@ -4585,11 +4605,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 0,
                 200'000));
 
-            Assert::AreEqual(size_t(0), swapChain.EnqueueReadyDisplayRows(qpc, MakeFrame(PresentResult::Presented, 5'000'000, 40'000, 5'100'000,
+            auto releasedOriginRows = swapChain.EnqueueReadyDisplayRows(qpc, MakeFrame(PresentResult::Presented, 5'000'000, 40'000, 5'100'000,
                 { { FrameType::Application, 5'000'000 } },
                 1'000'100,
                 0,
-                100'000)).size());
+                100'000));
+            Assert::AreEqual(size_t(1), releasedOriginRows.size());
+            Assert::AreEqual(uint64_t(5'500'000), releasedOriginRows[0].screenTime);
 
             auto rows = swapChain.EnqueueReadyDisplayRows(qpc, MakeFrame(PresentResult::Presented, 6'000'000, 40'000, 6'100'000,
                 { { FrameType::Application, 6'000'000 } },
