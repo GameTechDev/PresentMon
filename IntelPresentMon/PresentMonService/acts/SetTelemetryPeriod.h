@@ -21,7 +21,7 @@ namespace pmon::svc::acts
 		static constexpr const char* Identifier = STRINGIFY(ACT_NAME);
 		struct Params
 		{
-			uint32_t telemetrySamplePeriodMs;
+			std::optional<uint32_t> telemetrySamplePeriodMs;
 
 			template<class A> void serialize(A& ar) {
 				ar(telemetrySamplePeriodMs);
@@ -32,22 +32,26 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
-			// make sure requested period is within allowed range
-			if (in.telemetrySamplePeriodMs) {
-				if (in.telemetrySamplePeriodMs < PM_TELEMETRY_PERIOD_MIN ||
-					in.telemetrySamplePeriodMs > PM_TELEMETRY_PERIOD_MAX) {
-					const auto sta = PM_STATUS::PM_STATUS_OUT_OF_RANGE;
-					pmlog_error("Set telemetry period failed").pmwatch(in.telemetrySamplePeriodMs).code(sta);
-					throw util::Except<ActionExecutionError>(sta);
-				}
+			auto telemetrySamplePeriodMs = in.telemetrySamplePeriodMs;
+			if (telemetrySamplePeriodMs && *telemetrySamplePeriodMs < PM_TELEMETRY_PERIOD_MIN) {
+				pmlog_warn("Telemetry period out of range; clamping to minimum")
+					.pmwatch(*telemetrySamplePeriodMs).pmwatch(PM_TELEMETRY_PERIOD_MIN).diag();
+				telemetrySamplePeriodMs = PM_TELEMETRY_PERIOD_MIN;
 			}
-			// set request for this session
-			stx.requestedTelemetryPeriodMs = in.telemetrySamplePeriodMs;
-			// update the service
+			else if (telemetrySamplePeriodMs && *telemetrySamplePeriodMs > PM_TELEMETRY_PERIOD_MAX) {
+				pmlog_warn("Telemetry period out of range; clamping to maximum")
+					.pmwatch(*telemetrySamplePeriodMs).pmwatch(PM_TELEMETRY_PERIOD_MAX).diag();
+				telemetrySamplePeriodMs = PM_TELEMETRY_PERIOD_MAX;
+			}
+			stx.requestedTelemetryPeriodMs = telemetrySamplePeriodMs;
 			ctx.UpdateTelemetryPeriod();
-
-			pmlog_dbg(std::format("Requested telemetry sample period of {}ms by client [{}]",
-				in.telemetrySamplePeriodMs, stx.remotePid));
+			if (telemetrySamplePeriodMs) {
+				pmlog_dbg(std::format("Requested telemetry sample period of {}ms by client [{}]",
+					*telemetrySamplePeriodMs, stx.remotePid));
+			}
+			else {
+				pmlog_dbg(std::format("Releasing manual telemetry period override for client [{}]", stx.remotePid));
+			}
 			return {};
 		}
 	};

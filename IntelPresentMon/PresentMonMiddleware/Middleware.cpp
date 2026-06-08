@@ -214,10 +214,10 @@ namespace pmon::mid
         return *pIntroRoot_;
     }
 
-    void Middleware::SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs)
+    void Middleware::SetTelemetryPollingPeriod(uint32_t deviceId, std::optional<uint32_t> periodMs)
     {
         // note: deviceId is being ignored for the time being, but might be used in the future
-        pActionClient_->DispatchSync(SetTelemetryPeriod::Params{ timeMs });
+        pActionClient_->DispatchSync(SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = periodMs });
     }
 
     void Middleware::SetEtwFlushPeriod(std::optional<uint32_t> periodMs)

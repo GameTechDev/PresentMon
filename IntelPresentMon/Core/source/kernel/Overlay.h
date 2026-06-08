@@ -63,7 +63,7 @@ namespace p2c::kern
     private:
         // functions
         void AdjustOverlaySituation_(OverlaySpec::OverlayPosition position);
-        void UpdateGraphData_(double timestamp);
+        void UpdateGraphData_(uint64_t timestamp);
         void Render_();
         void UpdateCaptureStatusText_();
         void UpdateDataSets_();

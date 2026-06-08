@@ -371,7 +371,7 @@ namespace InterimBroadcasterTests
             auto pMetricMap = pmapi::EnumMap::GetKeyMap(PM_ENUM_METRIC);
 
             // set telemetry period so we have a known baseline
-            client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 40 });
+            client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 50 });
 
             // get the store containing adapter telemetry
             auto& sys = pComms->GetSystemDataStore();
@@ -625,7 +625,7 @@ namespace InterimBroadcasterTests
             auto pMetricMap = pmapi::EnumMap::GetKeyMap(PM_ENUM_METRIC);
 
             // set telemetry period so we have a known baseline
-            client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 40 });
+            client.DispatchSync(svc::acts::SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = 50 });
 
             // target gpu device 1 (hardcoded for test)
             const uint32_t TargetDeviceID = 1;

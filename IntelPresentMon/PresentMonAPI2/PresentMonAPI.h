@@ -422,12 +422,14 @@ extern "C" {
 	// free the introspection tree structure
 	PRESENTMON_API2_EXPORT PM_STATUS pmFreeIntrospectionRoot(const PM_INTROSPECTION_ROOT* pRoot);
 	// sets the rate at which hardware telemetry (including CPU) is polled
+	// a value of zero indicates to use current service setting (default or value requested by other client)
 	PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE handle, uint32_t reserved, uint32_t timeMs);
-#define PM_TELEMETRY_PERIOD_MIN 4
+#define PM_TELEMETRY_PERIOD_MIN 50
 #define PM_TELEMETRY_PERIOD_MAX 5000
 	// sets the rate at which ETW event buffers are flushed, affecting the delay of frame data reported by PresentMon
 	// a value of zero indicates to use current service setting (default or value requested by other client)
 	PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, uint32_t periodMs);
+#define PM_ETW_FLUSH_PERIOD_MIN 8
 #define PM_ETW_FLUSH_PERIOD_MAX 1000
 	// flush any buffered frame event data for the specified process on this session
 	PRESENTMON_API2_EXPORT PM_STATUS pmFlushFrames(PM_SESSION_HANDLE handle, uint32_t processId);
