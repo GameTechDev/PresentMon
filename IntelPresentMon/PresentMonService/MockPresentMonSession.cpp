@@ -4,6 +4,7 @@
 #include "CliOptions.h"
 #include "..\CommonUtilities\str\String.h"
 #include "Logging.h"
+#include "../CommonUtilities/log/IdentificationTable.h"
 
 static const std::wstring kMockEtwSessionName = L"MockETWSession";
 
@@ -380,6 +381,7 @@ void MockPresentMonSession::ProcessEvents(
 }
 
 void MockPresentMonSession::Consume(TRACEHANDLE traceHandle) {
+    util::log::IdentificationTable::AddThisThread("etw-consume");
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
     // You must call OpenTrace() prior to calling this function
@@ -405,6 +407,7 @@ void MockPresentMonSession::Consume(TRACEHANDLE traceHandle) {
 }
 
 void MockPresentMonSession::Output() {
+    util::log::IdentificationTable::AddThisThread("frame-out");
     // Structures to track processes and statistics from recorded events.
     std::vector<ProcessEvent> processEvents;
     std::vector<std::shared_ptr<PresentEvent>> presentEvents;
