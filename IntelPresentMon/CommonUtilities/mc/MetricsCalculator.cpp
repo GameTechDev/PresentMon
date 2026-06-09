@@ -131,7 +131,7 @@ namespace pmon::util::metrics
 
             results.push_back(std::move(metrics));
 
-            chainState.UpdateAfterPresent(present);
+            chainState.UpdateAfterPresentV1(present);
 
             return results;
         }
@@ -172,7 +172,7 @@ namespace pmon::util::metrics
         ApplyStateDeltas(chainState, metrics.stateDeltas);
         results.push_back(std::move(metrics));
 
-        chainState.UpdateAfterPresent(present);
+        chainState.UpdateAfterPresentV1(present);
         return results;
     }
 

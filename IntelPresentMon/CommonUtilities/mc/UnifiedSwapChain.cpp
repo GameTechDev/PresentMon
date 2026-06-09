@@ -72,7 +72,7 @@ namespace pmon::util::metrics
         // applying any publish policy since some metrics require swap chain history to compute.
         if (!swapChain.lastPresent.has_value()) {
             SanitizeDisplayedRepeatedPresents(present);
-            swapChain.UpdateAfterPresent(present);
+            swapChain.UpdateAfterBootstrapPresentV2(present);
             displayQueue.NoteSeedPresent(present);
             return {};
         }

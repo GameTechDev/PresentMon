@@ -629,7 +629,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 1'500 } },
                                    10'000 /* appSimStartTime */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::AreEqual(uint64_t(10'000), chain.lastDisplayedSimStartTime);
             Assert::AreEqual(uint64_t(10'000), chain.firstAppSimStartTime);
@@ -648,7 +648,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 1'650 } },
                                    10'000 /* appSimStartTime */, 12'000 /* pclSimStart */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
             Assert::AreEqual(uint64_t(40'000), chain.firstAppSimStartTime);
@@ -669,7 +669,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 9'950 } },
                                    0 /* appSimStartTime */, 0 /* pclSimStart */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
             Assert::AreEqual(uint64_t(40'000), chain.firstAppSimStartTime);
@@ -689,7 +689,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 9'960 } },
                                    0 /* appSimStartTime */, 52'000 /* pclSimStart */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
             Assert::AreEqual(uint64_t(40'000), chain.firstAppSimStartTime);
@@ -706,7 +706,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 2'700 } },
                                    0 /* appSimStartTime */, 12'345 /* pclSimStart */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::AreEqual(uint64_t(12'345), chain.lastDisplayedSimStartTime);
             Assert::AreEqual(uint64_t(12'345), chain.firstAppSimStartTime);
@@ -729,7 +729,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 9'950 } },
                                    0 /* appSimStartTime */, 0 /* pclSimStart */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::PCLatency);
             Assert::AreEqual(uint64_t(30'000), chain.firstAppSimStartTime);
@@ -750,7 +750,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 6'700 } },
                                    0, 0);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             // No appSimStartTime or pclSimStartTime, fallback uses previous app present CPU end:
             // 5'000 + 80 = 5'080
@@ -768,7 +768,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 7'900 } },
                                    20'000 /* appSimStartTime */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
             Assert::AreEqual(uint64_t(20'000), chain.lastDisplayedSimStartTime);
@@ -786,7 +786,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 8'300 } },
                                    20'000 /* appSimStartTime */, 30'000 /* pclSimStart */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
             Assert::AreEqual(uint64_t(20'000), chain.lastDisplayedSimStartTime);
@@ -802,7 +802,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 8'950 } },
                                    0 /* appSim */, 30'000 /* pclSim */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::PCLatency);
             Assert::AreEqual(uint64_t(30'000), chain.lastDisplayedSimStartTime);
@@ -821,7 +821,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 9'950 } },
                                    40'000 /* appSimStartTime */, 0 /* pclSimStart */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
             Assert::AreEqual(uint64_t(40'000), chain.firstAppSimStartTime);
@@ -841,7 +841,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    { { FrameType::Application, 10'950 } },
                                    40'000 /* appSimStartTime */, 50'000 /* pclSimStart */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
             Assert::AreEqual(uint64_t(40'000), chain.firstAppSimStartTime);
@@ -863,7 +863,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                                    },
                                    0, 0, 1234 /* flipDelay */);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::AreEqual(uint64_t(11'000), chain.lastDisplayedScreenTime);
             Assert::AreEqual(uint64_t(1234), chain.lastDisplayedFlipDelay);
@@ -875,7 +875,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto frame = MakeFrame(PresentResult::Presented, 12'000, 40, 12'300,
                                    {}, 0, 0, 9999);
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::AreEqual(uint64_t(0), chain.lastDisplayedScreenTime);
             Assert::AreEqual(uint64_t(0), chain.lastDisplayedFlipDelay);
@@ -887,18 +887,46 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // Seed previous displayed state
             FrameData prev = MakeFrame(PresentResult::Presented, 1'000, 30, 1'200,
                                        { { FrameType::Application, 1'500 } });
-            chain.UpdateAfterPresent(prev);
+            chain.UpdateAfterPresentV1(prev);
             Assert::AreEqual(uint64_t(1'500), chain.lastDisplayedScreenTime);
 
             // Not presented frame with displays (ignored for displayed tracking)
             auto frame = MakeFrame(static_cast<PresentResult>(7777), 2'000, 25, 2'150,
                                    { { FrameType::Application, 2'600 } });
 
-            chain.UpdateAfterPresent(frame);
+            chain.UpdateAfterPresentV1(frame);
 
             Assert::AreEqual(uint64_t(1'500), chain.lastDisplayedScreenTime, L"Should remain unchanged.");
         }
     };
+
+    TEST_CLASS(UpdateAfterBootstrapPresentV2Tests)
+    {
+    public:
+        TEST_METHOD(UpdateAfterBootstrapPresentV2_AppInMiddle_UsesAppDisplayForAppState)
+        {
+            SwapChainCoreState chain{};
+            auto frame = MakeFrame(PresentResult::Presented, 10'000, 50, 10'300,
+                                   {
+                                       { FrameType::Repeated,    10'700 },
+                                       { FrameType::Application, 10'800 },
+                                       { FrameType::Repeated,    11'000 }
+                                   },
+                                   40'000 /* appSimStartTime */, 0, 1234 /* flipDelay */);
+
+            chain.UpdateAfterBootstrapPresentV2(frame);
+
+            Assert::AreEqual(uint64_t(11'000), chain.lastDisplayedScreenTime);
+            Assert::AreEqual(uint64_t(1234), chain.lastDisplayedFlipDelay);
+            Assert::AreEqual(uint64_t(10'800), chain.lastDisplayedAppScreenTime);
+            Assert::AreEqual(uint64_t(40'000), chain.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(40'000), chain.firstAppSimStartTime);
+            Assert::IsTrue(chain.animationErrorSource == AnimationErrorSource::AppProvider);
+            Assert::IsTrue(chain.lastAppPresent.has_value());
+            Assert::IsTrue(chain.lastPresent.has_value());
+        }
+    };
+
     TEST_CLASS(FrameTypeXefgAfmfIndexingTests)
     {
     public:
