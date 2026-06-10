@@ -2,16 +2,30 @@
 // SPDX-License-Identifier: MIT
 import { compareVersions } from "./signature";
 import { type LoadoutFile, signature } from "./loadout";
+import type { Metric } from "./metric";
+import { WidgetType } from "./widget";
+import type { Graph } from "./graph";
+import type { Readout } from "./readout";
+import {
+    migratePersistedGpuDeviceIdsZeroToNull,
+    normalizeLoadoutPersistedMetrics,
+    type MetricQueryContext,
+} from "./metric-device";
+
+export interface LoadoutMigrationIntrospection {
+    metrics: Metric[];
+    queryCtx: MetricQueryContext;
+}
 
 interface Migration {
     version: string;
-    migrate: (file: LoadoutFile) => void;
+    migrate: (file: LoadoutFile, intro: LoadoutMigrationIntrospection | null) => void;
 }
 
 const migrations: Migration[] = [
     {
         version: "0.13.0",
-        migrate: (_file: LoadoutFile): void => {
+        migrate: (_file, _intro): void => {
             const e = new Error("Loadout file version too old to migrate (<0.13.0).");
             (e as { noticeOverride?: boolean }).noticeOverride = true;
             throw e;
@@ -19,7 +33,7 @@ const migrations: Migration[] = [
     },
     {
         version: "0.14.0",
-        migrate: (file: LoadoutFile): void => {
+        migrate: (file, _intro): void => {
             const PM_STAT_NONE = 0;
             const PM_STAT_MID_POINT = 10;
             const PM_STAT_NEWEST_POINT = 12;
@@ -64,11 +78,82 @@ const migrations: Migration[] = [
             console.info(`Migrated loadout to 0.14.0; stat fixes: ${statFixCount}, device fixes: ${deviceFixCount}`);
         },
     },
+    {
+        version: "0.15.0",
+        migrate: (file, _intro): void => {
+            let strippedUnitCount = 0;
+            for (const widget of file.widgets) {
+                for (const widgetMetric of widget.metrics) {
+                    if (widgetMetric.metric.desiredUnitId !== undefined) {
+                        delete widgetMetric.metric.desiredUnitId;
+                        strippedUnitCount++;
+                    }
+                }
+            }
+            console.info(
+                `Migrated loadout to 0.15.0; stripped persisted desiredUnitId from ${strippedUnitCount} metric line(s)`,
+            );
+        },
+    },
+    {
+        version: "1.0.0",
+        migrate: (file, intro): void => {
+            if (intro === null) {
+                throw new Error("Loadout migration to 1.0.0 requires introspection");
+            }
+            const gpuNullCount = migratePersistedGpuDeviceIdsZeroToNull(file, intro.metrics);
+            const lineFixCount = normalizeLoadoutPersistedMetrics(
+                file,
+                intro.metrics,
+                intro.queryCtx,
+            );
+            let graphLabelSuffixCount = 0;
+            let readoutLabelSuffixCount = 0;
+            for (const widget of file.widgets) {
+                if (widget.widgetType === WidgetType.Graph) {
+                    const graph = widget as Graph;
+                    const firstLine = widget.metrics[0] as {
+                        labelIncludeDeviceId?: boolean;
+                        labelIncludeDeviceName?: boolean;
+                    } | undefined;
+                    graph.labelIncludeDeviceId = firstLine?.labelIncludeDeviceId ?? false;
+                    graph.labelIncludeDeviceName = firstLine?.labelIncludeDeviceName ?? false;
+                    graphLabelSuffixCount++;
+                } else if (widget.widgetType === WidgetType.Readout) {
+                    const readout = widget as Readout;
+                    const firstLine = widget.metrics[0] as {
+                        labelIncludeDeviceId?: boolean;
+                        labelIncludeDeviceName?: boolean;
+                    } | undefined;
+                    readout.labelIncludeDeviceId = firstLine?.labelIncludeDeviceId ?? false;
+                    readout.labelIncludeDeviceName = firstLine?.labelIncludeDeviceName ?? false;
+                    readoutLabelSuffixCount++;
+                }
+                for (const widgetMetric of widget.metrics) {
+                    const line = widgetMetric as {
+                        labelIncludeDeviceId?: boolean;
+                        labelIncludeDeviceName?: boolean;
+                    };
+                    delete line.labelIncludeDeviceId;
+                    delete line.labelIncludeDeviceName;
+                }
+            }
+            console.info(
+                `Migrated loadout to 1.0.0; gpu deviceId 0=>null: ${gpuNullCount} line(s), `
+                + `introspection normalized ${lineFixCount} metric line(s), `
+                + `graph label suffix widgets: ${graphLabelSuffixCount}, `
+                + `readout label suffix widgets: ${readoutLabelSuffixCount}`,
+            );
+        },
+    },
 ];
 
 migrations.sort((a, b) => compareVersions(a.version, b.version));
 
-export function migrateLoadout(file: LoadoutFile): void {
+export function migrateLoadout(
+    file: LoadoutFile,
+    intro: LoadoutMigrationIntrospection | null,
+): void {
     const sourceVersion = file.signature.version;
 
     if (file.signature.code !== signature.code) {
@@ -84,7 +169,7 @@ export function migrateLoadout(file: LoadoutFile): void {
 
     for (const migration of migrations) {
         if (compareVersions(migration.version, sourceVersion) > 0) {
-            migration.migrate(file);
+            migration.migrate(file, intro);
         }
     }
 

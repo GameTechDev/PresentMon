@@ -3,8 +3,8 @@
 #include "../../CommonUtilities/win/WinAPI.h"
 #include "NvapiTelemetryProvider.h"
 
+#include "../TelemetryMetricDiscovery.h"
 #include "../Exceptions.h"
-#include "../Logging.h"
 #include "../../CommonUtilities/Qpc.h"
 #include "../../CommonUtilities/ref/GeneratedReflection.h"
 
@@ -181,45 +181,95 @@ namespace pmon::tel::nvapi
     {
         ipc::MetricCapabilities caps{};
         const auto requestQpc = GetCurrentTimestamp();
-
-        caps.Set(PM_METRIC_GPU_VENDOR, 1);
-        caps.Set(PM_METRIC_GPU_NAME, 1);
-
         double value = 0.0;
 
-        if (const auto* pThermals = PollThermalEndpoint_(device, requestQpc)) {
-            if (TryGetThermalValue_(*pThermals, NVAPI_THERMAL_TARGET_GPU, true, value)) {
-                caps.Set(PM_METRIC_GPU_TEMPERATURE, 1);
-            }
-            if (TryGetThermalValue_(*pThermals, NVAPI_THERMAL_TARGET_MEMORY, false, value)) {
-                caps.Set(PM_METRIC_GPU_MEM_TEMPERATURE, 1);
-            }
-        }
+        const MetricDiscoverSpec specs[] = {
+            { PM_METRIC_GPU_VENDOR, []() {
+                return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+            } },
+            { PM_METRIC_GPU_NAME, []() {
+                return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+            } },
+            { PM_METRIC_GPU_TEMPERATURE, [&]() {
+                if (const auto* pThermals = PollThermalEndpoint_(device, requestQpc)) {
+                    if (TryGetThermalValue_(*pThermals, NVAPI_THERMAL_TARGET_GPU, true, value)) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_TEMPERATURE, [&]() {
+                if (const auto* pThermals = PollThermalEndpoint_(device, requestQpc)) {
+                    if (TryGetThermalValue_(*pThermals, NVAPI_THERMAL_TARGET_MEMORY, false, value)) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_FREQUENCY, [&]() {
+                if (const auto* pClocks = PollClockEndpoint_(device, requestQpc)) {
+                    if (TryGetClockValue_(*pClocks, NVAPI_GPU_PUBLIC_CLOCK_GRAPHICS, value)) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_FREQUENCY, [&]() {
+                if (const auto* pClocks = PollClockEndpoint_(device, requestQpc)) {
+                    if (TryGetClockValue_(*pClocks, NVAPI_GPU_PUBLIC_CLOCK_MEMORY, value)) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_UTILIZATION, [&]() {
+                if (const auto* pUtilization = PollUtilizationEndpoint_(device, requestQpc)) {
+                    if (TryGetUtilizationValue_(
+                        *pUtilization, NVAPI_GPU_UTILIZATION_DOMAIN_GPU, value)) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEDIA_UTILIZATION, [&]() {
+                if (const auto* pUtilization = PollUtilizationEndpoint_(device, requestQpc)) {
+                    if (TryGetUtilizationValue_(
+                        *pUtilization, NVAPI_GPU_UTILIZATION_DOMAIN_VID, value)) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_FAN_SPEED, [&]() {
+                if (PollTachEndpoint_(device)) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+        };
 
-        if (const auto* pClocks = PollClockEndpoint_(device, requestQpc)) {
-            if (TryGetClockValue_(*pClocks, NVAPI_GPU_PUBLIC_CLOCK_GRAPHICS, value)) {
-                caps.Set(PM_METRIC_GPU_FREQUENCY, 1);
-            }
-            if (TryGetClockValue_(*pClocks, NVAPI_GPU_PUBLIC_CLOCK_MEMORY, value)) {
-                caps.Set(PM_METRIC_GPU_MEM_FREQUENCY, 1);
-            }
-        }
-
-        if (const auto* pUtilization = PollUtilizationEndpoint_(device, requestQpc)) {
-            if (TryGetUtilizationValue_(
-                *pUtilization, NVAPI_GPU_UTILIZATION_DOMAIN_GPU, value)) {
-                caps.Set(PM_METRIC_GPU_UTILIZATION, 1);
-            }
-            if (TryGetUtilizationValue_(
-                *pUtilization, NVAPI_GPU_UTILIZATION_DOMAIN_VID, value)) {
-                caps.Set(PM_METRIC_GPU_MEDIA_UTILIZATION, 1);
-            }
-        }
-
-        if (PollTachEndpoint_(device)) {
-            caps.Set(PM_METRIC_GPU_FAN_SPEED, 1);
-        }
-
+        DiscoverMetricsFromSpecs(specs, caps, PM_DEVICE_TYPE_GRAPHICS_ADAPTER);
         return caps;
     }
 

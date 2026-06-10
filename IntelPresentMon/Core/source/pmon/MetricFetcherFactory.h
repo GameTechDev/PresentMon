@@ -43,13 +43,18 @@ namespace p2c::pmon
             std::wstring unitLabel;
             bool isNonNumeric = true;
         };
+        struct MetricLabelOptions
+        {
+            bool includeDeviceId = false;
+            bool includeDeviceName = false;
+        };
         // functions
         MetricFetcherFactory(pmon::PresentMon& pm)
             :
             pm_{ pm }
         {}
         // ** enumerate metrics reflection => introspect async endpoint
-        MetricInfo GetMetricInfo(const kern::QualifiedMetric& qmet) const
+        MetricInfo GetMetricInfo(const kern::QualifiedMetric& qmet, MetricLabelOptions opts = {}) const
         {
             MetricInfo info;
 
@@ -65,6 +70,17 @@ namespace p2c::pmon
             // add [i] to end of metric name if it's an array metric
             if (arraySize > 1) {
                 info.fullName += std::format(L" [{}]", qmet.arrayIndex);
+            }
+            if (opts.includeDeviceId) {
+                info.fullName += std::format(L" <{}>", qmet.deviceId);
+            }
+            if (opts.includeDeviceName) {
+                for (auto&& device : intro.GetDevices()) {
+                    if (device.GetId() == qmet.deviceId) {
+                        info.fullName += std::format(L" {{{}}}", ToWide(device.GetName()));
+                        break;
+                    }
+                }
             }
             // add stat to name (but exclude midpoint (mpt)
             if (qmet.statId != PM_STAT_MID_POINT) {

@@ -1,18 +1,24 @@
 ﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { Api } from '@/core/api';
+import { lowestAdapterId } from '@/core/adapter';
 import { type Preferences as PreferencesType, type PreferenceFile, makeDefaultPreferences, Preset } from '@/core/preferences';
 import { combinationsAreSame } from '@/core/hotkey';
 import { signature } from '@/core/preferences';
 import { useHotkeyStore } from './hotkey';
-import { debounce, type DelayedTask, type DelayToken, dispatchDelayedTask } from '@/core/timing';
+import { debounce, type DelayedTask, dispatchDelayedTask } from '@/core/timing';
 import { migratePreferences } from '@/core/preferences-migration';
-import type { Widget } from '@/core/widget';
 import { useLoadoutStore } from './loadout';
 import { useIntrospectionStore } from './introspection';
 import { deepToRaw } from '@/core/vue-utils';
+import { asGraph, asReadout, WidgetType } from '@/core/widget';
+import {
+    isGpuMetric,
+    makeMetricQueryContext,
+    prepareWidgetMetricForPush,
+} from '@/core/metric-device';
 import { useNotificationsStore } from './notifications';
 
 export const usePreferencesStore = defineStore('preferences', () => {
@@ -44,13 +50,16 @@ export const usePreferencesStore = defineStore('preferences', () => {
   function resetPreferences() {
     setAllPreferences(makeDefaultPreferences());
     preferences.value.selectedPreset = Preset.Slot1;
+    preferences.value.adapterId = lowestAdapterId(intro.adapters);
   }
 
   async function parseAndReplaceRawPreferenceString(payload: { payload: string }) {
     const config = JSON.parse(payload.payload) as PreferenceFile;
     if (config.signature.code !== signature.code) throw new Error('Bad file format');
+    let migrated = false;
     if (config.signature.version !== signature.version) {
-      migratePreferences(config);
+      migratePreferences(config, { adapters: intro.adapters });
+      migrated = true;
     }
 
     Object.assign(preferences.value, config.preferences);
@@ -66,6 +75,17 @@ export const usePreferencesStore = defineStore('preferences', () => {
         await hotkeys.bindHotkey(newBinding);
       }
     }
+    if (migrated) {
+      serialize();
+    }
+  }
+
+  function metricQueryContext() {
+    return makeMetricQueryContext(
+      intro.systemDeviceId,
+      preferences.value.adapterId,
+      preferences.value.enablePerMetricDeviceSelection,
+    );
   }
 
   // === Actions ===
@@ -120,39 +140,35 @@ export const usePreferencesStore = defineStore('preferences', () => {
     await intro.load();
     // we need to get a non-proxy object for the  call
     const widgets = deepToRaw(loadout.widgets);
-    const systemDeviceId = intro.systemDeviceId;
-    const defaultAdapterId = intro.defaultAdapterId;
+    const queryCtx = metricQueryContext();
+    const enablePerMetricDeviceSelection = preferences.value.enablePerMetricDeviceSelection;
     for (const widget of widgets) {
-      // Filter out the widgetMetrics that do not meet the condition, modify those that do
       widget.metrics = widget.metrics.filter(widgetMetric => {
         const metric = intro.metrics.find(m => m.id === widgetMetric.metric.metricId);
-        if (metric === undefined || metric.availableDeviceIds.length === 0) {
-          // If the metric is undefined, this widgetMetric will be dropped
+        if (metric === undefined) {
           return false;
         }
-        // If the metric is found, set up the deviceId and desiredUnitId as needed
-        widgetMetric.metric.deviceId = 0; // establish universal device id
-        // Check whether metric is a gpu metric, then we need non-universal device id
-        if (!metric.availableDeviceIds.includes(0)) {
-          // if this is a system metric, deviceId needs to be set to fixed id
-          if (metric.availableDeviceIds.includes(systemDeviceId)) {
-            widgetMetric.metric.deviceId = systemDeviceId;
-          }
-          else {
-            const adapterId = preferences.value.adapterId !== null ? preferences.value.adapterId : defaultAdapterId;
-            // Set adapter id for this query element to the active one if available
-            if (adapterId !== 0 && metric.availableDeviceIds.includes(adapterId)) {
-              widgetMetric.metric.deviceId = adapterId;
-            } else { // if active adapter id is not available drop this widgetMetric
-              return false;
-            }
-          }
+        const pushMetric = { ...widgetMetric.metric };
+        if (!enablePerMetricDeviceSelection && isGpuMetric(metric)) {
+          pushMetric.deviceId = null;
         }
-        // Fill out the unit
-        widgetMetric.metric.desiredUnitId = metric.preferredUnitId;
-        // Since the metric is defined, keep this widgetMetric by returning true
+        if (!prepareWidgetMetricForPush(metric, pushMetric, queryCtx)) {
+          return false;
+        }
+        widgetMetric.metric = pushMetric;
         return true;
       });
+      if (!enablePerMetricDeviceSelection) {
+        if (widget.widgetType === WidgetType.Graph) {
+          const graph = asGraph(widget);
+          graph.labelIncludeDeviceId = false;
+          graph.labelIncludeDeviceName = false;
+        } else if (widget.widgetType === WidgetType.Readout) {
+          const readout = asReadout(widget);
+          readout.labelIncludeDeviceId = false;
+          readout.labelIncludeDeviceName = false;
+        }
+      }
     }
     await Api.pushSpecification({
       pid: pid.value,

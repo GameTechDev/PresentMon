@@ -19,4 +19,11 @@ namespace p2c::pmon::met
         MetricFetcher(MetricFetcher&&) = delete;
         MetricFetcher & operator=(MetricFetcher&&) = delete;
     };
+
+    class UnavailableMetricFetcher : public MetricFetcher
+    {
+    public:
+        std::optional<float> ReadValue() override;
+        std::wstring ReadStringValue() override;
+    };
 }

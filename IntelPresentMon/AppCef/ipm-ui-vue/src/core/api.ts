@@ -5,6 +5,7 @@ import { type Stat } from './stat'
 import { type Unit } from './unit'
 import { type Process } from '@/core/process'
 import { type Adapter } from './adapter'
+import { type MetricAvailabilityReason } from './metric-availability-constants'
 import { type Spec } from '@/core/spec'
 import { type Binding, type KeyOption, type ModifierOption, Action } from '@/core/hotkey'
 import { type EnvVars } from './env-vars'
@@ -58,11 +59,17 @@ export class Api {
     static async getAppInfo(): Promise<AppInfo> {
         return await this.invokeEndpointFuture('getAppInfo', {});
     }
-    static async introspect(): Promise<{metrics: Metric[], stats: Stat[], units: Unit[], adapters: Adapter[], systemDeviceId: number, defaultAdapterId: number}> {
+    static async introspect(): Promise<{
+        metrics: Metric[],
+        stats: Stat[],
+        units: Unit[],
+        adapters: Adapter[],
+        systemDeviceId: number,
+        metricAvailabilityReasons: MetricAvailabilityReason[],
+    }> {
         const introData = await this.invokeEndpointFuture('Introspect', {});
         if (!Array.isArray(introData.metrics) || !Array.isArray(introData.stats) ||
-            !Array.isArray(introData.units) || !Array.isArray(introData.adapters) || typeof introData.systemDeviceId !== 'number' ||
-            typeof introData.defaultAdapterId !== 'number') {
+            !Array.isArray(introData.units) || !Array.isArray(introData.adapters) || typeof introData.systemDeviceId !== 'number') {
             console.log("error intro call");
             throw new Error('Bad member type returned from introspect');
         }

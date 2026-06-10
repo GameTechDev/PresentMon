@@ -1,7 +1,7 @@
 {
    "signature": {
       "code": "p2c-cap-load",
-      "version": "0.14.0"
+      "version": "1.0.0"
    },
    "widgets": [
       {
@@ -12,9 +12,8 @@
                "metric": {
                   "metricId": 3,
                   "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 0,
-                  "desiredUnitId": 0
+                  "deviceId": null,
+                  "statId": 0
                },
                "lineColor": {
                   "r": 100,
@@ -56,8 +55,7 @@
                   "metricId": 12,
                   "arrayIndex": 0,
                   "deviceId": 0,
-                  "statId": 1,
-                  "desiredUnitId": 0
+                  "statId": 1
                },
                "lineColor": {
                   "r": 100,
@@ -99,8 +97,7 @@
                   "metricId": 12,
                   "arrayIndex": 0,
                   "deviceId": 0,
-                  "statId": 1,
-                  "desiredUnitId": 0
+                  "statId": 1
                },
                "lineColor": {
                   "r": 100,
@@ -122,8 +119,7 @@
                   "metricId": 12,
                   "arrayIndex": 0,
                   "deviceId": 0,
-                  "statId": 5,
-                  "desiredUnitId": 0
+                  "statId": 5
                },
                "lineColor": {
                   "r": 255,
@@ -211,8 +207,7 @@
                   "metricId": 87,
                   "arrayIndex": 0,
                   "deviceId": 0,
-                  "statId": 1,
-                  "desiredUnitId": 0
+                  "statId": 1
                },
                "lineColor": {
                   "r": 100,
@@ -234,8 +229,7 @@
                   "metricId": 14,
                   "arrayIndex": 0,
                   "deviceId": 0,
-                  "statId": 1,
-                  "desiredUnitId": 0
+                  "statId": 1
                },
                "lineColor": {
                   "r": 245,
@@ -316,9 +310,8 @@
                "metric": {
                   "metricId": 30,
                   "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 1,
-                  "desiredUnitId": 0
+                  "deviceId": null,
+                  "statId": 1
                },
                "lineColor": {
                   "r": 125,
@@ -339,9 +332,8 @@
                "metric": {
                   "metricId": 33,
                   "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 1,
-                  "desiredUnitId": 0
+                  "deviceId": null,
+                  "statId": 1
                },
                "lineColor": {
                   "r": 24,
@@ -422,9 +414,8 @@
                "metric": {
                   "metricId": 29,
                   "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 1,
-                  "desiredUnitId": 0
+                  "deviceId": null,
+                  "statId": 1
                },
                "lineColor": {
                   "r": 255,
@@ -445,9 +436,8 @@
                "metric": {
                   "metricId": 28,
                   "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 1,
-                  "desiredUnitId": 0
+                  "deviceId": null,
+                  "statId": 1
                },
                "lineColor": {
                   "r": 219,
@@ -528,9 +518,8 @@
                "metric": {
                   "metricId": 31,
                   "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 1,
-                  "desiredUnitId": 0
+                  "deviceId": null,
+                  "statId": 1
                },
                "lineColor": {
                   "r": 186,
@@ -551,9 +540,8 @@
                "metric": {
                   "metricId": 32,
                   "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 1,
-                  "desiredUnitId": 0
+                  "deviceId": null,
+                  "statId": 1
                },
                "lineColor": {
                   "r": 100,
@@ -634,9 +622,8 @@
                "metric": {
                   "metricId": 47,
                   "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 1,
-                  "desiredUnitId": 0
+                  "deviceId": null,
+                  "statId": 1
                },
                "lineColor": {
                   "r": 255,
@@ -657,9 +644,8 @@
                "metric": {
                   "metricId": 48,
                   "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 0,
-                  "desiredUnitId": 0
+                  "deviceId": null,
+                  "statId": 0
                },
                "lineColor": {
                   "r": 132,

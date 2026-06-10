@@ -17,10 +17,6 @@
       ]
     },
     {
-      "Id": "ad3a92d5-fa0a-4753-be99-dba98f1bbb2c",
-      "Command": "--p2c-svc-as-child"
-    },
-    {
       "Id": "04791b9f-ca9c-4ced-a572-c50f972877a3",
       "Command": "--p2c-files-working"
     },

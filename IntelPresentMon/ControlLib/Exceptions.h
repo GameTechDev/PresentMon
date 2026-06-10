@@ -13,6 +13,7 @@ namespace pmon::tel
     PM_DEFINE_EX_FROM(TelementryException, NvmlException);
     PM_DEFINE_EX_FROM(TelementryException, UciException);
     PM_DEFINE_EX_FROM(TelementryException, WmiException);
+    PM_DEFINE_EX_FROM(TelementryException, MockTelemetryException);
 
     using ::pmon::util::Except;
 }

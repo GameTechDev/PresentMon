@@ -3,6 +3,7 @@
 #include "IntrospectionTransfer.h"
 #include "MetricCapabilities.h"
 #include "IntrospectionPopulators.h"
+#include "metadata/UniversalMetricAvailability.h"
 #include "../../CommonUtilities/log/Log.h"
 #include <ranges>
 #include <optional>
@@ -33,8 +34,17 @@ namespace pmon::ipc::intro
 	void RegisterUniversalMetricDeviceInfo_(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root, IntrospectionMetric& metric)
 	{
 		if constexpr (deviceType == PM_DEVICE_TYPE_INDEPENDENT) {
+			PM_METRIC_AVAILABILITY availability = PM_METRIC_AVAILABILITY_AVAILABLE;
+			uint32_t arraySize = 1;
+			switch (metricId) {
+#define X_UNIVERSAL_(id, avail, size) case id: availability = avail; arraySize = size; break;
+				UNIVERSAL_METRIC_AVAILABILITY_LIST(X_UNIVERSAL_)
+#undef X_UNIVERSAL_
+			default:
+				break;
+			}
 			metric.AddDeviceMetricInfo(IntrospectionDeviceMetricInfo{
-				0, PM_METRIC_AVAILABILITY_AVAILABLE, 1 });
+				0, availability, arraySize });
 		}
 	}
 
@@ -48,11 +58,13 @@ namespace pmon::ipc::intro
 #undef X_PREF_UNIT
 
 #define X_REG_METRIC(metric, metric_type, unit, data_type_polled, data_type_frame, enum_id, device_type, ...) { \
-		auto pMetric = ShmMakeUnique<IntrospectionMetric>(pSegmentManager, pSegmentManager, \
-			metric, metric_type, unit, IntrospectionDataTypeInfo{ data_type_polled, data_type_frame, (PM_ENUM)enum_id }, std::vector{ __VA_ARGS__ }); \
-		RegisterUniversalMetricDeviceInfo_<metric, device_type>(pSegmentManager, root, *pMetric); \
-		if (preferredMetricOverrides.contains(metric)) pMetric->SetPreferredUnitHint(preferredMetricOverrides[metric]); \
-		root.AddMetric(std::move(pMetric)); }
+		if ((metric) != PM_METRIC_COUNT_) { \
+			auto pMetric = ShmMakeUnique<IntrospectionMetric>(pSegmentManager, pSegmentManager, \
+				metric, metric_type, unit, IntrospectionDataTypeInfo{ data_type_polled, data_type_frame, (PM_ENUM)enum_id }, std::vector{ __VA_ARGS__ }); \
+			RegisterUniversalMetricDeviceInfo_<metric, device_type>(pSegmentManager, root, *pMetric); \
+			if (preferredMetricOverrides.contains(metric)) pMetric->SetPreferredUnitHint(preferredMetricOverrides[metric]); \
+			root.AddMetric(std::move(pMetric)); \
+		} }
 
 		METRIC_LIST(X_REG_METRIC)
 
@@ -75,7 +87,7 @@ namespace pmon::ipc::intro
 	static void PopulateDeviceMetrics_(IntrospectionRoot& root,
 		const MetricCapabilities& caps, uint32_t deviceId)
 	{
-		for (auto&& [metric, count] : caps) {
+		for (auto&& [metric, entry] : caps) {
 			auto i = rn::find(
 				root.GetMetrics(),
 				metric,
@@ -83,9 +95,10 @@ namespace pmon::ipc::intro
 				return pMetric->GetId();
 			});
 			if (i != root.GetMetrics().end()) {
-				const auto availability = count ? PM_METRIC_AVAILABILITY_AVAILABLE :
-					PM_METRIC_AVAILABILITY_UNAVAILABLE;
-				(*i)->AddDeviceMetricInfo(IntrospectionDeviceMetricInfo{ deviceId, availability, (uint32_t)count });
+				(*i)->AddDeviceMetricInfo(IntrospectionDeviceMetricInfo{
+					deviceId,
+					entry.availability,
+					(uint32_t)entry.arraySize });
 			}
 			else {
 				pmlog_error("Metric ID not found").pmwatch((int)metric);
@@ -116,6 +129,18 @@ namespace pmon::ipc::intro
 		root.AddDevice(ShmMakeUnique<IntrospectionDevice>(pSegmentManager, ::pmon::ipc::kSystemDeviceId,
 			PM_DEVICE_TYPE_SYSTEM, vendor, ShmString{ "System", charAlloc}, std::move(pLuid)));
 		PopulateDeviceMetrics_(root, caps, ::pmon::ipc::kSystemDeviceId);
+	}
+
+	PM_DEVICE_TYPE GetMetricRegisteredDeviceType(PM_METRIC metric)
+	{
+		switch (metric) {
+#define X_METRIC_DEVICE_TYPE(metricId, metric_type, unit, data_type_polled, data_type_frame, enum_id, device_type, ...) \
+			case metricId: return device_type;
+			METRIC_LIST(X_METRIC_DEVICE_TYPE)
+#undef X_METRIC_DEVICE_TYPE
+		default:
+			return PM_DEVICE_TYPE_INDEPENDENT;
+		}
 	}
 
 }

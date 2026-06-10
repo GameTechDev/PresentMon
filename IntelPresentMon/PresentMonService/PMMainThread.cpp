@@ -129,7 +129,9 @@ void TelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Servic
         }
 
         pmon::util::QpcTimer timer;
-        pmon::tel::TelemetryCoordinator coordinator{ pm->GetGpuTelemetryPeriod() };
+        pmon::tel::TelemetryCoordinator coordinator{
+            pm->GetGpuTelemetryPeriod(),
+            clio::Options::Get().enableMockTelemetry };
         coordinator.RegisterDevicesToIpc(*pComms);
         coordinator.PopulateStaticsToIpc(*pComms);
         pmlog_info(std::format(

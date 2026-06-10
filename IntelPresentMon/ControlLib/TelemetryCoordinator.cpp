@@ -1,6 +1,7 @@
-﻿// Copyright (C) 2026 Intel Corporation
+// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "TelemetryCoordinator.h"
+#include "TelemetryAvailabilityMerge.h"
 #include "Exceptions.h"
 #include "TelemetryDeviceFingerprint.h"
 #include "Logging.h"
@@ -10,6 +11,7 @@
 #include "nvml/NvmlTelemetryProvider.h"
 #include "uci/UciTelemetryProvider.h"
 #include "wmi/WmiTelemetryProvider.h"
+#include "mock/MockTelemetryProvider.h"
 #include "../CommonUtilities/Exception.h"
 #include "../CommonUtilities/Qpc.h"
 #include "../Interprocess/source/Interprocess.h"
@@ -53,9 +55,10 @@ namespace pmon::tel
 
     }
 
-    TelemetryCoordinator::TelemetryCoordinator(uint32_t pollRateMs)
+    TelemetryCoordinator::TelemetryCoordinator(uint32_t pollRateMs, bool enableMockTelemetry)
         :
-        pollRateMs_{ std::max(pollRateMs, 1u) }
+        pollRateMs_{ std::max(pollRateMs, 1u) },
+        enableMockTelemetry_{ enableMockTelemetry }
     {
         TryCreateConcreteProviders_();
         BuildLogicalDevicesAndRoutes_();
@@ -67,7 +70,7 @@ namespace pmon::tel
 
         for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
             auto fingerprint = ResolveLogicalDeviceFingerprint_(logicalDevice);
-            auto caps = BuildRoutedCapabilities_(logicalDevice);
+            auto caps = BuildMergedDeviceAvailability_(logicalDevice);
 
             const auto vendor = fingerprint.vendor;
             const auto name = !fingerprint.deviceName.empty() ?
@@ -97,7 +100,10 @@ namespace pmon::tel
         }
 
         if (!cpuRegistered) {
-            comms.RegisterCpuDevice(PM_DEVICE_VENDOR_UNKNOWN, "UNKNOWN_CPU", {});
+            LogicalDevice_ emptySystemDevice{};
+            emptySystemDevice.logicalDeviceId = ipc::kSystemDeviceId;
+            const auto caps = BuildMergedDeviceAvailability_(emptySystemDevice);
+            comms.RegisterCpuDevice(PM_DEVICE_VENDOR_UNKNOWN, "UNKNOWN_CPU", caps);
         }
         comms.FinalizeGpuDevices();
     }
@@ -176,11 +182,14 @@ namespace pmon::tel
 
         for (const auto& entry : logicalDevicesById_) {
             const auto& logicalDevice = entry.second;
-            const auto routedCaps = BuildRoutedCapabilities_(logicalDevice);
-            for (const auto& [metricId, arraySize] : routedCaps) {
+            const auto mergedCaps = BuildMergedDeviceAvailability_(logicalDevice);
+            for (const auto& [metricId, entry] : mergedCaps) {
+                if (entry.availability != PM_METRIC_AVAILABILITY_AVAILABLE) {
+                    continue;
+                }
                 const auto existingSize = availability.Check(metricId);
-                if (arraySize > existingSize) {
-                    availability.Set(metricId, arraySize);
+                if (entry.arraySize > existingSize) {
+                    availability.Set(metricId, entry.arraySize, entry.availability);
                 }
             }
         }
@@ -317,6 +326,17 @@ namespace pmon::tel
         tryAddProvider.operator()<nvml::NvmlTelemetryProvider>(
             "NVML telemetry provider unavailable",
             "NVML telemetry provider construction failed");
+
+        if (enableMockTelemetry_) {
+            try {
+                auto pProvider = std::make_shared<mock::MockTelemetryProvider>();
+                pProvider->SetPollRate(pollRateMs_);
+                providerPtrs_.push_back(std::move(pProvider));
+            }
+            catch (...) {
+                pmlog_error(util::ReportException("Mock telemetry provider construction failed"));
+            }
+        }
     }
 
     void TelemetryCoordinator::BuildLogicalDevicesAndRoutes_()
@@ -359,19 +379,31 @@ namespace pmon::tel
                     }
 
                     auto& metricCandidates = routeCandidatesByLogicalId[logicalDeviceId];
-                    for (const auto& [metricId, arraySize] : capabilities) {
-                        if (metricId >= PM_METRIC_COUNT_ || arraySize == 0) {
+                    for (const auto& [metricId, entry] : capabilities) {
+                        if (metricId >= PM_METRIC_COUNT_) {
                             pmlog_error("Invalid capability entry from provider")
                                 .pmwatch((int)fingerprint.vendor)
                                 .pmwatch(fingerprint.deviceName)
                                 .pmwatch(providerDeviceId)
                                 .pmwatch((int)metricId)
-                                .pmwatch(arraySize);
+                                .pmwatch(entry.arraySize);
+                            continue;
+                        }
+                        if (entry.availability != PM_METRIC_AVAILABILITY_AVAILABLE) {
+                            continue;
+                        }
+                        if (entry.arraySize == 0) {
+                            pmlog_error("Invalid capability entry from provider")
+                                .pmwatch((int)fingerprint.vendor)
+                                .pmwatch(fingerprint.deviceName)
+                                .pmwatch(providerDeviceId)
+                                .pmwatch((int)metricId)
+                                .pmwatch(entry.arraySize);
                             continue;
                         }
 
                         const auto clampedArraySize = (uint32_t)(
-                            std::min(arraySize, size_t(std::numeric_limits<uint32_t>::max())));
+                            std::min(entry.arraySize, size_t(std::numeric_limits<uint32_t>::max())));
                         metricCandidates[metricId].push_back(RouteCandidate_{
                             providerDeviceIndex,
                             clampedArraySize,
@@ -770,70 +802,33 @@ namespace pmon::tel
         return fingerprint;
     }
 
-    ipc::MetricCapabilities TelemetryCoordinator::BuildRoutedCapabilities_(
+    ipc::MetricCapabilities TelemetryCoordinator::BuildMergedDeviceAvailability_(
         const LogicalDevice_& logicalDevice) const
     {
-        ipc::MetricCapabilities caps{};
+        const PM_DEVICE_TYPE deviceType = logicalDevice.logicalDeviceId == ipc::kSystemDeviceId
+            ? PM_DEVICE_TYPE_SYSTEM
+            : PM_DEVICE_TYPE_GRAPHICS_ADAPTER;
 
-        for (const auto& [metricId, providerDeviceIndex] : logicalDevice.routes) {
-            if (providerDeviceIndex >= logicalDevice.providerDevices.size()) {
-                pmlog_error("Route points outside provider device list in BuildRoutedCapabilities")
-                    .pmwatch(logicalDevice.logicalDeviceId)
-                    .pmwatch((int)metricId)
-                    .pmwatch(providerDeviceIndex)
-                    .pmwatch(logicalDevice.providerDevices.size());
-                continue;
-            }
-
-            const auto& providerDevice = logicalDevice.providerDevices[providerDeviceIndex];
-            const auto pProvider = providerDevice.pProvider.lock();
-            if (!pProvider) {
-                pmlog_error("Route provider expired in BuildRoutedCapabilities")
-                    .pmwatch(logicalDevice.logicalDeviceId)
-                    .pmwatch((int)metricId)
-                    .pmwatch(providerDevice.providerDeviceId);
-                continue;
-            }
-
-            TelemetryDeviceFingerprint providerFingerprint{};
-            try {
-                providerFingerprint = pProvider->GetFingerPrint(providerDevice.providerDeviceId);
+        return MergeLogicalDeviceAvailability(deviceType, [&]() {
+            std::vector<ipc::MetricCapabilities> capsList;
+            capsList.reserve(logicalDevice.providerDevices.size());
+            for (const auto& providerDevice : logicalDevice.providerDevices) {
+                const auto pProvider = providerDevice.pProvider.lock();
+                if (!pProvider) {
+                    capsList.emplace_back();
+                    continue;
+                }
                 const auto capabilityMap = pProvider->GetCaps();
                 const auto itDeviceCaps = capabilityMap.find(providerDevice.providerDeviceId);
                 if (itDeviceCaps == capabilityMap.end()) {
-                    pmlog_error("Provider did not return caps for routed device")
-                        .pmwatch(logicalDevice.logicalDeviceId)
-                        .pmwatch((int)providerFingerprint.vendor)
-                        .pmwatch(providerFingerprint.deviceName)
-                        .pmwatch(providerDevice.providerDeviceId)
-                        .pmwatch((int)metricId);
-                    continue;
+                    capsList.emplace_back();
                 }
-
-                const auto arraySize = itDeviceCaps->second.Check(metricId);
-                if (arraySize == 0) {
-                    pmlog_error("Provider caps missing routed metric")
-                        .pmwatch(logicalDevice.logicalDeviceId)
-                        .pmwatch((int)providerFingerprint.vendor)
-                        .pmwatch(providerFingerprint.deviceName)
-                        .pmwatch(providerDevice.providerDeviceId)
-                        .pmwatch((int)metricId);
-                    continue;
+                else {
+                    capsList.push_back(itDeviceCaps->second);
                 }
-
-                caps.Set(metricId, arraySize);
             }
-            catch (...) {
-                pmlog_error(util::ReportException("BuildRoutedCapabilities provider query failed"))
-                    .pmwatch(logicalDevice.logicalDeviceId)
-                    .pmwatch((int)providerFingerprint.vendor)
-                    .pmwatch(providerFingerprint.deviceName)
-                    .pmwatch(providerDevice.providerDeviceId)
-                    .pmwatch((int)metricId);
-            }
-        }
-
-        return caps;
+            return capsList;
+        });
     }
 
     void TelemetryCoordinator::PushValueToTelemetryMap_(

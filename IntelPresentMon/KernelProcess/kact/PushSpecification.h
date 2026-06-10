@@ -98,6 +98,8 @@ namespace ACT_NS
             Color borderColor;
             Color textColor;
             float textSize;
+            bool labelIncludeDeviceId = false;
+            bool labelIncludeDeviceName = false;
 
             template<class A> void serialize(A& ar) {
                 ar(CEREAL_NVP(metrics),
@@ -111,7 +113,9 @@ namespace ACT_NS
                     CEREAL_NVP(backgroundColor),
                     CEREAL_NVP(borderColor),
                     CEREAL_NVP(textColor),
-                    CEREAL_NVP(textSize));
+                    CEREAL_NVP(textSize),
+                    CEREAL_NVP(labelIncludeDeviceId),
+                    CEREAL_NVP(labelIncludeDeviceName));
             }
         };
 
@@ -123,13 +127,17 @@ namespace ACT_NS
             float fontSize;
             Color fontColor;
             Color backgroundColor;
+            bool labelIncludeDeviceId = false;
+            bool labelIncludeDeviceName = false;
 
             template<class A> void serialize(A& ar) {
                 ar(CEREAL_NVP(metrics),
                     CEREAL_NVP(showLabel),
                     CEREAL_NVP(fontSize),
                     CEREAL_NVP(fontColor),
-                    CEREAL_NVP(backgroundColor));
+                    CEREAL_NVP(backgroundColor),
+                    CEREAL_NVP(labelIncludeDeviceId),
+                    CEREAL_NVP(labelIncludeDeviceName));
             }
         };
 
@@ -148,6 +156,7 @@ namespace ACT_NS
                 bool enableCaptureDuration;
                 bool hideDuringCapture;
                 bool hideAlways;
+                bool enablePerMetricDeviceSelection = true;
                 bool independentWindow;
                 uint32_t metricPollRate;
                 uint32_t overlayDrawRate;
@@ -206,6 +215,7 @@ namespace ACT_NS
                         CEREAL_NVP(enableCaptureDuration),
                         CEREAL_NVP(hideDuringCapture),
                         CEREAL_NVP(hideAlways),
+                        CEREAL_NVP(enablePerMetricDeviceSelection),
                         CEREAL_NVP(independentWindow),
                         CEREAL_NVP(metricPollRate),
                         CEREAL_NVP(overlayDrawRate),
@@ -294,7 +304,7 @@ namespace ACT_NS
                 (*ctx.ppKernel)->ClearOverlay();
             }
             else {
-                (*ctx.ppKernel)->PushSpec(MakeOverlaySpec(in));
+                (*ctx.ppKernel)->PushSpec(MakeOverlaySpec(in, (*ctx.ppKernel)->GetIntrospectionRoot()));
             }
 
             // (No useful response fields; logging the request is typically what you want here.)

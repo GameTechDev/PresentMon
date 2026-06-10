@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import Sortable from 'sortablejs';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useIntrospectionStore } from '@/stores/introspection';
-import type { Widget } from '@/core/widget';
 import LoadoutRow from '@/components/LoadoutRow.vue';
-import { onMounted, onUnmounted, ref } from 'vue';
 import { useLoadoutStore } from '@/stores/loadout';
 import { useNotificationsStore } from '@/stores/notifications';
 import { Api } from '@/core/api';
+import DefaultAdapterSelect from '@/components/DefaultAdapterSelect.vue';
 
 defineOptions({name: 'LoadoutConfigView'})
 
 const intro = useIntrospectionStore();
 const loadout = useLoadoutStore()
 const notes = useNotificationsStore()
-
-const activeAdapterId = ref<number|null>(null);
+const clearDialog = ref(false)
+const hasWidgets = computed(() => loadout.widgets.length > 0)
 // Sortable instance used to manage drag-and-drop reordering for widget rows.
 // This is created on mount and destroyed on unmount to avoid stale DOM references.
 let sort: Sortable|null = null;
@@ -127,6 +127,11 @@ const addWidget = () => {
 const removeWidget = (widgetIdx:number) => {
   loadout.removeWidget(widgetIdx)
 };
+
+function confirmClearWidgets() {
+  loadout.clearWidgets();
+  clearDialog.value = false;
+}
 </script>
 
 <template>
@@ -136,11 +141,44 @@ const removeWidget = (widgetIdx:number) => {
         Loadout Configuration
     </h2>
 
+    <div class="loadout-toolbar ml-5 mr-5 mt-4">
+      <div class="loadout-toolbar-adapter">
+        <default-adapter-select
+          label="Default adapter"
+          density="compact"
+          hide-details
+        ></default-adapter-select>
+      </div>
+      <v-btn
+        variant="tonal"
+        color="white"
+        class="loadout-clear-btn"
+        :disabled="!hasWidgets"
+        @click="clearDialog = true"
+      >
+        Clear all widgets
+      </v-btn>
+    </div>
+
+    <v-dialog v-model="clearDialog" max-width="500px">
+      <v-card>
+        <v-card-title class="headline">Clear loadout</v-card-title>
+        <v-card-text>
+          Remove all widgets from this loadout?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" @click="confirmClearWidgets">Clear</v-btn>
+          <v-btn color="grey darken-1" text @click="clearDialog = false">Cancel</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-row class="mt-5 loadout-table" id="sortable-row-container">
     <loadout-row
         v-for="(w, i) in loadout.widgets" :key="w.key" :data-id="w.key" :stats="intro.stats"
-        :widgetIdx="i" :widgets="loadout.widgets" :metrics="intro.metrics" 
-        :metricOptions="intro.metricOptions" :adapterId="activeAdapterId" :locked="false" 
+        :widgetIdx="i" :widgets="loadout.widgets" :metrics="intro.metrics"
+        :adapters="intro.adapters" :locked="false"
         @delete="removeWidget" 
     ></loadout-row>
     </v-row>
@@ -219,7 +257,55 @@ const removeWidget = (widgetIdx:number) => {
   padding: 2px;
 }
 .widget-row .widget-cell.col-metric {
-  flex: 3;
+  flex: 1.4 1 0;
+  min-width: 0;
+}
+.widget-row .widget-cell.col-device {
+  flex: 1.2 1 0;
+  min-width: 128px;
+  max-width: 180px;
+  margin-left: 1px;
+  margin-right: 1px;
+  padding-left: 0;
+  padding-right: 0;
+}
+.widget-row .widget-cell.col-array-index {
+  flex: 0 0 86px;
+  min-width: 86px;
+  margin-left: 1px;
+  margin-right: 1px;
+  padding-left: 0;
+  padding-right: 0;
+}
+.widget-row .loadout-field-compact {
+  --v-field-padding-start: 7px;
+  --v-field-padding-end: 3px;
+}
+.widget-row .loadout-field-compact .v-field__input {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.widget-row .loadout-field-compact .v-select__selection {
+  min-width: 0;
+  overflow: hidden;
+}
+.widget-row .loadout-field-compact .device-selection-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.widget-row .loadout-field-idx {
+  --v-field-padding-start: 9px;
+  --v-field-padding-end: 5px;
+}
+.widget-row .loadout-field-idx .v-field__input {
+  min-width: 1.25rem;
+  padding-inline-end: 0;
+}
+.widget-row .loadout-field-idx .v-select__selection-text {
+  overflow: visible;
 }
 .widget-row .widget-cell.col-stat {
   width: 110px;
@@ -263,5 +349,21 @@ const removeWidget = (widgetIdx:number) => {
 }
 .link-head:hover { 
   color: rgb(var(--v-theme-primary)); 
+}
+.loadout-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+.loadout-toolbar-adapter {
+  flex: 1 1 280px;
+  max-width: 420px;
+  min-width: 0;
+}
+.loadout-clear-btn {
+  flex-shrink: 0;
+  margin-bottom: 2px;
 } 
 </style>

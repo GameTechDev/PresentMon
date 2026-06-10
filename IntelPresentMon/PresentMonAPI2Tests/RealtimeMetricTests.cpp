@@ -8,7 +8,6 @@
 #include "../PresentMonAPIWrapper/FixedQuery.h"
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include <chrono>
-#include <cmath>
 #include <filesystem>
 #include <format>
 #include <memory>
@@ -61,7 +60,8 @@ namespace RealtimeMetricTests
 		pmapi::Session& session,
 		const TestFixture& fixture,
 		const PresenterProcess& presenter,
-		const char* label)
+		const char* label,
+		size_t minFrameCount = 1)
 	{
 		session.SetEtwFlushPeriod(8);
 		std::this_thread::sleep_for(1ms);
@@ -70,7 +70,9 @@ namespace RealtimeMetricTests
 		pmon::tests::WaitForFirstFrame(
 			fixture.GetCommonArgs().ctrlPipe,
 			presenter.GetId(),
-			label);
+			label,
+			pmon::tests::DefaultFirstFrameWaitLimit,
+			minFrameCount);
 		return tracker;
 	}
 
@@ -118,7 +120,7 @@ namespace RealtimeMetricTests
 			Logger::WriteMessage(std::format("RealtimeMetric presenter pid={}\n", presenter.GetId()).c_str());
 			auto pSession = OpenSession_(fixture_);
 			auto processTracker = TrackPresenterAndWaitForFirstFrame_(
-				*pSession, fixture_, presenter, "rt-metric-frame");
+				*pSession, fixture_, presenter, "rt-metric-frame", 10);
 			PM_BEGIN_FIXED_DYNAMIC_QUERY(MyDynamicQuery)
 				FixedQueryElement qeCpuFtAvg{ this, PM_METRIC_CPU_FRAME_TIME, PM_STAT_AVG };
 			PM_END_FIXED_QUERY dq{ *pSession, 1000, 101, 1, 1 };
@@ -142,9 +144,8 @@ namespace RealtimeMetricTests
 			// average CPU frame time near 15.3ms due to OS timer granularity.
 			double expectedFtAvg = 15.3;
 			double ftTolerance = 2.5;
-			if (std::fabs(expectedFtAvg - dq.qeCpuFtAvg.As<double>()) > ftTolerance) {
-				Assert::AreEqual(expectedFtAvg, dq.qeCpuFtAvg.As<double>(), L"*** CPU Frame Time not within 1ms tolerance.");
-			}
+			Assert::AreEqual(expectedFtAvg, dq.qeCpuFtAvg.As<double>(), ftTolerance,
+				L"CPU frame time avg not within tolerance (ms).");
 			processTracker.Reset();
 		}
 	};

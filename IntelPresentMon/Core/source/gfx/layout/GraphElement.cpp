@@ -279,6 +279,10 @@ namespace p2c::gfx::lay
 					previousValue = vopt;
 				}
 			}
+			else if (packs[i]->dataUnavailable) {
+				auto& readout = *metricValueReadouts[i];
+				readout.SetText(L"NA");
+			}
 		}
 
 		std::optional<double> currentTime;

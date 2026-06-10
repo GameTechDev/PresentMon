@@ -1,15 +1,27 @@
 ﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
+export interface MetricDeviceAvailability {
+    deviceId: number,
+    arraySize: number,
+    availabilityId: number,
+}
+
+// Matches PM_DEVICE_TYPE in PresentMonAPI2/PresentMonAPI.h
+export const MetricDeviceType = {
+    Independent: 0,
+    GraphicsAdapter: 1,
+    System: 2,
+} as const;
+
+export type MetricDeviceTypeValue = (typeof MetricDeviceType)[keyof typeof MetricDeviceType];
+
 export interface Metric {
     id: number,
     name: string,
     description: string,
     availableStatIds: number[],
-    // not used yet in frontend -> fully controlled on backend
     preferredUnitId: number,
-    // not independently controlled in frontend -> represented as package with id in MetricOption
-    arraySize: number,
-    // not used yet in frontend -> backend fills in selected adapter id IF metric is not universal
-    availableDeviceIds: number[],
+    deviceType: MetricDeviceTypeValue,
+    deviceAvailability: MetricDeviceAvailability[],
     numeric: boolean,
 }

@@ -110,6 +110,7 @@
     <ClCompile Include="PacedPollingTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />
     <ClCompile Include="Logging.cpp" />
+    <ClCompile Include="MockTelemetryTests.cpp" />
     <ClCompile Include="RealtimeMetricTests.cpp" />
     <ClCompile Include="UiLaunchTests.cpp" />
   </ItemGroup>

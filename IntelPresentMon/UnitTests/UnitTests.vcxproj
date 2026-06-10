@@ -103,7 +103,9 @@
     <ClCompile Include="ExtremeQueue.cpp" />
     <ClCompile Include="FixedVectorTests.cpp" />
     <ClCompile Include="LoggingTests.cpp" />
+    <ClCompile Include="MetricCapabilitiesTests.cpp" />
     <ClCompile Include="MetricsCore.cpp" />
+    <ClCompile Include="TelemetryAvailabilityMergeTests.cpp" />
     <ClCompile Include="SwapChainTests.cpp" />
     <ClCompile Include="Style.cpp" />
     <ClCompile Include="Timing.cpp" />
@@ -115,6 +117,9 @@
     </ProjectReference>
     <ProjectReference Include="..\Core\Core.vcxproj">
       <Project>{808f5ea9-ea09-4d72-87b4-5397d43cba54}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\ControlLib\ControlLib.vcxproj">
+      <Project>{3c39c9bc-0e85-42c0-894c-3561bb93e87f}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

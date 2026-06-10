@@ -8,6 +8,10 @@
 #include "../Core/source/gfx/base/Geometry.h"
 #include "kact/PushSpecification.h"
 #include "../CommonUtilities/str/String.h"
+#include "../PresentMonAPIWrapperCommon/Introspection.h"
+#include "../Interprocess/source/SystemDeviceId.h"
+#include "../Core/source/pmon/QualifiedMetricAvailability.h"
+#include <optional>
 
 namespace kproc
 {
@@ -18,7 +22,23 @@ namespace kproc
     using ::pmon::util::str::ToNarrow;
     using ::pmon::util::str::ToWide;
 
-    std::unique_ptr<p2c::kern::OverlaySpec> MakeOverlaySpec(const kact::push_spec_impl::Params& spec)
+    namespace
+    {
+        kern::QualifiedMetric MakeQualifiedMetric(const kact::push_spec_impl::WidgetMetric& widgetMetric)
+        {
+            const auto& qualifiedMetric = widgetMetric.metric;
+            return kern::QualifiedMetric{
+                .metricId = qualifiedMetric.metricId,
+                .statId = qualifiedMetric.statId,
+                .arrayIndex = qualifiedMetric.arrayIndex,
+                .deviceId = qualifiedMetric.deviceId,
+                .unitId = qualifiedMetric.desiredUnitId,
+            };
+        }
+    }
+
+    std::unique_ptr<p2c::kern::OverlaySpec> MakeOverlaySpec(const kact::push_spec_impl::Params& spec,
+        const pmapi::intro::Root& intro)
     {
         // Alias for brevity.
         auto& pref = spec.preferences;
@@ -263,24 +283,24 @@ namespace kproc
 
                     {
                         // create the metric specs for each line etc. in widget
+                        const bool includeDeviceLabels = pref.enablePerMetricDeviceSelection;
+                        const bool labelIncludeDeviceId = includeDeviceLabels && graph.labelIncludeDeviceId;
+                        const bool labelIncludeDeviceName = includeDeviceLabels && graph.labelIncludeDeviceName;
                         std::vector<kern::GraphMetricSpec> graphMetricSpecs;
                         for (auto& widgetMetric : graph.metrics) {
-                            auto& qualifiedMetric = widgetMetric.metric;
+                            const auto qm = MakeQualifiedMetric(widgetMetric);
                             graphMetricSpecs.push_back(kern::GraphMetricSpec{
-                                .metric = {
-                                    .metricId = qualifiedMetric.metricId,
-                                    .statId = qualifiedMetric.statId,
-                                    .arrayIndex = qualifiedMetric.arrayIndex,
-                                    .deviceId = qualifiedMetric.deviceId,
-                                    .unitId = qualifiedMetric.desiredUnitId,
-                                },
+                                .metric = qm,
                                 .axisAffinity = widgetMetric.axisAffinity,
+                                .dataUnavailable = !p2c::pmon::IsQualifiedMetricAvailable(intro, qm),
                             });
                         }
                         pSpec->widgets.push_back(kern::GraphSpec{
                             .metrics = std::move(graphMetricSpecs),
                             .type = lay::EnumRegistry<GraphType>::ToEnum(ToWide(graph.graphType.name)),
                             .tag = tag,
+                            .labelIncludeDeviceId = labelIncludeDeviceId,
+                            .labelIncludeDeviceName = labelIncludeDeviceName,
                          });
                     }
 
@@ -394,16 +414,15 @@ namespace kproc
                     if (pReadout->metrics.size() > 1) {
                         pmlog_warn("Too many metricIds for readout widget");
                     }
-                    auto& qualifiedMetric = readout.metrics.back().metric;
+                    auto& widgetMetric = readout.metrics.back();
+                    const auto qm = MakeQualifiedMetric(widgetMetric);
+                    const bool includeDeviceLabels = pref.enablePerMetricDeviceSelection;
                     pSpec->widgets.push_back(kern::ReadoutSpec{
-                        .metric = {
-                            .metricId = qualifiedMetric.metricId,
-                            .statId = qualifiedMetric.statId,
-                            .arrayIndex = qualifiedMetric.arrayIndex,
-                            .deviceId = qualifiedMetric.deviceId,
-                            .unitId = qualifiedMetric.desiredUnitId,
-                        },
+                        .metric = qm,
                         .tag = tag,
+                        .labelIncludeDeviceId = includeDeviceLabels && readout.labelIncludeDeviceId,
+                        .labelIncludeDeviceName = includeDeviceLabels && readout.labelIncludeDeviceName,
+                        .dataUnavailable = !p2c::pmon::IsQualifiedMetricAvailable(intro, qm),
                     });
 
                     const auto fontSize = double(readout.fontSize);

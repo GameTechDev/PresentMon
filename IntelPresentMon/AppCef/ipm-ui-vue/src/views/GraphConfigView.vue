@@ -16,6 +16,8 @@ const props = defineProps<Props>();
 const loadoutStore = useLoadoutStore();
 const prefs = usePreferencesStore();
 
+const suffixesEnabled = computed(() => prefs.preferences.enablePerMetricDeviceSelection);
+
 // === Functions ===
 function parseNumber(val:string|number): number {
   if (typeof val === 'number') return val;
@@ -59,6 +61,7 @@ const typeCountRangeTextMax = computed({
   get: () => graph.value.graphType.countRange[1],
   set: (countRangeMax:string|number) => { graphType.value.countRange[1] = parseNumber(countRangeMax); }
 });
+
 </script>
 
 <template>
@@ -251,6 +254,34 @@ const typeCountRangeTextMax = computed({
           </v-col>
         </v-row>
       </div>
+    </v-card>
+
+    <v-card v-if="suffixesEnabled" class="page-card my-7">
+      <v-card-title class="mt-0 text-medium-emphasis">Metric Line Labels</v-card-title>
+      <v-divider class="ma-0"></v-divider>
+
+      <v-row class="mt-3">
+        <v-col cols="3">
+          Suffixes
+          <p class="text-medium-emphasis text-caption mb-0">Optionally label device id and name on all lines in this graph</p>
+        </v-col>
+        <v-col cols="9" class="d-flex align-center flex-wrap ga-4">
+          <v-checkbox
+            v-model="graph.labelIncludeDeviceId"
+            label="Device ID"
+            hide-details
+            density="compact"
+            color="primary"
+          ></v-checkbox>
+          <v-checkbox
+            v-model="graph.labelIncludeDeviceName"
+            label="Device name"
+            hide-details
+            density="compact"
+            color="primary"
+          ></v-checkbox>
+        </v-col>
+      </v-row>
     </v-card>
 
     <v-card class="page-card my-7">

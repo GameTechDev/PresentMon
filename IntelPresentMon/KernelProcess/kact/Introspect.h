@@ -5,6 +5,7 @@
 #include "../../Core/source/kernel/Kernel.h"
 #include "../../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include "../../Interprocess/source/SystemDeviceId.h"
+#include "../../Interprocess/source/IntrospectionPopulators.h"
 #include <ranges>
 #include <array>
 
@@ -33,14 +34,38 @@ namespace ACT_NS
             }
         };
 
+        struct MetricDeviceAvailability
+        {
+            uint32_t deviceId;
+            int arraySize;
+            int availabilityId;
+
+            template<class A> void serialize(A& ar) {
+                ar(CEREAL_NVP(deviceId),
+                    CEREAL_NVP(arraySize),
+                    CEREAL_NVP(availabilityId));
+            }
+        };
+
+        struct MetricAvailabilityReason
+        {
+            int id;
+            std::string description;
+
+            template<class A> void serialize(A& ar) {
+                ar(CEREAL_NVP(id),
+                    CEREAL_NVP(description));
+            }
+        };
+
         struct Metric
         {
             PM_METRIC id;
             std::string name;
             std::string description;
-            std::vector<uint32_t> availableDeviceIds;
+            PM_DEVICE_TYPE deviceType;
             PM_UNIT preferredUnitId;
-            int arraySize;
+            std::vector<MetricDeviceAvailability> deviceAvailability;
             std::vector<PM_STAT> availableStatIds;
             bool numeric;
 
@@ -48,9 +73,9 @@ namespace ACT_NS
                 ar(CEREAL_NVP(id),
                     CEREAL_NVP(name),
                     CEREAL_NVP(description),
-                    CEREAL_NVP(availableDeviceIds),
+                    CEREAL_NVP(deviceType),
                     CEREAL_NVP(preferredUnitId),
-                    CEREAL_NVP(arraySize),
+                    CEREAL_NVP(deviceAvailability),
                     CEREAL_NVP(availableStatIds),
                     CEREAL_NVP(numeric));
             }
@@ -99,6 +124,7 @@ namespace ACT_NS
             std::vector<Adapter> adapters;
             uint32_t systemDeviceId;
             uint32_t defaultAdapterId;
+            std::vector<MetricAvailabilityReason> metricAvailabilityReasons;
 
             template<class A> void serialize(A& ar) {
                 ar(CEREAL_NVP(metrics),
@@ -106,7 +132,8 @@ namespace ACT_NS
                     CEREAL_NVP(units),
                     CEREAL_NVP(adapters),
                     CEREAL_NVP(systemDeviceId),
-                    CEREAL_NVP(defaultAdapterId));
+                    CEREAL_NVP(defaultAdapterId),
+                    CEREAL_NVP(metricAvailabilityReasons));
             }
         };
 
@@ -134,6 +161,7 @@ namespace ACT_NS
                 const auto id = m.GetId();
                 const auto type = m.GetType();
                 return
+                    (id != PM_METRIC_COUNT_) &&
                     (id != PM_METRIC_GPU_LATENCY) &&
                     (id != PM_METRIC_SESSION_START_QPC) &&
                     (id != PM_METRIC_SWAP_CHAIN_ADDRESS)
@@ -149,6 +177,14 @@ namespace ACT_NS
             Response res;
             res.systemDeviceId = ::pmon::ipc::kSystemDeviceId;
             res.defaultAdapterId = (*ctx.ppKernel)->GetDefaultGpuDeviceId();
+
+            for (auto&& key : intro.FindEnum(PM_ENUM_METRIC_AVAILABILITY).GetKeys()) {
+                res.metricAvailabilityReasons.push_back(MetricAvailabilityReason{
+                    .id = key.GetId(),
+                    .description = key.GetDescription(),
+                });
+            }
+
             for (const auto& device : intro.GetDevices()) {
                 if (device.GetType() != PM_DEVICE_TYPE_GRAPHICS_ADAPTER) {
                     continue;
@@ -165,17 +201,14 @@ namespace ACT_NS
 
             // now process each applicable metric, filtering ones not usable for dynamic queries
             for (auto&& [i, m] : intro.GetMetrics() | vi::filter(filterPred) | vi::enumerate) {
-                // array size: stopgap measure to use largest among all available devices
-                // will replace this with per-device size when loadout per-line device selection
-                // and per-line array index selection is implemented
-                int arraySize = 0;
-
-                // generate device list
-                std::vector<uint32_t> devices;
+                std::vector<MetricDeviceAvailability> deviceAvailability;
                 for (auto&& d : m.GetDeviceMetricInfo()) {
-                    if (!d.IsAvailable()) continue;
-                    arraySize = std::max(arraySize, (int)d.GetArraySize());
-                    devices.push_back(d.GetDevice().GetId());
+                    const auto deviceId = d.GetDevice().GetId();
+                    deviceAvailability.push_back(MetricDeviceAvailability{
+                        .deviceId = deviceId,
+                        .arraySize = (int)d.GetArraySize(),
+                        .availabilityId = (int)d.GetAvailability(),
+                    });
                 }
 
                 // generate stat list
@@ -189,10 +222,9 @@ namespace ACT_NS
                     .id = m.GetId(),
                     .name = m.Introspect().GetName(),
                     .description = m.Introspect().GetDescription(),
-                    .availableDeviceIds = std::move(devices),
-                    // TODO: populate this, currently not used so setting to 0
-                    .preferredUnitId = PM_UNIT(0),
-                    .arraySize = arraySize,
+                    .deviceType = ::pmon::ipc::intro::GetMetricRegisteredDeviceType(m.GetId()),
+                    .preferredUnitId = m.GetPreferredUnitHint(),
+                    .deviceAvailability = std::move(deviceAvailability),
                     .availableStatIds = std::move(stats),
                     .numeric = rn::contains(numericTypes, m.GetDataTypeInfo().GetPolledType()),
                     });

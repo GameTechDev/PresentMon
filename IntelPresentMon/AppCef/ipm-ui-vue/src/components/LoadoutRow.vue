@@ -2,8 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import type { Widget } from '@/core/widget'
 import type { Metric } from '@/core/metric'
-import type { MetricOption } from '@/core/metric-option'
 import type { Stat } from '@/core/stat'
+import type { Adapter } from '@/core/adapter'
 import LoadoutLine from './LoadoutLine.vue'
 import { useLoadoutStore } from '@/stores/loadout'
 
@@ -14,9 +14,8 @@ interface Props {
   widgets: Widget[]
   metrics: Metric[]
   stats: Stat[]
-  metricOptions: MetricOption[]
+  adapters: Adapter[]
   locked?: boolean
-  adapterId: number | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -76,7 +75,8 @@ const widgetMetrics = computed(() => widget.value.metrics)
     <loadout-line
       v-for="(oneBased, i) in widgetMetrics.length" :key="lineKeys[i]"
       :widgetIdx="props.widgetIdx" :lineIdx="i" :widgets="props.widgets" :stats="props.stats"
-      :metrics="props.metrics" :metricOptions="props.metricOptions" :locked="props.locked" :adapterId="props.adapterId"
+      :metrics="props.metrics" :adapters="props.adapters"
+      :locked="props.locked"
       @delete="handleDelete" @add="handleAdd" @clearMulti="handleClearMulti"
     ></loadout-line>
   </div>

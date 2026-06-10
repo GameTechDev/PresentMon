@@ -11,10 +11,13 @@
 #include "../AppCef/source/util/cact/HotkeyFiredAction.h"
 #include "../AppCef/source/util/UiProcessGuard.h"
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
+#include "../PresentMonAPIWrapper/StaticQuery.h"
+#include "../Interprocess/source/SystemDeviceId.h"
 #include "../PresentMonAPIWrapperCommon/EnumMap.h"
 #include <Core/source/cli/CliOptions.h>
 #include <PresentMonAPI2Loader/Loader.h>
 #include <Core/source/infra/LogSetup.h>
+#include <Core/source/pmon/FrameMetricCapabilitiesCsv.h>
 #include <CommonUtilities/file/PathUtils.h>
 #include <CommonUtilities/win/Utilities.h>
 #include <CommonUtilities/win/Privileges.h>
@@ -289,6 +292,12 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				return -1;
 			}
 		}
+		if (opt.subcDumpCaps.Active()) {
+			if (!opt.dumpCapsOutput) {
+				std::cerr << "Must specify --output for dump-caps" << std::endl;
+				return -1;
+			}
+		}
 		if (opt.subcShow.Active()) {
 			if (!opt.showVerboseModules && !opt.showVerboseBitset && !opt.showLogFolder) {
 				std::cerr << "Must specify one of --log-folder, --verbose-modules, or --verbose-bitset for show" << std::endl;
@@ -352,7 +361,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 #endif
 
 		// determine if we're running headless
-		const bool headless = opt.subcCapture.Active() || opt.subcList.Active();
+		const bool headless = opt.subcCapture.Active() || opt.subcList.Active() || opt.subcDumpCaps.Active();
 
 		// pipe logging into stdio when running headless
 		if (headless) {
@@ -391,6 +400,13 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			if (opt.logVerboseModules) {
 				args.push_back("--log-verbose-modules"s);
 				args.append_range(*opt.logVerboseModules | vi::transform(util::log::GetVerboseModuleName));
+			}
+			for (auto& f : *opt.svcFlags) {
+				args.push_back("--" + f);
+			}
+			for (auto& o : *opt.svcOptions) {
+				args.push_back("--" + o.first);
+				args.push_back(o.second);
 			}
 			// launch service child process
 			// WORKAROUND: keep a relative exe name while forcing install-dir cwd for child startup.
@@ -491,6 +507,40 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 						<< d.IntrospectVendor().GetName()
 						<< " (" << d.IntrospectType().GetName() << ")\n";
 				}
+			}
+			return 0;
+		}
+
+		if (opt.subcDumpCaps.Active()) {
+			try {
+				auto session = [&] {
+					if (svcChild || opt.controlPipe) {
+						return pmapi::Session{ *opt.controlPipe };
+					}
+					else {
+						return pmapi::Session{};
+					}
+				}();
+				auto pIntro = session.GetIntrospectionRoot();
+				std::string systemCpuName;
+				try {
+					systemCpuName = pmapi::PollStatic(session, PM_METRIC_CPU_NAME, ::pmon::ipc::kSystemDeviceId)
+						.As<std::string>();
+				}
+				catch (...) {
+				}
+				const std::filesystem::path outputPath{
+					std::u8string_view{ reinterpret_cast<const char8_t*>(opt.dumpCapsOutput->data()),
+						opt.dumpCapsOutput->size() } };
+				p2c::pmon::WriteFrameMetricCapabilitiesCsv(*pIntro, outputPath, systemCpuName);
+			}
+			catch (const std::exception& e) {
+				std::cerr << std::format("dump-caps failed: {}", e.what()) << std::endl;
+				return -1;
+			}
+			catch (...) {
+				std::cerr << "dump-caps failed" << std::endl;
+				return -1;
 			}
 			return 0;
 		}

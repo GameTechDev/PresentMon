@@ -57,6 +57,7 @@
     <ClInclude Include="source\pmon\Timekeeper.h" />
     <ClInclude Include="source\pmon\PresentMon.h" />
     <ClInclude Include="source\meta\TypeFromMember.h" />
+    <ClInclude Include="source\pmon\FrameMetricCapabilitiesCsv.h" />
     <ClInclude Include="source\pmon\RawFrameDataWriter.h" />
     <ClInclude Include="source\pmon\metric\MetricFetcher.h" />
     <ClInclude Include="source\kernel\TargetLostException.h" />
@@ -124,6 +125,7 @@
     <ClCompile Include="source\gfx\layout\style\RawAttributeHelpers.cpp" />
     <ClCompile Include="source\pmon\Timekeeper.cpp" />
     <ClCompile Include="source\pmon\PresentMon.cpp" />
+    <ClCompile Include="source\pmon\FrameMetricCapabilitiesCsv.cpp" />
     <ClCompile Include="source\pmon\RawFrameDataWriter.cpp" />
     <ClCompile Include="source\win\Key.cpp" />
     <ClCompile Include="source\win\ModSet.cpp" />

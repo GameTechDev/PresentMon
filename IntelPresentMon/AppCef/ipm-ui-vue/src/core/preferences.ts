@@ -5,6 +5,7 @@ import { type Signature } from "./signature";
 import { OverlayPosition } from "./overlay-position";
 import { type RgbaColor } from "./color";
 import { compareVersions } from "./signature";
+import { lowestAdapterId, type Adapter } from "./adapter";
 
 
 export enum Preset {
@@ -23,6 +24,7 @@ export interface Preferences {
     enableCaptureDuration: boolean,
     hideDuringCapture: boolean;
     hideAlways: boolean;
+    enablePerMetricDeviceSelection: boolean;
     independentWindow: boolean;
     metricPollRate: number;
     overlayDrawRate: number;
@@ -51,7 +53,7 @@ export interface Preferences {
         readonly name: 'Verdana';
         readonly axisSize: 10.0;
     };    
-    adapterId:number|null;
+    adapterId: number;
     enableFlashInjection:boolean;
     flashInjectionEnableTargetOverride:boolean,
     flashInjectionTargetOverride:string;
@@ -74,7 +76,8 @@ export function makeDefaultPreferences(): Preferences {
         captureDuration: 10,
         enableCaptureDuration: false,
         hideDuringCapture: true, 
-        hideAlways: false, 
+        hideAlways: false,
+        enablePerMetricDeviceSelection: false,
         independentWindow: false,
         metricPollRate: 40,
         overlayDrawRate: 10,
@@ -113,7 +116,7 @@ export function makeDefaultPreferences(): Preferences {
         enableTargetBlocklist: true,
         enableAutotargetting: false,
         upscaleFactor: 2,        
-        adapterId: null,
+        adapterId: 0,
         enableFlashInjection: false,
         flashInjectionEnableTargetOverride: false,
         flashInjectionTargetOverride: '',
@@ -140,7 +143,7 @@ export function makeDefaultPreferences(): Preferences {
 
 export const signature: Signature = {
     code: "p2c-cap-pref",
-    version: "0.21.0",
+    version: "1.0.1",
 };
 
 export interface PreferenceFile {
@@ -150,15 +153,19 @@ export interface PreferenceFile {
 }
 
 
+export interface PreferenceMigrationIntrospection {
+    adapters: readonly Adapter[];
+}
+
 interface Migration {
     version: string;
-    migrate: (prefs: Preferences) => void;
+    migrate: (prefs: Preferences, intro: PreferenceMigrationIntrospection | null) => void;
 }
-  
+
 const migrations: Migration[] = [
     {
         version: '0.16.0',
-        migrate: (prefs: Preferences) => {
+        migrate: (prefs: Preferences, _intro: PreferenceMigrationIntrospection | null) => {
             let e = new Error('Preferences file version too old to migrate (<0.16.0).');
             (e as any).noticeOverride = true;
             throw e;
@@ -166,7 +173,7 @@ const migrations: Migration[] = [
     },
     {
         version: '0.17.0',
-        migrate: (prefs: Preferences) => {
+        migrate: (prefs: Preferences, _intro: PreferenceMigrationIntrospection | null) => {
             const drawRate = Math.round(1000 / ((prefs as any).samplingPeriodMs * (prefs as any).samplesPerFrame));
             const pollRate = Math.round(1000 / (prefs as any).samplingPeriodMs);
             console.info(`Migrating preferences to 0.17.0; samplingPeriodMs:${(prefs as any).samplingPeriodMs} => metricPollRate:${pollRate}, samplesPerFrame:${(prefs as any).samplesPerFrame} => overlayDrawRate:${drawRate}`);
@@ -176,7 +183,7 @@ const migrations: Migration[] = [
     },
     {
         version: '0.18.0',
-        migrate: (prefs: Preferences) => {
+        migrate: (prefs: Preferences, _intro: PreferenceMigrationIntrospection | null) => {
             console.info('Migrating preferences to 0.18.0 (manualEtwFlush enable/rate, lower offset)');
             const def = makeDefaultPreferences();
             prefs.manualEtwFlush = def.manualEtwFlush;
@@ -186,7 +193,7 @@ const migrations: Migration[] = [
     },
     {
         version: '0.19.0',
-        migrate: (prefs: Preferences) => {
+        migrate: (prefs: Preferences, _intro: PreferenceMigrationIntrospection | null) => {
             console.info('Migrating preferences to 0.19.0 (flash injection)');
             const def = makeDefaultPreferences();
             prefs.enableFlashInjection = def.enableFlashInjection;
@@ -199,7 +206,7 @@ const migrations: Migration[] = [
     },
     {
         version: '0.20.0',
-        migrate: (prefs: Preferences) => {
+        migrate: (prefs: Preferences, _intro: PreferenceMigrationIntrospection | null) => {
             if (prefs.metricsOffset <= 32) {
                 const def = makeDefaultPreferences();
                 console.info(`Migrating preferences to 0.20.0 (metricsOffset: ${prefs.metricsOffset} => ${def.metricsOffset})`);
@@ -209,7 +216,7 @@ const migrations: Migration[] = [
     },
     {
         version: '0.21.0',
-        migrate: (prefs: Preferences) => {
+        migrate: (prefs: Preferences, _intro: PreferenceMigrationIntrospection | null) => {
             if (prefs.metricsOffset === 80) {
                 const def = makeDefaultPreferences();
                 console.info(`Migrating preferences to 0.21.0 (metricsOffset: ${prefs.metricsOffset} => ${def.metricsOffset})`);
@@ -217,14 +224,50 @@ const migrations: Migration[] = [
             }
         }
     },
+    {
+        version: '1.0.0',
+        migrate: (prefs: Preferences, _intro: PreferenceMigrationIntrospection | null) => {
+            const def = makeDefaultPreferences();
+            if (prefs.enablePerMetricDeviceSelection === undefined) {
+                prefs.enablePerMetricDeviceSelection = def.enablePerMetricDeviceSelection;
+            }
+            console.info('Migrating preferences to 1.0.0');
+        },
+    },
+    {
+        version: '1.0.1',
+        migrate: (prefs: Preferences, intro: PreferenceMigrationIntrospection | null) => {
+            if (intro === null) {
+                throw new Error('Preferences migration to 1.0.1 requires introspection');
+            }
+            const legacy = prefs.adapterId as number | null | undefined;
+            const missing = legacy == null || legacy === 0;
+            const unknown = !missing
+                && intro.adapters.length > 0
+                && !intro.adapters.some((a) => a.id === legacy);
+            if (missing || unknown) {
+                const resolved = lowestAdapterId(intro.adapters);
+                console.info(
+                    `Migrating preferences to 1.0.1 (adapterId: ${legacy ?? 'null'} => ${resolved})`,
+                );
+                prefs.adapterId = resolved;
+            } else {
+                console.info('Migrating preferences to 1.0.1');
+            }
+        },
+    },
 ];
 
 migrations.sort((a, b) => compareVersions(a.version, b.version));
 
-export function migratePreferences(prefs: Preferences, sourceVersion: string): void {
+export function migratePreferences(
+    prefs: Preferences,
+    sourceVersion: string,
+    intro: PreferenceMigrationIntrospection | null,
+): void {
     for (const mig of migrations) {
         if (compareVersions(mig.version, sourceVersion) > 0) {
-            mig.migrate(prefs);
+            mig.migrate(prefs, intro);
         }
     }
 }

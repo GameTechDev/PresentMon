@@ -4,6 +4,8 @@ PresentMon testing is primarily done by having a specific PresentMon build analy
 
 `Tools\run_tests.cmd` will build all configurations of PresentMon, and use PresentMonTests to validate the x86 and x64 builds using the contents of the Tests\Gold directory.
 
+The usual automated path mirrors Visual Studio Test Explorer: `vstest.console` on `PresentMonAPI2Tests` and `PresentMonUnitTests`, plus the `PresentMonTests` gtest executable against Debug x64 outputs under `build\Debug\`.
+
 
 #### PresentMonTestEtls Coverage
 

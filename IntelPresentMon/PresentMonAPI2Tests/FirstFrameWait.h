@@ -13,16 +13,22 @@ namespace pmon::tests
 {
 	inline constexpr std::chrono::seconds DefaultFirstFrameWaitLimit{ 5 };
 
+	inline size_t FrameCountInRange_(const auto& range)
+	{
+		return range.second > range.first ? (size_t)(range.second - range.first) : 0u;
+	}
+
 	template<typename Ring>
 	auto WaitForFirstFrameRange(
 		const Ring& ring,
 		const char* label,
-		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit)
+		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit,
+		size_t minFrameCount = 1)
 	{
 		waitLimit = util::test::ScaleWait(waitLimit);
 		const auto warmupStart = std::chrono::steady_clock::now();
 		auto warmupRange = ring.GetSerialRange();
-		while (warmupRange.second == 0 &&
+		while (FrameCountInRange_(warmupRange) < minFrameCount &&
 			std::chrono::steady_clock::now() - warmupStart < waitLimit) {
 			std::this_thread::sleep_for(std::chrono::milliseconds{ 25 });
 			warmupRange = ring.GetSerialRange();
@@ -39,11 +45,13 @@ namespace pmon::tests
 	auto WaitForFirstFrame(
 		const Ring& ring,
 		const char* label,
-		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit)
+		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit,
+		size_t minFrameCount = 1)
 	{
-		const auto warmupRange = WaitForFirstFrameRange(ring, label, waitLimit);
+		const auto warmupRange = WaitForFirstFrameRange(ring, label, waitLimit, minFrameCount);
 		Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsTrue(
-			warmupRange.second > 0, L"Timed out waiting for first playback frame");
+			FrameCountInRange_(warmupRange) >= minFrameCount,
+			L"Timed out waiting for playback frames");
 		return warmupRange;
 	}
 
@@ -51,24 +59,26 @@ namespace pmon::tests
 		const std::string& ctrlPipe,
 		uint32_t pid,
 		const char* label,
-		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit)
+		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit,
+		size_t minFrameCount = 1)
 	{
 		mid::ActionClient client{ ctrlPipe };
 		auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
 		pComms->OpenFrameDataStore(pid);
-		const auto warmupRange = WaitForFirstFrameRange(pComms->GetFrameDataStore(pid).frameData, label, waitLimit);
-		return warmupRange.second > 0;
+		const auto warmupRange = WaitForFirstFrameRange(pComms->GetFrameDataStore(pid).frameData, label, waitLimit, minFrameCount);
+		return FrameCountInRange_(warmupRange) >= minFrameCount;
 	}
 
 	inline auto WaitForFirstFrame(
 		const std::string& ctrlPipe,
 		uint32_t pid,
 		const char* label,
-		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit)
+		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit,
+		size_t minFrameCount = 1)
 	{
 		mid::ActionClient client{ ctrlPipe };
 		auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
 		pComms->OpenFrameDataStore(pid);
-		return WaitForFirstFrame(pComms->GetFrameDataStore(pid).frameData, label, waitLimit);
+		return WaitForFirstFrame(pComms->GetFrameDataStore(pid).frameData, label, waitLimit, minFrameCount);
 	}
 }
