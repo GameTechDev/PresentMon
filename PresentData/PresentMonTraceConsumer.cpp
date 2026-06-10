@@ -1681,7 +1681,7 @@ void PMTraceConsumer::HandleWin32kEvent(EVENT_RECORD* pEventRecord)
                         // we get multiple back to back flips and token tracking thread 
                         // ends up marking the first frame in the burst as dropped. 
                         // To fix this issue, we mark the frame as discarded only if 
-                        // the frame already doesn’t have valid ScreenTime. 
+                        // the frame already doesnï¿½t have valid ScreenTime. 
                         if (!HasScreenTime(prevPresent)) {
                             prevPresent->FinalState = PresentResult::Discarded;
                         }
