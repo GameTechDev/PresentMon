@@ -45,6 +45,7 @@ namespace p2c::kern
         ~Overlay();
         void UpdateTargetRect(const gfx::RectI& newRect);
         void UpdateTargetOrder(bool topmost);
+        bool ConsiderTargetWindowCandidate(HWND hWnd, const gfx::RectI& r);
         void RebuildDocument(std::shared_ptr<OverlaySpec> pSpec_);
         void InitiateClose();
         void RunTick();
@@ -62,7 +63,7 @@ namespace p2c::kern
     private:
         // functions
         void AdjustOverlaySituation_(OverlaySpec::OverlayPosition position);
-        void UpdateGraphData_(double timestamp);
+        void UpdateGraphData_(uint64_t timestamp);
         void Render_();
         void UpdateCaptureStatusText_();
         void UpdateDataSets_();

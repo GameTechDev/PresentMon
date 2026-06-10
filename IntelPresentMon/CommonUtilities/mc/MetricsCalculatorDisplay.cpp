@@ -87,7 +87,12 @@ namespace pmon::util::metrics
             return MissingFrameMetricValue();
         }
 
-
+        std::pair<uint32_t, uint32_t> GetDisplayId(const FrameData& present)
+        {
+            auto vidPnSourceId = uint32_t(present.vidPnLayerId >> 32); // vidPnSourceId
+            auto layerIndex = uint32_t(present.vidPnLayerId & 0xFFFFFFFF); // layerIndex
+            return {vidPnSourceId, layerIndex};
+        }
     }
 
     // ---- NV collapsed/runt correction ----
@@ -203,5 +208,7 @@ namespace pmon::util::metrics
         metrics.msReadyTimeToDisplayLatency = ComputeMsReadyTimeToDisplayLatency(qpc, present, isDisplayed, screenTime);
         metrics.isDroppedFrame = !isDisplayed;
         metrics.screenTimeQpc = screenTime;
+        metrics.displayId = GetDisplayId(present);
+        metrics.presentId = present.presentId;
     }
 }

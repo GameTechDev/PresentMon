@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 #pragma once
@@ -231,6 +231,8 @@ struct PresentEvent {
     uint32_t QueueSubmitSequence;         // mPresentBySubmitSequence
     uint32_t RingIndex;                   // mTrackedPresents and mCompletedPresents
     std::unordered_map<uint64_t, uint64_t> PresentIds; // mPresentByVidPnLayerId
+    // first u64: vidPnLayerId (high 32 vidPnSourceId, low 32 layerIndex); second u64: PresentId
+    std::vector<std::pair<uint64_t, uint64_t>> ReportedPresentIds;
     // Note: the following index tracking structures as well but are defined elsewhere:
     //       ProcessId                 -> mOrderedPresentsByProcessId
     //       ThreadId, DriverThreadId  -> mPresentByThreadId
@@ -352,6 +354,10 @@ struct PMTraceConsumer
 
     void DequeueProcessEvents(std::vector<ProcessEvent>& outProcessEvents);
     void DequeuePresentEvents(std::vector<std::shared_ptr<PresentEvent>>& outPresentEvents);
+    uint32_t GetNumOverflowedPresents() const
+    {
+        return mNumOverflowedPresents.load(std::memory_order_relaxed);
+    }
 
     // Control of general event processing state for service capture start/stop without
     // tearing down the underlying ETW session
@@ -374,7 +380,7 @@ struct PMTraceConsumer
     uint32_t mCompletedIndex = 0;       // The index of mCompletedPresents of the oldest completed present.
     uint32_t mCompletedCount = 0;       // The total number of presents in mCompletedPresents.
     uint32_t mReadyCount = 0;           // The number of presents in mCompletedPresents, starting at mCompletedIndex, that are ready to be dequeued.
-    uint32_t mNumOverflowedPresents = 0; // The number of presents that have been lost due to the ring buffer wrapping.
+    std::atomic<uint32_t> mNumOverflowedPresents = 0; // The number of presents that have been lost due to the ring buffer wrapping.
     uint32_t mCircularBufferSize = 0;   // The size of the ring buffers for presents.
 
     // Mutexs to protect consumer/dequeue access from different threads:
@@ -624,7 +630,9 @@ struct PMTraceConsumer
     
     // -------------------------------------------------------------------------------------------
     // Function for managing app provided events
-    AppTimingData* ExtractAppTimingData(std::unordered_map<std::pair<uint32_t, uint32_t>, AppTimingData, PairHash<uint32_t, uint32_t>>& timingDataByFrameId, uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime, std::function<uint64_t(const AppTimingData&)> timingSelector);
+    AppTimingData* ExtractAppTimingData(std::unordered_map<std::pair<uint32_t, uint32_t>, AppTimingData, PairHash<uint32_t, uint32_t>>& timingDataByFrameId, 
+        uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime, uint64_t presentStopTime, 
+        std::function<uint64_t(const AppTimingData&)> timingSelector, bool isPcLatency = true);
     bool IsApplicationPresent(std::shared_ptr<PresentEvent> const& present);
     void SetAppTimingDataAsComplete(uint32_t processId, uint32_t appFrameId);
 

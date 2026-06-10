@@ -4,5 +4,6 @@
 namespace pmon::ipc::intro
 {
 	size_t GetDataTypeSize(PM_DATA_TYPE v);
+	size_t GetDataTypeSizeChecked(PM_DATA_TYPE v);
 	size_t GetDataTypeAlignment(PM_DATA_TYPE v);
 }

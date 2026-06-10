@@ -40,7 +40,8 @@ namespace pmon::mid
 
 	void SwapChainState::ProcessFrame(const util::metrics::FrameData& frame, util::QpcConverter& qpc)
 	{
-		auto ready = unified_.Enqueue(frame, util::metrics::MetricsVersion::V2);
+		auto frameCopy = frame;
+		auto ready = unified_.Enqueue(std::move(frameCopy), util::metrics::MetricsVersion::V2);
 		for (auto& item : ready) {
 			auto& present = item.presentPtr ? *item.presentPtr : item.present;
 			auto* nextPtr = item.nextDisplayedPtr;
@@ -172,11 +173,13 @@ namespace pmon::mid
 		}
 	}
 
-	FrameMetricsSource::FrameMetricsSource(ipc::MiddlewareComms& comms, uint32_t processId, size_t perSwapChainCapacity)
+	FrameMetricsSource::FrameMetricsSource(ipc::MiddlewareComms& comms, uint32_t processId, size_t perSwapChainCapacity,
+		std::function<void(uint64_t)> progressCallback)
 		:
 		comms_{ comms },
 		processId_{ processId },
-		perSwapChainCapacity_{ perSwapChainCapacity == 0 ? size_t{ 1 } : perSwapChainCapacity }
+		perSwapChainCapacity_{ perSwapChainCapacity == 0 ? size_t{ 1 } : perSwapChainCapacity },
+		progressCallback_{ std::move(progressCallback) }
 	{
 		// open the data store from ipc
 		comms_.OpenFrameDataStore(processId_);
@@ -233,7 +236,9 @@ namespace pmon::mid
 		}
 
 		nextFrameSerial_ = range.second;
-		ring.MarkNextRead(nextFrameSerial_);
+		if (progressCallback_) {
+			progressCallback_(nextFrameSerial_);
+		}
 	}
 
 	void FrameMetricsSource::Update()

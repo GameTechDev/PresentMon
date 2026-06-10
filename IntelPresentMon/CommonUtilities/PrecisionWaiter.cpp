@@ -3,6 +3,7 @@
 #include "win/WinAPI.h"
 #include "Exception.h"
 #include "PrecisionWaiter.h"
+#include <algorithm>
 
 
 namespace pmon::util
@@ -38,10 +39,13 @@ namespace pmon::util
 				// mark the start time of the wait if we're doing buffer with precision spin
 				if (buffer > 0.) {
 					qpcTimer_.Mark();
+					if (seconds <= buffer) {
+						return qpcTimer_.SpinWaitUntil(seconds);
+					}
 				}
 				// wait slightly (buffer seconds) shorter than required to compensate for overwait error
 				const LARGE_INTEGER waitTime100ns{
-					.QuadPart = -LONGLONG(double(seconds - defaultWaitBuffer_) * 10'000'000.)
+					.QuadPart = -LONGLONG(std::max(seconds - buffer, 0.) * 10'000'000.)
 				};
 				// set the timer deadline
 				if (!SetWaitableTimerEx(
@@ -53,11 +57,13 @@ namespace pmon::util
 					nullptr,
 					0
 				)) {
-					pmlog_error("Failed setting high resolution timer").hr().raise<Exception>();
+					pmlog_error("Failed setting high resolution timer").hr();
+					throw Except<Exception>("Failed setting high resolution timer");
 				}
 				// wait on the timer
 				if (WaitForSingleObject(waitableTimer_, INFINITE)) {
-					pmlog_error("Failed waiting on high resolution timer").hr().raise<Exception>();
+					pmlog_error("Failed waiting on high resolution timer").hr();
+					throw Except<Exception>("Failed waiting on high resolution timer");
 				}
 				// spin wait for the remainder buffer time
 				if (buffer > 0.) {

@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -1430,7 +1430,10 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
                         // the present ids to it.
                         if (present != nullptr) {
                             VerboseTraceBeforeModifyingPresent(present.get());
-                            present->PresentIds.emplace(vidPnLayerId, PresentId[i]);
+                            auto inserted = present->PresentIds.emplace(vidPnLayerId, PresentId[i]);
+                            if (inserted.second) {
+                                present->ReportedPresentIds.push_back({ vidPnLayerId, PresentId[i] });
+                            }
                             mPresentByVidPnLayerId.emplace(vidPnLayerId, present);
                         }
 
@@ -2271,6 +2274,7 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
             p->ProcessId,
             0,
             p->PresentStartTime,
+            p->PresentStartTime + p->TimeInPresent,
             [this](const AppTimingData& d) {
                 if (mUsingOutOfBoundPresentStart) {
                     return d.PclOutOfBandPresentStartTime;
@@ -2673,6 +2677,7 @@ void PMTraceConsumer::RuntimePresentStop(Runtime runtime, EVENT_HEADER const& hd
         return;
     }
     auto present = eventIter->second;
+    auto presentStopTime = static_cast<uint64_t>(hdr.TimeStamp.QuadPart);
 
     if (mTrackAppTiming) {
         if (IsApplicationPresent(present)) {
@@ -2681,7 +2686,9 @@ void PMTraceConsumer::RuntimePresentStop(Runtime runtime, EVENT_HEADER const& hd
                 present->ProcessId,
                 present->AppFrameId,
                 present->PresentStartTime,
-                [](const AppTimingData& d) { return d.AppPresentStartTime; });
+                presentStopTime,
+                [](const AppTimingData& d) { return d.AppPresentStartTime; },
+                false);
             if (appTimingData) {
                 if (present->ProcessId == appTimingData->ProcessId) {
                     if (present->AppFrameId == 0) {
@@ -2719,7 +2726,7 @@ void PMTraceConsumer::RuntimePresentStop(Runtime runtime, EVENT_HEADER const& hd
     // Set the runtime and Present_Stop time.
     VerboseTraceBeforeModifyingPresent(present.get());
     present->Runtime = runtime;
-    present->TimeInPresent = *(uint64_t*) &hdr.TimeStamp - present->PresentStartTime;
+    present->TimeInPresent = presentStopTime - present->PresentStartTime;
 
     // If this present completed early and was deferred until the Present_Stop, then no more
     // analysis is needed; we just clear the deferral.
@@ -3771,7 +3778,8 @@ PMTraceConsumer::EventProcessingScope::~EventProcessingScope()
 
 AppTimingData* PMTraceConsumer::ExtractAppTimingData(
     std::unordered_map<std::pair<uint32_t, uint32_t>, AppTimingData, PairHash<uint32_t, uint32_t>>& timingDataByFrameId,
-    uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime, std::function<uint64_t(const AppTimingData&)> timingSelector) {
+    uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime, uint64_t presentStopTime, std::function<uint64_t(const AppTimingData&)> timingSelector,
+    bool isPcLatency) {
     if (appFrameId != 0) {
         // If the incoming app frame id is already assigned then we receiving
         // the information from version 2 of the PresentFrameType event.
@@ -3783,24 +3791,50 @@ AppTimingData* PMTraceConsumer::ExtractAppTimingData(
             return &ii->second;
         }
     } else {
-        auto itToReturn = timingDataByFrameId.end();
-        uint32_t earlierFrameId = std::numeric_limits<uint32_t>::max();
-        uint64_t smallestPresentStartDelta = std::numeric_limits<uint64_t>::max();
-        // Search for the timing data with the closest PresentStartTime to the passed
-        // in PresentStartTime that has not been assigned. This is a hack and will not work for x-platform.
-        for (auto it = timingDataByFrameId.begin(); it != timingDataByFrameId.end(); ++it) {
-            if (it->first.second == processId) {
-                if (it->second.AssignedToPresent == false) {
-                    uint64_t timingValue = timingSelector(it->second);
-                    if (timingValue != 0 && timingValue < presentStartTime) {
-                        auto tempPresentStartDelta = presentStartTime - timingValue;
-                        if (tempPresentStartDelta < smallestPresentStartDelta) {
-                            smallestPresentStartDelta = tempPresentStartDelta;
-                            earlierFrameId = it->first.first;
-                            itToReturn = it;
-                        }
+        // Select the unassigned entry whose selected time is closest to (but earlier than)
+        // presentStartTime. This is a hack and will not work for x-platform.
+        auto findClosestBeforePresentStart = [&]() {
+            auto best = timingDataByFrameId.end();
+            uint64_t smallestDelta = std::numeric_limits<uint64_t>::max();
+            for (auto it = timingDataByFrameId.begin(); it != timingDataByFrameId.end(); ++it) {
+                if (it->first.second != processId || it->second.AssignedToPresent) {
+                    continue;
+                }
+                uint64_t timingValue = timingSelector(it->second);
+                if (timingValue != 0 && timingValue < presentStartTime) {
+                    uint64_t delta = presentStartTime - timingValue;
+                    if (delta < smallestDelta) {
+                        smallestDelta = delta;
+                        best = it;
                     }
                 }
+            }
+            return best;
+        };
+        auto itToReturn = timingDataByFrameId.end();
+        if (isPcLatency) {
+            // For PC latency we match app timing data using findClosestBeforePresentStart.
+            itToReturn = findClosestBeforePresentStart();
+        } else {
+            // For non-PC latency metrics we match unassigned timing data whose selected time falls
+            // between present start and stop. If more than one qualifies, use the earliest.
+            uint64_t earliestTimingValueInWindow = std::numeric_limits<uint64_t>::max();
+            for (auto it = timingDataByFrameId.begin(); it != timingDataByFrameId.end(); ++it) {
+                if (it->first.second != processId || it->second.AssignedToPresent) {
+                    continue;
+                }
+                uint64_t timingValue = timingSelector(it->second);
+                if (timingValue != 0
+                    && presentStartTime <= timingValue
+                    && timingValue <= presentStopTime
+                    && timingValue < earliestTimingValueInWindow) {
+                    earliestTimingValueInWindow = timingValue;
+                    itToReturn = it;
+                }
+            }
+            if (itToReturn == timingDataByFrameId.end()) {
+                // No timing in the present window; fall back to closest-before-presentStart.
+                itToReturn = findClosestBeforePresentStart();
             }
         }
 

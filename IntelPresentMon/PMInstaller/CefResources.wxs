@@ -1,27 +1,27 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-    <Fragment>
-        <DirectoryRef Id="pm_app_folder">
-            <Directory Id="locales" Name="locales" />
-        </DirectoryRef>
-    </Fragment>
-    <Fragment>
-        <ComponentGroup Id="CefResources">
-            <Component Id="chrome_100_percent.pak" Directory="pm_app_folder" Guid="*">
-                <File Id="chrome_100_percent.pak" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\chrome_100_percent.pak" />
-            </Component>
-            <Component Id="chrome_200_percent.pak" Directory="pm_app_folder" Guid="*">
-                <File Id="chrome_200_percent.pak" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\chrome_200_percent.pak" />
-            </Component>
-            <Component Id="icudtl.dat" Directory="pm_app_folder" Guid="*">
-                <File Id="icudtl.dat" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\icudtl.dat" />
-            </Component>
-            <Component Id="resources.pak" Directory="pm_app_folder" Guid="*">
-                <File Id="resources.pak" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\resources.pak" />
-            </Component>
-            <Component Id="en_US.pak" Directory="locales" Guid="*">
-                <File Id="en_US.pak" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\locales\en-US.pak" />
-            </Component>
-        </ComponentGroup>
-    </Fragment>
+  <Fragment>
+    <DirectoryRef Id="pm_app_folder">
+      <Directory Id="cef_dir_locales_62bc7cac" Name="locales" />
+    </DirectoryRef>
+  </Fragment>
+  <Fragment>
+    <ComponentGroup Id="CefResources">
+      <Component Id="cef_cmp_chrome_100_percent.pak_a651751f" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_chrome_100_percent.pak_a651751f" Name="chrome_100_percent.pak" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\chrome_100_percent.pak" />
+      </Component>
+      <Component Id="cef_cmp_chrome_200_percent.pak_5478cbdc" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_chrome_200_percent.pak_5478cbdc" Name="chrome_200_percent.pak" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\chrome_200_percent.pak" />
+      </Component>
+      <Component Id="cef_cmp_icudtl.dat_a868eec9" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_icudtl.dat_a868eec9" Name="icudtl.dat" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\icudtl.dat" />
+      </Component>
+      <Component Id="cef_cmp_locales_en_US.pak_bf166a4d" Directory="cef_dir_locales_62bc7cac" Guid="*">
+        <File Id="cef_file_locales_en_US.pak_bf166a4d" Name="en-US.pak" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\locales\en-US.pak" />
+      </Component>
+      <Component Id="cef_cmp_resources.pak_35d1ea99" Directory="pm_app_folder" Guid="*">
+        <File Id="cef_file_resources.pak_35d1ea99" Name="resources.pak" KeyPath="yes" Source="$(var.PresentMon.TargetDir)\resources.pak" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
 </Wix>

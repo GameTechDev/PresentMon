@@ -1,7 +1,6 @@
 ﻿#pragma once
 #include "OpenSession.h"
 #include "SetCapture.h"
-#include "EnumerateAdapters.h"
 #include "Introspect.h"
 #include "PushSpecification.h"
 #include "BindHotkey.h"

@@ -8,6 +8,7 @@
 #include "../CommonUtilities/win/Utilities.h"
 #include "../CommonUtilities/Qpc.h"
 #include "../CommonUtilities/Exception.h"
+#include "../CommonUtilities/log/IdentificationTable.h"
 
 using namespace pmon;
 using namespace std::literals;
@@ -53,6 +54,8 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
             return status;
         }
     }
+
+    std::lock_guard lock(session_mutex_);
 
     // Snapshot state so we can rollback tracking on failure.
     std::unordered_map<uint32_t, bool> previousState;
@@ -316,7 +319,9 @@ void RealtimePresentMonSession::AddPresents(
             }
         }
 
-        pBroadcaster->Broadcast(*presentEvent);
+        if (pBroadcaster) {
+            pBroadcaster->Broadcast(*presentEvent);
+        }
 
     }
 
@@ -489,6 +494,7 @@ void RealtimePresentMonSession::ProcessEvents(
 }
 
 void RealtimePresentMonSession::Consume(TRACEHANDLE traceHandle) {
+    util::log::IdentificationTable::AddThisThread("etw-consume");
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
     // You must call OpenTrace() prior to calling this function
@@ -512,6 +518,7 @@ void RealtimePresentMonSession::Consume(TRACEHANDLE traceHandle) {
 }
 
 void RealtimePresentMonSession::Output() {
+    util::log::IdentificationTable::AddThisThread("frame-out");
     try {
         // Structures to track processes and statistics from recorded events.
         std::vector<ProcessEvent> processEvents;

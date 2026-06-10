@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2017-2024 Intel Corporation
+// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Middleware.h"
 #include <string>
@@ -132,7 +132,11 @@ namespace pmon::mid
         // Get and cache the introspection data
         (void)GetIntrospectionRoot_();
 	}
-    
+
+    Middleware::Middleware(Middleware&&) = default;
+
+    Middleware& Middleware::operator=(Middleware&&) = default;
+
     Middleware::~Middleware() = default;
     
     const PM_INTROSPECTION_ROOT* Middleware::GetIntrospectionData()
@@ -170,8 +174,20 @@ namespace pmon::mid
             .isPlayback = true,
             .isBackpressured = isBackpressured
         });
+        // For backpressured playback, this middleware instance is the single consumer
+        // for the ring and reports its read progress back to the service.
+        std::function<void(uint64_t)> progressCallback;
+        if (isBackpressured) {
+            progressCallback = [this, targetPid](uint64_t nextReadSerial) {
+                pActionClient_->DispatchDetached(ReportFrameReadProgress::Params{
+                    .targetPid = targetPid,
+                    .nextReadSerial = nextReadSerial,
+                });
+            };
+        }
         frameMetricsSources_.emplace(targetPid,
-            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, kFrameMetricsPerSwapChainCapacity));
+            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, kFrameMetricsPerSwapChainCapacity,
+                std::move(progressCallback)));
 
         pmlog_info(std::format("Started playback tracking pid [{}]", targetPid)).diag();
     }
@@ -198,10 +214,10 @@ namespace pmon::mid
         return *pIntroRoot_;
     }
 
-    void Middleware::SetTelemetryPollingPeriod(uint32_t deviceId, uint32_t timeMs)
+    void Middleware::SetTelemetryPollingPeriod(uint32_t deviceId, std::optional<uint32_t> periodMs)
     {
         // note: deviceId is being ignored for the time being, but might be used in the future
-        pActionClient_->DispatchSync(SetTelemetryPeriod::Params{ timeMs });
+        pActionClient_->DispatchSync(SetTelemetryPeriod::Params{ .telemetrySamplePeriodMs = periodMs });
     }
 
     void Middleware::SetEtwFlushPeriod(std::optional<uint32_t> periodMs)
@@ -400,12 +416,12 @@ namespace pmon::mid
 
     void Middleware::UpdateMetricUsage_()
     {
-        std::unordered_set<svc::acts::MetricUse> usage;
+        std::unordered_set<svc::MetricUse> usage;
         // TODO: remove intro here as it is not necessary
         const auto& introRoot = GetIntrospectionRoot_();
         for (const auto& [handle, elements] : queryMetricUsage_) {
             for (const auto& element : elements) {
-                usage.insert(svc::acts::MetricUse{
+                usage.insert(svc::MetricUse{
                     .metricId = element.metric,
                     .deviceId = element.deviceId,
                     .arrayIdx = element.arrayIndex,

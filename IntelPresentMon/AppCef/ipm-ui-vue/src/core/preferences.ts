@@ -81,7 +81,7 @@ export function makeDefaultPreferences(): Preferences {
         telemetrySamplingPeriodMs: 100,
         etwFlushPeriod: 8,
         manualEtwFlush: true,
-        metricsOffset: 80, 
+        metricsOffset: 150, 
         metricsWindow: 1000, 
         overlayPosition: 0, 
         timeRange: 10, 
@@ -140,7 +140,7 @@ export function makeDefaultPreferences(): Preferences {
 
 export const signature: Signature = {
     code: "p2c-cap-pref",
-    version: "0.20.0",
+    version: "0.21.0",
 };
 
 export interface PreferenceFile {
@@ -203,6 +203,16 @@ const migrations: Migration[] = [
             if (prefs.metricsOffset <= 32) {
                 const def = makeDefaultPreferences();
                 console.info(`Migrating preferences to 0.20.0 (metricsOffset: ${prefs.metricsOffset} => ${def.metricsOffset})`);
+                prefs.metricsOffset = def.metricsOffset;
+            }
+        }
+    },
+    {
+        version: '0.21.0',
+        migrate: (prefs: Preferences) => {
+            if (prefs.metricsOffset === 80) {
+                const def = makeDefaultPreferences();
+                console.info(`Migrating preferences to 0.21.0 (metricsOffset: ${prefs.metricsOffset} => ${def.metricsOffset})`);
                 prefs.metricsOffset = def.metricsOffset;
             }
         }

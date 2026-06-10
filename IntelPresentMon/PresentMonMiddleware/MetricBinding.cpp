@@ -240,13 +240,13 @@ namespace pmon::mid
                 const auto typeInfo = metricView.GetDataTypeInfo();
                 frameType_ = typeInfo.GetFrameType();
                 outputType_ = typeInfo.GetPolledType();
-                const auto dataSize = ipc::intro::GetDataTypeSize(outputType_);
+                const auto dataSize = ipc::intro::GetDataTypeSizeChecked(outputType_);
                 qel.dataSize = (uint64_t)dataSize;
                 qel.dataOffset = (uint64_t)util::PadToAlignment((size_t)qel.dataOffset, dataSize);
 
                 dataOffset_ = qel.dataOffset;
                 dataSize_ = qel.dataSize;
-                frameDataSize_ = ipc::intro::GetDataTypeSize(frameType_);
+                frameDataSize_ = (uint64_t)ipc::intro::GetDataTypeSizeChecked(frameType_);
                 needsConversion_ = frameType_ != outputType_;
             }
 

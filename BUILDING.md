@@ -4,11 +4,13 @@
 
 - Visual Studio 2022
 
+- [vcpkg](https://github.com/microsoft/vcpkg)
+
 - [CMake](https://cmake.org)
 
 - [Node.js / NPM](https://nodejs.org/en/download)
 
-- [v3 of the WiX toolset and VS extension](https://wixtoolset.org/docs/wix3/)
+- [v3 of the WiX toolset AND VS extension](https://wixtoolset.org/docs/wix3/)
 
 Note: if you only want to build the PresentData library, or the PresentMon Console application
 you only need Visual Studio.  Ignore the other build and source dependency instructions and build
@@ -16,54 +18,22 @@ you only need Visual Studio.  Ignore the other build and source dependency instr
 
 ## Install Source Dependencies
 
-1. Download and install *vcpkg*, which will be used to obtain source package dependencies during the build:
+1. Run the repository bootstrap script:
 
-    ```bat
+    ```powershell
     > cd PresentMonRepoDir
-    > git clone https://github.com/Microsoft/vcpkg.git build\vcpkg
-    > build\vcpkg\bootstrap-vcpkg.bat
-    > build\vcpkg\vcpkg.exe integrate install
-    > build\vcpkg\vcpkg.exe install
+    > .\bootstrap.ps1
     ```
 
-2. Build the Chromium Embedded Framework (CEF)
+    The bootstrap script:
 
-    1. Download the CEF distribution and extract it to a local folder (e.g. C:\cef_133): https://cef-builds.spotifycdn.com/index.html
+    - Restores the locked Chromium Embedded Framework (CEF) payload.
+    - Pulls the pinned auxiliary test data.
+    - Installs and builds the AppCef web UI.
 
-        - Most recently tested release is version 136
+    See the detailed guides for [CEF lock management](IntelPresentMon/AppCef/ceflock.md), [AppCef web UI setup](IntelPresentMon/AppCef/webui.md), and [auxiliary test data](Tests/auxdata.md).
 
-        - Proximal versions will most likely be compatible, but are not officially supported.
-
-        - The "Minimal Distribution" is sufficient.
-
-    2. Build 64-bit Debug and Release configurations (replace "CefDir" with the full path to the directory you downloaded into):
-
-        ```bat
-        > cmake -G "Visual Studio 17" -A x64 -DUSE_SANDBOX=OFF -S CefDir -B CefDir\build
-        > cmake --build CefDir\build --config Debug
-        > cmake --build CefDir\build --config Release
-        ```
-
-    3. Copy the required build outputs into AppCef by running the following:
-
-        ```bat
-        > IntelPresentMon\AppCef\Batch\pull-cef.bat CefDir
-        ```
-
-    4. You can now delete the local cef directory if you wish.
-
-3. Download and build the web asset dependencies via NPM.  This only needs to be run once on fresh clone, or after new packages are added:
-
-    ```bat
-    > pushd IntelPresentMon\AppCef\ipm-ui-vue
-    > npm ci
-    > npm run build
-    > popd
-    ```
-
-    Note: instead of using the production build as described above, you can use a development process with a local server with hotloading support.  To do this, use `npm run dev` instead, and use the `--ui-option url "http://localhost:5173/"` command line argument when running the *PresentMon Capture Application*.  This causes the app to load web content from localhost rather than the files in ipm-ui-vue/.
-
-4. Create and install a trusted test certificate.  This is only required for the Release build.  Open a command shell as administrator and run the following:
+2. Create and install a trusted test certificate.  This is only required for the Release build.  Open a command shell as administrator and run the following:
 
     ```bat
     > makecert -r -pe -n "CN=Test Certificate - For Internal Use Only" -ss PrivateCertStore testcert.cer
@@ -80,13 +50,21 @@ Build `PresentMon.sln` in Visual Studio or msbuild.  e.g.:
 
 ## Running PresentMon
 
-- PresentMon Console Application: `build\Release\PresentMon-dev-x64.exe`
+### Intel PresentMon
 
-- PresentMon Console Tests: `build\Release\PresentMonTests-dev-x64.exe`
+Intel PresentMon is the UI application, `PresentMon.exe`.
 
-- PresentMon Service Command Line Interface: `build\Release\PresentMonCli.exe`
+For Debug builds, the easiest IDE workflow is to set `Client/KernelProcess` as the startup project and launch `PresentMon.exe` with the service running as a child process:
 
-- PresentMon Installer: `build\Release\en-us\PresentMon.msi`
+```bat
+> --svc-as-child --files-working --log-level verbose --middleware-dll-path .\PresentMonAPI2.dll --log-middleware-copy
+```
+
+For Release builds, either move the full Release output payload to a secure directory such as "Program Files" or "System32", or disable the secure directory check for local development. You cannot run release builds from the IDE typically. The installer is often the easier path for Release validation:
+
+```bat
+> build\Release\en-us\PresentMon.msi
+```
 
 ### PresentMon Service
 
@@ -104,34 +82,26 @@ When you are finished, stop and remove the service with:
 > sc.exe delete PresentMonService
 ```
 
-### PresentMon Capture Application
+### PresentMon Standalone Console
 
-You must run the PresentMon Capture Application from its directory, with the *PresentMon Service* already running.  e.g.:
+The standalone console application is `PresentMon-dev-x64.exe`:
 
 ```bat
-> cd build\Debug
-> PresentMon.exe
+> build\Release\PresentMon-dev-x64.exe
 ```
 
-Further, for the Release build, the application must be run from a secure location (e.g. "Program Files" or "System32") so it will need to be copied there first. The Release build also cannot be started from Visual Studio, irregardless of whether the debugger is attached, and even if VS is running with admin privilege.
 
 ## Troubleshooting
 
-- If you are seeing vcpkg errors when updating to a new version of PresentMon (e.g., "error: while checking out baseline from commit...") then try updating or removing and re-adding vcpkg:
+- If you are seeing vcpkg errors when updating to a new version of PresentMon (e.g., "error: while checking out baseline from commit...") then try updating your vcpkg checkout.
 
-    ```bat
-    > cd PresentMonRepoDir
-    > build\vcpkg\vcpkg.exe remove
-    > build\vcpkg\vcpkg.exe integrate remove
-    > rmdir /s /q build\vcpkg
-    > git clone https://github.com/Microsoft/vcpkg.git build\vcpkg
-    > build\vcpkg\bootstrap-vcpkg.bat
-    > build\vcpkg\vcpkg.exe integrate install
-    > build\vcpkg\vcpkg.exe install
-    ```
+- Make sure vcpkg is using the same Visual Studio installation as the solution build. If needed, set `VCPKG_VISUAL_STUDIO_PATH` before running vcpkg.
+
 
 - If you get an error dialog from PresentMon.exe stating "A referral was returned form the server."
   you most likely do not have the certificate that the PresentMon service was signed with installed
-  into your trusted root.  Ensure that the above step 4 completed successfully.  If you built the
-  installer on another PC or received it from a trusted third party, you need to install the
-  certificate on the target PC as well.
+  into your trusted root.  Ensure that the trusted test certificate setup completed successfully.  If
+  you built the installer on another PC or received it from a trusted third party, you need to
+  install the certificate on the target PC as well.
+
+- Add the development user to the Performance Log Users group to run from the IDE, run tests, etc. without launching the IDE as administrator.

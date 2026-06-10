@@ -3,6 +3,7 @@
 
 #include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
+#include "../CommonUtilities/test/FloatAssert.h"
 #include "TestProcess.h"
 #include "Folders.h"
 #include "JobManager.h"
@@ -13,6 +14,9 @@
 
 #include "../PresentMonAPI2/PresentMonAPI.h"
 
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/windows_shared_memory.hpp>
+
 #include <algorithm>
 #include <chrono>
 #include <format>
@@ -22,6 +26,7 @@
 #include <vector>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+using pmon::util::test::AssertAreEqualWithinTolerance;
 using namespace std::literals;
 
 namespace IpcComponentTests
@@ -37,6 +42,28 @@ namespace IpcComponentTests
     // Expected test child patterns
     static constexpr uint64_t kBaseTs = 10'000ull;
     static constexpr size_t kSampleCount = 12;
+
+    static void AssertSegmentRejectsWrite_(const std::string& segmentName)
+    {
+        ipc::bip::windows_shared_memory readOnlyShm{
+            ipc::bip::open_only,
+            segmentName.c_str(),
+            ipc::bip::read_only
+        };
+        ipc::bip::mapped_region readOnlyRegion{ readOnlyShm, ipc::bip::read_only };
+        Assert::IsTrue(readOnlyRegion.get_address() != nullptr);
+
+        Assert::ExpectException<std::exception>([&] {
+            ipc::bip::windows_shared_memory readWriteShm{
+                ipc::bip::open_only,
+                segmentName.c_str(),
+                ipc::bip::read_write
+            };
+            ipc::bip::mapped_region readWriteRegion{ readWriteShm, ipc::bip::read_write };
+            auto pData = static_cast<volatile char*>(readWriteRegion.get_address());
+            *pData = *pData;
+        });
+    }
 
     class TestFixture : public CommonTestFixture
     {
@@ -121,7 +148,7 @@ namespace IpcComponentTests
         const auto& sample = ring.At(serial);
         const uint64_t expectedTs = kBaseTs + static_cast<uint64_t>(serial);
         Assert::AreEqual(expectedTs, sample.timestamp);
-        Assert::AreEqual(ExpectedScalarValue_(expectedTs), sample.value, 1e-9);
+        AssertAreEqualWithinTolerance(ExpectedScalarValue_(expectedTs), sample.value, 1e-9);
     }
 
     TEST_CLASS(HistoryRingStoreBasicAccessTests)
@@ -156,6 +183,14 @@ namespace IpcComponentTests
             Assert::AreEqual<size_t>(2, arrayVect.size(), L"Array metric should have 2 rings");
         }
 
+        TEST_METHOD(ReadOnlySegmentRejectsWrite)
+        {
+            auto server = fixture_.LaunchClient();
+            std::this_thread::sleep_for(25ms);
+
+            AssertSegmentRejectsWrite_(kSystemSegName);
+        }
+
         TEST_METHOD(EmptyRangeAndNewestWorkForScalar)
         {
             auto server = fixture_.LaunchClient();
@@ -181,10 +216,10 @@ namespace IpcComponentTests
             const auto& atLast = ring.At(last - 1);
 
             Assert::AreEqual(atLast.timestamp, newest.timestamp);
-            Assert::AreEqual(atLast.value, newest.value, 1e-9);
+            AssertAreEqualWithinTolerance(atLast.value, newest.value, 1e-9);
 
             Assert::AreEqual<uint64_t>(expectedNewestTs, newest.timestamp);
-            Assert::AreEqual(ExpectedScalarValue_(expectedNewestTs), newest.value, 1e-9);
+            AssertAreEqualWithinTolerance(ExpectedScalarValue_(expectedNewestTs), newest.value, 1e-9);
         }
 
         TEST_METHOD(AtReadsExpectedValuesForArrayElements)
@@ -220,8 +255,8 @@ namespace IpcComponentTests
                 Assert::AreEqual(ts, s0.timestamp);
                 Assert::AreEqual(ts, s1.timestamp);
 
-                Assert::AreEqual(ExpectedArray0Value_(ts), s0.value, 1e-9);
-                Assert::AreEqual(ExpectedArray1Value_(ts), s1.value, 1e-9);
+                AssertAreEqualWithinTolerance(ExpectedArray0Value_(ts), s0.value, 1e-9);
+                AssertAreEqualWithinTolerance(ExpectedArray1Value_(ts), s1.value, 1e-9);
             }
         }
 
@@ -252,7 +287,7 @@ namespace IpcComponentTests
                 const auto& sample = ring.At(s);
 
                 Assert::AreEqual(ts, sample.timestamp);
-                Assert::AreEqual(ExpectedScalarValue_(ts), sample.value, 1e-9);
+                AssertAreEqualWithinTolerance(ExpectedScalarValue_(ts), sample.value, 1e-9);
             }
 
             // After last timestamp -> should return last (one past end)
@@ -334,7 +369,7 @@ namespace IpcComponentTests
                 const auto& sample = ring.At(s);
 
                 Assert::AreEqual(ts, sample.timestamp);
-                Assert::AreEqual(ExpectedScalarValue_(ts), sample.value, 1e-9);
+                AssertAreEqualWithinTolerance(ExpectedScalarValue_(ts), sample.value, 1e-9);
             }
         }
 
@@ -375,7 +410,7 @@ namespace IpcComponentTests
 
             Logger::WriteMessage(std::format("ForEach visited={}, sum={}\n", visited, sum).c_str());
 
-            Assert::AreEqual(expectedSum, sum, 1e-9);
+            AssertAreEqualWithinTolerance(expectedSum, sum, 1e-9);
         }
     };
 
@@ -515,9 +550,9 @@ namespace IpcComponentTests
             Assert::AreEqual<size_t>(pushed, rangeBefore.second);
             Assert::AreEqual<size_t>(0, rangeBefore.first);
 
-            ring.MarkNextRead(rangeBefore.second);
+            ring.SetNextRead(rangeBefore.second);
 
-            Assert::IsTrue(ring.Push(sample, 30), L"Expected push after MarkNextRead");
+            Assert::IsTrue(ring.Push(sample, 30), L"Expected push after SetNextRead");
             const auto rangeAfter = ring.GetSerialRange();
             Assert::AreEqual<size_t>(pushed + 1, rangeAfter.second);
         }

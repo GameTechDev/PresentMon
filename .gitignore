@@ -47,6 +47,9 @@ PresentData/PresentData.args.json
 # Make sure internal source isn't unintentionally committed to public repositories
 IntelPresentMon/PresentMonAPI2/Internal.h
 
+# PMInstallerLib heat output (see PMInstallerLib.wixproj GenerateUciDistFragment)
+IntelPresentMon/PMInstallerLib/Generated/
+
 # Reflector Tool
 Reflector/bin/**
 Reflector/obj/**
@@ -68,5 +71,6 @@ PresentMon/ddETWExternalEventsTEMP.BIN
 
 # Local runsettings files (user-specific test configurations)
 *.local.runsettings
+machine_expectations.json
 
 Directory.Build.props

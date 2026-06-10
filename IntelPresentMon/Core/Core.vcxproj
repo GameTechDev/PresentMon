@@ -60,7 +60,6 @@
     <ClInclude Include="source\kernel\DataFetchPack.h" />
     <ClInclude Include="source\kernel\InjectorComplex.h" />
     <ClInclude Include="source\kernel\MetricPackMapper.h" />
-    <ClInclude Include="source\pmon\AdapterInfo.h" />
     <ClInclude Include="source\pmon\DynamicQuery.h" />
     <ClInclude Include="source\pmon\metric\DynamicPollingFetcher.h" />
     <ClInclude Include="source\pmon\MetricFetcherFactory.h" />

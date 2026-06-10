@@ -1,4 +1,4 @@
-﻿#include <memory>
+#include <memory>
 #include <crtdbg.h>
 #include <unordered_map>
 #include "../PresentMonMiddleware/Middleware.h"
@@ -23,6 +23,7 @@ using v = pmon::util::log::V;
 bool useCrtHeapDebug_ = false;
 // map handles (session, query, introspection) to middleware instances
 std::unordered_map<const void*, std::shared_ptr<Middleware>> handleMap_;
+std::shared_ptr<pmon::util::log::IIdentificationSink> pLinkedIdTableSink_;
 const auto DescribePointerArg_ = []<typename T>(const T* p, bool dereferenceScalar = true) -> std::string
 {
 	if (!p) {
@@ -65,8 +66,8 @@ Middleware& LookupMiddlewareCheckDropped_(const void* handle)
 	auto& mid = LookupMiddleware_(handle);
 	if (!mid.ServiceConnected()) {
 		pmlog_error("Service dropped; proactive abort")
-			.code(PM_STATUS_SESSION_NOT_OPEN)
-			.raise<ipc::PmStatusError>();
+			.code(PM_STATUS_SESSION_NOT_OPEN);
+		throw util::Except<ipc::PmStatusError>(PM_STATUS_SESSION_NOT_OPEN, "Service dropped; proactive abort");
 	}
 	return mid;
 }
@@ -101,40 +102,49 @@ PRESENTMON_API2_EXPORT _CrtMemState pmCreateHeapCheckpoint_()
 
 PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(
 	std::shared_ptr<pmon::util::log::IChannel> pChannel,
-	std::function<pmon::util::log::IdentificationTable&()> getIdTable)
+	pmon::util::log::IdentificationTableCallbacks idTableCallbacks)
 {
 	using namespace util::log;
 	// set api dll default logging channel to copy to exe logging channel
 	SetupCopyChannel(std::move(pChannel));
 	// connecting id tables (dll => exe)
-	if (getIdTable) {
-		// hooking exe table up so that it receives updates
+	if (pLinkedIdTableSink_) {
+		IdentificationTable::UnregisterSink(pLinkedIdTableSink_.get());
+		pLinkedIdTableSink_.reset();
+	}
+	if (idTableCallbacks) {
 		class Sink : public IIdentificationSink
 		{
 		public:
-			Sink(std::function<IdentificationTable& ()> getIdTable)
+			Sink(IdentificationTableCallbacks callbacks)
 				:
-				getIdTable_{ std::move(getIdTable) }
+				callbacks_{ callbacks }
 			{}
 			void AddThread(uint32_t tid, uint32_t pid, std::string name) override
 			{
-				getIdTable_().AddThread_(tid, pid, name);
+				if (callbacks_.addThread) {
+					callbacks_.addThread(tid, pid, name.c_str());
+				}
 			}
 			void AddProcess(uint32_t pid, std::string name) override
 			{
-				getIdTable_().AddProcess_(pid, name);
+				if (callbacks_.addProcess) {
+					callbacks_.addProcess(pid, name.c_str());
+				}
 			}
 		private:
-			std::function<IdentificationTable& ()> getIdTable_;
+			IdentificationTableCallbacks callbacks_;
 		};
-		IdentificationTable::RegisterSink(std::make_shared<Sink>(getIdTable));
+		pLinkedIdTableSink_ = std::make_shared<Sink>(idTableCallbacks);
+		// hooking exe table up so that it receives updates
+		IdentificationTable::RegisterSink(pLinkedIdTableSink_);
 		// copying current contents of table to exe
 		const auto bulk = IdentificationTable::GetBulk();
 		for (auto& t : bulk.threads) {
-			getIdTable().AddThread_(t.tid, t.pid, t.name);
+			pLinkedIdTableSink_->AddThread(t.tid, t.pid, t.name);
 		}
 		for (auto& p : bulk.processes) {
-			getIdTable().AddProcess_(p.pid, p.name);
+			pLinkedIdTableSink_->AddProcess(p.pid, p.name);
 		}
 	}
 	// return functions to access the global settings objects
@@ -142,6 +152,17 @@ PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(
 		.getGlobalPolicy = []() -> GlobalPolicy& { return GlobalPolicy::Get(); },
 		.getLineTable = []() -> LineTable& { return LineTable::Get_(); },
 	};
+}
+
+PRESENTMON_API2_EXPORT void pmUnlinkLogging_() noexcept
+{
+	using namespace util::log;
+	pmquell(FlushEntryPoint())
+	pmquell(InjectDefaultChannel({}))
+	if (pLinkedIdTableSink_) {
+		pmquell(IdentificationTable::UnregisterSink(pLinkedIdTableSink_.get()))
+		pLinkedIdTableSink_.reset();
+	}
 }
 
 PRESENTMON_API2_EXPORT void pmFlushEntryPoint_() noexcept
@@ -266,7 +287,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE h
 {
 	try {
 		pmlog_dbg("pmSetTelemetryPollingPeriod").pmwatch(handle).pmwatch(deviceId).pmwatch(timeMs);
-		LookupMiddleware_(handle).SetTelemetryPollingPeriod(deviceId, timeMs);
+		LookupMiddleware_(handle).SetTelemetryPollingPeriod(deviceId, timeMs ? std::optional{ timeMs } : std::nullopt);
 		return PM_STATUS_SUCCESS;
 	}
 	pmcatch_report_diag(true);

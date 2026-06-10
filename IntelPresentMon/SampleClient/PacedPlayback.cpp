@@ -5,10 +5,12 @@
 #include <chrono>
 #include <iostream>
 #include <span>
+#include <thread>
 #include <PresentMonAPI2Tests/TestCommands.h>
 #include <cereal/archives/json.hpp>
 #include <vincentlaucsb-csv-parser/csv.hpp>
-#include <CommonUtilities/IntervalWaiter.h>
+#include <CommonUtilities/PrecisionWaiter.h>
+#include <CommonUtilities/Qpc.h>
 #include <CommonUtilities/Exception.h>
 #include <CommonUtilities/log/Log.h>
 
@@ -84,7 +86,25 @@ private:
 	std::vector<LookupInfo_> qInfo_;
 };
 
-std::vector<PM_QUERY_ELEMENT> BuildQueryElementSet(const pmapi::intro::Root& intro)
+bool IsMinMaxPercentileStat(PM_STAT stat)
+{
+	switch (stat) {
+	case PM_STAT_PERCENTILE_99:
+	case PM_STAT_PERCENTILE_95:
+	case PM_STAT_PERCENTILE_90:
+	case PM_STAT_PERCENTILE_01:
+	case PM_STAT_PERCENTILE_05:
+	case PM_STAT_PERCENTILE_10:
+	case PM_STAT_MAX:
+	case PM_STAT_MIN:
+		return true;
+	default:
+		return false;
+	}
+}
+
+std::vector<PM_QUERY_ELEMENT> BuildQueryElementSet(const pmapi::intro::Root& intro,
+	bool minMaxPercentileStatsOnly)
 {
 	std::vector<PM_QUERY_ELEMENT> qels;
 	for (const auto& m : intro.GetMetrics()) {
@@ -106,6 +126,9 @@ std::vector<PM_QUERY_ELEMENT> BuildQueryElementSet(const pmapi::intro::Root& int
 			continue;
 		}
 		for (const auto& s : m.GetStatInfo()) {
+			if (minMaxPercentileStatsOnly && !IsMinMaxPercentileStat(s.GetStat())) {
+				continue;
+			}
 			qels.push_back(PM_QUERY_ELEMENT{ m.GetId(), s.GetStat() });
 		}
 	}
@@ -116,11 +139,11 @@ class TestClientModule
 {
 public:
 	TestClientModule(std::unique_ptr<pmapi::Session> pSession, double windowMs,
-		double offsetMs)
+		double offsetMs, bool minMaxPercentileStatsOnly)
 		:
 		pSession_{ std::move(pSession) },
 		pIntro_{ pSession_->GetIntrospectionRoot() },
-		qels_{ BuildQueryElementSet(*pIntro_) },
+		qels_{ BuildQueryElementSet(*pIntro_, minMaxPercentileStatsOnly) },
 		query_{ pSession_->RegisterDynamicQuery(qels_, windowMs, offsetMs) },
 		blobs_{ query_.MakeBlobContainer(1) }
 	{}
@@ -153,29 +176,48 @@ public:
 		// wait to give time for the static data (startQpc specifically) to propagate to the shm
 		// wait until 500ms (buffer time) before the requested recordingStart
 		util::PrecisionWaiter{}.Wait(recordingStartSec - 0.5);
-		// capture session startQpc and setup interval waiter to sync with session start
-		const auto startQpc = pmapi::PollStatic(*pSession_, tracker, PM_METRIC_SESSION_START_QPC).As<uint64_t>();
-		util::IntervalWaiter waiter{ pollInterval, (int64_t)startQpc, 0.0015 };
+		// capture session startQpc and setup timer to sync with session start
+		const auto startQpcDeadline = Clock::now() + 5s;
+		uint64_t startQpc = 0;
+		while (true) {
+			startQpc = pmapi::PollStatic(*pSession_, tracker, PM_METRIC_SESSION_START_QPC).As<uint64_t>();
+			if (startQpc != 0) {
+				break;
+			}
+			if (Clock::now() >= startQpcDeadline) {
+				pmlog_error("Timed out waiting for valid session start QPC")
+					.pmwatch(startQpc)
+					.no_trace();
+			}
+			std::this_thread::sleep_for(25ms);
+		}
+		std::this_thread::sleep_for(200ms);
+		util::QpcTimer sessionTimer{ (int64_t)startQpc };
+		util::PrecisionWaiter waiter{ 0.0015 };
 		// run polling loop and poll into vector
 		std::vector<std::vector<double>> rows;
-		std::vector<double> cells;
 		BlobReader br{ qels_, pIntro_ };
 		br.Target(blobs_);
+		double targetSec = 0.;
 		while (true) {
-			const auto wr = waiter.Wait();
+			targetSec += pollInterval;
+			const auto secondsToTarget = targetSec - sessionTimer.Peek();
+			if (secondsToTarget > 0.) {
+				waiter.Wait(secondsToTarget);
+			}
 			// skip recording while time has not reached start time
-			if (wr.targetSec >= recordingStartSec) {
+			if (targetSec >= recordingStartSec) {
+				std::vector<double> cells;
 				cells.reserve(qels_.size() + 1);
-				query_.PollWithTimestamp(tracker, blobs_, (uint64_t)waiter.TargetTimeToTimestamp(wr.targetSec));
-				// first column is the time as measured in polling loop
-				cells.push_back(wr.targetSec + wr.errorSec);
+				query_.PollWithTimestamp(tracker, blobs_, (uint64_t)sessionTimer.TimeToTimestamp(targetSec));
+				cells.push_back(targetSec);
 				// remaining columns are from the query
 				for (size_t i = 0; i < qels_.size(); i++) {
 					cells.push_back(br.At<double>(i));
 				}
 				rows.push_back(std::move(cells));
 			}
-			if (wr.targetSec >= recordingStopSec) {
+			if (targetSec >= recordingStopSec) {
 				break;
 			}
 		}
@@ -201,7 +243,8 @@ int PacedPlaybackTest(std::unique_ptr<pmapi::Session> pSession)
 		}
 
 		// connect to service and register query
-		TestClientModule client{ std::move(pSession), *opt.windowSize, *opt.metricOffset };
+		TestClientModule client{ std::move(pSession), *opt.windowSize, *opt.metricOffset,
+			opt.minMaxPercentileStatsOnly };
 		if (opt.etwFlushPeriodMs) {
 			client.SetETWFlushPeriod(*opt.etwFlushPeriodMs);
 		}

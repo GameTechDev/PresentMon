@@ -1,4 +1,8 @@
 @echo off
+echo Validate staged CEF payload...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0validate-cef.ps1" -Mode Stage
+if errorlevel 1 exit /b %errorlevel%
+
 echo Copy CEF binaries...
 xcopy /SY "Cef\Bin\" "%~2"
 

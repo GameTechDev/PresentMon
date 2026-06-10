@@ -1,6 +1,7 @@
 #pragma once
 #include <CommonUtilities/cli/CliFramework.h>
 #include <CommonUtilities/log/Level.h>
+#include "UiProcessGuard.h"
 
 namespace p2c::client::util::cli
 {
@@ -21,6 +22,7 @@ namespace p2c::client::util::cli
 		Flag traceExceptions{ this, "--p2c-trace-exceptions", "Add stack trace to all thrown exceptions (including SEH exceptions)" };
 		Flag enableUiDevOptions{ this, "--p2c-enable-ui-dev-options", "Enable advanced UI elements useful during development" };
 		Option<std::string> webRoot{ this, "--p2c-web-root", "", "Filesystem path to directory holding SPA assets" };
+		Option<std::string> uiMutexName{ this, "--p2c-ui-mutex-name", DefaultUiBrowserProcessMutexSuffix, "Suffix for the UI browser process mutex name" };
 		Flag enableChromiumDebug{ this, "--p2c-enable-chromium-debug", "Enable Chromium devtools connections on port 9009" };
 
 

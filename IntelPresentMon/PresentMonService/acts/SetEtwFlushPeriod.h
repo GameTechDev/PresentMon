@@ -1,5 +1,6 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
+#include "../ActionExecutionContext.h"
 #include <format>
 #include <ranges>
 
@@ -31,15 +32,21 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
-			if (in.etwFlushPeriodMs && *in.etwFlushPeriodMs > PM_ETW_FLUSH_PERIOD_MAX) {
-				const auto sta = PM_STATUS::PM_STATUS_OUT_OF_RANGE;
-				pmlog_error("Set ETW flush period failed: out of range").pmwatch(*in.etwFlushPeriodMs).code(sta);
-				throw util::Except<ActionExecutionError>(sta);
+			auto etwFlushPeriodMs = in.etwFlushPeriodMs;
+			if (etwFlushPeriodMs && *etwFlushPeriodMs < PM_ETW_FLUSH_PERIOD_MIN) {
+				pmlog_warn("ETW flush period out of range; clamping to minimum")
+					.pmwatch(*etwFlushPeriodMs).pmwatch(PM_ETW_FLUSH_PERIOD_MIN).diag();
+				etwFlushPeriodMs = PM_ETW_FLUSH_PERIOD_MIN;
 			}
-			stx.requestedEtwFlushPeriodMs = in.etwFlushPeriodMs;
+			else if (etwFlushPeriodMs && *etwFlushPeriodMs > PM_ETW_FLUSH_PERIOD_MAX) {
+				pmlog_warn("ETW flush period out of range; clamping to maximum")
+					.pmwatch(*etwFlushPeriodMs).pmwatch(PM_ETW_FLUSH_PERIOD_MAX).diag();
+				etwFlushPeriodMs = PM_ETW_FLUSH_PERIOD_MAX;
+			}
+			stx.requestedEtwFlushPeriodMs = etwFlushPeriodMs;
 			ctx.UpdateEtwFlushPeriod();
-			if (in.etwFlushPeriodMs) {
-				pmlog_dbg(std::format("Setting ETW flush period to {}ms", *in.etwFlushPeriodMs));
+			if (etwFlushPeriodMs) {
+				pmlog_dbg(std::format("Setting ETW flush period to {}ms", *etwFlushPeriodMs));
 			}
 			else {
 				pmlog_dbg("Disabling manual ETW flush");

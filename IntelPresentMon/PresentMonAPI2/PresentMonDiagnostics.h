@@ -90,8 +90,6 @@ extern "C" {
 		uint64_t verboseModuleBitset;
 		// use synchronous logging channel mode (submit waits for processing + driver flush per entry)
 		bool enableSynchronousLogging;
-		// install crash/terminate best-effort flush hooks while diagnostics are configured
-		bool enableFlushOnCrash;
 	};
 
 	// NOTE: pmDiagnosticDequeueMessage and pmDiagnosticWaitForMessage must both be accessed

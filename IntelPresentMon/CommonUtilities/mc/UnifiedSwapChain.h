@@ -24,9 +24,9 @@ namespace pmon::util::metrics
         SwapChainCoreState swapChain;
 
         // Seed without needing a QPC converter (needed for console GetPresentProcessInfo() early-return).
-        void SeedFromFirstPresent(FrameData present);
+        void SeedFromFirstPresent(const FrameData& present);
 
-        std::vector<ReadyItem> Enqueue(FrameData present, MetricsVersion version);
+        std::vector<ReadyItem> Enqueue(FrameData&& present, MetricsVersion version);
 
         uint64_t GetLastPresentQpc() const;
         bool IsPrunableBefore(uint64_t minTimestampQpc) const;

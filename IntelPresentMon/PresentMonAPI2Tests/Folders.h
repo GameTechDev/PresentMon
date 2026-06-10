@@ -11,6 +11,12 @@ namespace EtlLoggerTests
 	static constexpr const char* outFolder_ = "TestOutput\\EtlLogger";
 }
 
+namespace EtlTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\EtlTests";
+	static constexpr const char* outFolder_ = "TestOutput\\EtlTests";
+}
+
 namespace PacedPolling
 {
 	static constexpr const char* logFolder_ = "TestLogs\\PacedPolling";
@@ -40,7 +46,18 @@ namespace IpcMcIntegrationTests
 	static constexpr const char* logFolder_ = "TestLogs\\IpcMcIntegration";
 }
 
+namespace RealtimeMetricTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\RealtimeMetric";
+	static constexpr const char* outFolder_ = "TestOutput\\RealtimeMetric";
+}
+
 namespace LoggingTests
 {
 	static constexpr const char* logFolder_ = "TestLogs\\LoggingTests";
+}
+
+namespace UiLaunchTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\UiLaunch";
 }

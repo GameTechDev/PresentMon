@@ -9,6 +9,7 @@
     "boost-process",
     "boost-circular-buffer",
     "cereal",
+    "nlohmann-json",
     "concurrentqueue",
     "boost-asio",
     "winreg",

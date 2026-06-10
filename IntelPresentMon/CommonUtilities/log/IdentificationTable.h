@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <shared_mutex>
 #include <optional>
+#include <memory>
+#include <vector>
 
 namespace pmon::util::log
 {
@@ -12,6 +14,16 @@ namespace pmon::util::log
 	public:
 		virtual void AddThread(uint32_t tid, uint32_t pid, std::string name) = 0;
 		virtual void AddProcess(uint32_t pid, std::string name) = 0;
+	};
+
+	struct IdentificationTableCallbacks
+	{
+		void(*addThread)(uint32_t tid, uint32_t pid, const char* name) = nullptr;
+		void(*addProcess)(uint32_t pid, const char* name) = nullptr;
+		operator bool() const noexcept
+		{
+			return addThread || addProcess;
+		}
 	};
 
 	class IdentificationTable
@@ -42,7 +54,9 @@ namespace pmon::util::log
 		static std::optional<Thread> LookupThread(uint32_t tid) noexcept;
 		static std::optional<Process> LookupProcess(uint32_t pid) noexcept;
 		static Bulk GetBulk() noexcept;
+		static IdentificationTableCallbacks MakeForwardingCallbacks() noexcept;
 		static void RegisterSink(std::shared_ptr<IIdentificationSink> pSink) noexcept;
+		static void UnregisterSink(const IIdentificationSink* pSink) noexcept;
 		static IdentificationTable* GetPtr() noexcept;
 
 		// implementation functions, made public for purposes of cross-module access
@@ -56,6 +70,7 @@ namespace pmon::util::log
 		std::optional<Process> LookupProcess_(uint32_t pid) const;
 		Bulk GetBulk_() const;
 		void RegisterSink_(std::shared_ptr<IIdentificationSink> pSink);
+		void UnregisterSink_(const IIdentificationSink* pSink);
 	private:
 		// functions
 		IdentificationTable();

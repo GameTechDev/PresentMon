@@ -1,5 +1,6 @@
-#pragma once
+﻿#pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
+#include "../ActionExecutionContext.h"
 #include <format>
 
 #define ACT_NAME StartEtlLogging
@@ -31,17 +32,11 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
-			try {
-				auto& etl = ctx.pPmon->GetEtwLogger();
-				const Response out{ .etwLogSessionHandle = etl.StartLogSession() };
-				stx.etwLogSessionIds.insert(out.etwLogSessionHandle);
-				pmlog_info("Starting ETL log session").pmwatch(out.etwLogSessionHandle);
-				return out;
-			}
-			catch (...) {
-				pmlog_error(ReportException("Failed to start etw log session"));
-				throw util::Except<ActionExecutionError>(PM_STATUS_FAILURE);
-			}
+            (void)ctx;
+            (void)stx;
+            (void)in;
+            pmlog_warn("ETL logging is not currently supported");
+            throw util::Except<ActionExecutionError>(PM_STATUS_FEATURE_DISABLED);
 		}
 	};
 

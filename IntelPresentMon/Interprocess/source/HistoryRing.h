@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "ShmRing.h"
 #include "../../CommonUtilities/log/Verbose.h"
+#include <functional>
 #include <format>
 #include <optional>
 #include <string>
@@ -61,9 +62,15 @@ namespace pmon::ipc
             const auto range = GetSerialRange();
             return range.second - range.first;
         }
-        void MarkNextRead(size_t serial) const
+        // Service-side only: set the single consumer read serial for a
+        // backpressured playback ring.
+        void SetNextRead(size_t serial) const
         {
-            samples_.MarkNextRead(serial);
+            samples_.SetNextRead(serial);
+        }
+        bool IsBackpressured() const
+        {
+            return samples_.IsBackpressured();
         }
         // First serial with timestamp >= given timestamp.
         // If all samples have timestamp < given timestamp, returns last (one past end).
@@ -165,7 +172,7 @@ namespace pmon::ipc
                     break;
                 }
                 // s.timestamp is guaranteed >= start by LowerBoundSerial
-                std::forward<F>(func)(s);
+                std::invoke(func, s);
                 ++count;
             }
 

@@ -1,4 +1,4 @@
-#include "LogSetup.h"
+﻿#include "LogSetup.h"
 #include <chrono>
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/log/Channel.h"
@@ -16,7 +16,7 @@
 #include "../CommonUtilities/win/HrErrorCodeProvider.h"
 #include "../CommonUtilities/str/String.h"
 #include "../CommonUtilities/Exception.h"
-#include "../ControlLib/IgclErrorCodeProvider.h"
+#include "../ControlLib/igcl/IgclErrorCodeProvider.h"
 #include "../PresentMonAPIWrapperCommon/PmErrorCodeProvider.h"
 #include "CliOptions.h"
 #include "Registry.h"
@@ -33,7 +33,7 @@ namespace pmon::util::log
 			// error resolver
 			auto pErrorResolver = std::make_shared<ErrorCodeResolver>();
 			pErrorResolver->AddProvider(std::make_unique<win::HrErrorCodeProvider>());
-			pErrorResolver->AddProvider(std::make_unique<pwr::intel::IgclErrorCodeProvider>());
+			pErrorResolver->AddProvider(std::make_unique<pmon::tel::igcl::IgclErrorCodeProvider>());
 			pErrorResolver->AddProvider(std::make_unique<pmapi::PmErrorCodeProvider>());
 			// error resolving policy
 			auto pErrPolicy = std::make_shared<ErrorCodeResolvePolicy>();
@@ -47,7 +47,7 @@ namespace pmon::util::log
 			pChannel->AttachComponent(std::make_shared<MsvcDebugDriver>(pFormatter), "drv:dbg");
 			pChannel->AttachComponent(std::make_shared<StdioDriver>(pFormatter), "drv:std");
 			// flusher
-			pChannel->AttachComponent(std::make_shared<ChannelFlusher>(pChannel), "obj:fsh");
+			pChannel->AttachComponent(std::make_shared<ChannelFlusher>(pChannel, false), "obj:fsh");
 
 			return pChannel;
 		}
@@ -128,6 +128,21 @@ namespace logsetup
 		}
 		catch (...) {
 			pmlog_panic_("Failed configuring log in server");
+		}
+	}
+	void SetPeriodicLogFlushingEnabled(bool enabled) noexcept
+	{
+		try {
+			if (auto pChannel = GetDefaultChannel()) {
+				if (auto pComponent = pChannel->GetComponent("obj:fsh")) {
+					if (auto pFlusher = std::dynamic_pointer_cast<ChannelFlusher>(pComponent)) {
+						pFlusher->SetEnabled(enabled);
+					}
+				}
+			}
+		}
+		catch (...) {
+			pmlog_panic_("Failed setting periodic log flushing state in server");
 		}
 	}
 

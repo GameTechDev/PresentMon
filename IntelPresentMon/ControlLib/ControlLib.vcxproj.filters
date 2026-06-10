@@ -5,7 +5,7 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Amd">
+    <Filter Include="Adl">
       <UniqueIdentifier>{7be1b9fe-f3a5-48d2-b9f7-4b1ffa529257}</UniqueIdentifier>
     </Filter>
     <Filter Include="Intel">
@@ -14,30 +14,39 @@
     <Filter Include="Nvidia">
       <UniqueIdentifier>{b9383b96-c78b-4e0f-bd7a-bb9eace086ef}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Wmi">
+      <UniqueIdentifier>{a6df2cb9-9e2a-46e5-8adb-ff8f258e2a36}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Uci">
+      <UniqueIdentifier>{6db4e810-a194-46a6-ac19-44e86c4b2645}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="IntelPowerTelemetryAdapter.h">
-      <Filter>Intel</Filter>
+    <ClInclude Include="adl\adl_defines.h">
+      <Filter>Adl</Filter>
     </ClInclude>
-    <ClInclude Include="IntelPowerTelemetryProvider.h">
-      <Filter>Intel</Filter>
+    <ClInclude Include="adl\adl_sdk.h">
+      <Filter>Adl</Filter>
     </ClInclude>
-    <ClInclude Include="igcl_api.h">
-      <Filter>Intel</Filter>
+    <ClInclude Include="adl\adl_structures.h">
+      <Filter>Adl</Filter>
     </ClInclude>
-    <ClInclude Include="NvidiaPowerTelemetryAdapter.h">
+    <ClInclude Include="nvapi\nvapi_interface_table.h">
       <Filter>Nvidia</Filter>
     </ClInclude>
-    <ClInclude Include="NvidiaPowerTelemetryProvider.h">
+    <ClInclude Include="nvapi\nvapi.h">
       <Filter>Nvidia</Filter>
     </ClInclude>
-    <ClInclude Include="nvapi_interface_table.h">
+    <ClInclude Include="nvapi\NvapiWrapper.h">
       <Filter>Nvidia</Filter>
     </ClInclude>
-    <ClInclude Include="nvapi.h">
+    <ClInclude Include="nvapi\NvapiTelemetryProvider.h">
       <Filter>Nvidia</Filter>
     </ClInclude>
-    <ClInclude Include="NvapiWrapper.h">
+    <ClInclude Include="nvml\NvmlTelemetryProvider.h">
+      <Filter>Nvidia</Filter>
+    </ClInclude>
+    <ClInclude Include="nvml\NvmlWrapper.h">
       <Filter>Nvidia</Filter>
     </ClInclude>
     <ClInclude Include="MacroHelpers.h">
@@ -46,81 +55,81 @@
     <ClInclude Include="DllModule.h">
       <Filter>Nvidia</Filter>
     </ClInclude>
-    <ClInclude Include="nvml.h">
-      <Filter>Nvidia</Filter>
+    <ClInclude Include="adl\Adl2Wrapper.h">
+      <Filter>Adl</Filter>
     </ClInclude>
-    <ClInclude Include="NvmlWrapper.h">
-      <Filter>Nvidia</Filter>
+    <ClInclude Include="adl\AdlTelemetryProvider.h">
+      <Filter>Adl</Filter>
     </ClInclude>
-    <ClInclude Include="SignatureComparison.h">
-      <Filter>Nvidia</Filter>
-    </ClInclude>
-    <ClInclude Include="AmdPowerTelemetryAdapter.h">
-      <Filter>Amd</Filter>
-    </ClInclude>
-    <ClInclude Include="AmdPowerTelemetryProvider.h">
-      <Filter>Amd</Filter>
-    </ClInclude>
-    <ClInclude Include="Adl2Wrapper.h">
-      <Filter>Amd</Filter>
-    </ClInclude>
-    <ClInclude Include="WmiCpu.h">
-      <Filter>Intel</Filter>
-    </ClInclude>
-    <ClInclude Include="CpuTelemetry.h" />
-    <ClInclude Include="CpuTelemetryInfo.h" />
     <ClInclude Include="Logging.h" />
-    <ClInclude Include="PowerTelemetryAdapter.h" />
-    <ClInclude Include="PowerTelemetryProvider.h" />
-    <ClInclude Include="PowerTelemetryProviderFactory.h" />
-    <ClInclude Include="PresentMonPowerTelemetry.h" />
     <ClInclude Include="Exceptions.h" />
-    <ClInclude Include="IgclErrorCodeProvider.h">
+    <ClInclude Include="TelemetryCoordinator.h" />
+    <ClInclude Include="TelemetryDeviceFingerprint.h" />
+    <ClInclude Include="TelemetryProvider.h" />
+    <ClInclude Include="EndpointCache.h" />
+    <ClInclude Include="igcl\IgclTelemetryProvider.h">
       <Filter>Intel</Filter>
+    </ClInclude>
+    <ClInclude Include="igcl\IgclErrorCodeProvider.h">
+      <Filter>Intel</Filter>
+    </ClInclude>
+    <ClInclude Include="igcl\igcl_api.h">
+      <Filter>Intel</Filter>
+    </ClInclude>
+    <ClInclude Include="nvml\nvml.h">
+      <Filter>Nvidia</Filter>
+    </ClInclude>
+    <ClInclude Include="wmi\WmiTelemetryProvider.h">
+      <Filter>Wmi</Filter>
+    </ClInclude>
+    <ClInclude Include="uci\UciTelemetryProvider.h">
+      <Filter>Uci</Filter>
+    </ClInclude>
+    <ClInclude Include="uci\UciSdk.h">
+      <Filter>Uci</Filter>
+    </ClInclude>
+    <ClInclude Include="uci\UciWrapper.h">
+      <Filter>Uci</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="NvapiWrapper.cpp">
+    <ClCompile Include="nvapi\NvapiWrapper.cpp">
       <Filter>Nvidia</Filter>
     </ClCompile>
-    <ClCompile Include="NvidiaPowerTelemetryAdapter.cpp">
+    <ClCompile Include="nvapi\NvapiTelemetryProvider.cpp">
       <Filter>Nvidia</Filter>
     </ClCompile>
-    <ClCompile Include="NvidiaPowerTelemetryProvider.cpp">
+    <ClCompile Include="nvml\NvmlWrapper.cpp">
       <Filter>Nvidia</Filter>
     </ClCompile>
-    <ClCompile Include="NvmlWrapper.cpp">
+    <ClCompile Include="nvml\NvmlTelemetryProvider.cpp">
       <Filter>Nvidia</Filter>
     </ClCompile>
-    <ClCompile Include="SignatureComparison.cpp">
-      <Filter>Nvidia</Filter>
+    <ClCompile Include="adl\Adl2Wrapper.cpp">
+      <Filter>Adl</Filter>
     </ClCompile>
-    <ClCompile Include="cApiWrapper.cpp">
+    <ClCompile Include="adl\AdlTelemetryProvider.cpp">
+      <Filter>Adl</Filter>
+    </ClCompile>
+    <ClCompile Include="igcl\IgclTelemetryProvider.cpp">
       <Filter>Intel</Filter>
     </ClCompile>
-    <ClCompile Include="IntelPowerTelemetryAdapter.cpp">
+    <ClCompile Include="TelemetryCoordinator.cpp" />
+    <ClCompile Include="TelemetryDeviceFingerprint.cpp" />
+    <ClCompile Include="igcl\cApiWrapper.cpp">
       <Filter>Intel</Filter>
     </ClCompile>
-    <ClCompile Include="IntelPowerTelemetryProvider.cpp">
+    <ClCompile Include="igcl\IgclErrorCodeProvider.cpp">
       <Filter>Intel</Filter>
     </ClCompile>
-    <ClCompile Include="WmiCpu.cpp">
-      <Filter>Intel</Filter>
+    <ClCompile Include="wmi\WmiTelemetryProvider.cpp">
+      <Filter>Wmi</Filter>
     </ClCompile>
-    <ClCompile Include="Adl2Wrapper.cpp">
-      <Filter>Amd</Filter>
+    <ClCompile Include="uci\UciTelemetryProvider.cpp">
+      <Filter>Uci</Filter>
     </ClCompile>
-    <ClCompile Include="AmdPowerTelemetryAdapter.cpp">
-      <Filter>Amd</Filter>
-    </ClCompile>
-    <ClCompile Include="AmdPowerTelemetryProvider.cpp">
-      <Filter>Amd</Filter>
-    </ClCompile>
-    <ClCompile Include="PowerTelemetryProviderFactory.cpp" />
-    <ClCompile Include="CpuTelemetry.cpp" />
-    <ClCompile Include="PowerTelemetryAdapter.cpp" />
-    <ClCompile Include="IgclErrorCodeProvider.cpp">
-      <Filter>Intel</Filter>
+    <ClCompile Include="uci\UciWrapper.cpp">
+      <Filter>Uci</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

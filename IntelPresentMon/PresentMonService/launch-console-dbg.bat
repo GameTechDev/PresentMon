@@ -1,1 +1,1 @@
-start "PresentMon Service [debug build running as console app]" "..\..\build\Debug\PresentMonService.exe" --intro-nsm pm_intro_debug_nsm_111 --control-pipe \\.\pipe\debug-pipe-pmsvc --nsm-prefix pm_debug_nsm_ --log-stderr --log-dir C:\scratch\log
+start "PresentMon Service [debug build running as console app]" "..\..\build\Debug\PresentMonService.exe" --control-pipe \\.\pipe\debug-pipe-pmsvc --shm-name-prefix pm_debug_nsm_ --enable-stdio-log --log-dir C:\scratch\log

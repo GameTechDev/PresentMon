@@ -10,7 +10,7 @@
 #include <cstdint>
 
 #define PM_API_VERSION_MAJOR 3
-#define PM_API_VERSION_MINOR 3
+#define PM_API_VERSION_MINOR 4
 
 #define PM_MAX_PATH 260
 
@@ -44,6 +44,7 @@ extern "C" {
 		PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH,
 		PM_STATUS_QUERY_MALFORMED,
 		PM_STATUS_MODE_MISMATCH,
+		PM_STATUS_FEATURE_DISABLED,
 	};
 
 	enum PM_METRIC
@@ -139,6 +140,7 @@ extern "C" {
 		PM_METRIC_FLIP_DELAY,
 		PM_METRIC_PROCESS_ID,
 		PM_METRIC_SESSION_START_QPC,
+		PM_METRIC_CPU_CORE_TEMPERATURE,
 		PM_METRIC_COUNT_, // sentry to mark end of metric list; not an actual query metric
 	};
 
@@ -410,7 +412,8 @@ extern "C" {
 	// command the service to process and make available frame/metric data for the specified process id
 	PRESENTMON_API2_EXPORT PM_STATUS pmStartTrackingProcess(PM_SESSION_HANDLE handle, uint32_t process_id);
 	// command the service to process and make available frame/metric data for playback of the specified process id
-	// isBackpressured controls whether playback uses backpressured frame rings
+	// isBackpressured controls whether playback uses backpressured frame rings. Those
+	// rings are SPSC: only the requesting client owns the playback read cursor.
 	PRESENTMON_API2_EXPORT PM_STATUS pmStartPlaybackTracking(PM_SESSION_HANDLE handle, uint32_t process_id, uint32_t isBackpressured);
 	// command the service to cease processing and exporting frame/metric data for the specified process id
 	PRESENTMON_API2_EXPORT PM_STATUS pmStopTrackingProcess(PM_SESSION_HANDLE handle, uint32_t process_id);
@@ -419,12 +422,14 @@ extern "C" {
 	// free the introspection tree structure
 	PRESENTMON_API2_EXPORT PM_STATUS pmFreeIntrospectionRoot(const PM_INTROSPECTION_ROOT* pRoot);
 	// sets the rate at which hardware telemetry (including CPU) is polled
+	// a value of zero indicates to use current service setting (default or value requested by other client)
 	PRESENTMON_API2_EXPORT PM_STATUS pmSetTelemetryPollingPeriod(PM_SESSION_HANDLE handle, uint32_t reserved, uint32_t timeMs);
-#define PM_TELEMETRY_PERIOD_MIN 4
+#define PM_TELEMETRY_PERIOD_MIN 50
 #define PM_TELEMETRY_PERIOD_MAX 5000
 	// sets the rate at which ETW event buffers are flushed, affecting the delay of frame data reported by PresentMon
 	// a value of zero indicates to use current service setting (default or value requested by other client)
 	PRESENTMON_API2_EXPORT PM_STATUS pmSetEtwFlushPeriod(PM_SESSION_HANDLE handle, uint32_t periodMs);
+#define PM_ETW_FLUSH_PERIOD_MIN 8
 #define PM_ETW_FLUSH_PERIOD_MAX 1000
 	// flush any buffered frame event data for the specified process on this session
 	PRESENTMON_API2_EXPORT PM_STATUS pmFlushFrames(PM_SESSION_HANDLE handle, uint32_t processId);
