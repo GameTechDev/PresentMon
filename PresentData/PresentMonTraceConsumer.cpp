@@ -3689,44 +3689,50 @@ AppTimingData* PMTraceConsumer::ExtractAppTimingData(
             return &ii->second;
         }
     } else {
-        auto itToReturn = timingDataByFrameId.end();
-        if (isPcLatency) {
-            // For PC latency we match the app timing data to the present by selecting the unassigned entry whose selected 
-            // time is closest to (but earlier than) PresentStartTime.
-            uint64_t smallestPresentStartDelta = std::numeric_limits<uint64_t>::max();
-            // Search for the timing data with the closest PresentStartTime to the passed
-            // in PresentStartTime that has not been assigned. This is a hack and will not work for x-platform.
+        // Select the unassigned entry whose selected time is closest to (but earlier than)
+        // presentStartTime. This is a hack and will not work for x-platform.
+        auto findClosestBeforePresentStart = [&]() {
+            auto best = timingDataByFrameId.end();
+            uint64_t smallestDelta = std::numeric_limits<uint64_t>::max();
             for (auto it = timingDataByFrameId.begin(); it != timingDataByFrameId.end(); ++it) {
-                if (it->first.second == processId) {
-                    if (it->second.AssignedToPresent == false) {
-                        uint64_t timingValue = timingSelector(it->second);
-                        if (timingValue != 0 && timingValue < presentStartTime) {
-                            auto tempPresentStartDelta = presentStartTime - timingValue;
-                            if (tempPresentStartDelta < smallestPresentStartDelta) {
-                                smallestPresentStartDelta = tempPresentStartDelta;
-                                itToReturn = it;
-                            }
-                        }
+                if (it->first.second != processId || it->second.AssignedToPresent) {
+                    continue;
+                }
+                uint64_t timingValue = timingSelector(it->second);
+                if (timingValue != 0 && timingValue < presentStartTime) {
+                    uint64_t delta = presentStartTime - timingValue;
+                    if (delta < smallestDelta) {
+                        smallestDelta = delta;
+                        best = it;
                     }
                 }
             }
+            return best;
+        };
+        auto itToReturn = timingDataByFrameId.end();
+        if (isPcLatency) {
+            // For PC latency we match app timing data using findClosestBeforePresentStart.
+            itToReturn = findClosestBeforePresentStart();
         } else {
             // For non-PC latency metrics we match unassigned timing data whose selected time falls
             // between present start and stop. If more than one qualifies, use the earliest.
             uint64_t earliestTimingValueInWindow = std::numeric_limits<uint64_t>::max();
             for (auto it = timingDataByFrameId.begin(); it != timingDataByFrameId.end(); ++it) {
-                if (it->first.second == processId) {
-                    if (it->second.AssignedToPresent == false) {
-                        uint64_t timingValue = timingSelector(it->second);
-                        if (timingValue != 0
-                            && presentStartTime <= timingValue
-                            && timingValue <= presentStopTime
-                            && timingValue < earliestTimingValueInWindow) {
-                            earliestTimingValueInWindow = timingValue;
-                            itToReturn = it;
-                        }
-                    }
+                if (it->first.second != processId || it->second.AssignedToPresent) {
+                    continue;
                 }
+                uint64_t timingValue = timingSelector(it->second);
+                if (timingValue != 0
+                    && presentStartTime <= timingValue
+                    && timingValue <= presentStopTime
+                    && timingValue < earliestTimingValueInWindow) {
+                    earliestTimingValueInWindow = timingValue;
+                    itToReturn = it;
+                }
+            }
+            if (itToReturn == timingDataByFrameId.end()) {
+                // No timing in the present window; fall back to closest-before-presentStart.
+                itToReturn = findClosestBeforePresentStart();
             }
         }
 
