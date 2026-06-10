@@ -2641,7 +2641,7 @@ void PMTraceConsumer::RuntimePresentStop(Runtime runtime, EVENT_HEADER const& hd
         return;
     }
     auto present = eventIter->second;
-    auto PresentStopTime = static_cast<uint64_t>(hdr.TimeStamp.QuadPart);
+    auto presentStopTime = static_cast<uint64_t>(hdr.TimeStamp.QuadPart);
 
     if (mTrackAppTiming) {
         if (IsApplicationPresent(present)) {
@@ -2650,7 +2650,7 @@ void PMTraceConsumer::RuntimePresentStop(Runtime runtime, EVENT_HEADER const& hd
                 present->ProcessId,
                 present->AppFrameId,
                 present->PresentStartTime,
-                PresentStopTime,
+                presentStopTime,
                 [](const AppTimingData& d) { return d.AppPresentStartTime; },
                 false);
             if (appTimingData) {
@@ -2690,7 +2690,7 @@ void PMTraceConsumer::RuntimePresentStop(Runtime runtime, EVENT_HEADER const& hd
     // Set the runtime and Present_Stop time.
     VerboseTraceBeforeModifyingPresent(present.get());
     present->Runtime = runtime;
-    present->TimeInPresent = PresentStopTime - present->PresentStartTime;
+    present->TimeInPresent = presentStopTime - present->PresentStartTime;
 
     // If this present completed early and was deferred until the Present_Stop, then no more
     // analysis is needed; we just clear the deferral.
