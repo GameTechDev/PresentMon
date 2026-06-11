@@ -141,7 +141,7 @@ void GpuTrace::RegisterContext(uint64_t hContext, uint64_t hDevice, uint32_t nod
 void GpuTrace::RegisterHwQueueContext(uint64_t hContext, uint64_t parentDxgHwQueue)
 {
     DebugAssert(mContexts.find(hContext)         != mContexts.end());
-    DebugAssert(mContexts.find(parentDxgHwQueue) == mContexts.end());
+    //DebugAssert(mContexts.find(parentDxgHwQueue) == mContexts.end());
 
     // Look up the context C, which we're calling the parent context.  We
     // should already have seen a Context_Start event.

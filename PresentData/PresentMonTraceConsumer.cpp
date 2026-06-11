@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2017-2024 Intel Corporation
+﻿// Copyright (C) 2017-2026 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -1127,11 +1127,13 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
                                 // ApplyFlipFrameType() may have already appended a generated frame
                                 // which sets FinalState=Presented on the present.
                                 // In that case, this HSync/VSync MPO completion is the application frame
-                                // reaching the screen and should be appended as FrameType::Application.
-                                // This check is intentionally gated on DisplayedViaFlipFrameType to
-                                // avoid incorrectly appending a frame when PresentFrameType_Info is used
-                                // instead (where the VSync event simply fills in the generated frame's
-                                // display timestamp rather than signaling a separate application frame).
+                                // reaching the screen and should be appended as FrameType::NotSet.
+                                // We use NotSet because we don't want to accidentally treat this as a
+                                // driver-generated frame. This check is intentionally gated on 
+                                // DisplayedViaFlipFrameType to avoid incorrectly appending a frame
+                                // when PresentFrameType_Info is used instead (where the VSync event 
+                                // simply fills in the generated frame's display timestamp rather 
+                                // than signaling a separate application frame).
                                 VerboseTraceBeforeModifyingPresent(pEvent.get());
                                 pEvent->Displayed.emplace_back(FrameType::NotSet, hdr.TimeStamp.QuadPart);
                             }
@@ -1681,7 +1683,7 @@ void PMTraceConsumer::HandleWin32kEvent(EVENT_RECORD* pEventRecord)
                         // we get multiple back to back flips and token tracking thread 
                         // ends up marking the first frame in the burst as dropped. 
                         // To fix this issue, we mark the frame as discarded only if 
-                        // the frame already doesn�t have valid ScreenTime. 
+                        // the frame already doesn't have valid ScreenTime. 
                         if (!HasScreenTime(prevPresent)) {
                             prevPresent->FinalState = PresentResult::Discarded;
                         }

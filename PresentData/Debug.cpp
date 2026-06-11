@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Intel Corporation
+// Copyright (C) 2017-2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include "Debug.hpp"
