@@ -939,7 +939,9 @@ ULONG EnableProvidersListing(
         provider.ClearFilter();
         if (pmConsumer->mTrackFrameType) {
             provider.AddEvent<Intel_PresentMon::PresentFrameType_Info>();
+            provider.AddEvent<Intel_PresentMon::PresentFrameType_Info_2>();
             provider.AddEvent<Intel_PresentMon::FlipFrameType_Info>();
+            provider.AddEvent<Intel_PresentMon::FlipFrameType_Info_2>();
         }
         if (pmConsumer->mTrackPMMeasurements) {
             provider.AddEvent<Intel_PresentMon::MeasuredInput_Info>();

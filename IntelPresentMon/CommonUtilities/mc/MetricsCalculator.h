@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <cstdint>
@@ -50,6 +50,7 @@ namespace pmon::util::metrics
     ComputedMetrics ComputeFrameMetrics(
         const QpcConverter& qpc,
         const FrameData& present,
+        uint64_t previousDisplayedScreenTime,
         uint64_t screenTime,
         uint64_t nextScreenTime,
         bool isDisplayed,

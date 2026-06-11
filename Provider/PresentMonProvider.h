@@ -88,6 +88,13 @@ ULONG PresentMonProvider_FlipFrameType(PresentMonProvider* ctxt,
                                        uint64_t presentId,
                                        PresentMonProvider_FrameType frameType);
 
+ULONG PresentMonProvider_FlipFrameType(PresentMonProvider* ctxt,
+                                       uint32_t vidPnSourceId,
+                                       uint32_t layerIndex,
+                                       uint64_t presentId,
+                                       PresentMonProvider_FrameType frameType,
+                                       uint64_t timeStamp);
+
 // MEASURED INPUT/PHOTON LATENCY
 //
 // These provide times associated with user input and monitor updates that were measured using some
