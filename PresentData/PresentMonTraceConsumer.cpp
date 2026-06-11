@@ -3179,7 +3179,7 @@ void PMTraceConsumer::HandleIntelPresentMonEvent(EVENT_RECORD* pEventRecord)
                     return;
                 }
 
-                // For now if timestamp is zero simply return
+                // For now, if timestamp is zero simply return
                 if (timestamp == 0) {
                     return;
                 }
@@ -3187,7 +3187,7 @@ void PMTraceConsumer::HandleIntelPresentMonEvent(EVENT_RECORD* pEventRecord)
                 // Look up the present associated with this (VidPnSourceId, LayerIndex, PresentId).
                 //
                 // It is possible to see the FlipFrameType event before the MMIOFlipMultiPlaneOverlay3_Info
-                // event, in which case the lookup will fail.  In this case we deferr application of the
+                // event, in which case the lookup will fail.  In this case we defer application of the
                 // FlipFrameType until we see the MMIOFlipMultiPlaneOverlay3_Info event.
                 auto vidPnLayerId = GenerateVidPnLayerId(vidPnSourceId, layerIndex);
                 auto ii = mPresentByVidPnLayerId.find(vidPnLayerId);
