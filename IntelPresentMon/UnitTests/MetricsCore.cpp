@@ -289,63 +289,11 @@ namespace MetricsCoreTests
             Assert::IsFalse(result.hasNextDisplayed);
         }
 
-        TEST_METHOD(Calculate_SingleDisplay_NoNext_Postponed)
-        {
-            FrameData present{};
-            present.displayed.PushBack({ FrameType::Application, 1000 });
-            present.finalState = PresentResult::Presented;
-
-            auto result = DisplayIndexing::Calculate(present, nullptr);
-
-            // Single display with no next = postponed (empty range)
-            Assert::AreEqual(size_t(0), result.startIndex);
-            Assert::AreEqual(size_t(0), result.endIndex);  // Empty! Postponed
-            Assert::AreEqual(size_t(0), result.appIndex);  // Would be 0 if processed
-            Assert::IsFalse(result.hasNextDisplayed);
-        }
-
-        TEST_METHOD(Calculate_MultipleDisplays_NoNext_PostponeLast)
-        {
-            FrameData present{};
-            present.displayed.PushBack({ FrameType::Application, 1000 });
-            present.displayed.PushBack({ FrameType::Repeated, 2000 });
-            present.displayed.PushBack({ FrameType::Repeated, 3000 });
-            present.finalState = PresentResult::Presented;
-
-            auto result = DisplayIndexing::Calculate(present, nullptr);
-
-            // Process [0..1], postpone [2]
-            Assert::AreEqual(size_t(0), result.startIndex);
-            Assert::AreEqual(size_t(2), result.endIndex);  // Excludes last!
-            Assert::AreEqual(size_t(0), result.appIndex);  // App frame at index 0
-            Assert::IsFalse(result.hasNextDisplayed);
-        }
-
-        TEST_METHOD(Calculate_MultipleDisplays_WithNext_ProcessPostponed)
-        {
-            FrameData present{};
-            present.displayed.PushBack({ FrameType::Application, 1000 });
-            present.displayed.PushBack({ FrameType::Repeated, 2000 });
-            present.displayed.PushBack({ FrameType::Repeated, 3000 });
-            present.finalState = PresentResult::Presented;
-
-            FrameData next{};
-            next.displayed.PushBack({ FrameType::Application, 4000 });
-
-            auto result = DisplayIndexing::Calculate(present, &next);
-
-            // Process only postponed last display [2]
-            Assert::AreEqual(size_t(2), result.startIndex);
-            Assert::AreEqual(size_t(3), result.endIndex);
-            Assert::AreEqual(SIZE_MAX, result.appIndex);  // No app frame at [2], it's Repeated
-            Assert::IsTrue(result.hasNextDisplayed);
-        }
-
         TEST_METHOD(Calculate_NotDisplayed_ReturnsEmptyRange)
         {
             FrameData present{};
             present.displayed.PushBack({ FrameType::Application, 1000 });
-            present.displayed.PushBack({ FrameType::Repeated, 2000 });
+            present.displayed.PushBack({ FrameType::Intel_XEFG, 2000 });
             // Don't set finalState = Presented, so displayed = false
 
             auto result = DisplayIndexing::Calculate(present, nullptr);
@@ -355,83 +303,6 @@ namespace MetricsCoreTests
             Assert::AreEqual(size_t(0), result.endIndex);
             Assert::AreEqual(size_t(0), result.appIndex);  // Fallback when displayCount > 0 but not displayed
             Assert::IsFalse(result.hasNextDisplayed);
-        }
-
-        TEST_METHOD(Calculate_FindsAppFrameIndex_Displayed)
-        {
-            FrameData present{};
-            present.displayed.PushBack({ FrameType::Repeated, 1000 });
-            present.displayed.PushBack({ FrameType::Application, 2000 });
-            present.displayed.PushBack({ FrameType::Repeated, 3000 });
-            present.finalState = PresentResult::Presented;
-
-            auto result = DisplayIndexing::Calculate(present, nullptr);
-
-            // Process [0..1], postpone [2]
-            Assert::AreEqual(size_t(0), result.startIndex);
-            Assert::AreEqual(size_t(2), result.endIndex);
-            Assert::AreEqual(size_t(1), result.appIndex);  // App at index 1
-        }
-
-        TEST_METHOD(Calculate_FindsAppFrameIndex_NotDisplayed)
-        {
-            FrameData present{};
-            present.displayed.PushBack({ FrameType::Repeated, 1000 });
-            present.displayed.PushBack({ FrameType::Application, 2000 });
-            present.displayed.PushBack({ FrameType::Repeated, 3000 });
-            // Not displayed
-
-            auto result = DisplayIndexing::Calculate(present, nullptr);
-
-            // Not displayed -> empty range
-            Assert::AreEqual(size_t(0), result.startIndex);
-            Assert::AreEqual(size_t(0), result.endIndex);
-        }
-
-        TEST_METHOD(Calculate_AllRepeatedFrames_AppIndexInvalid)
-        {
-            FrameData present{};
-            present.displayed.PushBack({ FrameType::Repeated, 1000 });
-            present.displayed.PushBack({ FrameType::Repeated, 2000 });
-            present.displayed.PushBack({ FrameType::Repeated, 3000 });
-            present.finalState = PresentResult::Presented;
-
-            auto result = DisplayIndexing::Calculate(present, nullptr);
-
-            // Process [0..1], postpone [2]
-            Assert::AreEqual(size_t(0), result.startIndex);
-            Assert::AreEqual(size_t(2), result.endIndex);
-            Assert::AreEqual(SIZE_MAX, result.appIndex);  // No app frame found
-        }
-
-        TEST_METHOD(Calculate_MultipleAppFrames_FindsFirst)
-        {
-            FrameData present{};
-            present.displayed.PushBack({ FrameType::Application, 1000 });
-            present.displayed.PushBack({ FrameType::Application, 2000 });
-            present.displayed.PushBack({ FrameType::Repeated, 3000 });
-            present.finalState = PresentResult::Presented;
-
-            auto result = DisplayIndexing::Calculate(present, nullptr);
-
-            // Process [0..1], postpone [2]
-            Assert::AreEqual(size_t(0), result.startIndex);
-            Assert::AreEqual(size_t(2), result.endIndex);
-            Assert::AreEqual(size_t(0), result.appIndex);  // First app frame
-        }
-
-        TEST_METHOD(Calculate_WorksWithFrameData)
-        {
-            // Verify template works with FrameData
-            FrameData present{};
-            present.displayed.PushBack({ FrameType::Application, 1000 });
-            present.finalState = PresentResult::Presented;
-
-            auto result = DisplayIndexing::Calculate(present, nullptr);
-
-            Assert::AreEqual(size_t(0), result.startIndex);
-            Assert::AreEqual(size_t(0), result.endIndex); // Postponed [0], nothing processed
-            Assert::IsTrue(result.appIndex == 0);
         }
     };
 
@@ -893,20 +764,30 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
         TEST_METHOD(UpdateAfterPresent_NotPresented_DoesNotChangeLastDisplayedScreenTime)
         {
-            SwapChainCoreState chain{};
-            // Seed previous displayed state
-            FrameData prev = MakeFrame(PresentResult::Presented, 1'000, 30, 1'200,
-                                       { { FrameType::Application, 1'500 } });
-            chain.UpdateAfterPresentV1(prev);
-            Assert::AreEqual(uint64_t(1'500), chain.lastDisplayedScreenTime);
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
 
-            // Not presented frame with displays (ignored for displayed tracking)
-            auto frame = MakeFrame(static_cast<PresentResult>(7777), 2'000, 25, 2'150,
-                                   { { FrameType::Application, 2'600 } });
+            FrameData seed{};
+            seed.presentStartTime = 1'000;
+            seed.timeInPresent = 30;
+            seed.readyTime = 1'200;
+            seed.finalState = PresentResult::Presented;
+            seed.displayed.PushBack({ FrameType::Application, 1'500 });
 
-            chain.UpdateAfterPresentV1(frame);
+            (void)swapChain.ProcessPresent(qpc, std::move(seed));
+            Assert::AreEqual(uint64_t(1'500), swapChain.swapChain.lastDisplayedScreenTime);
 
-            Assert::AreEqual(uint64_t(1'500), chain.lastDisplayedScreenTime, L"Should remain unchanged.");
+            FrameData notPresented{};
+            notPresented.presentStartTime = 2'000;
+            notPresented.timeInPresent = 25;
+            notPresented.readyTime = 2'150;
+            notPresented.finalState = static_cast<PresentResult>(7777);
+            notPresented.displayed.PushBack({ FrameType::Application, 2'600 });
+
+            (void)swapChain.ProcessPresent(qpc, std::move(notPresented));
+
+            Assert::AreEqual(uint64_t(1'500), swapChain.swapChain.lastDisplayedScreenTime,
+                L"Should remain unchanged.");
         }
     };
 
@@ -915,17 +796,24 @@ TEST_CLASS(ComputeMetricsForPresentTests)
     public:
         TEST_METHOD(UpdateAfterBootstrapPresentV2_AppInMiddle_UsesAppDisplayForAppState)
         {
-            SwapChainCoreState chain{};
-            auto frame = MakeFrame(PresentResult::Presented, 10'000, 50, 10'300,
-                                   {
-                                       { FrameType::Repeated,    10'700 },
-                                       { FrameType::Application, 10'800 },
-                                       { FrameType::Repeated,    11'000 }
-                                   },
-                                   40'000 /* appSimStartTime */, 0, 1234 /* flipDelay */);
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
 
-            chain.UpdateAfterBootstrapPresentV2(frame);
+            FrameData bootstrapPresent{};
+            bootstrapPresent.presentStartTime = 10'000;
+            bootstrapPresent.timeInPresent = 50;
+            bootstrapPresent.readyTime = 10'300;
+            bootstrapPresent.finalState = PresentResult::Presented;
+            bootstrapPresent.appSimStartTime = 40'000;
+            bootstrapPresent.flipDelay = 1234;
+            bootstrapPresent.displayed.PushBack({ FrameType::Repeated, 10'700 });
+            bootstrapPresent.displayed.PushBack({ FrameType::Application, 10'800 });
+            bootstrapPresent.displayed.PushBack({ FrameType::Repeated, 11'000 });
 
+            auto rows = swapChain.ProcessPresent(qpc, std::move(bootstrapPresent));
+            Assert::AreEqual(size_t(0), rows.size(), L"Bootstrap present seeds state only.");
+
+            const auto& chain = swapChain.swapChain;
             Assert::AreEqual(uint64_t(11'000), chain.lastDisplayedScreenTime);
             Assert::AreEqual(uint64_t(1234), chain.lastDisplayedFlipDelay);
             Assert::AreEqual(uint64_t(10'800), chain.lastDisplayedAppScreenTime);
@@ -942,52 +830,110 @@ TEST_CLASS(ComputeMetricsForPresentTests)
     public:
         TEST_METHOD(DisplayIndexing_IntelXefg_Multi_NoNext_AppIndexIsLast)
         {
-            // 3x Intel_XEFG then a single Application
-            FrameData present = MakeFrame(
-                PresentResult::Presented,
-                10'000, 500, 20'000,
-                {
-                    { FrameType::Intel_XEFG, 11'000 },
-                    { FrameType::Intel_XEFG, 11'500 },
-                    { FrameType::Intel_XEFG, 12'000 },
-                    { FrameType::Application, 12'500 },
-                });
+            // AppA seed, then one present gen+gen+gen+AppB with no further display: timeline
+            // origin AppA publishes when the first gen supplies lookahead; the closed interval
+            // (Gen1..Gen3, AppB) stays held with no closing-app lookahead.
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
 
-            auto idx = DisplayIndexing::Calculate(present, nullptr);
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
 
-            // No nextDisplayed: process [0..N-2] => [0..3)
-            Assert::AreEqual(size_t(0), idx.startIndex);
-            Assert::AreEqual(size_t(3), idx.endIndex);
-            // App frame is at index 3 (outside processing range, postponed)
-            Assert::AreEqual(size_t(3), idx.appIndex);
-            Assert::IsFalse(idx.hasNextDisplayed);
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData seed{};
+            seed.presentStartTime = 9'000;
+            seed.timeInPresent = 400;
+            seed.readyTime = 9'500;
+            seed.finalState = PresentResult::Presented;
+            seed.appSimStartTime = 8'000;
+            seed.displayed.PushBack({ FrameType::Application, 10'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(seed)).size());
+
+            FrameData present{};
+            present.presentStartTime = 10'000;
+            present.timeInPresent = 500;
+            present.readyTime = 20'000;
+            present.finalState = PresentResult::Presented;
+            present.appSimStartTime = 9'500;
+            present.displayed.PushBack({ FrameType::Intel_XEFG, 11'000 });
+            present.displayed.PushBack({ FrameType::Intel_XEFG, 11'500 });
+            present.displayed.PushBack({ FrameType::Intel_XEFG, 12'000 });
+            present.displayed.PushBack({ FrameType::Application, 12'500 });
+
+            auto rows = swapChain.ProcessPresent(qpc, std::move(present));
+
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::AreEqual((int)FrameType::Application, (int)rows[0].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(10'000), rows[0].computed.metrics.screenTimeQpc);
+            Assert::IsFalse(HasMetricValue(rows[0].computed.metrics.msAnimationError));
         }
 
         TEST_METHOD(DisplayIndexing_AmdAfmf_Multi_WithNext_AppIndexProcessed)
         {
-            // 3x AMD_AFMF then a single Application
-            FrameData present = MakeFrame(
-                PresentResult::Presented,
-                20'000, 600, 30'000,
-                {
-                    { FrameType::AMD_AFMF, 21'000 },
-                    { FrameType::AMD_AFMF, 21'500 },
-                    { FrameType::AMD_AFMF, 22'000 },
-                    { FrameType::Application, 22'500 },
-                });
+            // AppA seed, then gen+gen+gen+AppB, then AppC for closing-app lookahead: the
+            // multi-gen present only releases timeline origin AppA; the full closed interval
+            // (3x AMD_AFMF, AppB) releases on the next present.
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
 
-            FrameData nextDisplayed = MakeFrame(
-                PresentResult::Presented,
-                23'000, 400, 30'500,
-                { { FrameType::Application, 24'000 } });
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
 
-            auto idx = DisplayIndexing::Calculate(present, &nextDisplayed);
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
 
-            // With nextDisplayed: process postponed last only => [N-1, N) => [3, 4)
-            Assert::AreEqual(size_t(3), idx.startIndex);
-            Assert::AreEqual(size_t(4), idx.endIndex);
-            Assert::AreEqual(size_t(3), idx.appIndex);
-            Assert::IsTrue(idx.hasNextDisplayed);
+            FrameData seed{};
+            seed.presentStartTime = 19'000;
+            seed.timeInPresent = 400;
+            seed.readyTime = 19'500;
+            seed.finalState = PresentResult::Presented;
+            seed.appSimStartTime = 18'000;
+            seed.displayed.PushBack({ FrameType::Application, 20'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(seed)).size());
+
+            FrameData present{};
+            present.presentStartTime = 20'000;
+            present.timeInPresent = 600;
+            present.readyTime = 30'000;
+            present.finalState = PresentResult::Presented;
+            present.appSimStartTime = 19'500;
+            present.displayed.PushBack({ FrameType::AMD_AFMF, 21'000 });
+            present.displayed.PushBack({ FrameType::AMD_AFMF, 21'500 });
+            present.displayed.PushBack({ FrameType::AMD_AFMF, 22'000 });
+            present.displayed.PushBack({ FrameType::Application, 22'500 });
+
+            auto afterMultiGenPresent = swapChain.ProcessPresent(qpc, std::move(present));
+            Assert::AreEqual(size_t(1), afterMultiGenPresent.size());
+            Assert::AreEqual((int)FrameType::Application, (int)afterMultiGenPresent[0].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(20'000), afterMultiGenPresent[0].computed.metrics.screenTimeQpc);
+            Assert::IsFalse(HasMetricValue(afterMultiGenPresent[0].computed.metrics.msAnimationError));
+
+            FrameData nextDisplayed{};
+            nextDisplayed.presentStartTime = 23'000;
+            nextDisplayed.timeInPresent = 400;
+            nextDisplayed.readyTime = 30'500;
+            nextDisplayed.finalState = PresentResult::Presented;
+            nextDisplayed.appSimStartTime = 20'000;
+            nextDisplayed.displayed.PushBack({ FrameType::Application, 24'000 });
+
+            auto afterLookaheadPresent = swapChain.ProcessPresent(qpc, std::move(nextDisplayed));
+            Assert::AreEqual(size_t(4), afterLookaheadPresent.size());
+            Assert::AreEqual((int)FrameType::AMD_AFMF, (int)afterLookaheadPresent[0].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::AMD_AFMF, (int)afterLookaheadPresent[1].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::AMD_AFMF, (int)afterLookaheadPresent[2].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::Application, (int)afterLookaheadPresent[3].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(21'000), afterLookaheadPresent[0].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(21'500), afterLookaheadPresent[1].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(22'000), afterLookaheadPresent[2].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(22'500), afterLookaheadPresent[3].computed.metrics.screenTimeQpc);
         }
     };
 
@@ -997,42 +943,58 @@ TEST_CLASS(ComputeMetricsForPresentTests)
         TEST_METHOD(Displayed_Dropped_Displayed_Sequence_IsHandledAcrossCalls)
         {
             QpcConverter qpc(10'000'000, 0);
-            SwapChainCoreState chain{};
+            UnifiedSwapChain swapChain{};
 
-            // A: displayed once, but no nextDisplayed yet => postponed
-            FrameData A = MakeFrame(
-                PresentResult::Presented,
-                50'000, 400, 50'500,
-                { { FrameType::Application, 51'000 } });
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
 
-            auto mA_pre = ComputeMetricsForPresent(qpc, A, nullptr, chain);
-            Assert::AreEqual(size_t(0), mA_pre.size(), L"Single display postponed.");
-            Assert::IsFalse(chain.lastPresent.has_value(), L"Chain is not updated without nextDisplayed.");
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
 
-            // B: dropped (not presented/displayed)
-            FrameData B = MakeFrame(
-                PresentResult::Discarded,
-                52'000, 300, 52'400,
-                {} /* no displayed */);
+            FrameData a{};
+            a.presentStartTime = 50'000;
+            a.timeInPresent = 400;
+            a.readyTime = 50'500;
+            a.finalState = PresentResult::Presented;
+            a.appSimStartTime = 50'000;
+            a.displayed.PushBack({ FrameType::Application, 51'000 });
 
-            auto mB = ComputeMetricsForPresent(qpc, B, nullptr, chain);
-            Assert::AreEqual(size_t(1), mB.size(), L"Dropped frame goes through not-displayed path.");
-            Assert::IsTrue(chain.lastPresent.has_value(), L"Not-displayed path updates chain.");
-            Assert::IsTrue(chain.lastAppPresent.has_value(), L"Not-displayed frame becomes lastAppPresent.");
-            Assert::AreEqual(uint64_t(0), chain.lastDisplayedScreenTime, L"Not-displayed should leave lastDisplayedScreenTime at 0.");
+            auto rowsA = swapChain.ProcessPresent(qpc, std::move(a));
+            Assert::AreEqual(size_t(0), rowsA.size(), L"Timeline origin waits for display lookahead.");
+            Assert::AreEqual(uint64_t(0), swapChain.swapChain.lastDisplayedScreenTime);
 
-            // C: displayed next; use it to process A's postponed last
-            FrameData C = MakeFrame(
-                PresentResult::Presented,
-                53'000, 350, 53'400,
-                { { FrameType::Application, 54'000 } });
+            FrameData b{};
+            b.presentStartTime = 52'000;
+            b.timeInPresent = 300;
+            b.readyTime = 52'400;
+            b.finalState = PresentResult::Discarded;
 
-            auto mA_post = ComputeMetricsForPresent(qpc, A, &C, chain);
-            Assert::AreEqual(size_t(1), mA_post.size(), L"Postponed last display of A processed with nextDisplayed.");
+            auto rowsB = swapChain.ProcessPresent(qpc, std::move(b));
+            Assert::AreEqual(size_t(0), rowsB.size(), L"Dropped present held after first app anchor is seeded.");
+            Assert::AreEqual(uint64_t(0), swapChain.swapChain.lastDisplayedScreenTime);
 
-            // Chain updated based on A (last display instance)
-            Assert::IsTrue(chain.lastPresent.has_value());
-            Assert::AreEqual(uint64_t(51'000), chain.lastDisplayedScreenTime);
+            FrameData c{};
+            c.presentStartTime = 53'000;
+            c.timeInPresent = 350;
+            c.readyTime = 53'400;
+            c.finalState = PresentResult::Presented;
+            c.appSimStartTime = 52'000;
+            c.displayed.PushBack({ FrameType::Application, 54'000 });
+
+            auto rowsC = swapChain.ProcessPresent(qpc, std::move(c));
+            Assert::IsTrue(rowsC.size() >= size_t(1), L"Lookahead publishes the held origin row.");
+
+            bool publishedOriginA = false;
+            for (const auto& row : rowsC) {
+                if (row.computed.metrics.screenTimeQpc == 51'000) {
+                    publishedOriginA = true;
+                    break;
+                }
+            }
+            Assert::IsTrue(publishedOriginA);
+            Assert::AreEqual(uint64_t(51'000), swapChain.swapChain.lastDisplayedScreenTime);
         }
     };
 
@@ -1439,7 +1401,15 @@ TEST_CLASS(ComputeMetricsForPresentTests)
         TEST_METHOD(DisplayedSingleDisplay_WithNextDisplay_ReturnsDeltaToNextScreenTime)
         {
             QpcConverter qpc(10'000'000, 0);
-            SwapChainCoreState chain{};
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
 
             FrameData frame{};
             frame.presentStartTime = 2'000'000;
@@ -1448,16 +1418,21 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             frame.finalState = PresentResult::Presented;
             frame.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(frame)).size());
+
             FrameData next{};
+            next.presentStartTime = 2'600'000;
+            next.timeInPresent = 15'000;
+            next.readyTime = 2'650'000;
             next.finalState = PresentResult::Presented;
             next.displayed.PushBack({ FrameType::Application, 2'800'000 });
 
-            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
-            Assert::AreEqual(size_t(1), results.size());
-            const auto& m = results[0].metrics;
+            auto rows = swapChain.ProcessPresent(qpc, std::move(next));
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::AreEqual(uint64_t(2'500'000), rows[0].computed.metrics.screenTimeQpc);
 
             double expected = qpc.DeltaUnsignedMilliSeconds(2'500'000, 2'800'000);
-            AssertAreEqualWithinTolerance(expected, m.msDisplayedTime, 0.0001);
+            AssertAreEqualWithinTolerance(expected, rows[0].computed.metrics.msDisplayedTime, 0.0001);
         }
 
         TEST_METHOD(DisplayedMultipleDisplays_ProcessEachWithNextScreenTime)
@@ -2373,10 +2348,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto intervalRows = swapChain.ProcessPresent(qpc, std::move(lookahead));
             Assert::AreEqual(size_t(3), intervalRows.size());
 
-            double expected1 = qpc.DeltaUnsignedMilliSeconds(1'000'000, 2'100'000);
+            double expected1 = qpc.DeltaUnsignedMilliSeconds(1'050'000, 2'100'000);
             AssertAreEqualWithinTolerance(expected1, intervalRows[0].computed.metrics.msDisplayLatency, 0.0001);
 
-            double expected2 = qpc.DeltaUnsignedMilliSeconds(1'000'000, 2'200'000);
+            double expected2 = qpc.DeltaUnsignedMilliSeconds(1'050'000, 2'200'000);
             AssertAreEqualWithinTolerance(expected2, intervalRows[1].computed.metrics.msDisplayLatency, 0.0001);
         }
 
@@ -4744,23 +4719,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
     {
     public:
         // ========================================================================
-        // Test 1: ClickToPhoton - displayed frame uses its own click
+        // V1: ComputeMetricsForPresent (one row per call, nextDisplayed == nullptr)
         // ========================================================================
+
         TEST_METHOD(InputLatency_ClickToPhoton_DisplayedFrame_UsesOwnClickTime)
         {
-            // Scenario:
-            // - P1 (displayed frame) has its own mouseClickTime = 400'000
-            // - P1 computes msClickToPhotonLatency from click to its own display time
-            // - No pending click should remain in the chain
-            //
-            // Expected:
-            // - P1's msClickToPhotonLatency uses P1's own click (400'000 -> 1'000'000)
-            // - state.lastReceivedNotDisplayedMouseClickTime == 0
-
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
-            // P1: displayed app frame with its own click
             FrameData p1{};
             p1.presentStartTime = 500'000;
             p1.timeInPresent = 100'000;
@@ -4770,7 +4736,40 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.finalState = PresentResult::Presented;
             p1.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
-            // P2: next displayed frame
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+
+            Assert::AreEqual(size_t(1), p1_results.size());
+            Assert::IsTrue(HasMetricValue(p1_results[0].metrics.msClickToPhotonLatency));
+
+            double expected = qpc.DeltaUnsignedMilliSeconds(400'000, 1'000'000);
+            AssertAreEqualWithinTolerance(expected, p1_results[0].metrics.msClickToPhotonLatency, 0.0001);
+            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedMouseClickTime);
+        }
+
+        TEST_METHOD(InputLatency_ClickToPhoton_DisplayedFrame_UsesOwnClickTime_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p1{};
+            p1.presentStartTime = 500'000;
+            p1.timeInPresent = 100'000;
+            p1.mouseClickTime = 400'000;
+            p1.inputTime = 0;
+            p1.appSimStartTime = 450'000;
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 1'000'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p1)).size());
+
             FrameData p2{};
             p2.presentStartTime = 1'050'000;
             p2.timeInPresent = 50'000;
@@ -4779,58 +4778,28 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p2.finalState = PresentResult::Presented;
             p2.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
-            // P1 arrives (pending)
-            auto p1_pending = ComputeMetricsForPresent(qpc, p1, nullptr, state);
-            Assert::AreEqual(size_t(0), p1_pending.size(), L"P1 pending should be empty");
-
-            // P2 arrives, finalizes P1
-            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
-            auto p2_pending = ComputeMetricsForPresent(qpc, p2, nullptr, state);
-
-            // Assertions for P1
-            Assert::AreEqual(size_t(1), p1_final.size());
-            Assert::IsTrue(HasMetricValue(p1_final[0].metrics.msClickToPhotonLatency),
-                L"P1 should have msClickToPhotonLatency");
+            auto rows = swapChain.ProcessPresent(qpc, std::move(p2));
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::AreEqual(uint64_t(1'000'000), rows[0].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(rows[0].computed.metrics.msClickToPhotonLatency));
 
             double expected = qpc.DeltaUnsignedMilliSeconds(400'000, 1'000'000);
-            AssertAreEqualWithinTolerance(expected, p1_final[0].metrics.msClickToPhotonLatency, 0.0001,
-                L"P1's click-to-photon should use its own click time");
-
-            // Verify no pending click remains
-            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedMouseClickTime,
-                L"No pending click should remain after P1 used its own click");
+            AssertAreEqualWithinTolerance(expected, rows[0].computed.metrics.msClickToPhotonLatency, 0.0001);
+            Assert::AreEqual(uint64_t(0), swapChain.swapChain.lastReceivedNotDisplayedMouseClickTime);
         }
 
-        // ========================================================================
-        // Test 2: ClickToPhoton - dropped frame carries click to next displayed
-        // ========================================================================
         TEST_METHOD(InputLatency_ClickToPhoton_DroppedFrame_CarriesClickToNextDisplayed)
         {
-            // Scenario:
-            // - P1 (dropped, not displayed) has mouseClickTime = 400'000
-            // - P1 does not produce msClickToPhotonLatency
-            // - P1 stores click in lastReceivedNotDisplayedMouseClickTime
-            // - P2 (displayed, no own click) uses the stored click from P1
-            //
-            // Expected:
-            // - P1: msClickToPhotonLatency is missing (stored internally as NaN)
-            // - After P1: state.lastReceivedNotDisplayedMouseClickTime == 400'000
-            // - P2: msClickToPhotonLatency uses stored click (400'000 -> 1'000'000)
-            // - After P2: state.lastReceivedNotDisplayedMouseClickTime == 0 (consumed)
-
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
-            // P1: dropped frame with click
             FrameData p1{};
             p1.presentStartTime = 300'000;
             p1.timeInPresent = 50'000;
             p1.mouseClickTime = 400'000;
             p1.inputTime = 0;
             p1.finalState = PresentResult::Discarded;
-            // displayed is empty (not displayed)
 
-            // P2: first displayed frame (no own click)
             FrameData p2{};
             p2.presentStartTime = 900'000;
             p2.timeInPresent = 100'000;
@@ -4839,81 +4808,90 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p2.finalState = PresentResult::Presented;
             p2.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
-            // P3: later frame to finalize P2
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(1), p1_results.size());
+            Assert::IsTrue(IsMissingFrameMetricValue(p1_results[0].metrics.msClickToPhotonLatency));
+            Assert::AreEqual(uint64_t(400'000), state.lastReceivedNotDisplayedMouseClickTime);
+
+            auto p2_results = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(1), p2_results.size());
+            Assert::IsTrue(HasMetricValue(p2_results[0].metrics.msClickToPhotonLatency));
+
+            double expected = qpc.DeltaUnsignedMilliSeconds(400'000, 1'000'000);
+            AssertAreEqualWithinTolerance(expected, p2_results[0].metrics.msClickToPhotonLatency, 0.0001);
+            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedMouseClickTime);
+        }
+
+        TEST_METHOD(InputLatency_ClickToPhoton_DroppedFrame_CarriesClickToNextDisplayed_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p1{};
+            p1.presentStartTime = 300'000;
+            p1.timeInPresent = 50'000;
+            p1.mouseClickTime = 400'000;
+            p1.inputTime = 0;
+            p1.finalState = PresentResult::Discarded;
+
+            auto p1_rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), p1_rows.size());
+            Assert::IsTrue(IsMissingFrameMetricValue(p1_rows[0].computed.metrics.msClickToPhotonLatency));
+            Assert::AreEqual(uint64_t(400'000), swapChain.swapChain.lastReceivedNotDisplayedMouseClickTime);
+
+            FrameData p2{};
+            p2.presentStartTime = 900'000;
+            p2.timeInPresent = 100'000;
+            p2.mouseClickTime = 0;
+            p2.inputTime = 0;
+            p2.finalState = PresentResult::Presented;
+            p2.displayed.PushBack({ FrameType::Application, 1'000'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p2)).size());
+
             FrameData p3{};
             p3.presentStartTime = 1'050'000;
             p3.timeInPresent = 50'000;
             p3.finalState = PresentResult::Presented;
             p3.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
-            // P1 arrives (dropped)
-            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
-
-            // Assertions for P1
-            Assert::AreEqual(size_t(1), p1_results.size());
-            Assert::IsTrue(IsMissingFrameMetricValue(p1_results[0].metrics.msClickToPhotonLatency),
-                L"P1 (dropped) should store missing click-to-photon as NaN");
-            Assert::AreEqual(uint64_t(400'000), state.lastReceivedNotDisplayedMouseClickTime,
-                L"P1's click should be stored as pending");
-
-            // P2 arrives (pending)
-            auto p2_pending = ComputeMetricsForPresent(qpc, p2, nullptr, state);
-
-            // P3 arrives, finalizes P2
-            auto p2_final = ComputeMetricsForPresent(qpc, p2, &p3, state);
-            auto p3_pending = ComputeMetricsForPresent(qpc, p3, nullptr, state);
-
-            // Assertions for P2
-            Assert::AreEqual(size_t(1), p2_final.size());
-            Assert::IsTrue(HasMetricValue(p2_final[0].metrics.msClickToPhotonLatency),
-                L"P2 should have msClickToPhotonLatency using P1's stored click");
+            auto p3_rows = swapChain.ProcessPresent(qpc, std::move(p3));
+            Assert::AreEqual(size_t(1), p3_rows.size());
+            Assert::AreEqual(uint64_t(1'000'000), p3_rows[0].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(p3_rows[0].computed.metrics.msClickToPhotonLatency));
 
             double expected = qpc.DeltaUnsignedMilliSeconds(400'000, 1'000'000);
-            AssertAreEqualWithinTolerance(expected, p2_final[0].metrics.msClickToPhotonLatency, 0.0001,
-                L"P2's click-to-photon should use P1's stored click");
-
-            // Optional: verify pending click is consumed
-            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedMouseClickTime,
-                L"Pending click should be consumed after P2 uses it");
+            AssertAreEqualWithinTolerance(expected, p3_rows[0].computed.metrics.msClickToPhotonLatency, 0.0001);
+            Assert::AreEqual(uint64_t(0), swapChain.swapChain.lastReceivedNotDisplayedMouseClickTime);
         }
 
-        // ========================================================================
-        // Test 3: AllInputPhoton - multiple dropped frames, last input wins
-        // ========================================================================
         TEST_METHOD(InputLatency_AllInputPhoton_MultipleDroppedFrames_LastInputWins)
         {
-            // Scenario:
-            // - P1 (dropped) has inputTime = 300'000
-            // - P2 (dropped) has inputTime = 450'000 (should override P1)
-            // - P3 (displayed, no own input) uses the last stored input (450'000)
-            //
-            // Expected:
-            // - P1: msAllInputPhotonLatency is missing (stored internally as NaN), state stores 300'000
-            // - P2: msAllInputPhotonLatency is missing (stored internally as NaN), state updates to 450'000
-            // - P3: msAllInputPhotonLatency uses 450'000 (last wins)
-
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
-            // P1: dropped with first input
             FrameData p1{};
             p1.presentStartTime = 200'000;
             p1.timeInPresent = 50'000;
             p1.inputTime = 300'000;
             p1.mouseClickTime = 0;
             p1.finalState = PresentResult::Discarded;
-            // displayed empty
 
-            // P2: dropped with later input (overrides P1)
             FrameData p2{};
             p2.presentStartTime = 400'000;
             p2.timeInPresent = 50'000;
             p2.inputTime = 450'000;
             p2.mouseClickTime = 0;
             p2.finalState = PresentResult::Discarded;
-            // displayed empty
 
-            // P3: first displayed frame (no own input)
             FrameData p3{};
             p3.presentStartTime = 900'000;
             p3.timeInPresent = 100'000;
@@ -4922,73 +4900,96 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p3.finalState = PresentResult::Presented;
             p3.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
-            // P4: later frame to finalize P3
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(1), p1_results.size());
+            Assert::IsTrue(IsMissingFrameMetricValue(p1_results[0].metrics.msAllInputPhotonLatency));
+            Assert::AreEqual(uint64_t(300'000), state.lastReceivedNotDisplayedAllInputTime);
+
+            auto p2_results = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(1), p2_results.size());
+            Assert::IsTrue(IsMissingFrameMetricValue(p2_results[0].metrics.msAllInputPhotonLatency));
+            Assert::AreEqual(uint64_t(450'000), state.lastReceivedNotDisplayedAllInputTime);
+
+            auto p3_results = ComputeMetricsForPresent(qpc, p3, nullptr, state);
+            Assert::AreEqual(size_t(1), p3_results.size());
+            Assert::IsTrue(HasMetricValue(p3_results[0].metrics.msAllInputPhotonLatency));
+
+            double expected = qpc.DeltaUnsignedMilliSeconds(450'000, 1'000'000);
+            AssertAreEqualWithinTolerance(expected, p3_results[0].metrics.msAllInputPhotonLatency, 0.0001);
+        }
+
+        TEST_METHOD(InputLatency_AllInputPhoton_MultipleDroppedFrames_LastInputWins_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p1{};
+            p1.presentStartTime = 200'000;
+            p1.timeInPresent = 50'000;
+            p1.inputTime = 300'000;
+            p1.mouseClickTime = 0;
+            p1.finalState = PresentResult::Discarded;
+
+            FrameData p2{};
+            p2.presentStartTime = 400'000;
+            p2.timeInPresent = 50'000;
+            p2.inputTime = 450'000;
+            p2.mouseClickTime = 0;
+            p2.finalState = PresentResult::Discarded;
+
+            auto p1_rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), p1_rows.size());
+            Assert::AreEqual(uint64_t(300'000), swapChain.swapChain.lastReceivedNotDisplayedAllInputTime);
+
+            auto p2_rows = swapChain.ProcessPresent(qpc, std::move(p2));
+            Assert::AreEqual(size_t(1), p2_rows.size());
+            Assert::AreEqual(uint64_t(450'000), swapChain.swapChain.lastReceivedNotDisplayedAllInputTime);
+
+            FrameData p3{};
+            p3.presentStartTime = 900'000;
+            p3.timeInPresent = 100'000;
+            p3.inputTime = 0;
+            p3.mouseClickTime = 0;
+            p3.finalState = PresentResult::Presented;
+            p3.displayed.PushBack({ FrameType::Application, 1'000'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p3)).size());
+
             FrameData p4{};
             p4.presentStartTime = 1'050'000;
             p4.timeInPresent = 50'000;
             p4.finalState = PresentResult::Presented;
             p4.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
-            // P1 arrives (dropped)
-            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
-            Assert::AreEqual(size_t(1), p1_results.size());
-            Assert::IsTrue(IsMissingFrameMetricValue(p1_results[0].metrics.msAllInputPhotonLatency),
-                L"P1 (dropped) should store missing all-input-to-photon as NaN");
-            Assert::AreEqual(uint64_t(300'000), state.lastReceivedNotDisplayedAllInputTime,
-                L"P1's input should be stored");
-
-            // P2 arrives (dropped, overrides P1)
-            auto p2_results = ComputeMetricsForPresent(qpc, p2, nullptr, state);
-            Assert::AreEqual(size_t(1), p2_results.size());
-            Assert::IsTrue(IsMissingFrameMetricValue(p2_results[0].metrics.msAllInputPhotonLatency),
-                L"P2 (dropped) should store missing all-input-to-photon as NaN");
-            Assert::AreEqual(uint64_t(450'000), state.lastReceivedNotDisplayedAllInputTime,
-                L"P2's input should override P1's stored input (last wins)");
-
-            // P3 arrives (pending)
-            auto p3_pending = ComputeMetricsForPresent(qpc, p3, nullptr, state);
-
-            // P4 arrives, finalizes P3
-            auto p3_final = ComputeMetricsForPresent(qpc, p3, &p4, state);
-            auto p4_pending = ComputeMetricsForPresent(qpc, p4, nullptr, state);
-
-            // Assertions for P3
-            Assert::AreEqual(size_t(1), p3_final.size());
-            Assert::IsTrue(HasMetricValue(p3_final[0].metrics.msAllInputPhotonLatency),
-                L"P3 should have msAllInputPhotonLatency using last stored input");
+            auto p4_rows = swapChain.ProcessPresent(qpc, std::move(p4));
+            Assert::AreEqual(size_t(1), p4_rows.size());
+            Assert::AreEqual(uint64_t(1'000'000), p4_rows[0].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(p4_rows[0].computed.metrics.msAllInputPhotonLatency));
 
             double expected = qpc.DeltaUnsignedMilliSeconds(450'000, 1'000'000);
-            AssertAreEqualWithinTolerance(expected, p3_final[0].metrics.msAllInputPhotonLatency, 0.0001,
-                L"P3's all-input-to-photon should use P2's input (last wins)");
+            AssertAreEqualWithinTolerance(expected, p4_rows[0].computed.metrics.msAllInputPhotonLatency, 0.0001);
         }
 
-        // ========================================================================
-        // Test 4: AllInputPhoton - displayed frame with own input overrides pending
-        // ========================================================================
         TEST_METHOD(InputLatency_AllInputPhoton_DisplayedFrame_WithOwnInput_OverridesPending)
         {
-            // Scenario:
-            // - P0 (dropped) seeds pending input = 300'000
-            // - P1 (displayed) has its own inputTime = 500'000
-            // - P1's own input should override the pending 300'000
-            //
-            // Expected:
-            // - P0: state.lastReceivedNotDisplayedAllInputTime == 300'000
-            // - P1: msAllInputPhotonLatency uses P1's own input (500'000 -> 1'000'000)
-
             QpcConverter qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
-            // P0: dropped, seeds pending input
             FrameData p0{};
             p0.presentStartTime = 200'000;
             p0.timeInPresent = 50'000;
             p0.inputTime = 300'000;
             p0.mouseClickTime = 0;
             p0.finalState = PresentResult::Discarded;
-            // displayed empty
 
-            // P1: displayed with its own input
             FrameData p1{};
             p1.presentStartTime = 900'000;
             p1.timeInPresent = 100'000;
@@ -4997,33 +4998,65 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.finalState = PresentResult::Presented;
             p1.displayed.PushBack({ FrameType::Application, 1'000'000 });
 
-            // P2: later frame to finalize P1
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            Assert::AreEqual(uint64_t(300'000), state.lastReceivedNotDisplayedAllInputTime);
+
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(1), p1_results.size());
+            Assert::IsTrue(HasMetricValue(p1_results[0].metrics.msAllInputPhotonLatency));
+
+            double expected = qpc.DeltaUnsignedMilliSeconds(500'000, 1'000'000);
+            AssertAreEqualWithinTolerance(expected, p1_results[0].metrics.msAllInputPhotonLatency, 0.0001);
+        }
+
+        TEST_METHOD(InputLatency_AllInputPhoton_DisplayedFrame_WithOwnInput_OverridesPending_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.presentStartTime = 200'000;
+            p0.timeInPresent = 50'000;
+            p0.inputTime = 300'000;
+            p0.mouseClickTime = 0;
+            p0.finalState = PresentResult::Discarded;
+
+            auto p0_rows = swapChain.ProcessPresent(qpc, std::move(p0));
+            Assert::AreEqual(size_t(1), p0_rows.size());
+            Assert::AreEqual(uint64_t(300'000), swapChain.swapChain.lastReceivedNotDisplayedAllInputTime);
+
+            FrameData p1{};
+            p1.presentStartTime = 900'000;
+            p1.timeInPresent = 100'000;
+            p1.inputTime = 500'000;
+            p1.mouseClickTime = 0;
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 1'000'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p1)).size());
+
             FrameData p2{};
             p2.presentStartTime = 1'050'000;
             p2.timeInPresent = 50'000;
             p2.finalState = PresentResult::Presented;
             p2.displayed.PushBack({ FrameType::Application, 1'100'000 });
 
-            // P0 arrives (dropped)
-            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
-            Assert::AreEqual(uint64_t(300'000), state.lastReceivedNotDisplayedAllInputTime,
-                L"P0's input should be stored as pending");
-
-            // P1 arrives (pending)
-            auto p1_pending = ComputeMetricsForPresent(qpc, p1, nullptr, state);
-
-            // P2 arrives, finalizes P1
-            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
-            auto p2_pending = ComputeMetricsForPresent(qpc, p2, nullptr, state);
-
-            // Assertions for P1
-            Assert::AreEqual(size_t(1), p1_final.size());
-            Assert::IsTrue(HasMetricValue(p1_final[0].metrics.msAllInputPhotonLatency),
-                L"P1 should have msAllInputPhotonLatency using its own input");
+            auto p2_rows = swapChain.ProcessPresent(qpc, std::move(p2));
+            Assert::AreEqual(size_t(1), p2_rows.size());
+            Assert::AreEqual(uint64_t(1'000'000), p2_rows[0].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(p2_rows[0].computed.metrics.msAllInputPhotonLatency));
 
             double expected = qpc.DeltaUnsignedMilliSeconds(500'000, 1'000'000);
-            AssertAreEqualWithinTolerance(expected, p1_final[0].metrics.msAllInputPhotonLatency, 0.0001,
-                L"P1's all-input-to-photon should use its own input (500'000), not pending (300'000)");
+            AssertAreEqualWithinTolerance(expected, p2_rows[0].computed.metrics.msAllInputPhotonLatency, 0.0001);
         }
 
         // ========================================================================
@@ -5106,362 +5139,185 @@ TEST_CLASS(ComputeMetricsForPresentTests)
     TEST_CLASS(PcLatencyTests)
     {
     public:
+        // V1: ComputeMetricsForPresent (nullptr next). V2: *_ProcessPresent duplicates.
 
         TEST_METHOD(PcLatency_PendingSequence_DroppedDroppedDisplayed_P0P1P2P3)
         {
-            // This test mimics the real ReportMetrics pipeline for a single swapchain,
-            // focusing on the PC Latency accumulation across *dropped* frames, and its
-            // completion when the corresponding frame finally reaches the screen.
-            //
-            // We use four presents:
-            //
-            //  P0: DROPPED
-            //      - PclInputPingTime = 10'000
-            //      - PclSimStartTime  = 20'000
-            //      -> initializes accumulatedInput2FrameStartTime with Delta(PING0, SIM0).
-            //
-            //  P1: DROPPED
-            //      - PclInputPingTime = 0
-            //      - PclSimStartTime  = 30'000
-            //      -> extends accumulatedInput2FrameStartTime with Delta(SIM0, SIM1).
-            //
-            //  P2: DISPLAYED
-            //      - PclInputPingTime = 0
-            //      - PclSimStartTime  = 40'000
-            //      - ScreenTime       = 50'000
-            //
-            //  P3: DISPLAYED
-            //      - no PCL data; used only as "nextDisplayed" for P2 to mimic ReportMetrics.
-            //
-            // QPC frequency = 10 MHz.
-            //
-            // Timing (ticks):
-            //   PING0 = 10'000
-            //   SIM0  = 20'000
-            //   SIM1  = 30'000
-            //   SIM2  = 40'000
-            //   SCR2  = 50'000
-            //
-            //   Delta(PING0, SIM0) = 10'000 ticks = 1.0 ms
-            //   Delta(SIM0,  SIM1) = 10'000 ticks = 1.0 ms
-            //   Delta(SIM1,  SIM2) = 10'000 ticks = 1.0 ms
-            //   => full input->frame-start for this chain = 3.0 ms
-            //
-            //   Delta(SIM2,  SCR2) = 10'000 ticks = 1.0 ms
-            //
-            //   Legacy behavior:
-            //     - AccumulatedInput2FrameStartTime builds to 3.0 ms over P0/P1/P2.
-            //     - EMA seeds from that full 3.0 ms sample when P2 finally completes.
-            //     - PC Latency for P2 approx 3.0 ms (input->frame-start) + 1.0 ms (sim->screen).
-            //
-            // The pipeline calls we mimic:
-            //
-            //  P0 arrives (dropped):
-            //    - ComputeMetricsForPresent(P0, nullptr, state)   // Case 1, not displayed
-            //
-            //  P1 arrives (dropped):
-            //    - ComputeMetricsForPresent(P1, nullptr, state)   // Case 1, not displayed
-            //
-            //  P2 arrives (displayed):
-            //    - ComputeMetricsForPresent(P2, nullptr, state)   // Case 2, pending only (no metrics yet)
-            //
-            //  P3 arrives (displayed):
-            //    - ComputeMetricsForPresent(P2, &P3, state)       // Case 3, finalize P2
-            //    - ComputeMetricsForPresent(P3, nullptr, state)   // Case 2, pending = P3
-            //
-            // We verify:
-            //  - P0 & P1 produce no msPcLatency (dropped frames).
-            //  - accumulatedInput2FrameStartTime grows after P0 and P1.
-            //  - P2's first call (next=nullptr) produces no metrics and does NOT
-            //    disturb the accumulatedInput2FrameStartTime.
-            //  - The final P2 call (with next=P3) produces a non-null msPcLatency,
-            //    and resets accumulatedInput2FrameStartTime and lastReceivedNotDisplayedPclSimStart
-            //    to 0, matching the legacy PCL behavior.
-            //
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
-            const uint32_t PROCESS_ID = 1234;
-            const uint64_t SWAPCHAIN = 0xABC0;
-
-            // --------------------------------------------------------------------
-            // P0: DROPPED, first PCL frame with Ping+Sim
-            // --------------------------------------------------------------------
             FrameData p0{};
-            p0.processId = PROCESS_ID;
-            p0.swapChainAddress = SWAPCHAIN;
-            p0.presentStartTime = 0;
-            p0.timeInPresent = 0;
-            p0.readyTime = 0;
-            p0.appSimStartTime = 0;
-
-            p0.pclInputPingTime = 10'000;  // PING0
-            p0.pclSimStartTime = 20'000;  // SIM0
-
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
             p0.finalState = PresentResult::Discarded;
-            p0.displayed.Clear();          // not displayed
 
-            // P0 arrival -> Case 1 (not displayed), process immediately.
             auto p0_metrics_list = ComputeMetricsForPresent(qpc, p0, nullptr, state);
-            Assert::AreEqual(size_t(1), p0_metrics_list.size(),
-                L"P0: not-displayed present should produce a single metrics record.");
-
-            const auto& p0_metrics = p0_metrics_list[0].metrics;
-
-            // Dropped frames never report PC latency directly.
-            Assert::IsFalse(HasMetricValue(p0_metrics.msPcLatency),
-                L"P0: dropped frame should not report msPcLatency.");
-
-            // Accumulator should have been initialized from Ping0 -> Sim0.
-            Assert::IsTrue(state.accumulatedInput2FrameStartTime > 0.0,
-                L"P0: accumulatedInput2FrameStartTime should be initialized and > 0.");
-            Assert::AreEqual(uint64_t(20'000), state.lastReceivedNotDisplayedPclSimStart,
-                L"P0: lastReceivedNotDisplayedPclSimStart should match P0's pclSimStartTime (20'000).");
-
+            Assert::AreEqual(size_t(1), p0_metrics_list.size());
+            Assert::IsFalse(HasMetricValue(p0_metrics_list[0].metrics.msPcLatency));
+            Assert::IsTrue(state.accumulatedInput2FrameStartTime > 0.0);
+            Assert::AreEqual(uint64_t(20'000), state.lastReceivedNotDisplayedPclSimStart);
             const double accumAfterP0 = state.accumulatedInput2FrameStartTime;
 
-            // --------------------------------------------------------------------
-            // P1: DROPPED, continuation of same PCL chain (Sim only)
-            // --------------------------------------------------------------------
             FrameData p1{};
-            p1.processId = PROCESS_ID;
-            p1.swapChainAddress = SWAPCHAIN;
-            p1.presentStartTime = 0;
-            p1.timeInPresent = 0;
-            p1.readyTime = 0;
-            p1.appSimStartTime = 0;
-
-            p1.pclInputPingTime = 0;       // no new ping
-            p1.pclSimStartTime = 30'000;  // SIM1
-
+            p1.pclInputPingTime = 0;
+            p1.pclSimStartTime = 30'000;
             p1.finalState = PresentResult::Discarded;
-            p1.displayed.Clear();          // not displayed
 
             auto p1_metrics_list = ComputeMetricsForPresent(qpc, p1, nullptr, state);
-            Assert::AreEqual(size_t(1), p1_metrics_list.size(),
-                L"P1: not-displayed present should produce a single metrics record.");
-
-            const auto& p1_metrics = p1_metrics_list[0].metrics;
-
-            Assert::IsFalse(HasMetricValue(p1_metrics.msPcLatency),
-                L"P1: dropped frame should not report msPcLatency.");
-
-            // Accumulator should have grown: now includes SIM0->SIM1 as well.
-            Assert::IsTrue(state.accumulatedInput2FrameStartTime > accumAfterP0,
-                L"P1: accumulatedInput2FrameStartTime should be greater than after P0.");
-            Assert::AreEqual(uint64_t(30'000), state.lastReceivedNotDisplayedPclSimStart,
-                L"P1: lastReceivedNotDisplayedPclSimStart should match P1's pclSimStartTime (30'000).");
-
+            Assert::AreEqual(size_t(1), p1_metrics_list.size());
+            Assert::IsFalse(HasMetricValue(p1_metrics_list[0].metrics.msPcLatency));
+            Assert::IsTrue(state.accumulatedInput2FrameStartTime > accumAfterP0);
+            Assert::AreEqual(uint64_t(30'000), state.lastReceivedNotDisplayedPclSimStart);
             const double accumAfterP1 = state.accumulatedInput2FrameStartTime;
 
-            // --------------------------------------------------------------------
-            // P2: DISPLAYED, Sim only - this is the frame where the pending input
-            // will finally be visible on-screen. However, the metrics for P2 are
-            // only finalized when we know P3 (nextDisplayed), just like in the
-            // ReportMetrics pipeline.
-            // --------------------------------------------------------------------
             FrameData p2{};
-            p2.processId = PROCESS_ID;
-            p2.swapChainAddress = SWAPCHAIN;
-            p2.presentStartTime = 0;
-            p2.timeInPresent = 0;
-            p2.readyTime = 0;
-            p2.appSimStartTime = 0;
-
-            p2.pclInputPingTime = 0;        // no new ping
-            p2.pclSimStartTime = 40'000;   // SIM2
-
+            p2.pclInputPingTime = 0;
+            p2.pclSimStartTime = 40'000;
             p2.finalState = PresentResult::Presented;
-            p2.displayed.Clear();
-            p2.displayed.PushBack({ FrameType::Application, 50'000 });  // SCR2
+            p2.displayed.PushBack({ FrameType::Application, 50'000 });
 
-            // P2 arrival: Case 2 (displayed, no nextDisplayed), becomes pending.
-            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
-            Assert::AreEqual(size_t(0), p2_phase1.size(),
-                L"P2 (phase 1): first call with nextDisplayed=nullptr should produce no metrics (pending only).");
+            auto p2_results = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(1), p2_results.size());
+            const auto& p2_metrics = p2_results[0].metrics;
 
-            // The pending call MUST NOT disturb the accumulated PCL chain.
-            AssertAreEqualWithinTolerance(accumAfterP1, state.accumulatedInput2FrameStartTime, 1e-9,
-                L"P2 (phase 1): accumulatedInput2FrameStartTime should remain unchanged while pending.");
-            Assert::AreEqual(uint64_t(30'000), state.lastReceivedNotDisplayedPclSimStart,
-                L"P2 (phase 1): lastReceivedNotDisplayedPclSimStart should remain at P1's sim start (30'000).");
+            Assert::IsTrue(accumAfterP1 > 0.0);
+            Assert::IsTrue(HasMetricValue(p2_metrics.msPcLatency));
+            Assert::IsTrue(p2_metrics.msPcLatency > 0.0);
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 1e-9);
+            Assert::AreEqual(uint64_t{ 0 }, state.lastReceivedNotDisplayedPclSimStart);
+        }
 
-            // --------------------------------------------------------------------
-            // P3: DISPLAYED, used only as nextDisplayed when finalizing P2.
-            // --------------------------------------------------------------------
+        TEST_METHOD(PcLatency_PendingSequence_DroppedDroppedDisplayed_P0P1P2P3_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.finalState = PresentResult::Discarded;
+
+            auto p0_rows = swapChain.ProcessPresent(qpc, std::move(p0));
+            Assert::AreEqual(size_t(1), p0_rows.size());
+            Assert::IsFalse(HasMetricValue(p0_rows[0].computed.metrics.msPcLatency));
+            Assert::IsTrue(swapChain.swapChain.accumulatedInput2FrameStartTime > 0.0);
+            const double accumAfterP0 = swapChain.swapChain.accumulatedInput2FrameStartTime;
+
+            FrameData p1{};
+            p1.pclInputPingTime = 0;
+            p1.pclSimStartTime = 30'000;
+            p1.finalState = PresentResult::Discarded;
+
+            auto p1_rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), p1_rows.size());
+            Assert::IsTrue(swapChain.swapChain.accumulatedInput2FrameStartTime > accumAfterP0);
+            const double accumAfterP1 = swapChain.swapChain.accumulatedInput2FrameStartTime;
+
+            FrameData p2{};
+            p2.pclInputPingTime = 0;
+            p2.pclSimStartTime = 40'000;
+            p2.finalState = PresentResult::Presented;
+            p2.displayed.PushBack({ FrameType::Application, 50'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p2)).size());
+            AssertAreEqualWithinTolerance(accumAfterP1, swapChain.swapChain.accumulatedInput2FrameStartTime, 1e-9);
+
             FrameData p3{};
-            p3.processId = PROCESS_ID;
-            p3.swapChainAddress = SWAPCHAIN;
-            p3.presentStartTime = 0;
-            p3.timeInPresent = 0;
-            p3.readyTime = 0;
-            p3.appSimStartTime = 0;
-
-            p3.pclInputPingTime = 0;
-            p3.pclSimStartTime = 0; // no PCL for P3 itself
-
             p3.finalState = PresentResult::Presented;
-            p3.displayed.Clear();
-            p3.displayed.PushBack({ FrameType::Application, 60'000 }); // some later screen time
+            p3.displayed.PushBack({ FrameType::Application, 60'000 });
 
-            // P3 arrival:
-            //  1) Flush pending P2 using P3 as nextDisplayed -> Case 3, finalize P2.
-            auto p2_final = ComputeMetricsForPresent(qpc, p2, &p3, state);
-            Assert::AreEqual(size_t(1), p2_final.size(),
-                L"P2 (final): expected exactly one metrics record when flushing with nextDisplayed=P3.");
-            const auto& p2_metrics = p2_final[0].metrics;
+            auto p3_rows = swapChain.ProcessPresent(qpc, std::move(p3));
+            Assert::AreEqual(size_t(1), p3_rows.size());
+            Assert::AreEqual(uint64_t(50'000), p3_rows[0].computed.metrics.screenTimeQpc);
 
-            //  2) Now process P3's arrival as pending -> Case 2 with next=nullptr.
-            auto p3_phase1 = ComputeMetricsForPresent(qpc, p3, nullptr, state);
-            Assert::AreEqual(size_t(0), p3_phase1.size(),
-                L"P3 (phase 1): first call with nextDisplayed=nullptr should produce no metrics (pending only).");
-
-            // --------------------------------------------------------------------
-            // Assertions for the P2 finalization (this is where PC Latency must appear).
-            // --------------------------------------------------------------------
-
-            // Precondition: we had a non-zero accumulated input->frame-start before finalizing P2.
-            Assert::IsTrue(accumAfterP1 > 0.0,
-                L"Precondition: expected non-zero accumulatedInput2FrameStartTime before P2 finalization.");
-
-            // 1) PC Latency should be populated and positive for P2 when it finally
-            //    reaches the screen after the dropped chain.
-            Assert::IsTrue(HasMetricValue(p2_metrics.msPcLatency),
-                L"P2 (final): msPcLatency should be populated for the displayed frame completing the dropped PCL chain.");
-            Assert::IsTrue(p2_metrics.msPcLatency > 0.0,
-                L"P2 (final): msPcLatency should be positive.");
-
-            // 2) After completion, the accumulated input->frame-start time and the
-            //    last-not-displayed PCL sim start should be reset to zero, matching
-            //    the legacy PCL behavior.
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 1e-9,
-                L"P2 (final): accumulatedInput2FrameStartTime should be reset to 0 after completion.");
-            Assert::AreEqual(uint64_t{ 0 }, state.lastReceivedNotDisplayedPclSimStart,
-                L"P2 (final): lastReceivedNotDisplayedPclSimStart should be reset to 0 after completion.");
+            Assert::IsTrue(HasMetricValue(p3_rows[0].computed.metrics.msPcLatency));
+            Assert::IsTrue(p3_rows[0].computed.metrics.msPcLatency > 0.0);
+            AssertAreEqualWithinTolerance(0.0, swapChain.swapChain.accumulatedInput2FrameStartTime, 1e-9);
+            Assert::AreEqual(uint64_t{ 0 }, swapChain.swapChain.lastReceivedNotDisplayedPclSimStart);
         }
 
         TEST_METHOD(PcLatency_NoPclData_AllFrames_NoLatency)
         {
-            // Scenario:
-            //  - P0 is dropped with no PC Latency timestamps.
-            //  - P1 and P2 are displayed app frames but likewise carry no pclSimStartTime/pclInputPingTime.
-            //  - We run the ReportMetrics-style scheduling: dropped frames are processed immediately,
-            //    displayed frames are first queued (Case 2) and then finalized by the arrival of the
-            //    next displayed present (Case 3).
-            // QPC plan (ticks at 10 MHz):
-            //  - Screen times: SCR1 = 100'000, SCR2 = 120'000, SCR3 = 140'000.
-            // Expectations:
-            //  - Every metrics record reports msPcLatency.has_value() == false.
-            //  - accumulatedInput2FrameStartTime remains 0.0 throughout the sequence.
-            //  - lastReceivedNotDisplayedPclSimStart never departs from 0 since no PCL timestamps exist.
-
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
-            const uint32_t PROCESS_ID = 77;
-            const uint64_t SWAPCHAIN = 0x11AAu;
-
-            // --------------------------------------------------------------------
-            // P0: dropped frame without any PCL data
-            // --------------------------------------------------------------------
             FrameData p0{};
-            p0.processId = PROCESS_ID;
-            p0.swapChainAddress = SWAPCHAIN;
-            p0.pclInputPingTime = 0;
-            p0.pclSimStartTime = 0;
             p0.finalState = PresentResult::Discarded;
 
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
-            Assert::AreEqual(size_t(1), p0_results.size(),
-                L"P0 (dropped) should emit one metrics record.");
-            Assert::IsFalse(HasMetricValue(p0_results[0].metrics.msPcLatency),
-                L"P0 should not report msPcLatency without PCL data.");
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"P0 should not modify accumulatedInput2FrameStartTime when there is no PCL data.");
-            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
-                L"P0 should leave lastReceivedNotDisplayedPclSimStart at 0.");
+            Assert::AreEqual(size_t(1), p0_results.size());
+            Assert::IsFalse(HasMetricValue(p0_results[0].metrics.msPcLatency));
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001);
 
-            // --------------------------------------------------------------------
-            // P1: displayed frame without PCL data (pending, then finalized by P2)
-            // --------------------------------------------------------------------
             FrameData p1{};
-            p1.processId = PROCESS_ID;
-            p1.swapChainAddress = SWAPCHAIN;
             p1.finalState = PresentResult::Presented;
             p1.displayed.PushBack({ FrameType::Application, 100'000 });
 
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
-            Assert::AreEqual(size_t(0), p1_phase1.size(),
-                L"P1 pending pass should not emit metrics.");
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"State.accumulatedInput2FrameStartTime must remain 0 after P1 pending pass.");
-            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
-                L"lastReceivedNotDisplayedPclSimStart should remain 0 after P1 pending pass.");
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(1), p1_results.size());
+            Assert::IsFalse(HasMetricValue(p1_results[0].metrics.msPcLatency));
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001);
 
-            // --------------------------------------------------------------------
-            // P2: displayed frame without PCL data (finalizes P1, then becomes pending)
-            // --------------------------------------------------------------------
             FrameData p2{};
-            p2.processId = PROCESS_ID;
-            p2.swapChainAddress = SWAPCHAIN;
             p2.finalState = PresentResult::Presented;
             p2.displayed.PushBack({ FrameType::Application, 120'000 });
 
-            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
-            Assert::AreEqual(size_t(1), p1_final.size(),
-                L"Finalizing P1 should emit exactly one metrics record.");
-            Assert::IsFalse(HasMetricValue(p1_final[0].metrics.msPcLatency),
-                L"P1 final metrics should not report msPcLatency without PCL data.");
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"Accumulated input-to-frame-start time must remain 0 after finalizing P1.");
-            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
-                L"lastReceivedNotDisplayedPclSimStart should remain 0 after finalizing P1.");
+            auto p2_results = ComputeMetricsForPresent(qpc, p2, nullptr, state);
+            Assert::AreEqual(size_t(1), p2_results.size());
+            Assert::IsFalse(HasMetricValue(p2_results[0].metrics.msPcLatency));
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001);
+        }
 
-            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
-            Assert::AreEqual(size_t(0), p2_phase1.size(),
-                L"P2 pending pass should not emit metrics.");
+        TEST_METHOD(PcLatency_NoPclData_AllFrames_NoLatency_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
 
-            // --------------------------------------------------------------------
-            // P3: helper displayed frame to flush P2
-            // --------------------------------------------------------------------
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.finalState = PresentResult::Discarded;
+            auto p0_rows = swapChain.ProcessPresent(qpc, std::move(p0));
+            Assert::AreEqual(size_t(1), p0_rows.size());
+            Assert::IsFalse(HasMetricValue(p0_rows[0].computed.metrics.msPcLatency));
+
+            FrameData p1{};
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 100'000 });
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p1)).size());
+
+            FrameData p2{};
+            p2.finalState = PresentResult::Presented;
+            p2.displayed.PushBack({ FrameType::Application, 120'000 });
+            auto p2_rows = swapChain.ProcessPresent(qpc, std::move(p2));
+            Assert::AreEqual(size_t(1), p2_rows.size());
+            Assert::IsFalse(HasMetricValue(p2_rows[0].computed.metrics.msPcLatency));
+            AssertAreEqualWithinTolerance(0.0, swapChain.swapChain.accumulatedInput2FrameStartTime, 0.0001);
+
             FrameData p3{};
-            p3.processId = PROCESS_ID;
-            p3.swapChainAddress = SWAPCHAIN;
             p3.finalState = PresentResult::Presented;
             p3.displayed.PushBack({ FrameType::Application, 140'000 });
-
-            auto p2_final = ComputeMetricsForPresent(qpc, p2, &p3, state);
-            Assert::AreEqual(size_t(1), p2_final.size(),
-                L"Finalizing P2 should emit exactly one metrics record.");
-            Assert::IsFalse(HasMetricValue(p2_final[0].metrics.msPcLatency),
-                L"P2 final metrics should not report msPcLatency without PCL data.");
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"Accumulated input-to-frame-start time must still be 0 after P2.");
-            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
-                L"lastReceivedNotDisplayedPclSimStart should remain 0 through the entire sequence.");
-
-            auto p3_phase1 = ComputeMetricsForPresent(qpc, p3, nullptr, state);
-            Assert::AreEqual(size_t(0), p3_phase1.size(),
-                L"P3 pending pass is only for completeness and should not emit metrics.");
+            auto p3_rows = swapChain.ProcessPresent(qpc, std::move(p3));
+            Assert::AreEqual(size_t(1), p3_rows.size());
+            Assert::IsFalse(HasMetricValue(p3_rows[0].computed.metrics.msPcLatency));
         }
 
         TEST_METHOD(PcLatency_SingleDisplayed_DirectSample_FirstEma)
         {
-            // Scenario:
-            //  - Single displayed frame P0 provides both pclInputPingTime and pclSimStartTime.
-            //  - There is no subsequent present, so we exercise Case 2 (nextDisplayed == nullptr)
-            //    with two display samples on P0 to mirror the ReportMetrics behavior where the
-            //    last display instance is deferred.
-            //  - The first metrics record must report msPcLatency immediately and seed the EMA.
-            // Timing (ticks at 10 MHz):
-            //  - Ping0 = 10'000, Sim0 = 20'000 (Delta = 1.0 ms)
-            //  - Display samples: SCR0 = 50'000, SCR0b = 60'000 (provides nextScreenTime).
-            // Expectations:
-            //  - msPcLatency.has_value() == true and > 0.
-            //  - accumulatedInput2FrameStartTime remains 0 (no dropped chain).
-            //  - Input2FrameStartTimeEma equals CalculateEma(0.0, Delta(PING0,SIM0), 0.1).
-            //  - msPcLatency equals EMA + Delta(SIM0, SCR0), proving pclSimStartTime was used.
-
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
@@ -5470,156 +5326,141 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.pclSimStartTime = 20'000;
             p0.finalState = PresentResult::Presented;
             p0.displayed.PushBack({ FrameType::Application, 50'000 });
-            p0.displayed.PushBack({ FrameType::Application, 60'000 });
 
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
-            Assert::AreEqual(size_t(1), p0_results.size(),
-                L"P0 should emit metrics immediately when nextDisplayed == nullptr and two display samples exist.");
+            Assert::AreEqual(size_t(1), p0_results.size());
 
             const auto& p0_metrics = p0_results[0].metrics;
-            Assert::IsTrue(HasMetricValue(p0_metrics.msPcLatency),
-                L"P0 should report msPcLatency for a direct PCL sample.");
-            Assert::IsTrue(p0_metrics.msPcLatency > 0.0,
-                L"P0 msPcLatency should be positive.");
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"Direct PCL sample should not touch accumulatedInput2FrameStartTime.");
-            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
-                L"No dropped frames occurred, so there should be no pending pclSimStart.");
+            Assert::IsTrue(HasMetricValue(p0_metrics.msPcLatency));
+            Assert::IsTrue(p0_metrics.msPcLatency > 0.0);
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001);
 
             double deltaPingSim = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000);
             double expectedEma = pmon::util::CalculateEma(0.0, deltaPingSim, 0.1);
-            Assert::AreEqual(expectedEma, state.Input2FrameStartTimeEma, 0.0001,
-                L"Input2FrameStartTimeEma should be seeded from the first Delta(PING,SIM).");
+            Assert::AreEqual(expectedEma, state.Input2FrameStartTimeEma, 0.0001);
 
             double expectedLatency = expectedEma + qpc.DeltaSignedMilliSeconds(20'000, 50'000);
-            AssertAreEqualWithinTolerance(expectedLatency, p0_metrics.msPcLatency, 0.0001,
-                L"msPcLatency should use pclSimStartTime (not lastSimStartTime) plus the seeded EMA.");
+            AssertAreEqualWithinTolerance(expectedLatency, p0_metrics.msPcLatency, 0.0001);
+        }
+
+        TEST_METHOD(PcLatency_SingleDisplayed_DirectSample_FirstEma_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 50'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
+
+            FrameData p1{};
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 60'000 });
+
+            auto rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::AreEqual(uint64_t(50'000), rows[0].computed.metrics.screenTimeQpc);
+
+            const auto& p0_metrics = rows[0].computed.metrics;
+            Assert::IsTrue(HasMetricValue(p0_metrics.msPcLatency));
+            Assert::IsTrue(p0_metrics.msPcLatency > 0.0);
+
+            double deltaPingSim = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000);
+            double expectedEma = pmon::util::CalculateEma(0.0, deltaPingSim, 0.1);
+            Assert::AreEqual(expectedEma, swapChain.swapChain.Input2FrameStartTimeEma, 0.0001);
+
+            double expectedLatency = expectedEma + qpc.DeltaSignedMilliSeconds(20'000, 50'000);
+            AssertAreEqualWithinTolerance(expectedLatency, p0_metrics.msPcLatency, 0.0001);
         }
 
         TEST_METHOD(PcLatency_TwoDisplayed_DirectSamples_UpdateEma)
         {
-            // Scenario:
-            //  - Two displayed frames (P0, P1) each provide direct PCL samples (Ping + Sim).
-            //  - We mimic the ReportMetrics scheduling:
-            //      P0 arrives  -> pending only (Case 2).
-            //      P1 arrives  -> finalize P0 with nextDisplayed = P1 (Case 3), then queue P1 (Case 2).
-            //      P2 helper   -> finalize P1 (Case 3) to observe the EMA update.
-            // Expectations:
-            //  - P0 final metrics report msPcLatency and seed the EMA.
-            //  - P1 pending call emits no metrics.
-            //  - After P1 is finalized, Input2FrameStartTimeEma changes (!= value after P0) and stays > 0.
-            //  - accumulatedInput2FrameStartTime stays 0 because no dropped chain exists.
-
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
-            // --------------------------------------------------------------------
-            // P0: first displayed frame with direct PCL sample
-            // --------------------------------------------------------------------
             FrameData p0{};
             p0.pclInputPingTime = 10'000;
             p0.pclSimStartTime = 20'000;
             p0.finalState = PresentResult::Presented;
             p0.displayed.PushBack({ FrameType::Application, 50'000 });
 
-            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
-            Assert::AreEqual(size_t(0), p0_phase1.size(),
-                L"P0 pending pass should not emit metrics.");
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            Assert::IsTrue(HasMetricValue(p0_results[0].metrics.msPcLatency));
+            double emaAfterP0 = state.Input2FrameStartTimeEma;
+            Assert::IsTrue(emaAfterP0 > 0.0);
 
-            // --------------------------------------------------------------------
-            // P1: second displayed frame with direct PCL sample
-            // --------------------------------------------------------------------
             FrameData p1{};
             p1.pclInputPingTime = 30'000;
             p1.pclSimStartTime = 40'000;
             p1.finalState = PresentResult::Presented;
             p1.displayed.PushBack({ FrameType::Application, 70'000 });
 
-            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
-            Assert::AreEqual(size_t(1), p0_final.size(),
-                L"Finalizing P0 with nextDisplayed=P1 should emit exactly one metrics record.");
-            Assert::IsTrue(HasMetricValue(p0_final[0].metrics.msPcLatency),
-                L"P0 should report msPcLatency when finalized.");
-            double emaAfterP0 = state.Input2FrameStartTimeEma;
-            Assert::IsTrue(emaAfterP0 > 0.0,
-                L"EMA after P0 should be positive.");
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"Accumulated input-to-frame-start time should remain zero after P0.");
-
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
-            Assert::AreEqual(size_t(0), p1_phase1.size(),
-                L"P1 pending pass should not emit metrics.");
-
-            // --------------------------------------------------------------------
-            // P2: helper displayed frame to flush P1
-            // --------------------------------------------------------------------
-            FrameData p2{};
-            p2.finalState = PresentResult::Presented;
-            p2.displayed.PushBack({ FrameType::Application, 90'000 });
-
-            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
-            Assert::AreEqual(size_t(1), p1_final.size(),
-                L"Finalizing P1 should emit exactly one metrics record.");
-            Assert::IsTrue(HasMetricValue(p1_final[0].metrics.msPcLatency),
-                L"P1 should report msPcLatency when finalized.");
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(1), p1_results.size());
+            Assert::IsTrue(HasMetricValue(p1_results[0].metrics.msPcLatency));
             double emaAfterP1 = state.Input2FrameStartTimeEma;
-            Assert::IsTrue(emaAfterP1 > 0.0,
-                L"EMA after P1 should stay positive.");
-            Assert::IsTrue(emaAfterP1 != emaAfterP0,
-                L"EMA after P1 must differ from the first-sample EMA after P0.");
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"No dropped chain should mean accumulatedInput2FrameStartTime stays at 0.");
-
-            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
-            Assert::AreEqual(size_t(0), p2_phase1.size(),
-                L"P2 pending pass is only to mirror the pipeline; it should emit no metrics.");
+            Assert::IsTrue(emaAfterP1 > 0.0);
+            Assert::IsTrue(emaAfterP1 != emaAfterP0);
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001);
         }
 
-        TEST_METHOD(PcLatency_Dropped_DirectPcl_InitializesAccum)
+        TEST_METHOD(PcLatency_TwoDisplayed_DirectSamples_UpdateEma_ProcessPresent)
         {
-            // Scenario:
-            //  - A dropped frame P0 carries both pclInputPingTime and pclSimStartTime.
-            //  - Without any displayed frame to consume it, the PC Latency accumulator should
-            //    be initialized to Delta(PING0, SIM0) while msPcLatency remains absent.
-            // Expectations:
-            //  - P0's metrics do not expose msPcLatency (it was dropped).
-            //  - accumulatedInput2FrameStartTime equals Delta(PING0, SIM0) and > 0.
-            //  - lastReceivedNotDisplayedPclSimStart latches SIM0.
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
 
-            QpcConverter      qpc(10'000'000, 0);
-            SwapChainCoreState state{};
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
 
             FrameData p0{};
             p0.pclInputPingTime = 10'000;
             p0.pclSimStartTime = 20'000;
-            p0.finalState = PresentResult::Discarded;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 50'000 });
 
-            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
-            Assert::AreEqual(size_t(1), p0_results.size(),
-                L"Dropped frames should emit one metrics record immediately.");
-            Assert::IsFalse(HasMetricValue(p0_results[0].metrics.msPcLatency),
-                L"Dropped frames must not report msPcLatency.");
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
 
-            double expectedAccum = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000);
-            Assert::IsTrue(state.accumulatedInput2FrameStartTime > 0.0,
-                L"Accumulated input-to-frame-start time should be initialized.");
-            Assert::AreEqual(expectedAccum, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"Accumulator should equal Delta(PING0, SIM0).");
-            Assert::AreEqual(uint64_t(20'000), state.lastReceivedNotDisplayedPclSimStart,
-                L"lastReceivedNotDisplayedPclSimStart should track P0's pclSimStartTime.");
+            FrameData p1{};
+            p1.pclInputPingTime = 30'000;
+            p1.pclSimStartTime = 40'000;
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 70'000 });
+
+            auto p0_rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), p0_rows.size());
+            Assert::IsTrue(HasMetricValue(p0_rows[0].computed.metrics.msPcLatency));
+            double emaAfterP0 = swapChain.swapChain.Input2FrameStartTimeEma;
+
+            FrameData p2{};
+            p2.finalState = PresentResult::Presented;
+            p2.displayed.PushBack({ FrameType::Application, 90'000 });
+
+            auto p1_rows = swapChain.ProcessPresent(qpc, std::move(p2));
+            Assert::AreEqual(size_t(1), p1_rows.size());
+            Assert::IsTrue(HasMetricValue(p1_rows[0].computed.metrics.msPcLatency));
+            double emaAfterP1 = swapChain.swapChain.Input2FrameStartTimeEma;
+            Assert::IsTrue(emaAfterP1 != emaAfterP0);
         }
 
-        TEST_METHOD(PcLatency_DroppedChain_SimOnly_ExtendsAccum)
+        TEST_METHOD(PcLatency_Dropped_DirectPcl_InitializesAccum)
         {
-            // Scenario:
-            //  - P0 (dropped) has both Ping and Sim, seeding the accumulator.
-            //  - P1 (dropped) has only pclSimStartTime and should extend the accumulator by the
-            //    delta between SIM0 and SIM1.
-            // Expectations:
-            //  - P1 still reports no msPcLatency.
-            //  - accumulatedInput2FrameStartTime after P1 > accumulated time after P0.
-            //  - lastReceivedNotDisplayedPclSimStart equals SIM1.
-
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
@@ -5631,6 +5472,51 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(1), p0_results.size());
             Assert::IsFalse(HasMetricValue(p0_results[0].metrics.msPcLatency));
+
+            double expectedAccum = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000);
+            Assert::AreEqual(expectedAccum, state.accumulatedInput2FrameStartTime, 0.0001);
+            Assert::AreEqual(uint64_t(20'000), state.lastReceivedNotDisplayedPclSimStart);
+        }
+
+        TEST_METHOD(PcLatency_Dropped_DirectPcl_InitializesAccum_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.finalState = PresentResult::Discarded;
+
+            auto rows = swapChain.ProcessPresent(qpc, std::move(p0));
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::IsFalse(HasMetricValue(rows[0].computed.metrics.msPcLatency));
+
+            double expectedAccum = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000);
+            Assert::AreEqual(expectedAccum, swapChain.swapChain.accumulatedInput2FrameStartTime, 0.0001);
+            Assert::AreEqual(uint64_t(20'000), swapChain.swapChain.lastReceivedNotDisplayedPclSimStart);
+        }
+
+        TEST_METHOD(PcLatency_DroppedChain_SimOnly_ExtendsAccum)
+        {
+            QpcConverter      qpc(10'000'000, 0);
+            SwapChainCoreState state{};
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.finalState = PresentResult::Discarded;
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_results.size());
             double accumAfterP0 = state.accumulatedInput2FrameStartTime;
 
             FrameData p1{};
@@ -5639,26 +5525,44 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.finalState = PresentResult::Discarded;
 
             auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
-            Assert::AreEqual(size_t(1), p1_results.size(),
-                L"Second dropped frame should emit one metrics record.");
-            Assert::IsFalse(HasMetricValue(p1_results[0].metrics.msPcLatency),
-                L"Dropped frames never report msPcLatency.");
-            Assert::IsTrue(state.accumulatedInput2FrameStartTime > accumAfterP0,
-                L"Accumulator should grow when a sim-only dropped frame follows an existing chain.");
-            Assert::AreEqual(uint64_t(30'000), state.lastReceivedNotDisplayedPclSimStart,
-                L"Sim-only dropped frames still update lastReceivedNotDisplayedPclSimStart.");
+            Assert::AreEqual(size_t(1), p1_results.size());
+            Assert::IsFalse(HasMetricValue(p1_results[0].metrics.msPcLatency));
+            Assert::IsTrue(state.accumulatedInput2FrameStartTime > accumAfterP0);
+            Assert::AreEqual(uint64_t(30'000), state.lastReceivedNotDisplayedPclSimStart);
+        }
+
+        TEST_METHOD(PcLatency_DroppedChain_SimOnly_ExtendsAccum_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.finalState = PresentResult::Discarded;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(p0));
+            const double accumAfterP0 = swapChain.swapChain.accumulatedInput2FrameStartTime;
+
+            FrameData p1{};
+            p1.pclSimStartTime = 30'000;
+            p1.finalState = PresentResult::Discarded;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::IsTrue(swapChain.swapChain.accumulatedInput2FrameStartTime > accumAfterP0);
+            Assert::AreEqual(uint64_t(30'000), swapChain.swapChain.lastReceivedNotDisplayedPclSimStart);
         }
 
         TEST_METHOD(PcLatency_Dropped_SimOnly_NoAccum_NoEffect)
         {
-            // Scenario:
-            //  - A single dropped frame P0 only provides pclSimStartTime (no ping) and there is
-            //    no existing accumulator.
-            // Expectations:
-            //  - msPcLatency remains absent.
-            //  - accumulatedInput2FrameStartTime stays at 0 (chain not started).
-            //  - lastReceivedNotDisplayedPclSimStart updates to SIM0 for possible future chaining.
-
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
@@ -5670,25 +5574,34 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
             Assert::AreEqual(size_t(1), p0_results.size());
             Assert::IsFalse(HasMetricValue(p0_results[0].metrics.msPcLatency));
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"Accumulator should remain 0 when a sim-only drop has no pending chain.");
-            Assert::AreEqual(uint64_t(25'000), state.lastReceivedNotDisplayedPclSimStart,
-                L"Sim-only drop should remember its pclSimStartTime even if no accumulator exists yet.");
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001);
+            Assert::AreEqual(uint64_t(25'000), state.lastReceivedNotDisplayedPclSimStart);
+        }
+
+        TEST_METHOD(PcLatency_Dropped_SimOnly_NoAccum_NoEffect_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.pclSimStartTime = 25'000;
+            p0.finalState = PresentResult::Discarded;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(p0));
+            AssertAreEqualWithinTolerance(0.0, swapChain.swapChain.accumulatedInput2FrameStartTime, 0.0001);
+            Assert::AreEqual(uint64_t(25'000), swapChain.swapChain.lastReceivedNotDisplayedPclSimStart);
         }
 
         TEST_METHOD(PcLatency_Displayed_SimOnly_NoAccum_UsesExistingEma)
         {
-            // Scenario:
-            //  - P0 is displayed with a direct PCL sample, seeding the EMA.
-            //  - P1 is displayed with only pclSimStartTime (no ping) and there is no accumulated chain.
-            //  - We follow the full pipeline:
-            //      P0 pending, then finalized by P1 (Case 3).
-            //      P1 pending, then finalized by helper P2.
-            // Expectations:
-            //  - P1 final metrics report msPcLatency despite having no new ping.
-            //  - accumulatedInput2FrameStartTime stays at 0 (no dropped chain was active).
-            //  - Input2FrameStartTimeEma remains positive (not reset to 0).
-
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
@@ -5698,57 +5611,65 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.finalState = PresentResult::Presented;
             p0.displayed.PushBack({ FrameType::Application, 50'000 });
 
-            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
-            Assert::AreEqual(size_t(0), p0_phase1.size());
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            Assert::IsTrue(HasMetricValue(p0_results[0].metrics.msPcLatency));
+            Assert::IsTrue(state.Input2FrameStartTimeEma > 0.0);
 
             FrameData p1{};
-            p1.pclInputPingTime = 0;
             p1.pclSimStartTime = 35'000;
             p1.finalState = PresentResult::Presented;
             p1.displayed.PushBack({ FrameType::Application, 70'000 });
 
-            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
-            Assert::AreEqual(size_t(1), p0_final.size());
-            Assert::IsTrue(HasMetricValue(p0_final[0].metrics.msPcLatency));
-            double emaAfterP0 = state.Input2FrameStartTimeEma;
-            Assert::IsTrue(emaAfterP0 > 0.0);
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(1), p1_results.size());
+            Assert::IsTrue(HasMetricValue(p1_results[0].metrics.msPcLatency));
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001);
+            Assert::IsTrue(state.Input2FrameStartTimeEma > 0.0);
+        }
 
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
-            Assert::AreEqual(size_t(0), p1_phase1.size());
+        TEST_METHOD(PcLatency_Displayed_SimOnly_NoAccum_UsesExistingEma_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 50'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
+
+            FrameData p1{};
+            p1.pclSimStartTime = 35'000;
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 70'000 });
+
+            auto p0_rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), p0_rows.size());
+            Assert::IsTrue(HasMetricValue(p0_rows[0].computed.metrics.msPcLatency));
 
             FrameData p2{};
             p2.finalState = PresentResult::Presented;
             p2.displayed.PushBack({ FrameType::Application, 90'000 });
 
-            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
-            Assert::AreEqual(size_t(1), p1_final.size());
-            const auto& p1_metrics = p1_final[0].metrics;
-            Assert::IsTrue(HasMetricValue(p1_metrics.msPcLatency),
-                L"P1 should report msPcLatency despite missing pclInputPingTime.");
-            Assert::IsTrue(p1_metrics.msPcLatency > 0.0,
-                L"P1 msPcLatency should stay positive.");
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"No dropped chain means the accumulator must stay zero.");
-            Assert::IsTrue(state.Input2FrameStartTimeEma > 0.0,
-                L"EMA should not be reset when a sim-only displayed frame uses existing history.");
-
-            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
-            Assert::AreEqual(size_t(0), p2_phase1.size());
+            auto p1_rows = swapChain.ProcessPresent(qpc, std::move(p2));
+            Assert::AreEqual(size_t(1), p1_rows.size());
+            Assert::IsTrue(HasMetricValue(p1_rows[0].computed.metrics.msPcLatency));
+            AssertAreEqualWithinTolerance(0.0, swapChain.swapChain.accumulatedInput2FrameStartTime, 0.0001);
         }
 
         TEST_METHOD(PcLatency_Displayed_NoPclSim_UsesLastSimStart)
         {
-            // Scenario:
-            //  - P0 is displayed with a full PCL sample to seed both the EMA and lastSimStartTime.
-            //  - P1 is displayed without any PCL timestamps (pclSimStartTime == 0, pclInputPingTime == 0).
-            //  - P1 should still produce msPcLatency by combining the existing EMA with the fallback
-            //    state.lastSimStartTime recorded after P0.
-            // Call schedule mirrors ReportMetrics: P0 pending, finalized by P1; P1 pending, finalized by P2.
-            // Expectations:
-            //  - P1 final metrics report msPcLatency.has_value() == true.
-            //  - Input2FrameStartTimeEma is unchanged from the P0 sample (no new data).
-            //  - msPcLatency equals EMA_after_P0 + Delta(lastSimStartTime_after_P0, SCR1), proving the fallback path.
-
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
@@ -5758,60 +5679,71 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.finalState = PresentResult::Presented;
             p0.displayed.PushBack({ FrameType::Application, 70'000 });
 
-            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
-            Assert::AreEqual(size_t(0), p0_phase1.size());
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            Assert::IsTrue(HasMetricValue(p0_results[0].metrics.msPcLatency));
+            double emaAfterP0 = state.Input2FrameStartTimeEma;
+            uint64_t fallbackSimStart = state.lastSimStartTime;
+            Assert::AreEqual(uint64_t(30'000), fallbackSimStart);
 
             FrameData p1{};
-            p1.pclInputPingTime = 0;
-            p1.pclSimStartTime = 0;
             p1.finalState = PresentResult::Presented;
             p1.displayed.PushBack({ FrameType::Application, 90'000 });
 
-            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
-            Assert::AreEqual(size_t(1), p0_final.size());
-            Assert::IsTrue(HasMetricValue(p0_final[0].metrics.msPcLatency));
-            double emaAfterP0 = state.Input2FrameStartTimeEma;
-            uint64_t fallbackSimStart = state.lastSimStartTime;
-            Assert::IsTrue(emaAfterP0 > 0.0,
-                L"EMA must be initialized after the first direct sample.");
-            Assert::AreEqual(uint64_t(30'000), fallbackSimStart,
-                L"lastSimStartTime should latch P0's pclSimStartTime when it is displayed.");
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, state);
+            Assert::AreEqual(size_t(1), p1_results.size());
+            const auto& p1_metrics = p1_results[0].metrics;
+            Assert::IsTrue(HasMetricValue(p1_metrics.msPcLatency));
+            AssertAreEqualWithinTolerance(emaAfterP0, state.Input2FrameStartTimeEma, 0.0001);
 
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
-            Assert::AreEqual(size_t(0), p1_phase1.size());
+            double expectedLatency = emaAfterP0 + qpc.DeltaSignedMilliSeconds(fallbackSimStart, 90'000);
+            AssertAreEqualWithinTolerance(expectedLatency, p1_metrics.msPcLatency, 0.0001);
+        }
+
+        TEST_METHOD(PcLatency_Displayed_NoPclSim_UsesLastSimStart_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 30'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 70'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
+
+            FrameData p1{};
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 90'000 });
+
+            auto p0_rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), p0_rows.size());
+            double emaAfterP0 = swapChain.swapChain.Input2FrameStartTimeEma;
+            uint64_t fallbackSimStart = swapChain.swapChain.lastSimStartTime;
 
             FrameData p2{};
             p2.finalState = PresentResult::Presented;
             p2.displayed.PushBack({ FrameType::Application, 110'000 });
 
-            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, state);
-            Assert::AreEqual(size_t(1), p1_final.size());
-            const auto& p1_metrics = p1_final[0].metrics;
-            Assert::IsTrue(HasMetricValue(p1_metrics.msPcLatency),
-                L"P1 should still report msPcLatency using the fallback lastSimStartTime.");
-            AssertAreEqualWithinTolerance(emaAfterP0, state.Input2FrameStartTimeEma, 0.0001,
-                L"EMA should remain unchanged when no new PCL sample exists.");
-            double expectedLatency = emaAfterP0 + qpc.DeltaSignedMilliSeconds(fallbackSimStart, 90'000);
-            AssertAreEqualWithinTolerance(expectedLatency, p1_metrics.msPcLatency, 0.0001,
-                L"msPcLatency should use the stored EMA plus the delta from lastSimStartTime to screen time.");
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"Accumulator should remain zero in this scenario.");
+            auto p1_rows = swapChain.ProcessPresent(qpc, std::move(p2));
+            Assert::AreEqual(size_t(1), p1_rows.size());
+            Assert::AreEqual(uint64_t(90'000), p1_rows[0].computed.metrics.screenTimeQpc);
 
-            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, state);
-            Assert::AreEqual(size_t(0), p2_phase1.size());
+            double expectedLatency = emaAfterP0 + qpc.DeltaSignedMilliSeconds(fallbackSimStart, 90'000);
+            AssertAreEqualWithinTolerance(expectedLatency, p1_rows[0].computed.metrics.msPcLatency, 0.0001);
         }
 
         TEST_METHOD(PcLatency_Dropped_DirectPcl_OverwritesOldAccum)
         {
-            // Scenario:
-            //  - Dropped frames P0 (Ping+Sim) and P1 (Sim only) create an accumulated chain A_old.
-            //  - A new dropped frame P2 arrives with its own Ping+Sim and should overwrite (not extend)
-            //    the accumulator, effectively starting a brand new chain.
-            // Expectations:
-            //  - Accumulator after P2 equals Delta(PING2, SIM2) exactly (no residue from A_old).
-            //  - lastReceivedNotDisplayedPclSimStart equals SIM2.
-            //  - P2 still reports no msPcLatency.
-
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
@@ -5822,14 +5754,11 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             ComputeMetricsForPresent(qpc, p0, nullptr, state);
 
             FrameData p1{};
-            p1.pclInputPingTime = 0;
             p1.pclSimStartTime = 30'000;
             p1.finalState = PresentResult::Discarded;
             ComputeMetricsForPresent(qpc, p1, nullptr, state);
 
-            double accumBeforeP2 = state.accumulatedInput2FrameStartTime;
-            Assert::IsTrue(accumBeforeP2 > 0.0,
-                L"Precondition: accumulator should already be non-zero before introducing P2.");
+            Assert::IsTrue(state.accumulatedInput2FrameStartTime > 0.0);
 
             FrameData p2{};
             p2.pclInputPingTime = 100'000;
@@ -5841,29 +5770,51 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsFalse(HasMetricValue(p2_results[0].metrics.msPcLatency));
 
             double expectedAccum = qpc.DeltaUnsignedMilliSeconds(100'000, 120'000);
-            AssertAreEqualWithinTolerance(expectedAccum, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"New dropped frame with Ping+Sim should overwrite the accumulator with its own delta.");
-            Assert::AreEqual(uint64_t(120'000), state.lastReceivedNotDisplayedPclSimStart,
-                L"lastReceivedNotDisplayedPclSimStart should latch the newest sim start.");
+            AssertAreEqualWithinTolerance(expectedAccum, state.accumulatedInput2FrameStartTime, 0.0001);
+            Assert::AreEqual(uint64_t(120'000), state.lastReceivedNotDisplayedPclSimStart);
+        }
+
+        TEST_METHOD(PcLatency_Dropped_DirectPcl_OverwritesOldAccum_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.pclInputPingTime = 10'000;
+            p0.pclSimStartTime = 20'000;
+            p0.finalState = PresentResult::Discarded;
+            (void)swapChain.ProcessPresent(qpc, std::move(p0));
+
+            FrameData p1{};
+            p1.pclSimStartTime = 30'000;
+            p1.finalState = PresentResult::Discarded;
+            (void)swapChain.ProcessPresent(qpc, std::move(p1));
+
+            FrameData p2{};
+            p2.pclInputPingTime = 100'000;
+            p2.pclSimStartTime = 120'000;
+            p2.finalState = PresentResult::Discarded;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(p2));
+
+            double expectedAccum = qpc.DeltaUnsignedMilliSeconds(100'000, 120'000);
+            AssertAreEqualWithinTolerance(expectedAccum, swapChain.swapChain.accumulatedInput2FrameStartTime, 0.0001);
+            Assert::AreEqual(uint64_t(120'000), swapChain.swapChain.lastReceivedNotDisplayedPclSimStart);
         }
 
         TEST_METHOD(PcLatency_IncompleteDroppedChain_DoesNotAffectDirectSample)
         {
-            // Scenario:
-            //  - D0 (dropped, Ping+Sim) followed by D1 (dropped, Sim-only) builds an incomplete chain.
-            //  - No displayed frame consumes it before a new direct-sample present P0 arrives.
-            //  - P0 should be treated as a fresh direct measurement: EMA behaves like a first sample
-            //    from P0 alone and the stale accumulator is cleared.
-            // Expectations:
-            //  - D0/D1 never report msPcLatency.
-            //  - P0 final metrics report msPcLatency.has_value() == true.
-            //  - Input2FrameStartTimeEma after P0 equals CalculateEma(0.0, Delta(P0.Ping, P0.Sim), 0.1).
-            //  - accumulatedInput2FrameStartTime resets to 0 after the displayed frame completes.
-
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState state{};
 
-            // Dropped chain D0 -> D1 (incomplete)
             FrameData d0{};
             d0.pclInputPingTime = 10'000;
             d0.pclSimStartTime = 20'000;
@@ -5873,463 +5824,366 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsFalse(HasMetricValue(d0_results[0].metrics.msPcLatency));
 
             FrameData d1{};
-            d1.pclInputPingTime = 0;
             d1.pclSimStartTime = 30'000;
             d1.finalState = PresentResult::Discarded;
             auto d1_results = ComputeMetricsForPresent(qpc, d1, nullptr, state);
             Assert::AreEqual(size_t(1), d1_results.size());
             Assert::IsFalse(HasMetricValue(d1_results[0].metrics.msPcLatency));
-            double accumBeforeDisplayed = state.accumulatedInput2FrameStartTime;
-            Assert::IsTrue(accumBeforeDisplayed > 0.0,
-                L"Incomplete chain should leave a non-zero accumulator.");
+            Assert::IsTrue(state.accumulatedInput2FrameStartTime > 0.0);
 
-            // Displayed P0 with a brand-new direct sample
             FrameData p0{};
             p0.pclInputPingTime = 100'000;
             p0.pclSimStartTime = 120'000;
             p0.finalState = PresentResult::Presented;
             p0.displayed.PushBack({ FrameType::Application, 150'000 });
 
-            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, state);
-            Assert::AreEqual(size_t(0), p0_phase1.size());
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, state);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            const auto& p0_metrics = p0_results[0].metrics;
+            Assert::IsTrue(HasMetricValue(p0_metrics.msPcLatency));
+
+            double expectedFirstEma = pmon::util::CalculateEma(0.0,
+                qpc.DeltaUnsignedMilliSeconds(100'000, 120'000),
+                0.1);
+            AssertAreEqualWithinTolerance(expectedFirstEma, state.Input2FrameStartTimeEma, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001);
+            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart);
+        }
+
+        TEST_METHOD(PcLatency_IncompleteDroppedChain_DoesNotAffectDirectSample_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData d0{};
+            d0.pclInputPingTime = 10'000;
+            d0.pclSimStartTime = 20'000;
+            d0.finalState = PresentResult::Discarded;
+            (void)swapChain.ProcessPresent(qpc, std::move(d0));
+
+            FrameData d1{};
+            d1.pclSimStartTime = 30'000;
+            d1.finalState = PresentResult::Discarded;
+            (void)swapChain.ProcessPresent(qpc, std::move(d1));
+            Assert::IsTrue(swapChain.swapChain.accumulatedInput2FrameStartTime > 0.0);
+
+            FrameData p0{};
+            p0.pclInputPingTime = 100'000;
+            p0.pclSimStartTime = 120'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 150'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
 
             FrameData p1{};
             p1.finalState = PresentResult::Presented;
             p1.displayed.PushBack({ FrameType::Application, 180'000 });
 
-            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, state);
-            Assert::AreEqual(size_t(1), p0_final.size());
-            const auto& p0_metrics = p0_final[0].metrics;
-            Assert::IsTrue(HasMetricValue(p0_metrics.msPcLatency),
-                L"Displayed frame with direct PCL data must report msPcLatency.");
-            Assert::IsTrue(p0_metrics.msPcLatency > 0.0,
-                L"msPcLatency should be positive for P0.");
+            auto rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::IsTrue(HasMetricValue(rows[0].computed.metrics.msPcLatency));
 
             double expectedFirstEma = pmon::util::CalculateEma(0.0,
                 qpc.DeltaUnsignedMilliSeconds(100'000, 120'000),
                 0.1);
-            AssertAreEqualWithinTolerance(expectedFirstEma, state.Input2FrameStartTimeEma, 0.0001,
-                L"EMA after P0 should match a first-sample EMA that ignores stale accumulation.");
-            AssertAreEqualWithinTolerance(0.0, state.accumulatedInput2FrameStartTime, 0.0001,
-                L"Accumulator must be cleared once the displayed frame consumes the chain.");
-            Assert::AreEqual(uint64_t(0), state.lastReceivedNotDisplayedPclSimStart,
-                L"Pending pclSimStart markers should be cleared once the chain completes.");
-
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, state);
-            Assert::AreEqual(size_t(0), p1_phase1.size());
+            AssertAreEqualWithinTolerance(expectedFirstEma, swapChain.swapChain.Input2FrameStartTimeEma, 0.0001);
+            AssertAreEqualWithinTolerance(0.0, swapChain.swapChain.accumulatedInput2FrameStartTime, 0.0001);
+            Assert::AreEqual(uint64_t(0), swapChain.swapChain.lastReceivedNotDisplayedPclSimStart);
         }
     };
     TEST_CLASS(InstrumentedMetricsTests)
     {
     public:
+        // V1: ComputeMetricsForPresent (nullptr next). V2: *_ProcessPresent duplicates.
 
         TEST_METHOD(InstrumentedCpuGpu_AppFrame_FullData_UsesPclSimStart)
         {
-            // This test verifies the "instrumented CPU/GPU" metrics on an application frame:
-            //
-            //   - msInstrumentedSleep
-            //   - msInstrumentedGpuLatency
-            //   - msBetweenSimStarts (PCL sim preferred over App sim)
-            //
-            // We construct:
-            //
-            //   QPC frequency = 10 MHz
-            //
-            //   Pre-state in swapChain:
-            //     lastSimStartTime = 10'000 (this represents the previous frame's sim start)
-            //
-            //   P0 (the frame under test) - APP FRAME:
-            //     appSleepStartTime =  1'000
-            //     appSleepEndTime   = 11'000    // Deltasleep = 10'000 ticks
-            //     appSimStartTime   =100'000    // should NOT be used for between-sim-starts
-            //     pclSimStartTime   = 20'000    // PCL sim should win for between-sim-starts
-            //     gpuStartTime      = 21'000    // GPU start time used for GPU latency
-            //     displayed         = one Application entry at screenTime = 50'000
-            //
-            //   Derived deltas:
-            //     sleep Delta:        11'000 -  1'000 = 10'000 ticks
-            //     PCL sim Delta:     20'000 - 10'000 = 10'000 ticks
-            //     GPU latency Delta: 21'000 - 11'000 = 10'000 ticks
-            //
-            // With QPC = 10 MHz, 10'000 ticks = 0.001 ms.
-            //
-            // Call pattern (ReportMetrics-style for a single displayed app frame):
-            //
-            //   P0 arrives:
-            //       ComputeMetricsForPresent(P0, nullptr, chain)   // Case 2, pending only
-            //
-            //   P1 arrives later:
-            //       ComputeMetricsForPresent(P0, &P1, chain)       // Case 3, finalize P0
-            //       ComputeMetricsForPresent(P1, nullptr, chain)   // pending P1 (ignored in this test)
-            //
-            // We verify on P0's final metrics:
-            //   - msInstrumentedSleep has a value and matches Delta(appSleepStart, appSleepEnd).
-            //   - msInstrumentedGpuLatency has a value and matches Delta(appSleepEnd, gpuStartTime).
-            //   - msBetweenSimStarts has a value and matches Delta(lastSimStartTime, P0.pclSimStartTime),
-            //     proving PCL sim is preferred over App sim for between-sim-starts.
-
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            // Seed lastSimStartTime to simulate a previous frame.
             chain.lastSimStartTime = 10'000;
             chain.animationErrorSource = AnimationErrorSource::PCLatency;
 
-            const uint32_t PROCESS_ID = 1234;
-            const uint64_t SWAPCHAIN = 0xABC0;
-
-            // --------------------------------------------------------------------
-            // P0: Application frame with full instrumented CPU/GPU data
-            // --------------------------------------------------------------------
             FrameData p0{};
-            p0.processId = PROCESS_ID;
-            p0.swapChainAddress = SWAPCHAIN;
-
             p0.presentStartTime = 0;
             p0.timeInPresent = 0;
             p0.readyTime = 0;
-
-            // Instrumented CPU / sim:
             p0.appSleepStartTime = 1'000;
             p0.appSleepEndTime = 11'000;
-            p0.appSimStartTime = 100'000;   // should NOT be used for between-sim-starts
-            p0.pclSimStartTime = 20'000;   // should be used instead
-
-            // GPU start time for GPU latency:
+            p0.appSimStartTime = 100'000;
+            p0.pclSimStartTime = 20'000;
             p0.gpuStartTime = 21'000;
-
-            // Mark as displayed Application frame
             p0.finalState = PresentResult::Presented;
-            p0.displayed.Clear();
-            p0.displayed.PushBack({ FrameType::Application, 50'000 }); // screenTime = 50'000
+            p0.displayed.PushBack({ FrameType::Application, 50'000 });
 
-            // First call: P0 arrives, becomes pending (no metrics yet).
-            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
-            Assert::AreEqual(size_t(0), p0_phase1.size(),
-                L"P0 (phase 1): pending-only call with nextDisplayed=nullptr should produce no metrics.");
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
 
-            // --------------------------------------------------------------------
-            // P1: simple next displayed app frame (used only as nextDisplayed for P0)
-            // --------------------------------------------------------------------
-            FrameData p1{};
-            p1.processId = PROCESS_ID;
-            p1.swapChainAddress = SWAPCHAIN;
+            const auto& m0 = p0_results[0].metrics;
+            double expectedSleepMs = qpc.DeltaUnsignedMilliSeconds(1'000, 11'000);
+            double expectedGpuMs = qpc.DeltaUnsignedMilliSeconds(11'000, 21'000);
+            double expectedBetween = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000);
 
-            p1.presentStartTime = 0;
-            p1.timeInPresent = 0;
-            p1.readyTime = 0;
-
-            p1.finalState = PresentResult::Presented;
-            p1.displayed.Clear();
-            p1.displayed.PushBack({ FrameType::Application, 60'000 }); // later display, not important
-
-            // Second call: P1 arrives, finalize P0 using P1 as nextDisplayed (Case 3).
-            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
-            Assert::AreEqual(size_t(1), p0_final.size(),
-                L"P0 (final): expected exactly one metrics record when flushed with nextDisplayed=P1.");
-
-            const auto& m0 = p0_final[0].metrics;
-
-            // --------------------------------------------------------------------
-            // Assertions for P0's instrumented CPU/GPU metrics
-            // --------------------------------------------------------------------
-            // Expected values based on our chosen QPC times:
-            double expectedSleepMs = qpc.DeltaUnsignedMilliSeconds(1'000, 11'000);  // 10'000 ticks
-            double expectedGpuMs = qpc.DeltaUnsignedMilliSeconds(11'000, 21'000);   // 10'000 ticks
-            double expectedBetween = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000); // 10'000 ticks
-
-            // 1) Instrumented sleep
-            Assert::IsTrue(HasMetricValue(m0.msInstrumentedSleep),
-                L"P0: msInstrumentedSleep should have a value for valid AppSleepStart/End.");
-            Assert::AreEqual(expectedSleepMs, m0.msInstrumentedSleep, 1e-6,
-                L"P0: msInstrumentedSleep did not match expected Delta(AppSleepStart, AppSleepEnd).");
-
-            // 2) Instrumented GPU latency (start = AppSleepEndTime since it is non-zero)
-            Assert::IsTrue(HasMetricValue(m0.msInstrumentedGpuLatency),
-                L"P0: msInstrumentedGpuLatency should have a value when InstrumentedStartTime and gpuStartTime are valid.");
-            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency, 1e-6,
-                L"P0: msInstrumentedGpuLatency did not match expected Delta(AppSleepEndTime, gpuStartTime).");
-
-            // 3) Between sim starts: PCL sim (20'000) must win over App sim (100'000)
-            Assert::IsTrue(HasMetricValue(m0.msBetweenSimStarts),
-                L"P0: msBetweenSimStarts should have a value when lastSimStartTime and PclSimStartTime are non-zero.");
-            AssertAreEqualWithinTolerance(expectedBetween, m0.msBetweenSimStarts, 1e-6,
-                L"P0: msBetweenSimStarts should be based on PCL sim start, not App sim start.");
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedSleep));
+            Assert::AreEqual(expectedSleepMs, m0.msInstrumentedSleep, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedGpuLatency));
+            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msBetweenSimStarts));
+            AssertAreEqualWithinTolerance(expectedBetween, m0.msBetweenSimStarts, 1e-6);
         }
+
+        TEST_METHOD(InstrumentedCpuGpu_AppFrame_FullData_UsesPclSimStart_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+            swapChain.swapChain.lastSimStartTime = 10'000;
+            swapChain.swapChain.animationErrorSource = AnimationErrorSource::PCLatency;
+
+            FrameData p0{};
+            p0.appSleepStartTime = 1'000;
+            p0.appSleepEndTime = 11'000;
+            p0.appSimStartTime = 100'000;
+            p0.pclSimStartTime = 20'000;
+            p0.gpuStartTime = 21'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 50'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
+
+            FrameData p1{};
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 60'000 });
+
+            auto rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::AreEqual(uint64_t(50'000), rows[0].computed.metrics.screenTimeQpc);
+
+            const auto& m0 = rows[0].computed.metrics;
+            double expectedSleepMs = qpc.DeltaUnsignedMilliSeconds(1'000, 11'000);
+            double expectedGpuMs = qpc.DeltaUnsignedMilliSeconds(11'000, 21'000);
+            double expectedBetween = qpc.DeltaUnsignedMilliSeconds(10'000, 20'000);
+
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedSleep));
+            Assert::AreEqual(expectedSleepMs, m0.msInstrumentedSleep, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedGpuLatency));
+            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msBetweenSimStarts));
+            AssertAreEqualWithinTolerance(expectedBetween, m0.msBetweenSimStarts, 1e-6);
+        }
+
         TEST_METHOD(InstrumentedDisplay_AppFrame_FullData_ComputesAll)
         {
-            // This test verifies the "instrumented display" metrics on a displayed
-            // application frame:
-            //
-            //   - msInstrumentedRenderLatency
-            //   - msReadyTimeToDisplayLatency
-            //   - msInstrumentedLatency (total app-instrumented latency)
-            //
-            // New invariant (unified metrics):
-            //   These metrics are only computed when:
-            //     - the frame is an Application frame (isAppFrame == true), AND
-            //     - the frame is displayed (isDisplayed == true).
-            //
-            // We construct:
-            //
-            //   QPC frequency = 10 MHz
-            //
-            //   P0 (the frame under test) - DISPLAYED APP FRAME:
-            //     appRenderSubmitStartTime = 10'000
-            //     readyTime                = 20'000
-            //     appSleepEndTime          =  5'000   // used as InstrumentedStartTime
-            //     screenTime               = 30'000 (Application entry in displayed)
-            //
-            //   Derived deltas:
-            //     render latency:      30'000 - 10'000 = 20'000 ticks
-            //     ready->display:       30'000 - 20'000 = 10'000 ticks
-            //     total inst. latency: 30'000 -  5'000 = 25'000 ticks
-            //
-            // With QPC = 10 MHz:
-            //   10'000 ticks = 0.001 ms
-            //   20'000 ticks = 0.002 ms
-            //   25'000 ticks = 0.0025 ms
-            //
-            // Call pattern (mirroring ReportMetrics for a displayed app frame):
-            //
-            //   P0 arrives:
-            //       ComputeMetricsForPresent(P0, nullptr, chain)   // Case 2, pending only
-            //
-            //   P1 arrives:
-            //       ComputeMetricsForPresent(P0, &P1, chain)       // Case 3, finalize P0
-            //       ComputeMetricsForPresent(P1, nullptr, chain)   // pending P1 (ignored)
-            //
-            // We verify on P0's final metrics:
-            //   - msInstrumentedRenderLatency has a value and matches Delta(appRenderSubmitStartTime, screenTime).
-            //   - msReadyTimeToDisplayLatency has a value and matches Delta(readyTime, screenTime).
-            //   - msInstrumentedLatency has a value and matches Delta(appSleepEndTime, screenTime).
-
             QpcConverter      qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
-            const uint32_t PROCESS_ID = 1234;
-            const uint64_t SWAPCHAIN = 0xABC0;
-
-            // --------------------------------------------------------------------
-            // P0: Displayed Application frame with full instrumented display data
-            // --------------------------------------------------------------------
             FrameData p0{};
-            p0.processId = PROCESS_ID;
-            p0.swapChainAddress = SWAPCHAIN;
-
             p0.presentStartTime = 0;
             p0.timeInPresent = 0;
-            p0.readyTime = 20'000; // ReadyTime
-
-            // Instrumented markers
+            p0.readyTime = 20'000;
             p0.appRenderSubmitStartTime = 10'000;
             p0.appSleepEndTime = 5'000;
-            p0.appSimStartTime = 0;     // not needed in this test
-
-            // Mark as displayed Application frame with a single screen time.
+            p0.appSimStartTime = 0;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.Clear();
-            p0.displayed.PushBack({ FrameType::Application, 30'000 }); // screenTime = 30'000
+            p0.displayed.PushBack({ FrameType::Application, 30'000 });
 
-            // First call: P0 arrives, becomes pending.
-            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
-            Assert::AreEqual(size_t(0), p0_phase1.size(),
-                L"P0 (phase 1): pending-only call with nextDisplayed=nullptr should produce no metrics.");
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
 
-            // --------------------------------------------------------------------
-            // P1: Next displayed app frame (used only as nextDisplayed for P0)
-            // --------------------------------------------------------------------
+            const auto& m0 = p0_results[0].metrics;
+            double expectedRenderMs = qpc.DeltaUnsignedMilliSeconds(10'000, 30'000);
+            double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(20'000, 30'000);
+            double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(5'000, 30'000);
+
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedRenderLatency));
+            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency));
+            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency, 1e-6);
+        }
+
+        TEST_METHOD(InstrumentedDisplay_AppFrame_FullData_ComputesAll_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.readyTime = 20'000;
+            p0.appRenderSubmitStartTime = 10'000;
+            p0.appSleepEndTime = 5'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 30'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
+
             FrameData p1{};
-            p1.processId = PROCESS_ID;
-            p1.swapChainAddress = SWAPCHAIN;
-
-            p1.presentStartTime = 0;
-            p1.timeInPresent = 0;
-            p1.readyTime = 0;
-
             p1.finalState = PresentResult::Presented;
-            p1.displayed.Clear();
-            p1.displayed.PushBack({ FrameType::Application, 40'000 }); // later display
+            p1.displayed.PushBack({ FrameType::Application, 40'000 });
 
-            // Second call: finalize P0 with nextDisplayed=P1
-            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
-            Assert::AreEqual(size_t(1), p0_final.size(),
-                L"P0 (final): expected exactly one metrics record when flushed with nextDisplayed=P1.");
+            auto rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::AreEqual(uint64_t(30'000), rows[0].computed.metrics.screenTimeQpc);
 
-            const auto& m0 = p0_final[0].metrics;
+            const auto& m0 = rows[0].computed.metrics;
+            double expectedRenderMs = qpc.DeltaUnsignedMilliSeconds(10'000, 30'000);
+            double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(20'000, 30'000);
+            double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(5'000, 30'000);
 
-            // For completeness, process P1 as pending (not used in this test).
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
-            Assert::AreEqual(size_t(0), p1_phase1.size(),
-                L"P1 (phase 1): first call with nextDisplayed=nullptr should produce no metrics (pending only).");
-
-            // --------------------------------------------------------------------
-            // Assertions for P0's instrumented display metrics
-            // --------------------------------------------------------------------
-            double expectedRenderMs = qpc.DeltaUnsignedMilliSeconds(10'000, 30'000); // 20'000 ticks
-            double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(20'000, 30'000); // 10'000 ticks
-            double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(5'000, 30'000); // 25'000 ticks
-
-            // Render latency
-            Assert::IsTrue(HasMetricValue(m0.msInstrumentedRenderLatency),
-                L"P0: msInstrumentedRenderLatency should have a value for a displayed app frame with AppRenderSubmitStartTime.");
-            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6,
-                L"P0: msInstrumentedRenderLatency did not match expected Delta(AppRenderSubmitStartTime, screenTime).");
-
-            // Ready-to-display latency
-            Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency),
-                L"P0: msReadyTimeToDisplayLatency should have a value when ReadyTime and screenTime are valid.");
-            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6,
-                L"P0: msReadyTimeToDisplayLatency did not match expected Delta(ReadyTime, screenTime).");
-
-            // Total instrumented latency: from appSleepEndTime to screenTime
-            Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency),
-                L"P0: msInstrumentedLatency should have a value when there is a valid instrumented start time.");
-            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency, 1e-6,
-                L"P0: msInstrumentedLatency did not match expected Delta(AppSleepEndTime, screenTime).");
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedRenderLatency));
+            Assert::AreEqual(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
+            Assert::AreEqual(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency));
+            Assert::AreEqual(expectedTotalMs, m0.msInstrumentedLatency, 1e-6);
         }
 
         TEST_METHOD(InstrumentedCpuGpu_AppFrame_NoSleep_UsesAppSimStart)
         {
-            // Scenario:
-            //   - Validate the instrumented CPU/GPU metrics when the application never enters an
-            //     instrumented sleep, forcing GPU latency to fall back to appSimStart.
-            //   - Also ensure msBetweenSimStarts uses the stored lastSimStartTime -> appSimStart delta
-            //     when no PCL sim timestamp is present.
-            //
-            // QPC frequency: 10 MHz.
-            //
-            // Pre-state:
-            //   chain.lastSimStartTime = 40'000 (represents the previous frame's sim start).
-            //
-            // P0 (displayed Application frame):
-            //   appSleepStartTime = 0
-            //   appSleepEndTime   = 0
-            //   appSimStartTime   = 70'000   (used for GPU latency + between-sim-starts)
-            //   pclSimStartTime   = 0        (forces AppSim fallback)
-            //   gpuStartTime      = 90'000
-            //   screenTime        = 120'000  (Application entry)
-            //   Delta(sim start vs last) = 30'000 ticks, Delta(sim start -> gpu) = 20'000 ticks.
-            //
-            // Call pattern (Case 2/3):
-            //   P0 pending -> Compute(..., nullptr)
-            //   P1 arrives -> Compute(P0, &P1) to finalize P0, then Compute(P1, nullptr) to seed next pending.
-            //
-            // Expectations on P0 final metrics:
-            //   - msInstrumentedSleep has no value (no sleep interval).
-            //   - msInstrumentedGpuLatency uses appSimStartTime (70'000 -> 90'000).
-            //   - msBetweenSimStarts computes 40'000 -> 70'000.
-
             QpcConverter       qpc(10'000'000, 0);
             SwapChainCoreState chain{};
             chain.lastSimStartTime = 40'000;
             chain.animationErrorSource = AnimationErrorSource::AppProvider;
 
-            const uint32_t PROCESS_ID = 4321;
-            const uint64_t SWAPCHAIN = 0x2222;
-
-            // P0: displayed Application frame with no sleep range but valid appSimStart
             FrameData p0{};
-            p0.processId = PROCESS_ID;
-            p0.swapChainAddress = SWAPCHAIN;
             p0.appSimStartTime = 70'000;
             p0.gpuStartTime = 90'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.Clear();
             p0.displayed.PushBack({ FrameType::Application, 120'000 });
 
-            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
-            Assert::AreEqual(size_t(0), p0_phase1.size(),
-                L"P0 (phase 1) should stay pending when nextDisplayed is unavailable.");
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
 
-            // P1: minimal next displayed application frame
-            FrameData p1{};
-            p1.processId = PROCESS_ID;
-            p1.swapChainAddress = SWAPCHAIN;
-            p1.finalState = PresentResult::Presented;
-            p1.displayed.Clear();
-            p1.displayed.PushBack({ FrameType::Application, 150'000 });
-
-            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
-            Assert::AreEqual(size_t(1), p0_final.size(),
-                L"P0 (final) should emit exactly one metrics record once nextDisplayed is provided.");
-
-            const auto& m0 = p0_final[0].metrics;
-            Assert::IsFalse(HasMetricValue(m0.msInstrumentedSleep),
-                L"P0: Instrumented sleep must be absent when the app never emitted sleep markers.");
-            Assert::IsTrue(HasMetricValue(m0.msInstrumentedGpuLatency),
-                L"P0: GPU latency should fall back to AppSimStart when no sleep end exists.");
-            Assert::IsTrue(HasMetricValue(m0.msBetweenSimStarts),
-                L"P0: Between-sim-starts should use the stored lastSimStartTime when AppSimStart is valid.");
+            const auto& m0 = p0_results[0].metrics;
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedSleep));
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedGpuLatency));
+            Assert::IsTrue(HasMetricValue(m0.msBetweenSimStarts));
 
             double expectedGpuMs = qpc.DeltaUnsignedMilliSeconds(70'000, 90'000);
             double expectedBetweenMs = qpc.DeltaUnsignedMilliSeconds(40'000, 70'000);
 
-            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency, 1e-6,
-                L"P0: msInstrumentedGpuLatency should measure Delta(AppSimStartTime, gpuStartTime).");
-            Assert::AreEqual(expectedBetweenMs, m0.msBetweenSimStarts, 1e-6,
-                L"P0: msBetweenSimStarts should use AppSimStart when no PCL sim exists.");
+            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency, 1e-6);
+            Assert::AreEqual(expectedBetweenMs, m0.msBetweenSimStarts, 1e-6);
+        }
 
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
-            Assert::AreEqual(size_t(0), p1_phase1.size(),
-                L"P1 (phase 1) remains pending for completeness.");
+        TEST_METHOD(InstrumentedCpuGpu_AppFrame_NoSleep_UsesAppSimStart_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+            swapChain.swapChain.lastSimStartTime = 40'000;
+            swapChain.swapChain.animationErrorSource = AnimationErrorSource::AppProvider;
+
+            FrameData p0{};
+            p0.appSimStartTime = 70'000;
+            p0.gpuStartTime = 90'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 120'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
+
+            FrameData p1{};
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 150'000 });
+
+            auto rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::AreEqual(uint64_t(120'000), rows[0].computed.metrics.screenTimeQpc);
+
+            const auto& m0 = rows[0].computed.metrics;
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedSleep));
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedGpuLatency));
+            Assert::IsTrue(HasMetricValue(m0.msBetweenSimStarts));
+
+            double expectedGpuMs = qpc.DeltaUnsignedMilliSeconds(70'000, 90'000);
+            double expectedBetweenMs = qpc.DeltaUnsignedMilliSeconds(40'000, 70'000);
+
+            Assert::AreEqual(expectedGpuMs, m0.msInstrumentedGpuLatency, 1e-6);
+            Assert::AreEqual(expectedBetweenMs, m0.msBetweenSimStarts, 1e-6);
         }
 
         TEST_METHOD(InstrumentedCpuGpu_AppFrame_NoSleepNoSim_NoInstrumentedCpuGpu)
         {
-            // Scenario:
-            //   - Displayed Application frame with no instrumented sleep markers and neither appSimStartTime
-            //     nor pclSimStartTime populated. GPU start exists, but there is no instrumented start anchor.
-            //
-            // QPC frequency: 10 MHz.
-            //   Pre-state: chain.lastSimStartTime = 55'000.
-            //   P0 fields: appSleepStart=0, appSleepEnd=0, appSimStart=0, pclSimStart=0, gpuStart=80'000,
-            //              screenTime=100'000 (Application display).
-            //   Derived deltas: none are valid because the start markers are zero.
-            //
-            // Call pattern (Case 2/3):
-            //   P0 pending -> Compute(..., nullptr)
-            //   P1 arrives -> Compute(P0, &P1) to flush, then Compute(P1, nullptr) for completeness.
-            //
-            // Expectations: all three instrumented CPU metrics stay std::nullopt for P0.
-
             QpcConverter       qpc(10'000'000, 0);
             SwapChainCoreState chain{};
             chain.lastSimStartTime = 55'000;
 
-            const uint32_t PROCESS_ID = 9876;
-            const uint64_t SWAPCHAIN = 0xEF00;
-
             FrameData p0{};
-            p0.processId = PROCESS_ID;
-            p0.swapChainAddress = SWAPCHAIN;
             p0.gpuStartTime = 80'000;
             p0.finalState = PresentResult::Presented;
-            p0.displayed.Clear();
             p0.displayed.PushBack({ FrameType::Application, 100'000 });
 
-            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
-            Assert::AreEqual(size_t(0), p0_phase1.size());
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
+
+            const auto& m0 = p0_results[0].metrics;
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedSleep));
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedGpuLatency));
+            Assert::IsFalse(HasMetricValue(m0.msBetweenSimStarts));
+        }
+
+        TEST_METHOD(InstrumentedCpuGpu_AppFrame_NoSleepNoSim_NoInstrumentedCpuGpu_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+            swapChain.swapChain.lastSimStartTime = 55'000;
+
+            FrameData p0{};
+            p0.gpuStartTime = 80'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 100'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
 
             FrameData p1{};
-            p1.processId = PROCESS_ID;
-            p1.swapChainAddress = SWAPCHAIN;
             p1.finalState = PresentResult::Presented;
             p1.displayed.PushBack({ FrameType::Application, 120'000 });
 
-            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
-            Assert::AreEqual(size_t(1), p0_final.size());
+            auto rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), rows.size());
 
-            const auto& m0 = p0_final[0].metrics;
-            Assert::IsFalse(HasMetricValue(m0.msInstrumentedSleep),
-                L"P0: sleep metrics require both start and end markers.");
-            Assert::IsFalse(HasMetricValue(m0.msInstrumentedGpuLatency),
-                L"P0: GPU latency must remain off without an instrumented start time.");
-            Assert::IsFalse(HasMetricValue(m0.msBetweenSimStarts),
-                L"P0: between-sim-starts cannot be computed without a new sim start.");
-
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
-            Assert::AreEqual(size_t(0), p1_phase1.size());
+            const auto& m0 = rows[0].computed.metrics;
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedSleep));
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedGpuLatency));
+            Assert::IsFalse(HasMetricValue(m0.msBetweenSimStarts));
         }
 
         TEST_METHOD(InstrumentedCpuGpu_AppFrame_NotDisplayed_StillComputed)
@@ -6390,6 +6244,30 @@ TEST_CLASS(ComputeMetricsForPresentTests)
         TEST_METHOD(InstrumentedCpuGpu_NonAppFrame_Ignored)
         {
             QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+            chain.lastSimStartTime = 60'000;
+
+            FrameData p0{};
+            p0.appSleepStartTime = 11'000;
+            p0.appSleepEndTime = 21'000;
+            p0.appSimStartTime = 70'000;
+            p0.pclSimStartTime = 72'000;
+            p0.gpuStartTime = 90'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Repeated, 120'000 });
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
+
+            const auto& m0 = p0_results[0].metrics;
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedSleep));
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedGpuLatency));
+            Assert::IsFalse(HasMetricValue(m0.msBetweenSimStarts));
+        }
+
+        TEST_METHOD(InstrumentedCpuGpu_NonAppFrame_Ignored_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
             UnifiedSwapChain swapChain{};
 
             const uint32_t PROCESS_ID = 5555;
@@ -6446,18 +6324,6 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
         TEST_METHOD(InstrumentedDisplay_AppFrame_NoRenderSubmit_RenderLatencyOff)
         {
-            // Scenario:
-            //   - Displayed Application frame missing appRenderSubmitStartTime but with readyTime + sleep end.
-            //
-            // QPC frequency: 10 MHz.
-            //   P0 fields: readyTime = 80'000, appSleepEndTime = 50'000, no render submit, screenTime = 100'000.
-            //   Derived deltas: ready->display Delta = 20'000 ticks, total latency Delta = 50'000 ticks.
-            //
-            // Call pattern: Case 2/3 (P0 pending, finalized by P1, then P1 pending).
-            //
-            // Expectations: msInstrumentedRenderLatency = nullopt, while msReadyTimeToDisplayLatency and
-            //               msInstrumentedLatency match the deltas above.
-
             QpcConverter       qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
@@ -6467,52 +6333,61 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.finalState = PresentResult::Presented;
             p0.displayed.PushBack({ FrameType::Application, 100'000 });
 
-            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
-            Assert::AreEqual(size_t(0), p0_phase1.size());
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            const auto& m0 = p0_results[0].metrics;
+
+            double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(80'000, 100'000);
+            double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(50'000, 100'000);
+
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedRenderLatency));
+            Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
+            AssertAreEqualWithinTolerance(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency));
+            AssertAreEqualWithinTolerance(expectedTotalMs, m0.msInstrumentedLatency, 1e-6);
+        }
+
+        TEST_METHOD(InstrumentedDisplay_AppFrame_NoRenderSubmit_RenderLatencyOff_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.readyTime = 80'000;
+            p0.appSleepEndTime = 50'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 100'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
 
             FrameData p1{};
             p1.finalState = PresentResult::Presented;
             p1.displayed.PushBack({ FrameType::Application, 130'000 });
 
-            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
-            Assert::AreEqual(size_t(1), p0_final.size());
-            const auto& m0 = p0_final[0].metrics;
+            auto rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), rows.size());
+            const auto& m0 = rows[0].computed.metrics;
 
             double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(80'000, 100'000);
             double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(50'000, 100'000);
 
-            Assert::IsFalse(HasMetricValue(m0.msInstrumentedRenderLatency),
-                L"Render latency must remain off without appRenderSubmitStartTime.");
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedRenderLatency));
             Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
             AssertAreEqualWithinTolerance(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
-
             Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency));
             AssertAreEqualWithinTolerance(expectedTotalMs, m0.msInstrumentedLatency, 1e-6);
-
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
-            Assert::AreEqual(size_t(0), p1_phase1.size());
         }
 
         TEST_METHOD(InstrumentedDisplay_AppFrame_NoSleep_UsesAppSimStart)
         {
-            // Scenario:
-            //   - Displayed Application frame lacks appSleepEndTime but provides appSimStartTime.
-            //
-            // QPC timeline (10 MHz):
-            //   P0.appRenderSubmitStartTime = 10'000
-            //   P0.appSimStartTime         =  5'000
-            //   P0.readyTime               = 30'000
-            //   P0.screenTime              = 60'000
-            //   Derived deltas:
-            //     - Render latency: 50'000 ticks
-            //     - Ready->display: 30'000 ticks
-            //     - Total instrumented latency (AppSim->screen): 55'000 ticks
-            //
-            // Call pattern: Case 2/3.
-            //
-            // Expectations: render + ready latencies computed normally; msInstrumentedLatency should fall back
-            //               to AppSimStartTime since sleep end is missing.
-
             QpcConverter       qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
@@ -6524,16 +6399,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.finalState = PresentResult::Presented;
             p0.displayed.PushBack({ FrameType::Application, 60'000 });
 
-            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
-            Assert::AreEqual(size_t(0), p0_phase1.size());
-
-            FrameData p1{};
-            p1.finalState = PresentResult::Presented;
-            p1.displayed.PushBack({ FrameType::Application, 90'000 });
-
-            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
-            Assert::AreEqual(size_t(1), p0_final.size());
-            const auto& m0 = p0_final[0].metrics;
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            const auto& m0 = p0_results[0].metrics;
 
             double expectedRenderMs = qpc.DeltaUnsignedMilliSeconds(10'000, 60'000);
             double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(30'000, 60'000);
@@ -6544,28 +6412,53 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
             AssertAreEqualWithinTolerance(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
             Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency));
-            AssertAreEqualWithinTolerance(expectedTotalMs, m0.msInstrumentedLatency, 1e-6,
-                L"Total latency should fall back to AppSimStartTime when sleep end is missing.");
+            AssertAreEqualWithinTolerance(expectedTotalMs, m0.msInstrumentedLatency, 1e-6);
+        }
 
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
-            Assert::AreEqual(size_t(0), p1_phase1.size());
+        TEST_METHOD(InstrumentedDisplay_AppFrame_NoSleep_UsesAppSimStart_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.appRenderSubmitStartTime = 10'000;
+            p0.appSimStartTime = 5'000;
+            p0.readyTime = 30'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 60'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
+
+            FrameData p1{};
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 90'000 });
+
+            auto rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), rows.size());
+            const auto& m0 = rows[0].computed.metrics;
+
+            double expectedRenderMs = qpc.DeltaUnsignedMilliSeconds(10'000, 60'000);
+            double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(30'000, 60'000);
+            double expectedTotalMs = qpc.DeltaUnsignedMilliSeconds(5'000, 60'000);
+
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedRenderLatency));
+            AssertAreEqualWithinTolerance(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
+            AssertAreEqualWithinTolerance(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedLatency));
+            AssertAreEqualWithinTolerance(expectedTotalMs, m0.msInstrumentedLatency, 1e-6);
         }
 
         TEST_METHOD(InstrumentedDisplay_AppFrame_NoSleepNoSim_NoTotalLatency)
         {
-            // Scenario:
-            //   - Displayed Application frame has render submit + ready markers but neither appSleepEndTime
-            //     nor appSimStartTime, so the total instrumented latency should be disabled.
-            //
-            // QPC values (10 MHz): appRenderSubmitStartTime = 12'000, readyTime = 32'000, screenTime = 70'000.
-            //   Derived deltas:
-            //     - Render latency Delta = 58'000 ticks
-            //     - Ready->display Delta = 38'000 ticks
-            //
-            // Call pattern: Case 2/3.
-            //
-            // Expectations: render + ready metrics populated with the deltas above; msInstrumentedLatency is nullopt.
-
             QpcConverter       qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
@@ -6575,16 +6468,9 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p0.finalState = PresentResult::Presented;
             p0.displayed.PushBack({ FrameType::Application, 70'000 });
 
-            auto p0_phase1 = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
-            Assert::AreEqual(size_t(0), p0_phase1.size());
-
-            FrameData p1{};
-            p1.finalState = PresentResult::Presented;
-            p1.displayed.PushBack({ FrameType::Application, 90'000 });
-
-            auto p0_final = ComputeMetricsForPresent(qpc, p0, &p1, chain);
-            Assert::AreEqual(size_t(1), p0_final.size());
-            const auto& m0 = p0_final[0].metrics;
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            const auto& m0 = p0_results[0].metrics;
 
             double expectedRenderMs = qpc.DeltaUnsignedMilliSeconds(12'000, 70'000);
             double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(32'000, 70'000);
@@ -6593,14 +6479,69 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             AssertAreEqualWithinTolerance(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6);
             Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
             AssertAreEqualWithinTolerance(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
-            Assert::IsFalse(HasMetricValue(m0.msInstrumentedLatency),
-                L"Total instrumented latency must stay off without an instrumented start.");
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedLatency));
+        }
 
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
-            Assert::AreEqual(size_t(0), p1_phase1.size());
+        TEST_METHOD(InstrumentedDisplay_AppFrame_NoSleepNoSim_NoTotalLatency_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.appRenderSubmitStartTime = 12'000;
+            p0.readyTime = 32'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Application, 70'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p0)).size());
+
+            FrameData p1{};
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 90'000 });
+
+            auto rows = swapChain.ProcessPresent(qpc, std::move(p1));
+            Assert::AreEqual(size_t(1), rows.size());
+            const auto& m0 = rows[0].computed.metrics;
+
+            double expectedRenderMs = qpc.DeltaUnsignedMilliSeconds(12'000, 70'000);
+            double expectedReadyMs = qpc.DeltaUnsignedMilliSeconds(32'000, 70'000);
+
+            Assert::IsTrue(HasMetricValue(m0.msInstrumentedRenderLatency));
+            AssertAreEqualWithinTolerance(expectedRenderMs, m0.msInstrumentedRenderLatency, 1e-6);
+            Assert::IsTrue(HasMetricValue(m0.msReadyTimeToDisplayLatency));
+            AssertAreEqualWithinTolerance(expectedReadyMs, m0.msReadyTimeToDisplayLatency, 1e-6);
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedLatency));
         }
 
         TEST_METHOD(InstrumentedDisplay_NonAppFrame_Ignored)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData p0{};
+            p0.readyTime = 30'000;
+            p0.appRenderSubmitStartTime = 10'000;
+            p0.appSleepEndTime = 5'000;
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Repeated, 60'000 });
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
+
+            const auto& m0 = p0_results[0].metrics;
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedRenderLatency));
+            Assert::IsFalse(HasMetricValue(m0.msInstrumentedLatency));
+        }
+
+        TEST_METHOD(InstrumentedDisplay_NonAppFrame_Ignored_ProcessPresent)
         {
             QpcConverter qpc(10'000'000, 0);
             UnifiedSwapChain swapChain{};
@@ -6676,86 +6617,83 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
         TEST_METHOD(InstrumentedInput_DroppedAppFrame_PendingProviderInput_ConsumedOnDisplay)
         {
-            // Scenario:
-            //   - P0 is a dropped Application frame that carries an App provider input sample at 20'000 ticks.
-            //   - P1 is the next displayed Application frame (screenTime = 70'000) without its own sample.
-            //   - P2 is a synthetic follower to flush P1, mirroring the ReportMetrics Case 2/3 pattern.
-            //
-            // QPC-derived delta: 70'000 - 20'000 = 50'000 ticks = 5 ms (with 10 MHz QPC).
-            //
-            // Call pattern:
-            //   - P0 (Case 1) -> Compute(..., nullptr) populates lastReceivedNotDisplayedAppProviderInputTime.
-            //   - P1 pending -> Compute(P1, nullptr).
-            //   - P1 final -> Compute(P1, &P2) produces metrics.
-            //
-            // Expectations:
-            //   - Cached provider input equals 20'000 after P0.
-            //   - P1 reports msInstrumentedInputTime = 5 ms and clears all pending caches afterward.
-
             QpcConverter       qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
             const uint64_t pendingInputTime = 20'000;
 
-            // P0: Dropped Application frame with provider input.
             FrameData p0{};
             p0.appInputSample = { pendingInputTime, InputDeviceType::Mouse };
             p0.finalState = PresentResult::Discarded;
 
             auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
             Assert::AreEqual(size_t(1), p0_results.size());
-            Assert::IsTrue(IsMissingFrameMetricValue(p0_results[0].metrics.msInstrumentedInputTime),
-                L"Dropped provider input should remain missing until a displayed frame consumes it.");
-            Assert::AreEqual(pendingInputTime, chain.lastReceivedNotDisplayedAppProviderInputTime,
-                L"Dropped provider input should be cached until a displayed frame consumes it.");
+            Assert::IsTrue(IsMissingFrameMetricValue(p0_results[0].metrics.msInstrumentedInputTime));
+            Assert::AreEqual(pendingInputTime, chain.lastReceivedNotDisplayedAppProviderInputTime);
 
-            // P1: Displayed Application frame without its own AppInputSample.
             FrameData p1{};
             p1.finalState = PresentResult::Presented;
             p1.displayed.PushBack({ FrameType::Application, 70'000 });
 
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
-            Assert::AreEqual(size_t(0), p1_phase1.size());
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(1), p1_results.size());
+            const auto& m1 = p1_results[0].metrics;
 
-            // P2: Simple next displayed frame to flush P1.
+            Assert::IsTrue(HasMetricValue(m1.msInstrumentedInputTime));
+            double expectedInputMs = qpc.DeltaUnsignedMilliSeconds(pendingInputTime, 70'000);
+            AssertAreEqualWithinTolerance(expectedInputMs, m1.msInstrumentedInputTime, 1e-6);
+
+            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime);
+            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAllInputTime);
+            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedMouseClickTime);
+        }
+
+        TEST_METHOD(InstrumentedInput_DroppedAppFrame_PendingProviderInput_ConsumedOnDisplay_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            const uint64_t pendingInputTime = 20'000;
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.appInputSample = { pendingInputTime, InputDeviceType::Mouse };
+            p0.finalState = PresentResult::Discarded;
+
+            auto p0_rows = swapChain.ProcessPresent(qpc, std::move(p0));
+            Assert::AreEqual(size_t(1), p0_rows.size());
+            Assert::AreEqual(pendingInputTime, swapChain.swapChain.lastReceivedNotDisplayedAppProviderInputTime);
+
+            FrameData p1{};
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 70'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p1)).size());
+
             FrameData p2{};
             p2.finalState = PresentResult::Presented;
             p2.displayed.PushBack({ FrameType::Application, 90'000 });
 
-            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, chain);
-            Assert::AreEqual(size_t(1), p1_final.size());
-            const auto& m1 = p1_final[0].metrics;
+            auto p2_rows = swapChain.ProcessPresent(qpc, std::move(p2));
+            Assert::AreEqual(size_t(1), p2_rows.size());
+            Assert::AreEqual(uint64_t(70'000), p2_rows[0].computed.metrics.screenTimeQpc);
 
-            Assert::IsTrue(HasMetricValue(m1.msInstrumentedInputTime),
-                L"P1 should consume the cached provider input time once it is displayed.");
+            const auto& m1 = p2_rows[0].computed.metrics;
+            Assert::IsTrue(HasMetricValue(m1.msInstrumentedInputTime));
             double expectedInputMs = qpc.DeltaUnsignedMilliSeconds(pendingInputTime, 70'000);
             AssertAreEqualWithinTolerance(expectedInputMs, m1.msInstrumentedInputTime, 1e-6);
-
-            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime,
-                L"Pending provider input cache must be cleared after consumption.");
-            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAllInputTime);
-            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedMouseClickTime);
-
-            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, chain);
-            Assert::AreEqual(size_t(0), p2_phase1.size());
+            Assert::AreEqual(uint64_t(0), swapChain.swapChain.lastReceivedNotDisplayedAppProviderInputTime);
         }
 
         TEST_METHOD(InstrumentedInput_DisplayedAppFrame_WithOwnSample_IgnoresPending)
         {
-            // Scenario:
-            //   - P0 (dropped) seeds pending provider input at 10'000 ticks.
-            //   - P1 (displayed Application) carries its own sample at 15'000 ticks and displays at 60'000.
-            //   - P2 finalizes P1.
-            //
-            // QPC-derived deltas:
-            //   - Pending path would have produced 50'000 ticks, but we expect 45'000 ticks from P1's own sample.
-            //
-            // Call pattern: identical to Test 10 (Case 1 for P0, Case 2/3 for P1).
-            //
-            // Expectations:
-            //   - Cached pending input updated after P0.
-            //   - P1 final metrics use Delta(15'000, 60'000) only and clear the pending cache.
-
             QpcConverter       qpc(10'000'000, 0);
             SwapChainCoreState chain{};
 
@@ -6775,29 +6713,87 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             p1.finalState = PresentResult::Presented;
             p1.displayed.PushBack({ FrameType::Application, 60'000 });
 
-            auto p1_phase1 = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
-            Assert::AreEqual(size_t(0), p1_phase1.size());
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(1), p1_results.size());
+            const auto& m1 = p1_results[0].metrics;
+
+            double expectedInputMs = qpc.DeltaUnsignedMilliSeconds(directInputTime, 60'000);
+            Assert::IsTrue(HasMetricValue(m1.msInstrumentedInputTime));
+            AssertAreEqualWithinTolerance(expectedInputMs, m1.msInstrumentedInputTime, 1e-6);
+            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime);
+        }
+
+        TEST_METHOD(InstrumentedInput_DisplayedAppFrame_WithOwnSample_IgnoresPending_ProcessPresent)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            const uint64_t pendingInputTime = 10'000;
+            const uint64_t directInputTime = 15'000;
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData p0{};
+            p0.appInputSample = { pendingInputTime, InputDeviceType::Keyboard };
+            p0.finalState = PresentResult::Discarded;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(p0));
+            Assert::AreEqual(pendingInputTime, swapChain.swapChain.lastReceivedNotDisplayedAppProviderInputTime);
+
+            FrameData p1{};
+            p1.appInputSample = { directInputTime, InputDeviceType::Mouse };
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 60'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(p1)).size());
 
             FrameData p2{};
             p2.finalState = PresentResult::Presented;
             p2.displayed.PushBack({ FrameType::Application, 80'000 });
 
-            auto p1_final = ComputeMetricsForPresent(qpc, p1, &p2, chain);
-            Assert::AreEqual(size_t(1), p1_final.size());
-            const auto& m1 = p1_final[0].metrics;
+            auto p2_rows = swapChain.ProcessPresent(qpc, std::move(p2));
+            Assert::AreEqual(size_t(1), p2_rows.size());
+            Assert::AreEqual(uint64_t(60'000), p2_rows[0].computed.metrics.screenTimeQpc);
 
+            const auto& m1 = p2_rows[0].computed.metrics;
             double expectedInputMs = qpc.DeltaUnsignedMilliSeconds(directInputTime, 60'000);
             Assert::IsTrue(HasMetricValue(m1.msInstrumentedInputTime));
-            AssertAreEqualWithinTolerance(expectedInputMs, m1.msInstrumentedInputTime, 1e-6,
-                L"P1 must prefer its own input marker over pending values.");
-
-            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime);
-
-            auto p2_phase1 = ComputeMetricsForPresent(qpc, p2, nullptr, chain);
-            Assert::AreEqual(size_t(0), p2_phase1.size());
+            AssertAreEqualWithinTolerance(expectedInputMs, m1.msInstrumentedInputTime, 1e-6);
+            Assert::AreEqual(uint64_t(0), swapChain.swapChain.lastReceivedNotDisplayedAppProviderInputTime);
         }
 
         TEST_METHOD(InstrumentedInput_NonAppFrame_DoesNotAffectInstrumentedInputTime)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            const uint64_t ignoredInputTime = 25'000;
+
+            FrameData p0{};
+            p0.appInputSample = { ignoredInputTime, InputDeviceType::Mouse };
+            p0.finalState = PresentResult::Presented;
+            p0.displayed.PushBack({ FrameType::Repeated, 50'000 });
+
+            auto p0_results = ComputeMetricsForPresent(qpc, p0, nullptr, chain);
+            Assert::AreEqual(size_t(1), p0_results.size());
+            Assert::AreEqual(uint64_t(0), chain.lastReceivedNotDisplayedAppProviderInputTime);
+
+            FrameData p1{};
+            p1.finalState = PresentResult::Presented;
+            p1.displayed.PushBack({ FrameType::Application, 80'000 });
+
+            auto p1_results = ComputeMetricsForPresent(qpc, p1, nullptr, chain);
+            Assert::AreEqual(size_t(1), p1_results.size());
+            Assert::IsTrue(IsMissingFrameMetricValue(p1_results[0].metrics.msInstrumentedInputTime));
+        }
+
+        TEST_METHOD(InstrumentedInput_NonAppFrame_DoesNotAffectInstrumentedInputTime_ProcessPresent)
         {
             QpcConverter qpc(10'000'000, 0);
             UnifiedSwapChain swapChain{};
