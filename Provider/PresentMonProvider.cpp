@@ -45,6 +45,7 @@ enum Event {
     Event_PresentFrameType,
     Event_PresentFrameTypeV2,
     Event_FlipFrameType,
+    Event_FlipFrameTypeV2,
     Event_MeasuredInput,
     Event_MeasuredScreenChange,
     Event_AppSleepStart,
@@ -66,6 +67,7 @@ static EVENT_DESCRIPTOR const EventDescriptor[] = {
     { ID_PresentFrameType,       0, 0, TRACE_LEVEL_INFORMATION, EVENT_TRACE_TYPE_INFO, ID_PresentFrameType,       Keyword_FrameTypes },
     { ID_PresentFrameType,       1, 0, TRACE_LEVEL_INFORMATION, EVENT_TRACE_TYPE_INFO, ID_PresentFrameType,       Keyword_FrameTypes },
     { ID_FlipFrameType,          0, 0, TRACE_LEVEL_INFORMATION, EVENT_TRACE_TYPE_INFO, ID_FlipFrameType,          Keyword_FrameTypes },
+    { ID_FlipFrameType,          1, 0, TRACE_LEVEL_INFORMATION, EVENT_TRACE_TYPE_INFO, ID_FlipFrameType,          Keyword_FrameTypes },
     { ID_MeasuredInput,          0, 0, TRACE_LEVEL_INFORMATION, EVENT_TRACE_TYPE_INFO, ID_MeasuredInput,          Keyword_Measurements },
     { ID_MeasuredScreenChange,   0, 0, TRACE_LEVEL_INFORMATION, EVENT_TRACE_TYPE_INFO, ID_MeasuredScreenChange,   Keyword_Measurements },
     { ID_AppSleepStart,          0, 0, TRACE_LEVEL_INFORMATION, EVENT_TRACE_TYPE_INFO, ID_AppSleepStart,          Keyword_Application },
@@ -288,6 +290,23 @@ ULONG PresentMonProvider_FlipFrameType(
                                                  layerIndex,
                                                  presentId,
                                                  (uint8_t) frameType);
+}
+
+ULONG PresentMonProvider_FlipFrameType(PresentMonProvider* ctxt,
+    uint32_t vidPnSourceId,
+    uint32_t layerIndex,
+    uint64_t presentId,
+    PresentMonProvider_FrameType frameType,
+    uint64_t timeStamp)
+{
+    PRESENTMONPROVIDER_ASSERT(ctxt != nullptr);
+    PRESENTMONPROVIDER_ASSERT(IsValid(frameType));
+
+    return WriteEvent(ctxt, Event_FlipFrameTypeV2, vidPnSourceId,
+                                                   layerIndex,
+                                                   presentId,
+                                                   (uint8_t) frameType,
+                                                   timeStamp);
 }
 
 ULONG PresentMonProvider_MeasuredInput(
