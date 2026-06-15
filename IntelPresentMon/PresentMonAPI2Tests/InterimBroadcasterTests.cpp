@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
 #include "../CommonUtilities/Env.h"
@@ -153,7 +153,7 @@ namespace InterimBroadcasterTests
             // verify initial status
             const auto status = fixture_.service->QueryStatus();
             Assert::AreEqual(0ull, status.trackedPids.size());
-            Assert::AreEqual(0ull, status.frameStorePids.size());
+            Assert::AreEqual(0ull, status.processStorePids.size());
             Assert::AreEqual(16u, status.telemetryPeriodMs);
             Assert::IsFalse((bool)status.etwFlushPeriodMs);
         }
@@ -913,10 +913,10 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
             // open the store
-            pComms->OpenFrameDataStore(pres.GetId());
+            pComms->OpenProcessDataStore(pres.GetId());
 
             // verify static data
-            auto& store = pComms->GetFrameDataStore(pres.GetId());
+            auto& store = pComms->GetProcessDataStore(pres.GetId());
             Assert::AreEqual(pres.GetId(), store.bookkeeping.processId);
             const std::string staticAppName = store.statics.applicationName.c_str();
             Assert::AreEqual("PresentBench.exe"s, staticAppName);
@@ -929,9 +929,9 @@ namespace InterimBroadcasterTests
 
             auto pres = fixture_.LaunchPresenter();
             client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
-            pComms->OpenFrameDataStore(pres.GetId());
+            pComms->OpenProcessDataStore(pres.GetId());
 
-            AssertSegmentRejectsWrite_(namer.MakeFrameName(pres.GetId()));
+            AssertSegmentRejectsWrite_(namer.MakeProcessName(pres.GetId()));
         }
         TEST_METHOD(TrackUntrack)
         {
@@ -943,32 +943,32 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
             // verify the store exists
-            pComms->OpenFrameDataStore(pres.GetId());
+            pComms->OpenProcessDataStore(pres.GetId());
 
             // verify the service tracking, as expected
             {
                 const auto sta = fixture_.service->QueryStatus();
                 Assert::AreEqual(1ull, sta.trackedPids.size());
                 Assert::IsTrue(sta.trackedPids.contains(pres.GetId()));
-                Assert::AreEqual(1ull, sta.frameStorePids.size());
-                Assert::IsTrue(sta.frameStorePids.contains(pres.GetId()));
+                Assert::AreEqual(1ull, sta.processStorePids.size());
+                Assert::IsTrue(sta.processStorePids.contains(pres.GetId()));
             }
 
             // stop tracking
             client.DispatchSync(svc::acts::StopTracking::Params{ .targetPid = pres.GetId() });
 
             // close the segment
-            pComms->CloseFrameDataStore(pres.GetId());
+            pComms->CloseProcessDataStore(pres.GetId());
 
             // verify the service not tracking, as expected
             {
                 const auto sta = fixture_.service->QueryStatus();
                 Assert::AreEqual(0ull, sta.trackedPids.size());
-                Assert::AreEqual(0ull, sta.frameStorePids.size());
+                Assert::AreEqual(0ull, sta.processStorePids.size());
             }
 
             // verify segment can no longer be opened
-            Assert::ExpectException<std::exception>([&] {pComms->OpenFrameDataStore(pres.GetId()); });
+            Assert::ExpectException<std::exception>([&] {pComms->OpenProcessDataStore(pres.GetId()); });
         }
         // make sure we get frames over time
         TEST_METHOD(ReadFrames)
@@ -984,8 +984,8 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
             // open the store
-            pComms->OpenFrameDataStore(pres.GetId());
-            auto& frames = pComms->GetFrameDataStore(pres.GetId()).frameData;
+            pComms->OpenProcessDataStore(pres.GetId());
+            auto& frames = pComms->GetProcessDataStore(pres.GetId()).frameData;
 
             pmon::tests::WaitForFirstFrame(frames, "realtime-read");
 
@@ -1028,8 +1028,8 @@ namespace InterimBroadcasterTests
             std::this_thread::sleep_for(1ms);
             client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
-            pComms->OpenFrameDataStore(pres.GetId());
-            auto& ring = pComms->GetFrameDataStore(pres.GetId()).frameData;
+            pComms->OpenProcessDataStore(pres.GetId());
+            auto& ring = pComms->GetProcessDataStore(pres.GetId()).frameData;
 
             pmon::tests::WaitForFirstFrame(ring, "rt-wrap-no-miss");
 
@@ -1098,8 +1098,8 @@ namespace InterimBroadcasterTests
             std::this_thread::sleep_for(1ms);
             client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
-            pComms->OpenFrameDataStore(pres.GetId());
-            auto& ring = pComms->GetFrameDataStore(pres.GetId()).frameData;
+            pComms->OpenProcessDataStore(pres.GetId());
+            auto& ring = pComms->GetProcessDataStore(pres.GetId()).frameData;
 
             auto range = ring.GetSerialRange();
             for (size_t i = 0; i < 20 && range.first == 0; ++i) {
@@ -1140,10 +1140,10 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
 
             // open the store
-            pComms->OpenFrameDataStore(pid);
+            pComms->OpenProcessDataStore(pid);
 
             // verify static data
-            auto& store = pComms->GetFrameDataStore(pid);
+            auto& store = pComms->GetProcessDataStore(pid);
             pmon::tests::WaitForFirstFrame(store.frameData, "paced-playback-static");
             Assert::AreEqual(pid, store.bookkeeping.processId);
             const std::string staticAppName = store.statics.applicationName.c_str();
@@ -1164,8 +1164,8 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
 
             // open the store
-            pComms->OpenFrameDataStore(pid);
-            auto& frames = pComms->GetFrameDataStore(pid).frameData;
+            pComms->OpenProcessDataStore(pid);
+            auto& frames = pComms->GetProcessDataStore(pid).frameData;
 
             pmon::tests::WaitForFirstFrame(frames, "paced-playback-read");
 
@@ -1209,10 +1209,10 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
 
             // open the store
-            pComms->OpenFrameDataStore(pid);
+            pComms->OpenProcessDataStore(pid);
 
             // verify static data
-            auto& store = pComms->GetFrameDataStore(pid);
+            auto& store = pComms->GetProcessDataStore(pid);
             pmon::tests::WaitForFirstFrame(store.frameData, "backpressured-playback-static");
             Assert::AreEqual(pid, store.bookkeeping.processId);
             const std::string staticAppName = store.statics.applicationName.c_str();
@@ -1235,8 +1235,8 @@ namespace InterimBroadcasterTests
                 .targetPid = pid, .isPlayback = true, .isBackpressured = true });
 
             // open the store
-            pComms->OpenFrameDataStore(pid);
-            auto& ring = pComms->GetFrameDataStore(pid).frameData;
+            pComms->OpenProcessDataStore(pid);
+            auto& ring = pComms->GetProcessDataStore(pid).frameData;
 
             pmon::tests::WaitForFirstFrame(ring, "backpressured-playback");
 
@@ -1331,8 +1331,8 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::StartTracking::Params{
                 .targetPid = pid, .isPlayback = true, .isBackpressured = true });
 
-            pComms->OpenFrameDataStore(pid);
-            auto& ring = pComms->GetFrameDataStore(pid).frameData;
+            pComms->OpenProcessDataStore(pid);
+            auto& ring = pComms->GetProcessDataStore(pid).frameData;
 
             pmon::tests::WaitForFirstFrame(ring, "pb-wrap-backpressure");
 

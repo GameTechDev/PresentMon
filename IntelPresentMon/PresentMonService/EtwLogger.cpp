@@ -24,6 +24,7 @@ namespace pmon::svc
             traceConsumer.mTrackAppTiming = true; // ... app timing data communicated through the Intel-PresentMon provider.
             traceConsumer.mTrackPcLatency = true; // ... Nvidia PCL stats.
             traceConsumer.mTrackProcessState = true; // initial process state dump (gets us names)
+            traceConsumer.mTrackD3D12ShaderCompilation = true; // ... D3D12 PSO compile ETW.
             // dry run of the provider enablement routine to extract the provider.event list
             EnableProvidersListing(0, nullptr, &traceConsumer, true, true, pTraceFilter);
             return std::vector{ std::from_range, pTraceFilter->GetProviderDescriptions() };

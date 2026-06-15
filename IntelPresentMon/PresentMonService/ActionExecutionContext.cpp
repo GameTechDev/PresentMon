@@ -1,4 +1,4 @@
-﻿#include "ActionExecutionContext.h"
+#include "ActionExecutionContext.h"
 #include <CommonUtilities/rng/MemberSlice.h>
 #include <CommonUtilities/rng/OptionalMinMax.h>
 #include "../Interprocess/source/act/ActionHelper.h"

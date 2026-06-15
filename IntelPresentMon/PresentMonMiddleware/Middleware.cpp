@@ -295,7 +295,7 @@ namespace pmon::mid
                 return pComms_->GetSystemDataStore().FindStaticMetric(element.metric);
             }
             if (element.deviceId == ipc::kUniversalDeviceId) {
-                return pComms_->GetFrameDataStore(processId).FindStaticMetric(element.metric);
+                return pComms_->GetProcessDataStore(processId).FindStaticMetric(element.metric);
             }
             return pComms_->GetGpuDataStore(element.deviceId).FindStaticMetric(element.metric);
         }();

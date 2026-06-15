@@ -345,6 +345,7 @@
     <ClInclude Include="ConsoleAdapter.h" />
     <ClInclude Include="ETW\Intel_PresentMon.h" />
     <ClInclude Include="ETW\Microsoft_Windows_D3D9.h" />
+    <ClInclude Include="ETW\Microsoft_Windows_Direct3D12.h" />
     <ClInclude Include="ETW\Microsoft_Windows_Dwm_Core.h" />
     <ClInclude Include="ETW\Microsoft_Windows_Dwm_Core_Win7.h" />
     <ClInclude Include="ETW\Microsoft_Windows_DXGI.h" />

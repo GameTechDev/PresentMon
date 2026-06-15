@@ -36,6 +36,11 @@ set events=%events% --event=Present::Stop
 call :etw_list "Microsoft-Windows-D3D9" "%out_dir%\Microsoft_Windows_D3D9.h"
 
 set events=
+set events=%events% --event=CreatePipelineStateObject::Start
+set events=%events% --event=CreatePipelineStateObject::Stop
+call :etw_list "Microsoft-Windows-Direct3D12" "%out_dir%\Microsoft_Windows_Direct3D12.h"
+
+set events=
 set events=%events% --event=MILEVENT_MEDIA_UCE_PROCESSPRESENTHISTORY_GetPresentHistory::Info
 set events=%events% --event=SCHEDULE_PRESENT::Start
 set events=%events% --event=SCHEDULE_SURFACEUPDATE::Info

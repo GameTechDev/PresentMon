@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2017-2026 Intel Corporation
+// Copyright (C) 2017-2026 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -6,6 +6,7 @@
 
 #include "ETW/Intel_PresentMon.h"
 #include "ETW/Microsoft_Windows_D3D9.h"
+#include "ETW/Microsoft_Windows_Direct3D12.h"
 #include "ETW/Microsoft_Windows_Dwm_Core.h"
 #include "ETW/Microsoft_Windows_Dwm_Core_Win7.h"
 #include "ETW/Microsoft_Windows_DXGI.h"
@@ -347,6 +348,55 @@ void PMTraceConsumer::HandleD3D9Event(EVENT_RECORD* pEventRecord)
         break;
     default:
         assert(!mFilteredEvents); // Assert that filtering is working if expected
+        break;
+    }
+}
+
+void PMTraceConsumer::HandleD3D12Event(EVENT_RECORD* pEventRecord)
+{
+    if (!mTrackD3D12ShaderCompilation) {
+        return;
+    }
+
+    auto const& hdr = pEventRecord->EventHeader;
+    if (!IsProcessTrackedForFiltering(hdr.ProcessId)) {
+        return;
+    }
+
+    PsoCompileActivityKey key{};
+    key.processId = hdr.ProcessId;
+    key.activityId = hdr.ActivityId;
+
+    switch (hdr.EventDescriptor.Id) {
+    case Microsoft_Windows_Direct3D12::CreatePipelineStateObject_Start::Id:
+    {
+        const uint64_t compileStartQpc = (uint64_t)hdr.TimeStamp.QuadPart;
+        std::lock_guard<std::mutex> lock(mPsoCompileEventMutex);
+        mPendingPsoCompileStartQpc[key] = compileStartQpc;
+        break;
+    }
+    case Microsoft_Windows_Direct3D12::CreatePipelineStateObject_Stop::Id:
+    {
+        const uint64_t compileCompleteQpc = (uint64_t)hdr.TimeStamp.QuadPart;
+        PsoCompileCompletedEvent completed{};
+        completed.ProcessId = hdr.ProcessId;
+        completed.CompileCompleteQpc = compileCompleteQpc;
+        {
+            std::lock_guard<std::mutex> lock(mPsoCompileEventMutex);
+            auto it = mPendingPsoCompileStartQpc.find(key);
+            if (it == mPendingPsoCompileStartQpc.end()) {
+                break;
+            }
+            if (compileCompleteQpc >= it->second) {
+                completed.DurationQpc = compileCompleteQpc - it->second;
+            }
+            mPendingPsoCompileStartQpc.erase(it);
+            mCompletedPsoCompileEvents.push_back(completed);
+        }
+        break;
+    }
+    default:
+        assert(!mFilteredEvents);
         break;
     }
 }
@@ -3582,6 +3632,12 @@ void PMTraceConsumer::DequeueProcessEvents(std::vector<ProcessEvent>& outProcess
     outProcessEvents.swap(mProcessEvents);
 }
 
+void PMTraceConsumer::DequeuePsoCompileEvents(std::vector<PsoCompileCompletedEvent>& outPsoCompileEvents)
+{
+    std::lock_guard<std::mutex> lock(mPsoCompileEventMutex);
+    outPsoCompileEvents.swap(mCompletedPsoCompileEvents);
+}
+
 void PMTraceConsumer::DequeuePresentEvents(std::vector<std::shared_ptr<PresentEvent>>& outPresentEvents)
 {
     outPresentEvents.clear();
@@ -3682,6 +3738,12 @@ void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
     {
         std::lock_guard<std::mutex> lock(mProcessEventMutex);
         mProcessEvents.clear();
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(mPsoCompileEventMutex);
+        mPendingPsoCompileStartQpc.clear();
+        mCompletedPsoCompileEvents.clear();
     }
 
     // Clear and potentially shrink present tracking maps

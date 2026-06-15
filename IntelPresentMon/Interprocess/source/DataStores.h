@@ -18,6 +18,15 @@ namespace pmon::ipc
     using FrameData = util::metrics::FrameData;
     using FrameHistoryRing = HistoryRing<FrameData, &FrameData::presentStartTime>;
 
+    // Per-process ETW event samples (not tied to a frame). PSO compile is the first consumer;
+    // additional metrics add fields here and bindings that read processData.
+    struct ProcessDataSample
+    {
+        double psoCompileDurationMs = 0.;
+        uint64_t eventCompleteQpc = 0;
+    };
+    using ProcessDataHistoryRing = HistoryRing<ProcessDataSample, &ProcessDataSample::eventCompleteQpc>;
+
     class MetricCapabilities;
     namespace intro
     {
@@ -32,7 +41,7 @@ namespace pmon::ipc
         // Frame + telemetry: ring sample capacity and optional override size.
         size_t ringSamples = 0;
         std::optional<size_t> overrideBytes;
-        // Frame-only: backpressure behavior for frame rings.
+        // Process (target) store: backpressure behavior for frame and process data rings.
         bool backpressured = false;
     };
 
@@ -45,15 +54,16 @@ namespace pmon::ipc
         int64_t,
         const char*>;
 
-	struct FrameDataStore
+	struct ProcessDataStore
 	{
-        FrameDataStore(ShmSegmentManager& segMan, size_t cap, bool backpressured)
+        ProcessDataStore(ShmSegmentManager& segMan, size_t cap, bool backpressured)
             :
             frameData{ cap, segMan.get_allocator<FrameData>(), backpressured },
+            processData{ cap, segMan.get_allocator<ProcessDataSample>(), backpressured },
             statics{ .applicationName{ segMan.get_allocator<char>() } }
         {}
-        FrameDataStore(ShmSegmentManager& segMan, const DataStoreSizingInfo& sizing)
-            : FrameDataStore(segMan, sizing.ringSamples, sizing.backpressured)
+        ProcessDataStore(ShmSegmentManager& segMan, const DataStoreSizingInfo& sizing)
+            : ProcessDataStore(segMan, sizing.ringSamples, sizing.backpressured)
         {}
         // values that never change over the life of a target, available for use with metric queries
         // often lazy initialized upon receipt of the first present/frame
@@ -72,6 +82,7 @@ namespace pmon::ipc
             bool isPlayback = false;
         } bookkeeping{};
 		FrameHistoryRing frameData;
+        ProcessDataHistoryRing processData;
 
         StaticMetricValue FindStaticMetric(PM_METRIC metric) const;
 
@@ -133,4 +144,3 @@ namespace pmon::ipc
         const DataStoreSizingInfo& sizing,
         PM_DEVICE_TYPE deviceType);
 }
-

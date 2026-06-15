@@ -20,6 +20,7 @@ public:
     HANDLE GetStreamingStartHandle() override;
     void FlushEvents() override;
     void ResetEtwFlushPeriod() override;
+    void UpdateD3D12ShaderCompilationTracking(bool enabled);
 
 private:
     // functions
@@ -41,6 +42,7 @@ private:
         std::vector<ProcessEvent>* processEvents,
         std::vector<std::shared_ptr<PresentEvent>>* presentEvents,
         std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses);
+    void AddPsoCompileEvents();
 
     void StartOutputThread();
     void StopOutputThread();

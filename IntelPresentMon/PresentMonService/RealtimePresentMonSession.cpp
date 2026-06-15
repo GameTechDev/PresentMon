@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Logging.h"
 #include "RealtimePresentMonSession.h"
@@ -266,6 +266,62 @@ void RealtimePresentMonSession::DequeueAnalyzedInfo(
     }
 }
 
+void RealtimePresentMonSession::AddPsoCompileEvents()
+{
+    if (!session_active_.load(std::memory_order_acquire) || !pm_consumer_ || !pBroadcaster) {
+        return;
+    }
+
+    std::vector<PsoCompileCompletedEvent> psoCompileEvents;
+    pm_consumer_->DequeuePsoCompileEvents(psoCompileEvents);
+    if (psoCompileEvents.empty()) {
+        return;
+    }
+
+    for (const auto& compileEvent : psoCompileEvents) {
+        if (!IsProcessTracked(compileEvent.ProcessId)) {
+            continue;
+        }
+        const double durationMs = trace_session_.TimestampDeltaToMilliSeconds(compileEvent.DurationQpc);
+        pBroadcaster->BroadcastProcessDataSample(compileEvent.ProcessId, durationMs, compileEvent.CompileCompleteQpc);
+    }
+}
+
+void RealtimePresentMonSession::UpdateD3D12ShaderCompilationTracking(bool enabled)
+{
+    std::lock_guard lock(session_mutex_);
+    if (!pm_consumer_) {
+        return;
+    }
+    if (pm_consumer_->mTrackD3D12ShaderCompilation == enabled) {
+        return;
+    }
+
+    const bool providersEnabled = (bool)util::win::WaitAnyEventFor(0ms, evtStreamingStarted_);
+    if (!providersEnabled || !session_active_.load(std::memory_order_acquire)) {
+        pm_consumer_->mTrackD3D12ShaderCompilation = enabled;
+        return;
+    }
+
+    pmlog_info(enabled ?
+        "D3D12 PSO compile metrics requested: restarting ETW providers" :
+        "D3D12 PSO compile metrics no longer requested: restarting ETW providers");
+    StopProvidersAndResetConsumer(false);
+    pm_consumer_->mTrackD3D12ShaderCompilation = enabled;
+    if (HasLiveTargets()) {
+        pm_consumer_->SetEventProcessingEnabled(true);
+        auto const providerStatus = trace_session_.StartProviders();
+        if (providerStatus != ERROR_SUCCESS) {
+            pmlog_error("Failed restarting ETW providers after D3D12 PSO tracking change");
+            StopProvidersAndResetConsumer(true);
+            evtStreamingStarted_.Reset();
+        }
+        else {
+            evtStreamingStarted_.Set();
+        }
+    }
+}
+
 void RealtimePresentMonSession::AddPresents(
     std::vector<std::shared_ptr<PresentEvent>> const& presentEvents,
     size_t* presentEventIndex, bool recording, bool checkStopQpc,
@@ -434,6 +490,7 @@ void RealtimePresentMonSession::ProcessEvents(
     // Copy any analyzed information from ConsumerThread and early-out if there
     // isn't any.
     DequeueAnalyzedInfo(processEvents, presentEvents);
+    AddPsoCompileEvents();
     if (processEvents->empty() && presentEvents->empty()) {
         return;
     }

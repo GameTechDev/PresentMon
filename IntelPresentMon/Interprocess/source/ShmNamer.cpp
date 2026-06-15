@@ -1,4 +1,3 @@
-﻿#pragma once
 #include "ShmNamer.h"
 #include <format>
 #include <random>
@@ -26,7 +25,7 @@ namespace pmon::ipc
 	{
 		return std::format("{}_{}_gpu_{}", prefix_, salt_, deviceId);
 	}
-	std::string ShmNamer::MakeFrameName(uint32_t pid) const
+	std::string ShmNamer::MakeProcessName(uint32_t pid) const
 	{
 		return std::format("{}_{}_tgt_{}", prefix_, salt_, pid);
 	}

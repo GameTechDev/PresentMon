@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022-2025 Intel Corporation
+// Copyright (C) 2022-2025 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include "../CommonUtilities/win/WinAPI.h"
@@ -531,7 +531,7 @@ namespace IpcComponentTests
 
             const auto segName = std::format("pm_ipc_backpressure_test_seg_{}",
                 static_cast<unsigned int>(::GetCurrentProcessId()));
-            ipc::OwnedDataSegment<ipc::FrameDataStore> seg{ segName, sizing };
+            ipc::OwnedDataSegment<ipc::ProcessDataStore> seg{ segName, sizing };
             auto& ring = seg.GetStore().frameData;
 
             ipc::FrameData sample{};

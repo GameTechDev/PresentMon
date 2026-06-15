@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "PresentMon.h"
 
+#include "../PresentMonAPI2/PresentMonAPI.h"
 #include "CliOptions.h"
 #include "Logging.h"
 #include "..\CommonUtilities\str\String.h"
@@ -36,6 +37,27 @@ PresentMon::~PresentMon()
 PM_STATUS PresentMon::UpdateTracking(const std::unordered_set<uint32_t>& trackedPids)
 {
 	return pSession_->UpdateTracking(trackedPids);
+}
+
+void PresentMon::SetDeviceMetricUsage(std::shared_ptr<const DeviceMetricUsage> usage)
+{
+	if (!usage) {
+		usage = std::make_shared<DeviceMetricUsage>();
+	}
+	metricDeviceUsage_.store(std::move(usage), std::memory_order_release);
+	const bool trackD3D12PsoCompile =
+		CheckDeviceMetricUsage(std::nullopt, PM_METRIC_D3D12_PSO_COMPILE_COUNT) ||
+		CheckDeviceMetricUsage(std::nullopt, PM_METRIC_D3D12_PSO_COMPILE_TIME) ||
+		CheckDeviceMetricUsage(std::nullopt, PM_METRIC_D3D12_PSO_COMPILE_BUSY_PERCENT);
+	if (auto* pRealtimeSession = dynamic_cast<RealtimePresentMonSession*>(pSession_.get())) {
+		pRealtimeSession->UpdateD3D12ShaderCompilationTracking(trackD3D12PsoCompile);
+	}
+	// keep shared lock now to prevent modification to event set while we are iterating it
+	// if this were non-shared, it would cause the listeners to block immediately on wake
+	std::shared_lock lk2{ deviceUsageEvtMtx_ };
+	for (auto& kv : deviceUsageEvts_) {
+		kv.second.Set();
+	}
 }
 
 void PresentMon::StartPlayback()

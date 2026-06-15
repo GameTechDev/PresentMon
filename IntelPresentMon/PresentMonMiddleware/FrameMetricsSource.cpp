@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025 Intel Corporation
 #include "FrameMetricsSource.h"
 #include <algorithm>
 
@@ -182,8 +182,8 @@ namespace pmon::mid
 		progressCallback_{ std::move(progressCallback) }
 	{
 		// open the data store from ipc
-		comms_.OpenFrameDataStore(processId_);
-		pStore_ = &comms_.GetFrameDataStore(processId_);
+		comms_.OpenProcessDataStore(processId_);
+		pStore_ = &comms_.GetProcessDataStore(processId_);
 		const auto range = pStore_->frameData.GetSerialRange();
 		nextFrameSerial_ = range.first;
 	}
@@ -195,7 +195,7 @@ namespace pmon::mid
 			if (pStore_ == nullptr) {
 				return;
 			}
-			comms_.CloseFrameDataStore(processId_);
+			comms_.CloseProcessDataStore(processId_);
 			pStore_ = nullptr;
 			swapChains_.clear();
 		}

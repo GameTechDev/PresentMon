@@ -1,10 +1,11 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "PresentMonSession.h"
 #include "EtwLogger.h"
 #include "FrameBroadcaster.h"
 #include "MetricUse.h"
+#include "../PresentMonAPI2/PresentMonAPI.h"
 #include "../CommonUtilities/win/Event.h"
 #include <memory>
 #include <span>
@@ -36,7 +37,7 @@ public:
 	void CheckTraceSessions();
 	// Force stop trace sessions
 	void StopTraceSessions();
-    PM_STATUS UpdateTracking(const std::unordered_set<uint32_t>& trackedPids);
+	PM_STATUS UpdateTracking(const std::unordered_set<uint32_t>& trackedPids);
 	PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> telemetryPeriodRequestsMs)
 	{
 		return pSession_->SetGpuTelemetryPeriod(telemetryPeriodRequestsMs);
@@ -130,19 +131,7 @@ public:
 	{
 		return metricDeviceUsage_.load(std::memory_order_acquire);
 	}
-	void SetDeviceMetricUsage(std::shared_ptr<const DeviceMetricUsage> usage)
-	{
-		if (!usage) {
-			usage = std::make_shared<DeviceMetricUsage>();
-		}
-		metricDeviceUsage_.store(std::move(usage), std::memory_order_release);
-		// keep shared lock now to prevent modification to event set while we are iterating it
-		// if this were non-shared, it would cause the listeners to block immediately on wake
-		std::shared_lock lk2{ deviceUsageEvtMtx_ };
-		for (auto& kv : deviceUsageEvts_) {
-			kv.second.Set();
-		}
-	}
+	void SetDeviceMetricUsage(std::shared_ptr<const DeviceMetricUsage> usage);
 	HANDLE GetDeviceUsageEvent(std::source_location loc = std::source_location::current()) const
 	{
 		const DeviceUsageEvtKey key{ loc.file_name(), (uint32_t)loc.line() };

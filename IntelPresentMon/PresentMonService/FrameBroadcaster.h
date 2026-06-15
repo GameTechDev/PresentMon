@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "../Interprocess/source/Interprocess.h"
 #include "../../PresentData/PresentMonTraceConsumer.hpp"
 #include "../CommonUtilities/win/Utilities.h"
@@ -17,12 +17,12 @@ namespace pmon::svc
 	class FrameBroadcaster
 	{
 	public:
-        using Segment = ipc::OwnedDataSegment<ipc::FrameDataStore>;
+        using Segment = ipc::OwnedDataSegment<ipc::ProcessDataStore>;
         FrameBroadcaster(ipc::ServiceComms& comms) : comms_{ comms } {}
 		std::shared_ptr<Segment> RegisterTarget(uint32_t pid, bool isPlayback, bool isBackpressured)
 		{
             std::lock_guard lk{ mtx_ };
-            auto pSegment = comms_.CreateOrGetFrameDataSegment(pid, isBackpressured);
+            auto pSegment = comms_.CreateOrGetProcessDataSegment(pid, isBackpressured);
             auto& store = pSegment->GetStore();
             auto& book = store.bookkeeping;
             // init bookkeeping only once and only here
@@ -62,12 +62,27 @@ namespace pmon::svc
             std::shared_ptr<Segment> pSegment;
             {
                 std::lock_guard lk{ mtx_ };
-                pSegment = comms_.GetFrameDataSegment(present.ProcessId);
+                pSegment = comms_.GetProcessDataSegment(present.ProcessId);
             }
             if (pSegment) {
                 pSegment->GetStore().frameData.Push(FrameData::CopyFrameData(present));
             }
 		}
+        void BroadcastProcessDataSample(uint32_t processId, double psoCompileDurationMs, uint64_t eventCompleteQpc, std::optional<uint32_t> timeoutMs = {})
+        {
+            (void)timeoutMs;
+            std::shared_ptr<Segment> pSegment;
+            {
+                std::lock_guard lk{ mtx_ };
+                pSegment = comms_.GetProcessDataSegment(processId);
+            }
+            if (pSegment) {
+                ipc::ProcessDataSample sample{};
+                sample.psoCompileDurationMs = psoCompileDurationMs;
+                sample.eventCompleteQpc = eventCompleteQpc;
+                pSegment->GetStore().processData.Push(sample);
+            }
+        }
         // Update the single consumer cursor for a backpressured playback ring. Playback
         // backpressure is SPSC: one producer in the service and one owning client reader.
         void UpdateReadSerial(uint32_t pid, uint64_t effectiveSerial)
@@ -75,7 +90,7 @@ namespace pmon::svc
             std::shared_ptr<Segment> pSegment;
             {
                 std::lock_guard lk{ mtx_ };
-                pSegment = comms_.GetFrameDataSegment(pid);
+                pSegment = comms_.GetProcessDataSegment(pid);
             }
             if (pSegment) {
                 pSegment->GetStore().frameData.SetNextRead(effectiveSerial);
@@ -87,7 +102,7 @@ namespace pmon::svc
             std::shared_ptr<Segment> pSegment;
             {
                 std::lock_guard lk{ mtx_ };
-                pSegment = comms_.GetFrameDataSegment(pid);
+                pSegment = comms_.GetProcessDataSegment(pid);
             }
             if (pSegment) {
                 return pSegment->GetStore().frameData.GetSerialRange().second;
@@ -97,7 +112,7 @@ namespace pmon::svc
         void HandleTargetProcessEvent(const ProcessEvent& targetProcessEvent)
         {
             std::lock_guard lk{ mtx_ };
-            if (auto pSegment = comms_.GetFrameDataSegment(targetProcessEvent.ProcessId)) {
+            if (auto pSegment = comms_.GetProcessDataSegment(targetProcessEvent.ProcessId)) {
                 auto& store = pSegment->GetStore();
                 if (!store.bookkeeping.staticInitComplete && store.bookkeeping.isPlayback) {
                     store.bookkeeping.staticInitComplete = true;
@@ -129,7 +144,7 @@ namespace pmon::svc
             // publish qpc before taking the lock so future stores created in the gap observe it
             for (auto pid : comms_.GetFramePids()) {
                 try {
-                    auto pSeg = comms_.GetFrameDataSegment(pid);
+                    auto pSeg = comms_.GetProcessDataSegment(pid);
                     pSeg->GetStore().bookkeeping.startQpc = startQpc;
                 }
                 catch (...) {

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <optional>
 #include <string>
 #include <memory>
@@ -27,8 +27,8 @@ namespace pmon::ipc
 		virtual const ShmNamer& GetNamer() const = 0;
 		
 		// data store access
-		virtual std::shared_ptr<OwnedDataSegment<FrameDataStore>> CreateOrGetFrameDataSegment(uint32_t pid, bool backpressured) = 0;
-		virtual std::shared_ptr<OwnedDataSegment<FrameDataStore>> GetFrameDataSegment(uint32_t pid) = 0;
+		virtual std::shared_ptr<OwnedDataSegment<ProcessDataStore>> CreateOrGetProcessDataSegment(uint32_t pid, bool backpressured) = 0;
+		virtual std::shared_ptr<OwnedDataSegment<ProcessDataStore>> GetProcessDataSegment(uint32_t pid) = 0;
 		virtual std::vector<uint32_t> GetFramePids() const = 0;
 		virtual GpuDataStore& GetGpuDataStore(uint32_t deviceId) = 0;
 		virtual SystemDataStore& GetSystemDataStore() = 0;
@@ -43,11 +43,11 @@ namespace pmon::ipc
 		// data store access
 		// not const because of the backpressure case
 		// TODO: consider more separation of backpressure and broadcast cases
-		virtual const FrameDataStore& GetFrameDataStore(uint32_t pid) const = 0;
+		virtual const ProcessDataStore& GetProcessDataStore(uint32_t pid) const = 0;
 		virtual const GpuDataStore& GetGpuDataStore(uint32_t deviceId) const = 0;
 		virtual const SystemDataStore& GetSystemDataStore() const = 0;
-		virtual void OpenFrameDataStore(uint32_t pid) = 0;
-		virtual void CloseFrameDataStore(uint32_t pid) = 0;
+		virtual void OpenProcessDataStore(uint32_t pid) = 0;
+		virtual void CloseProcessDataStore(uint32_t pid) = 0;
 	};
 
 	std::unique_ptr<ServiceComms> MakeServiceComms(std::string prefix,
