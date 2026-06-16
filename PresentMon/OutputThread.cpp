@@ -489,7 +489,7 @@ static void ProcessEvents(
         if (args.mUseV1Metrics) {
             FrameData frame = FrameData::CopyFrameData(presentEvent);
             UnifiedSwapChain::SanitizeDisplayedRepeatedPresents(frame);
-            auto computed = ComputeMetricsForPresent(qpc, frame, nullptr, chain->mUnifiedSwapChain.swapChain);
+            auto computed = ComputeMetricsForPresent(qpc, frame, chain->mUnifiedSwapChain.swapChain);
 
             if (emit && !seedPresentOnly) {
                 for (auto const& cm : computed) {

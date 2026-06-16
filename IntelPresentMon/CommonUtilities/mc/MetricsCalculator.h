@@ -26,22 +26,9 @@ namespace pmon::util::metrics
         } stateDeltas;
     };
 
-    // Index calculation helper
-    struct DisplayIndexing {
-        size_t startIndex;      // First display index to process
-        size_t endIndex;        // One past last index
-        size_t appIndex;        // Index of app frame (or SIZE_MAX if none)
-        bool hasNextDisplayed;
-
-        static DisplayIndexing Calculate(
-            const FrameData& present,
-            const FrameData* nextDisplayed);
-    };
-
     std::vector<ComputedMetrics> ComputeMetricsForPresent(
         const QpcConverter& qpc,
         FrameData& present,
-        FrameData* nextDisplayed,
         SwapChainCoreState& chainState);
 
     ComputedMetrics ComputeMetricsForReadyDisplayRow(

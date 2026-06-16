@@ -91,7 +91,6 @@ namespace pmon::util::metrics
     std::vector<ComputedMetrics> ComputeMetricsForPresent(
         const QpcConverter& qpc,
         FrameData& present,
-        FrameData* nextDisplayed,
         SwapChainCoreState& chainState)
     {
         std::vector<ComputedMetrics> results;
@@ -105,15 +104,11 @@ namespace pmon::util::metrics
             const uint64_t nextScreenTime = 0;
             const bool isDisplayed = false;
 
-            // Legacy-equivalent attribution: compute displayIndex/appIndex and derive isAppFrame.
-            const auto indexing = DisplayIndexing::Calculate(present, nextDisplayed);
-            const size_t displayIndex = indexing.startIndex; // Case 1 => 0
-            const size_t appIndex = indexing.appIndex;
-
-            const bool isAppFrame = (displayIndex == appIndex);
             const FrameType frameType = (displayCount > 0)
-                ? present.displayed[displayIndex].first
+                ? present.displayed[0].first
                 : FrameType::NotSet;
+            const bool isAppFrame =
+                frameType == FrameType::Application || frameType == FrameType::NotSet;
 
             auto metrics = ComputeFrameMetrics(
                 qpc,
@@ -142,7 +137,7 @@ namespace pmon::util::metrics
 
         AdjustScreenTimeForCollapsedPresentNV(
             present,
-            nextDisplayed,
+            nullptr,
             chainState.lastDisplayedFlipDelay,
             chainState.lastDisplayedScreenTime,
             screenTime,
@@ -152,10 +147,10 @@ namespace pmon::util::metrics
         // This is so msDisplayedTime comes back as 0 instead of garbage for V1 single-row output.
         // TODO: Better option is to have display metrics be optional. Update metrics struct accordingly.
         nextScreenTime = screenTime;
-        const auto indexing = DisplayIndexing::Calculate(present, nullptr);
-        const bool isAppFrame = (displayIndex == indexing.appIndex);
         const bool isDisplayedInstance = isDisplayed && screenTime != 0;
         const FrameType frameType = isDisplayedInstance ? present.displayed[displayIndex].first : FrameType::NotSet;
+        const bool isAppFrame =
+            frameType == FrameType::Application || frameType == FrameType::NotSet;
 
         auto metrics = ComputeFrameMetrics(
             qpc,
