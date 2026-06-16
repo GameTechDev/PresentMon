@@ -980,37 +980,37 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                     { FrameType::Application, 180 },
                 });
 
-            auto resultsA0 = ComputeMetricsForPresent(qpc, frameA, nullptr, chain);
+            auto resultsA0 = ComputeMetricsForPresent(qpc, frameA, chain);
             Assert::AreEqual(size_t(3), resultsA0.size(), L"Frame A should emit only generated rows until a later displayed present finalizes the trailing Application row.");
             assertRow(resultsA0[0], FrameType::Intel_XEFG, 10, 5, 20, frameA.presentStartTime, 0, frameA.readyTime);
             assertRow(resultsA0[1], FrameType::Intel_XEFG, 20, 10, 30, frameA.presentStartTime, 0, frameA.readyTime);
             assertRow(resultsA0[2], FrameType::Intel_XEFG, 30, 20, 40, frameA.presentStartTime, 0, frameA.readyTime);
 
-            auto resultsA1 = ComputeMetricsForPresent(qpc, frameA, &frameB, chain);
+            auto resultsA1 = ComputeMetricsForPresent(qpc, frameA, chain);
             Assert::AreEqual(size_t(1), resultsA1.size(), L"Frame A's trailing Application row should emit only when Frame B is processed as the next displayed present.");
             assertRow(resultsA1[0], FrameType::Application, 40, 30, 55, frameA.presentStartTime, 0, frameA.readyTime);
 
-            auto resultsB0 = ComputeMetricsForPresent(qpc, frameB, nullptr, chain);
+            auto resultsB0 = ComputeMetricsForPresent(qpc, frameB, chain);
             Assert::AreEqual(size_t(0), resultsB0.size(), L"A single Application display should stay postponed until a later displayed present is processed.");
 
-            auto resultsB1 = ComputeMetricsForPresent(qpc, frameB, &frameC, chain);
+            auto resultsB1 = ComputeMetricsForPresent(qpc, frameB, chain);
             Assert::AreEqual(size_t(1), resultsB1.size());
             assertRow(resultsB1[0], FrameType::Application, 55, 40, 70, frameB.presentStartTime, frameA.presentStartTime + frameA.timeInPresent, frameB.readyTime);
 
-            auto resultsC0 = ComputeMetricsForPresent(qpc, frameC, nullptr, chain);
+            auto resultsC0 = ComputeMetricsForPresent(qpc, frameC, chain);
             Assert::AreEqual(size_t(1), resultsC0.size(), L"Frame C should emit only its generated row before the trailing Application row is finalized.");
             assertRow(resultsC0[0], FrameType::Intel_XEFG, 70, 55, 90, frameC.presentStartTime, frameB.presentStartTime + frameB.timeInPresent, frameC.readyTime);
 
-            auto resultsC1 = ComputeMetricsForPresent(qpc, frameC, &frameD, chain);
+            auto resultsC1 = ComputeMetricsForPresent(qpc, frameC, chain);
             Assert::AreEqual(size_t(1), resultsC1.size());
             assertRow(resultsC1[0], FrameType::Application, 90, 70, 110, frameC.presentStartTime, frameB.presentStartTime + frameB.timeInPresent, frameC.readyTime);
 
-            auto resultsD0 = ComputeMetricsForPresent(qpc, frameD, nullptr, chain);
+            auto resultsD0 = ComputeMetricsForPresent(qpc, frameD, chain);
             Assert::AreEqual(size_t(2), resultsD0.size(), L"Frame D should emit its generated rows and postpone only the trailing Application row.");
             assertRow(resultsD0[0], FrameType::Intel_XEFG, 110, 90, 130, frameD.presentStartTime, frameC.presentStartTime + frameC.timeInPresent, frameD.readyTime);
             assertRow(resultsD0[1], FrameType::Intel_XEFG, 130, 110, 160, frameD.presentStartTime, frameC.presentStartTime + frameC.timeInPresent, frameD.readyTime);
 
-            auto resultsD1 = ComputeMetricsForPresent(qpc, frameD, &frameE, chain);
+            auto resultsD1 = ComputeMetricsForPresent(qpc, frameD, chain);
             Assert::AreEqual(size_t(1), resultsD1.size(), L"Frame D's trailing Application row should emit only when a later displayed present is provided.");
             assertRow(resultsD1[0], FrameType::Application, 160, 130, 180, frameD.presentStartTime, frameC.presentStartTime + frameC.timeInPresent, frameD.readyTime);
         }
@@ -1090,13 +1090,13 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                     0.0001);
             };
 
-            auto resultsX0 = ComputeMetricsForPresent(qpc, frameX, nullptr, chain);
+            auto resultsX0 = ComputeMetricsForPresent(qpc, frameX, chain);
             Assert::AreEqual(size_t(3), resultsX0.size(), L"Frame X should emit all three generated rows and postpone the trailing Application row.");
             assertRow(resultsX0[0], FrameType::Intel_XEFG, 210, 200, 210);
             assertRow(resultsX0[1], FrameType::Intel_XEFG, 210, 210, 210);
             assertRow(resultsX0[2], FrameType::Intel_XEFG, 210, 210, 240);
 
-            auto resultsX1 = ComputeMetricsForPresent(qpc, frameX, &frameY, chain);
+            auto resultsX1 = ComputeMetricsForPresent(qpc, frameX, chain);
             Assert::AreEqual(size_t(1), resultsX1.size(), L"Frame X's trailing Application row should emit only when Frame Y is processed as the next displayed present.");
             assertRow(resultsX1[0], FrameType::Application, 240, 210, 300);
         }
@@ -1200,7 +1200,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                     L"msInstrumentedLatency should be stored as missing (NaN)");
             };
 
-            auto generatedRows = ComputeMetricsForPresent(qpc, frameA, nullptr, chain);
+            auto generatedRows = ComputeMetricsForPresent(qpc, frameA, chain);
 
             Assert::AreEqual(size_t(3), generatedRows.size(), L"Frame A should emit only generated rows before the trailing Application row is finalized.");
             assertGeneratedDisplayOnlyRow(generatedRows[0], 10);
@@ -1212,7 +1212,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(uint64_t(5), chain.lastDisplayedScreenTime,
                 L"lastDisplayedScreenTime must remain on the prior Application frame until finalization.");
 
-            auto finalizedRows = ComputeMetricsForPresent(qpc, frameA, &frameB, chain);
+            auto finalizedRows = ComputeMetricsForPresent(qpc, frameA, chain);
 
             Assert::AreEqual(size_t(1), finalizedRows.size(), L"Frame A should emit only the postponed trailing Application row when Frame B finalizes it.");
 
