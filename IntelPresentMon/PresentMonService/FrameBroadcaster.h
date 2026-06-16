@@ -3,6 +3,7 @@
 #include "../../PresentData/PresentMonTraceConsumer.hpp"
 #include "../CommonUtilities/win/Utilities.h"
 #include "../CommonUtilities/str/String.h"
+#include "PsoCompileTelemetryAggregator.h"
 #include <atomic>
 #include <unordered_map>
 #include <ranges>
@@ -68,20 +69,13 @@ namespace pmon::svc
                 pSegment->GetStore().frameData.Push(FrameData::CopyFrameData(present));
             }
 		}
-        void BroadcastProcessDataSample(uint32_t processId, double psoCompileDurationMs, uint64_t eventCompleteQpc, std::optional<uint32_t> timeoutMs = {})
+        void AppendPsoCompileEvent(uint32_t processId, double psoCompileDurationMs, uint64_t eventCompleteQpc)
         {
-            (void)timeoutMs;
-            std::shared_ptr<Segment> pSegment;
-            {
-                std::lock_guard lk{ mtx_ };
-                pSegment = comms_.GetProcessDataSegment(processId);
-            }
-            if (pSegment) {
-                ipc::ProcessDataSample sample{};
-                sample.psoCompileDurationMs = psoCompileDurationMs;
-                sample.eventCompleteQpc = eventCompleteQpc;
-                pSegment->GetStore().processData.Push(sample);
-            }
+            psoCompileTelemetry_.Append(processId, psoCompileDurationMs, eventCompleteQpc);
+        }
+        size_t PollProcessPsoTelemetryToIpc()
+        {
+            return psoCompileTelemetry_.PollToIpc(comms_);
         }
         // Update the single consumer cursor for a backpressured playback ring. Playback
         // backpressure is SPSC: one producer in the service and one owning client reader.
@@ -157,5 +151,6 @@ namespace pmon::svc
 		ipc::ServiceComms& comms_;
         mutable std::mutex mtx_;
         std::atomic<int64_t> startQpc_{ 0 };
+        PsoCompileTelemetryAggregator psoCompileTelemetry_;
 	};
 }

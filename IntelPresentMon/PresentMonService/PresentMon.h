@@ -131,6 +131,12 @@ public:
 	{
 		return metricDeviceUsage_.load(std::memory_order_acquire);
 	}
+	bool ArePsoCompileTelemetryMetricsActive() const
+	{
+		return CheckDeviceMetricUsage(std::nullopt, PM_METRIC_D3D12_PSO_COMPILE_COUNT) ||
+			CheckDeviceMetricUsage(std::nullopt, PM_METRIC_D3D12_PSO_COMPILE_TIME) ||
+			CheckDeviceMetricUsage(std::nullopt, PM_METRIC_D3D12_PSO_COMPILE_BUSY_PERCENT);
+	}
 	void SetDeviceMetricUsage(std::shared_ptr<const DeviceMetricUsage> usage);
 	HANDLE GetDeviceUsageEvent(std::source_location loc = std::source_location::current()) const
 	{

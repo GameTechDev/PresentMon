@@ -2,7 +2,6 @@
 #include "MetricBinding.h"
 #include "FrameMetricsSource.h"
 #include "Middleware.h"
-#include "ProcessDataRate.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../Interprocess/source/IntrospectionHelpers.h"
 #include "../Interprocess/source/IntrospectionDataTypeMapping.h"
@@ -124,12 +123,14 @@ namespace pmon::mid
                 const SwapChainState* pSwapChain, uint32_t processId) const override
             {
                 (void)pSwapChain;
-                (void)processId;
 
                 const ipc::HistoryRing<S, TimestampMember>* pRing = nullptr;
                 using ValueType = typename S::value_type;
                 if (deviceId_ == ipc::kSystemDeviceId) {
                     pRing = &comms.GetSystemDataStore().telemetryData.FindRing<ValueType>(metricId_).at(arrayIndex_);
+                }
+                else if (deviceId_ == ipc::kUniversalDeviceId) {
+                    pRing = &comms.GetProcessDataStore(processId).telemetryData.FindRing<ValueType>(metricId_).at(arrayIndex_);
                 }
                 else {
                     pRing = &comms.GetGpuDataStore(deviceId_).telemetryData.FindRing<ValueType>(metricId_).at(arrayIndex_);
@@ -327,88 +328,6 @@ namespace pmon::mid
             bool needsConversion_ = false;
         };
 
-        class ProcessDataMetricBinding_ : public MetricBinding
-        {
-        public:
-            explicit ProcessDataMetricBinding_(double qpcPeriodSeconds)
-                :
-                qpcPeriodSeconds_{ qpcPeriodSeconds }
-            {
-            }
-
-            void Poll(const DynamicQueryWindow& window, uint8_t* pBlobBase, ipc::MiddlewareComms& comms,
-                const SwapChainState* pSwapChain, uint32_t processId) const override
-            {
-                (void)pSwapChain;
-
-                const ipc::ProcessDataHistoryRing& ring = comms.GetProcessDataStore(processId).processData;
-                uint64_t compileCount = 0;
-                double compileDurationMsSum = 0.;
-                std::vector<PsoCompileQpcInterval> busyIntervals;
-                const bool needBusyPercent = avgOffsets_.find(PM_METRIC_D3D12_PSO_COMPILE_BUSY_PERCENT) != avgOffsets_.end();
-                if (needBusyPercent) {
-                    busyIntervals.reserve(ring.Size());
-                }
-                const auto serialRange = ring.GetSerialRange();
-                for (size_t serial = serialRange.first; serial < serialRange.second; ++serial) {
-                    const ipc::ProcessDataSample& sample = ring.At(serial);
-                    const uint64_t endQpc = sample.eventCompleteQpc;
-                    const uint64_t durationQpc = PsoCompileDurationMsToQpc(
-                        sample.psoCompileDurationMs, qpcPeriodSeconds_);
-                    const uint64_t startQpc = endQpc >= durationQpc ? endQpc - durationQpc : 0;
-                    if (startQpc >= window.oldest && startQpc <= window.newest) {
-                        ++compileCount;
-                    }
-                    uint64_t clipStart = 0;
-                    uint64_t clipEnd = 0;
-                    if (PsoCompileClipToWindow(startQpc, endQpc, window.oldest, window.newest, clipStart, clipEnd)) {
-                        compileDurationMsSum += PsoCompileQpcToDurationMs(clipEnd - clipStart, qpcPeriodSeconds_);
-                        if (needBusyPercent) {
-                            busyIntervals.push_back(PsoCompileQpcInterval{ clipStart, clipEnd });
-                        }
-                    }
-                }
-
-                const uint64_t windowQpc = window.newest >= window.oldest ?
-                    window.newest - window.oldest : 0;
-                const uint64_t mergedBusyQpc = needBusyPercent ? MergePsoCompileBusyQpc(std::move(busyIntervals)) : 0;
-
-                for (const auto& [metricId, dataOffset] : avgOffsets_) {
-                    double value = 0.;
-                    if (metricId == PM_METRIC_D3D12_PSO_COMPILE_COUNT) {
-                        value = PsoCompileCountRate(compileCount, windowQpc, qpcPeriodSeconds_);
-                    }
-                    else if (metricId == PM_METRIC_D3D12_PSO_COMPILE_TIME) {
-                        value = PsoCompileTimeRateMsPerSecond(compileDurationMsSum, windowQpc, qpcPeriodSeconds_);
-                    }
-                    else if (metricId == PM_METRIC_D3D12_PSO_COMPILE_BUSY_PERCENT) {
-                        value = PsoCompileBusyPercent(mergedBusyQpc, windowQpc);
-                    }
-                    *reinterpret_cast<double*>(pBlobBase + dataOffset) = value;
-                }
-            }
-
-            void Finalize() override
-            {
-            }
-
-            void AddMetricStat(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro) override
-            {
-                (void)intro;
-                if (qel.stat != PM_STAT_AVG) {
-                    throw util::Except<ipc::PmStatusError>(PM_STATUS_QUERY_MALFORMED,
-                        "D3D12 PSO compile metrics only support PM_STAT_AVG.");
-                }
-                qel.dataSize = sizeof(double);
-                qel.dataOffset = (uint64_t)util::PadToAlignment((size_t)qel.dataOffset, sizeof(double));
-                avgOffsets_[qel.metric] = qel.dataOffset;
-            }
-
-        private:
-            double qpcPeriodSeconds_;
-            std::unordered_map<PM_METRIC, uint64_t> avgOffsets_;
-        };
-
         template<PM_DATA_TYPE dt, PM_ENUM enumId>
         struct TelemetryBindingBridger_
         {
@@ -449,11 +368,5 @@ namespace pmon::mid
     std::unique_ptr<MetricBinding> MakeStaticMetricBinding(PM_QUERY_ELEMENT& qel, Middleware& middleware)
     {
         return std::make_unique<StaticMetricBinding_>(middleware, qel);
-    }
-
-    std::unique_ptr<MetricBinding> MakeProcessDataMetricBinding(PM_QUERY_ELEMENT& qel, double qpcPeriodSeconds)
-    {
-        (void)qel;
-        return std::make_unique<ProcessDataMetricBinding_>(qpcPeriodSeconds);
     }
 }

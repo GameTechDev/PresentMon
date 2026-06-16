@@ -25,6 +25,7 @@ public:
 
     void StartPlayback();
     void StopPlayback();
+    void UpdateD3D12ShaderCompilationTracking(bool enabled);
 
 private:
     // functions
@@ -79,6 +80,8 @@ private:
 
     // Event for when streaming has started (needed to satisfy virtual interface)
     pmon::util::win::Event evtStreamingStarted_;
+
+    bool trackD3D12ShaderCompilation_ = false;
 
     mutable std::mutex session_mutex_;
     // TODO: evaluate necessity/improvements on this construct

@@ -283,7 +283,7 @@ void RealtimePresentMonSession::AddPsoCompileEvents()
             continue;
         }
         const double durationMs = trace_session_.TimestampDeltaToMilliSeconds(compileEvent.DurationQpc);
-        pBroadcaster->BroadcastProcessDataSample(compileEvent.ProcessId, durationMs, compileEvent.CompileCompleteQpc);
+        pBroadcaster->AppendPsoCompileEvent(compileEvent.ProcessId, durationMs, compileEvent.CompileCompleteQpc);
     }
 }
 

@@ -167,6 +167,9 @@ void TelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Servic
                 coordinator.SetPollRate(telemetryPeriodMs);
                 coordinator.SetMetricUse(*pMetricUse);
                 coordinator.PollToIpc(*pMetricUse, *pComms);
+                if (pm->ArePsoCompileTelemetryMetricsActive()) {
+                    pm->GetBroadcaster().PollProcessPsoTelemetryToIpc();
+                }
 
                 waiter.SetInterval(telemetryPeriodMs / 1000.);
                 waiter.Wait();

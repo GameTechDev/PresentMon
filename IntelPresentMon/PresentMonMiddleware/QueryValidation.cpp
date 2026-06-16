@@ -393,7 +393,10 @@ namespace pmon::mid
                     LogAndThrow(err);
                 }
 
-                if (q.deviceId != ipc::kUniversalDeviceId) {
+                const bool usesProcessTelemetryRing = q.deviceId == ipc::kUniversalDeviceId &&
+                    !IsFrameMetricMapped_(q.metric);
+                const bool usesDeviceTelemetryRing = q.deviceId != ipc::kUniversalDeviceId;
+                if (usesProcessTelemetryRing || usesDeviceTelemetryRing) {
                     if (!IsSupportedTelemetryRingType_(frameType, typeInfo.GetEnumId())) {
                         LogAndThrow("Unsupported telemetry ring data type for dynamic query");
                     }

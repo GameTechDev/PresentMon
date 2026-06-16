@@ -82,9 +82,9 @@ PM_METRIC_CPU_TEMPERATURE,1,CPU Temperature,Average temperature across all physi
 PM_METRIC_CPU_CORE_TEMPERATURE,1,CPU Core Temperature,Temperature of each physical CPU core.
 PM_METRIC_CPU_FREQUENCY,1,CPU Frequency,Clock speed of the CPU.
 PM_METRIC_CPU_CORE_UTILITY,1,CPU Core Utility,Amount of CPU processing utility being used per core.
-PM_METRIC_D3D12_PSO_COMPILE_COUNT,1,D3D12 PSO Compile Count,D3D12 PSO compilation events started every second.
-PM_METRIC_D3D12_PSO_COMPILE_TIME,1,D3D12 PSO Compile Time,D3D12 PSO compile time in milliseconds per second (across all CPUs).
-PM_METRIC_D3D12_PSO_COMPILE_BUSY_PERCENT,1,D3D12 PSO Compile Busy,Percent of time with D3D12 PSO compilation taking place.
+PM_METRIC_D3D12_PSO_COMPILE_COUNT,1,D3D12 PSO Compile Count,Pre-normalized compile start rate (Hz) per service telemetry slice; query stats aggregate slice samples over the dynamic window.
+PM_METRIC_D3D12_PSO_COMPILE_TIME,1,D3D12 PSO Compile Time,Pre-normalized compile time (ms per second of slice) per telemetry slice; query stats aggregate slice samples over the dynamic window.
+PM_METRIC_D3D12_PSO_COMPILE_BUSY_PERCENT,1,D3D12 PSO Compile Busy,Pre-normalized percent of slice time spent compiling (merged intervals) per telemetry slice; query stats aggregate slice samples over the dynamic window.
 ,,,
 PM_METRIC_INSTRUMENTED_LATENCY,,Instrumented Latency,How long it took from the instrumented start of this frame until the frame was displayed on the screen.
 PM_METRIC_GPU_EFFECTIVE_FREQUENCY,1,GPU Effective Frequency,Effective clock speed of the GPU cores.

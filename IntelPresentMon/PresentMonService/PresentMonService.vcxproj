@@ -127,6 +127,7 @@
     <ClCompile Include="Service.cpp" />
     <ClCompile Include="ServiceMain.cpp" />
     <ClCompile Include="PresentMon.cpp" />
+    <ClCompile Include="PsoCompileTelemetryAggregator.cpp" />
     <ClCompile Include="PresentMonSession.cpp" />
     <ClCompile Include="testing\TestControl.cpp" />
   </ItemGroup>

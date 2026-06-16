@@ -18,15 +18,6 @@ namespace pmon::ipc
     using FrameData = util::metrics::FrameData;
     using FrameHistoryRing = HistoryRing<FrameData, &FrameData::presentStartTime>;
 
-    // Per-process ETW event samples (not tied to a frame). PSO compile is the first consumer;
-    // additional metrics add fields here and bindings that read processData.
-    struct ProcessDataSample
-    {
-        double psoCompileDurationMs = 0.;
-        uint64_t eventCompleteQpc = 0;
-    };
-    using ProcessDataHistoryRing = HistoryRing<ProcessDataSample, &ProcessDataSample::eventCompleteQpc>;
-
     class MetricCapabilities;
     namespace intro
     {
@@ -38,10 +29,12 @@ namespace pmon::ipc
         // Telemetry-only: introspection root + capability map.
         const intro::IntrospectionRoot* pRoot = nullptr;
         const MetricCapabilities* pCaps = nullptr;
-        // Frame + telemetry: ring sample capacity and optional override size.
+        // Frame ring sample capacity (process segments) or telemetry ring capacity (GPU/system).
         size_t ringSamples = 0;
+        // Process segment: telemetry ring sample capacity (PSO and future process telemetry).
+        size_t telemetryRingSamples = 0;
         std::optional<size_t> overrideBytes;
-        // Process (target) store: backpressure behavior for frame and process data rings.
+        // Process (target) store: backpressure behavior for the frame ring only.
         bool backpressured = false;
     };
 
@@ -59,11 +52,14 @@ namespace pmon::ipc
         ProcessDataStore(ShmSegmentManager& segMan, size_t cap, bool backpressured)
             :
             frameData{ cap, segMan.get_allocator<FrameData>(), backpressured },
-            processData{ cap, segMan.get_allocator<ProcessDataSample>(), backpressured },
+            telemetryData{ segMan.get_allocator<TelemetryMap::AllocatorType::value_type>() },
             statics{ .applicationName{ segMan.get_allocator<char>() } }
         {}
         ProcessDataStore(ShmSegmentManager& segMan, const DataStoreSizingInfo& sizing)
-            : ProcessDataStore(segMan, sizing.ringSamples, sizing.backpressured)
+            :
+            frameData{ sizing.ringSamples, segMan.get_allocator<FrameData>(), sizing.backpressured },
+            telemetryData{ segMan.get_allocator<TelemetryMap::AllocatorType::value_type>() },
+            statics{ .applicationName{ segMan.get_allocator<char>() } }
         {}
         // values that never change over the life of a target, available for use with metric queries
         // often lazy initialized upon receipt of the first present/frame
@@ -82,7 +78,7 @@ namespace pmon::ipc
             bool isPlayback = false;
         } bookkeeping{};
 		FrameHistoryRing frameData;
-        ProcessDataHistoryRing processData;
+        TelemetryMap telemetryData;
 
         StaticMetricValue FindStaticMetric(PM_METRIC metric) const;
 
@@ -143,4 +139,6 @@ namespace pmon::ipc
     void PopulateTelemetryRings(TelemetryMap& telemetryData,
         const DataStoreSizingInfo& sizing,
         PM_DEVICE_TYPE deviceType);
+
+    MetricCapabilities MakeProcessPsoTelemetryCapabilities();
 }

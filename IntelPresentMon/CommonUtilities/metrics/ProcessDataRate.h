@@ -3,16 +3,29 @@
 #pragma once
 #include <algorithm>
 #include <cstdint>
+#include <span>
 #include <utility>
 #include <vector>
-#include "../PresentMonAPI2/PresentMonAPI.h"
 
-namespace pmon::mid
+namespace pmon::util::metrics
 {
     struct PsoCompileQpcInterval
     {
         uint64_t startQpc = 0;
         uint64_t endQpc = 0;
+    };
+
+    struct PsoCompileCompletedSample
+    {
+        double durationMs = 0.;
+        uint64_t eventCompleteQpc = 0;
+    };
+
+    struct PsoCompileSliceAggregate
+    {
+        double compileCountHz = 0.;
+        double compileTimeMsPerSecond = 0.;
+        double compileBusyPercent = 0.;
     };
 
     inline double PsoCompileWindowSeconds(uint64_t windowQpc, double qpcPeriodSeconds)
@@ -104,11 +117,41 @@ namespace pmon::mid
         return 100. * double(mergedBusyQpc) / double(windowQpc);
     }
 
-    // Metrics backed by ProcessDataStore::processData; extend as new process ETW metrics are added.
-    inline bool IsProcessDataMetric(PM_METRIC metric)
+    inline PsoCompileSliceAggregate AggregatePsoCompileSlice(
+        std::span<const PsoCompileCompletedSample> samples,
+        uint64_t sliceStartQpc,
+        uint64_t sliceEndQpc,
+        double qpcPeriodSeconds)
     {
-        return metric == PM_METRIC_D3D12_PSO_COMPILE_COUNT ||
-            metric == PM_METRIC_D3D12_PSO_COMPILE_TIME ||
-            metric == PM_METRIC_D3D12_PSO_COMPILE_BUSY_PERCENT;
+        PsoCompileSliceAggregate result{};
+        if (sliceEndQpc <= sliceStartQpc) {
+            return result;
+        }
+        const uint64_t windowQpc = sliceEndQpc - sliceStartQpc;
+        uint64_t compileCount = 0;
+        double compileDurationMsSum = 0.;
+        std::vector<PsoCompileQpcInterval> busyIntervals;
+        busyIntervals.reserve(samples.size());
+
+        for (const auto& sample : samples) {
+            const uint64_t endQpc = sample.eventCompleteQpc;
+            const uint64_t durationQpc = PsoCompileDurationMsToQpc(sample.durationMs, qpcPeriodSeconds);
+            const uint64_t startQpc = endQpc >= durationQpc ? endQpc - durationQpc : 0;
+            if (startQpc >= sliceStartQpc && startQpc <= sliceEndQpc) {
+                ++compileCount;
+            }
+            uint64_t clipStart = 0;
+            uint64_t clipEnd = 0;
+            if (PsoCompileClipToWindow(startQpc, endQpc, sliceStartQpc, sliceEndQpc, clipStart, clipEnd)) {
+                compileDurationMsSum += PsoCompileQpcToDurationMs(clipEnd - clipStart, qpcPeriodSeconds);
+                busyIntervals.push_back(PsoCompileQpcInterval{ clipStart, clipEnd });
+            }
+        }
+
+        const uint64_t mergedBusyQpc = MergePsoCompileBusyQpc(std::move(busyIntervals));
+        result.compileCountHz = PsoCompileCountRate(compileCount, windowQpc, qpcPeriodSeconds);
+        result.compileTimeMsPerSecond = PsoCompileTimeRateMsPerSecond(compileDurationMsSum, windowQpc, qpcPeriodSeconds);
+        result.compileBusyPercent = PsoCompileBusyPercent(mergedBusyQpc, windowQpc);
+        return result;
     }
 }

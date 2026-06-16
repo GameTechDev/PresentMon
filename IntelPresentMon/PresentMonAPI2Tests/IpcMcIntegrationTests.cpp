@@ -909,5 +909,41 @@ namespace IpcMcIntegrationTests
             Assert::IsTrue(secondPass.gpuPollsWithData > 0, L"Expected GPU dynamic query to return data in second session");
             Assert::IsTrue(secondPass.cpuPollsWithData > 0, L"Expected CPU dynamic query to return data in second session");
         }
+
+        TEST_METHOD(PsoCompileDynamicQueryUsesProcessTelemetryPath)
+        {
+            pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
+            auto intro = session.GetIntrospectionRoot();
+            Assert::IsTrue((bool)intro);
+
+            if (!IsMetricAvailableForDevice_(*intro, PM_METRIC_D3D12_PSO_COMPILE_COUNT, ipc::kUniversalDeviceId)) {
+                Logger::WriteMessage("PSO compile metrics unavailable in introspection; skipping\n");
+                return;
+            }
+
+            auto presenter = fixture_.LaunchPresenter();
+            session.SetTelemetryPollingPeriod(ipc::kUniversalDeviceId, 50);
+            auto tracker = session.TrackProcess(presenter.GetId());
+            pmon::tests::WaitForFirstFrame(
+                fixture_.GetCommonArgs().ctrlPipe,
+                presenter.GetId(),
+                "ipcmc-pso-telemetry-query");
+
+            std::vector<PM_QUERY_ELEMENT> elements{
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_D3D12_PSO_COMPILE_COUNT,
+                    .stat = PM_STAT_AVG,
+                    .deviceId = ipc::kUniversalDeviceId,
+                    .arrayIndex = 0,
+                    .dataOffset = 0,
+                    .dataSize = 0,
+                },
+            };
+
+            auto query = session.RegisterDynamicQuery(elements, 1000.0, 0.0);
+            auto blobs = query.MakeBlobContainer(4);
+            query.Poll(tracker, blobs);
+            Assert::AreEqual((uint32_t)1u, blobs.GetNumBlobsPopulated(), L"Expected one swap chain blob from PSO dynamic poll");
+        }
     };
 }

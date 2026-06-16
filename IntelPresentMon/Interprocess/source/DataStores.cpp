@@ -129,22 +129,35 @@ namespace pmon::ipc
         }
     }
 
+    MetricCapabilities MakeProcessPsoTelemetryCapabilities()
+    {
+        MetricCapabilities caps{};
+        caps.Set(PM_METRIC_D3D12_PSO_COMPILE_COUNT, 1);
+        caps.Set(PM_METRIC_D3D12_PSO_COMPILE_TIME, 1);
+        caps.Set(PM_METRIC_D3D12_PSO_COMPILE_BUSY_PERCENT, 1);
+        return caps;
+    }
+
     size_t ProcessDataStore::CalculateSegmentBytes(const DataStoreSizingInfo& sizing)
     {
         const size_t framePayloadBytes = sizing.ringSamples * sizeof(FrameData);
-        const size_t processDataPayloadBytes = sizing.ringSamples * sizeof(ProcessDataSample);
-        const size_t payloadBytes = framePayloadBytes + processDataPayloadBytes;
         size_t scaledBytes =
-            ScaleBytes_(payloadBytes, kFrameScaleMul_, kFrameScaleDiv_);
-        if (scaledBytes < payloadBytes + kFixedLeewayBytes_) {
-            scaledBytes = payloadBytes + kFixedLeewayBytes_;
+            ScaleBytes_(framePayloadBytes, kFrameScaleMul_, kFrameScaleDiv_);
+        if (scaledBytes < framePayloadBytes + kFixedLeewayBytes_) {
+            scaledBytes = framePayloadBytes + kFixedLeewayBytes_;
         }
-        const size_t leewayBytes = scaledBytes - payloadBytes;
-        const size_t totalBytes = util::PadToAlignment(scaledBytes, kSegmentAlignmentBytes_);
+        size_t totalBytes = util::PadToAlignment(scaledBytes, kSegmentAlignmentBytes_);
+
+        if (sizing.pRoot && sizing.pCaps && sizing.telemetryRingSamples > 0) {
+            DataStoreSizingInfo telemSizing = sizing;
+            telemSizing.ringSamples = sizing.telemetryRingSamples;
+            const size_t telemBytes = TelemetrySegmentBytes_(telemSizing, PM_DEVICE_TYPE_INDEPENDENT);
+            totalBytes += telemBytes;
+        }
+
         pmlog_verb(util::log::V::ipc_sto)(std::format(
-            "ipc process sizing | ring_samples:{} frame_payload_bytes:{} process_data_payload_bytes:{} payload_bytes:{} scaled_bytes:{} fixed_leeway_bytes:{} leeway_bytes:{} alignment:{} total_bytes:{}",
-            sizing.ringSamples, framePayloadBytes, processDataPayloadBytes, payloadBytes, scaledBytes, kFixedLeewayBytes_,
-            leewayBytes, kSegmentAlignmentBytes_, totalBytes));
+            "ipc process sizing | frame_ring_samples:{} telemetry_ring_samples:{} frame_payload_bytes:{} total_bytes:{}",
+            sizing.ringSamples, sizing.telemetryRingSamples, framePayloadBytes, totalBytes));
         return totalBytes;
     }
 

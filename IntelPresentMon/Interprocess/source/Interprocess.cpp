@@ -171,8 +171,12 @@ namespace pmon::ipc
                     // if weak ptr was new (or expired), lock will not work and we need to construct
                     // make a frame data store as shared ptr
                     const auto segmentName = namer_.MakeProcessName(pid);
+                    const auto psoCaps = MakeProcessPsoTelemetryCapabilities();
                     const DataStoreSizingInfo sizing{
+                        .pRoot = pRoot_.get().get(),
+                        .pCaps = &psoCaps,
                         .ringSamples = frameRingSamples_,
+                        .telemetryRingSamples = telemetryRingSamples_,
                         .backpressured = backpressured,
                     };
                     pFrameData = std::shared_ptr<OwnedDataSegment<ProcessDataStore>>(
@@ -186,6 +190,14 @@ namespace pmon::ipc
                                 .pmwatch(segmentName);
                             delete pSegment;
                         });
+                    const DataStoreSizingInfo telemSizing{
+                        .pRoot = pRoot_.get().get(),
+                        .pCaps = &psoCaps,
+                        .ringSamples = telemetryRingSamples_,
+                    };
+                    PopulateTelemetryRings(pFrameData->GetStore().telemetryData,
+                        telemSizing,
+                        PM_DEVICE_TYPE_INDEPENDENT);
                     // store a weak reference
                     pWeak = pFrameData;
                     pmlog_dbg("Process data segment created")

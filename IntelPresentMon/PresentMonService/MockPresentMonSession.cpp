@@ -156,6 +156,7 @@ PM_STATUS MockPresentMonSession::StartTraceSession(uint32_t processId, const std
     pm_consumer_->mTrackFrameType = true;
     pm_consumer_->mTrackAppTiming = true;
     pm_consumer_->mTrackPcLatency = true;
+    pm_consumer_->mTrackD3D12ShaderCompilation = trackD3D12ShaderCompilation_;
     pm_consumer_->mPaceEvents = isPlaybackPaced;
     pm_consumer_->mRetimeEvents = isPlaybackRetimed;
 
@@ -329,7 +330,7 @@ void MockPresentMonSession::ProcessEvents(
                 continue;
             }
             const double durationMs = trace_session_.TimestampDeltaToMilliSeconds(compileEvent.DurationQpc);
-            pBroadcaster->BroadcastProcessDataSample(compileEvent.ProcessId, durationMs, compileEvent.CompileCompleteQpc);
+            pBroadcaster->AppendPsoCompileEvent(compileEvent.ProcessId, durationMs, compileEvent.CompileCompleteQpc);
         }
     }
     if (processEvents->empty() && presentEvents->empty()) {
@@ -484,5 +485,14 @@ void MockPresentMonSession::HandleTerminatedProcess(uint32_t processId) {
     MarkProcessExited(processId);
     if (!HasLiveTrackedProcesses() && evtStreamingStarted_) {
         evtStreamingStarted_.Reset();
+    }
+}
+
+void MockPresentMonSession::UpdateD3D12ShaderCompilationTracking(bool enabled)
+{
+    std::lock_guard lock(session_mutex_);
+    trackD3D12ShaderCompilation_ = enabled;
+    if (pm_consumer_ && pm_consumer_->mTrackD3D12ShaderCompilation != enabled) {
+        pm_consumer_->mTrackD3D12ShaderCompilation = enabled;
     }
 }
