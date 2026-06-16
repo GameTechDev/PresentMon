@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "PresentMonSession.h"
@@ -41,6 +41,7 @@ private:
         std::vector<ProcessEvent>* processEvents,
         std::vector<std::shared_ptr<PresentEvent>>* presentEvents,
         std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses);
+    void AddPsoCompileEvents();
 
     void StartOutputThread();
     void StopOutputThread();

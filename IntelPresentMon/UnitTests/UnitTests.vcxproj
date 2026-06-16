@@ -104,6 +104,7 @@
     <ClCompile Include="FixedVectorTests.cpp" />
     <ClCompile Include="LoggingTests.cpp" />
     <ClCompile Include="MetricsCore.cpp" />
+    <ClCompile Include="ProcessDataRateTests.cpp" />
     <ClCompile Include="SwapChainTests.cpp" />
     <ClCompile Include="Style.cpp" />
     <ClCompile Include="Timing.cpp" />

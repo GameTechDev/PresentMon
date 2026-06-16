@@ -1,4 +1,4 @@
-﻿#include "../../CommonUtilities/win/WinAPI.h"
+#include "../../CommonUtilities/win/WinAPI.h"
 #include "Interprocess.h"
 #include "IntrospectionTransfer.h"
 #include "IntrospectionPopulators.h"
@@ -161,46 +161,46 @@ namespace pmon::ipc
                 return namer_;
             }
             // data store access
-            std::shared_ptr<OwnedDataSegment<FrameDataStore>>
-                CreateOrGetFrameDataSegment(uint32_t pid, bool backpressured) override
+            std::shared_ptr<OwnedDataSegment<ProcessDataStore>>
+                CreateOrGetProcessDataSegment(uint32_t pid, bool backpressured) override
             {
                 // resolve out existing or new weak ptr, try and lock
-                auto& pWeak = frameShmWeaks_[pid];
+                auto& pWeak = processShmWeaks_[pid];
                 auto pFrameData = pWeak.lock();
                 if (!pFrameData) {
                     // if weak ptr was new (or expired), lock will not work and we need to construct
                     // make a frame data store as shared ptr
-                    const auto segmentName = namer_.MakeFrameName(pid);
+                    const auto segmentName = namer_.MakeProcessName(pid);
                     const DataStoreSizingInfo sizing{
                         .ringSamples = frameRingSamples_,
                         .backpressured = backpressured,
                     };
-                    pFrameData = std::shared_ptr<OwnedDataSegment<FrameDataStore>>(
-                        new OwnedDataSegment<FrameDataStore>(
+                    pFrameData = std::shared_ptr<OwnedDataSegment<ProcessDataStore>>(
+                        new OwnedDataSegment<ProcessDataStore>(
                             segmentName,
                             sizing,
                             static_cast<const bip::permissions&>(Permissions_{ Permissions_::kReadOnly })),
-                        [pid, segmentName](OwnedDataSegment<FrameDataStore>* pSegment) {
-                            pmlog_dbg("Frame data segment destroyed")
+                        [pid, segmentName](OwnedDataSegment<ProcessDataStore>* pSegment) {
+                            pmlog_dbg("Process data segment destroyed")
                                 .pmwatch(pid)
                                 .pmwatch(segmentName);
                             delete pSegment;
                         });
                     // store a weak reference
                     pWeak = pFrameData;
-                    pmlog_dbg("Frame data segment created")
+                    pmlog_dbg("Process data segment created")
                         .pmwatch(pid)
                         .pmwatch(segmentName)
                         .pmwatch(backpressured);
                 }
                 // remove stale elements to keep map lean
-                for (auto it = frameShmWeaks_.begin(); it != frameShmWeaks_.end(); ) {
+                for (auto it = processShmWeaks_.begin(); it != processShmWeaks_.end(); ) {
                     if (it->second.expired()) {
-                        const auto segmentName = namer_.MakeFrameName(it->first);
-                        pmlog_dbg("Frame data segment released")
+                        const auto segmentName = namer_.MakeProcessName(it->first);
+                        pmlog_dbg("Process data segment released")
                             .pmwatch(it->first)
                             .pmwatch(segmentName);
-                        it = frameShmWeaks_.erase(it);
+                        it = processShmWeaks_.erase(it);
                     }
                     else {
                         ++it;
@@ -208,25 +208,25 @@ namespace pmon::ipc
                 }
                 return pFrameData;
             }
-            std::shared_ptr<OwnedDataSegment<FrameDataStore>>
-                GetFrameDataSegment(uint32_t pid) override
+            std::shared_ptr<OwnedDataSegment<ProcessDataStore>>
+                GetProcessDataSegment(uint32_t pid) override
             {
-                if (auto i = frameShmWeaks_.find(pid); i != frameShmWeaks_.end()) {
+                if (auto i = processShmWeaks_.find(pid); i != processShmWeaks_.end()) {
                     if (auto pSegment = i->second.lock()) {
                         return pSegment;
                     }
                     // if weak ptr has expired, garbage collect from the map
-                    const auto segmentName = namer_.MakeFrameName(pid);
-                    pmlog_dbg("Frame data segment released")
+                    const auto segmentName = namer_.MakeProcessName(pid);
+                    pmlog_dbg("Process data segment released")
                         .pmwatch(pid)
                         .pmwatch(segmentName);
-                    frameShmWeaks_.erase(i);
+                    processShmWeaks_.erase(i);
                 }
                 return {};
             }
-            std::vector<uint32_t> GetFramePids() const override
+            std::vector<uint32_t> GetProcessDataPids() const override
             {
-                return frameShmWeaks_ | vi::filter([](auto&& p) {return !p.second.expired(); }) |
+                return processShmWeaks_ | vi::filter([](auto&& p) {return !p.second.expired(); }) |
                     vi::keys | rn::to<std::vector>();
             }
             GpuDataStore& GetGpuDataStore(uint32_t deviceId) override
@@ -305,7 +305,7 @@ namespace pmon::ipc
             bool introCpuComplete_ = false;
 
             std::optional<OwnedDataSegment<SystemDataStore>> systemShm_;
-            std::unordered_map<uint32_t, std::weak_ptr<OwnedDataSegment<FrameDataStore>>> frameShmWeaks_;
+            std::unordered_map<uint32_t, std::weak_ptr<OwnedDataSegment<ProcessDataStore>>> processShmWeaks_;
             std::unordered_map<uint32_t, OwnedDataSegment<GpuDataStore>> gpuShms_;
         };
 
@@ -352,39 +352,39 @@ namespace pmon::ipc
                 // responsibility to track this resource
                 return root.ApiClone(blockAllocator);
             }
-            void OpenFrameDataStore(uint32_t pid) override
+            void OpenProcessDataStore(uint32_t pid) override
             {
                 // If already open, nothing to do
-                if (frameShms_.find(pid) != frameShms_.end()) {
+                if (processShms_.find(pid) != processShms_.end()) {
                     return;
                 }
 
-                const auto segName = namer_.MakeFrameName(pid);
-                frameShms_.emplace(
+                const auto segName = namer_.MakeProcessName(pid);
+                processShms_.emplace(
                     std::piecewise_construct,
                     std::forward_as_tuple(pid),
                     std::forward_as_tuple(segName)
                 );
-                pmlog_dbg("Frame data segment opened")
+                pmlog_dbg("Process data segment opened")
                     .pmwatch(pid)
                     .pmwatch(segName);
             }
-            void CloseFrameDataStore(uint32_t pid) override
+            void CloseProcessDataStore(uint32_t pid) override
             {
-                if (auto it = frameShms_.find(pid); it != frameShms_.end()) {
-                    const auto segName = namer_.MakeFrameName(pid);
-                    pmlog_dbg("Frame data segment closed")
+                if (auto it = processShms_.find(pid); it != processShms_.end()) {
+                    const auto segName = namer_.MakeProcessName(pid);
+                    pmlog_dbg("Process data segment closed")
                         .pmwatch(pid)
                         .pmwatch(segName);
-                    frameShms_.erase(it);
+                    processShms_.erase(it);
                 }
             }
             // data store access
-            const FrameDataStore& GetFrameDataStore(uint32_t pid) const override
+            const ProcessDataStore& GetProcessDataStore(uint32_t pid) const override
             {
-                const auto it = frameShms_.find(pid);
-                if (it == frameShms_.end()) {
-                    throw std::runtime_error{ "Frame data segment not open for this PID" };
+                const auto it = processShms_.find(pid);
+                if (it == processShms_.end()) {
+                    throw std::runtime_error{ "Process data segment not open for this PID" };
                 }
                 return it->second.GetStore();
             }
@@ -432,7 +432,7 @@ namespace pmon::ipc
 
             std::optional<ViewedDataSegment<SystemDataStore>> systemShm_;
             std::unordered_map<uint32_t, ViewedDataSegment<GpuDataStore>> gpuShms_;
-            std::unordered_map<uint32_t, ViewedDataSegment<FrameDataStore>> frameShms_;
+            std::unordered_map<uint32_t, ViewedDataSegment<ProcessDataStore>> processShms_;
         };
     }
 

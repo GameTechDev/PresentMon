@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -40,4 +40,5 @@ namespace pmon::mid
     std::unique_ptr<MetricBinding> MakeFrameMetricBinding(PM_QUERY_ELEMENT& qel);
     std::unique_ptr<MetricBinding> MakeTelemetryMetricBinding(PM_QUERY_ELEMENT& qel, const pmapi::intro::Root& intro);
     std::unique_ptr<MetricBinding> MakeStaticMetricBinding(PM_QUERY_ELEMENT& qel, Middleware& middleware);
+    std::unique_ptr<MetricBinding> MakeProcessDataMetricBinding(PM_QUERY_ELEMENT& qel, double qpcPeriodSeconds);
 }

@@ -55,8 +55,8 @@ namespace pmon::tests
 	{
 		mid::ActionClient client{ ctrlPipe };
 		auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-		pComms->OpenFrameDataStore(pid);
-		const auto warmupRange = WaitForFirstFrameRange(pComms->GetFrameDataStore(pid).frameData, label, waitLimit);
+		pComms->OpenProcessDataStore(pid);
+		const auto warmupRange = WaitForFirstFrameRange(pComms->GetProcessDataStore(pid).frameData, label, waitLimit);
 		return warmupRange.second > 0;
 	}
 
@@ -68,7 +68,7 @@ namespace pmon::tests
 	{
 		mid::ActionClient client{ ctrlPipe };
 		auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-		pComms->OpenFrameDataStore(pid);
-		return WaitForFirstFrame(pComms->GetFrameDataStore(pid).frameData, label, waitLimit);
+		pComms->OpenProcessDataStore(pid);
+		return WaitForFirstFrame(pComms->GetProcessDataStore(pid).frameData, label, waitLimit);
 	}
 }

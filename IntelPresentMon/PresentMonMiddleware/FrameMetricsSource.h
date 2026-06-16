@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -118,7 +118,7 @@ namespace pmon::mid
 		void ProcessNewFrames_();
 
 		ipc::MiddlewareComms& comms_;
-		const ipc::FrameDataStore* pStore_ = nullptr;
+		const ipc::ProcessDataStore* pStore_ = nullptr;
 		uint32_t processId_ = 0;
 		size_t perSwapChainCapacity_ = 0;
 		size_t nextFrameSerial_ = 0;

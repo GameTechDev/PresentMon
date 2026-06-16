@@ -1,6 +1,8 @@
-﻿#include "DynamicQuery.h"
+#include "DynamicQuery.h"
 #include "FrameMetricsSource.h"
 #include "QueryValidation.h"
+#include "ProcessDataRate.h"
+#include "../CommonUtilities/mc/FrameMetricsMemberMap.h"
 #include "../PresentMonAPIWrapperCommon/Introspection.h"
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../Interprocess/source/Interprocess.h"
@@ -100,9 +102,19 @@ static bool IsFrameTimeOrFpsMetric_(PM_METRIC metric)
 	}
 }
 
+static bool HasFrameMetricBinding_(PM_METRIC metric)
+{
+	return util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT_)>(
+		metric,
+		[&]<PM_METRIC Metric>() -> bool {
+			return util::metrics::HasFrameMetricMember<Metric>;
+		},
+		false);
+}
+
 static uint64_t GetTargetStartQpc_(ipc::MiddlewareComms& comms, uint32_t processId)
 {
-	return uint64_t(processId ? comms.GetFrameDataStore(processId).bookkeeping.startQpc : 0);
+	return uint64_t(processId ? comms.GetProcessDataStore(processId).bookkeeping.startQpc : 0);
 }
 
 static std::string BuildElapsedSinceTargetStartText_(uint64_t targetStartQpc, uint64_t nowTimestamp, double qpcPeriodSeconds)
@@ -135,6 +147,7 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 
 	std::unordered_map<TelemetryBindingKey_, MetricBinding*> telemetryBindings;
 	MetricBinding* frameBinding = nullptr;
+	MetricBinding* processDataBinding = nullptr;
 
 	size_t blobCursor = 0;
 	for (auto& qel : qels) {
@@ -142,13 +155,24 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 		const auto metricView = introRoot.FindMetric(qel.metric);
 		const auto metricType = metricView.GetType();
 		const bool isStaticMetric = metricType == PM_METRIC_TYPE_STATIC;
-		const bool isFrameMetric = !isStaticMetric && qel.deviceId == ipc::kUniversalDeviceId;
+		const bool isProcessDataMetric = IsProcessDataMetric(qel.metric);
+		const bool isFrameMetric = !isStaticMetric && !isProcessDataMetric &&
+			qel.deviceId == ipc::kUniversalDeviceId && HasFrameMetricBinding_(qel.metric);
 		if (isStaticMetric) {
 			auto bindingPtr = MakeStaticMetricBinding(qel, middleware);
 			binding = bindingPtr.get();
 			ringMetricPtrs_.push_back(std::move(bindingPtr));
 		}
-		else if (qel.deviceId == ipc::kUniversalDeviceId) {
+		else if (isProcessDataMetric) {
+			binding = processDataBinding;
+			if (!binding) {
+				auto bindingPtr = MakeProcessDataMetricBinding(qel, qpcPeriodSeconds_);
+				binding = bindingPtr.get();
+				processDataBinding = binding;
+				ringMetricPtrs_.push_back(std::move(bindingPtr));
+			}
+		}
+		else if (isFrameMetric) {
 			binding = frameBinding;
 			if (!binding) {
 				auto bindingPtr = MakeFrameMetricBinding(qel);

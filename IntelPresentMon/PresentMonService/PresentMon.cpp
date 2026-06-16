@@ -1,7 +1,8 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "PresentMon.h"
 
+#include "../PresentMonAPI2/PresentMonAPI.h"
 #include "CliOptions.h"
 #include "Logging.h"
 #include "..\CommonUtilities\str\String.h"

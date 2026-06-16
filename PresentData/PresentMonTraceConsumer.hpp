@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2017-2026 Intel Corporation
+// Copyright (C) 2017-2026 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 #pragma once
@@ -167,6 +167,12 @@ struct ProcessEvent {
     uint64_t QpcTime = 0;               // The time of the start/stop event.
     uint32_t ProcessId = 0;             // The id of the process.
     bool IsStartEvent = false;          // Whether this is a start event (true) or a stop event (false).
+};
+
+struct PsoCompileCompletedEvent {
+    uint32_t ProcessId = 0;
+    uint64_t CompileCompleteQpc = 0;
+    uint64_t DurationQpc = 0;
 };
 
 struct PresentEvent {
@@ -353,6 +359,7 @@ struct PMTraceConsumer
     // separate swapchains may appear out of order.
 
     void DequeueProcessEvents(std::vector<ProcessEvent>& outProcessEvents);
+    void DequeuePsoCompileEvents(std::vector<PsoCompileCompletedEvent>& outPsoCompileEvents);
     void DequeuePresentEvents(std::vector<std::shared_ptr<PresentEvent>>& outPresentEvents);
     uint32_t GetNumOverflowedPresents() const
     {
@@ -386,6 +393,33 @@ struct PMTraceConsumer
     // Mutexs to protect consumer/dequeue access from different threads:
     std::mutex mProcessEventMutex;
     std::mutex mPresentEventMutex;
+
+    struct PsoCompileActivityKey {
+        uint32_t processId = 0;
+        GUID activityId = {};
+        bool operator==(const PsoCompileActivityKey& other) const
+        {
+            return processId == other.processId &&
+                (bool)InlineIsEqualGUID(activityId, other.activityId);
+        }
+    };
+
+    struct PsoCompileActivityKeyHash {
+            size_t operator()(const PsoCompileActivityKey& key) const
+            {
+                size_t h = std::hash<uint32_t>{}(key.processId);
+                h = pmon::util::hash::HashCombine(h, std::hash<uint64_t>{}((uint64_t)key.activityId.Data1));
+                h = pmon::util::hash::HashCombine(h, std::hash<uint64_t>{}(((uint64_t)key.activityId.Data2 << 32) | key.activityId.Data3));
+                uint64_t data4Part = 0;
+                memcpy(&data4Part, key.activityId.Data4, sizeof(data4Part));
+                h = pmon::util::hash::HashCombine(h, std::hash<uint64_t>{}(data4Part));
+                return h;
+            }
+    };
+
+    std::unordered_map<PsoCompileActivityKey, uint64_t, PsoCompileActivityKeyHash> mPendingPsoCompileStartQpc;
+    std::vector<PsoCompileCompletedEvent> mCompletedPsoCompileEvents;
+    std::mutex mPsoCompileEventMutex;
     // condition variable to signal when output ring space becomes available, used for backpressure in offline mode
     std::condition_variable mCompletedRingCondition;
     // event used to signal when new events are available for dequeing
@@ -588,6 +622,7 @@ struct PMTraceConsumer
     void HandleProcessEvent(EVENT_RECORD* pEventRecord);
     void HandleDXGIEvent(EVENT_RECORD* pEventRecord);
     void HandleD3D9Event(EVENT_RECORD* pEventRecord);
+    void HandleD3D12Event(EVENT_RECORD* pEventRecord);
     void HandleDXGKEvent(EVENT_RECORD* pEventRecord);
     void HandleWin32kEvent(EVENT_RECORD* pEventRecord);
     void HandleDWMEvent(EVENT_RECORD* pEventRecord);

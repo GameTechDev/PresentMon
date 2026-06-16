@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "Logging.h"
 #include "RealtimePresentMonSession.h"
@@ -266,6 +266,27 @@ void RealtimePresentMonSession::DequeueAnalyzedInfo(
     }
 }
 
+void RealtimePresentMonSession::AddPsoCompileEvents()
+{
+    if (!session_active_.load(std::memory_order_acquire) || !pm_consumer_ || !pBroadcaster) {
+        return;
+    }
+
+    std::vector<PsoCompileCompletedEvent> psoCompileEvents;
+    pm_consumer_->DequeuePsoCompileEvents(psoCompileEvents);
+    if (psoCompileEvents.empty()) {
+        return;
+    }
+
+    for (const auto& compileEvent : psoCompileEvents) {
+        if (!IsProcessTracked(compileEvent.ProcessId)) {
+            continue;
+        }
+        const double durationMs = trace_session_.TimestampDeltaToMilliSeconds(compileEvent.DurationQpc);
+        pBroadcaster->BroadcastProcessDataSample(compileEvent.ProcessId, durationMs, compileEvent.CompileCompleteQpc);
+    }
+}
+
 void RealtimePresentMonSession::AddPresents(
     std::vector<std::shared_ptr<PresentEvent>> const& presentEvents,
     size_t* presentEventIndex, bool recording, bool checkStopQpc,
@@ -434,6 +455,7 @@ void RealtimePresentMonSession::ProcessEvents(
     // Copy any analyzed information from ConsumerThread and early-out if there
     // isn't any.
     DequeueAnalyzedInfo(processEvents, presentEvents);
+    AddPsoCompileEvents();
     if (processEvents->empty() && presentEvents->empty()) {
         return;
     }
