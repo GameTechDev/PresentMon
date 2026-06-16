@@ -45,10 +45,7 @@ void PresentMon::SetDeviceMetricUsage(std::shared_ptr<const DeviceMetricUsage> u
 		usage = std::make_shared<DeviceMetricUsage>();
 	}
 	metricDeviceUsage_.store(std::move(usage), std::memory_order_release);
-	const bool trackD3D12PsoCompile =
-		CheckDeviceMetricUsage(std::nullopt, PM_METRIC_D3D12_PSO_COMPILE_COUNT) ||
-		CheckDeviceMetricUsage(std::nullopt, PM_METRIC_D3D12_PSO_COMPILE_TIME) ||
-		CheckDeviceMetricUsage(std::nullopt, PM_METRIC_D3D12_PSO_COMPILE_BUSY_PERCENT);
+	const bool trackD3D12PsoCompile = ArePsoCompileTelemetryMetricsActive();
 	if (auto* pRealtimeSession = dynamic_cast<RealtimePresentMonSession*>(pSession_.get())) {
 		pRealtimeSession->UpdateD3D12ShaderCompilationTracking(trackD3D12PsoCompile);
 	}

@@ -272,19 +272,7 @@ void RealtimePresentMonSession::AddPsoCompileEvents()
         return;
     }
 
-    std::vector<PsoCompileCompletedEvent> psoCompileEvents;
-    pm_consumer_->DequeuePsoCompileEvents(psoCompileEvents);
-    if (psoCompileEvents.empty()) {
-        return;
-    }
-
-    for (const auto& compileEvent : psoCompileEvents) {
-        if (!IsProcessTracked(compileEvent.ProcessId)) {
-            continue;
-        }
-        const double durationMs = trace_session_.TimestampDeltaToMilliSeconds(compileEvent.DurationQpc);
-        pBroadcaster->AppendPsoCompileEvent(compileEvent.ProcessId, durationMs, compileEvent.CompileCompleteQpc);
-    }
+    ForwardDequeuedPsoCompileEvents(*pm_consumer_, trace_session_);
 }
 
 void RealtimePresentMonSession::UpdateD3D12ShaderCompilationTracking(bool enabled)

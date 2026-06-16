@@ -58,8 +58,13 @@ PM_FRAME_QUERY::PM_FRAME_QUERY(std::span<PM_QUERY_ELEMENT> queryElements, pmon::
 			cmd.isStatic = true;
 		}
 		else if (q.deviceId == ipc::kUniversalDeviceId) {
-			cmd = MapQueryElementToFrameGatherCommand_(q, blobCursor, frameType);
-			cmd.dataSize = (uint32_t)frameTypeSize;
+			if (pmon::mid::IsProcessTelemetryFrameQueryElement(q.metric, q.deviceId, metricType)) {
+				cmd.frameMetricsOffset = std::numeric_limits<uint32_t>::max();
+			}
+			else {
+				cmd = MapQueryElementToFrameGatherCommand_(q, blobCursor, frameType);
+				cmd.dataSize = (uint32_t)frameTypeSize;
+			}
 		}
 
 		q.dataOffset = blobCursor;
@@ -81,7 +86,13 @@ void PM_FRAME_QUERY::GatherToBlob(uint8_t* pBlobBytes, uint32_t processId, const
 			GatherFromStatic_(cmd, pBlobBytes, processId);
 		}
 		else if (cmd.deviceId == ipc::kUniversalDeviceId) {
-			GatherFromFrameMetrics_(cmd, pBlobBytes, frameMetrics);
+			if (cmd.frameMetricsOffset == std::numeric_limits<uint32_t>::max()) {
+				GatherFromTelemetry_(cmd, pBlobBytes, frameMetrics.cpuStartQpc,
+					comms_.GetProcessDataStore(processId).telemetryData);
+			}
+			else {
+				GatherFromFrameMetrics_(cmd, pBlobBytes, frameMetrics);
+			}
 		}
 		else if (cmd.deviceId == ipc::kSystemDeviceId) {
 			GatherFromTelemetry_(cmd, pBlobBytes, frameMetrics.cpuStartQpc, comms_.GetSystemDataStore().telemetryData);

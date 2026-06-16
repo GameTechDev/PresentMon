@@ -142,14 +142,18 @@ namespace p2c::pmon
                     }
                     const auto metricId = metricIt->second;
                     const auto& metric = introRoot.FindMetric(metricId);
-                    // make sure metric is valid for a frame query
-                    if (metric.GetType() == PM_METRIC_TYPE_DYNAMIC) {
-                        pmlog_error("Specified metric does not support frame query");
-                        throw ::pmon::util::Except<::pmon::util::Exception>("Specified metric does not support frame query");
-                    }
                     const auto& deviceInfos = metric.GetDeviceMetricInfo();
                     const bool isGraphicsAdapter = !deviceInfos.empty() &&
                         deviceInfos.front().GetDevice().GetType() == PM_DEVICE_TYPE_GRAPHICS_ADAPTER;
+                    const bool isIndependentDevice = !deviceInfos.empty() &&
+                        deviceInfos.front().GetDevice().GetType() == PM_DEVICE_TYPE_INDEPENDENT;
+                    // make sure metric is valid for a frame query
+                    if (metric.GetType() == PM_METRIC_TYPE_DYNAMIC) {
+                        if (!isIndependentDevice) {
+                            pmlog_error("Specified metric does not support frame query");
+                            throw ::pmon::util::Except<::pmon::util::Exception>("Specified metric does not support frame query");
+                        }
+                    }
                     const uint32_t deviceId = metricSpec.deviceId.value_or(isGraphicsAdapter ? activeDeviceId : 0);
                     elements.push_back(RawFrameQueryElementDefinition{
                         .metricId = metricId,

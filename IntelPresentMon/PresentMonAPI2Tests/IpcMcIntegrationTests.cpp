@@ -945,5 +945,56 @@ namespace IpcMcIntegrationTests
             query.Poll(tracker, blobs);
             Assert::AreEqual((uint32_t)1u, blobs.GetNumBlobsPopulated(), L"Expected one swap chain blob from PSO dynamic poll");
         }
+
+        TEST_METHOD(PsoCompileMetricsInFrameQuery)
+        {
+            pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
+            auto intro = session.GetIntrospectionRoot();
+            Assert::IsTrue((bool)intro);
+
+            if (!IsMetricAvailableForDevice_(*intro, PM_METRIC_D3D12_PSO_COMPILE_COUNT, ipc::kUniversalDeviceId)) {
+                Logger::WriteMessage("PSO compile metrics unavailable in introspection; skipping\n");
+                return;
+            }
+
+            std::vector<PM_QUERY_ELEMENT> elements{
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_BETWEEN_PRESENTS,
+                    .stat = PM_STAT_NONE,
+                    .deviceId = ipc::kUniversalDeviceId,
+                    .arrayIndex = 0,
+                },
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_D3D12_PSO_COMPILE_COUNT,
+                    .stat = PM_STAT_NONE,
+                    .deviceId = ipc::kUniversalDeviceId,
+                    .arrayIndex = 0,
+                },
+            };
+
+            auto query = session.RegisterFrameQuery(elements);
+
+            auto presenter = fixture_.LaunchPresenter();
+            session.SetTelemetryPollingPeriod(ipc::kUniversalDeviceId, 50);
+            auto tracker = session.TrackProcess(presenter.GetId());
+            pmon::tests::WaitForFirstFrame(
+                fixture_.GetCommonArgs().ctrlPipe,
+                presenter.GetId(),
+                "ipcmc-pso-frame-query");
+
+            auto blobs = query.MakeBlobContainer(8);
+            bool gotFrames = false;
+            const auto deadline = std::chrono::steady_clock::now() + 2s;
+            while (std::chrono::steady_clock::now() < deadline) {
+                query.Consume(tracker, blobs);
+                if (blobs.GetNumBlobsPopulated() > 0) {
+                    gotFrames = true;
+                    LogFrameQueryResults_(*intro, elements, blobs[0]);
+                    break;
+                }
+                std::this_thread::sleep_for(25ms);
+            }
+            Assert::IsTrue(gotFrames, L"Expected frame query with PSO metric to consume frames");
+        }
     };
 }

@@ -125,16 +125,6 @@ namespace
         return metricOutType;
     }
 
-    bool IsFrameMetricMapped_(PM_METRIC metric)
-    {
-        return util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT_)>(
-            metric,
-            [&]<PM_METRIC Metric>() -> bool {
-                return util::metrics::HasFrameMetricMember<Metric>;
-            },
-            false);
-    }
-
     template<PM_DATA_TYPE dt, PM_ENUM enumValue>
     struct TelemetryRingValueChecker_
     {
@@ -202,6 +192,29 @@ namespace
 
 namespace pmon::mid
 {
+    bool IsFrameMetricMapped(PM_METRIC metric)
+    {
+        return util::DispatchEnumValue<PM_METRIC, int(PM_METRIC_COUNT_)>(
+            metric,
+            [&]<PM_METRIC Metric>() -> bool {
+                return util::metrics::HasFrameMetricMember<Metric>;
+            },
+            false);
+    }
+
+    bool UsesProcessTelemetryQueryElement(PM_METRIC metric, uint32_t deviceId, PM_METRIC_TYPE metricType)
+    {
+        return deviceId == ipc::kUniversalDeviceId &&
+            !IsFrameMetricMapped(metric) &&
+            pmapi::intro::MetricTypeIsDynamic(metricType);
+    }
+
+    bool IsProcessTelemetryFrameQueryElement(PM_METRIC metric, uint32_t deviceId, PM_METRIC_TYPE metricType)
+    {
+        return UsesProcessTelemetryQueryElement(metric, deviceId, metricType) &&
+            metricType == PM_METRIC_TYPE_DYNAMIC;
+    }
+
     void ValidateQueryElements(std::span<PM_QUERY_ELEMENT> queryElements, PM_METRIC_TYPE queryType,
         const pmapi::intro::Root& introRoot, const ipc::MiddlewareComms& comms)
     {
@@ -256,9 +269,11 @@ namespace pmon::mid
             const auto metricType = metricView.GetType();
             const bool isStaticMetric = metricType == PM_METRIC_TYPE_STATIC;
 
+            const bool usesProcessTelemetryInFrameQuery = isFrameQuery &&
+                IsProcessTelemetryFrameQueryElement(q.metric, q.deviceId, metricType);
             const bool metricTypeOk = isStaticMetric || (isDynamicQuery ?
                 pmapi::intro::MetricTypeIsDynamic(metricType) :
-                pmapi::intro::MetricTypeIsFrameEvent(metricType));
+                (pmapi::intro::MetricTypeIsFrameEvent(metricType) || usesProcessTelemetryInFrameQuery));
             if (!metricTypeOk) {
                 if (isDynamicQuery) {
                     LogAndThrow("Dynamic query contains non-dynamic metric");
@@ -364,8 +379,14 @@ namespace pmon::mid
             }
 
             if (isFrameQuery && !isStaticMetric && q.deviceId == ipc::kUniversalDeviceId) {
-                if (!IsFrameMetricMapped_(q.metric)) {
+                if (!IsFrameMetricMapped(q.metric) && !usesProcessTelemetryInFrameQuery) {
                     LogAndThrow("Unexpected frame metric in frame query");
+                }
+            }
+
+            if (usesProcessTelemetryInFrameQuery) {
+                if (!IsSupportedTelemetryRingType_(frameType, typeInfo.GetEnumId())) {
+                    LogAndThrow("Unsupported telemetry ring data type for frame query process telemetry");
                 }
             }
 
@@ -393,8 +414,8 @@ namespace pmon::mid
                     LogAndThrow(err);
                 }
 
-                const bool usesProcessTelemetryRing = q.deviceId == ipc::kUniversalDeviceId &&
-                    !IsFrameMetricMapped_(q.metric);
+                const bool usesProcessTelemetryRing = UsesProcessTelemetryQueryElement(
+                    q.metric, q.deviceId, metricType);
                 const bool usesDeviceTelemetryRing = q.deviceId != ipc::kUniversalDeviceId;
                 if (usesProcessTelemetryRing || usesDeviceTelemetryRing) {
                     if (!IsSupportedTelemetryRingType_(frameType, typeInfo.GetEnumId())) {

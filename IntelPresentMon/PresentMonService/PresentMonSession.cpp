@@ -102,3 +102,20 @@ void PresentMonSession::ClearTrackedProcesses()
     std::lock_guard lock(tracked_processes_mutex_);
     tracked_pid_live_.clear();
 }
+
+void PresentMonSession::ForwardDequeuedPsoCompileEvents(PMTraceConsumer& consumer, PMTraceSession& traceSession)
+{
+    if (!pBroadcaster) {
+        return;
+    }
+
+    std::vector<PsoCompileCompletedEvent> psoCompileEvents;
+    consumer.DequeuePsoCompileEvents(psoCompileEvents);
+    for (const auto& compileEvent : psoCompileEvents) {
+        if (!IsProcessTracked(compileEvent.ProcessId)) {
+            continue;
+        }
+        const double durationMs = traceSession.TimestampDeltaToMilliSeconds(compileEvent.DurationQpc);
+        pBroadcaster->AppendPsoCompileEvent(compileEvent.ProcessId, durationMs, compileEvent.CompileCompleteQpc);
+    }
+}

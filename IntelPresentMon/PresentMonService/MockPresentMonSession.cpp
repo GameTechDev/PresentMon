@@ -323,15 +323,7 @@ void MockPresentMonSession::ProcessEvents(
     // isn't any.
     DequeueAnalyzedInfo(processEvents, presentEvents);
     if (pm_consumer_ && pBroadcaster) {
-        std::vector<PsoCompileCompletedEvent> psoCompileEvents;
-        pm_consumer_->DequeuePsoCompileEvents(psoCompileEvents);
-        for (const auto& compileEvent : psoCompileEvents) {
-            if (!IsProcessTracked(compileEvent.ProcessId)) {
-                continue;
-            }
-            const double durationMs = trace_session_.TimestampDeltaToMilliSeconds(compileEvent.DurationQpc);
-            pBroadcaster->AppendPsoCompileEvent(compileEvent.ProcessId, durationMs, compileEvent.CompileCompleteQpc);
-        }
+        ForwardDequeuedPsoCompileEvents(*pm_consumer_, trace_session_);
     }
     if (processEvents->empty() && presentEvents->empty()) {
         return;

@@ -68,6 +68,8 @@ protected:
 
     void SyncTrackedPidState(const std::unordered_set<uint32_t>& trackedPids);
 
+    void ForwardDequeuedPsoCompileEvents(PMTraceConsumer& consumer, PMTraceSession& traceSession);
+
     mutable std::mutex tracked_processes_mutex_;
     std::unordered_map<uint32_t, bool> tracked_pid_live_;
 };

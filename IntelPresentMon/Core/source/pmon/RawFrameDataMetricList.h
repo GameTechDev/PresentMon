@@ -93,6 +93,10 @@ namespace p2c::pmon
             Element{.metricId = PM_METRIC_CPU_POWER, .deviceId = ::pmon::ipc::kSystemDeviceId },
             Element{.metricId = PM_METRIC_CPU_TEMPERATURE, .deviceId = ::pmon::ipc::kSystemDeviceId },
             Element{.metricId = PM_METRIC_CPU_FREQUENCY, .deviceId = ::pmon::ipc::kSystemDeviceId },
+
+            Element{.metricId = PM_METRIC_D3D12_PSO_COMPILE_COUNT, .deviceId = 0 },
+            Element{.metricId = PM_METRIC_D3D12_PSO_COMPILE_TIME, .deviceId = 0 },
+            Element{.metricId = PM_METRIC_D3D12_PSO_COMPILE_BUSY_PERCENT, .deviceId = 0 },
         };
 
         if (enableTimestamp) {
