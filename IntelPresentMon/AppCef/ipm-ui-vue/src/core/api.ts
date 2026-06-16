@@ -8,6 +8,7 @@ import { type Adapter } from './adapter'
 import { type Spec } from '@/core/spec'
 import { type Binding, type KeyOption, type ModifierOption, Action } from '@/core/hotkey'
 import { type EnvVars } from './env-vars'
+import { type AppInfo } from './app-info'
 import { delayFor } from './timing'
 
 export enum FileLocation {
@@ -53,6 +54,9 @@ export class Api {
     }
     static async loadEnvVars(): Promise<EnvVars> {
         return await this.invokeEndpointFuture('loadEnvVars', {});
+    }
+    static async getAppInfo(): Promise<AppInfo> {
+        return await this.invokeEndpointFuture('getAppInfo', {});
     }
     static async introspect(): Promise<{metrics: Metric[], stats: Stat[], units: Unit[], adapters: Adapter[], systemDeviceId: number, defaultAdapterId: number}> {
         const introData = await this.invokeEndpointFuture('Introspect', {});

@@ -35,6 +35,16 @@ namespace p2c::pmon
 		}
 	}
 
+	void DynamicQuery::PollWithTimestamp(const pmapi::ProcessTracker& tracker, uint64_t nowTimestamp)
+	{
+		if (query) {
+			query.PollWithTimestamp(tracker, blobs, nowTimestamp);
+		}
+		else {
+			pmlog_warn("Polling empty dynamic query");
+		}
+	}
+
 	const uint8_t* DynamicQuery::GetBlobData() const
 	{
 		if (blobs.GetNumBlobsPopulated() == 0) {

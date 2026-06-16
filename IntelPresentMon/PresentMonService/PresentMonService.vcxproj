@@ -68,6 +68,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>PM_VER_PRODUCT_STR=&quot;$(PresentMonProductVersion)&quot;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
@@ -96,7 +97,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <Optimization>MaxSpeed</Optimization>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;PM_VER_PRODUCT_STR=&quot;$(PresentMonProductVersion)&quot;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ControlFlowGuard>Guard</ControlFlowGuard>
     </ClCompile>
     <Link>
@@ -195,9 +196,9 @@
   <Target Name="CopyNvidiaManifest" AfterTargets="Build">
     <Copy SourceFiles="$(ProjectDir)..\..\PresentMon\ddETWExternal.xml" DestinationFiles="$(OutDir)ddETWExternal.xml" SkipUnchangedFiles="true" />
   </Target>
-  <Target Name="DeployUciRuntime" AfterTargets="Build" Condition="Exists('$(UciSdkBinDir)')">
+  <Target Name="DeployUciRuntime" AfterTargets="Build" Condition="Exists('$(UciSdkDir)')">
     <ItemGroup>
-      <UciRuntimeFiles Include="$(UciSdkBinDir)\**\*.*" />
+      <UciRuntimeFiles Include="$(UciSdkDir)\**\*.*" />
     </ItemGroup>
     <Copy SourceFiles="@(UciRuntimeFiles)" DestinationFiles="@(UciRuntimeFiles->'$(OutDir)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>

@@ -19,6 +19,7 @@ namespace p2c::client::cef
             CefRefPtr<CefV8Value>& retval,
             CefString& exception) override;
         void ResolveAsyncEndpoint(uint64_t uid, bool success, CefRefPtr<CefValue> pArgs);
+        const util::KernelWrapper* GetKernelWrapper() const;
         void ClearKernelWrapper();
     private:
         // data

@@ -2,6 +2,7 @@
 #include "DataFetchPack.h"
 #include "../pmon/MetricFetcherFactory.h"
 #include "../pmon/DynamicQuery.h"
+#include "../pmon/Timekeeper.h"
 #include "../infra/Logging.h"
 #include "OverlaySpec.h"
 #include <CommonUtilities\Hash.h>
@@ -100,13 +101,14 @@ namespace p2c::kern
 			}
 			usageMap_[qmet].text = true;
 		}
-		void Populate(const pmapi::ProcessTracker& tracker, double timestamp)
+		void Populate(const pmapi::ProcessTracker& tracker, uint64_t timestamp)
 		{
 			// if query is empty, don't do anything (empty loadout)
 			if (pQuery_) {
-				pQuery_->Poll(tracker);
+				pQuery_->PollWithTimestamp(tracker, timestamp);
+				const auto time = pmon::Timekeeper::RelativeToEpoch((int64_t)timestamp);
 				for (auto&& [qmet, pPack] : metricPackMap_) {
-					pPack.Populate(timestamp);
+					pPack.Populate(time);
 				}
 			}
 		}

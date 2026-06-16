@@ -21,6 +21,7 @@ namespace p2c::pmon
 	public:
 		DynamicQuery(pmapi::Session& session, double winSizeMs, double metricOffsetMs, std::span<const kern::QualifiedMetric> qmet);
 		void Poll(const pmapi::ProcessTracker& tracker);
+		void PollWithTimestamp(const pmapi::ProcessTracker& tracker, uint64_t nowTimestamp);
 		const uint8_t* GetBlobData() const;
 		std::vector<PM_QUERY_ELEMENT> ExtractElements();
 	private:

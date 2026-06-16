@@ -538,6 +538,10 @@ void WriteCsvHeader<pmon::util::metrics::FrameMetrics>(FILE* fp)
         L",PresentRuntime"
         L",SyncInterval"
         L",PresentFlags");
+    if (args.mWriteDisplayMetadata) {
+        fwprintf(fp, L",VidPnSourceId"
+            L",LayerIndex");
+    }
     if (args.mTrackDisplay) {
         fwprintf(fp, L",AllowsTearing"
             L",PresentMode");
@@ -648,6 +652,11 @@ void WriteCsvHeader<pmon::util::metrics::FrameMetrics>(FILE* fp)
     }
     if (args.mWriteFrameId) {
         fwprintf(fp, L",FrameId");
+    }
+    if (args.mWriteDisplayMetadata) {
+        fwprintf(fp, L",PresentId");
+    }
+    if (args.mWriteFrameId) {
         if (args.mTrackAppTiming) {
             fwprintf(fp, L",AppFrameId");
         }
@@ -900,6 +909,9 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
         RuntimeToString(p.Runtime),
         p.SyncInterval,
         p.PresentFlags);
+    if (args.mWriteDisplayMetadata) {
+        fwprintf(fp, L",%u,%u", metrics.displayId.first, metrics.displayId.second);
+    }
     if (args.mTrackDisplay) {
         fwprintf(fp, L",%d,%hs", p.SupportsTearing,
             PresentModeToString(p.PresentMode));
@@ -1087,6 +1099,11 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
     }
     if (args.mWriteFrameId) {
         fwprintf(fp, L",%u", p.FrameId);
+    }
+    if (args.mWriteDisplayMetadata) {
+        fwprintf(fp, L",%llu", metrics.presentId);
+    }
+    if (args.mWriteFrameId) {
         if (args.mTrackAppTiming) {
             fwprintf(fp, L",%u", p.AppFrameId);
         }
@@ -1117,6 +1134,11 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
         RuntimeToString(p.runtime),
         p.syncInterval,
         p.presentFlags);
+    if (args.mWriteDisplayMetadata) {
+        fwprintf(fp, L",%u,%u",
+            metrics.displayId.first,
+            metrics.displayId.second);
+    }
     if (args.mTrackDisplay) {
         fwprintf(fp, L",%d,%hs", p.supportsTearing,
             PresentModeToString(p.presentMode));
@@ -1309,6 +1331,11 @@ void WriteCsvRow<pmon::util::metrics::FrameMetrics>(
     }
     if (args.mWriteFrameId) {
         fwprintf(fp, L",%u", p.frameId);
+    }
+    if (args.mWriteDisplayMetadata) {
+        fwprintf(fp, L",%llu", metrics.presentId);
+    }
+    if (args.mWriteFrameId) {
         if (args.mTrackAppTiming) {
             fwprintf(fp, L",%u", p.appFrameId);
         }

@@ -16,13 +16,14 @@
 #include "async/GetTopGpuProcess.h"
 #include "async/LoadEnvVars.h"
 #include "async/CheckPathExistence.h"
+#include "async/GetAppInfo.h"
 
 namespace p2c::client::util
 {
 	template<class T>
 	void AsyncEndpointCollection::AddEndpoint()
 	{
-		if (auto&& [i, inserted] = endpoints.insert({ T::GetKey(), std::make_unique<T>() }); !inserted)
+		if (!endpoints.insert({ T::GetKey(), std::make_unique<T>() }).second)
 		{
 			pmlog_warn(std::format("Duplicate key for async {}", T::GetKey()));
 		}
@@ -43,6 +44,7 @@ namespace p2c::client::util
 		AddEndpoint<GetTopGpuProcess>();
 		AddEndpoint<LoadEnvVars>();
 		AddEndpoint<CheckPathExistence>();
+		AddEndpoint<GetAppInfo>();
 	}
 
 	const AsyncEndpoint* AsyncEndpointCollection::Find(const std::string& key) const
