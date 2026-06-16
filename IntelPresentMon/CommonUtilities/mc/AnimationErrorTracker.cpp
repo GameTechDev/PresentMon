@@ -5,6 +5,48 @@
 #include "MetricsTypes.h"
 namespace pmon::util::metrics
 {
+    namespace
+    {
+        bool IsAppFrameType_(FrameType frameType)
+        {
+            return frameType == FrameType::Application || frameType == FrameType::NotSet;
+        }
+
+        bool HasAppWork_(const FrameData& present)
+        {
+            if (present.displayed.Empty()) {
+                return true;
+            }
+            for (size_t i = 0; i < present.displayed.Size(); ++i) {
+                if (IsAppFrameType_(present.displayed[i].first)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        uint64_t PresentEndQpc_(const FrameData& present)
+        {
+            if (present.appPropagatedPresentStartTime != 0) {
+                return present.appPropagatedPresentStartTime + present.appPropagatedTimeInPresent;
+            }
+            return present.presentStartTime + present.timeInPresent;
+        }
+
+        uint64_t ResolveCpuStartForAnimation_(
+            const SwapChainCoreState& chainState,
+            const FrameData* ingestPreviousPresent)
+        {
+            if (ingestPreviousPresent != nullptr && HasAppWork_(*ingestPreviousPresent)) {
+                return PresentEndQpc_(*ingestPreviousPresent);
+            }
+            if (chainState.lastAppPresent.has_value()) {
+                return PresentEndQpc_(chainState.lastAppPresent.value());
+            }
+            return 0;
+        }
+    }
+
     bool AnimationErrorTracker::HasAnchor() const
     {
         return hasAnchor_;
@@ -136,6 +178,6 @@ namespace pmon::util::metrics
         if (source == AnimationErrorSource::PCLatency) {
             return present.pclSimStartTime;
         }
-        return CalculateCPUStart(chainState, present, ingestPreviousPresent);
+        return ResolveCpuStartForAnimation_(chainState, ingestPreviousPresent);
     }
 }

@@ -8,19 +8,6 @@ namespace pmon::util::metrics
 {
     namespace
     {
-        uint64_t CurrentSimTimeForAnimationTime_(
-            AnimationErrorSource source,
-            const SwapChainCoreState& chain,
-            const FrameData& present)
-        {
-            if (source == AnimationErrorSource::AppProvider) {
-                return present.appSimStartTime;
-            }
-            if (source == AnimationErrorSource::PCLatency) {
-                return present.pclSimStartTime;
-            }
-            return CalculateCPUStart(chain, present);
-        }
         void MoveAllToReady_(
             std::vector<ReadyDisplayRow>& from,
             std::vector<ReadyDisplayRow>& ready)
@@ -285,18 +272,25 @@ namespace pmon::util::metrics
         const AnimationErrorTracker::AppAnchor& anchor,
         std::vector<ReadyDisplayRow>& ready)
     {
-        animation.SeedAnchor(anchor);
         row.animation.msAnimationError = MissingFrameMetricValue();
-        row.animation.msAnimationTime = CalculateAnimationTime(
-            qpc,
-            chain.firstAppSimStartTime,
-            CurrentSimTimeForAnimationTime_(anchor.source, chain, row.present));
         row.animation.source = anchor.source;
         row.animation.resolvedSimStartTime = anchor.simStartTime;
         row.animation.firstSimStartTime = chain.firstAppSimStartTime != 0
             ? chain.firstAppSimStartTime
             : qpc.GetSessionStartTimestamp();
         row.animation.hasResolvedSimStart = anchor.simStartTime != 0;
+
+        if (!animation.SeedAnchor(anchor)) {
+            row.animation.msAnimationTime = MissingFrameMetricValue();
+            row.animation.hasResolvedSimStart = false;
+            EmitOrHoldTimelineOriginUntilDisplayTimingComplete_(std::move(row), ready);
+            return;
+        }
+
+        row.animation.msAnimationTime = CalculateAnimationTime(
+            qpc,
+            chain.firstAppSimStartTime,
+            anchor.simStartTime);
         animation.SyncPreviousAnchorAnimationTimeMs(row.animation.msAnimationTime);
         EmitOrHoldTimelineOriginUntilDisplayTimingComplete_(std::move(row), ready);
     }
@@ -373,11 +367,27 @@ namespace pmon::util::metrics
     }
     void DisplayFrameQueue::MarkPresentUpdateRows_(std::vector<ReadyDisplayRow>& rows)
     {
-        for (size_t i = 0; i < rows.size(); ++i) {
-            const bool isLastRowForPresent =
-                i + 1 == rows.size() ||
-                rows[i + 1].present.presentStartTime != rows[i].present.presentStartTime;
-            rows[i].updateSwapChainAfterRow = isLastRowForPresent;
+        // Metrics are calculated for every ready row. Swap-chain history advances
+        // once per released present: use the app row when present, otherwise the
+        // final row for that present.
+        size_t groupBegin = 0;
+        while (groupBegin < rows.size()) {
+            size_t groupEnd = groupBegin + 1;
+            while (groupEnd < rows.size() &&
+                rows[groupEnd].present.presentStartTime == rows[groupBegin].present.presentStartTime) {
+                ++groupEnd;
+            }
+
+            size_t rowToUpdateChain = groupEnd - 1;
+            for (size_t i = groupBegin; i < groupEnd; ++i) {
+                rows[i].updateSwapChainAfterRow = false;
+                if (rows[i].isAppFrame) {
+                    rowToUpdateChain = i;
+                }
+            }
+            rows[rowToUpdateChain].updateSwapChainAfterRow = true;
+
+            groupBegin = groupEnd;
         }
     }
     void DisplayFrameQueue::ApplyNvV2Adjustment_(ReadyDisplayRow& row) const

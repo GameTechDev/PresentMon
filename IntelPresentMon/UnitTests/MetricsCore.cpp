@@ -4280,6 +4280,65 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::IsFalse(HasMetricValue(originAnchorRows[0].msAnimationError));
         }
 
+        TEST_METHOD(TraceStart_FirstCpuStartAnchor_WithOnlyGeneratedHistory_PublishesMissingAnimationTime)
+        {
+            QpcConverter qpc(1000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 790;
+            bootstrap.timeInPresent = 10;
+            bootstrap.readyTime = 790;
+            bootstrap.finalState = PresentResult::Presented;
+            bootstrap.displayed.PushBack({ FrameType::Intel_XEFG, 100 });
+            (void)Process(qpc, swapChain, std::move(bootstrap));
+
+            FrameData firstGenerated{};
+            firstGenerated.presentStartTime = 800;
+            firstGenerated.timeInPresent = 10;
+            firstGenerated.readyTime = 800;
+            firstGenerated.finalState = PresentResult::Presented;
+            firstGenerated.displayed.PushBack({ FrameType::Intel_XEFG, 108 });
+            Assert::AreEqual(size_t(0), Process(qpc, swapChain, std::move(firstGenerated)).size());
+
+            FrameData secondGenerated{};
+            secondGenerated.presentStartTime = 810;
+            secondGenerated.timeInPresent = 10;
+            secondGenerated.readyTime = 810;
+            secondGenerated.finalState = PresentResult::Presented;
+            secondGenerated.displayed.PushBack({ FrameType::Intel_XEFG, 116 });
+            auto preAnchorRows = Process(qpc, swapChain, std::move(secondGenerated));
+            Assert::AreEqual(size_t(1), preAnchorRows.size());
+            Assert::IsFalse(HasMetricValue(preAnchorRows[0].msAnimationTime));
+
+            FrameData firstAppAnchor{};
+            firstAppAnchor.presentStartTime = 900;
+            firstAppAnchor.timeInPresent = 10;
+            firstAppAnchor.readyTime = 900;
+            firstAppAnchor.finalState = PresentResult::Presented;
+            firstAppAnchor.displayed.PushBack({ FrameType::Application, 124 });
+            auto finalPreAnchorRows = Process(qpc, swapChain, std::move(firstAppAnchor));
+            Assert::AreEqual(size_t(1), finalPreAnchorRows.size());
+            Assert::IsFalse(HasMetricValue(finalPreAnchorRows[0].msAnimationTime));
+
+            FrameData lookahead{};
+            lookahead.presentStartTime = 910;
+            lookahead.timeInPresent = 10;
+            lookahead.readyTime = 910;
+            lookahead.finalState = PresentResult::Presented;
+            lookahead.displayed.PushBack({ FrameType::Intel_XEFG, 132 });
+            auto originRows = Process(qpc, swapChain, std::move(lookahead));
+            Assert::AreEqual(size_t(1), originRows.size());
+            Assert::AreEqual((int)FrameType::Application, (int)originRows[0].frameType);
+            Assert::AreEqual(uint64_t(124), originRows[0].screenTimeQpc);
+
+            // The origin app anchor has no provider or PC-latency timestamp, and
+            // the only prior observed frames are generated. Do not derive a CPU
+            // simulation start from generated-frame history.
+            Assert::IsFalse(HasMetricValue(originRows[0].msAnimationTime));
+            Assert::IsFalse(HasMetricValue(originRows[0].msAnimationError));
+        }
+
         TEST_METHOD(FirstAppAnchor_PublishesTimelineOriginWithAnimationTimeFromSession)
         {
             QpcConverter qpc(1000, 0);
