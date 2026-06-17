@@ -24,7 +24,7 @@ namespace pmon::util::metrics
         void NoteSeedPresent(const FrameData& seedPresent);
         void Clear();
     private:
-        // --- Display instance construction (design: Ready Display Row) ---
+        // --- Display instance construction
         ReadyDisplayRow BuildDisplayInstanceRow_(
             const FrameData& present,
             size_t displayIndex,
@@ -32,15 +32,10 @@ namespace pmon::util::metrics
         void ApplyNvV2Adjustment_(ReadyDisplayRow& row) const;
         void AcceptDisplayOrder_(ReadyDisplayRow& row);
         // --- Release rule (design: Release Rule) ---
-        void OnNextDisplayedFrame_(uint64_t nextScreenTime, std::vector<ReadyDisplayRow>& ready);
-        void EmitOrHoldTimelineOriginUntilDisplayTimingComplete_(
-            ReadyDisplayRow row,
+        void CompleteRowsWaitingForDisplayLookahead_(
+            uint64_t nextScreenTime,
             std::vector<ReadyDisplayRow>& ready);
-        void EmitOrHoldUntilDisplayTimingComplete_(
-            ReadyDisplayRow row,
-            std::vector<ReadyDisplayRow>& awaitingLookaheadBucket,
-            std::vector<ReadyDisplayRow>& ready);
-        // --- Ingest routing (design: publish policy cases) ---
+        // --- Ingest routing
         void IngestNotDisplayedPresent_(
             FrameData present,
             AnimationErrorTracker& animation,
@@ -63,7 +58,7 @@ namespace pmon::util::metrics
             const SwapChainCoreState& chain,
             const AnimationErrorTracker::AppAnchor& anchor,
             std::vector<ReadyDisplayRow>& ready);
-        void CloseIntervalAndHoldForLookahead_(
+        void ResolveIntervalAndHoldForLookahead_(
             const QpcConverter& qpc,
             AnimationErrorTracker& animation,
             const AnimationErrorTracker::AppAnchor& closingAnchor,
@@ -84,15 +79,15 @@ namespace pmon::util::metrics
         uint64_t lastAcceptedPresentStartTime_ = 0;
         uint64_t lastAcceptedFlipDelay_ = 0;
         // Generated rows after an app anchor, until the next app anchor closes the interval.
-        std::vector<ReadyDisplayRow> openIntervalBeforeClosingApp_;
+        std::vector<ReadyDisplayRow> openAppToAppIntervalRows_;
         // Closed interval rows waiting for the displayed frame after the closing app anchor.
-        std::vector<ReadyDisplayRow> closedIntervalAwaitingLookahead_;
+        std::vector<ReadyDisplayRow> closedIntervalAwaitingDisplayLookahead_;
         // Trace start before first app anchor; animation metrics not set.
-        std::vector<ReadyDisplayRow> preFirstAppAnchorAwaitingLookahead_;
+        std::vector<ReadyDisplayRow> preFirstAppAnchorRowsAwaitingDisplayLookahead_;
         // First app anchor (or source-transition origin) waiting for nextScreenTime.
-        std::optional<ReadyDisplayRow> timelineOriginAwaitingLookahead_;
+        std::optional<ReadyDisplayRow> timelineOriginAwaitingDisplayLookahead_;
         // Not-displayed presents held while an app anchor exists.
-        std::deque<FrameData> blockedNotDisplayedPresents_;
+        std::deque<FrameData> notDisplayedPresentsHeldForIntervalRelease_;
         // Last present that entered Ingest (including held rows). Used for anchor CpuStart
         // when swap chain lastPresent has not advanced yet.
         std::optional<FrameData> lastIngestedPresent_;

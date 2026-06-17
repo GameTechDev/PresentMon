@@ -351,7 +351,7 @@ namespace MetricsCoreTests
     TEST_CLASS(AnimationErrorTrackerTests)
     {
     public:
-        TEST_METHOD(CloseInterval_SameSourceZeroDisplayElapsed_PublishesAnimationTimeAndMissingError)
+        TEST_METHOD(ResolveInterval_SameSourceZeroDisplayElapsed_PublishesAnimationTimeAndMissingError)
         {
             QpcConverter qpc(1000, 0);
             AnimationErrorTracker tracker{};
@@ -359,7 +359,7 @@ namespace MetricsCoreTests
             AnimationErrorTracker::AppAnchor anchor{};
             anchor.source = AnimationErrorSource::AppProvider;
             anchor.simStartTime = 1000;
-            Assert::IsTrue(tracker.SeedAnchor(anchor));
+            Assert::IsTrue(tracker.TryStartTimelineAtAnchor(anchor));
 
             AnimationErrorTracker::AppAnchor closingAnchor{};
             closingAnchor.source = AnimationErrorSource::AppProvider;
@@ -369,7 +369,7 @@ namespace MetricsCoreTests
             row.previousDisplayedScreenTime = 200;
             row.screenTime = 200;
 
-            const auto contexts = tracker.CloseInterval(qpc, closingAnchor, { row });
+            const auto contexts = tracker.ResolveIntervalAndAdvanceAnchor(qpc, closingAnchor, { row });
 
             Assert::AreEqual(size_t(1), contexts.size());
             Assert::IsFalse(HasMetricValue(contexts[0].msAnimationError));

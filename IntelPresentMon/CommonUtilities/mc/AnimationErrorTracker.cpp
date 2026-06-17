@@ -47,33 +47,34 @@ namespace pmon::util::metrics
         }
     }
 
-    bool AnimationErrorTracker::HasAnchor() const
+    bool AnimationErrorTracker::HasTimelineAnchor() const
     {
-        return hasAnchor_;
+        return hasCurrentAnchor_;
     }
-    bool AnimationErrorTracker::SeedAnchor(const AppAnchor& anchor)
+    bool AnimationErrorTracker::TryStartTimelineAtAnchor(const AppAnchor& anchor)
     {
         if (anchor.simStartTime == 0) {
             return false;
         }
-        previousAnchor_ = anchor;
-        previousAnchor_.animationTimeMs = 0.0;
-        firstSimStartTime_ = anchor.simStartTime;
-        hasAnchor_ = true;
+        currentAnchor_ = anchor;
+        currentAnchor_.animationTimeMs = 0.0;
+        timelineFirstSimStartTime_ = anchor.simStartTime;
+        hasCurrentAnchor_ = true;
         return true;
     }
-    void AnimationErrorTracker::SyncPreviousAnchorAnimationTimeMs(double publishedAnimationTimeMs)
+    void AnimationErrorTracker::SetCurrentAnchorAnimationTimeMs(double publishedAnimationTimeMs)
     {
-        if (!hasAnchor_ || IsMissingFrameMetricValue(publishedAnimationTimeMs)) {
+        if (!hasCurrentAnchor_ || IsMissingFrameMetricValue(publishedAnimationTimeMs)) {
             return;
         }
-        previousAnchor_.animationTimeMs = publishedAnimationTimeMs;
+        currentAnchor_.animationTimeMs = publishedAnimationTimeMs;
     }
-    bool AnimationErrorTracker::IsTransition(const AppAnchor& anchor) const
+    bool AnimationErrorTracker::IsSourceTransition(const AppAnchor& anchor) const
     {
-        return hasAnchor_ && previousAnchor_.source != anchor.source;
+        return hasCurrentAnchor_ && currentAnchor_.source != anchor.source;
     }
-    AnimationDisplayContext AnimationErrorTracker::MakeTransitionTimelineOrigin(const AppAnchor& anchor)
+    AnimationDisplayContext AnimationErrorTracker::StartTransitionTimelineAndBuildOriginContext_(
+        const AppAnchor& anchor)
     {
         AnimationDisplayContext context{};
         context.msAnimationError = MissingFrameMetricValue();
@@ -82,47 +83,47 @@ namespace pmon::util::metrics
         context.resolvedSimStartTime = anchor.simStartTime;
         context.firstSimStartTime = anchor.simStartTime;
         context.hasResolvedSimStart = anchor.simStartTime != 0;
-        SeedAnchor(anchor);
+        TryStartTimelineAtAnchor(anchor);
         return context;
     }
-    std::vector<AnimationDisplayContext> AnimationErrorTracker::CloseInterval(
+    std::vector<AnimationDisplayContext> AnimationErrorTracker::ResolveIntervalAndAdvanceAnchor(
         const QpcConverter& qpc,
         const AppAnchor& closingAnchor,
         const std::vector<ReadyDisplayRow>& intervalRows)
     {
         std::vector<AnimationDisplayContext> contexts(intervalRows.size());
-        if (!hasAnchor_ || closingAnchor.simStartTime == 0 || intervalRows.empty()) {
-            SeedAnchor(closingAnchor);
+        if (!hasCurrentAnchor_ || closingAnchor.simStartTime == 0 || intervalRows.empty()) {
+            TryStartTimelineAtAnchor(closingAnchor);
             return contexts;
         }
-        if (IsTransition(closingAnchor)) {
+        if (IsSourceTransition(closingAnchor)) {
             if (!contexts.empty()) {
-                contexts.back() = MakeTransitionTimelineOrigin(closingAnchor);
+                contexts.back() = StartTransitionTimelineAndBuildOriginContext_(closingAnchor);
             }
             return contexts;
         }
-        return CloseSameSourceInterval_(qpc, closingAnchor, intervalRows);
+        return ResolveSameSourceIntervalAndAdvanceAnchor_(qpc, closingAnchor, intervalRows);
     }
-    std::vector<AnimationDisplayContext> AnimationErrorTracker::CloseSameSourceInterval_(
+    std::vector<AnimationDisplayContext> AnimationErrorTracker::ResolveSameSourceIntervalAndAdvanceAnchor_(
         const QpcConverter& qpc,
         const AppAnchor& closingAnchor,
         const std::vector<ReadyDisplayRow>& intervalRows)
     {
         std::vector<AnimationDisplayContext> contexts(intervalRows.size());
-        if (closingAnchor.simStartTime <= previousAnchor_.simStartTime) {
+        if (closingAnchor.simStartTime <= currentAnchor_.simStartTime) {
             AppAnchor reseededAnchor = closingAnchor;
-            reseededAnchor.animationTimeMs = previousAnchor_.animationTimeMs;
-            previousAnchor_ = reseededAnchor;
+            reseededAnchor.animationTimeMs = currentAnchor_.animationTimeMs;
+            currentAnchor_ = reseededAnchor;
             return contexts;
         }
         const double simStepTicks =
-            double(closingAnchor.simStartTime - previousAnchor_.simStartTime) / double(intervalRows.size());
+            double(closingAnchor.simStartTime - currentAnchor_.simStartTime) / double(intervalRows.size());
         const double simStepMs = simStepTicks * qpc.GetMilliSecondsPerTick();
         for (size_t i = 0; i < intervalRows.size(); ++i) {
             const auto& row = intervalRows[i];
             const double displayStepMs =
                 qpc.DeltaUnsignedMilliSeconds(row.previousDisplayedScreenTime, row.screenTime);
-            const double animationTimeMs = previousAnchor_.animationTimeMs + (simStepMs * double(i + 1));
+            const double animationTimeMs = currentAnchor_.animationTimeMs + (simStepMs * double(i + 1));
             contexts[i].msAnimationError =
                 simStepMs == 0.0 || displayStepMs == 0.0
                     ? MissingFrameMetricValue()
@@ -130,17 +131,17 @@ namespace pmon::util::metrics
             contexts[i].msAnimationTime = animationTimeMs;
             contexts[i].source = closingAnchor.source;
             contexts[i].resolvedSimStartTime =
-                uint64_t(double(previousAnchor_.simStartTime) + (simStepTicks * double(i + 1)));
-            contexts[i].firstSimStartTime = firstSimStartTime_;
+                uint64_t(double(currentAnchor_.simStartTime) + (simStepTicks * double(i + 1)));
+            contexts[i].firstSimStartTime = timelineFirstSimStartTime_;
             contexts[i].hasResolvedSimStart = true;
         }
         AppAnchor nextAnchor = closingAnchor;
         nextAnchor.animationTimeMs =
-            previousAnchor_.animationTimeMs + (simStepMs * double(intervalRows.size()));
-        previousAnchor_ = nextAnchor;
+            currentAnchor_.animationTimeMs + (simStepMs * double(intervalRows.size()));
+        currentAnchor_ = nextAnchor;
         return contexts;
     }
-    AnimationErrorTracker::AppAnchor AnimationErrorTracker::ResolveAnchor(
+    AnimationErrorTracker::AppAnchor AnimationErrorTracker::ResolveAppAnchor(
         const SwapChainCoreState& chainState,
         const FrameData& present,
         size_t displayIndex,

@@ -21,16 +21,22 @@ namespace pmon::util::metrics
             uint64_t simStartTime = 0;
             double animationTimeMs = 0.0;
         };
-        bool HasAnchor() const;
-        bool SeedAnchor(const AppAnchor& anchor);
-        void SyncPreviousAnchorAnimationTimeMs(double publishedAnimationTimeMs);
-        bool IsTransition(const AppAnchor& anchor) const;
-        AnimationDisplayContext MakeTransitionTimelineOrigin(const AppAnchor& anchor);
-        std::vector<AnimationDisplayContext> CloseInterval(
+        bool HasTimelineAnchor() const;
+        // Start a new animation timeline at anchor. Returns false if the anchor
+        // has no resolved simulation start.
+        bool TryStartTimelineAtAnchor(const AppAnchor& anchor);
+        // Set the current anchor's accumulated animation time after its origin row
+        // has been published.
+        void SetCurrentAnchorAnimationTimeMs(double publishedAnimationTimeMs);
+        bool IsSourceTransition(const AppAnchor& anchor) const;
+        // Resolve animation contexts for intervalRows and advance the current
+        // timeline anchor according to same-source, transition, and invalid-interval
+        // rules.
+        std::vector<AnimationDisplayContext> ResolveIntervalAndAdvanceAnchor(
             const QpcConverter& qpc,
             const AppAnchor& closingAnchor,
             const std::vector<ReadyDisplayRow>& intervalRows);
-        AppAnchor ResolveAnchor(
+        AppAnchor ResolveAppAnchor(
             const SwapChainCoreState& chainState,
             const FrameData& present,
             size_t displayIndex,
@@ -42,12 +48,14 @@ namespace pmon::util::metrics
             const FrameData& present,
             AnimationErrorSource source,
             const FrameData* ingestPreviousPresent);
-        std::vector<AnimationDisplayContext> CloseSameSourceInterval_(
+        AnimationDisplayContext StartTransitionTimelineAndBuildOriginContext_(
+            const AppAnchor& anchor);
+        std::vector<AnimationDisplayContext> ResolveSameSourceIntervalAndAdvanceAnchor_(
             const QpcConverter& qpc,
             const AppAnchor& closingAnchor,
             const std::vector<ReadyDisplayRow>& intervalRows);
-        bool hasAnchor_ = false;
-        AppAnchor previousAnchor_{};
-        uint64_t firstSimStartTime_ = 0;
+        bool hasCurrentAnchor_ = false;
+        AppAnchor currentAnchor_{};
+        uint64_t timelineFirstSimStartTime_ = 0;
     };
 }
