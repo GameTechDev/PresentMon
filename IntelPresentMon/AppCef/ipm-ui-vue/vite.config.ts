@@ -1,13 +1,12 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import vuetify from 'vite-plugin-vuetify'
-import type { Plugin } from 'rollup'
 import path from 'node:path'
 
-// Rollup plugin to keep only .woff2 fonts by dropping any font assets
+// Vite plugin to keep only .woff2 fonts by dropping any font assets
 // whose file name ends in .woff, .ttf or .eot
 function keepOnlyWoff2(): Plugin {
   return {
