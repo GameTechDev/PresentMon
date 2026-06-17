@@ -123,7 +123,10 @@ namespace pmon::util::metrics
             const double displayStepMs =
                 qpc.DeltaUnsignedMilliSeconds(row.previousDisplayedScreenTime, row.screenTime);
             const double animationTimeMs = previousAnchor_.animationTimeMs + (simStepMs * double(i + 1));
-            contexts[i].msAnimationError = simStepMs - displayStepMs;
+            contexts[i].msAnimationError =
+                simStepMs == 0.0 || displayStepMs == 0.0
+                    ? MissingFrameMetricValue()
+                    : simStepMs - displayStepMs;
             contexts[i].msAnimationTime = animationTimeMs;
             contexts[i].source = closingAnchor.source;
             contexts[i].resolvedSimStartTime =
