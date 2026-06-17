@@ -54,6 +54,8 @@ namespace
 
         pmlog_dbg("Loaded NVIDIA DisplayDriver manifest").pmwatch(manifestPath.string());
     }
+
+    constexpr double kProcessPolledMetricsWaitBufferSeconds = 0.0002;
 }
 
 
@@ -167,9 +169,6 @@ void TelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Servic
                 coordinator.SetPollRate(telemetryPeriodMs);
                 coordinator.SetMetricUse(*pMetricUse);
                 coordinator.PollToIpc(*pMetricUse, *pComms);
-                if (pm->ArePsoCompileTelemetryMetricsActive()) {
-                    pm->GetBroadcaster().PollProcessPsoTelemetryToIpc();
-                }
 
                 waiter.SetInterval(telemetryPeriodMs / 1000.);
                 waiter.Wait();
@@ -178,6 +177,56 @@ void TelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Servic
     }
     catch (...) {
         pmlog_error(util::ReportException("Failure in telemetry loop"));
+    }
+}
+
+void PsoCompileTelemetryThreadEntry_(Service* const srv, PresentMon* const pm)
+{
+    using util::win::WaitAnyEvent;
+    using util::win::WaitAnyEventFor;
+
+    try {
+        util::log::IdentificationTable::AddThisThread("pso-telemetry");
+        pmlog_dbg("Starting PSO compile telemetry thread");
+        if (srv == nullptr || pm == nullptr) {
+            pmlog_error("Required parameter was null");
+            return;
+        }
+
+        IntervalWaiter waiter{
+            util::GetDefaultSystemTimerPeriodSeconds(),
+            util::IntervalWaiter::Options{
+                .mechanism = util::WaitMechanism::Sleep,
+                .spinBufferSeconds = kProcessPolledMetricsWaitBufferSeconds,
+            },
+        };
+        while (true) {
+            pmlog_dbg("(re)starting PSO compile telemetry idle wait");
+            if (WaitAnyEvent(pm->GetDeviceUsageEvent(), srv->GetServiceStopHandle()) == 1) {
+                pmlog_dbg("PSO compile telemetry received exit code, thread exiting");
+                return;
+            }
+
+            if (!pm->ArePsoCompileTelemetryMetricsActive()) {
+                pmlog_dbg("received device usage event, but no PSO compile telemetry metrics were active");
+                continue;
+            }
+
+            pmlog_dbg("entering PSO compile telemetry active poll loop");
+            waiter.SetInterval(util::GetDefaultSystemTimerPeriodSeconds());
+            while (!WaitAnyEventFor(0ms, srv->GetServiceStopHandle())) {
+                if (!pm->ArePsoCompileTelemetryMetricsActive()) {
+                    break;
+                }
+
+                const auto waitResult = waiter.Wait();
+                const uint64_t gridTargetQpc = (uint64_t)waiter.TargetTimeToTimestamp(waitResult.targetSec);
+                pm->GetBroadcaster().PollProcessPsoTelemetryToIpc(gridTargetQpc);
+            }
+        }
+    }
+    catch (...) {
+        pmlog_error(util::ReportException("Failure in PSO compile telemetry loop"));
     }
 }
 
@@ -191,6 +240,7 @@ void PresentMonMainThread(Service* const pSvc)
     // so that if an exception happens, it won't block during unwinding,
     // trying to join threads that are waiting for a stop signal
     std::jthread telemetryThread;
+    std::jthread psoCompileTelemetryThread;
 
     try {
         LoadNvidiaManifest_();
@@ -267,6 +317,13 @@ void PresentMonMainThread(Service* const pSvc)
             LOG(ERROR) << "failed creating telemetry thread" << std::endl;
         }
 
+        try {
+            psoCompileTelemetryThread = std::jthread{ PsoCompileTelemetryThreadEntry_, pSvc, &pm };
+        }
+        catch (...) {
+            LOG(ERROR) << "failed creating PSO compile telemetry thread" << std::endl;
+        }
+
         // start thread for manual ETW event buffer flushing
         std::jthread flushThread{ EventFlushThreadEntry_, pSvc, &pm };
 
@@ -286,6 +343,9 @@ void PresentMonMainThread(Service* const pSvc)
         // wait for the telemetry threads to exit
         if (telemetryThread.joinable()) {
             telemetryThread.join();
+        }
+        if (psoCompileTelemetryThread.joinable()) {
+            psoCompileTelemetryThread.join();
         }
     }
     catch (...) {

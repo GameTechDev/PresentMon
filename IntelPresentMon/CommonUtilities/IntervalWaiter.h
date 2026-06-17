@@ -27,6 +27,7 @@ namespace pmon::util
 		struct Options
 		{
 			WaitMechanism mechanism = WaitMechanism::Sleep;
+			// HighPrecisionTimer: spin buffer after timer wait. Sleep: wake this much early (no spin).
 			double spinBufferSeconds = 0.;
 		};
 		// functions

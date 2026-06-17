@@ -32,6 +32,29 @@ namespace pmon::util
 		const auto frequency = GetTimestampFrequencyDouble();
 		return frequency == 0.0 ? 0.0 : 1.0 / frequency;
 	}
+	double GetDefaultSystemTimerPeriodSeconds() noexcept
+	{
+		static const double cached = []() noexcept -> double {
+			constexpr double fallbackSeconds = 15625.0 / 1'000'000.0;
+			using NtQueryTimerResolutionFn = LONG(WINAPI*)(PULONG, PULONG, PULONG);
+			const auto pNtQueryTimerResolution = reinterpret_cast<NtQueryTimerResolutionFn>(
+				GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryTimerResolution"));
+			if (!pNtQueryTimerResolution) {
+				return fallbackSeconds;
+			}
+			ULONG maximumResolution = 0;
+			ULONG minimumResolution = 0;
+			ULONG currentResolution = 0;
+			if (pNtQueryTimerResolution(&maximumResolution, &minimumResolution, &currentResolution) < 0) {
+				return fallbackSeconds;
+			}
+			if (maximumResolution == 0) {
+				return fallbackSeconds;
+			}
+			return double(maximumResolution) / 10'000'000.0;
+		}();
+		return cached;
+	}
 	void SpinWaitUntilTimestamp(int64_t timestamp) noexcept
 	{
 		while (GetCurrentTimestamp() < timestamp) {

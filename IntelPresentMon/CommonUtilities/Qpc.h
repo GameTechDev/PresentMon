@@ -9,6 +9,8 @@ namespace pmon::util
 	double GetTimestampFrequencyDouble() noexcept;
 	uint64_t GetTimestampFrequencyUint64() noexcept;
 	double GetTimestampPeriodSeconds() noexcept;
+	// Default OS timer interrupt period (typically ~15.625ms on Windows).
+	double GetDefaultSystemTimerPeriodSeconds() noexcept;
 	void SpinWaitUntilTimestamp(int64_t timestamp) noexcept;
 	double TimestampDeltaToSeconds(int64_t start, int64_t end, double period) noexcept;
 	double TimestampDeltaToMilliSeconds(uint64_t duration, uint64_t qpcFrequency) noexcept;

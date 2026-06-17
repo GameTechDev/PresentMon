@@ -1,5 +1,6 @@
 #include "IntervalWaiter.h"
 #include "win/WinAPI.h"
+#include <algorithm>
 #include <cmath>
 #include <thread>
 
@@ -111,9 +112,11 @@ namespace pmon::util
 		case WaitMechanism::HighPrecisionTimer:
 			return waiter_.WaitWithBuffer(seconds, options_.spinBufferSeconds);
 		case WaitMechanism::Sleep:
-		default:
-			Sleep((DWORD)std::ceil(seconds * 1000.));
+		default: {
+			const double sleepSeconds = std::max(0., seconds - options_.spinBufferSeconds);
+			Sleep((DWORD)std::ceil(sleepSeconds * 1000.));
 			return 0.;
+		}
 		}
 	}
 }

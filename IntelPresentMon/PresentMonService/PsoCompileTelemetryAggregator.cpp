@@ -9,6 +9,15 @@ namespace pmon::svc
 {
     namespace
     {
+        constexpr double kEtwProcessingLatencyMs = 40.0;
+
+        uint64_t MsToQpc_(double ms, double qpcPeriodSeconds)
+        {
+            if (ms <= 0. || qpcPeriodSeconds <= 0.) {
+                return 0;
+            }
+            return (uint64_t)((ms / 1000.) / qpcPeriodSeconds);
+        }
         void PushDoubleTelemetrySample_(
             ipc::TelemetryMap& telemetryMap,
             PM_METRIC metricId,
@@ -58,10 +67,11 @@ namespace pmon::svc
         });
     }
 
-    size_t PsoCompileTelemetryAggregator::PollToIpc(ipc::ServiceComms& comms)
+    size_t PsoCompileTelemetryAggregator::PollToIpc(ipc::ServiceComms& comms, uint64_t gridTargetQpc)
     {
-        const uint64_t tickQpc = (uint64_t)util::GetCurrentTimestamp();
         const double qpcPeriodSeconds = util::GetTimestampPeriodSeconds();
+        const uint64_t windowOffsetQpc = MsToQpc_(kEtwProcessingLatencyMs, qpcPeriodSeconds);
+        const uint64_t sliceEndQpc = gridTargetQpc > windowOffsetQpc ? gridTargetQpc - windowOffsetQpc : 0;
         const auto trackedPids = comms.GetFramePids();
         size_t samplesWritten = 0;
 
@@ -80,16 +90,20 @@ namespace pmon::svc
 
                 if (!state.lastSliceEndQpc.has_value()) {
                     const int64_t startQpc = pSegment->GetStore().bookkeeping.startQpc;
-                    state.lastSliceEndQpc = startQpc > 0 ? (uint64_t)startQpc : tickQpc;
+                    const uint64_t anchorQpc = startQpc > 0 ? (uint64_t)startQpc : gridTargetQpc;
+                    state.lastSliceEndQpc = anchorQpc > windowOffsetQpc ? anchorQpc - windowOffsetQpc : 0;
                 }
 
                 sliceStartQpc = *state.lastSliceEndQpc;
-                state.lastSliceEndQpc = tickQpc;
+                state.lastSliceEndQpc = sliceEndQpc;
             }
 
             const auto aggregate = util::metrics::AggregatePsoCompileSlice(
-                events, sliceStartQpc, tickQpc, qpcPeriodSeconds);
-            PushSliceAggregate_(pSegment->GetStore(), aggregate, tickQpc);
+                events, sliceStartQpc, sliceEndQpc, qpcPeriodSeconds);
+            const uint64_t sampleTimestampQpc = sliceEndQpc > sliceStartQpc
+                ? sliceStartQpc + (sliceEndQpc - sliceStartQpc) / 2
+                : sliceEndQpc;
+            PushSliceAggregate_(pSegment->GetStore(), aggregate, sampleTimestampQpc);
             samplesWritten += 3;
         }
 

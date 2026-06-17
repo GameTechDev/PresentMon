@@ -15,7 +15,7 @@ namespace pmon::svc
     {
     public:
         void Append(uint32_t processId, double durationMs, uint64_t eventCompleteQpc);
-        size_t PollToIpc(ipc::ServiceComms& comms);
+        size_t PollToIpc(ipc::ServiceComms& comms, uint64_t gridTargetQpc);
 
     private:
         struct PidState_

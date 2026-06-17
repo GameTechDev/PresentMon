@@ -73,9 +73,9 @@ namespace pmon::svc
         {
             psoCompileTelemetry_.Append(processId, psoCompileDurationMs, eventCompleteQpc);
         }
-        size_t PollProcessPsoTelemetryToIpc()
+        size_t PollProcessPsoTelemetryToIpc(uint64_t gridTargetQpc)
         {
-            return psoCompileTelemetry_.PollToIpc(comms_);
+            return psoCompileTelemetry_.PollToIpc(comms_, gridTargetQpc);
         }
         // Update the single consumer cursor for a backpressured playback ring. Playback
         // backpressure is SPSC: one producer in the service and one owning client reader.
