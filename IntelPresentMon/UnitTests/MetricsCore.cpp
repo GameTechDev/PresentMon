@@ -3756,6 +3756,71 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             AssertAreEqualWithinTolerance(0.0, m.msGPUWait, 0.0001);
         }
 
+        TEST_METHOD(NotDisplayedGeneratedFrame_PreservesFrameTypeAndDoesNotUpdateAppHistory)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 800'000;
+            bootstrap.timeInPresent = 200'000;
+            bootstrap.readyTime = 1'000'000;
+            bootstrap.finalState = PresentResult::Presented;
+            bootstrap.displayed.PushBack({ FrameType::Application, 1'100'000 });
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+            Assert::IsTrue(swapChain.swapChain.lastAppPresent.has_value());
+            Assert::AreEqual(uint64_t(800'000), swapChain.swapChain.lastAppPresent->presentStartTime);
+
+            FrameData generated{};
+            generated.presentStartTime = 1'100'000;
+            generated.timeInPresent = 100'000;
+            generated.readyTime = 1'200'000;
+            generated.gpuStartTime = 1'150'000;
+            generated.gpuDuration = 200'000;
+            generated.finalState = PresentResult::Discarded;
+            generated.displayed.PushBack({ FrameType::Repeated, 1'300'000 });
+
+            auto rows = swapChain.ProcessPresent(qpc, std::move(generated));
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::AreEqual((int)FrameType::Repeated, (int)rows[0].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(0), rows[0].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(IsMissingFrameMetricValue(rows[0].computed.metrics.msCPUBusy));
+            Assert::IsTrue(swapChain.swapChain.lastAppPresent.has_value());
+            Assert::AreEqual(uint64_t(800'000), swapChain.swapChain.lastAppPresent->presentStartTime);
+            Assert::IsTrue(swapChain.swapChain.lastPresent.has_value());
+            Assert::AreEqual(uint64_t(1'100'000), swapChain.swapChain.lastPresent->presentStartTime);
+        }
+
+        TEST_METHOD(NotDisplayedPresent_MultipleFrameTypeEntries_ProducesRowPerEntry)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 800'000;
+            bootstrap.timeInPresent = 200'000;
+            bootstrap.readyTime = 1'000'000;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData dropped{};
+            dropped.presentStartTime = 1'100'000;
+            dropped.timeInPresent = 100'000;
+            dropped.readyTime = 1'200'000;
+            dropped.finalState = PresentResult::Discarded;
+            dropped.displayed.PushBack({ FrameType::Repeated, 1'300'000 });
+            dropped.displayed.PushBack({ FrameType::Application, 1'400'000 });
+
+            auto rows = swapChain.ProcessPresent(qpc, std::move(dropped));
+            Assert::AreEqual(size_t(2), rows.size());
+            Assert::AreEqual((int)FrameType::Repeated, (int)rows[0].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::Application, (int)rows[1].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(0), rows[0].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(0), rows[1].computed.metrics.screenTimeQpc);
+        }
+
         TEST_METHOD(NotDisplayedFrame_AppFrameMetrics_Computed)
         {
             // Frame is not displayed (Discarded) but has CPU/GPU work

@@ -240,7 +240,9 @@ namespace pmon::util::metrics {
             // Not displayed: advance present/input history but leave last displayed
             // screen time and flip delay unchanged. The screen is still showing
             // whatever it last showed; a dropped present does not change that.
-            lastAppPresent = present;
+            if (row.isAppFrame) {
+                lastAppPresent = present;
+            }
         }
 
         if (present.pclSimStartTime != 0) {

@@ -22,9 +22,9 @@ namespace pmon::util::metrics
 
     // Ingest is called for every present and is responsible for expanding presents into display instances,
     // attaching animation contexts from the AnimationErrorTracker, and buffering until the publish policy allows
-    // rows to be released. The general flow is: if not displayed, buffer if there's an anchor or emit immediately if not;
-    // if displayed and not an app anchor, buffer until the next app anchor; if displayed and an app anchor,
-    // close the prior interval with this anchor and buffer until lookahead information is available to release.
+    // rows to be released. If frame-type metadata exists, each metadata entry becomes a row even when
+    // the present was not displayed. Displayed generated rows wait for an app anchor; displayed app rows
+    // close the prior interval and then wait for lookahead before release.
     std::vector<ReadyDisplayRow> DisplayFrameQueue::Ingest(
         const QpcConverter& qpc,
         FrameData present,
@@ -38,16 +38,29 @@ namespace pmon::util::metrics
         // after processing while ingestPreviousPresent still refers to the prior ingest above.
         FrameData presentForIngestHistory = present;
 
+        const bool presentIsDisplayed = IsDisplayed_(present);
+        const size_t displayCount = present.displayed.Size();
+
         std::vector<ReadyDisplayRow> ready;
-        if (!IsDisplayed_(present)) {
-            IngestNotDisplayedPresent_(std::move(present), animation, ready);
+        if (displayCount == 0) {
+            IngestNotDisplayedRow_(MakeNotDisplayedRow_(std::move(present)), ready);
             MarkPresentUpdateRows_(ready);
             lastIngestedPresent_ = std::move(presentForIngestHistory);
             return ready;
         }
-        const size_t displayCount = present.displayed.Size();
+
         for (size_t displayIndex = 0; displayIndex < displayCount; ++displayIndex) {
             ReadyDisplayRow row = BuildDisplayInstanceRow_(present, displayIndex, chain);
+
+            if (!presentIsDisplayed) {
+                row.isDisplayed = false;
+                row.previousDisplayedScreenTime = chain.lastDisplayedScreenTime;
+                row.screenTime = 0;
+                row.nextScreenTime = 0;
+                IngestNotDisplayedRow_(std::move(row), ready);
+                continue;
+            }
+
             ApplyNvV2Adjustment_(row);
 
             // This displayed instance is lookahead for rows that were complete except
@@ -61,7 +74,7 @@ namespace pmon::util::metrics
             }
             AcceptDisplayOrder_(row);
             if (!row.isAppFrame) {
-                IngestGeneratedDisplayInstance_(std::move(row), animation, ready);
+                IngestGeneratedDisplayInstance_(std::move(row), ready);
             }
             else {
                 IngestAppAnchorDisplayInstance_(
@@ -93,11 +106,12 @@ namespace pmon::util::metrics
         lastAcceptedScreenTime_ = 0;
         lastAcceptedPresentStartTime_ = 0;
         lastAcceptedFlipDelay_ = 0;
+        hasObservedAppAnchor_ = false;
         openAppToAppIntervalRows_.clear();
         closedIntervalAwaitingDisplayLookahead_.clear();
         preFirstAppAnchorRowsAwaitingDisplayLookahead_.clear();
         timelineOriginAwaitingDisplayLookahead_.reset();
-        notDisplayedPresentsHeldForIntervalRelease_.clear();
+        notDisplayedRowsHeldForIntervalRelease_.clear();
         lastIngestedPresent_.reset();
     }
 
@@ -164,22 +178,21 @@ namespace pmon::util::metrics
     }
 
     // -------------------------------------------------------------------------
-    // Not-displayed presents
+    // Not-displayed rows
     // -------------------------------------------------------------------------
-    void DisplayFrameQueue::IngestNotDisplayedPresent_(
-        FrameData present,
-        AnimationErrorTracker& animation,
+    void DisplayFrameQueue::IngestNotDisplayedRow_(
+        ReadyDisplayRow row,
         std::vector<ReadyDisplayRow>& ready)
     {
-        // If there's an app anchor, hold not-displayed presents until the next app anchor closes the interval,
+        // If there's an app anchor, hold not-displayed rows until the next app anchor closes the interval,
         // at which point they'll be released with animation metrics. Otherwise, they can be emitted immediately
         // with missing animation metrics. This handles cases where we receive generated frames without a prior app anchor,
         // which is expected to be common when the provider starts after the app has already started presenting.
-        if (animation.HasTimelineAnchor()) {
-            notDisplayedPresentsHeldForIntervalRelease_.push_back(std::move(present));
+        if (hasObservedAppAnchor_) {
+            notDisplayedRowsHeldForIntervalRelease_.push_back(std::move(row));
         }
         else {
-            ready.push_back(MakeNotDisplayedRow_(std::move(present)));
+            ready.push_back(std::move(row));
         }
     }
 
@@ -188,10 +201,9 @@ namespace pmon::util::metrics
     // -------------------------------------------------------------------------
     void DisplayFrameQueue::IngestGeneratedDisplayInstance_(
         ReadyDisplayRow row,
-        AnimationErrorTracker& animation,
         std::vector<ReadyDisplayRow>& ready)
     {
-        if (!animation.HasTimelineAnchor()) {
+        if (!hasObservedAppAnchor_) {
             // Design: trace start without prior app anchor.
             if (!preFirstAppAnchorRowsAwaitingDisplayLookahead_.empty()) {
                 preFirstAppAnchorRowsAwaitingDisplayLookahead_.back().nextScreenTime = row.screenTime;
@@ -226,7 +238,10 @@ namespace pmon::util::metrics
             row.present,
             row.displayIndex,
             ingestPreviousPresent);
-        if (!animation.HasTimelineAnchor()) {
+        const bool isFirstObservedAppAnchor = !hasObservedAppAnchor_;
+        hasObservedAppAnchor_ = true;
+
+        if (isFirstObservedAppAnchor) {
             if (!preFirstAppAnchorRowsAwaitingDisplayLookahead_.empty()) {
                 preFirstAppAnchorRowsAwaitingDisplayLookahead_.back().nextScreenTime = row.screenTime;
                 ready.push_back(std::move(preFirstAppAnchorRowsAwaitingDisplayLookahead_.back()));
@@ -298,10 +313,10 @@ namespace pmon::util::metrics
         for (size_t i = 0; i < intervalRows.size(); ++i) {
             intervalRows[i].animation = contexts[i];
         }
-        while (!notDisplayedPresentsHeldForIntervalRelease_.empty()) {
+        while (!notDisplayedRowsHeldForIntervalRelease_.empty()) {
             closedIntervalAwaitingDisplayLookahead_.push_back(
-                MakeNotDisplayedRow_(std::move(notDisplayedPresentsHeldForIntervalRelease_.front())));
-            notDisplayedPresentsHeldForIntervalRelease_.pop_front();
+                std::move(notDisplayedRowsHeldForIntervalRelease_.front()));
+            notDisplayedRowsHeldForIntervalRelease_.pop_front();
         }
         closedIntervalAwaitingDisplayLookahead_.insert(
             closedIntervalAwaitingDisplayLookahead_.end(),
@@ -321,9 +336,9 @@ namespace pmon::util::metrics
             openAppToAppIntervalRows_.back().nextScreenTime = transitionAppRow.screenTime;
         }
         MoveAllToReady_(openAppToAppIntervalRows_, ready);
-        while (!notDisplayedPresentsHeldForIntervalRelease_.empty()) {
-            ready.push_back(MakeNotDisplayedRow_(std::move(notDisplayedPresentsHeldForIntervalRelease_.front())));
-            notDisplayedPresentsHeldForIntervalRelease_.pop_front();
+        while (!notDisplayedRowsHeldForIntervalRelease_.empty()) {
+            ready.push_back(std::move(notDisplayedRowsHeldForIntervalRelease_.front()));
+            notDisplayedRowsHeldForIntervalRelease_.pop_front();
         }
         const auto anchor = animation.ResolveAppAnchor(
             chain,

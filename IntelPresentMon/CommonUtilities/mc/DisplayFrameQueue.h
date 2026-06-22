@@ -36,13 +36,11 @@ namespace pmon::util::metrics
             uint64_t nextScreenTime,
             std::vector<ReadyDisplayRow>& ready);
         // --- Ingest routing
-        void IngestNotDisplayedPresent_(
-            FrameData present,
-            AnimationErrorTracker& animation,
+        void IngestNotDisplayedRow_(
+            ReadyDisplayRow row,
             std::vector<ReadyDisplayRow>& ready);
         void IngestGeneratedDisplayInstance_(
             ReadyDisplayRow row,
-            AnimationErrorTracker& animation,
             std::vector<ReadyDisplayRow>& ready);
         void IngestAppAnchorDisplayInstance_(
             const QpcConverter& qpc,
@@ -78,6 +76,7 @@ namespace pmon::util::metrics
         uint64_t lastAcceptedScreenTime_ = 0;
         uint64_t lastAcceptedPresentStartTime_ = 0;
         uint64_t lastAcceptedFlipDelay_ = 0;
+        bool hasObservedAppAnchor_ = false;
         // Generated rows after an app anchor, until the next app anchor closes the interval.
         std::vector<ReadyDisplayRow> openAppToAppIntervalRows_;
         // Closed interval rows waiting for the displayed frame after the closing app anchor.
@@ -86,8 +85,8 @@ namespace pmon::util::metrics
         std::vector<ReadyDisplayRow> preFirstAppAnchorRowsAwaitingDisplayLookahead_;
         // First app anchor (or source-transition origin) waiting for nextScreenTime.
         std::optional<ReadyDisplayRow> timelineOriginAwaitingDisplayLookahead_;
-        // Not-displayed presents held while an app anchor exists.
-        std::deque<FrameData> notDisplayedPresentsHeldForIntervalRelease_;
+        // Not-displayed rows held while an app anchor exists.
+        std::deque<ReadyDisplayRow> notDisplayedRowsHeldForIntervalRelease_;
         // Last present that entered Ingest (including held rows). Used for anchor CpuStart
         // when swap chain lastPresent has not advanced yet.
         std::optional<FrameData> lastIngestedPresent_;
