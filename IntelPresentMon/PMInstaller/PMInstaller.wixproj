@@ -72,22 +72,6 @@
       <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
       <RefTargetDir>INSTALLFOLDER</RefTargetDir>
     </ProjectReference>
-    <ProjectReference Include="..\FlashInjectorLibrary\FlashInjectorLibrary.vcxproj">
-      <Name>FlashInjectorLibrary</Name>
-      <Project>{2e571d96-1196-45d4-ae13-f05ceb1f23c8}</Project>
-      <Private>True</Private>
-      <DoNotHarvest>True</DoNotHarvest>
-      <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
-      <RefTargetDir>INSTALLFOLDER</RefTargetDir>
-    </ProjectReference>
-    <ProjectReference Include="..\FlashInjector\FlashInjector.vcxproj">
-      <Name>FlashInjector</Name>
-      <Project>{14903b1e-26a7-4b57-b67c-5ab5bb4c1598}</Project>
-      <Private>True</Private>
-      <DoNotHarvest>True</DoNotHarvest>
-      <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
-      <RefTargetDir>INSTALLFOLDER</RefTargetDir>
-    </ProjectReference>
     <ProjectReference Include="..\KernelProcess\KernelProcess.vcxproj">
       <Name>KernelProcess</Name>
       <Project>{8524c555-b172-46ef-be42-7b7b7bb102e4}</Project>

@@ -6,7 +6,6 @@ import ReadoutConfigView from '@/views/ReadoutConfigView.vue'
 import DataConfigView from '@/views/DataConfigView.vue'
 import OverlayConfigView from '@/views/OverlayConfigView.vue'
 import CaptureConfigView from '@/views/CaptureConfigView.vue'
-import FlashConfigView from '@/views/FlashConfigView.vue'
 import OtherConfigView from '@/views/OtherConfigView.vue'
 import LoggingConfigView from '@/views/LoggingConfigView.vue'
 import AboutConfigView from '@/views/AboutConfigView.vue'
@@ -69,11 +68,6 @@ const router = createRouter({
       path: '/about',
       name: 'about-config',
       component: AboutConfigView,
-    },
-    {
-      path: '/flash',
-      name: 'flash-config',
-      component: FlashConfigView,
     },
   ],
 })
