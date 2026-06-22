@@ -375,46 +375,6 @@
                     KeyPath="yes">
 				</File>
 			</Component>
-			<Component
-                Id="pm_app_flash_injector_32"
-                Guid="53B0360B-8EC3-4E52-BB97-E30A8D16C813">
-				<File
-                    Id="pm_app_flash_injector_32"
-                    Name="FlashInjector-Win32.exe"
-                    Source="$(var.PresentMon.TargetDir)FlashInjector-Win32.exe"
-                    KeyPath="yes">
-				</File>
-			</Component>
-			<Component
-                Id="pm_app_flash_injector_64"
-                Guid="1397EEFE-95DF-4761-9597-5966B2416C25">
-				<File
-                    Id="pm_app_flash_injector_64"
-                    Name="FlashInjector-x64.exe"
-                    Source="$(var.PresentMon.TargetDir)FlashInjector-x64.exe"
-                    KeyPath="yes">
-				</File>
-			</Component>
-			<Component
-                Id="pm_app_flash_injection_library_32_dll"
-                Guid="5DCE775A-1849-4540-828E-CDE676995FCC">
-				<File
-                    Id="pm_app_flash_injection_library_32_dll"
-                    Name="FlashInjectorLibrary-Win32.dll"
-                    Source="$(var.PresentMon.TargetDir)FlashInjectorLibrary-Win32.dll"
-                    KeyPath="yes">
-				</File>
-			</Component>
-			<Component
-                Id="pm_app_flash_injection_library_64_dll"
-                Guid="E149257A-E935-453E-B6C1-1764C3CE7DDE">
-				<File
-                    Id="pm_app_flash_injection_library_64_dll"
-                    Name="FlashInjectorLibrary-x64.dll"
-                    Source="$(var.PresentMon.TargetDir)FlashInjectorLibrary-x64.dll"
-                    KeyPath="yes">
-				</File>
-			</Component>
         </ComponentGroup>
         <ComponentGroup
             Id="pm_app_pathed"
