@@ -43,7 +43,6 @@ namespace kproc
             .hideAlways = pref.hideAlways,
             .independentKernelWindow = pref.independentWindow,
             .generateStats = pref.generateStats,
-            .enableFlashInjection = pref.enableFlashInjection,
         });
         if (pref.adapterId && *pref.adapterId > 0) {
             pSpec->frameQueryAdapterId = uint32_t(*pref.adapterId);
