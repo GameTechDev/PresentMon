@@ -19,6 +19,7 @@ namespace pmon::svc
             traceConsumer.mTrackDisplay = true;   // ... presents to the display.
             traceConsumer.mTrackGPU = true;       // ... GPU work.
             traceConsumer.mTrackGPUVideo = true;  // ... GPU video work (separately from non-video GPU work).
+            traceConsumer.mTrackD3D12ShaderCompilation = true;
             traceConsumer.mTrackInput = true;     // ... keyboard/mouse latency.
             traceConsumer.mTrackFrameType = true; // ... the frame type communicated through the Intel-PresentMon provider.
             traceConsumer.mTrackAppTiming = true; // ... app timing data communicated through the Intel-PresentMon provider.

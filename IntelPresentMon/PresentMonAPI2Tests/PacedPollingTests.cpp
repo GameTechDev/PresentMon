@@ -433,4 +433,32 @@ namespace PacedPolling
 		}
 	};
 #undef TEST_NAME
+
+#define TEST_NAME P02NomadDemoFS750
+	TEST_CLASS(TEST_NAME)
+	{
+		TestFixture fixture_;
+	public:
+		TEST_METHOD_INITIALIZE(Setup)
+		{
+			fixture_.Setup({
+				"--etl-test-file"s, std::format(R"(..\..\Tests\AuxData\Data\{}.etl)", STRINGIFY(TEST_NAME)),
+				"--pace-playback"s,
+				});
+		}
+		TEST_METHOD_CLEANUP(Cleanup)
+		{
+			fixture_.Cleanup();
+		}
+		TEST_METHOD(PollDynamic)
+		{
+			const uint32_t targetPid = 5756;
+			const auto recordingStart = 14.;
+			const auto recordingStop = 17.;
+			constexpr auto pollPeriod = PollPeriodFromHz(140.0);
+			ExecutePacedPollingTest(STRINGIFY(TEST_NAME), targetPid, recordingStart, recordingStop,
+				pollPeriod, fixture_);
+		}
+	};
+#undef TEST_NAME
 }

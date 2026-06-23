@@ -6,8 +6,10 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <array>
 #include "../cnr/FixedVector.h"
 #include <PresentData/PresentEventEnums.hpp>
+#include <PresentData/InterPresentActivity.hpp>
 
 // Forward declarations for external types
 struct PresentEvent; // From PresentMonTraceConsumer
@@ -83,6 +85,9 @@ namespace pmon::util::metrics {
         uint64_t pclInputPingTime = 0;
         uint64_t flipDelay = 0;
         uint32_t flipToken = 0;
+
+        std::array<InterPresentActivity::FrameStats, (size_t)InterPresentActivity::Kind::Count> interFrameEventStats{};
+        uint64_t interFrameEventWindowQpc = 0;
 
         // Extra present parameters obtained through DXGI or D3D9 present
         uint64_t swapChainAddress = 0;
@@ -164,6 +169,10 @@ namespace pmon::util::metrics {
 
         // PCLatency (optional)
         double msFlipDelay = MissingFrameMetricValue();  // NVIDIA
+
+        uint64_t psoCompileCount = 0;
+        double msPsoCompileTime = 0;
+        double psoCompileBusyPercent = 0;
 
         // Frame Classification
         FrameType frameType = {};

@@ -58,6 +58,10 @@ namespace clio
 		Option<double> pollPeriod{ this, "--poll-period", 0.1, "Period in seconds for polling the API query" };
 		Option<std::string> outputPath{ this, "--output-path", {}, "Full path to output to" };
 		Option<size_t> frameLimit{ this, "--frame-limit", 0, "Maximum number of frames to capture (0 for unlimited)" };
+		Option<double> frameStartThresholdSec{ this, "--frame-start-threshold-sec", 2.,
+			"Seconds to wait for the first frame before stopping (PacedFramePlayback)" };
+		Option<double> frameInactivityThresholdSec{ this, "--frame-inactivity-threshold-sec", 0.25,
+			"Seconds without frames after capture has started before stopping (PacedFramePlayback)" };
 	private: Group gl_{ this, "Logging", "Control logging behavior" }; public:
 		Option<log::Level> logLevel{ this, "--log-level", log::Level::Error, "Severity to log at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };
 		Option<log::Level> logTraceLevel{ this, "--log-trace-level", log::Level::Error, "Severity to print stacktrace at", CLI::CheckedTransformer{ log::GetLevelMapNarrow(), CLI::ignore_case } };

@@ -279,6 +279,12 @@ namespace pmon::util::metrics
             isAppFrame, 
             metrics);
 
+        CalculateInterFrameEventMetrics(
+            qpc,
+            present,
+            isAppFrame,
+            metrics);
+
         CalculateAnimationMetrics(
             qpc,
             chain,

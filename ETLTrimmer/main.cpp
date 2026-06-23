@@ -386,13 +386,15 @@ int main(int argc, const char** argv)
     if (opt.provider) {
         pFilter = std::make_shared<Filter>();
         PMTraceConsumer traceConsumer;
-        traceConsumer.mTrackDisplay = true;   // ... presents to the display.
-        traceConsumer.mTrackGPU = true;       // ... GPU work.
-        traceConsumer.mTrackGPUVideo = true;  // ... GPU video work (separately from non-video GPU work).
-        traceConsumer.mTrackInput = true;     // ... keyboard/mouse latency.
-        traceConsumer.mTrackFrameType = true; // ... the frame type communicated through the Intel-PresentMon provider.
-        traceConsumer.mTrackAppTiming = true; // ... app timing data communicated through the Intel-PresentMon provider.
-        traceConsumer.mTrackPcLatency = true; // ... Nvidia PCL stats.
+        // Match PresentMonService ETL playback (MockPresentMonSession / RealtimePresentMonSession).
+        traceConsumer.mTrackDisplay = true;
+        traceConsumer.mTrackGPU = true;
+        traceConsumer.mTrackGPUVideo = true;
+        traceConsumer.mTrackD3D12ShaderCompilation = true;
+        traceConsumer.mTrackInput = true;
+        traceConsumer.mTrackFrameType = true;
+        traceConsumer.mTrackAppTiming = true;
+        traceConsumer.mTrackPcLatency = true;
         EnableProvidersListing(0, nullptr, &traceConsumer, true, true, pFilter);
     }
 
