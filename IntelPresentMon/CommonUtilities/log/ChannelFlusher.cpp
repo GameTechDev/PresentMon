@@ -66,7 +66,7 @@ namespace pmon::util::log
 			if (!enabled) {
 				flushBeforeSuspend_.store(true, std::memory_order_release);
 			}
-			stateChangeEvent_.Set();
+			pmquell(stateChangeEvent_.Set());
 		}
 	}
 }

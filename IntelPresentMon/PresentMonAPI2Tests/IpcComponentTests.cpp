@@ -61,7 +61,8 @@ namespace IpcComponentTests
             };
             ipc::bip::mapped_region readWriteRegion{ readWriteShm, ipc::bip::read_write };
             auto pData = static_cast<volatile char*>(readWriteRegion.get_address());
-            *pData = *pData;
+            const volatile char prior = *pData;
+            *pData = prior;
         });
     }
 

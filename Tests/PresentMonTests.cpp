@@ -117,15 +117,27 @@ std::wstring diffPath_;
 
 std::string Convert(std::wstring const& src)
 {
-    std::string dst(WideCharToMultiByte(CP_UTF8, 0, src.c_str(), (int) src.size(), nullptr, 0, nullptr, nullptr), 0);
-    WideCharToMultiByte(CP_UTF8, 0, src.c_str(), (int) src.size(), &dst[0], (int) dst.size(), nullptr, nullptr);
+    const int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, src.c_str(), (int)src.size(), nullptr, 0, nullptr, nullptr);
+    if (sizeNeeded <= 0) {
+        return {};
+    }
+    std::string dst(sizeNeeded, 0);
+    if (WideCharToMultiByte(CP_UTF8, 0, src.c_str(), (int)src.size(), &dst[0], sizeNeeded, nullptr, nullptr) <= 0) {
+        return {};
+    }
     return dst;
 }
 
 std::wstring Convert(std::string const& src)
 {
-    std::wstring dst(MultiByteToWideChar(CP_UTF8, 0, src.c_str(), (int) src.size(), nullptr, 0), 0);
-    MultiByteToWideChar(CP_UTF8, 0, src.c_str(), (int) src.size(), &dst[0], (int) dst.size());
+    const int sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, src.c_str(), (int)src.size(), nullptr, 0);
+    if (sizeNeeded <= 0) {
+        return {};
+    }
+    std::wstring dst(sizeNeeded, 0);
+    if (MultiByteToWideChar(CP_UTF8, 0, src.c_str(), (int)src.size(), &dst[0], sizeNeeded) <= 0) {
+        return {};
+    }
     return dst;
 }
 

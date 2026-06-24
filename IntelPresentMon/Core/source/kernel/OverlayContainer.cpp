@@ -212,17 +212,24 @@ namespace p2c::kern
 
                     if (pid == pProc->pid) {
                         if (log::GlobalPolicy::VCheck(v::procwatch)) {
-                            RECT r;
-                            GetWindowRect(hWnd, &r);
-                            pmlog_(log::Level::Verbose).note(std::format(
-                                "handle-proc-spawn-enum-win | pid:{:5} hwd:{:8x} own:{:8x} vis:{} siz:{} nam:{}",
-                                pid,
-                                reinterpret_cast<uintptr_t>(hWnd),
-                                reinterpret_cast<uintptr_t>(GetWindow(hWnd, GW_OWNER)),
-                                IsWindowVisible(hWnd),
-                                win::RectToDims(r).GetArea(),
-                                str::ToNarrow(win::GetWindowTitle(hWnd))
-                            ));
+                            if (RECT r; GetWindowRect(hWnd, &r)) {
+                                pmlog_(log::Level::Verbose).note(std::format(
+                                    "handle-proc-spawn-enum-win | pid:{:5} hwd:{:8x} own:{:8x} vis:{} siz:{} nam:{}",
+                                    pid,
+                                    reinterpret_cast<uintptr_t>(hWnd),
+                                    reinterpret_cast<uintptr_t>(GetWindow(hWnd, GW_OWNER)),
+                                    IsWindowVisible(hWnd),
+                                    win::RectToDims(r).GetArea(),
+                                    str::ToNarrow(win::GetWindowTitle(hWnd))
+                                ));
+                            }
+                            else {
+                                pmlog_(log::Level::Verbose).note(std::format(
+                                    "handle-proc-spawn-enum-win-getrect-failed | pid:{:5} hwd:{:8x}",
+                                    pid,
+                                    reinterpret_cast<uintptr_t>(hWnd)
+                                )).hr();
+                            }
                         }
 
                         // Enumeration only walks top level windows

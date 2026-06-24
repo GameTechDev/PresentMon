@@ -54,7 +54,7 @@ namespace pmon::util::test
         void AppendToSharedFile() const;
 
     private:
-        void Add_(MetricMeasurement measurement);
+        void Add_(const MetricMeasurement& measurement);
 
         std::string testCase_;
         std::vector<MetricMeasurement> measurements_;

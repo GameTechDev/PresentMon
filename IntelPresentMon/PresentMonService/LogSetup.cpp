@@ -65,9 +65,10 @@ namespace logsetup
 	using namespace ::pmon::util;
 	using namespace ::pmon::util::log;
 
-	void ConfigureLogging(bool asApp) noexcept
+	namespace
 	{
-		try {
+		void ConfigureLogging_(bool asApp)
+		{
 			// shortcuts for command line and registry
 			const auto& opt = clio::Options::Get();
 			const auto& reg = Reg::Get();
@@ -126,13 +127,8 @@ namespace logsetup
 				}
 			}
 		}
-		catch (...) {
-			pmlog_panic_("Failed configuring log in server");
-		}
-	}
-	void SetPeriodicLogFlushingEnabled(bool enabled) noexcept
-	{
-		try {
+		void SetPeriodicLogFlushingEnabled_(bool enabled)
+		{
 			if (auto pChannel = GetDefaultChannel()) {
 				if (auto pComponent = pChannel->GetComponent("obj:fsh")) {
 					if (auto pFlusher = std::dynamic_pointer_cast<ChannelFlusher>(pComponent)) {
@@ -140,6 +136,22 @@ namespace logsetup
 					}
 				}
 			}
+		}
+	}
+
+	void ConfigureLogging(bool asApp) noexcept
+	{
+		try {
+			ConfigureLogging_(asApp);
+		}
+		catch (...) {
+			pmlog_panic_("Failed configuring log in server");
+		}
+	}
+	void SetPeriodicLogFlushingEnabled(bool enabled) noexcept
+	{
+		try {
+			SetPeriodicLogFlushingEnabled_(enabled);
 		}
 		catch (...) {
 			pmlog_panic_("Failed setting periodic log flushing state in server");
