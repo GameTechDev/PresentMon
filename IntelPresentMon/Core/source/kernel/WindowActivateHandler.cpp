@@ -41,7 +41,7 @@ namespace p2c::kern
             return;
         }
 
-        const auto currentProc = pOverlay->GetProcess();
+        const auto& currentProc = pOverlay->GetProcess();
         const auto isTarget = hWnd == currentProc.hWnd;
         const auto rect = win::GetWindowClientRectIOpt(hWnd);
 
