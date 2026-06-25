@@ -3810,12 +3810,12 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             dropped.timeInPresent = 100'000;
             dropped.readyTime = 1'200'000;
             dropped.finalState = PresentResult::Discarded;
-            dropped.displayed.PushBack({ FrameType::Repeated, 1'300'000 });
+            dropped.displayed.PushBack({ FrameType::Intel_XEFG, 1'300'000 });
             dropped.displayed.PushBack({ FrameType::Application, 1'400'000 });
 
             auto rows = swapChain.ProcessPresent(qpc, std::move(dropped));
             Assert::AreEqual(size_t(2), rows.size());
-            Assert::AreEqual((int)FrameType::Repeated, (int)rows[0].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[0].computed.metrics.frameType);
             Assert::AreEqual((int)FrameType::Application, (int)rows[1].computed.metrics.frameType);
             Assert::AreEqual(uint64_t(0), rows[0].computed.metrics.screenTimeQpc);
             Assert::AreEqual(uint64_t(0), rows[1].computed.metrics.screenTimeQpc);

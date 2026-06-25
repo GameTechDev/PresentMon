@@ -131,8 +131,8 @@ namespace pmon::util::metrics {
     void SwapChainCoreState::UpdateAfterBootstrapPresentV2(const FrameData& present)
     {
         // V2 bootstrap state update used only for the first present on a swap chain.
-        // V2 display-row processing handles app attribution per displayed entry, so
-        // the bootstrap seed must also find app anchors anywhere in Displayed.
+        // Search for the app index if the present has multiple entries in the display
+        // vector.
         const auto finalState = present.finalState;
         const size_t displayCnt = present.displayed.Size();
         const bool isDisplayed = finalState == PresentResult::Presented && displayCnt > 0;
