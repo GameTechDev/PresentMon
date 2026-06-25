@@ -51,18 +51,6 @@ namespace pmon::util::log
 		}
 	}
 
-	IdentificationTableCallbacks IdentificationTable::MakeForwardingCallbacks() noexcept
-	{
-		return {
-			.addThread = [](uint32_t tid, uint32_t pid, const char* name) {
-				IdentificationTable::AddThread(tid, pid, name ? name : "");
-			},
-			.addProcess = [](uint32_t pid, const char* name) {
-				IdentificationTable::AddProcess(pid, name ? name : "");
-			}
-		};
-	}
-
 	void IdentificationTable::RegisterSink(std::shared_ptr<IIdentificationSink> pSink) noexcept
 	{
 		try {

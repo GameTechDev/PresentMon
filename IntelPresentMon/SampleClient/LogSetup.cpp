@@ -64,7 +64,8 @@ namespace p2sam
 			// get the channel to work on it
 			auto pChan = GetDefaultChannel();
 			// connect dll channel and id table to exe, get access to global settings in dll
-			const auto getters = pmLinkLogging_(pChan, IdentificationTable::MakeForwardingCallbacks());
+			const auto getters = pmLinkLogging_(pChan, []() -> IdentificationTable& {
+				return IdentificationTable::Get_(); });
 			// shortcut for command line
 			const auto& opt = clio::Options::Get();
 			// configure logging based on command line

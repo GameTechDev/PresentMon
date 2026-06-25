@@ -102,7 +102,7 @@ PRESENTMON_API2_EXPORT _CrtMemState pmCreateHeapCheckpoint_()
 
 PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(
 	std::shared_ptr<pmon::util::log::IChannel> pChannel,
-	pmon::util::log::IdentificationTableCallbacks idTableCallbacks)
+	std::function<pmon::util::log::IdentificationTable&()> getIdTable)
 {
 	using namespace util::log;
 	// set api dll default logging channel to copy to exe logging channel
@@ -112,33 +112,27 @@ PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(
 		IdentificationTable::UnregisterSink(pLinkedIdTableSink_.get());
 		pLinkedIdTableSink_.reset();
 	}
-	if (idTableCallbacks) {
+	if (getIdTable) {
 		class Sink : public IIdentificationSink
 		{
 		public:
-			Sink(IdentificationTableCallbacks callbacks)
+			Sink(std::function<IdentificationTable& ()> getTable)
 				:
-				callbacks_{ callbacks }
+				getTable_{ std::move(getTable) }
 			{}
 			void AddThread(uint32_t tid, uint32_t pid, std::string name) override
 			{
-				if (callbacks_.addThread) {
-					callbacks_.addThread(tid, pid, name.c_str());
-				}
+				getTable_().AddThread_(tid, pid, name);
 			}
 			void AddProcess(uint32_t pid, std::string name) override
 			{
-				if (callbacks_.addProcess) {
-					callbacks_.addProcess(pid, name.c_str());
-				}
+				getTable_().AddProcess_(pid, name);
 			}
 		private:
-			IdentificationTableCallbacks callbacks_;
+			std::function<IdentificationTable& ()> getTable_;
 		};
-		pLinkedIdTableSink_ = std::make_shared<Sink>(idTableCallbacks);
-		// hooking exe table up so that it receives updates
+		pLinkedIdTableSink_ = std::make_shared<Sink>(getIdTable);
 		IdentificationTable::RegisterSink(pLinkedIdTableSink_);
-		// copying current contents of table to exe
 		const auto bulk = IdentificationTable::GetBulk();
 		for (auto& t : bulk.threads) {
 			pLinkedIdTableSink_->AddThread(t.tid, t.pid, t.name);

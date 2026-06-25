@@ -171,7 +171,8 @@ namespace pmon::test
 				if (!linkState.linked) {
 					linkState.getters = pmLinkLogging_(
 						pChannel,
-						util::log::IdentificationTable::MakeForwardingCallbacks());
+						[]() -> util::log::IdentificationTable& {
+							return util::log::IdentificationTable::Get_(); });
 					linkState.linked = true;
 				}
 				gettersCopy = linkState.getters;
