@@ -50,6 +50,8 @@ namespace pmon::ipc
             }
         }
 
+        static constexpr uint32_t kMiddlewareIntrospectionReadyTimeoutMs = 5000;
+
         class CommsBase_
         {
         protected:
@@ -318,7 +320,7 @@ namespace pmon::ipc
                 introReadyEvent_{ util::win::Event::OpenNamed(namer_.MakeIntrospectionReadyName(), SYNCHRONIZE) },
                 shm_{ bip::open_read_only, namer_.MakeIntrospectionName().c_str() }
             {
-                WaitOnIntrospectionReadyEvent_(introReadyEvent_, 1500);
+                WaitOnIntrospectionReadyEvent_(introReadyEvent_, kMiddlewareIntrospectionReadyTimeoutMs);
                 systemShm_.emplace(namer_.MakeSystemName());
                 // Eager-load all GPU segments based on introspection
                 auto ids = GetGpuDeviceIds_();
@@ -409,7 +411,7 @@ namespace pmon::ipc
             std::vector<uint32_t> GetGpuDeviceIds_()
             {
                 // make sure the immutable snapshot has been published
-                WaitOnIntrospectionReadyEvent_(introReadyEvent_, 1500);
+                WaitOnIntrospectionReadyEvent_(introReadyEvent_, kMiddlewareIntrospectionReadyTimeoutMs);
                 // find the introspection structure in shared memory
                 const auto result = shm_.find<intro::IntrospectionRoot>(introspectionRootName_);
                 if (!result.first) {
