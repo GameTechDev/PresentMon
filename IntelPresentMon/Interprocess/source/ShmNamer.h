@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <string>
 #include <optional>
 
@@ -14,7 +14,7 @@ namespace pmon::ipc
 		std::string MakeIntrospectionReadyName() const;
 		std::string MakeSystemName() const;
 		std::string MakeGpuName(uint32_t deviceId) const;
-		std::string MakeFrameName(uint32_t pid) const;
+		std::string MakeProcessName(uint32_t pid) const;
 		const std::string& GetSalt() const;
 		const std::string& GetPrefix() const;
 	private:

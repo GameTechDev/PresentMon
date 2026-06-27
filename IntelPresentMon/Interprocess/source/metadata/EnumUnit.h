@@ -23,7 +23,7 @@
 		X_(UNIT, KILOHERTZ, "Kilohertz", "kHz", "Frequency in thousands of cycles per second") \
 		X_(UNIT, MEGAHERTZ, "Megahertz", "MHz", "Frequency in millions of cycles per second") \
 		X_(UNIT, GIGAHERTZ, "Gigahertz", "GHz", "Frequency in billions of cycles per second") \
-		X_(UNIT, CELSIUS, "Degrees Celsius", (const char*)u8"°C", "Temperature in degrees Celsius") \
+		X_(UNIT, CELSIUS, "Degrees Celsius", (const char*)u8"ï¿½C", "Temperature in degrees Celsius") \
 		X_(UNIT, RPM, "Revolutions per Minute", "RPM", "Angular speed in revolutions per minute") \
 		X_(UNIT, BITS_PER_SECOND, "Bits per Second", "bps", "Bandwidth / data throughput in bits per second") \
 		X_(UNIT, KILOBITS_PER_SECOND, "Kilobits per Second", "kbps", "Bandwidth / data throughput in kilobits per second") \

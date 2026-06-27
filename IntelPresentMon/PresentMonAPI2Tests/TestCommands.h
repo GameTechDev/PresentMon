@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <set>
 #include <optional>
 #include <cereal/types/set.hpp>
@@ -15,14 +15,14 @@ namespace pmon::test
 		{
 			// new ipc tracking
 			std::set<uint32_t> trackedPids;
-			std::set<uint32_t> frameStorePids;
+			std::set<uint32_t> processStorePids;
 			uint32_t telemetryPeriodMs;
 			std::optional<uint32_t> etwFlushPeriodMs;
 
 			template <class Archive>
 			void serialize(Archive& ar)
 			{
-				ar(trackedPids, frameStorePids, telemetryPeriodMs, etwFlushPeriodMs);
+				ar(trackedPids, processStorePids, telemetryPeriodMs, etwFlushPeriodMs);
 			}
 		};
 	}

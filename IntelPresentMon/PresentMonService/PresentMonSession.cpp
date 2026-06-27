@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "PresentMonSession.h"
 #include <set>
@@ -12,15 +12,15 @@ pmon::test::service::Status PresentMonSession::GetTestingStatus() const
             trackedPids.emplace(entry.first);
         }
     }
-    std::set<uint32_t> frameStorePids;
+    std::set<uint32_t> processStorePids;
     if (pBroadcaster) {
-        for (auto pid : pBroadcaster->GetPids()) {
-            frameStorePids.emplace(pid);
+        for (auto pid : pBroadcaster->GetProcessDataPids()) {
+            processStorePids.emplace(pid);
         }
     }
     return pmon::test::service::Status{
         .trackedPids = std::move(trackedPids),
-        .frameStorePids = std::move(frameStorePids),
+        .processStorePids = std::move(processStorePids),
         .telemetryPeriodMs = gpu_telemetry_period_ms_,
         .etwFlushPeriodMs = etw_flush_period_ms_,
     };

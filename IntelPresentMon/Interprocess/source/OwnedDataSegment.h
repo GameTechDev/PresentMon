@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "SharedMemoryTypes.h"
 #include "DataStores.h"
 #include "../../CommonUtilities/log/Log.h"
@@ -21,8 +21,8 @@ namespace pmon::ipc
                 nullptr, perms },
             pData_{ MakeStore_(sizing) }
         {
-            if constexpr (std::is_same_v<T, FrameDataStore>) {
-                pmlog_dbg("Shm segment populated (Frame)")
+            if constexpr (std::is_same_v<T, ProcessDataStore>) {
+                pmlog_dbg("Shm segment populated (Process)")
                     .pmwatch(segmentName)
                     .pmwatch(GetBytesTotal())
                     .pmwatch(GetBytesUsed())

@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MockPresentMonSession.h"
 #include "CliOptions.h"
@@ -321,6 +321,17 @@ void MockPresentMonSession::ProcessEvents(
     // Copy any analyzed information from ConsumerThread and early-out if there
     // isn't any.
     DequeueAnalyzedInfo(processEvents, presentEvents);
+    if (pm_consumer_ && pBroadcaster) {
+        std::vector<PsoCompileCompletedEvent> psoCompileEvents;
+        pm_consumer_->DequeuePsoCompileEvents(psoCompileEvents);
+        for (const auto& compileEvent : psoCompileEvents) {
+            if (!IsProcessTracked(compileEvent.ProcessId)) {
+                continue;
+            }
+            const double durationMs = trace_session_.TimestampDeltaToMilliSeconds(compileEvent.DurationQpc);
+            pBroadcaster->BroadcastProcessDataSample(compileEvent.ProcessId, durationMs, compileEvent.CompileCompleteQpc);
+        }
+    }
     if (processEvents->empty() && presentEvents->empty()) {
         return;
     }

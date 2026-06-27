@@ -1,10 +1,11 @@
-﻿// Copyright (C) 2022-2023 Intel Corporation
+// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "PresentMonSession.h"
 #include "EtwLogger.h"
 #include "FrameBroadcaster.h"
 #include "MetricUse.h"
+#include "../PresentMonAPI2/PresentMonAPI.h"
 #include "../CommonUtilities/win/Event.h"
 #include <memory>
 #include <span>
@@ -36,7 +37,7 @@ public:
 	void CheckTraceSessions();
 	// Force stop trace sessions
 	void StopTraceSessions();
-    PM_STATUS UpdateTracking(const std::unordered_set<uint32_t>& trackedPids);
+	PM_STATUS UpdateTracking(const std::unordered_set<uint32_t>& trackedPids);
 	PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> telemetryPeriodRequestsMs)
 	{
 		return pSession_->SetGpuTelemetryPeriod(telemetryPeriodRequestsMs);

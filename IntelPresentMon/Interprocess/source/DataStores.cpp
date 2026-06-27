@@ -1,4 +1,4 @@
-﻿#include "DataStores.h"
+#include "DataStores.h"
 #include "MetricCapabilities.h"
 #include "IntrospectionTransfer.h"
 #include "IntrospectionDataTypeMapping.h"
@@ -129,9 +129,11 @@ namespace pmon::ipc
         }
     }
 
-    size_t FrameDataStore::CalculateSegmentBytes(const DataStoreSizingInfo& sizing)
+    size_t ProcessDataStore::CalculateSegmentBytes(const DataStoreSizingInfo& sizing)
     {
-        const size_t payloadBytes = sizing.ringSamples * sizeof(FrameData);
+        const size_t framePayloadBytes = sizing.ringSamples * sizeof(FrameData);
+        const size_t processDataPayloadBytes = sizing.ringSamples * sizeof(ProcessDataSample);
+        const size_t payloadBytes = framePayloadBytes + processDataPayloadBytes;
         size_t scaledBytes =
             ScaleBytes_(payloadBytes, kFrameScaleMul_, kFrameScaleDiv_);
         if (scaledBytes < payloadBytes + kFixedLeewayBytes_) {
@@ -140,13 +142,13 @@ namespace pmon::ipc
         const size_t leewayBytes = scaledBytes - payloadBytes;
         const size_t totalBytes = util::PadToAlignment(scaledBytes, kSegmentAlignmentBytes_);
         pmlog_verb(util::log::V::ipc_sto)(std::format(
-            "ipc frame sizing | ring_samples:{} payload_bytes:{} scaled_bytes:{} fixed_leeway_bytes:{} leeway_bytes:{} alignment:{} total_bytes:{}",
-            sizing.ringSamples, payloadBytes, scaledBytes, kFixedLeewayBytes_,
+            "ipc process sizing | ring_samples:{} frame_payload_bytes:{} process_data_payload_bytes:{} payload_bytes:{} scaled_bytes:{} fixed_leeway_bytes:{} leeway_bytes:{} alignment:{} total_bytes:{}",
+            sizing.ringSamples, framePayloadBytes, processDataPayloadBytes, payloadBytes, scaledBytes, kFixedLeewayBytes_,
             leewayBytes, kSegmentAlignmentBytes_, totalBytes));
         return totalBytes;
     }
 
-    StaticMetricValue FrameDataStore::FindStaticMetric(PM_METRIC metric) const
+    StaticMetricValue ProcessDataStore::FindStaticMetric(PM_METRIC metric) const
     {
         switch (metric) {
         case PM_METRIC_APPLICATION:
@@ -157,7 +159,7 @@ namespace pmon::ipc
             return bookkeeping.startQpc;
         default:
             throw util::Except<PmStatusError>(PM_STATUS_QUERY_MALFORMED,
-                "Static metric not handled by frame data store");
+                "Static metric not handled by process data store");
         }
     }
 
