@@ -509,6 +509,16 @@
                     KeyPath="yes">
                 </File>
             </Component>
+            <Component
+                Id="pm_app_preset_3"
+                Guid="A1C2E3F4-5B6D-4789-A012-3456789ABCDE">
+                <File
+                    Id="pm_app_preset_3"
+                    Name="preset-3.json"
+                    Source="$(var.PresentMon.TargetDir)Presets\preset-3.json"
+                    KeyPath="yes">
+                </File>
+            </Component>
         </ComponentGroup>
         <ComponentGroup
             Id="pm_app_web"

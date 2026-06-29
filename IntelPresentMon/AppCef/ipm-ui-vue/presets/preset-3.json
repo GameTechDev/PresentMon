@@ -8,92 +8,6 @@
          "key": 0,
          "metrics": [
             {
-               "key": 0,
-               "metric": {
-                  "metricId": 0,
-                  "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 0,
-                  "desiredUnitId": 0
-               },
-               "lineColor": {
-                  "r": 100,
-                  "g": 255,
-                  "b": 255,
-                  "a": 0.8627450980392157
-               },
-               "fillColor": {
-                  "r": 57,
-                  "g": 210,
-                  "b": 250,
-                  "a": 0.09803921568627451
-               },
-               "axisAffinity": 0
-            }
-         ],
-         "widgetType": 1,
-         "showLabel": true,
-         "fontSize": 12,
-         "fontColor": {
-            "r": 205,
-            "g": 211,
-            "b": 233,
-            "a": 1
-         },
-         "backgroundColor": {
-            "r": 45,
-            "g": 50,
-            "b": 96,
-            "a": 0.4
-         }
-      },
-      {
-         "key": 7,
-         "metrics": [
-            {
-               "key": 10,
-               "metric": {
-                  "metricId": 5,
-                  "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 0,
-                  "desiredUnitId": 0
-               },
-               "lineColor": {
-                  "r": 100,
-                  "g": 255,
-                  "b": 255,
-                  "a": 0.8627450980392157
-               },
-               "fillColor": {
-                  "r": 57,
-                  "g": 210,
-                  "b": 250,
-                  "a": 0.09803921568627451
-               },
-               "axisAffinity": 0
-            }
-         ],
-         "widgetType": 1,
-         "showLabel": false,
-         "fontSize": 12,
-         "fontColor": {
-            "r": 205,
-            "g": 211,
-            "b": 233,
-            "a": 1
-         },
-         "backgroundColor": {
-            "r": 45,
-            "g": 50,
-            "b": 96,
-            "a": 0.4
-         }
-      },
-      {
-         "key": 5,
-         "metrics": [
-            {
                "key": 8,
                "metric": {
                   "metricId": 3,
@@ -119,7 +33,7 @@
          ],
          "widgetType": 1,
          "showLabel": false,
-         "fontSize": 12,
+         "fontSize": 20,
          "fontColor": {
             "r": 205,
             "g": 211,
@@ -134,12 +48,12 @@
          }
       },
       {
-         "key": 2,
+         "key": 1,
          "metrics": [
             {
                "key": 3,
                "metric": {
-                  "metricId": 11,
+                  "metricId": 12,
                   "arrayIndex": 0,
                   "deviceId": 0,
                   "statId": 1,
@@ -162,12 +76,12 @@
          ],
          "widgetType": 1,
          "showLabel": false,
-         "fontSize": 40,
+         "fontSize": 35,
          "fontColor": {
-            "r": 205,
-            "g": 211,
-            "b": 233,
-            "a": 1
+            "r": 100,
+            "g": 255,
+            "b": 255,
+            "a": 0.86
          },
          "backgroundColor": {
             "r": 45,
@@ -177,10 +91,10 @@
          }
       },
       {
-         "key": 3,
+         "key": 2,
          "metrics": [
             {
-               "key": 4,
+               "key": 11,
                "metric": {
                   "metricId": 12,
                   "arrayIndex": 0,
@@ -203,7 +117,7 @@
                "axisAffinity": 0
             },
             {
-               "key": 5,
+               "key": 0,
                "metric": {
                   "metricId": 12,
                   "arrayIndex": 0,
@@ -212,32 +126,9 @@
                   "desiredUnitId": 0
                },
                "lineColor": {
-                  "r": 255,
-                  "g": 100,
-                  "b": 100,
-                  "a": 0.8627450980392157
-               },
-               "fillColor": {
-                  "r": 57,
-                  "g": 210,
-                  "b": 250,
-                  "a": 0.09803921568627451
-               },
-               "axisAffinity": 0
-            },
-            {
-               "key": 6,
-               "metric": {
-                  "metricId": 12,
-                  "arrayIndex": 0,
-                  "deviceId": 0,
-                  "statId": 6,
-                  "desiredUnitId": 0
-               },
-               "lineColor": {
-                  "r": 100,
-                  "g": 255,
-                  "b": 255,
+                  "r": 19,
+                  "g": 243,
+                  "b": 30,
                   "a": 0.8627450980392157
                },
                "fillColor": {
@@ -278,6 +169,12 @@
             "g": 120,
             "b": 190,
             "a": 0.1568627450980392
+         },
+         "valueTextColor": {
+            "r": 34,
+            "g": 210,
+            "b": 250,
+            "a": 0.8627450980392157
          },
          "dividerColor": {
             "r": 57,
@@ -306,21 +203,21 @@
          "textSize": 11
       },
       {
-         "key": 1,
+         "key": 3,
          "metrics": [
             {
-               "key": 1,
+               "key": 12,
                "metric": {
-                  "metricId": 8,
+                  "metricId": 28,
                   "arrayIndex": 0,
-                  "statId": 1,
                   "deviceId": 0,
+                  "statId": 1,
                   "desiredUnitId": 0
                },
                "lineColor": {
-                  "r": 100,
+                  "r": 249,
                   "g": 255,
-                  "b": 255,
+                  "b": 100,
                   "a": 0.8627450980392157
                },
                "fillColor": {
@@ -332,18 +229,18 @@
                "axisAffinity": 0
             },
             {
-               "key": 2,
+               "key": 13,
                "metric": {
-                  "metricId": 14,
+                  "metricId": 31,
                   "arrayIndex": 0,
                   "deviceId": 0,
                   "statId": 1,
                   "desiredUnitId": 0
                },
                "lineColor": {
-                  "r": 255,
-                  "g": 243,
-                  "b": 100,
+                  "r": 193,
+                  "g": 174,
+                  "b": 255,
                   "a": 0.8627450980392157
                },
                "fillColor": {
@@ -352,7 +249,7 @@
                   "b": 250,
                   "a": 0.09803921568627451
                },
-               "axisAffinity": 0
+               "axisAffinity": 1
             }
          ],
          "widgetType": 0,
@@ -384,6 +281,12 @@
             "g": 120,
             "b": 190,
             "a": 0.1568627450980392
+         },
+         "valueTextColor": {
+            "r": 34,
+            "g": 210,
+            "b": 250,
+            "a": 0.8627450980392157
          },
          "dividerColor": {
             "r": 57,
@@ -415,18 +318,18 @@
          "key": 4,
          "metrics": [
             {
-               "key": 7,
+               "key": 11,
                "metric": {
-                  "metricId": 64,
+                  "metricId": 33,
                   "arrayIndex": 0,
                   "deviceId": 0,
                   "statId": 1,
                   "desiredUnitId": 0
                },
                "lineColor": {
-                  "r": 100,
-                  "g": 255,
-                  "b": 255,
+                  "r": 0,
+                  "g": 225,
+                  "b": 253,
                   "a": 0.8627450980392157
                },
                "fillColor": {

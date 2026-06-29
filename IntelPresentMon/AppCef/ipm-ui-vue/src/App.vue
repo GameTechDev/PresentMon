@@ -29,7 +29,7 @@ const notes = useNotificationsStore()
 
 // === Functions ===
 function cyclePreset() {
-  if (prefs.preferences.selectedPreset === null || prefs.preferences.selectedPreset >= 2) {
+  if (prefs.preferences.selectedPreset === null || prefs.preferences.selectedPreset >= 3) {
     prefs.preferences.selectedPreset = 0;
   } else {
     prefs.preferences.selectedPreset++;
