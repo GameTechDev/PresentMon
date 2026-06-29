@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "WmiTelemetryProvider.h"
 
+#include "../TelemetryMetricDiscovery.h"
 #include "../Exceptions.h"
 #include "../Logging.h"
 #include "../../CommonUtilities/Qpc.h"
@@ -294,17 +295,36 @@ namespace pmon::tel::wmi
         ipc::MetricCapabilities caps{};
         const auto requestQpc = GetCurrentTimestamp();
 
-        caps.Set(PM_METRIC_CPU_VENDOR, 1);
-        caps.Set(PM_METRIC_CPU_NAME, 1);
+        const MetricDiscoverSpec specs[] = {
+            { PM_METRIC_CPU_VENDOR, []() {
+                return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+            } },
+            { PM_METRIC_CPU_NAME, []() {
+                return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+            } },
+            { PM_METRIC_CPU_FREQUENCY, [&]() {
+                const auto* pSample = PollCounterSampleEndpoint_(device, requestQpc);
+                if (pSample != nullptr && pSample->hasFrequency) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_CPU_UTILIZATION, [&]() {
+                const auto* pSample = PollCounterSampleEndpoint_(device, requestQpc);
+                if (pSample != nullptr && pSample->hasUtilization) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+        };
 
-        const auto* pSample = PollCounterSampleEndpoint_(device, requestQpc);
-        if (pSample != nullptr && pSample->hasFrequency) {
-            caps.Set(PM_METRIC_CPU_FREQUENCY, 1);
-        }
-        if (pSample != nullptr && pSample->hasUtilization) {
-            caps.Set(PM_METRIC_CPU_UTILIZATION, 1);
-        }
-
+        DiscoverMetricsFromSpecs(specs, caps, PM_DEVICE_TYPE_SYSTEM);
         return caps;
     }
 

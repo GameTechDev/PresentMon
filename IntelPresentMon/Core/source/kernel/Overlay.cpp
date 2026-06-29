@@ -53,12 +53,16 @@ namespace p2c::kern
                     if (auto pGraphSpec = std::get_if<GraphSpec>(&w)) {
                         auto packsData = pGraphSpec->metrics |
                             std::views::transform([&](const GraphMetricSpec& gms) {
-                                auto metInfo = fetcherFactory.GetMetricInfo(gms.metric);
+                                auto metInfo = fetcherFactory.GetMetricInfo(gms.metric, {
+                                    .includeDeviceId = pGraphSpec->labelIncludeDeviceId,
+                                    .includeDeviceName = pGraphSpec->labelIncludeDeviceName,
+                                });
                                 return std::make_shared<GraphLinePack>(GraphLinePack{
                                     .data = mapper[gms.metric].graphData,
                                     .axisAffinity = gms.axisAffinity,
                                     .label = std::move(metInfo.fullName),
                                     .units = std::move(metInfo.unitLabel),
+                                    .dataUnavailable = gms.dataUnavailable,
                                 });
                             }) | rn::to<std::vector>();
                         pRoot->AddChild(GraphElement::Make(
@@ -72,7 +76,10 @@ namespace p2c::kern
                             pRoot->AddChild(pReadoutContainer);
                         }
 
-                        auto metInfo = fetcherFactory.GetMetricInfo(pReadoutSpec->metric);
+                        auto metInfo = fetcherFactory.GetMetricInfo(pReadoutSpec->metric, {
+                            .includeDeviceId = pReadoutSpec->labelIncludeDeviceId,
+                            .includeDeviceName = pReadoutSpec->labelIncludeDeviceName,
+                        });
                         pReadoutContainer->AddChild(gfx::lay::ReadoutElement::Make(
                             metInfo.isNonNumeric, std::move(metInfo.fullName), std::move(metInfo.unitLabel),
                             mapper[pReadoutSpec->metric].textData.get(), { pReadoutSpec->tag }
@@ -162,12 +169,12 @@ namespace p2c::kern
             if (auto pGraphSpec = std::get_if<GraphSpec>(&w)) {
                 // loop all lines in graph
                 for (auto& gms : pGraphSpec->metrics) {
-                    pPackMapper->AddGraph(gms.metric, pSpec->graphDataWindowSize);
+                    pPackMapper->AddGraph(gms.metric, pSpec->graphDataWindowSize, gms.dataUnavailable);
                 }
             }
             // if widget is a readout
             else if (auto pReadoutSpec = std::get_if<ReadoutSpec>(&w)) {
-                pPackMapper->AddReadout(pReadoutSpec->metric);
+                pPackMapper->AddReadout(pReadoutSpec->metric, pReadoutSpec->dataUnavailable);
             }
         }
         // remove stale data packs, register new query, fill new fetchers

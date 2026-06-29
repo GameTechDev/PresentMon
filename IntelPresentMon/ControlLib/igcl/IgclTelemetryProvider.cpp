@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 #include "IgclTelemetryProvider.h"
 
+#include "../TelemetryMetricDiscovery.h"
 #include "../Exceptions.h"
-#include "../Logging.h"
 #include "../../CommonUtilities/Qpc.h"
 #include "../../CommonUtilities/ref/GeneratedReflection.h"
 
@@ -381,95 +381,67 @@ namespace pmon::tel::igcl
         ipc::MetricCapabilities caps{};
         const auto requestQpc = GetCurrentTimestamp();
 
-        // Static capabilities can exist even if they do not route through dynamic polling.
-        caps.Set(PM_METRIC_GPU_VENDOR, 1);
-        caps.Set(PM_METRIC_GPU_NAME, 1);
+        const auto setIf = [&](PM_METRIC metricId, bool supported, size_t arraySize = 1) {
+            caps.Set(
+                metricId,
+                supported ? arraySize : 0,
+                supported ? PM_METRIC_AVAILABILITY_AVAILABLE : PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE);
+        };
+
+        setIf(PM_METRIC_GPU_VENDOR, true);
+        setIf(PM_METRIC_GPU_NAME, true);
 
         const auto powerLimits = PollPowerLimitsEndpoint_(device);
-        if (powerLimits && powerLimits->sustainedPowerLimit.enabled) {
-            caps.Set(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, 1);
-        }
+        setIf(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT,
+            powerLimits && powerLimits->sustainedPowerLimit.enabled);
 
         const auto* pMemoryState = PollMemoryStateEndpoint_(device, requestQpc);
-        if (pMemoryState != nullptr) {
-            caps.Set(PM_METRIC_GPU_MEM_SIZE, 1);
-            caps.Set(PM_METRIC_GPU_MEM_USED, 1);
-            caps.Set(PM_METRIC_GPU_MEM_UTILIZATION, 1);
-        }
+        const bool hasMemoryState = pMemoryState != nullptr;
+        setIf(PM_METRIC_GPU_MEM_SIZE, hasMemoryState);
+        setIf(PM_METRIC_GPU_MEM_USED, hasMemoryState);
+        setIf(PM_METRIC_GPU_MEM_UTILIZATION, hasMemoryState);
 
         const auto memoryBandwidth = PollMemoryBandwidthEndpoint_(device);
         if (memoryBandwidth) {
-            caps.Set(PM_METRIC_GPU_MEM_MAX_BANDWIDTH, 1);
             device.gpuMemMaxBwCacheValueBps = memoryBandwidth->maxBandwidth;
         }
+        setIf(PM_METRIC_GPU_MEM_MAX_BANDWIDTH, memoryBandwidth.has_value());
 
         const auto& sample = PollTelemetryEndpoint_(device, requestQpc);
 
-        if (IsUsageTelemetryItemSupported_(sample.gpuEnergyCounter)) {
-            caps.Set(PM_METRIC_GPU_POWER, 1);
-        }
-        if (IsUsageTelemetryItemSupported_(sample.totalCardEnergyCounter)) {
-            caps.Set(PM_METRIC_GPU_CARD_POWER, 1);
-        }
-        if (IsInstantaneousTelemetryItemSupported_(sample.gpuVoltage)) {
-            caps.Set(PM_METRIC_GPU_VOLTAGE, 1);
-        }
-        if (IsInstantaneousTelemetryItemSupported_(sample.gpuCurrentClockFrequency)) {
-            caps.Set(PM_METRIC_GPU_FREQUENCY, 1);
-        }
-        if (IsInstantaneousTelemetryItemSupported_(sample.gpuCurrentTemperature)) {
-            caps.Set(PM_METRIC_GPU_TEMPERATURE, 1);
-        }
-        if (IsUsagePercentTelemetryItemSupported_(sample.globalActivityCounter)) {
-            caps.Set(PM_METRIC_GPU_UTILIZATION, 1);
-        }
-        if (IsUsagePercentTelemetryItemSupported_(sample.renderComputeActivityCounter)) {
-            caps.Set(PM_METRIC_GPU_RENDER_COMPUTE_UTILIZATION, 1);
-        }
-        if (IsUsagePercentTelemetryItemSupported_(sample.mediaActivityCounter)) {
-            caps.Set(PM_METRIC_GPU_MEDIA_UTILIZATION, 1);
-        }
+        setIf(PM_METRIC_GPU_POWER, IsUsageTelemetryItemSupported_(sample.gpuEnergyCounter));
+        setIf(PM_METRIC_GPU_CARD_POWER, IsUsageTelemetryItemSupported_(sample.totalCardEnergyCounter));
+        setIf(PM_METRIC_GPU_VOLTAGE, IsInstantaneousTelemetryItemSupported_(sample.gpuVoltage));
+        setIf(PM_METRIC_GPU_FREQUENCY, IsInstantaneousTelemetryItemSupported_(sample.gpuCurrentClockFrequency));
+        setIf(PM_METRIC_GPU_TEMPERATURE, IsInstantaneousTelemetryItemSupported_(sample.gpuCurrentTemperature));
+        setIf(PM_METRIC_GPU_UTILIZATION, IsUsagePercentTelemetryItemSupported_(sample.globalActivityCounter));
+        setIf(PM_METRIC_GPU_RENDER_COMPUTE_UTILIZATION,
+            IsUsagePercentTelemetryItemSupported_(sample.renderComputeActivityCounter));
+        setIf(PM_METRIC_GPU_MEDIA_UTILIZATION,
+            IsUsagePercentTelemetryItemSupported_(sample.mediaActivityCounter));
 
-        caps.Set(PM_METRIC_GPU_POWER_LIMITED, 1);
-        caps.Set(PM_METRIC_GPU_TEMPERATURE_LIMITED, 1);
-        caps.Set(PM_METRIC_GPU_VOLTAGE_LIMITED, 1);
-        caps.Set(PM_METRIC_GPU_UTILIZATION_LIMITED, 1);
-        if (device.isAlchemist) {
-            caps.Set(PM_METRIC_GPU_CURRENT_LIMITED, 1);
-        }
+        const bool hasThrottleTelemetry =
+            IsUsagePercentTelemetryItemSupported_(sample.globalActivityCounter) ||
+            IsInstantaneousTelemetryItemSupported_(sample.gpuCurrentTemperature);
+        setIf(PM_METRIC_GPU_POWER_LIMITED, hasThrottleTelemetry);
+        setIf(PM_METRIC_GPU_TEMPERATURE_LIMITED, hasThrottleTelemetry);
+        setIf(PM_METRIC_GPU_VOLTAGE_LIMITED, hasThrottleTelemetry);
+        setIf(PM_METRIC_GPU_UTILIZATION_LIMITED, hasThrottleTelemetry);
+        setIf(PM_METRIC_GPU_CURRENT_LIMITED, device.isAlchemist && hasThrottleTelemetry);
 
-        if (IsInstantaneousTelemetryItemSupported_(sample.gpuEffectiveClock)) {
-            caps.Set(PM_METRIC_GPU_EFFECTIVE_FREQUENCY, 1);
-        }
-        if (IsInstantaneousTelemetryItemSupported_(sample.gpuVrTemp)) {
-            caps.Set(PM_METRIC_GPU_VOLTAGE_REGULATOR_TEMPERATURE, 1);
-        }
-        if (IsInstantaneousTelemetryItemSupported_(sample.vramCurrentEffectiveFrequency)) {
-            caps.Set(PM_METRIC_GPU_MEM_EFFECTIVE_FREQUENCY, 1);
-            caps.Set(PM_METRIC_GPU_MEM_EFFECTIVE_BANDWIDTH, 1);
-        }
-        if (IsInstantaneousTelemetryItemSupported_(sample.gpuOverVoltagePercent)) {
-            caps.Set(PM_METRIC_GPU_OVERVOLTAGE_PERCENT, 1);
-        }
-        if (IsInstantaneousTelemetryItemSupported_(sample.gpuTemperaturePercent)) {
-            caps.Set(PM_METRIC_GPU_TEMPERATURE_PERCENT, 1);
-        }
-        if (IsInstantaneousTelemetryItemSupported_(sample.gpuPowerPercent)) {
-            caps.Set(PM_METRIC_GPU_POWER_PERCENT, 1);
-        }
+        setIf(PM_METRIC_GPU_EFFECTIVE_FREQUENCY, IsInstantaneousTelemetryItemSupported_(sample.gpuEffectiveClock));
+        setIf(PM_METRIC_GPU_VOLTAGE_REGULATOR_TEMPERATURE, IsInstantaneousTelemetryItemSupported_(sample.gpuVrTemp));
+        const bool hasMemEffectiveFreq = IsInstantaneousTelemetryItemSupported_(sample.vramCurrentEffectiveFrequency);
+        setIf(PM_METRIC_GPU_MEM_EFFECTIVE_FREQUENCY, hasMemEffectiveFreq);
+        setIf(PM_METRIC_GPU_MEM_EFFECTIVE_BANDWIDTH, hasMemEffectiveFreq);
+        setIf(PM_METRIC_GPU_OVERVOLTAGE_PERCENT, IsInstantaneousTelemetryItemSupported_(sample.gpuOverVoltagePercent));
+        setIf(PM_METRIC_GPU_TEMPERATURE_PERCENT, IsInstantaneousTelemetryItemSupported_(sample.gpuTemperaturePercent));
+        setIf(PM_METRIC_GPU_POWER_PERCENT, IsInstantaneousTelemetryItemSupported_(sample.gpuPowerPercent));
 
-        if (IsUsageTelemetryItemSupported_(sample.vramEnergyCounter)) {
-            caps.Set(PM_METRIC_GPU_MEM_POWER, 1);
-        }
-        if (IsInstantaneousTelemetryItemSupported_(sample.vramVoltage)) {
-            caps.Set(PM_METRIC_GPU_MEM_VOLTAGE, 1);
-        }
-        if (IsInstantaneousTelemetryItemSupported_(sample.vramCurrentClockFrequency)) {
-            caps.Set(PM_METRIC_GPU_MEM_FREQUENCY, 1);
-        }
-        if (IsInstantaneousTelemetryItemSupported_(sample.vramCurrentTemperature)) {
-            caps.Set(PM_METRIC_GPU_MEM_TEMPERATURE, 1);
-        }
+        setIf(PM_METRIC_GPU_MEM_POWER, IsUsageTelemetryItemSupported_(sample.vramEnergyCounter));
+        setIf(PM_METRIC_GPU_MEM_VOLTAGE, IsInstantaneousTelemetryItemSupported_(sample.vramVoltage));
+        setIf(PM_METRIC_GPU_MEM_FREQUENCY, IsInstantaneousTelemetryItemSupported_(sample.vramCurrentClockFrequency));
+        setIf(PM_METRIC_GPU_MEM_TEMPERATURE, IsInstantaneousTelemetryItemSupported_(sample.vramCurrentTemperature));
 
         const bool hasV1ReadBandwidth = IsInstantaneousTelemetryItemSupported_(sample.vramReadBandwidth);
         const bool hasV1WriteBandwidth = IsInstantaneousTelemetryItemSupported_(sample.vramWriteBandwidth);
@@ -477,13 +449,17 @@ namespace pmon::tel::igcl
         const bool hasCounterWriteBandwidth = IsUsageTelemetryItemSupported_(sample.vramWriteBandwidthCounter);
         if (hasV1ReadBandwidth && hasV1WriteBandwidth) {
             device.useNewBandwidthTelemetry = true;
-            caps.Set(PM_METRIC_GPU_MEM_READ_BANDWIDTH, 1);
-            caps.Set(PM_METRIC_GPU_MEM_WRITE_BANDWIDTH, 1);
+            setIf(PM_METRIC_GPU_MEM_READ_BANDWIDTH, true);
+            setIf(PM_METRIC_GPU_MEM_WRITE_BANDWIDTH, true);
         }
         else if (hasCounterReadBandwidth && hasCounterWriteBandwidth) {
             device.useNewBandwidthTelemetry = false;
-            caps.Set(PM_METRIC_GPU_MEM_READ_BANDWIDTH, 1);
-            caps.Set(PM_METRIC_GPU_MEM_WRITE_BANDWIDTH, 1);
+            setIf(PM_METRIC_GPU_MEM_READ_BANDWIDTH, true);
+            setIf(PM_METRIC_GPU_MEM_WRITE_BANDWIDTH, true);
+        }
+        else {
+            setIf(PM_METRIC_GPU_MEM_READ_BANDWIDTH, false);
+            setIf(PM_METRIC_GPU_MEM_WRITE_BANDWIDTH, false);
         }
 
         device.fanSpeedCount = 0;
@@ -518,13 +494,10 @@ namespace pmon::tel::igcl
             }
         }
 
-        if (device.fanSpeedCount > 0) {
-            caps.Set(PM_METRIC_GPU_FAN_SPEED, device.fanSpeedCount);
-        }
-        if (device.fanSpeedPercentCount > 0) {
-            caps.Set(PM_METRIC_GPU_FAN_SPEED_PERCENT, device.fanSpeedPercentCount);
-        }
+        setIf(PM_METRIC_GPU_FAN_SPEED, device.fanSpeedCount > 0, device.fanSpeedCount);
+        setIf(PM_METRIC_GPU_FAN_SPEED_PERCENT, device.fanSpeedPercentCount > 0, device.fanSpeedPercentCount);
 
+        ApplyNotExportedForUnlistedTelemetryMetrics(caps, PM_DEVICE_TYPE_GRAPHICS_ADAPTER);
         return caps;
     }
 

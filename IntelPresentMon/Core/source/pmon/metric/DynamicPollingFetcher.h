@@ -9,6 +9,7 @@
 #include <CommonUtilities//str/String.h>
 #include <concepts>
 #include <limits>
+#include <cmath>
 
 
 namespace p2c::pmon::met
@@ -38,7 +39,14 @@ namespace p2c::pmon::met
         {
             if constexpr (std::integral<T> || std::floating_point<T>) {
                 if (auto pBlobBytes = pQuery_->GetBlobData()) {
-                    return scale_ * (float)*reinterpret_cast<const T*>(&pBlobBytes[offset_]);
+                    const T raw = *reinterpret_cast<const T*>(&pBlobBytes[offset_]);
+                    const float val = scale_ * (float)raw;
+                    if constexpr (std::floating_point<T>) {
+                        if (std::isnan(val)) {
+                            return {};
+                        }
+                    }
+                    return val;
                 }
                 return {};
             }

@@ -22,7 +22,7 @@ namespace pmon::tel
     public:
         // Constructs all known concrete providers, correlates logical devices,
         // and builds metric polling routes.
-        explicit TelemetryCoordinator(uint32_t pollRateMs);
+        explicit TelemetryCoordinator(uint32_t pollRateMs, bool enableMockTelemetry = false);
         // Registers logical CPU/GPU devices and per-device routed capabilities with IPC.
         void RegisterDevicesToIpc(ipc::ServiceComms& comms) const;
         // Populates available static data into IPC device stores.
@@ -69,7 +69,7 @@ namespace pmon::tel
         GpuPowerOrderingInfo_ QueryGpuSustainedPowerLimit_(const LogicalDevice_& logicalDevice) const;
         LogicalDevice_& GetOrCreateLogicalDevice_(const TelemetryDeviceFingerprint& fingerprint);
         TelemetryDeviceFingerprint ResolveLogicalDeviceFingerprint_(const LogicalDevice_& logicalDevice) const;
-        ipc::MetricCapabilities BuildRoutedCapabilities_(const LogicalDevice_& logicalDevice) const;
+        ipc::MetricCapabilities BuildMergedDeviceAvailability_(const LogicalDevice_& logicalDevice) const;
         static void PushValueToTelemetryMap_(
             ipc::TelemetryMap& telemetryMap,
             PM_METRIC metricId,
@@ -86,5 +86,6 @@ namespace pmon::tel
         std::unordered_map<uint32_t, LogicalDevice_> logicalDevicesById_;
         uint32_t nextLogicalDeviceId_ = 1;
         uint32_t pollRateMs_ = 1000;
+        bool enableMockTelemetry_ = false;
     };
 }

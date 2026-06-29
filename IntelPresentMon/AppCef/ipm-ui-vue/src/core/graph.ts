@@ -26,9 +26,11 @@ export interface Graph extends Widget {
     borderColor: RgbaColor;
     textColor: RgbaColor;
     textSize: number;
+    labelIncludeDeviceId: boolean;
+    labelIncludeDeviceName: boolean;
 }
 
-export function makeDefaultGraph(metric: QualifiedMetric|null = null): Graph {
+export function makeDefaultGraph(metric: QualifiedMetric): Graph {
     return {
         key: generateKey(),
         metrics: [makeDefaultWidgetMetric(metric)],
@@ -78,5 +80,7 @@ export function makeDefaultGraph(metric: QualifiedMetric|null = null): Graph {
             a: 1.0, 
         },        
         textSize: 11,
+        labelIncludeDeviceId: false,
+        labelIncludeDeviceName: false,
     };
 }

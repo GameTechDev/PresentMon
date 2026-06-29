@@ -12,6 +12,12 @@ namespace p2c::kern
 		// functions
 		void Populate(double timestamp)
 		{
+			if (dataUnavailable) {
+				if (textData) {
+					*textData = L"NA";
+				}
+				return;
+			}
 			if (graphData) {
 				graphData->Push({ gfx::lay::DataPoint{.value = pFetcher->ReadValue(), .time = timestamp} });
 				graphData->Trim(timestamp);
@@ -22,6 +28,7 @@ namespace p2c::kern
 		}
 		
 		// data
+		bool dataUnavailable = false;
 		std::shared_ptr<pmon::met::MetricFetcher> pFetcher;
 		std::shared_ptr<gfx::lay::GraphData> graphData;
 		std::shared_ptr<std::wstring> textData;

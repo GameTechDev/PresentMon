@@ -15,4 +15,14 @@ namespace p2c::pmon::met
         }
         return L"NA";
     }
+
+    std::optional<float> UnavailableMetricFetcher::ReadValue()
+    {
+        return {};
+    }
+
+    std::wstring UnavailableMetricFetcher::ReadStringValue()
+    {
+        return L"NA";
+    }
 }

@@ -1101,8 +1101,10 @@ namespace InterimBroadcasterTests
             pComms->OpenFrameDataStore(pres.GetId());
             auto& ring = pComms->GetFrameDataStore(pres.GetId()).frameData;
 
+            pmon::tests::WaitForFirstFrame(ring, "rt-wrap-miss");
+
             auto range = ring.GetSerialRange();
-            for (size_t i = 0; i < 20 && range.first == 0; ++i) {
+            for (size_t i = 0; i < 40 && range.first == 0; ++i) {
                 std::this_thread::sleep_for(100ms);
                 range = ring.GetSerialRange();
             }

@@ -3,6 +3,7 @@
 #include "../pmon/MetricFetcherFactory.h"
 #include "../pmon/DynamicQuery.h"
 #include "../pmon/Timekeeper.h"
+#include "../pmon/metric/MetricFetcher.h"
 #include "../infra/Logging.h"
 #include "OverlaySpec.h"
 #include <CommonUtilities\Hash.h>
@@ -61,25 +62,44 @@ namespace p2c::kern
 				}
 			}
 			std::erase_if(metricPackMap_, [](const auto& e) { return !(e.second.graphData || e.second.textData); });
+			for (auto& [qmet, pPack] : metricPackMap_) {
+				pPack.dataUnavailable = false;
+			}
+			for (auto& [qmet, usage] : usageMap_) {
+				if (usage.dataUnavailable) {
+					metricPackMap_[qmet].dataUnavailable = true;
+				}
+			}
 			usageMap_.clear();
-			// build vector of qmet
-			const auto qualifiedMetrics = metricPackMap_ | vi::keys | rn::to<std::vector>();
+			std::vector<QualifiedMetric> qualifiedMetrics;
+			for (auto& [qmet, pPack] : metricPackMap_) {
+				if (!pPack.dataUnavailable) {
+					qualifiedMetrics.push_back(qmet);
+				}
+			}
 			pmlog_verb(v::core_metric)("Metrics for query build:\n" + [&] { return qualifiedMetrics |
 				vi::transform([](auto& q) {return "    " + q.Dump(); }) |
 				vi::join_with('\n') | rn::to<std::basic_string>(); }());
-			// build fetchers / query
-			auto buildResult = factory.Build(pid, winSizeMs, metricOffsetMs, qualifiedMetrics);
-			// fill fetchers into map
-			for (auto& [qmet, pFetcher] : buildResult.fetchers) {
+			if (!qualifiedMetrics.empty()) {
+				auto buildResult = factory.Build(pid, winSizeMs, metricOffsetMs, qualifiedMetrics);
+				for (auto& [qmet, pFetcher] : buildResult.fetchers) {
 #pragma warning(push)
-#pragma warning(disable : 26800) // false positive here since pFetcher from the pair is never used after this iteration
-				metricPackMap_[qmet].pFetcher = std::move(pFetcher);
+#pragma warning(disable : 26800)
+					metricPackMap_[qmet].pFetcher = std::move(pFetcher);
 #pragma warning(pop)
+				}
+				pQuery_ = std::move(buildResult.pQuery);
 			}
-			// move query
-			pQuery_ = std::move(buildResult.pQuery);
+			else {
+				pQuery_.reset();
+			}
+			for (auto& [qmet, pPack] : metricPackMap_) {
+				if (pPack.dataUnavailable) {
+					pPack.pFetcher = std::make_shared<pmon::met::UnavailableMetricFetcher>();
+				}
+			}
 		}
-		void AddGraph(const QualifiedMetric& qmet, double timeWindow)
+		void AddGraph(const QualifiedMetric& qmet, double timeWindow, bool dataUnavailable = false)
 		{
 			auto& pPack = metricPackMap_[qmet];
 			if (!pPack.graphData) {
@@ -91,8 +111,11 @@ namespace p2c::kern
 				pmlog_verb(v::core_metric)(std::format("AddGraph[resize]> {}", qmet.Dump()));
 			}
 			usageMap_[qmet].graph = true;
+			if (dataUnavailable) {
+				usageMap_[qmet].dataUnavailable = true;
+			}
 		}
-		void AddReadout(const QualifiedMetric& qmet)
+		void AddReadout(const QualifiedMetric& qmet, bool dataUnavailable = false)
 		{
 			auto& pPack = metricPackMap_[qmet];
 			if (!pPack.textData) {
@@ -100,16 +123,19 @@ namespace p2c::kern
 				pmlog_verb(v::core_metric)(std::format("AddReadout[new]> {}", qmet.Dump()));
 			}
 			usageMap_[qmet].text = true;
+			if (dataUnavailable) {
+				usageMap_[qmet].dataUnavailable = true;
+			}
 		}
 		void Populate(const pmapi::ProcessTracker& tracker, uint64_t timestamp)
 		{
-			// if query is empty, don't do anything (empty loadout)
 			if (pQuery_) {
 				pQuery_->PollWithTimestamp(tracker, timestamp);
-				const auto time = pmon::Timekeeper::RelativeToEpoch((int64_t)timestamp);
-				for (auto&& [qmet, pPack] : metricPackMap_) {
-					pPack.Populate(time);
-				}
+			}
+			const auto time = pmon::Timekeeper::RelativeToEpoch((int64_t)timestamp);
+			for (auto&& [qmet, pPack] : metricPackMap_) {
+				(void)qmet;
+				pPack.Populate(time);
 			}
 		}
 		DataFetchPack& operator[](const QualifiedMetric& qmet)
@@ -122,6 +148,7 @@ namespace p2c::kern
 		{
 			bool graph = false;
 			bool text = false;
+			bool dataUnavailable = false;
 		};
 		// data
 		std::unordered_map<QualifiedMetric, DataFetchPack> metricPackMap_;

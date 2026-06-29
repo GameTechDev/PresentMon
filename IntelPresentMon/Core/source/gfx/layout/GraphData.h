@@ -121,5 +121,6 @@ namespace p2c::gfx::lay
 		gfx::lay::AxisAffinity axisAffinity = gfx::lay::AxisAffinity::Left;
 		std::wstring label;
 		std::wstring units;
+		bool dataUnavailable = false;
 	};
 }

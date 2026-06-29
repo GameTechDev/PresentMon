@@ -57,6 +57,12 @@ namespace p2c::gfx::lay
 			const auto& pData = pack->data;
 			const auto dataSize = pData->Size();
 			const auto& data = *pData;
+			if (dataSize == 0) {
+				continue;
+			}
+			if (!data.Front().value.has_value()) {
+				continue;
+			}
 			if (dataSize >= 2) { // a line needs at least 2 points
 				const auto cutoff = xBias - timeWindow;
 				// HACK: if the most recent sample is not t=0 (relative to graph rhs), we add t=0 with the same value

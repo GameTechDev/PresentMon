@@ -1,4 +1,4 @@
-﻿import { ref, reactive, readonly, computed } from 'vue'
+import { ref, reactive, readonly, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { Api } from '@/core/api'
 import { getEnumValues } from '@/core/meta'
@@ -12,11 +12,14 @@ import { debounce, type DelayedTask } from '@/core/timing'
 import { migrateLoadout } from '@/core/loadout-migration'
 import { useIntrospectionStore } from './introspection'
 import { useNotificationsStore } from './notifications'
+import { usePreferencesStore } from './preferences'
+import { buildQualifiedMetricForMetric, makeMetricQueryContext, repairQualifiedMetric } from '@/core/metric-device'
 
 export const useLoadoutStore = defineStore('loadout', () => {
     // === Dependent Stores ===
     const intro = useIntrospectionStore()
     const notes = useNotificationsStore()
+    const prefs = usePreferencesStore()
 
     // === State ===
     const widgets = ref<Widget[]>([])
@@ -30,7 +33,12 @@ export const useLoadoutStore = defineStore('loadout', () => {
             signature,
             widgets: widgets.value
         }
-        return JSON.stringify(file, null, 3)
+        return JSON.stringify(file, (_key, value) => {
+            if (_key === 'desiredUnitId') {
+                return undefined;
+            }
+            return value;
+        }, 3)
     })
 
     // === Functions ===
@@ -48,42 +56,74 @@ export const useLoadoutStore = defineStore('loadout', () => {
         if (loadout.signature.code !== signature.code) {
             throw new Error(`Bad loadout file format; expect:${signature.code} actual:${loadout.signature.code}`)
         }
-        if (loadout.signature.version !== signature.version) {
-            migrateLoadout(loadout)
-            console.info(`loadout migrated to ${signature.version}`)
-        }
         loadout.widgets = loadout.widgets.filter(w => w.metrics.length > 0)
         normalizeWidgetKeys(loadout.widgets)
+        await intro.load()
+        if (loadout.signature.version !== signature.version) {
+            migrateLoadout(loadout, {
+                metrics: intro.metrics,
+                queryCtx: metricQueryContext(),
+            })
+            console.info(`loadout migrated to ${signature.version}`)
+        }
         widgets.value.splice(0, widgets.value.length, ...loadout.widgets)
+        repairAllQualifiedMetrics()
+    }
+
+    function metricQueryContext() {
+        return makeMetricQueryContext(
+            intro.systemDeviceId,
+            prefs.preferences.adapterId,
+            prefs.preferences.enablePerMetricDeviceSelection,
+        );
+    }
+
+    function repairAllQualifiedMetrics() {
+        if (intro.metrics.length === 0) {
+            return;
+        }
+        const ctx = metricQueryContext();
+        for (const widget of widgets.value) {
+            for (const widgetMetric of widget.metrics) {
+                const metric = intro.metrics.find((m) => m.id === widgetMetric.metric.metricId);
+                if (metric) {
+                    repairQualifiedMetric(metric, widgetMetric.metric, ctx);
+                }
+            }
+        }
+    }
+
+    function resolveDefaultQualifiedMetric(metricId?: number, statId?: number): QualifiedMetric {
+        const id = metricId ?? 8;
+        const metric = intro.metrics.find(m => m.id === id) ?? intro.metrics[0];
+        if (!metric) {
+            throw new Error('No introspection metrics available for default qualified metric');
+        }
+        return buildQualifiedMetricForMetric(metric, metricQueryContext(), statId);
     }
 
     // === Actions ===
     async function addGraph() {
-        // TODO: inject these defaults instead of hardcoding
-        const qualifiedMetric: QualifiedMetric = {
-            metricId: 8,
-            arrayIndex: 0,
-            statId: 1,
-            deviceId: 0,
-            desiredUnitId: 0
-        }
+        const qualifiedMetric = resolveDefaultQualifiedMetric(8, 1);
         widgets.value.push(makeDefaultGraph(qualifiedMetric))
     }
 
     async function addReadout() {
-        const metric = intro.metrics[0]
-        const qualifiedMetric = {
-            metricId: metric.id,
-            arrayIndex: 0,
-            statId: metric.availableStatIds[0],
-            deviceId: 0,
-            desiredUnitId: 0
-        }
+        const metric = intro.metrics[0];
+        const qualifiedMetric = buildQualifiedMetricForMetric(
+            metric,
+            metricQueryContext(),
+            metric.availableStatIds[0],
+        );
         widgets.value.push(makeDefaultReadout(qualifiedMetric))
     }
 
     async function removeWidget(index: number) {
         widgets.value.splice(index, 1)
+    }
+
+    function clearWidgets() {
+        widgets.value.splice(0, widgets.value.length)
     }
 
     async function setWidgetMetrics(index: number, metrics: WidgetMetric[]) {
@@ -108,7 +148,7 @@ export const useLoadoutStore = defineStore('loadout', () => {
                 console.warn(`Widget #${index} is not Line Graph but trying to add metric`)
                 throw new Error('bad addition of metric to widget')
             }
-            widget.metrics.push(makeDefaultWidgetMetric(metric))
+            widget.metrics.push(makeDefaultWidgetMetric(metric ?? resolveDefaultQualifiedMetric(8, 1)));
         } else {
             console.warn(`Widget #${index} is not Graph but trying to add metric`)
             throw new Error('bad addition of metric to widget')
@@ -136,6 +176,9 @@ export const useLoadoutStore = defineStore('loadout', () => {
             if (!metric || !metric.numeric) {
                 qualifiedMetric = null
             }
+        }
+        if (!qualifiedMetric) {
+            qualifiedMetric = resolveDefaultQualifiedMetric(8, 1);
         }
         let newWidget: Widget
         if (type === WidgetType.Graph) {
@@ -197,6 +240,7 @@ export const useLoadoutStore = defineStore('loadout', () => {
         addGraph,
         addReadout,
         removeWidget,
+        clearWidgets,
         setWidgetMetrics,
         addWidgetMetric,
         removeWidgetMetric,
@@ -205,6 +249,6 @@ export const useLoadoutStore = defineStore('loadout', () => {
         moveWidget,
         loadConfigFromPayload,
         browseAndSerialize,
-        serializeCurrent
+        serializeCurrent,
     }
 })

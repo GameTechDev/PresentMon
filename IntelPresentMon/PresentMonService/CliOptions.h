@@ -44,6 +44,7 @@ namespace clio
 
 	private: Group gt_{ this, "Testing", "Automated testing features" }; public:
 		Flag enableTestControl{ this, "--enable-test-control", "Enable test control over stdio" };
+		Flag enableMockTelemetry{ this, "--enable-mock-telemetry", "Register mock telemetry GPU/system devices with synthetic sine-wave metrics" };
 
 		static constexpr const char* description = "Intel PresentMon service for frame and system performance measurement";
 		static constexpr const char* name = "PresentMonService.exe";

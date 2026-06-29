@@ -5,10 +5,9 @@
 import { computed } from 'vue';
 import { usePreferencesStore } from '@/stores/preferences';
 import { isDevelopment } from '@/core/env-vars';
-import { useIntrospectionStore } from '@/stores/introspection';
+import DefaultAdapterSelect from '@/components/DefaultAdapterSelect.vue';
 
 const prefs = usePreferencesStore();
-const intro = useIntrospectionStore();
 
 const metricPollMessages = computed(() => {
   if (prefs.preferences.metricPollRate % prefs.preferences.overlayDrawRate !== 0) {
@@ -134,19 +133,33 @@ const metricPollMessages = computed(() => {
 
       <v-row class="mt-8">
         <v-col cols="3">
-          Adapter
+          Per-metric device selection
           <p class="text-medium-emphasis text-caption mb-0">
-            Adapter used to source GPU telemetry data such as power
+            Show GPU device pickers on loadout rows. Allows tracking multiple GPUs simultaneously. When disabled, all rows track the default adapter (recommended).
           </p>
         </v-col>
         <v-col cols="9">
-          <v-select
-            v-model="prefs.preferences.adapterId"
-            :items="intro.adapters"
-            item-value="id"
-            item-title="name"
-            placeholder="Default adapter"
-          ></v-select>
+          <v-row>
+            <v-col cols="6">
+              <v-switch
+                v-model="prefs.preferences.enablePerMetricDeviceSelection"
+                label="Enable"
+                color="primary"
+              ></v-switch>
+            </v-col>
+          </v-row>
+        </v-col>
+      </v-row>
+
+      <v-row class="mt-8">
+        <v-col cols="3">
+          Default adapter
+          <p class="text-medium-emphasis text-caption mb-0">
+            Global GPU for new loadout rows, frame-query adapter selection, and metrics that defer to the global adapter.
+          </p>
+        </v-col>
+        <v-col cols="9">
+          <default-adapter-select></default-adapter-select>
         </v-col>
       </v-row>
     </v-card>

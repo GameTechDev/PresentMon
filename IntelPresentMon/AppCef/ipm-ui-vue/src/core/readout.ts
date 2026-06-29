@@ -10,9 +10,11 @@ export interface Readout extends Widget {
     fontSize: number,
     fontColor: RgbaColor,
     backgroundColor: RgbaColor,
+    labelIncludeDeviceId: boolean;
+    labelIncludeDeviceName: boolean;
 }
 
-export function makeDefaultReadout(metric: QualifiedMetric|null = null): Readout {
+export function makeDefaultReadout(metric: QualifiedMetric): Readout {
     return {
         key: generateKey(),
         metrics: [makeDefaultWidgetMetric(metric)],
@@ -31,5 +33,7 @@ export function makeDefaultReadout(metric: QualifiedMetric|null = null): Readout
             b: 96,
             a: 0.4
         },
+        labelIncludeDeviceId: false,
+        labelIncludeDeviceName: false,
     };
 }

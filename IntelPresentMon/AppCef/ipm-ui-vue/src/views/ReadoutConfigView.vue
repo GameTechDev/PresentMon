@@ -6,6 +6,7 @@ import { computed } from 'vue';
 import ColorPicker from '@/components/ColorPicker.vue';
 import { asReadout, type Widget } from '@/core/widget';
 import { useLoadoutStore } from '@/stores/loadout';
+import { usePreferencesStore } from '@/stores/preferences';
 
 defineOptions({ name: 'WidgetConfig' });
 
@@ -15,9 +16,11 @@ interface Props {
 const props = defineProps<Props>();
 
 const loadoutStore = useLoadoutStore();
+const prefs = usePreferencesStore();
 
 const widget = computed(() => loadoutStore.widgets[props.index]);
 const readout = computed(() => asReadout(widget.value));
+const suffixesEnabled = computed(() => prefs.preferences.enablePerMetricDeviceSelection);
 </script>
 
 <template>
@@ -71,6 +74,29 @@ const readout = computed(() => asReadout(widget.value));
           </v-col>
           <v-col cols="9">
             <v-switch v-model="readout.showLabel" hide-details label="Show"></v-switch>
+          </v-col>
+        </v-row>
+
+        <v-row v-if="suffixesEnabled" class="mt-3">
+          <v-col cols="3">
+            Suffixes
+            <p class="text-medium-emphasis text-caption mb-0">Optionally label device id and name</p>
+          </v-col>
+          <v-col cols="9" class="d-flex align-center flex-wrap ga-4">
+            <v-checkbox
+              v-model="readout.labelIncludeDeviceId"
+              label="Device ID"
+              hide-details
+              density="compact"
+              color="primary"
+            ></v-checkbox>
+            <v-checkbox
+              v-model="readout.labelIncludeDeviceName"
+              label="Device name"
+              hide-details
+              density="compact"
+              color="primary"
+            ></v-checkbox>
           </v-col>
         </v-row>
       </v-card>

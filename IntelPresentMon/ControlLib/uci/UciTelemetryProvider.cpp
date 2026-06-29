@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 #include "UciTelemetryProvider.h"
 
+#include "../TelemetryMetricDiscovery.h"
 #include "../Exceptions.h"
-#include "../Logging.h"
 #include "../../CommonUtilities/Exception.h"
 #include "../../CommonUtilities/log/GlobalPolicy.h"
 #include "../../CommonUtilities/str/String.h"
@@ -401,14 +401,54 @@ namespace pmon::tel::uci
         uint32_t physicalCoreCount)
     {
         ipc::MetricCapabilities caps{};
-        if (enumeratedMetricNames.contains(std::string{ kCpuPowerMetricName_ })) {
-            caps.Set(PM_METRIC_CPU_POWER, 1);
-        }
-        if (physicalCoreCount != 0 &&
-            enumeratedMetricNames.contains(std::string{ kCpuTemperatureMetricName_ })) {
-            caps.Set(PM_METRIC_CPU_TEMPERATURE, 1);
-            caps.Set(PM_METRIC_CPU_CORE_TEMPERATURE, physicalCoreCount);
-        }
+        const MetricDiscoverSpec specs[] = {
+            { PM_METRIC_CPU_POWER, [&]() {
+                if (enumeratedMetricNames.contains(std::string{ kCpuPowerMetricName_ })) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_EXPORTED_BY_SOURCE,
+                };
+            } },
+            { PM_METRIC_CPU_TEMPERATURE, [&]() {
+                if (physicalCoreCount != 0 &&
+                    enumeratedMetricNames.contains(std::string{ kCpuTemperatureMetricName_ })) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                if (!enumeratedMetricNames.contains(std::string{ kCpuTemperatureMetricName_ })) {
+                    return DiscoverOutcome{
+                        .arraySize = 0,
+                        .availability = PM_METRIC_AVAILABILITY_NOT_EXPORTED_BY_SOURCE,
+                    };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_CPU_CORE_TEMPERATURE, [&]() {
+                if (physicalCoreCount != 0 &&
+                    enumeratedMetricNames.contains(std::string{ kCpuTemperatureMetricName_ })) {
+                    return DiscoverOutcome{
+                        .arraySize = physicalCoreCount,
+                        .availability = PM_METRIC_AVAILABILITY_AVAILABLE,
+                    };
+                }
+                if (!enumeratedMetricNames.contains(std::string{ kCpuTemperatureMetricName_ })) {
+                    return DiscoverOutcome{
+                        .arraySize = 0,
+                        .availability = PM_METRIC_AVAILABILITY_NOT_EXPORTED_BY_SOURCE,
+                    };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+        };
+
+        DiscoverMetricsFromSpecs(specs, caps, PM_DEVICE_TYPE_SYSTEM);
         return caps;
     }
 

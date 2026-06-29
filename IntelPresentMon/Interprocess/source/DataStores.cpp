@@ -71,7 +71,11 @@ namespace pmon::ipc
                 deviceTypeById.emplace(pDevice->GetId(), pDevice->GetType());
             }
 
-            for (auto&& [metricId, count] : *sizing.pCaps) {
+            for (auto&& [metricId, entry] : *sizing.pCaps) {
+                if (entry.availability != PM_METRIC_AVAILABILITY_AVAILABLE) {
+                    continue;
+                }
+                const size_t count = entry.arraySize;
                 const auto& metric = sizing.pRoot->FindMetric(metricId);
                 bool matchesDeviceType = false;
                 for (const auto& pInfo : metric.GetDeviceMetricInfo()) {

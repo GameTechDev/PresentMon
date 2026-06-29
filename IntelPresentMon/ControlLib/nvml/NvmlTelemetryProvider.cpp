@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "NvmlTelemetryProvider.h"
 
+#include "../TelemetryMetricDiscovery.h"
 #include "../Exceptions.h"
 #include "../Logging.h"
 #include "../../CommonUtilities/Qpc.h"
@@ -220,26 +221,67 @@ namespace pmon::tel::nvml
         ipc::MetricCapabilities caps{};
         const auto requestQpc = GetCurrentTimestamp();
 
-        caps.Set(PM_METRIC_GPU_VENDOR, 1);
-        caps.Set(PM_METRIC_GPU_NAME, 1);
+        const MetricDiscoverSpec specs[] = {
+            { PM_METRIC_GPU_VENDOR, []() {
+                return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+            } },
+            { PM_METRIC_GPU_NAME, []() {
+                return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+            } },
+            { PM_METRIC_GPU_POWER, [&]() {
+                if (PollPowerEndpoint_(device)) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, [&]() {
+                if (PollPowerLimitEndpoint_(device)) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_SIZE, [&]() {
+                if (const auto* pMemoryInfo = PollMemoryInfoEndpoint_(device, requestQpc)) {
+                    if (GetTotalMemoryBytes_(*pMemoryInfo) != 0) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_USED, [&]() {
+                if (const auto* pMemoryInfo = PollMemoryInfoEndpoint_(device, requestQpc)) {
+                    if (GetTotalMemoryBytes_(*pMemoryInfo) != 0) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_UTILIZATION, [&]() {
+                if (const auto* pMemoryInfo = PollMemoryInfoEndpoint_(device, requestQpc)) {
+                    if (GetTotalMemoryBytes_(*pMemoryInfo) != 0) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+        };
 
-        if (PollPowerEndpoint_(device)) {
-            caps.Set(PM_METRIC_GPU_POWER, 1);
-        }
-
-        if (PollPowerLimitEndpoint_(device)) {
-            caps.Set(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, 1);
-        }
-
-        if (const auto* pMemoryInfo = PollMemoryInfoEndpoint_(device, requestQpc)) {
-            const auto totalBytes = GetTotalMemoryBytes_(*pMemoryInfo);
-            if (totalBytes != 0) {
-                caps.Set(PM_METRIC_GPU_MEM_SIZE, 1);
-                caps.Set(PM_METRIC_GPU_MEM_USED, 1);
-                caps.Set(PM_METRIC_GPU_MEM_UTILIZATION, 1);
-            }
-        }
-
+        DiscoverMetricsFromSpecs(specs, caps, PM_DEVICE_TYPE_GRAPHICS_ADAPTER);
         return caps;
     }
 

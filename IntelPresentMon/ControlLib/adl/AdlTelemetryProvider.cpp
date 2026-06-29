@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 #include "AdlTelemetryProvider.h"
 
+#include "../TelemetryMetricDiscovery.h"
 #include "../Exceptions.h"
-#include "../Logging.h"
 #include "../../CommonUtilities/Qpc.h"
 #include "../../CommonUtilities/ref/GeneratedReflection.h"
 
@@ -383,69 +383,193 @@ namespace pmon::tel::adl
     {
         ipc::MetricCapabilities caps{};
         const auto requestQpc = GetCurrentTimestamp();
-
-        caps.Set(PM_METRIC_GPU_VENDOR, 1);
-        caps.Set(PM_METRIC_GPU_NAME, 1);
-
-        if (QuerySustainedPowerLimit_(device)) {
-            caps.Set(PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, 1);
-        }
-
-        if (const auto pMemoryInfo = QueryMemoryInfo_(device); pMemoryInfo != nullptr) {
-            const auto memSize = GetMemorySizeBytes_(*pMemoryInfo);
-            const auto memBw = GetMemoryMaxBandwidthBitsPerSecond_(*pMemoryInfo);
-            if (memSize != 0) {
-                caps.Set(PM_METRIC_GPU_MEM_SIZE, 1);
-            }
-            if (memBw != 0) {
-                caps.Set(PM_METRIC_GPU_MEM_MAX_BANDWIDTH, 1);
-            }
-        }
-
         const auto& snapshot = PollDynamicSnapshot_(device, requestQpc);
-        if (snapshot.hasGpuPower) {
-            caps.Set(PM_METRIC_GPU_POWER, 1);
-        }
-        if (snapshot.hasGpuVoltage) {
-            caps.Set(PM_METRIC_GPU_VOLTAGE, 1);
-        }
-        if (snapshot.hasGpuFrequency) {
-            caps.Set(PM_METRIC_GPU_FREQUENCY, 1);
-        }
-        if (snapshot.hasGpuTemperature) {
-            caps.Set(PM_METRIC_GPU_TEMPERATURE, 1);
-        }
-        if (snapshot.hasGpuUtilization) {
-            caps.Set(PM_METRIC_GPU_UTILIZATION, 1);
-        }
-        if (snapshot.hasGpuMemFrequency) {
-            caps.Set(PM_METRIC_GPU_MEM_FREQUENCY, 1);
-        }
-        if (snapshot.hasGpuMemUsed) {
-            caps.Set(PM_METRIC_GPU_MEM_USED, 1);
-            if (const auto pMemoryInfo = QueryMemoryInfo_(device);
-                pMemoryInfo != nullptr && GetMemorySizeBytes_(*pMemoryInfo) != 0) {
-                caps.Set(PM_METRIC_GPU_MEM_UTILIZATION, 1);
-            }
-        }
-        if (snapshot.hasGpuMemTemperature) {
-            caps.Set(PM_METRIC_GPU_MEM_TEMPERATURE, 1);
-        }
-        if (snapshot.hasGpuMemVoltage) {
-            caps.Set(PM_METRIC_GPU_MEM_VOLTAGE, 1);
-        }
-        if (!snapshot.fanSpeedsRpm.empty()) {
-            caps.Set(PM_METRIC_GPU_FAN_SPEED, (uint32_t)snapshot.fanSpeedsRpm.size());
-        }
-        if (!snapshot.fanSpeedRatios.empty()) {
-            caps.Set(PM_METRIC_GPU_FAN_SPEED_PERCENT, (uint32_t)snapshot.fanSpeedRatios.size());
-        }
-        if (snapshot.hasThrottleStatus) {
-            caps.Set(PM_METRIC_GPU_POWER_LIMITED, 1);
-            caps.Set(PM_METRIC_GPU_TEMPERATURE_LIMITED, 1);
-            caps.Set(PM_METRIC_GPU_CURRENT_LIMITED, 1);
-        }
 
+        const MetricDiscoverSpec specs[] = {
+            { PM_METRIC_GPU_VENDOR, []() {
+                return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+            } },
+            { PM_METRIC_GPU_NAME, []() {
+                return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+            } },
+            { PM_METRIC_GPU_SUSTAINED_POWER_LIMIT, [&]() {
+                if (QuerySustainedPowerLimit_(device)) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_SIZE, [&]() {
+                if (const auto pMemoryInfo = QueryMemoryInfo_(device); pMemoryInfo != nullptr) {
+                    if (GetMemorySizeBytes_(*pMemoryInfo) != 0) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_MAX_BANDWIDTH, [&]() {
+                if (const auto pMemoryInfo = QueryMemoryInfo_(device); pMemoryInfo != nullptr) {
+                    if (GetMemoryMaxBandwidthBitsPerSecond_(*pMemoryInfo) != 0) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_POWER, [&]() {
+                if (snapshot.hasGpuPower) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_VOLTAGE, [&]() {
+                if (snapshot.hasGpuVoltage) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_FREQUENCY, [&]() {
+                if (snapshot.hasGpuFrequency) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_TEMPERATURE, [&]() {
+                if (snapshot.hasGpuTemperature) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_UTILIZATION, [&]() {
+                if (snapshot.hasGpuUtilization) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_FREQUENCY, [&]() {
+                if (snapshot.hasGpuMemFrequency) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_USED, [&]() {
+                if (snapshot.hasGpuMemUsed) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_UTILIZATION, [&]() {
+                if (snapshot.hasGpuMemUsed) {
+                    if (const auto pMemoryInfo = QueryMemoryInfo_(device);
+                        pMemoryInfo != nullptr && GetMemorySizeBytes_(*pMemoryInfo) != 0) {
+                        return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                    }
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_TEMPERATURE, [&]() {
+                if (snapshot.hasGpuMemTemperature) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_MEM_VOLTAGE, [&]() {
+                if (snapshot.hasGpuMemVoltage) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_FAN_SPEED, [&]() {
+                if (!snapshot.fanSpeedsRpm.empty()) {
+                    return DiscoverOutcome{
+                        .arraySize = snapshot.fanSpeedsRpm.size(),
+                        .availability = PM_METRIC_AVAILABILITY_AVAILABLE,
+                    };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_FAN_SPEED_PERCENT, [&]() {
+                if (!snapshot.fanSpeedRatios.empty()) {
+                    return DiscoverOutcome{
+                        .arraySize = snapshot.fanSpeedRatios.size(),
+                        .availability = PM_METRIC_AVAILABILITY_AVAILABLE,
+                    };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_POWER_LIMITED, [&]() {
+                if (snapshot.hasThrottleStatus) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_TEMPERATURE_LIMITED, [&]() {
+                if (snapshot.hasThrottleStatus) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+            { PM_METRIC_GPU_CURRENT_LIMITED, [&]() {
+                if (snapshot.hasThrottleStatus) {
+                    return DiscoverOutcome{ .arraySize = 1, .availability = PM_METRIC_AVAILABILITY_AVAILABLE };
+                }
+                return DiscoverOutcome{
+                    .arraySize = 0,
+                    .availability = PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
+                };
+            } },
+        };
+
+        DiscoverMetricsFromSpecs(specs, caps, PM_DEVICE_TYPE_GRAPHICS_ADAPTER);
         return caps;
     }
 

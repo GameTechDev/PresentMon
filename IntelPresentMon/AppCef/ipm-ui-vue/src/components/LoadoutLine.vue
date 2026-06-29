@@ -2,13 +2,32 @@
 import { computed } from 'vue';
 import { type Widget, WidgetType } from '@/core/widget';
 import type { Metric } from '@/core/metric';
-import type { MetricOption } from '@/core/metric-option';
 import type { QualifiedMetric } from '@/core/qualified-metric';
 import type { Stat } from '@/core/stat';
+import type { Adapter } from '@/core/adapter';
 import { AxisAffinity } from '@/core/widget-metric';
 import ColorPicker from './ColorPicker.vue';
 import { asGraph } from '@/core/widget';
 import { useLoadoutStore } from '@/stores/loadout';
+import { useIntrospectionStore } from '@/stores/introspection';
+import { usePreferencesStore } from '@/stores/preferences';
+import {
+  arraySizeForDevice,
+  clampArrayIndex,
+  effectiveGpuDeviceId,
+  effectiveGpuDeviceIdForQualifiedMetric,
+  isGpuMetric,
+  applyRuntimeQualifiedMetricFields,
+  type MetricQueryContext,
+} from '@/core/metric-device';
+import {
+  isMetricAvailable,
+  isMetricAvailableForGpuDeviceId,
+  isMetricUnavailableInAutocomplete,
+  metricAvailabilityReasonForGpuDeviceId,
+  metricTooltipAvailabilityReason,
+  qualifiedMetricForAvailabilityProbe,
+} from '@/core/metric-availability';
 import type { ListItem } from 'vuetify/lib/composables/list-items.mjs';
 
 defineOptions({name: 'LoadoutLine'})
@@ -18,9 +37,8 @@ interface Props {
   widgets: Widget[],
   metrics: Metric[],
   stats: Stat[],
-  metricOptions: MetricOption[],
+  adapters: Adapter[],
   locked?: boolean,
-  adapterId: number|null,
 }
 const props = withDefaults(defineProps<Props>(), {
   locked: false,
@@ -32,9 +50,27 @@ const emit = defineEmits<{
 }>()
 
 const loadoutStore = useLoadoutStore();
+const intro = useIntrospectionStore();
+const prefs = usePreferencesStore();
 
 const widget = computed(() => props.widgets[props.widgetIdx]);
 const widgetMetric = computed(() => widget.value.metrics[props.lineIdx]);
+
+const queryCtx = computed((): MetricQueryContext => ({
+  systemDeviceId: intro.systemDeviceId,
+  preferenceDefaultAdapterId: prefs.preferences.adapterId,
+  enablePerMetricDeviceSelection: prefs.preferences.enablePerMetricDeviceSelection,
+}));
+
+const storedDeviceId = computed(() => widgetMetric.value.metric.deviceId);
+
+const effectiveDeviceId = computed(() => {
+  const m = currentMetric.value;
+  if (!isGpuMetric(m)) {
+    return storedDeviceId.value ?? 0;
+  }
+  return effectiveGpuDeviceIdForQualifiedMetric(m, widgetMetric.value.metric, queryCtx.value);
+});
 
 // TODO: use fewer get/set constructions here and bind directly where possible
 const widgetType = computed({
@@ -63,36 +99,126 @@ const axisAffinityRight = computed({
   },
 });
 
-const metricOption = computed({
-  get: () => {
-    const option = props.metricOptions.find(
-      (o) =>
-        widgetMetric.value.metric.metricId === o.metricId &&
-        widgetMetric.value.metric.arrayIndex === o.arrayIndex
-    );
-    if (!option) throw new Error('Option not found matching metricId:arrayIndex');
-    return option;
-  },
-  set: (opt: MetricOption) => {
+const currentMetric = computed(() => findMetricById(widgetMetric.value.metric.metricId));
+
+const showDeviceSelector = computed(() =>
+  prefs.preferences.enablePerMetricDeviceSelection &&
+  isGpuMetric(currentMetric.value) &&
+  props.adapters.length > 0
+);
+
+const showArrayIndexSelector = computed(() => {
+  const size = arraySizeForDevice(currentMetric.value, effectiveDeviceId.value);
+  return size > 1;
+});
+
+const metricAvailabilityReasons = computed(() => intro.metricAvailabilityReasons);
+
+type DeviceSelectItem = {
+  id: number | null,
+  title: string,
+  unavailable: boolean,
+  availabilityReason: string | null,
+};
+
+function buildDeviceSelectItem(id: number | null, title: string): DeviceSelectItem {
+  const m = currentMetric.value;
+  const qm = widgetMetric.value.metric;
+  const unavailable = !isMetricAvailableForGpuDeviceId(m, qm, queryCtx.value, id);
+  const reason = metricAvailabilityReasonForGpuDeviceId(
+    m,
+    qm,
+    queryCtx.value,
+    id,
+    metricAvailabilityReasons.value,
+  );
+  return {
+    id,
+    title,
+    unavailable,
+    availabilityReason: reason,
+  };
+}
+
+const deviceSelectItems = computed((): DeviceSelectItem[] => [
+  buildDeviceSelectItem(null, 'Default'),
+  ...props.adapters.map((a) =>
+    buildDeviceSelectItem(a.id, adapterSelectTitle(a)),
+  ),
+]);
+
+function deviceSelectItemForId(deviceId: number | null): DeviceSelectItem | undefined {
+  return deviceSelectItems.value.find((item) => item.id === deviceId);
+}
+
+function adapterSelectTitle(adapter: Adapter): string {
+  return `[${adapter.id}] ${adapter.name}`;
+}
+
+function deviceSelectionTitle(deviceId: number | null): string {
+  if (deviceId === null || deviceId === 0) {
+    return 'Default';
+  }
+  const adapter = props.adapters.find((a) => a.id === deviceId);
+  if (adapter !== undefined) {
+    return adapterSelectTitle(adapter);
+  }
+  return `[${deviceId}] Unknown GPU`;
+}
+
+const arrayIndexOptions = computed(() => {
+  const size = arraySizeForDevice(currentMetric.value, effectiveDeviceId.value);
+  return Array.from({ length: size }, (_, i) => i);
+});
+
+const selectedMetric = computed({
+  get: () => currentMetric.value,
+  set: (newMetric: Metric) => {
     const currentStatId = widgetMetric.value.metric.statId;
-    const newAvailableStats = statsForMetric(opt.metricId);
+    const newAvailableStats = statsForMetric(newMetric.id);
     let statId = currentStatId;
     if (!newAvailableStats.some((s) => s.id === currentStatId)) {
-      statId = newAvailableStats[0].id;
-    }
-    const newMetric = findMetricById(opt.metricId);
-    if (!newMetric.availableDeviceIds.length) {
-      throw new Error('Metric in selected metric option is not available for any device');
+      statId = newAvailableStats[0]?.id ?? currentStatId;
     }
     if (!newMetric.numeric) {
       widgetType.value = WidgetType.Readout;
     }
     const qualifiedMetric: QualifiedMetric = {
-      metricId: opt.metricId,
-      arrayIndex: opt.arrayIndex,
-      deviceId: 0,
+      metricId: newMetric.id,
+      arrayIndex: widgetMetric.value.metric.arrayIndex,
+      deviceId: widgetMetric.value.metric.deviceId,
       statId,
-      desiredUnitId: newMetric.preferredUnitId,
+    };
+    applyRuntimeQualifiedMetricFields(newMetric, qualifiedMetric, queryCtx.value);
+    const metric = { ...widgetMetric.value, metric: qualifiedMetric };
+    loadoutStore.setWidgetMetric(props.widgetIdx, props.lineIdx, metric);
+  },
+});
+
+const selectedDeviceId = computed({
+  get: () => storedDeviceId.value,
+  set: (deviceId: number | null) => {
+    const m = currentMetric.value;
+    const effectiveId = isGpuMetric(m)
+      ? effectiveGpuDeviceId(deviceId, queryCtx.value.preferenceDefaultAdapterId)
+      : (deviceId ?? 0);
+    const qualifiedMetric = {
+      ...widgetMetric.value.metric,
+      deviceId,
+      arrayIndex: clampArrayIndex(m, effectiveId, widgetMetric.value.metric.arrayIndex),
+    };
+    const metric = { ...widgetMetric.value, metric: qualifiedMetric };
+    loadoutStore.setWidgetMetric(props.widgetIdx, props.lineIdx, metric);
+  },
+});
+
+const arrayIndex = computed({
+  get: () => widgetMetric.value.metric.arrayIndex,
+  set: (index: number) => {
+    const m = currentMetric.value;
+    const qualifiedMetric = {
+      ...widgetMetric.value.metric,
+      arrayIndex: clampArrayIndex(m, effectiveDeviceId.value, index),
     };
     const metric = { ...widgetMetric.value, metric: qualifiedMetric };
     loadoutStore.setWidgetMetric(props.widgetIdx, props.lineIdx, metric);
@@ -123,14 +249,15 @@ const findMetricById = (metricId: number) => {
 };
 
 const widgetTypeToString = (t: WidgetType) => WidgetType[t];
-const metricOptionFromItem = (item: ListItem<unknown>) => item.raw as MetricOption;
+const metricFromItem = (item: ListItem<unknown>) => item.raw as Metric;
+const deviceSelectItemFromListItem = (item: ListItem<unknown>) => item.raw as DeviceSelectItem;
 const statFromItem = (item: ListItem<unknown>) => item.raw as Stat;
 const widgetTypeFromItem = (item: ListItem<unknown>) => item.raw as WidgetType;
 
-const metricOptionsFiltered = computed(() => {
+const metricsFiltered = computed(() => {
   return props.lineIdx === 0
-    ? props.metricOptions
-    : props.metricOptions.filter((o) => findMetricById(o.metricId).numeric);
+    ? props.metrics
+    : props.metrics.filter((m) => m.numeric);
 });
 
 const widgetTypeOptions = computed(() => {
@@ -147,6 +274,55 @@ const widgetSubtypeOptions = computed(() => {
 
 const statOptions = computed(() => statsForMetric(widgetMetric.value.metric.metricId));
 
+const showMetricAvailabilityOnMetricField = computed(
+  () => !showDeviceSelector.value,
+);
+
+const currentMetricUnavailable = computed(() =>
+  !isMetricAvailable(currentMetric.value, widgetMetric.value.metric, queryCtx.value),
+);
+
+const metricFieldGreyedOut = computed(() =>
+  isMetricUnavailableInAutocomplete(
+    currentMetric.value,
+    widgetMetric.value.metric,
+    queryCtx.value,
+    props.adapters,
+  ),
+);
+
+const currentDeviceSelectionUnavailable = computed(() => {
+  const item = deviceSelectItemForId(storedDeviceId.value ?? null);
+  return item?.unavailable ?? false;
+});
+
+const selectedDeviceSelectItem = computed(() =>
+  deviceSelectItemForId(storedDeviceId.value ?? null),
+);
+
+const isMetricUnavailableInList = (metric: Metric) => {
+  const probe = qualifiedMetricForAvailabilityProbe(
+    metric,
+    widgetMetric.value.metric,
+    queryCtx.value,
+  );
+  return isMetricUnavailableInAutocomplete(metric, probe, queryCtx.value, props.adapters);
+};
+
+function metricAvailabilityReasonForMetric(metric: Metric): string | null {
+  return metricTooltipAvailabilityReason(
+    metric,
+    qualifiedMetricForAvailabilityProbe(metric, widgetMetric.value.metric, queryCtx.value),
+    queryCtx.value,
+    metricAvailabilityReasons.value,
+    props.adapters,
+  );
+}
+
+const currentMetricAvailabilityReason = computed(() =>
+  metricAvailabilityReasonForMetric(currentMetric.value),
+);
+
 const isMaster = computed(() => props.lineIdx === 0);
 const isGraphWidget = computed(() => widgetType.value === WidgetType.Graph);
 const isLineGraphWidget = computed(() => isGraphWidget.value && asGraph(widget.value).graphType.name === 'Line');
@@ -156,24 +332,148 @@ const isReadoutWidget = computed(() => widgetType.value === WidgetType.Readout);
 <template>
   <div class="widget-line">
     <div class="widget-cell col-metric">
-      <v-autocomplete
-        v-model="metricOption"
-        item-title="name"
-        :items="metricOptionsFiltered"
+      <v-tooltip
+        :disabled="!showMetricAvailabilityOnMetricField"
+        location="top"
+      >
+        <template v-slot:activator="{ props: tooltipProps }">
+          <div v-bind="tooltipProps" class="metric-autocomplete-wrap">
+            <v-autocomplete
+              v-model="selectedMetric"
+              item-title="name"
+              item-value="id"
+              :items="metricsFiltered"
+              :disabled="locked"
+              return-object
+              :density="isMaster ? 'default' : 'compact'"
+              :class="{ 'metric-unavailable': metricFieldGreyedOut }"
+            >
+              <template
+                v-if="showMetricAvailabilityOnMetricField && currentMetricUnavailable"
+                v-slot:prepend-inner
+              >
+                <v-icon size="small">mdi-information-outline</v-icon>
+              </template>
+              <template v-slot:item="{ item, props: itemProps }">
+                <v-tooltip location="top">
+                  <template v-slot:activator="{props: tooltipProps}">
+                    <v-list-item
+                      v-bind="{...itemProps, ...tooltipProps}"
+                      :title="metricFromItem(item).name"
+                      :class="{ 'metric-option-unavailable': isMetricUnavailableInList(metricFromItem(item)) }"
+                    >
+                      <template v-slot:prepend v-if="isMetricUnavailableInList(metricFromItem(item))">
+                        <v-icon size="small" class="mr-1">mdi-information-outline</v-icon>
+                      </template>
+                    </v-list-item>
+                  </template>
+                  <div class="device-availability-tooltip">
+                    <div>{{ metricFromItem(item).description }}</div>
+                    <div
+                      v-if="metricAvailabilityReasonForMetric(metricFromItem(item))"
+                      class="device-availability-tooltip-reason"
+                    >
+                      {{ metricAvailabilityReasonForMetric(metricFromItem(item)) }}
+                    </div>
+                  </div>
+                </v-tooltip>
+              </template>
+            </v-autocomplete>
+          </div>
+        </template>
+        <div class="device-availability-tooltip">
+          <div>{{ currentMetric.description }}</div>
+          <div
+            v-if="currentMetricAvailabilityReason"
+            class="device-availability-tooltip-reason"
+          >
+            {{ currentMetricAvailabilityReason }}
+          </div>
+        </div>
+      </v-tooltip>
+    </div>
+    <div v-if="showDeviceSelector" class="widget-cell col-device">
+      <v-select
+        v-model="selectedDeviceId"
+        class="loadout-field-compact"
+        :class="{ 'metric-unavailable': currentDeviceSelectionUnavailable }"
+        :items="deviceSelectItems"
+        item-value="id"
+        item-title="title"
+        label="Device"
         :disabled="locked"
-        return-object
         :density="isMaster ? 'default' : 'compact'"
       >
-        <template v-slot:item="{ item, props: itemProps }">
-          <v-tooltip :text="findMetricById(metricOptionFromItem(item).metricId).description">
-            <template v-slot:activator="{props: tooltipProps}">
-              <v-list-item v-bind="{...itemProps, ...tooltipProps}" :title="metricOptionFromItem(item).name"/>
+        <template v-slot:selection>
+          <v-tooltip location="top">
+            <template v-slot:activator="{ props: tooltipProps }">
+              <span v-bind="tooltipProps" class="d-flex align-center device-selection-text">
+                <v-icon
+                  v-if="currentDeviceSelectionUnavailable"
+                  size="small"
+                  class="device-select-info-icon flex-shrink-0"
+                >mdi-information-outline</v-icon>
+                <span class="text-truncate">{{ deviceSelectionTitle(storedDeviceId) }}</span>
+              </span>
             </template>
+            <div v-if="selectedDeviceSelectItem" class="device-availability-tooltip">
+              <div>{{ selectedDeviceSelectItem.title }}</div>
+              <div
+                v-if="selectedDeviceSelectItem.availabilityReason"
+                class="device-availability-tooltip-reason"
+              >
+                {{ selectedDeviceSelectItem.availabilityReason }}
+              </div>
+            </div>
+            <div v-else>{{ deviceSelectionTitle(storedDeviceId) }}</div>
           </v-tooltip>
         </template>
-    </v-autocomplete>
+        <template v-slot:item="{ item, props: itemProps }">
+          <v-tooltip location="top">
+            <template v-slot:activator="{ props: tooltipProps }">
+              <v-list-item
+                v-bind="{ ...itemProps, ...tooltipProps }"
+                :class="{
+                  'metric-option-unavailable': deviceSelectItemFromListItem(item).unavailable,
+                }"
+              >
+                <template v-slot:title>
+                  <span class="device-select-item-title">
+                    <v-icon
+                      v-if="deviceSelectItemFromListItem(item).unavailable"
+                      size="small"
+                      class="device-select-info-icon"
+                    >mdi-information-outline</v-icon>
+                    {{ deviceSelectItemFromListItem(item).title }}
+                  </span>
+                </template>
+              </v-list-item>
+            </template>
+            <div class="device-availability-tooltip">
+              <div>{{ deviceSelectItemFromListItem(item).title }}</div>
+              <div
+                v-if="deviceSelectItemFromListItem(item).availabilityReason"
+                class="device-availability-tooltip-reason"
+              >
+                {{ deviceSelectItemFromListItem(item).availabilityReason }}
+              </div>
+            </div>
+          </v-tooltip>
+        </template>
+      </v-select>
     </div>
-    <div class="widget-cell col-stat"> 
+    <div v-if="showArrayIndexSelector" class="widget-cell col-array-index">
+      <v-select
+        v-model="arrayIndex"
+        class="loadout-field-idx"
+        :items="arrayIndexOptions"
+        label="Idx"
+        hide-details
+        :disabled="locked"
+        :density="isMaster ? 'default' : 'compact'"
+      ></v-select>
+    </div>
+    <div class="widget-cell col-stat">
       <v-select
         v-model="stat"
         item-title="shortName"
@@ -274,4 +574,30 @@ const isReadoutWidget = computed(() => widgetType.value === WidgetType.Readout);
 </template>
 
 <style scoped lang="scss">
+.metric-autocomplete-wrap {
+  width: 100%;
+}
+.metric-unavailable :deep(.v-field) {
+  opacity: 0.65;
+}
+.metric-option-unavailable {
+  opacity: 0.65;
+}
+.device-select-info-icon {
+  margin-inline-end: 4px;
+  vertical-align: middle;
+}
+.device-select-item-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.device-availability-tooltip {
+  display: block;
+  white-space: normal;
+}
+.device-availability-tooltip-reason {
+  margin-top: 4px;
+}
 </style>

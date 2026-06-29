@@ -125,8 +125,8 @@
       "Command": "--ui-flag enable-chromium-debug"
     },
     {
-      "Id": "f4a7ccc2-978f-4bd0-af05-a70ce115b1eb",
-      "Command": "list --devices"
+      "Id": "c8f4e2a1-9b3d-4f7e-a1c2-6d5e8f0b2a14",
+      "Command": "--svc-flag enable-mock-telemetry"
     },
     {
       "Id": "a82f2a21-c9de-460e-8f38-b10026e23809",
@@ -185,8 +185,20 @@
         {
           "Id": "9364f1fd-7146-4233-9e19-83cd7e3b7ddb",
           "Command": "--log-middleware-copy"
+        },
+        {
+          "Id": "c8f4e2a1-9b3d-4f7e-a1c2-6d5e8f0b2a15",
+          "Command": "--svc-flag enable-mock-telemetry"
         }
       ]
+    },
+    {
+      "Id": "f4a7ccc2-978f-4bd0-af05-a70ce115b1eb",
+      "Command": "list --devices"
+    },
+    {
+      "Id": "85134bf0-ad4b-4c1e-8572-449d1f0f554d",
+      "Command": "dump-caps --output caps.csv"
     }
   ]
 }

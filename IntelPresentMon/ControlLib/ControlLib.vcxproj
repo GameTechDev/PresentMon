@@ -129,12 +129,15 @@
     <ClInclude Include="nvml\nvml.h" />
     <ClInclude Include="EndpointCache.h" />
     <ClInclude Include="igcl\IgclTelemetryProvider.h" />
+    <ClInclude Include="TelemetryAvailabilityMerge.h" />
+    <ClInclude Include="TelemetryMetricDiscovery.h" />
     <ClInclude Include="TelemetryCoordinator.h" />
     <ClInclude Include="TelemetryDeviceFingerprint.h" />
     <ClInclude Include="TelemetryProvider.h" />
     <ClInclude Include="uci\UciSdk.h" />
     <ClInclude Include="uci\UciTelemetryProvider.h" />
     <ClInclude Include="uci\UciWrapper.h" />
+    <ClInclude Include="mock\MockTelemetryProvider.h" />
     <ClInclude Include="wmi\WmiTelemetryProvider.h" />
   </ItemGroup>
   <ItemGroup>
@@ -147,10 +150,13 @@
     <ClCompile Include="nvapi\NvapiTelemetryProvider.cpp" />
     <ClCompile Include="nvml\NvmlWrapper.cpp" />
     <ClCompile Include="nvml\NvmlTelemetryProvider.cpp" />
+    <ClCompile Include="TelemetryAvailabilityMerge.cpp" />
+    <ClCompile Include="TelemetryMetricDiscovery.cpp" />
     <ClCompile Include="TelemetryCoordinator.cpp" />
     <ClCompile Include="TelemetryDeviceFingerprint.cpp" />
     <ClCompile Include="uci\UciTelemetryProvider.cpp" />
     <ClCompile Include="uci\UciWrapper.cpp" />
+    <ClCompile Include="mock\MockTelemetryProvider.cpp" />
     <ClCompile Include="wmi\WmiTelemetryProvider.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -42,6 +42,8 @@ namespace p2c::cli
 		Option<std::string> shmNamePrefix{ this, "--shm-name-prefix", "pm-child-shm", "Shared memory to connect to the service with" };
 		Option<std::string> etwSessionName{ this, "--etw-session-name", "pm-child-etw-session", "ETW session name when lauching service as child" };
 		Flag svcAsChild{ this, "--svc-as-child", "Launch service as child console app" };
+		Option<std::vector<std::pair<std::string, std::string>>> svcOptions{ this, "--svc-option", {}, "Parameterized options to pass to child service (omit -- prefix)" };
+		Option<std::vector<std::string>> svcFlags{ this, "--svc-flag", {}, "Flag options to pass to child service (omit -- prefix)" };
 		Flag traceExceptions{ this, "--trace-exceptions", "Add stack trace to all thrown exceptions (including SEH exceptions)" };
 		Flag enableDiagnostic{ this, "--enable-diagnostic", "Enable diagnostics output (debugger only) and disable normal debugger log output" };
 		Flag filesWorking{ this, "--files-working", "Use the working directory for file storage" };
@@ -88,6 +90,10 @@ namespace p2c::cli
 		Flag listFilterDynamic{ this, "--filter-dynamic,-y", "Filter to only metrics available for use with dynamic polling" };
 		Option<std::string> listSearch{ this, "--search", {}, "Substring to filter metric results on (case-insensitive)" };
 
+	Subcommand subcDumpCaps{ this, "dump-caps", "Dump frame-query metric availability matrix to CSV" }; public:
+	private: Group gdumpcaps_{ this, "Standard", "Standard options for the dump-caps subcommand" }; public:
+		Option<std::string> dumpCapsOutput{ this, "--output", {}, "Path of the output CSV file" };
+
 	Subcommand subcShow{ this, "show", "Show static CLI diagnostic information" }; public:
 	private: Group gshows_{ this, "Standard", "Standard options for the show subcommand" }; public:
 		Flag showLogFolder{ this, "--log-folder", "Open the default appdata log folder in Explorer" };
@@ -105,6 +111,8 @@ namespace p2c::cli
 		MutualExclusion exclListFilter_{ listFilterFrame, listFilterDynamic };
 		MutualExclusion exclLogList_{ logDenyList, logAllowList };
 		Dependency inclSvcSes_{ etwSessionName, svcAsChild };
+		Dependency inclSvcOpt_{ svcOptions, svcAsChild };
+		Dependency inclSvcFlg_{ svcFlags, svcAsChild };
 		Dependency inclListFrame_{ listFilterFrame, listMetrics };
 		Dependency inclListDyna_{ listFilterDynamic, listMetrics };
 		Dependency inclListSearch_{ listSearch, listMetrics };

@@ -20,6 +20,9 @@
     <Filter Include="Uci">
       <UniqueIdentifier>{6db4e810-a194-46a6-ac19-44e86c4b2645}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Mock">
+      <UniqueIdentifier>{c4e8f1a2-3b5d-4e6f-9a0c-1d2e3f4a5b6c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="adl\adl_defines.h">
@@ -79,6 +82,9 @@
     <ClInclude Include="nvml\nvml.h">
       <Filter>Nvidia</Filter>
     </ClInclude>
+    <ClInclude Include="mock\MockTelemetryProvider.h">
+      <Filter>Mock</Filter>
+    </ClInclude>
     <ClInclude Include="wmi\WmiTelemetryProvider.h">
       <Filter>Wmi</Filter>
     </ClInclude>
@@ -121,6 +127,9 @@
     </ClCompile>
     <ClCompile Include="igcl\IgclErrorCodeProvider.cpp">
       <Filter>Intel</Filter>
+    </ClCompile>
+    <ClCompile Include="mock\MockTelemetryProvider.cpp">
+      <Filter>Mock</Filter>
     </ClCompile>
     <ClCompile Include="wmi\WmiTelemetryProvider.cpp">
       <Filter>Wmi</Filter>

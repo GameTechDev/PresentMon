@@ -15,4 +15,6 @@ namespace pmon::ipc::intro
 		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const MetricCapabilities& caps, std::span<const uint8_t> luidBytes);
 	void PopulateCpu(ShmSegmentManager* pSegmentManager, IntrospectionRoot& root,
 		PM_DEVICE_VENDOR vendor, const std::string& deviceName, const MetricCapabilities& caps);
+
+	PM_DEVICE_TYPE GetMetricRegisteredDeviceType(PM_METRIC metric);
 }
