@@ -821,11 +821,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
     TEST_CLASS(ProcessPresentXefgAfmfReleaseTests)
     {
     public:
-        TEST_METHOD(IntelXefg_MultiEntryPresent_HoldsClosedIntervalWithoutLookahead)
+        TEST_METHOD(IntelXefg_MultiEntryPresent_GeneratedRowsPublishImmediately_ClosingAppRowHeldWithoutLookahead)
         {
             // AppA seed, then one present gen+gen+gen+AppB with no further display: timeline
-            // origin AppA publishes when the first gen supplies lookahead; the closed interval
-            // (Gen1..Gen3, AppB) stays held with no closing-app lookahead.
+            // origin AppA publishes when the first gen supplies lookahead. AppB closes the
+            // interval, but Gen1..Gen3 already know their own nextScreenTime from sibling
+            // entries in the same present, so they publish immediately with resolved
+            // animation metrics. AppB is the last entry in its present, so it has no
+            // lookahead yet and stays held.
             QpcConverter qpc(10'000'000, 0);
             UnifiedSwapChain swapChain{};
 
@@ -860,17 +863,32 @@ TEST_CLASS(ComputeMetricsForPresentTests)
 
             auto rows = swapChain.ProcessPresent(qpc, std::move(present));
 
-            Assert::AreEqual(size_t(1), rows.size());
+            // Origin AppA, plus Gen1..Gen3: each already has nextScreenTime from a sibling
+            // display entry in this present, so they are display-timing-complete as soon as
+            // AppB closes the interval. AppB itself is the last entry in its present and is
+            // not included; it still needs lookahead from a later present.
+            Assert::AreEqual(size_t(4), rows.size());
             Assert::AreEqual((int)FrameType::Application, (int)rows[0].computed.metrics.frameType);
             Assert::AreEqual(uint64_t(10'000), rows[0].computed.metrics.screenTimeQpc);
             Assert::IsFalse(HasMetricValue(rows[0].computed.metrics.msAnimationError));
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[1].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[2].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[3].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(11'000), rows[1].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(11'500), rows[2].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(12'000), rows[3].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(rows[1].computed.metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(rows[2].computed.metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(rows[3].computed.metrics.msAnimationTime));
         }
 
-        TEST_METHOD(AmdAfmf_MultiEntryPresent_ReleasesClosedIntervalWithLookahead)
+        TEST_METHOD(AmdAfmf_MultiEntryPresent_ReleasesClosedIntervalGeneratedRowsImmediately_ClosingAppRowOnLookahead)
         {
             // AppA seed, then gen+gen+gen+AppB, then AppC for closing-app lookahead: the
-            // multi-gen present only releases timeline origin AppA; the full closed interval
-            // (3x AMD_AFMF, AppB) releases on the next present.
+            // multi-gen present releases timeline origin AppA together with the 3x AMD_AFMF
+            // rows (their own nextScreenTime is already known from sibling entries in the
+            // same present); AppB itself releases alone once the next present supplies its
+            // lookahead.
             QpcConverter qpc(10'000'000, 0);
             UnifiedSwapChain swapChain{};
 
@@ -904,10 +922,19 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             present.displayed.PushBack({ FrameType::Application, 22'500 });
 
             auto afterMultiGenPresent = swapChain.ProcessPresent(qpc, std::move(present));
-            Assert::AreEqual(size_t(1), afterMultiGenPresent.size());
+            Assert::AreEqual(size_t(4), afterMultiGenPresent.size());
             Assert::AreEqual((int)FrameType::Application, (int)afterMultiGenPresent[0].computed.metrics.frameType);
             Assert::AreEqual(uint64_t(20'000), afterMultiGenPresent[0].computed.metrics.screenTimeQpc);
             Assert::IsFalse(HasMetricValue(afterMultiGenPresent[0].computed.metrics.msAnimationError));
+            Assert::AreEqual((int)FrameType::AMD_AFMF, (int)afterMultiGenPresent[1].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::AMD_AFMF, (int)afterMultiGenPresent[2].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::AMD_AFMF, (int)afterMultiGenPresent[3].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(21'000), afterMultiGenPresent[1].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(21'500), afterMultiGenPresent[2].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(22'000), afterMultiGenPresent[3].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(afterMultiGenPresent[1].computed.metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(afterMultiGenPresent[2].computed.metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(afterMultiGenPresent[3].computed.metrics.msAnimationTime));
 
             FrameData lookahead{};
             lookahead.presentStartTime = 23'000;
@@ -918,15 +945,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             lookahead.displayed.PushBack({ FrameType::Application, 24'000 });
 
             auto afterLookaheadPresent = swapChain.ProcessPresent(qpc, std::move(lookahead));
-            Assert::AreEqual(size_t(4), afterLookaheadPresent.size());
-            Assert::AreEqual((int)FrameType::AMD_AFMF, (int)afterLookaheadPresent[0].computed.metrics.frameType);
-            Assert::AreEqual((int)FrameType::AMD_AFMF, (int)afterLookaheadPresent[1].computed.metrics.frameType);
-            Assert::AreEqual((int)FrameType::AMD_AFMF, (int)afterLookaheadPresent[2].computed.metrics.frameType);
-            Assert::AreEqual((int)FrameType::Application, (int)afterLookaheadPresent[3].computed.metrics.frameType);
-            Assert::AreEqual(uint64_t(21'000), afterLookaheadPresent[0].computed.metrics.screenTimeQpc);
-            Assert::AreEqual(uint64_t(21'500), afterLookaheadPresent[1].computed.metrics.screenTimeQpc);
-            Assert::AreEqual(uint64_t(22'000), afterLookaheadPresent[2].computed.metrics.screenTimeQpc);
-            Assert::AreEqual(uint64_t(22'500), afterLookaheadPresent[3].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(size_t(1), afterLookaheadPresent.size());
+            Assert::AreEqual((int)FrameType::Application, (int)afterLookaheadPresent[0].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(22'500), afterLookaheadPresent[0].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(afterLookaheadPresent[0].computed.metrics.msAnimationTime));
         }
     };
 
@@ -1446,8 +1468,18 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             closingApp.appSimStartTime = 3'300'000;
             closingApp.displayed.PushBack({ FrameType::Application, 4'000'000 });
 
-            auto heldIntervalRows = swapChain.ProcessPresent(qpc, std::move(closingApp));
-            Assert::AreEqual(size_t(0), heldIntervalRows.size());
+            // Rep3400000 and Rep3700000 already know their own nextScreenTime from sibling
+            // display entries in the earlier present, so once closingApp closes the interval
+            // they publish immediately here; closingApp itself is the sole entry in its
+            // present and still needs lookahead.
+            auto closedIntervalRows = swapChain.ProcessPresent(qpc, std::move(closingApp));
+            Assert::AreEqual(size_t(2), closedIntervalRows.size());
+
+            double expectedFirstGen = qpc.DeltaUnsignedMilliSeconds(3'400'000, 3'700'000);
+            AssertAreEqualWithinTolerance(expectedFirstGen, closedIntervalRows[0].computed.metrics.msDisplayedTime, 0.0001);
+
+            double expectedSecondGen = qpc.DeltaUnsignedMilliSeconds(3'700'000, 4'000'000);
+            AssertAreEqualWithinTolerance(expectedSecondGen, closedIntervalRows[1].computed.metrics.msDisplayedTime, 0.0001);
 
             FrameData lookahead{};
             lookahead.presentStartTime = 4'100'000;
@@ -1458,16 +1490,10 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             lookahead.displayed.PushBack({ FrameType::Application, 4'300'000 });
 
             auto intervalRows = swapChain.ProcessPresent(qpc, std::move(lookahead));
-            Assert::AreEqual(size_t(3), intervalRows.size());
-
-            double expectedFirstGen = qpc.DeltaUnsignedMilliSeconds(3'400'000, 3'700'000);
-            AssertAreEqualWithinTolerance(expectedFirstGen, intervalRows[0].computed.metrics.msDisplayedTime, 0.0001);
-
-            double expectedSecondGen = qpc.DeltaUnsignedMilliSeconds(3'700'000, 4'000'000);
-            AssertAreEqualWithinTolerance(expectedSecondGen, intervalRows[1].computed.metrics.msDisplayedTime, 0.0001);
+            Assert::AreEqual(size_t(1), intervalRows.size());
 
             double expectedClosingApp = qpc.DeltaUnsignedMilliSeconds(4'000'000, 4'300'000);
-            AssertAreEqualWithinTolerance(expectedClosingApp, intervalRows[2].computed.metrics.msDisplayedTime, 0.0001);
+            AssertAreEqualWithinTolerance(expectedClosingApp, intervalRows[0].computed.metrics.msDisplayedTime, 0.0001);
         }
     };
 
@@ -1762,8 +1788,14 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             closingApp.appSimStartTime = 9'300'000;
             closingApp.displayed.PushBack({ FrameType::Application, 10'400'000 });
 
-            auto heldIntervalRows = swapChain.ProcessPresent(qpc, std::move(closingApp));
-            Assert::AreEqual(size_t(0), heldIntervalRows.size());
+            // Rep9800000 and Rep10100000 already know their own nextScreenTime from sibling
+            // display entries in the earlier present, so once closingApp closes the interval
+            // they publish immediately here; closingApp itself is the sole entry in its
+            // present and still needs lookahead.
+            auto closedIntervalRows = swapChain.ProcessPresent(qpc, std::move(closingApp));
+            Assert::AreEqual(size_t(2), closedIntervalRows.size());
+            Assert::AreEqual(uint64_t(9'800'000), closedIntervalRows[0].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(10'100'000), closedIntervalRows[1].computed.metrics.screenTimeQpc);
 
             FrameData lookahead{};
             lookahead.presentStartTime = 10'500'000;
@@ -1774,9 +1806,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             lookahead.displayed.PushBack({ FrameType::Application, 10'700'000 });
 
             auto intervalRows = swapChain.ProcessPresent(qpc, std::move(lookahead));
-            Assert::AreEqual(size_t(3), intervalRows.size());
-            Assert::AreEqual(uint64_t(9'800'000), intervalRows[0].computed.metrics.screenTimeQpc);
-            Assert::AreEqual(uint64_t(10'100'000), intervalRows[1].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(size_t(1), intervalRows.size());
+            Assert::AreEqual(uint64_t(10'400'000), intervalRows[0].computed.metrics.screenTimeQpc);
         }
 
         TEST_METHOD(V1_FirstDisplayNonAppFrame_UsesFirstDisplayScreenTime)
@@ -2287,7 +2318,18 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             closingApp.appSimStartTime = 1'050'000;
             closingApp.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
-            (void)swapChain.ProcessPresent(qpc, std::move(closingApp));
+            // Rep2100000 and Rep2200000 already know their own nextScreenTime from sibling
+            // display entries in the earlier present, so once closingApp closes the interval
+            // they publish immediately here; closingApp itself is the sole entry in its
+            // present and still needs lookahead.
+            auto closedIntervalRows = swapChain.ProcessPresent(qpc, std::move(closingApp));
+            Assert::AreEqual(size_t(2), closedIntervalRows.size());
+
+            double expected1 = qpc.DeltaUnsignedMilliSeconds(1'050'000, 2'100'000);
+            AssertAreEqualWithinTolerance(expected1, closedIntervalRows[0].computed.metrics.msDisplayLatency, 0.0001);
+
+            double expected2 = qpc.DeltaUnsignedMilliSeconds(1'050'000, 2'200'000);
+            AssertAreEqualWithinTolerance(expected2, closedIntervalRows[1].computed.metrics.msDisplayLatency, 0.0001);
 
             FrameData lookahead{};
             lookahead.presentStartTime = 2'400'000;
@@ -2298,13 +2340,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             lookahead.displayed.PushBack({ FrameType::Application, 2'600'000 });
 
             auto intervalRows = swapChain.ProcessPresent(qpc, std::move(lookahead));
-            Assert::AreEqual(size_t(3), intervalRows.size());
-
-            double expected1 = qpc.DeltaUnsignedMilliSeconds(1'050'000, 2'100'000);
-            AssertAreEqualWithinTolerance(expected1, intervalRows[0].computed.metrics.msDisplayLatency, 0.0001);
-
-            double expected2 = qpc.DeltaUnsignedMilliSeconds(1'050'000, 2'200'000);
-            AssertAreEqualWithinTolerance(expected2, intervalRows[1].computed.metrics.msDisplayLatency, 0.0001);
+            Assert::AreEqual(size_t(1), intervalRows.size());
+            Assert::AreEqual((int)FrameType::Application, (int)intervalRows[0].computed.metrics.frameType);
         }
 
         TEST_METHOD(ReadyTimeToDisplay_MultipleDisplays_IndependentDeltas)
@@ -2346,7 +2383,20 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             closingApp.appSimStartTime = 1'050'000;
             closingApp.displayed.PushBack({ FrameType::Application, 2'500'000 });
 
-            (void)swapChain.ProcessPresent(qpc, std::move(closingApp));
+            // Rep2100000 and Rep2200000 already know their own nextScreenTime from sibling
+            // display entries in the earlier present, so once closingApp closes the interval
+            // they publish immediately here; closingApp itself is the sole entry in its
+            // present and still needs lookahead.
+            auto closedIntervalRows = swapChain.ProcessPresent(qpc, std::move(closingApp));
+            Assert::AreEqual(size_t(2), closedIntervalRows.size());
+
+            double expected1 = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'100'000);
+            Assert::IsTrue(HasMetricValue(closedIntervalRows[0].computed.metrics.msReadyTimeToDisplayLatency));
+            AssertAreEqualWithinTolerance(expected1, closedIntervalRows[0].computed.metrics.msReadyTimeToDisplayLatency, 0.0001);
+
+            double expected2 = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'200'000);
+            Assert::IsTrue(HasMetricValue(closedIntervalRows[1].computed.metrics.msReadyTimeToDisplayLatency));
+            AssertAreEqualWithinTolerance(expected2, closedIntervalRows[1].computed.metrics.msReadyTimeToDisplayLatency, 0.0001);
 
             FrameData lookahead{};
             lookahead.presentStartTime = 2'400'000;
@@ -2357,15 +2407,8 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             lookahead.displayed.PushBack({ FrameType::Application, 2'600'000 });
 
             auto intervalRows = swapChain.ProcessPresent(qpc, std::move(lookahead));
-            Assert::AreEqual(size_t(3), intervalRows.size());
-
-            double expected1 = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'100'000);
-            Assert::IsTrue(HasMetricValue(intervalRows[0].computed.metrics.msReadyTimeToDisplayLatency));
-            AssertAreEqualWithinTolerance(expected1, intervalRows[0].computed.metrics.msReadyTimeToDisplayLatency, 0.0001);
-
-            double expected2 = qpc.DeltaUnsignedMilliSeconds(1'500'000, 2'200'000);
-            Assert::IsTrue(HasMetricValue(intervalRows[1].computed.metrics.msReadyTimeToDisplayLatency));
-            AssertAreEqualWithinTolerance(expected2, intervalRows[1].computed.metrics.msReadyTimeToDisplayLatency, 0.0001);
+            Assert::AreEqual(size_t(1), intervalRows.size());
+            Assert::AreEqual((int)FrameType::Application, (int)intervalRows[0].computed.metrics.frameType);
         }
     };
 
@@ -4447,22 +4490,33 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1002, 1, 1002,
                 { { FrameType::Intel_XEFG, 118 } })).size());
 
-            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1100, 1, 1100,
-                { { FrameType::Application, 124 } }, 1024)).size());
+            // AppB closes the interval [Gen106, Gen112, Gen118, AppB]. Each generated row
+            // already learned its own nextScreenTime from the next display instance as it
+            // arrived, so they publish immediately with resolved animation metrics. AppB is
+            // the only entry in its own present, so it still needs lookahead.
+            auto closedIntervalRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1100, 1, 1100,
+                { { FrameType::Application, 124 } }, 1024));
 
+            Assert::AreEqual(size_t(3), closedIntervalRows.size());
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)closedIntervalRows[0].frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)closedIntervalRows[1].frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)closedIntervalRows[2].frameType);
+            Assert::AreEqual(uint64_t(106), closedIntervalRows[0].screenTimeQpc);
+            Assert::AreEqual(uint64_t(112), closedIntervalRows[1].screenTimeQpc);
+            Assert::AreEqual(uint64_t(118), closedIntervalRows[2].screenTimeQpc);
+            Assert::AreEqual(6.0, closedIntervalRows[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(12.0, closedIntervalRows[1].msAnimationTime, 0.0001);
+            Assert::AreEqual(18.0, closedIntervalRows[2].msAnimationTime, 0.0001);
+
+            // AppB still needs lookahead from a later displayed frame before it can publish.
             auto rows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1101, 1, 1101,
                 { { FrameType::Intel_XEFG, 132 } }));
 
-            Assert::AreEqual(size_t(4), rows.size());
-            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[0].frameType);
-            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[1].frameType);
-            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[2].frameType);
-            Assert::AreEqual((int)FrameType::Application, (int)rows[3].frameType);
-            Assert::AreEqual(6.0, rows[0].msAnimationTime, 0.0001);
-            Assert::AreEqual(12.0, rows[1].msAnimationTime, 0.0001);
-            Assert::AreEqual(18.0, rows[2].msAnimationTime, 0.0001);
-            Assert::AreEqual(24.0, rows[3].msAnimationTime, 0.0001);
-            Assert::AreEqual(8.0, rows[3].msDisplayedTime, 0.0001);
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::AreEqual((int)FrameType::Application, (int)rows[0].frameType);
+            Assert::AreEqual(uint64_t(124), rows[0].screenTimeQpc);
+            Assert::AreEqual(24.0, rows[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(8.0, rows[0].msDisplayedTime, 0.0001);
         }
 
         TEST_METHOD(FlipFrameTypeInfo_AppInMiddle_OnlyClosedIntervalRowsEmit)
@@ -4728,19 +4782,22 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 { { FrameType::Application, 100 } }, 1000));
             Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Discarded, 950, 10, 950,
                 {}, 1008)).size());
-            // Expect 1 row from the second application frame, the discarded frame will be be waiting in the
-            // blocked rows and not emitted until the next displayed app frame below.
-            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
-                { { FrameType::Application, 116 } }, 1016)).size());
+            // The second application frame closes the interval. The origin app frame
+            // and discarded frame are both publishable now; the second application
+            // frame still needs display lookahead from the next displayed frame.
+            auto closedIntervalRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 16, 1000,
+                { { FrameType::Application, 116 } }, 1016));
 
-            // Both discarded and application frame now will be emitted.
+            Assert::AreEqual(size_t(2), closedIntervalRows.size());
+            Assert::IsFalse(HasMetricValue(closedIntervalRows[1].msAnimationTime));
+
+            // The second application frame now has lookahead and is emitted by itself.
             auto rows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1100, 16, 1100,
                 { { FrameType::Application, 132 } }, 1032));
 
-            Assert::AreEqual(size_t(2), rows.size());
-            Assert::IsFalse(HasMetricValue(rows[0].msAnimationTime));
-            Assert::AreEqual(16.0, rows[1].msAnimationTime, 0.0001);
-            Assert::AreEqual(0.0, rows[1].msAnimationError, 0.0001);
+            Assert::AreEqual(size_t(1), rows.size());
+            Assert::AreEqual(16.0, rows[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(0.0, rows[0].msAnimationError, 0.0001);
         }
 
         TEST_METHOD(NvCollapsedAdjustment_AdjustsNextReadyDisplayRow)
@@ -4773,6 +4830,445 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(uint64_t(5'500'000), rows[0].present.displayed[0].second);
         }
     };
+
+    // ============================================================================
+    // SECTION: Row-Level Publish Characterization Tests (target behavior)
+    //
+    // Design/AnimationErrorFrameGenerationDesign.md: rows in a resolved
+    // app-to-app interval publish independently once their own animation and
+    // display timing are complete; they do not all wait for the closing app
+    // anchor's own display-duration lookahead. These tests describe that
+    // target behavior and are expected to fail until the publish policy in
+    // DisplayFrameQueue is changed (see Design/AnimationErrorFrameGenerationAgentPrompts.md,
+    // Agent 3). Do not weaken or delete these to make them pass; update the
+    // production code instead.
+    // ============================================================================
+
+    TEST_CLASS(RowLevelPublishCharacterizationTests)
+    {
+    public:
+        static std::vector<FrameMetrics> Process(
+            QpcConverter& qpc,
+            UnifiedSwapChain& swapChain,
+            FrameData frame)
+        {
+            std::vector<FrameMetrics> metrics;
+            auto rows = swapChain.ProcessPresent(qpc, std::move(frame));
+            metrics.reserve(rows.size());
+            for (const auto& row : rows) {
+                metrics.push_back(row.computed.metrics);
+            }
+            return metrics;
+        }
+
+        TEST_METHOD(GeneratedRowsInSamePresentAsClosingAnchor_PublishImmediately_ClosingAnchorAwaitsLookahead)
+        {
+            // PresentA: Gen1, Gen2, Gen3, AppClose all in one present. Gen1..Gen3 already
+            // know their own nextScreenTime from sibling display entries in the same present,
+            // so once AppClose closes the interval they should publish immediately with
+            // resolved animation metrics. AppClose is the last display entry in its present,
+            // so it still needs the next displayed frame (in a later present) before it can
+            // publish.
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData seed{};
+            seed.presentStartTime = 9'000;
+            seed.timeInPresent = 400;
+            seed.readyTime = 9'500;
+            seed.finalState = PresentResult::Presented;
+            seed.appSimStartTime = 8'000;
+            seed.displayed.PushBack({ FrameType::Application, 10'000 });
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(seed)).size());
+
+            FrameData present{};
+            present.presentStartTime = 10'000;
+            present.timeInPresent = 500;
+            present.readyTime = 20'000;
+            present.finalState = PresentResult::Presented;
+            present.appSimStartTime = 9'500;
+            present.displayed.PushBack({ FrameType::Intel_XEFG, 11'000 });
+            present.displayed.PushBack({ FrameType::Intel_XEFG, 11'500 });
+            present.displayed.PushBack({ FrameType::Intel_XEFG, 12'000 });
+            present.displayed.PushBack({ FrameType::Application, 12'500 });
+
+            auto rows = swapChain.ProcessPresent(qpc, std::move(present));
+
+            // Timeline origin (seed's AppA) plus the three generated rows of the closed
+            // interval. The closing app row (12'500) is not included: it has no lookahead yet.
+            Assert::AreEqual(size_t(4), rows.size());
+            Assert::AreEqual((int)FrameType::Application, (int)rows[0].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(10'000), rows[0].computed.metrics.screenTimeQpc);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[1].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[2].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)rows[3].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(11'000), rows[1].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(11'500), rows[2].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(12'000), rows[3].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(rows[1].computed.metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(rows[2].computed.metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(rows[3].computed.metrics.msAnimationTime));
+
+            FrameData lookahead{};
+            lookahead.presentStartTime = 23'000;
+            lookahead.timeInPresent = 400;
+            lookahead.readyTime = 30'000;
+            lookahead.finalState = PresentResult::Presented;
+            lookahead.appSimStartTime = 20'000;
+            lookahead.displayed.PushBack({ FrameType::Application, 24'000 });
+
+            auto afterLookahead = swapChain.ProcessPresent(qpc, std::move(lookahead));
+            Assert::AreEqual(size_t(1), afterLookahead.size());
+            Assert::AreEqual((int)FrameType::Application, (int)afterLookahead[0].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(12'500), afterLookahead[0].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(afterLookahead[0].computed.metrics.msAnimationTime));
+        }
+
+        TEST_METHOD(SeparatePresentGeneratedRows_PublishOnIntervalClose_ClosingAppAnchorWaitsForOwnLookahead)
+        {
+            // Design/AnimationErrorFrameGenerationAgentPrompts.md Agent 1, target scenario:
+            //   AppA @ 100, sim 1000
+            //   Gen1 @ 108
+            //   Gen2 @ 116
+            //   AppB @ 124, sim 1024
+            // After AppB arrives: Gen1 and Gen2 publish with animation metrics; AppB does
+            // not publish yet because no later displayed frame is available. After a later
+            // displayed frame arrives, AppB publishes with animation metrics and complete
+            // msDisplayedTime.
+            QpcConverter qpc(1000, 0);
+            UnifiedSwapChain swapChain{};
+
+            (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1, 1, 1, {}));
+
+            // AppA is the timeline origin; it is held until Gen1 supplies its lookahead.
+            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 100, 900,
+                { { FrameType::Application, 100 } }, 1000)).size());
+
+            // Gen1 completes AppA's lookahead, so AppA publishes here; Gen1 itself is queued.
+            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 1, 1000,
+                { { FrameType::Intel_XEFG, 108 } })).size());
+
+            // Gen2 is queued alongside Gen1; nothing publishes yet.
+            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1001, 1, 1001,
+                { { FrameType::Intel_XEFG, 116 } })).size());
+
+            // AppB closes the interval [Gen1, Gen2, AppB]. Gen1 and Gen2 already have their
+            // own display timing complete (each supplied the next row's nextScreenTime as it
+            // arrived) and should publish now with resolved animation metrics. AppB is the
+            // only entry in its own present, so it still needs lookahead and must not publish.
+            auto afterAppB = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1100, 1, 1100,
+                { { FrameType::Application, 124 } }, 1024));
+
+            Assert::AreEqual(size_t(2), afterAppB.size());
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)afterAppB[0].frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)afterAppB[1].frameType);
+            Assert::AreEqual(uint64_t(108), afterAppB[0].screenTimeQpc);
+            Assert::AreEqual(uint64_t(116), afterAppB[1].screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(afterAppB[0].msAnimationTime));
+            Assert::IsTrue(HasMetricValue(afterAppB[1].msAnimationTime));
+
+            for (const auto& row : afterAppB) {
+                Assert::IsFalse(row.frameType == FrameType::Application,
+                    L"AppB must not publish before its own display-duration lookahead is known.");
+            }
+
+            // The next displayed frame supplies AppB's lookahead; AppB now publishes with
+            // complete animation metrics and msDisplayedTime.
+            auto afterLookahead = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1101, 1, 1101,
+                { { FrameType::Intel_XEFG, 132 } }));
+
+            Assert::AreEqual(size_t(1), afterLookahead.size());
+            Assert::AreEqual((int)FrameType::Application, (int)afterLookahead[0].frameType);
+            Assert::AreEqual(uint64_t(124), afterLookahead[0].screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(afterLookahead[0].msAnimationTime));
+            Assert::AreEqual(8.0, afterLookahead[0].msDisplayedTime, 0.0001);
+        }
+
+        TEST_METHOD(MultiDisplayAcrossTwoPresents_IntervalBoundaryExcludesPriorAndNextIntervalRows)
+        {
+            // Design/AnimationErrorFrameGenerationAgentPrompts.md Agent 1, multi-display hard case:
+            //   PresentA: gen1 @ 90, appA @ 100, gen2 @ 108, gen3 @ 116
+            //   PresentB: gen4 @ 124, gen5 @ 132, appB @ 140, gen6 @ 148
+            // The interval from appA to appB is gen2, gen3, gen4, gen5, appB
+            // (displayIntervalCount = 5). gen1 belongs to the prior interval (closed when
+            // appA arrived) and gen6 belongs to the next interval (it only supplies appB's
+            // display-duration lookahead); neither must receive this interval's animation
+            // metrics. gen6 is split into its own present (rather than appended to PresentB)
+            // so that appB's own lookahead is not trivially available within the same Ingest
+            // call as the interval close -- this is what exposes the target behavior: gen2..gen5
+            // must publish as soon as the interval resolves, without waiting for appB's lookahead.
+            QpcConverter qpc(1000, 0);
+            UnifiedSwapChain swapChain{};
+
+            (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1, 1, 1, {}));
+
+            // Origin app anchor before PresentA; held until gen1 supplies its lookahead.
+            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 700, 50, 700,
+                { { FrameType::Application, 80 } }, 900)).size());
+
+            auto presentARows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 800, 50, 800,
+                {
+                    { FrameType::Intel_XEFG, 90 },
+                    { FrameType::Application, 100 },
+                    { FrameType::Intel_XEFG, 108 },
+                    { FrameType::Intel_XEFG, 116 },
+                },
+                1000));
+
+            // Origin publishes (gen1 supplied its lookahead). gen1 and appA also already have
+            // their own nextScreenTime from sibling entries in PresentA, so the
+            // origin-to-appA interval (gen1, appA) resolves and publishes immediately too.
+            // gen2 and gen3 (after appA) are not part of that closed interval and do not
+            // publish yet.
+            Assert::AreEqual(size_t(3), presentARows.size());
+            Assert::AreEqual((int)FrameType::Application, (int)presentARows[0].frameType);
+            Assert::AreEqual(uint64_t(80), presentARows[0].screenTimeQpc);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)presentARows[1].frameType);
+            Assert::AreEqual(uint64_t(90), presentARows[1].screenTimeQpc);
+            Assert::AreEqual((int)FrameType::Application, (int)presentARows[2].frameType);
+            Assert::AreEqual(uint64_t(100), presentARows[2].screenTimeQpc);
+
+            // PresentB: gen4, gen5, appB. appB is the last entry of its own present, so it has
+            // no lookahead yet. gen2, gen3 (held from PresentA), gen4, and gen5 all already have
+            // complete display timing once appB closes the interval and should publish now.
+            auto presentBRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 50, 900,
+                {
+                    { FrameType::Intel_XEFG, 124 },
+                    { FrameType::Intel_XEFG, 132 },
+                    { FrameType::Application, 140 },
+                },
+                1500));
+
+            // appA -> appB interval is exactly gen2, gen3, gen4, gen5, appB (displayIntervalCount = 5).
+            // Each consecutive screen time is 8 ticks apart and simStep = (1500 - 1000) / 5 = 100,
+            // so every row in the interval has msAnimationError = 100 - 8 = 92 and msAnimationTime
+            // advances by 100 per row from appA's published animation time (100). Only appB
+            // (140) is missing here: it still needs lookahead.
+            Assert::AreEqual(size_t(4), presentBRows.size());
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)presentBRows[0].frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)presentBRows[1].frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)presentBRows[2].frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)presentBRows[3].frameType);
+            Assert::AreEqual(uint64_t(108), presentBRows[0].screenTimeQpc);
+            Assert::AreEqual(uint64_t(116), presentBRows[1].screenTimeQpc);
+            Assert::AreEqual(uint64_t(124), presentBRows[2].screenTimeQpc);
+            Assert::AreEqual(uint64_t(132), presentBRows[3].screenTimeQpc);
+            Assert::AreEqual(200.0, presentBRows[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(300.0, presentBRows[1].msAnimationTime, 0.0001);
+            Assert::AreEqual(400.0, presentBRows[2].msAnimationTime, 0.0001);
+            Assert::AreEqual(500.0, presentBRows[3].msAnimationTime, 0.0001);
+            Assert::AreEqual(92.0, presentBRows[0].msAnimationError, 0.0001);
+            Assert::AreEqual(92.0, presentBRows[1].msAnimationError, 0.0001);
+            Assert::AreEqual(92.0, presentBRows[2].msAnimationError, 0.0001);
+            Assert::AreEqual(92.0, presentBRows[3].msAnimationError, 0.0001);
+
+            for (const auto& row : presentBRows) {
+                Assert::IsFalse(row.frameType == FrameType::Application,
+                    L"appB must not publish before its own display-duration lookahead is known.");
+            }
+
+            // gen6 supplies appB's lookahead. appB now publishes alone, with the same
+            // interval's resolved animation metrics (it must not pick up metrics from the
+            // next interval that gen6 will eventually close).
+            auto presentCRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 50, 1000,
+                { { FrameType::Intel_XEFG, 148 } }));
+
+            Assert::AreEqual(size_t(1), presentCRows.size());
+            Assert::AreEqual((int)FrameType::Application, (int)presentCRows[0].frameType);
+            Assert::AreEqual(uint64_t(140), presentCRows[0].screenTimeQpc);
+            Assert::AreEqual(600.0, presentCRows[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(92.0, presentCRows[0].msAnimationError, 0.0001);
+
+            // gen6 itself is still buffered: it has its own display timing but has not closed
+            // an interval against the next app anchor yet, so it must not have published.
+            auto afterGen6Only = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1100, 50, 1100,
+                { { FrameType::Intel_XEFG, 156 } }));
+            Assert::AreEqual(size_t(0), afterGen6Only.size());
+        }
+
+        TEST_METHOD(MultiDisplayWithSamePresentLookahead_ClosingAnchorUsesSiblingGeneratedRow_NextIntervalRowExcludedFromMetrics)
+        {
+            // Design/AnimationErrorFrameGenerationAgentPrompts.md Agent 1, multi-display hard
+            // case, exact shape:
+            //   PresentA: gen1 @ 90, appA @ 100, gen2 @ 108, gen3 @ 116
+            //   PresentB: gen4 @ 124, gen5 @ 132, appB @ 140, gen6 @ 148
+            // Here gen6 shares PresentB with appB and supplies appB's display-duration
+            // lookahead directly (no further present needed). The interval from appA to appB
+            // is still exactly gen2, gen3, gen4, gen5, appB (displayIntervalCount = 5); gen6
+            // belongs to the next interval and must not receive this interval's resolved
+            // animation metrics even though it is the row that completes appB's display timing.
+            QpcConverter qpc(1000, 0);
+            UnifiedSwapChain swapChain{};
+
+            (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1, 1, 1, {}));
+
+            // Origin app anchor before PresentA; held until gen1 supplies its lookahead.
+            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 700, 50, 700,
+                { { FrameType::Application, 80 } }, 900)).size());
+
+            auto presentARows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 800, 50, 800,
+                {
+                    { FrameType::Intel_XEFG, 90 },
+                    { FrameType::Application, 100 },
+                    { FrameType::Intel_XEFG, 108 },
+                    { FrameType::Intel_XEFG, 116 },
+                },
+                1000));
+            Assert::AreEqual(size_t(3), presentARows.size());
+
+            auto presentBRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 50, 900,
+                {
+                    { FrameType::Intel_XEFG, 124 },
+                    { FrameType::Intel_XEFG, 132 },
+                    { FrameType::Application, 140 },
+                    { FrameType::Intel_XEFG, 148 },
+                },
+                1500));
+
+            // gen6 (148) completes appB's display timing within the same present, so the
+            // whole appA -> appB interval (gen2, gen3, gen4, gen5, appB) is both
+            // animation-complete and display-timing-complete by the end of this Ingest call
+            // and publishes here. simStep = (1500 - 1000) / 5 = 100, each consecutive screen
+            // time is 8 ticks apart, and animation time advances from appA's published
+            // animation time (100), so every row has msAnimationError = 100 - 8 = 92.
+            Assert::AreEqual(size_t(5), presentBRows.size());
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)presentBRows[0].frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)presentBRows[1].frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)presentBRows[2].frameType);
+            Assert::AreEqual((int)FrameType::Intel_XEFG, (int)presentBRows[3].frameType);
+            Assert::AreEqual((int)FrameType::Application, (int)presentBRows[4].frameType);
+            Assert::AreEqual(uint64_t(108), presentBRows[0].screenTimeQpc);
+            Assert::AreEqual(uint64_t(116), presentBRows[1].screenTimeQpc);
+            Assert::AreEqual(uint64_t(124), presentBRows[2].screenTimeQpc);
+            Assert::AreEqual(uint64_t(132), presentBRows[3].screenTimeQpc);
+            Assert::AreEqual(uint64_t(140), presentBRows[4].screenTimeQpc);
+            Assert::AreEqual(200.0, presentBRows[0].msAnimationTime, 0.0001);
+            Assert::AreEqual(300.0, presentBRows[1].msAnimationTime, 0.0001);
+            Assert::AreEqual(400.0, presentBRows[2].msAnimationTime, 0.0001);
+            Assert::AreEqual(500.0, presentBRows[3].msAnimationTime, 0.0001);
+            Assert::AreEqual(600.0, presentBRows[4].msAnimationTime, 0.0001);
+            Assert::AreEqual(92.0, presentBRows[0].msAnimationError, 0.0001);
+            Assert::AreEqual(92.0, presentBRows[1].msAnimationError, 0.0001);
+            Assert::AreEqual(92.0, presentBRows[2].msAnimationError, 0.0001);
+            Assert::AreEqual(92.0, presentBRows[3].msAnimationError, 0.0001);
+            Assert::AreEqual(92.0, presentBRows[4].msAnimationError, 0.0001);
+
+            // gen6 (148) is excluded: despite supplying appB's lookahead, it must not publish
+            // with this interval's animation metrics -- it belongs to the next interval.
+            for (const auto& row : presentBRows) {
+                Assert::AreNotEqual(uint64_t(148), row.screenTimeQpc,
+                    L"gen6 only supplies appB's lookahead; it must not publish with this interval's metrics.");
+            }
+
+            // gen6 itself is still buffered: it has its own display timing (it supplied
+            // appB's lookahead) but has not closed an interval against the next app anchor
+            // yet, so it must not have published with this or any animation metrics.
+            auto afterGen6Only = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 50, 1000,
+                { { FrameType::Intel_XEFG, 156 } }));
+            Assert::AreEqual(size_t(0), afterGen6Only.size());
+        }
+
+        TEST_METHOD(GeneratedRowReleasedBeforeSamePresentAppRow_DoesNotBecomeAppHistoryAnchor)
+        {
+            // A present's generated row can become display-timing-complete (and therefore
+            // publish) before that same present's own app row, which still needs lookahead.
+            // The generated row must not advance app-history swap-chain state (lastAppPresent,
+            // lastDisplayedAppScreenTime, lastDisplayedSimStartTime, animationErrorSource);
+            // those must only advance once the present's actual app row is applied. Separately,
+            // lastPresent/lastDisplayedScreenTime must still advance to whichever row actually
+            // carries the explicit state-update role for its own present (the gen-only present
+            // 800's sole row, then PresentB's app row), never to a present whose role-bearing
+            // row has not released yet.
+            QpcConverter qpc(1000, 0);
+            UnifiedSwapChain swapChain{};
+
+            (void)Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1, 1, 1, {}));
+
+            // Origin app anchor; held until Gen1 (next present) supplies its lookahead.
+            Assert::AreEqual(size_t(0), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 700, 50, 700,
+                { { FrameType::Application, 100 } }, 1000)).size());
+
+            // Gen1 completes the origin's lookahead; origin publishes with app-history state
+            // (lastAppPresent etc.) reflecting screenTime 100 / sim 1000.
+            Assert::AreEqual(size_t(1), Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 800, 50, 800,
+                { { FrameType::Intel_XEFG, 108 } })).size());
+
+            Assert::IsTrue(swapChain.swapChain.lastAppPresent.has_value());
+            Assert::AreEqual(uint64_t(700), swapChain.swapChain.lastAppPresent.value().presentStartTime);
+            Assert::AreEqual(uint64_t(100), swapChain.swapChain.lastDisplayedAppScreenTime);
+            Assert::AreEqual(uint64_t(1000), swapChain.swapChain.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(700), swapChain.swapChain.lastPresent.value().presentStartTime);
+            Assert::AreEqual(uint64_t(100), swapChain.swapChain.lastDisplayedScreenTime);
+            Assert::IsTrue(swapChain.swapChain.animationErrorSource == AnimationErrorSource::AppProvider);
+
+            // Gen1 (present 800) is itself a displayed present with no app row of its own,
+            // so once it is the row that actually releases, it represents present 800 for
+            // lastPresent/lastDisplayedScreenTime even though it must not touch app-history
+            // state (lastAppPresent etc., asserted above). It has not released yet here
+            // (still buffered awaiting display lookahead from PresentB below), so lastPresent
+            // must still be the origin present, not 800.
+            Assert::AreEqual(uint64_t(700), swapChain.swapChain.lastPresent.value().presentStartTime,
+                L"Gen1 has not released yet; lastPresent must not advance past the origin present.");
+
+            // PresentB carries Gen2 then its own app row (App2, sim 1024) as the last entry.
+            // Gen2 already knows its own nextScreenTime (App2 follows it in the same present),
+            // so once App2 closes the interval, Gen2 should publish immediately. App2 itself
+            // is the last display entry in PresentB, so it still needs lookahead.
+            auto presentBRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 900, 50, 900,
+                { { FrameType::Intel_XEFG, 116 }, { FrameType::Application, 124 } }, 1024));
+
+            Assert::AreEqual(size_t(2), presentBRows.size(),
+                L"Gen1 and Gen2 publish on interval close even though App2 still awaits lookahead.");
+            for (const auto& row : presentBRows) {
+                Assert::IsFalse(row.frameType == FrameType::Application,
+                    L"App2 must not publish before its own display-duration lookahead is known.");
+            }
+
+            // App2 has not been applied yet: app-history state must still reflect the origin
+            // present, not PresentB, even though PresentB's generated rows already released.
+            Assert::AreEqual(uint64_t(700), swapChain.swapChain.lastAppPresent.value().presentStartTime,
+                L"A generated row must not become the app history anchor for a present whose app row publishes later.");
+            Assert::AreEqual(uint64_t(100), swapChain.swapChain.lastDisplayedAppScreenTime);
+            Assert::AreEqual(uint64_t(1000), swapChain.swapChain.lastDisplayedSimStartTime);
+            Assert::IsTrue(swapChain.swapChain.animationErrorSource == AnimationErrorSource::AppProvider,
+                L"A non-role-bearing generated row (Gen2) must not disturb animationErrorSource.");
+
+            // Gen1 (present 800) has now released and has no app row of its own, so it
+            // legitimately represents present 800 for lastPresent/lastDisplayedScreenTime.
+            // Gen2 (present 900) released alongside it but PresentB has its own app row
+            // (App2), so Gen2's role is None and it must not move lastPresent/
+            // lastDisplayedScreenTime past Gen1 to PresentB/116.
+            Assert::AreEqual(uint64_t(800), swapChain.swapChain.lastPresent.value().presentStartTime,
+                L"Gen1 has no app row in its own present, so it represents present 800 once released.");
+            Assert::AreEqual(uint64_t(108), swapChain.swapChain.lastDisplayedScreenTime,
+                L"Gen2 (PresentB) must not advance lastDisplayedScreenTime ahead of App2.");
+
+            // The next displayed frame supplies App2's lookahead; App2 publishes alone and now
+            // correctly becomes the app history anchor for PresentB.
+            auto afterLookahead = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1000, 50, 1000,
+                { { FrameType::Intel_XEFG, 132 } }));
+
+            Assert::AreEqual(size_t(1), afterLookahead.size());
+            Assert::AreEqual((int)FrameType::Application, (int)afterLookahead[0].frameType);
+            Assert::AreEqual(uint64_t(124), afterLookahead[0].screenTimeQpc);
+
+            Assert::AreEqual(uint64_t(900), swapChain.swapChain.lastAppPresent.value().presentStartTime);
+            Assert::AreEqual(uint64_t(124), swapChain.swapChain.lastDisplayedAppScreenTime);
+            Assert::AreEqual(uint64_t(1024), swapChain.swapChain.lastDisplayedSimStartTime);
+            Assert::AreEqual(uint64_t(900), swapChain.swapChain.lastPresent.value().presentStartTime,
+                L"App2 represents PresentB once it releases, so lastPresent now advances to it.");
+            Assert::AreEqual(uint64_t(124), swapChain.swapChain.lastDisplayedScreenTime);
+            Assert::IsTrue(swapChain.swapChain.animationErrorSource == AnimationErrorSource::AppProvider);
+        }
+    };
+
     // ============================================================================
     // SECTION: Input Latency Tests
     // ============================================================================
