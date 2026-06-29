@@ -11,6 +11,7 @@ export enum Preset {
     Slot1 = 0,
     Slot2 = 1,
     Slot3 = 2,
+    Slot4 = 3,
     Custom = 1000,
 }
 
