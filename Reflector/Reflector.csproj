@@ -9,8 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CppAst" Version="0.21.1" />
-    <PackageReference Include="Scriban" Version="7.2.1" />
+    <PackageReference Include="CppAst" Version="0.25.0" />
+    <PackageReference Include="Scriban" Version="7.2.5" />
   </ItemGroup>
 
 </Project>
