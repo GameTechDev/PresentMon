@@ -179,6 +179,10 @@ const processFromItem = (item: ListItem<unknown>) => item.raw as Process;
             </v-btn>
 
             <v-btn class="px-5" large>
+            Game Experience
+            </v-btn>
+
+            <v-btn class="px-5" large>
             GPU Focus
             </v-btn>
 
