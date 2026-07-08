@@ -83,6 +83,7 @@ namespace p2c::client::cef
 
     const util::KernelWrapper* DataBindAccessor::GetKernelWrapper() const
     {
+        std::shared_lock lk{ kernelMtx };
         return pKernelWrapper;
     }
 

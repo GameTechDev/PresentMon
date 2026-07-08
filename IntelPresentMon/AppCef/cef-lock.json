@@ -3,135 +3,135 @@
     "generatedBy":  "IntelPresentMon/AppCef/Batch/upgrade-cef.ps1",
     "source":  {
                    "type":  "uri",
-                   "uri":  "https://cef-builds.spotifycdn.com/cef_binary_141.0.11%2Bg7e73ac4%2Bchromium-141.0.7390.123_windows64_minimal.tar.bz2",
-                   "fileName":  "cef_binary_141.0.11+g7e73ac4+chromium-141.0.7390.123_windows64_minimal.tar.bz2",
-                   "size":  149036081,
-                   "sha256":  "63fbe3dd0e766faffa2b4242c93ea96e4c36692cccc0626e74460b57561e496b"
+                   "uri":  "https://cef-builds.spotifycdn.com/cef_binary_149.0.4%2Bg2f1bfd8%2Bchromium-149.0.7827.156_windows64_minimal.tar.bz2",
+                   "fileName":  "cef_binary_149.0.4+g2f1bfd8+chromium-149.0.7827.156_windows64_minimal.tar.bz2",
+                   "size":  162028192,
+                   "sha256":  "17b7b9f9f8e33c571631e3fb3ed84a48a0ea9d7e54f9f7d40d207f019c6a02d5"
                },
     "cef":  {
-                "CEF_VERSION":  "141.0.11+g7e73ac4+chromium-141.0.7390.123",
-                "CEF_VERSION_MAJOR":  141,
+                "CEF_VERSION":  "149.0.4+g2f1bfd8+chromium-149.0.7827.156",
+                "CEF_VERSION_MAJOR":  149,
                 "CEF_VERSION_MINOR":  0,
-                "CEF_VERSION_PATCH":  11,
-                "CEF_COMMIT_NUMBER":  3299,
-                "CEF_COMMIT_HASH":  "7e73ac45f2979537f677e785383a04998f90d51d",
-                "CHROME_VERSION_MAJOR":  141,
+                "CEF_VERSION_PATCH":  4,
+                "CEF_COMMIT_NUMBER":  3528,
+                "CEF_COMMIT_HASH":  "2f1bfd842a0b6a9e770b708654986b6e5f17d772",
+                "CHROME_VERSION_MAJOR":  149,
                 "CHROME_VERSION_MINOR":  0,
-                "CHROME_VERSION_BUILD":  7390,
-                "CHROME_VERSION_PATCH":  123
+                "CHROME_VERSION_BUILD":  7827,
+                "CHROME_VERSION_PATCH":  156
             },
     "payload":  [
                     {
                         "path":  "bootstrap.exe",
                         "stagePath":  "Bin/bootstrap.exe",
                         "group":  "Bin",
-                        "size":  2181632,
-                        "sha256":  "721bd84073d827aef2d899b9beffd79358f981c637e75041aa67c72b226e7ac0"
+                        "size":  3217920,
+                        "sha256":  "246c991c30381140942e241822c0d1a519a5101395bb29499d17c2125c9c45a8"
                     },
                     {
                         "path":  "bootstrapc.exe",
                         "stagePath":  "Bin/bootstrapc.exe",
                         "group":  "Bin",
-                        "size":  2184192,
-                        "sha256":  "e4e29dfe89533221e8f2b351aff34e44133bdc9fe9259e074207e3f6542861d9"
+                        "size":  3220480,
+                        "sha256":  "811eeaabd95cbb20520b891a374c612c47982e5f699cc01a04be8d3359e75be2"
                     },
                     {
                         "path":  "chrome_100_percent.pak",
                         "stagePath":  "Resources/chrome_100_percent.pak",
                         "group":  "Resources",
-                        "size":  723458,
-                        "sha256":  "942575033fa8cb1f7b5efd120af35b8879218df10a7f2f109e23947c24d5140f"
+                        "size":  727220,
+                        "sha256":  "576c79fe9721badda233a258004966a330307ef5a82f46805005d325f6695df6"
                     },
                     {
                         "path":  "chrome_200_percent.pak",
                         "stagePath":  "Resources/chrome_200_percent.pak",
                         "group":  "Resources",
-                        "size":  1211315,
-                        "sha256":  "2a2296080ee94f1c30852a25c9df77fbc1d1093fc79360a11fbfe82d4fc3d062"
+                        "size":  1228799,
+                        "sha256":  "45cb065cb8eddfb3c07b424e32c0edeff533cfd256446636408ed8fa9c16a599"
                     },
                     {
                         "path":  "chrome_elf.dll",
                         "stagePath":  "Bin/chrome_elf.dll",
                         "group":  "Bin",
-                        "size":  1799168,
-                        "sha256":  "9c4d5aa01141e984854c3ecc837cf80fe3987230c3ffaa5474dfdf77ba6d95fd"
+                        "size":  2799104,
+                        "sha256":  "9ecd7ed7220f830a913fb161bc684e7e7818794b7f8f1ffef11616acba386a6b"
                     },
                     {
                         "path":  "d3dcompiler_47.dll",
                         "stagePath":  "Bin/d3dcompiler_47.dll",
                         "group":  "Bin",
-                        "size":  4741480,
-                        "sha256":  "c8e25abd3d45dfb55966a74613258c39b4a83ea2ac77f2f80903499f4d5c03f0"
+                        "size":  4741488,
+                        "sha256":  "a05f99734f7c4822fefc12b367af21fd0976ed6608752fb1e1e80b6ece7ecbbb"
                     },
                     {
                         "path":  "dxcompiler.dll",
                         "stagePath":  "Bin/dxcompiler.dll",
                         "group":  "Bin",
-                        "size":  25945600,
-                        "sha256":  "ef7b3e6d6c77badb6a59ef1c092cea19a9565582c0edebc4574ae431656904ad"
+                        "size":  25623040,
+                        "sha256":  "bd48c5324c9ed3a6d73af29dcc54eb722a469023dc4bc032b6887359fd324fe1"
                     },
                     {
                         "path":  "dxil.dll",
                         "stagePath":  "Bin/dxil.dll",
                         "group":  "Bin",
-                        "size":  1503600,
-                        "sha256":  "436f128f22050ae27323da61321a469de0678def7a4e6d86f9ccad4858724f0a"
+                        "size":  1502784,
+                        "sha256":  "0850398076e9e30cd9ac28fc7d56a7d350ea755b0f3b6b2fc8f35a930888c845"
                     },
                     {
                         "path":  "icudtl.dat",
                         "stagePath":  "Resources/icudtl.dat",
                         "group":  "Resources",
-                        "size":  10467680,
-                        "sha256":  "5070de99fbd8a48378543511fb7a072f85bf36f94b4f4e1d420d54be1435d6f1"
+                        "size":  10876560,
+                        "sha256":  "bd8c145abdf3f8383276ce01dfa4ae48709bef9fef1c0711eb7c3fab4f6eb7c2"
                     },
                     {
                         "path":  "libcef.dll",
                         "stagePath":  "Bin/libcef.dll",
                         "group":  "Bin",
-                        "size":  247801856,
-                        "sha256":  "c1aa5b698de3f82c5cd130f58cc4b6d6309a3a14225d3b2c40e40ae89bfbc683"
+                        "size":  270369792,
+                        "sha256":  "a6a740fa8ec773a27a7879daeeb44f15a355ee8c35d2c5e6a5d2aa10013680df"
                     },
                     {
                         "path":  "libEGL.dll",
                         "stagePath":  "Bin/libEGL.dll",
                         "group":  "Bin",
-                        "size":  503296,
-                        "sha256":  "c86c108ededfb623baa8b9f415263dd138ed7c1d03a6dc7d292ee94292e1a5b5"
+                        "size":  494080,
+                        "sha256":  "4656bb749940952ca19c18f57ab61a2f2d9d7e6b1ce8baf01fb4b89f3c27d009"
                     },
                     {
                         "path":  "libGLESv2.dll",
                         "stagePath":  "Bin/libGLESv2.dll",
                         "group":  "Bin",
-                        "size":  7999488,
-                        "sha256":  "b52f96401cf71c4e78e266ae0695ab3e76a68828aec88c8bf99a21674a51bc94"
+                        "size":  7853056,
+                        "sha256":  "26de1f571e8b4691cb990de9626e77a1814afe9cfa7d946df67f339142e6891e"
                     },
                     {
                         "path":  "locales/en-US.pak",
                         "stagePath":  "Resources/locales/en-US.pak",
                         "group":  "Resources",
-                        "size":  572218,
-                        "sha256":  "7bbbdc35e2cbff7b56344e4dc5f781ef2ee81ae9b1313a5263760391408b559b"
+                        "size":  598883,
+                        "sha256":  "7e6c06a9af097a1296090bd60b03d189afc8e82b5ae9b8df316d0e968476d1db"
                     },
                     {
                         "path":  "resources.pak",
                         "stagePath":  "Resources/resources.pak",
                         "group":  "Resources",
-                        "size":  12077643,
-                        "sha256":  "dc2aa2a0dccc4d7a43ce24a9d356508b5c9dd523e3e5fadf74da5ec9aa63c502"
+                        "size":  15492263,
+                        "sha256":  "6204be782db9a89373aa7c9680363c48c6a241b27d38d3f23cd1de4330e5c736"
                     },
                     {
                         "path":  "v8_context_snapshot.bin",
                         "stagePath":  "Bin/v8_context_snapshot.bin",
                         "group":  "Bin",
-                        "size":  712401,
-                        "sha256":  "b2597ec3602a9ce48e00dad39d046757a79c63064afcbfac8bf35427f985ac4d"
+                        "size":  740912,
+                        "sha256":  "4b9ce2ef825c0ed4765724b67b237879f34a5653cd76336d68e56231e1faf115"
                     },
                     {
                         "path":  "vk_swiftshader.dll",
                         "stagePath":  "Bin/vk_swiftshader.dll",
                         "group":  "Bin",
-                        "size":  5403648,
-                        "sha256":  "a388930ec518b3a518630155f12f6a8bb1e748914dcea1c1680e3494a22b2bde"
+                        "size":  5407232,
+                        "sha256":  "643887b0f7db80450e99bca543c870c5c388c57673351465dea629b89a604804"
                     },
                     {
                         "path":  "vk_swiftshader_icd.json",
@@ -144,8 +144,8 @@
                         "path":  "vulkan-1.dll",
                         "stagePath":  "Bin/vulkan-1.dll",
                         "group":  "Bin",
-                        "size":  923136,
-                        "sha256":  "9b2d9689bd90b47353aa34a2ce7f1b271bfba1dcb007061acf2fe4a90c76be74"
+                        "size":  945152,
+                        "sha256":  "6249860465833de7df2a2a6300ba012fb933ee901c6d4fa5f77b97ebffd64ec8"
                     }
                 ]
 }

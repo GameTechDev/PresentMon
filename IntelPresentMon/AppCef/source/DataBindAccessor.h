@@ -24,7 +24,7 @@ namespace p2c::client::cef
     private:
         // data
         CefRefPtr<CefBrowser> pBrowser;
-        std::shared_mutex kernelMtx;
+        mutable std::shared_mutex kernelMtx;
         util::KernelWrapper* pKernelWrapper;
 
         IMPLEMENT_REFCOUNTING(DataBindAccessor);

@@ -770,7 +770,7 @@ namespace pmon::tel
             }
 
             try {
-                const auto providerFingerprint = pProvider->GetFingerPrint(providerDevice.providerDeviceId);
+                const auto& providerFingerprint = pProvider->GetFingerPrint(providerDevice.providerDeviceId);
                 if (!haveFingerprint) {
                     fingerprint = providerFingerprint;
                     haveFingerprint = true;

@@ -196,9 +196,9 @@ namespace pmon::util::test
         : testCase_{ std::move(testCase) }
     {}
 
-    void MeasurementSet::Add_(MetricMeasurement measurement)
+    void MeasurementSet::Add_(const MetricMeasurement& measurement)
     {
-        measurements_.push_back(std::move(measurement));
+        measurements_.push_back(measurement);
     }
 
     void MeasurementSet::AddSystem(std::string metric, double value)

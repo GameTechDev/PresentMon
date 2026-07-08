@@ -36,7 +36,7 @@ namespace p2c::client::util
 			CefRefPtr<CefV8Context> pV8Context;
 		};
 		// functions
-		void DispatchInvocation(const std::string& key, CallbackContext ctx, CefRefPtr<CefV8Value> pArgs)
+		void DispatchInvocation(const std::string& key, CallbackContext&& ctx, CefRefPtr<CefV8Value> pArgs)
 		{
 			// TODO: explicit lookup and handle missing error
 			dispatchBindings_[key](std::move(ctx), std::move(pArgs), client_);
