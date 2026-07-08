@@ -65,6 +65,12 @@ namespace pmon::util::metrics
         uint64_t screenTime,
         FrameMetrics& metrics);
 
+    void CalculateInterFrameEventMetrics(
+        const QpcConverter& qpc,
+        const FrameData& present,
+        bool isAppFrame,
+        FrameMetrics& metrics);
+
     // NVIDIA collapsed/runt correction helper used by ComputeMetricsForPresent.
     void AdjustScreenTimeForCollapsedPresentNV(
         FrameData& present,

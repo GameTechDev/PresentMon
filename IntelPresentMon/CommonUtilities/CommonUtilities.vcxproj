@@ -170,6 +170,7 @@
     <ClCompile Include="mc\MetricsCalculatorInput.cpp" />
     <ClCompile Include="mc\MetricsCalculatorInstrumented.cpp" />
     <ClCompile Include="mc\MetricsCalculatorAnimation.cpp" />
+    <ClCompile Include="mc\MetricsCalculatorInterFrameEvent.cpp" />
     <ClCompile Include="mc\MetricsTypes.cpp" />
     <ClCompile Include="mc\SwapChainState.cpp" />
     <ClCompile Include="mc\UnifiedSwapChain.cpp" />

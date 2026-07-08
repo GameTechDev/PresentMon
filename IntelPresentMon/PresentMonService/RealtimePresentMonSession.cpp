@@ -164,6 +164,7 @@ PM_STATUS RealtimePresentMonSession::StartEtwSession() {
     pm_consumer_->mTrackDisplay = true;
     pm_consumer_->mTrackGPU = true;
     pm_consumer_->mTrackGPUVideo = false;
+    pm_consumer_->mTrackD3D12ShaderCompilation = true;
     pm_consumer_->mTrackInput = true;
     pm_consumer_->mTrackFrameType = true;
     pm_consumer_->mTrackAppTiming = true;

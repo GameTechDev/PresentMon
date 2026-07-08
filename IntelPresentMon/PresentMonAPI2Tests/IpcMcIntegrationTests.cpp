@@ -820,6 +820,24 @@ namespace IpcMcIntegrationTests
 
             Assert::IsTrue(failedMappings == 0, L"FrameMetricsMemberMap missing universal non-static metrics");
         }
+
+        TEST_METHOD(PsoCompileMetricsAreDynamicFrame)
+        {
+            pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
+            auto intro = session.GetIntrospectionRoot();
+            Assert::IsTrue((bool)intro);
+
+            const PM_METRIC psoMetrics[] = {
+                PM_METRIC_PSO_COMPILE_COUNT,
+                PM_METRIC_PSO_COMPILE_TIME,
+                PM_METRIC_PSO_COMPILE_BUSY_PERCENT,
+            };
+
+            for (auto metricId : psoMetrics) {
+                const auto metricView = intro->FindMetric(metricId);
+                Assert::IsTrue(metricView.GetType() == PM_METRIC_TYPE_DYNAMIC_FRAME);
+            }
+        }
     };
 
     TEST_CLASS(MultiSessionDynamicQueryTests)

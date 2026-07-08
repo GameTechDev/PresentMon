@@ -6,6 +6,7 @@
 
 #include "ETW/Intel_PresentMon.h"
 #include "ETW/Microsoft_Windows_D3D9.h"
+#include "ETW/Microsoft_Windows_Direct3D12.h"
 #include "ETW/Microsoft_Windows_Dwm_Core.h"
 #include "ETW/Microsoft_Windows_Dwm_Core_Win7.h"
 #include "ETW/Microsoft_Windows_DXGI.h"
@@ -351,6 +352,38 @@ void PMTraceConsumer::HandleD3D9Event(EVENT_RECORD* pEventRecord)
     }
 }
 
+void PMTraceConsumer::HandleD3D12Event(EVENT_RECORD* pEventRecord)
+{
+    if (!mTrackD3D12ShaderCompilation) {
+        return;
+    }
+
+    auto const& hdr = pEventRecord->EventHeader;
+    if (!IsProcessTrackedForFiltering(hdr.ProcessId)) {
+        return;
+    }
+
+    switch (hdr.EventDescriptor.Id) {
+    case Microsoft_Windows_Direct3D12::CreatePipelineStateObject_Start::Id:
+        mInterPresentActivity.OnActivityStart(
+            InterPresentActivity::Kind::D3D12PsoCompile,
+            hdr.ProcessId,
+            reinterpret_cast<const uint8_t*>(&hdr.ActivityId),
+            (uint64_t)hdr.TimeStamp.QuadPart);
+        break;
+    case Microsoft_Windows_Direct3D12::CreatePipelineStateObject_Stop::Id:
+        mInterPresentActivity.OnActivityStop(
+            InterPresentActivity::Kind::D3D12PsoCompile,
+            hdr.ProcessId,
+            reinterpret_cast<const uint8_t*>(&hdr.ActivityId),
+            (uint64_t)hdr.TimeStamp.QuadPart);
+        break;
+    default:
+        assert(!mFilteredEvents);
+        break;
+    }
+}
+
 void PMTraceConsumer::HandleDXGIEvent(EVENT_RECORD* pEventRecord)
 {
     auto const& hdr = pEventRecord->EventHeader;
@@ -617,6 +650,10 @@ void PMTraceConsumer::HandleDxgkQueueComplete(uint64_t timestamp, uint64_t hCont
             // packets as not all present types create them.
             if (mTrackGPU) {
                 mGpuTrace.CompleteFrame(pEvent.get(), timestamp);
+            }
+            if (mTrackD3D12ShaderCompilation) {
+                // timestamp: present queue complete QPC (inter-present window close for this frame).
+                mInterPresentActivity.CompleteFrame(pEvent.get(), timestamp);
             }
 
             // We use present packet completion as the screen time for
@@ -1019,6 +1056,10 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
                 // For some present modes (e.g., Hardware_Legacy_Flip) this may be
                 // the first event telling us the present is ready.
                 mGpuTrace.CompleteFrame(present.get(), hdr.TimeStamp.QuadPart);
+                if (mTrackD3D12ShaderCompilation) {
+                    // hdr.TimeStamp: MMIO flip QPC (inter-present window close for this frame).
+                    mInterPresentActivity.CompleteFrame(present.get(), hdr.TimeStamp.QuadPart);
+                }
 
                 // Check and handle the post-flip status if available.
                 if (flipEntryStatusAfterFlipValid) {
@@ -3729,6 +3770,7 @@ void PMTraceConsumer::ResetPresentTrackingData(bool shrink) {
     // Reset GPU/NV tracking helpers
     mGpuTrace.~GpuTrace();
     new (&mGpuTrace) GpuTrace(this);
+    mInterPresentActivity.Reset();
     mNvTraceConsumer.~NVTraceConsumer();
     new (&mNvTraceConsumer) NVTraceConsumer();
 }

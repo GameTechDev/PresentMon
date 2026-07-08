@@ -52,6 +52,9 @@ namespace pmon::util::metrics
     template<>struct FrameMetricMember<PM_METRIC_BETWEEN_APP_START>{static constexpr auto member=&FrameMetrics::msCPUTime;};
     template<>struct FrameMetricMember<PM_METRIC_PRESENTED_FRAME_TIME>{static constexpr auto member=&FrameMetrics::msBetweenPresents;};
     template<>struct FrameMetricMember<PM_METRIC_FLIP_DELAY>{static constexpr auto member=&FrameMetrics::msFlipDelay;};
+    template<>struct FrameMetricMember<PM_METRIC_PSO_COMPILE_COUNT>{static constexpr auto member=&FrameMetrics::psoCompileCount;};
+    template<>struct FrameMetricMember<PM_METRIC_PSO_COMPILE_TIME>{static constexpr auto member=&FrameMetrics::msPsoCompileTime;};
+    template<>struct FrameMetricMember<PM_METRIC_PSO_COMPILE_BUSY_PERCENT>{static constexpr auto member=&FrameMetrics::psoCompileBusyPercent;};
 
     template<PM_METRIC MetricId>
     inline constexpr bool HasFrameMetricMember = requires{ FrameMetricMember<MetricId>::member; };

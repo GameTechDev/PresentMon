@@ -4495,6 +4495,47 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             AssertAreEqualWithinTolerance(expectedVideoBusy, m.msVideoBusy, 0.0001);
         }
 
+        TEST_METHOD(InterFrameEventMetrics_PsoCompile)
+        {
+            QpcConverter qpc(10'000'000, 0);
+            SwapChainCoreState chain{};
+
+            FrameData priorApp{};
+            priorApp.presentStartTime = 100'000;
+            priorApp.timeInPresent = 10'000;
+            priorApp.readyTime = 120'000;
+            priorApp.finalState = PresentResult::Presented;
+            priorApp.displayed.PushBack({ FrameType::Application, 130'000 });
+            chain.lastAppPresent = priorApp;
+
+            FrameData frame{};
+            frame.presentStartTime = 200'000;
+            frame.timeInPresent = 10'000;
+            frame.readyTime = 220'000;
+            frame.finalState = PresentResult::Presented;
+            frame.displayed.PushBack({ FrameType::Application, 230'000 });
+            frame.interFrameEventStats[(size_t)InterPresentActivity::Kind::D3D12PsoCompile] = {
+                2,
+                500'000,
+                500'000,
+            };
+            frame.interFrameEventWindowQpc = 1'000'000;
+
+            FrameData next{};
+            next.presentStartTime = 300'000;
+            next.timeInPresent = 10'000;
+            next.readyTime = 320'000;
+            next.finalState = PresentResult::Presented;
+            next.displayed.PushBack({ FrameType::Application, 330'000 });
+
+            auto results = ComputeMetricsForPresent(qpc, frame, &next, chain);
+            Assert::AreEqual(size_t(1), results.size());
+            const auto& m = results[0].metrics;
+            Assert::AreEqual((uint64_t)2, m.psoCompileCount);
+            AssertAreEqualWithinTolerance(qpc.DurationMilliSeconds(500'000), m.msPsoCompileTime, 0.0001);
+            AssertAreEqualWithinTolerance(50.0, m.psoCompileBusyPercent, 0.0001);
+        }
+
         TEST_METHOD(VideoBusy_LargerThanGPUBusy)
         {
             // msGPUBusy = 30 ms (computed from gpuDuration)

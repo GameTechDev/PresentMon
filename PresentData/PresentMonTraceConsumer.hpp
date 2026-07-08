@@ -7,6 +7,7 @@
 #define NOMINMAX
 #endif
 
+#include <array>
 #include <deque>
 #include <atomic>
 #include <map>
@@ -26,6 +27,7 @@
 
 #include "Debug.hpp"
 #include "GpuTrace.hpp"
+#include "InterPresentActivity.hpp"
 #include "TraceConsumer.hpp"
 #include "NvidiaTraceConsumer.hpp"
 #include "PresentEventEnums.hpp"
@@ -295,6 +297,20 @@ struct PresentEvent {
     uint64_t FlipDelay = 0;
     uint32_t FlipToken = 0;
 
+    std::array<InterPresentActivity::FrameStats, (size_t)InterPresentActivity::Kind::Count> InterPresentStats{};
+    // QPC span (lastInterPresentCloseQpc, interPresentCloseQpc] used as busy-% denominator for stats above.
+    uint64_t InterPresentFramePeriodQpc = 0;
+    bool InterPresentFrameCompleted = false;
+
+    InterPresentActivity::FrameStats& InterPresentPsoStats()
+    {
+        return InterPresentStats[(size_t)InterPresentActivity::Kind::D3D12PsoCompile];
+    }
+    const InterPresentActivity::FrameStats& InterPresentPsoStats() const
+    {
+        return InterPresentStats[(size_t)InterPresentActivity::Kind::D3D12PsoCompile];
+    }
+
     PresentEvent();
     PresentEvent(uint32_t fid);
 private:
@@ -323,6 +339,7 @@ struct PMTraceConsumer
     bool mTrackHybridPresent = false;  // ... hybrid presents.
     bool mTrackPcLatency = false;      // ... Nvidia PC Latency stats.
     bool mTrackProcessState = false;   // ... Initial process state dump
+    bool mTrackD3D12ShaderCompilation = false; // ... D3D12 CreatePipelineStateObject ETW timing.
 
     // When PresentEvents are missing data that may still arrive later, they get put into a deferred
     // state until the data arrives.  This time limit specifies how long a PresentEvent can be
@@ -534,6 +551,7 @@ struct PMTraceConsumer
 
     // mGpuTrace tracks work executed on the GPU.
     GpuTrace mGpuTrace;
+    InterPresentActivity mInterPresentActivity;
 
     // PresentFrameTypeEvents are stored into mPendingPresentFrameTypeEvents and then looked-up and
     // attached to the PresentEvent in Present_Start.
@@ -588,6 +606,7 @@ struct PMTraceConsumer
     void HandleProcessEvent(EVENT_RECORD* pEventRecord);
     void HandleDXGIEvent(EVENT_RECORD* pEventRecord);
     void HandleD3D9Event(EVENT_RECORD* pEventRecord);
+    void HandleD3D12Event(EVENT_RECORD* pEventRecord);
     void HandleDXGKEvent(EVENT_RECORD* pEventRecord);
     void HandleWin32kEvent(EVENT_RECORD* pEventRecord);
     void HandleDWMEvent(EVENT_RECORD* pEventRecord);

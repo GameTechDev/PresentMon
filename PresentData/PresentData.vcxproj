@@ -345,6 +345,7 @@
     <ClInclude Include="ConsoleAdapter.h" />
     <ClInclude Include="ETW\Intel_PresentMon.h" />
     <ClInclude Include="ETW\Microsoft_Windows_D3D9.h" />
+    <ClInclude Include="ETW\Microsoft_Windows_Direct3D12.h" />
     <ClInclude Include="ETW\Microsoft_Windows_Dwm_Core.h" />
     <ClInclude Include="ETW\Microsoft_Windows_Dwm_Core_Win7.h" />
     <ClInclude Include="ETW\Microsoft_Windows_DXGI.h" />
@@ -358,6 +359,7 @@
     <ClInclude Include="ETW\Nvidia_PCL.h" />
     <ClInclude Include="ETW\NV_DD.h" />
     <ClInclude Include="GpuTrace.hpp" />
+    <ClInclude Include="InterPresentActivity.hpp" />
     <ClInclude Include="IFilterBuildListener.h" />
     <ClInclude Include="NvidiaTraceConsumer.hpp" />
     <ClInclude Include="PresentEventEnums.hpp" />
@@ -369,6 +371,7 @@
   <ItemGroup>
     <ClCompile Include="Debug.cpp" />
     <ClCompile Include="GpuTrace.cpp" />
+    <ClCompile Include="InterPresentActivity.cpp" />
     <ClCompile Include="NvidiaTraceConsumer.cpp" />
     <ClCompile Include="PresentMonTraceConsumer.cpp" />
     <ClCompile Include="TraceConsumer.cpp" />

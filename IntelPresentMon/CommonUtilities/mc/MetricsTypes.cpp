@@ -54,6 +54,9 @@ namespace pmon::util::metrics {
         frame.flipDelay = p.FlipDelay;
         frame.flipToken = p.FlipToken;
 
+        frame.interFrameEventStats = p.InterPresentStats;
+        frame.interFrameEventWindowQpc = p.InterPresentFramePeriodQpc;
+
         frame.displayed.Assign(p.Displayed.begin(), p.Displayed.end());
 
         frame.swapChainAddress = p.SwapChainAddress;

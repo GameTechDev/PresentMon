@@ -8,6 +8,7 @@
 #include "NvidiaTraceConsumer.hpp"
 
 #include "ETW/Microsoft_Windows_D3D9.h"
+#include "ETW/Microsoft_Windows_Direct3D12.h"
 #include "ETW/Microsoft_Windows_Dwm_Core.h"
 #include "ETW/Microsoft_Windows_Dwm_Core_Win7.h"
 #include "ETW/Microsoft_Windows_DXGI.h"
@@ -276,6 +277,7 @@ void DisableProviders(TRACEHANDLE sessionHandle)
     ULONG status = 0;
     status = EnableTraceEx2(sessionHandle, &Intel_PresentMon::GUID,                 EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
     status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_D3D9::GUID,           EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
+    status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Direct3D12::GUID,    EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
     status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_DXGI::GUID,           EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
     status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Dwm_Core::GUID,       EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
     status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Dwm_Core::Win7::GUID, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
@@ -361,6 +363,10 @@ void CALLBACK EventRecordCallback(EVENT_RECORD* pEventRecord)
     }
     if (hdr.ProviderId == Microsoft_Windows_D3D9::GUID) {
         session->mPMConsumer->HandleD3D9Event(pEventRecord);
+        return;
+    }
+    if (hdr.ProviderId == Microsoft_Windows_Direct3D12::GUID) {
+        session->mPMConsumer->HandleD3D12Event(pEventRecord);
         return;
     }
     if (hdr.ProviderId == Microsoft_Windows_Kernel_Process::GUID ||
@@ -931,6 +937,14 @@ ULONG EnableProvidersListing(
     provider.AddEvent<Microsoft_Windows_D3D9::Present_Stop>();
     status = provider.Enable(sessionHandle, Microsoft_Windows_D3D9::GUID);
     if (status != ERROR_SUCCESS) return status;
+
+    if (pmConsumer->mTrackD3D12ShaderCompilation) {
+        provider.ClearFilter();
+        provider.AddEvent<Microsoft_Windows_Direct3D12::CreatePipelineStateObject_Start>();
+        provider.AddEvent<Microsoft_Windows_Direct3D12::CreatePipelineStateObject_Stop>();
+        status = provider.Enable(sessionHandle, Microsoft_Windows_Direct3D12::GUID);
+        if (status != ERROR_SUCCESS) return status;
+    }
 
 
     // Intel_PresentMon

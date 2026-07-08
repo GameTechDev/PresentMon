@@ -19,7 +19,7 @@ using namespace std::literals;
 
 namespace
 {
-	const std::array<const char*, 31> kFrameCsvHeader{
+	const std::array<const char*, 34> kFrameCsvHeader{
 		"Application",
 		"ProcessID",
 		"SwapChainAddress",
@@ -51,6 +51,9 @@ namespace
 		"MsAllInputToPhotonLatency",
 		"MsClickToPhotonLatency",
 		"MsInstrumentedLatency",
+		"PsoCompileCount",
+		"MsPsoCompileTime",
+		"PsoCompileBusyPercent",
 	};
 
 	std::string TranslateGraphicsRuntime(PM_GRAPHICS_RUNTIME runtime)
@@ -131,6 +134,15 @@ namespace
 		}
 		WriteOptionalDouble(csv, element.As<double>());
 	}
+
+	void WriteOptionalUint64Element(std::ofstream& csv, const pmapi::FixedQueryElement& element)
+	{
+		if (!element.IsAvailable()) {
+			csv << "NA";
+			return;
+		}
+		csv << element.As<uint64_t>();
+	}
 }
 
 int PacedFramePlaybackTest(std::unique_ptr<pmapi::Session> pSession)
@@ -196,6 +208,10 @@ int PacedFramePlaybackTest(std::unique_ptr<pmapi::Session> pSession)
 			pmapi::FixedQueryElement msAllInputToPhotonLatency{ this, PM_METRIC_ALL_INPUT_TO_PHOTON_LATENCY, PM_STAT_NONE };
 			pmapi::FixedQueryElement msClickToPhotonLatency{ this, PM_METRIC_CLICK_TO_PHOTON_LATENCY, PM_STAT_NONE };
 			pmapi::FixedQueryElement msInstrumentedLatency{ this, PM_METRIC_INSTRUMENTED_LATENCY, PM_STAT_NONE };
+			pmapi::FixedQueryElement psoCompileCount{ this, PM_METRIC_PSO_COMPILE_COUNT, PM_STAT_NONE };
+			pmapi::FixedQueryElement msPsoCompileTime{ this, PM_METRIC_PSO_COMPILE_TIME, PM_STAT_NONE };
+			pmapi::FixedQueryElement psoCompileBusyPercent{
+				this, PM_METRIC_PSO_COMPILE_BUSY_PERCENT, PM_STAT_NONE };
 		PM_END_FIXED_QUERY query{ *pSession, 512 };
 
 		auto tracker = pSession->TrackProcess(*opt.processId, true, false);
@@ -210,9 +226,10 @@ int PacedFramePlaybackTest(std::unique_ptr<pmapi::Session> pSession)
 
 		using Clock = std::chrono::high_resolution_clock;
 		const auto start = Clock::now();
-		size_t emptyPollCount = 0;
+		std::optional<Clock::time_point> lastFrameTime;
 		size_t totalRecorded = 0;
-		const size_t emptyLimit = 10;
+		const double startThresholdSec = *opt.frameStartThresholdSec;
+		const double inactivityThresholdSec = *opt.frameInactivityThresholdSec;
 
 		while (true) {
 			const auto elapsed = std::chrono::duration<double>(Clock::now() - start).count();
@@ -282,26 +299,39 @@ int PacedFramePlaybackTest(std::unique_ptr<pmapi::Session> pSession)
 				WriteOptionalElement(csv, query.msClickToPhotonLatency);
 				csv << ",";
 				WriteOptionalElement(csv, query.msInstrumentedLatency);
+				csv << ",";
+				WriteOptionalUint64Element(csv, query.psoCompileCount);
+				csv << ",";
+				WriteOptionalElement(csv, query.msPsoCompileTime);
+				csv << ",";
+				WriteOptionalElement(csv, query.psoCompileBusyPercent);
 				csv << "\n";
 				++totalRecorded;
 			});
 
 			if (frameLimit > 0 && totalRecorded >= frameLimit) {
+				pmlog_info("reached frame limit").pmwatch(totalRecorded).pmwatch(frameLimit);
 				break;
 			}
 
-			if (processed == 0) {
-				if (totalRecorded > 0) {
-					if (++emptyPollCount >= emptyLimit) {
-						break;
-					}
-				}
-				else if (elapsed >= 1.0) {
+			if (processed > 0) {
+				lastFrameTime = Clock::now();
+			}
+			else if (totalRecorded > 0 && lastFrameTime) {
+				const auto inactiveSec =
+					std::chrono::duration<double>(Clock::now() - *lastFrameTime).count();
+				if (inactiveSec >= inactivityThresholdSec) {
+					pmlog_info("reached frame inactivity threshold")
+						.pmwatch(inactiveSec)
+						.pmwatch(inactivityThresholdSec);
 					break;
 				}
 			}
-			else {
-				emptyPollCount = 0;
+			else if (totalRecorded == 0 && elapsed >= startThresholdSec) {
+				pmlog_info("elapsed time exceeds start threshold")
+					.pmwatch(elapsed)
+					.pmwatch(startThresholdSec);
+				break;
 			}
 
 			if (processed == 0) {
