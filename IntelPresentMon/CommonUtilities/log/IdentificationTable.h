@@ -16,16 +16,6 @@ namespace pmon::util::log
 		virtual void AddProcess(uint32_t pid, std::string name) = 0;
 	};
 
-	struct IdentificationTableCallbacks
-	{
-		void(*addThread)(uint32_t tid, uint32_t pid, const char* name) = nullptr;
-		void(*addProcess)(uint32_t pid, const char* name) = nullptr;
-		operator bool() const noexcept
-		{
-			return addThread || addProcess;
-		}
-	};
-
 	class IdentificationTable
 	{
 	public:
@@ -54,7 +44,6 @@ namespace pmon::util::log
 		static std::optional<Thread> LookupThread(uint32_t tid) noexcept;
 		static std::optional<Process> LookupProcess(uint32_t pid) noexcept;
 		static Bulk GetBulk() noexcept;
-		static IdentificationTableCallbacks MakeForwardingCallbacks() noexcept;
 		static void RegisterSink(std::shared_ptr<IIdentificationSink> pSink) noexcept;
 		static void UnregisterSink(const IIdentificationSink* pSink) noexcept;
 		static IdentificationTable* GetPtr() noexcept;

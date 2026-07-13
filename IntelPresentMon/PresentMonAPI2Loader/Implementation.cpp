@@ -59,7 +59,7 @@ PM_STATUS(*pFunc_pmDiagnosticUnblockWaitingThread_)() = nullptr;
 // pointers to runtime-resolved internal functions
 _CrtMemState(*pFunc_pmCreateHeapCheckpoint__)() = nullptr;
 LoggingSingletons(*pFunc_pmLinkLogging__)(std::shared_ptr<pmon::util::log::IChannel>,
-	pmon::util::log::IdentificationTableCallbacks) = nullptr;
+	std::function<pmon::util::log::IdentificationTable&()>) = nullptr;
 void(*pFunc_pmUnlinkLogging__)() = nullptr;
 void(*pFunc_pmFlushEntryPoint__)() = nullptr;
 void(*pFunc_pmSetupODSLogging__)(PM_DIAGNOSTIC_LEVEL, PM_DIAGNOSTIC_LEVEL, bool) = nullptr;
@@ -79,7 +79,7 @@ bool middlewareLoadedSuccessfully_ = false;
 
 // loader-internal implementation functions
 // inner impl of method for deriving the mangled name of a cpp-linkage function and loading it
-void* GetCppProcAddress_Impl_(HMODULE h,const char* name, const char* mangledEmbeddedSignature)
+void* GetCppProcAddress_Impl_(HMODULE h, const char* name, const char* mangledEmbeddedSignature, bool required)
 {
 	// don't bother including receiving template function name
 	std::string Signature = mangledEmbeddedSignature + 22;
@@ -92,13 +92,20 @@ void* GetCppProcAddress_Impl_(HMODULE h,const char* name, const char* mangledEmb
 	if (auto pFunc = GetProcAddress(h, funName.c_str())) {
 		return pFunc;
 	}
-	throw LoaderExcept_(PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT);
+	if (required) {
+		throw LoaderExcept_(PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT);
+	}
+	return nullptr;
 }
 // load a cpp linkage function from a dll module
 template<typename F>
-F GetCppProcAddress_(HMODULE h, const char* name)
+F GetCppProcAddress_(HMODULE h, const char* name, bool required = true)
 {
-	return reinterpret_cast<F>(GetCppProcAddress_Impl_(h, name, __FUNCDNAME__));
+	void* pFunc = GetCppProcAddress_Impl_(h, name, __FUNCDNAME__, required);
+	if (!pFunc) {
+		return nullptr;
+	}
+	return reinterpret_cast<F>(pFunc);
 }
 // load a c-linkage function
 FARPROC GetProcAddress_(HMODULE h, const char* name)
@@ -134,7 +141,7 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 			}
 		}
 #define RESOLVE(f) pFunc_##f##_ = reinterpret_cast<decltype(pFunc_##f##_)>(GetProcAddress_(hMod_, #f))
-#define RESOLVE_CPP(f) pFunc_##f##_ = GetCppProcAddress_<decltype(pFunc_##f##_)>(hMod_, #f)
+#define RESOLVE_CPP_OPTIONAL(f) pFunc_##f##_ = GetCppProcAddress_<decltype(pFunc_##f##_)>(hMod_, #f, false)
 		// resolve version endpoint first as it is needed here
 		RESOLVE(pmGetApiVersion);
 		// if this load operation was instigated by calling version, don't do version check or load other endpoints
@@ -188,14 +195,14 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 		RESOLVE(pmDiagnosticFreeMessage);
 		RESOLVE(pmDiagnosticWaitForMessage);
 		RESOLVE(pmDiagnosticUnblockWaitingThread);
-		// internal
-		RESOLVE_CPP(pmCreateHeapCheckpoint_);
-		RESOLVE_CPP(pmLinkLogging_);
-		RESOLVE_CPP(pmUnlinkLogging_);
-		RESOLVE_CPP(pmFlushEntryPoint_);
-		RESOLVE_CPP(pmSetupODSLogging_);
-		RESOLVE_CPP(pmSetupFileLogging_);
-		RESOLVE_CPP(pmStopPlayback_);
+		// internal (optional: older middleware may omit refactored hooks)
+		RESOLVE_CPP_OPTIONAL(pmCreateHeapCheckpoint_);
+		RESOLVE_CPP_OPTIONAL(pmLinkLogging_);
+		RESOLVE_CPP_OPTIONAL(pmUnlinkLogging_);
+		RESOLVE_CPP_OPTIONAL(pmFlushEntryPoint_);
+		RESOLVE_CPP_OPTIONAL(pmSetupODSLogging_);
+		RESOLVE_CPP_OPTIONAL(pmSetupFileLogging_);
+		RESOLVE_CPP_OPTIONAL(pmStopPlayback_);
 		// if we make it here then we have succeeded
 		middlewareLoadResult_ = PM_STATUS_SUCCESS;
 	}
@@ -339,21 +346,27 @@ PRESENTMON_API2_EXPORT _CrtMemState pmCreateHeapCheckpoint_()
 			throw LoaderExcept_(status);
 		}
 	}
+	if (!pFunc_pmCreateHeapCheckpoint__) {
+		throw LoaderExcept_(PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT);
+	}
 	return pFunc_pmCreateHeapCheckpoint__();
 }
 PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(std::shared_ptr<pmon::util::log::IChannel> pChannel,
-	pmon::util::log::IdentificationTableCallbacks idTableCallbacks)
+	std::function<pmon::util::log::IdentificationTable& ()> getIdTable)
 {
 	if (!middlewareLoadedSuccessfully_) {
 		if (auto status = LoadLibrary_(); status != PM_STATUS_SUCCESS) {
 			throw LoaderExcept_(status);
 		}
 	}
-	return pFunc_pmLinkLogging__(pChannel, idTableCallbacks);
+	if (!pFunc_pmLinkLogging__) {
+		return {};
+	}
+	return pFunc_pmLinkLogging__(pChannel, std::move(getIdTable));
 }
 PRESENTMON_API2_EXPORT void pmUnlinkLogging_() noexcept
 {
-	if (middlewareLoadedSuccessfully_) {
+	if (middlewareLoadedSuccessfully_ && pFunc_pmUnlinkLogging__) {
 		pFunc_pmUnlinkLogging__();
 	}
 }
@@ -363,7 +376,7 @@ PRESENTMON_API2_EXPORT void pmFlushEntryPoint_() noexcept
 	// flush is called even in cases where the dll hasn't been loaded
 	// allow it to be elided in this case since it has no effect without
 	// other functions being called previously anyways
-	if (middlewareLoadedSuccessfully_) {
+	if (middlewareLoadedSuccessfully_ && pFunc_pmFlushEntryPoint__) {
 		pFunc_pmFlushEntryPoint__();
 	}
 }
@@ -374,6 +387,9 @@ PRESENTMON_API2_EXPORT void pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL logLevel,
 		if (auto status = LoadLibrary_(); status != PM_STATUS_SUCCESS) {
 			throw LoaderExcept_(status);
 		}
+	}
+	if (!pFunc_pmSetupODSLogging__) {
+		throw LoaderExcept_(PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT);
 	}
 	pFunc_pmSetupODSLogging__(logLevel, stackTraceLevel, exceptionTrace);
 }
@@ -437,12 +453,18 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetupFileLogging_(const char* file, PM_DIAGNO
 	PM_DIAGNOSTIC_LEVEL stackTraceLevel, bool exceptionTrace)
 {
 	LoadEndpointsIfEmpty_();
+	if (!pFunc_pmSetupFileLogging__) {
+		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
+	}
 	return pFunc_pmSetupFileLogging__(file, logLevel, stackTraceLevel, exceptionTrace);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmStopPlayback_(PM_SESSION_HANDLE hSession)
 {
 	LoadEndpointsIfEmpty_();
+	if (!pFunc_pmStopPlayback__) {
+		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
+	}
 	return pFunc_pmStopPlayback__(hSession);
 }
 
