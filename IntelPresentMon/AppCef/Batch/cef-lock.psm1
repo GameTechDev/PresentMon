@@ -13,7 +13,9 @@ function Get-RepoRoot {
 }
 
 function Get-CefLockPath {
-    return Join-Path (Get-AppCefRoot) 'cef-lock.json'
+    param([string]$Platform = 'x64')
+    $name = if ($Platform -ieq 'arm64') { 'cef-lock.arm64.json' } else { 'cef-lock.json' }
+    return Join-Path (Get-AppCefRoot) $name
 }
 
 function Get-CefStagePath {
@@ -96,7 +98,8 @@ function Clear-CefTempDirectories {
 }
 
 function Read-CefLock {
-    $path = Get-CefLockPath
+    param([string]$Platform = 'x64')
+    $path = Get-CefLockPath -Platform $Platform
     if (-not (Test-Path $path -PathType Leaf)) {
         throw "CEF lock file not found: $path"
     }
@@ -313,11 +316,14 @@ function Resolve-CefDistributionRoot {
 }
 
 function Assert-CefWrapperBuilt {
-    param([Parameter(Mandatory = $true)][string]$CefRoot)
+    param(
+        [Parameter(Mandatory = $true)][string]$CefRoot,
+        [string]$Platform = 'x64'
+    )
 
     $buildScript = Join-Path $PSScriptRoot 'cef-build-wrapper.ps1'
-    Write-Host "Building CEF wrapper from a clean build directory."
-    & $buildScript $CefRoot -Clean
+    Write-Host "Building CEF wrapper ($Platform) from a clean build directory."
+    & $buildScript $CefRoot -Platform $Platform -Clean
     if ($LASTEXITCODE -ne 0) {
         throw "CEF wrapper build failed with exit code $LASTEXITCODE."
     }
@@ -340,9 +346,12 @@ function Copy-DirectoryContents {
 }
 
 function Stage-CefDistribution {
-    param([Parameter(Mandatory = $true)][string]$CefRoot)
+    param(
+        [Parameter(Mandatory = $true)][string]$CefRoot,
+        [string]$Platform = 'x64'
+    )
 
-    Assert-CefWrapperBuilt -CefRoot $CefRoot
+    Assert-CefWrapperBuilt -CefRoot $CefRoot -Platform $Platform
 
     $stage = Get-CefStagePath
     $appRoot = Get-AppCefRoot
@@ -463,9 +472,12 @@ function New-CefLockObject {
 }
 
 function Write-CefLock {
-    param([Parameter(Mandatory = $true)]$Lock)
+    param(
+        [Parameter(Mandatory = $true)]$Lock,
+        [string]$Platform = 'x64'
+    )
 
-    $path = Get-CefLockPath
+    $path = Get-CefLockPath -Platform $Platform
     $json = $Lock | ConvertTo-Json -Depth 8
     [System.IO.File]::WriteAllText($path, $json + "`r`n", [System.Text.UTF8Encoding]::new($false))
     Write-Host "Updated CEF lock: $path"
@@ -520,7 +532,8 @@ function Compare-CefPayload {
 }
 
 function Assert-CefStageMatchesLock {
-    $lock = Read-CefLock
+    param([string]$Platform = 'x64')
+    $lock = Read-CefLock -Platform $Platform
     $metadata = Read-CefVersionMetadata -CefRoot (Get-CefStagePath)
     foreach ($name in $lock.cef.PSObject.Properties.Name) {
         if ([string]$metadata[$name] -ne [string]$lock.cef.$name) {
@@ -529,21 +542,24 @@ function Assert-CefStageMatchesLock {
     }
     $errors = @(Compare-CefPayload -Expected $lock.payload -Root (Get-CefStagePath) -Mode Stage)
     if ($errors.Count -ne 0) {
-        throw "Staged CEF payload does not match $(Get-CefLockPath):`n$($errors -join "`n")"
+        throw "Staged CEF payload does not match $(Get-CefLockPath -Platform $Platform):`n$($errors -join "`n")"
     }
-    Write-Host "CEF staged payload matches lock."
+    Write-Host "CEF staged payload matches lock ($Platform)."
 }
 
 function Assert-CefOutputMatchesLock {
-    param([Parameter(Mandatory = $true)][string]$OutputRoot)
+    param(
+        [Parameter(Mandatory = $true)][string]$OutputRoot,
+        [string]$Platform = 'x64'
+    )
 
-    $lock = Read-CefLock
+    $lock = Read-CefLock -Platform $Platform
     $resolved = (Resolve-Path $OutputRoot).ProviderPath
     $errors = @(Compare-CefPayload -Expected $lock.payload -Root $resolved -Mode Output)
     if ($errors.Count -ne 0) {
-        throw "CEF output payload does not match $(Get-CefLockPath):`n$($errors -join "`n")"
+        throw "CEF output payload does not match $(Get-CefLockPath -Platform $Platform):`n$($errors -join "`n")"
     }
-    Write-Host "CEF output payload matches lock."
+    Write-Host "CEF output payload matches lock ($Platform)."
 }
 
 function Get-StableWixId {
