@@ -102,6 +102,33 @@ architecture-neutral, a single checkout holds one architecture's binaries and
 MSI at a time. Produce the x64 and ARM64 packages from separate (or cleaned)
 builds.
 
+## Continuous Integration
+
+GitHub Actions (`.github/workflows/ci.yml`) builds Release and runs the unit
+tests on both native architectures, on every pull request and on pushes to
+`main`:
+
+| Runner | Toolchain | Build |
+| --- | --- | --- |
+| `windows-2022` | VS 2022 + WiX 3.14 | Full `PresentMon.sln` (x64) and **packages the MSI**, uploaded as the `PresentMon-x64-msi` artifact |
+| `windows-11-arm` | VS 2022 (no WiX) | App, service, API and unit tests (the WiX installer projects are skipped) |
+
+Each run bootstraps the source dependencies (CEF payload, aux test data, web
+frontend), creates a throwaway code-signing certificate so the Release
+`SignTool` post-build succeeds, builds, and runs the unit tests. (One known
+ARM64-only metrics test is skipped on the ARM64 leg pending a fix.)
+
+Dependencies are cached to keep runs fast — the installed vcpkg trees
+(`vcpkg_installed`), the staged CEF payload, the auxiliary test data, and the
+npm download cache — so a warm run reuses them instead of rebuilding. With a
+warm cache the build also runs in parallel (`msbuild /m`); a cold run (when the
+vcpkg manifests change) falls back to a serial build to avoid a concurrent
+vcpkg-install download race.
+
+`windows-2025` is intentionally not used: GitHub switched that image to
+Visual Studio 2026 ([actions/runner-images#14017](https://github.com/actions/runner-images/issues/14017)),
+and the project currently targets the VS 2022 (v143) toolchain.
+
 ## Running PresentMon
 
 ### Intel PresentMon
