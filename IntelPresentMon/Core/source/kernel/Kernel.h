@@ -13,7 +13,6 @@
 #include <CommonUtilities/mt/Thread.h>
 #include "OverlaySpec.h"
 #include "KernelHandler.h"
-#include "../../../FlashInjectorLibrary/Extension/OverlayConfig.h"
 
 #pragma comment(lib, "user32")
 #pragma comment(lib, "winmm")
@@ -29,7 +28,6 @@ namespace p2c::gfx
 
 namespace p2c::kern
 {
-    class InjectorComplex;
     struct OverlaySpec;
     class OverlayContainer;
 
@@ -47,9 +45,6 @@ namespace p2c::kern
         Kernel& operator=(const Kernel&) = delete;
         ~Kernel();
         void PushSpec(std::unique_ptr<OverlaySpec> pSpec);
-        void UpdateInjection(bool enableInjection, std::optional<uint32_t> currentlyTargettedPid,
-            std::optional<std::string> overrideTargetName,
-            const GfxLayer::Extension::OverlayConfig& cfg);
         void ClearOverlay();
         void SetCapture(bool active);
         void SetEtlLogging(bool active);
@@ -74,7 +69,6 @@ namespace p2c::kern
         std::optional<bool> pushedCaptureActive;
         std::unique_ptr<OverlaySpec> pPushedSpec;
         std::unique_ptr<OverlayContainer> pOverlayContainer;
-        std::unique_ptr<InjectorComplex> pInjectorComplex;
         mutable std::condition_variable cv;
         mutable std::mutex mtx;
         std::binary_semaphore constructionSemaphore;

@@ -97,7 +97,6 @@ namespace p2c::kern
         bool hideAlways;
         bool independentKernelWindow;
         bool generateStats;
-        bool enableFlashInjection;
         std::optional<uint32_t> frameQueryAdapterId;
         std::vector<std::shared_ptr<gfx::lay::sty::Stylesheet>> sheets;
     };

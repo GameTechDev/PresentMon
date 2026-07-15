@@ -41,7 +41,7 @@ function cyclePreset() {
 // === Computed ===
 const inSettings = computed(() => {
   const routeName = typeof route.name === 'symbol' ? route.name.toString() : route.name;
-  return ['capture-config', 'overlay-config', 'data-config', 'other-config', 'flash-config', 'logging-config', 'about-config']
+  return ['capture-config', 'overlay-config', 'data-config', 'other-config', 'logging-config', 'about-config']
     .includes(routeName ?? '')
 });
 const targetName = computed(() => {
@@ -172,9 +172,6 @@ watch(() => loadout.widgets, async () => {
             </v-list-item>
             <v-list-item color="primary" :to="{ name: 'capture-config' }">
               <v-list-item-title class="nav-item">Capture</v-list-item-title>
-            </v-list-item>
-            <v-list-item color="primary" :to="{ name: 'flash-config' }">
-              <v-list-item-title class="nav-item">Flash</v-list-item-title>
             </v-list-item>
             <v-list-item color="primary" :to="{ name: 'logging-config' }">
               <v-list-item-title class="nav-item">Logging</v-list-item-title>

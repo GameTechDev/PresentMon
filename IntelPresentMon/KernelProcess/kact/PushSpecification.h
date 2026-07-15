@@ -195,18 +195,6 @@ namespace ACT_NS
                 float upscaleFactor;
                 std::optional<int> adapterId; // Uncertain: may be a different type in your system.
 
-                bool enableFlashInjection;
-                bool flashInjectionEnableTargetOverride;
-                std::string flashInjectionTargetOverride;
-                float flashInjectionSize;
-                Color flashInjectionColor;
-                bool flashInjectionBackgroundEnable;
-                Color flashInjectionBackgroundColor;
-                float flashInjectionRightShift;
-                float flashInjectionFlashDuration;
-                bool flashInjectionUseRainbow;
-                float flashInjectionBackgroundSize;
-
                 template<class A> void serialize(A& ar) {
                     ar(CEREAL_NVP(capturePath),
                         CEREAL_NVP(captureDelay),
@@ -241,18 +229,7 @@ namespace ACT_NS
                         CEREAL_NVP(enableTargetBlocklist),
                         CEREAL_NVP(enableAutotargetting),
                         CEREAL_NVP(upscaleFactor),
-                        CEREAL_NVP(adapterId),
-                        CEREAL_NVP(enableFlashInjection),
-                        CEREAL_NVP(flashInjectionEnableTargetOverride),
-                        CEREAL_NVP(flashInjectionTargetOverride),
-                        CEREAL_NVP(flashInjectionSize),
-                        CEREAL_NVP(flashInjectionColor),
-                        CEREAL_NVP(flashInjectionBackgroundEnable),
-                        CEREAL_NVP(flashInjectionBackgroundColor),
-                        CEREAL_NVP(flashInjectionRightShift),
-                        CEREAL_NVP(flashInjectionFlashDuration),
-                        CEREAL_NVP(flashInjectionUseRainbow),
-                        CEREAL_NVP(flashInjectionBackgroundSize));
+                        CEREAL_NVP(adapterId));
                 }
             } preferences;
 
@@ -284,22 +261,6 @@ namespace ACT_NS
 
         static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
         {
-            const GfxLayer::Extension::OverlayConfig cfg{
-                .BarSize = in.preferences.flashInjectionSize,
-                .BarRightShift = in.preferences.flashInjectionRightShift,
-                .BarColor = in.preferences.flashInjectionColor.AsArray(),
-                .RenderBackground = in.preferences.flashInjectionBackgroundEnable,
-                .BackgroundColor = in.preferences.flashInjectionBackgroundColor.AsArray(),
-                .FlashDuration = in.preferences.flashInjectionFlashDuration,
-                .UseRainbow = in.preferences.flashInjectionUseRainbow,
-                .BackgroundSize = in.preferences.flashInjectionBackgroundSize,
-            };
-
-            const auto flashTgtOverride = in.preferences.flashInjectionEnableTargetOverride ?
-                std::optional{ in.preferences.flashInjectionTargetOverride } : std::nullopt;
-
-            (*ctx.ppKernel)->UpdateInjection(in.preferences.enableFlashInjection, in.pid, flashTgtOverride, cfg);
-
             if (!in.pid) {
                 (*ctx.ppKernel)->ClearOverlay();
             }

@@ -55,17 +55,6 @@ export interface Preferences {
         readonly axisSize: 10.0;
     };    
     adapterId: number;
-    enableFlashInjection:boolean;
-    flashInjectionEnableTargetOverride:boolean,
-    flashInjectionTargetOverride:string;
-    flashInjectionSize:number;
-    flashInjectionColor:RgbaColor;
-    flashInjectionBackgroundEnable:boolean;
-    flashInjectionBackgroundColor:RgbaColor;
-    flashInjectionRightShift:number;
-    flashInjectionFlashDuration:number;
-    flashInjectionUseRainbow:boolean;
-    flashInjectionBackgroundSize:number;
 };
 
 export function makeDefaultPreferences(): Preferences {
@@ -118,33 +107,12 @@ export function makeDefaultPreferences(): Preferences {
         enableAutotargetting: false,
         upscaleFactor: 2,        
         adapterId: 0,
-        enableFlashInjection: false,
-        flashInjectionEnableTargetOverride: false,
-        flashInjectionTargetOverride: '',
-        flashInjectionSize: 0.25,
-        flashInjectionColor: {
-            r: 255, 
-            g: 255, 
-            b: 255, 
-            a: 255, 
-        },
-        flashInjectionBackgroundEnable: false,
-        flashInjectionBackgroundColor: {
-            r: 0, 
-            g: 0, 
-            b: 0, 
-            a: 255, 
-        },
-        flashInjectionRightShift: 0.5,
-        flashInjectionFlashDuration: 0.05,
-        flashInjectionUseRainbow: false,
-        flashInjectionBackgroundSize:0.25,
     };
 }
 
 export const signature: Signature = {
     code: "p2c-cap-pref",
-    version: "1.0.1",
+    version: "1.1.0",
 };
 
 export interface PreferenceFile {
@@ -193,19 +161,6 @@ const migrations: Migration[] = [
         }
     },
     {
-        version: '0.19.0',
-        migrate: (prefs: Preferences, _intro: PreferenceMigrationIntrospection | null) => {
-            console.info('Migrating preferences to 0.19.0 (flash injection)');
-            const def = makeDefaultPreferences();
-            prefs.enableFlashInjection = def.enableFlashInjection;
-            prefs.flashInjectionSize = def.flashInjectionSize;
-            prefs.flashInjectionColor = def.flashInjectionColor;
-            prefs.flashInjectionBackgroundEnable = def.flashInjectionBackgroundEnable;
-            prefs.flashInjectionBackgroundColor = def.flashInjectionBackgroundColor;
-            prefs.flashInjectionRightShift = def.flashInjectionRightShift;
-        }
-    },
-    {
         version: '0.20.0',
         migrate: (prefs: Preferences, _intro: PreferenceMigrationIntrospection | null) => {
             if (prefs.metricsOffset <= 32) {
@@ -223,7 +178,7 @@ const migrations: Migration[] = [
                 console.info(`Migrating preferences to 0.21.0 (metricsOffset: ${prefs.metricsOffset} => ${def.metricsOffset})`);
                 prefs.metricsOffset = def.metricsOffset;
             }
-        }
+        },
     },
     {
         version: '1.0.0',
@@ -255,6 +210,24 @@ const migrations: Migration[] = [
             } else {
                 console.info('Migrating preferences to 1.0.1');
             }
+        },
+    },
+    {
+        version: '1.1.0',
+        migrate: (prefs: Preferences, _intro: PreferenceMigrationIntrospection | null) => {
+            console.info('Migrating preferences to 1.1.0 (remove flash injection)');
+            const legacy = prefs as unknown as Record<string, unknown>;
+            delete legacy.enableFlashInjection;
+            delete legacy.flashInjectionEnableTargetOverride;
+            delete legacy.flashInjectionTargetOverride;
+            delete legacy.flashInjectionSize;
+            delete legacy.flashInjectionColor;
+            delete legacy.flashInjectionBackgroundEnable;
+            delete legacy.flashInjectionBackgroundColor;
+            delete legacy.flashInjectionRightShift;
+            delete legacy.flashInjectionFlashDuration;
+            delete legacy.flashInjectionUseRainbow;
+            delete legacy.flashInjectionBackgroundSize;
         },
     },
 ];

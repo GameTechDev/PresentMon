@@ -14,9 +14,6 @@
 #include <CommonUtilities/str/String.h>
 #include <CommonUtilities/Exception.h>
 #include <CommonUtilities/win/Utilities.h>
-#include "InjectorComplex.h"
-
-
 using namespace std::literals;
 using namespace ::pmon::util;
 namespace cwin = ::pmon::util::win;
@@ -30,7 +27,6 @@ namespace p2c::kern
         pHandler{ pHandler },
         constructionSemaphore{ 0 },
         thread{ "kernel", &Kernel::ThreadProcedure_, this},
-        pInjectorComplex{ std::make_unique<InjectorComplex>() },
         headless{ headless }
     {
         constructionSemaphore.acquire();
@@ -54,31 +50,6 @@ namespace p2c::kern
             pPushedSpec = std::move(pSpec);
         }
         cv.notify_one();
-    }
-
-    void Kernel::UpdateInjection(bool enableInjection, std::optional<uint32_t> currentlyTargettedPid,
-        std::optional<std::string> overrideTargetName,
-        const GfxLayer::Extension::OverlayConfig& cfg)
-    {
-        HandleMarshalledException_();
-        pInjectorComplex->SetActive(enableInjection);
-        if (enableInjection) {
-            if (overrideTargetName) {
-                pInjectorComplex->ChangeTarget(std::move(*overrideTargetName));
-            }
-            else if (currentlyTargettedPid) {
-                try {
-                    auto hProc = cwin::OpenProcess(*currentlyTargettedPid);
-                    auto modName = cwin::GetExecutableModulePath(hProc).filename().string();
-                    pInjectorComplex->ChangeTarget(std::move(modName));
-                }
-                catch (...) {
-                    pmlog_warn("Failed target process lookup").pmwatch(*currentlyTargettedPid);
-                    pInjectorComplex->ChangeTarget({});
-                }
-            }
-            pInjectorComplex->UpdateConfig(cfg);
-        }
     }
 
     void Kernel::ClearOverlay()
