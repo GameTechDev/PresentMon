@@ -8,7 +8,7 @@
         Manufacturer="Intel(R) Corporation"
         UpgradeCode="CD0D489E-0FE7-452D-90D9-F94F3F5FF410">
 
-        <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"/>
+        <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="$(sys.BUILDARCH)"/>
         <Icon Id="PresentMonArpIcon.ico" SourceFile="..\AppCef\flask.ico" />
 
         <!-- Handle in-use files by scheduling for reboot (user will see FilesInUse dialog) -->
@@ -29,8 +29,16 @@
         
         <MediaTemplate EmbedCab="yes" />
 
-        <?define console_app_path = $(pm.GetConsoleAppPath($(var.SolutionDir), $(var.ConsoleAppVersion))) ?>
-        <?define console_app_filename = $(pm.GetConsoleAppFileName($(var.ConsoleAppVersion))) ?>
+        <!-- The console app's file name embeds the platform exactly as MSBuild's
+             $(Platform) does (see PresentMon.props): "x64" or "ARM64". Map the
+             candle build architecture ($(sys.BUILDARCH), lower-case) onto it. -->
+        <?if $(sys.BUILDARCH) = "arm64" ?>
+            <?define console_app_arch = "ARM64" ?>
+        <?else?>
+            <?define console_app_arch = "x64" ?>
+        <?endif?>
+        <?define console_app_path = $(pm.GetConsoleAppPath($(var.SolutionDir), $(var.ConsoleAppVersion), $(var.console_app_arch))) ?>
+        <?define console_app_filename = $(pm.GetConsoleAppFileName($(var.ConsoleAppVersion), $(var.console_app_arch))) ?>
         <?define has_console_app = $(pm.CheckFileExists($(var.console_app_path))) ?>
 		<?define WebRoot = "$(var.PresentMon.TargetDir)ipm-ui-vue" ?>
 

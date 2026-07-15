@@ -598,10 +598,17 @@ function Write-CefWixFragment {
         $writer.WriteStartElement('Fragment')
         $writer.WriteStartElement('DirectoryRef')
         $writer.WriteAttributeString('Id', 'pm_app_folder')
-        $dirs = @($Entries | ForEach-Object {
-            $dir = Split-Path $_.path -Parent
-            if ($dir) { $dir.Replace('\', '/') }
-        } | Sort-Object -Unique)
+        # Use a culture-invariant (OrdinalIgnoreCase) sort so the generated
+        # fragment is byte-for-byte reproducible on any machine. Sort-Object's
+        # default culture-sensitive ordering makes the committed fragment fail
+        # the staleness check on hosts whose locale weights case/punctuation
+        # differently (e.g. Windows-on-Arm build hosts).
+        $dirSet = [System.Collections.Generic.SortedSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($entry in $Entries) {
+            $dir = Split-Path $entry.path -Parent
+            if ($dir) { [void]$dirSet.Add($dir.Replace('\', '/')) }
+        }
+        $dirs = @($dirSet)
         foreach ($dir in $dirs) {
             if ($dir.Contains('/')) {
                 throw "Nested CEF installer directories deeper than one level are not supported yet: $dir"
@@ -618,7 +625,14 @@ function Write-CefWixFragment {
         $writer.WriteStartElement('ComponentGroup')
         $writer.WriteAttributeString('Id', $ComponentGroup)
 
-        foreach ($entry in @($Entries | Sort-Object path)) {
+        # OrdinalIgnoreCase sort (see the directory sort above) for reproducible
+        # output that is independent of the build host's locale.
+        $sortedEntries = [System.Collections.Generic.List[object]]::new()
+        $sortedEntries.AddRange([object[]]@($Entries))
+        $sortedEntries.Sort([System.Comparison[object]] {
+            param($x, $y) [string]::Compare([string]$x.path, [string]$y.path, [System.StringComparison]::OrdinalIgnoreCase)
+        })
+        foreach ($entry in $sortedEntries) {
             $dir = Split-Path $entry.path -Parent
             $fileName = Split-Path $entry.path -Leaf
             $directoryId = if ($dir) { Get-StableWixId -Prefix 'cef_dir' -Path $dir.Replace('\', '/') } else { 'pm_app_folder' }
@@ -674,7 +688,13 @@ function Assert-CefInstallerInputsMatchLock {
                 throw "Installer CEF fragment is missing: $actualPath"
             }
             $actual = Get-Content $actualPath -Raw
-            if ($actual -ne $expected) {
+            # Compare content independent of line endings. The fragments are
+            # stored with LF, but the generator and a CRLF (autocrlf=true)
+            # checkout produce CRLF; a raw comparison would spuriously report the
+            # committed fragment as stale on hosts that check out LF.
+            $expectedNorm = ($expected -replace "`r`n", "`n")
+            $actualNorm = ($actual -replace "`r`n", "`n")
+            if ($actualNorm -ne $expectedNorm) {
                 throw "Installer CEF fragment is stale: $actualPath. Run IntelPresentMon\AppCef\Batch\upgrade-cef.ps1 to refresh it."
             }
         }
