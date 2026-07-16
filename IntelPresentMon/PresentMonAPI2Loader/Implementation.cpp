@@ -60,6 +60,8 @@ PM_STATUS(*pFunc_pmDiagnosticUnblockWaitingThread_)() = nullptr;
 _CrtMemState(*pFunc_pmCreateHeapCheckpoint__)() = nullptr;
 LoggingSingletons(*pFunc_pmLinkLogging__)(std::shared_ptr<pmon::util::log::IChannel>,
 	std::function<pmon::util::log::IdentificationTable&()>) = nullptr;
+LoggingSingletons(*pFunc_pmLinkLoggingPtrs__)(pmon::util::log::IChannel*,
+	pmon::util::log::IdentificationTable*) = nullptr;
 void(*pFunc_pmUnlinkLogging__)() = nullptr;
 void(*pFunc_pmFlushEntryPoint__)() = nullptr;
 void(*pFunc_pmSetupODSLogging__)(PM_DIAGNOSTIC_LEVEL, PM_DIAGNOSTIC_LEVEL, bool) = nullptr;
@@ -198,6 +200,7 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 		// internal (optional: older middleware may omit refactored hooks)
 		RESOLVE_CPP_OPTIONAL(pmCreateHeapCheckpoint_);
 		RESOLVE_CPP_OPTIONAL(pmLinkLogging_);
+		RESOLVE_CPP_OPTIONAL(pmLinkLoggingPtrs_);
 		RESOLVE_CPP_OPTIONAL(pmUnlinkLogging_);
 		RESOLVE_CPP_OPTIONAL(pmFlushEntryPoint_);
 		RESOLVE_CPP_OPTIONAL(pmSetupODSLogging_);
@@ -359,10 +362,28 @@ PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(std::shared_ptr<pmon::ut
 			throw LoaderExcept_(status);
 		}
 	}
+	if (pFunc_pmLinkLoggingPtrs__) {
+		pmon::util::log::IChannel* pChan = pChannel.get();
+		pmon::util::log::IdentificationTable* pExeTable = getIdTable ? &getIdTable() : nullptr;
+		return pFunc_pmLinkLoggingPtrs__(pChan, pExeTable);
+	}
 	if (!pFunc_pmLinkLogging__) {
 		return {};
 	}
 	return pFunc_pmLinkLogging__(pChannel, std::move(getIdTable));
+}
+PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLoggingPtrs_(pmon::util::log::IChannel* pChannel,
+	pmon::util::log::IdentificationTable* pExeTable)
+{
+	if (!middlewareLoadedSuccessfully_) {
+		if (auto status = LoadLibrary_(); status != PM_STATUS_SUCCESS) {
+			throw LoaderExcept_(status);
+		}
+	}
+	if (!pFunc_pmLinkLoggingPtrs__) {
+		return {};
+	}
+	return pFunc_pmLinkLoggingPtrs__(pChannel, pExeTable);
 }
 PRESENTMON_API2_EXPORT void pmUnlinkLogging_() noexcept
 {

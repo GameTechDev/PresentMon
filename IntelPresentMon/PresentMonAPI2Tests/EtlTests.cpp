@@ -278,8 +278,6 @@ namespace EtlTests
 			});
 
 			try {
-				pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
-				pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
 				outSession = std::make_unique<pmapi::Session>(controlPipe_);
 				return true;
 			}

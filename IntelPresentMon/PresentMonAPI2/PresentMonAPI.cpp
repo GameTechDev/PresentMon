@@ -100,63 +100,87 @@ PRESENTMON_API2_EXPORT _CrtMemState pmCreateHeapCheckpoint_()
 	return s;
 }
 
+namespace
+{
+	pmon::util::log::GlobalPolicy& GetMiddlewareGlobalPolicy_()
+	{
+		return pmon::util::log::GlobalPolicy::Get();
+	}
+
+	pmon::util::log::LineTable& GetMiddlewareLineTable_()
+	{
+		return pmon::util::log::LineTable::Get_();
+	}
+
+	LoggingSingletons LinkLogging_(pmon::util::log::IChannel* pChannel,
+		pmon::util::log::IdentificationTable* pExeTable)
+	{
+		using namespace pmon::util::log;
+		SetupCopyChannel(pChannel);
+		if (pLinkedIdTableSink_) {
+			IdentificationTable::UnregisterSink(pLinkedIdTableSink_.get());
+			pLinkedIdTableSink_.reset();
+		}
+		if (pExeTable) {
+			class Sink : public IIdentificationSink
+			{
+			public:
+				explicit Sink(IdentificationTable* pTable) noexcept
+					:
+					pTable_{ pTable }
+				{}
+				void AddThread(uint32_t tid, uint32_t pid, std::string name) override
+				{
+					pTable_->AddThread_(tid, pid, name);
+				}
+				void AddProcess(uint32_t pid, std::string name) override
+				{
+					pTable_->AddProcess_(pid, name);
+				}
+			private:
+				IdentificationTable* pTable_;
+			};
+			pLinkedIdTableSink_ = std::make_shared<Sink>(pExeTable);
+			IdentificationTable::RegisterSink(pLinkedIdTableSink_);
+			const auto bulk = IdentificationTable::GetBulk();
+			for (auto& t : bulk.threads) {
+				pLinkedIdTableSink_->AddThread(t.tid, t.pid, t.name);
+			}
+			for (auto& p : bulk.processes) {
+				pLinkedIdTableSink_->AddProcess(p.pid, p.name);
+			}
+		}
+		return {
+			.getGlobalPolicy = &GetMiddlewareGlobalPolicy_,
+			.getLineTable = &GetMiddlewareLineTable_,
+		};
+	}
+}
+
+PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLoggingPtrs_(
+	pmon::util::log::IChannel* pChannel,
+	pmon::util::log::IdentificationTable* pExeTable)
+{
+	return LinkLogging_(pChannel, pExeTable);
+}
+
 PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(
 	std::shared_ptr<pmon::util::log::IChannel> pChannel,
 	std::function<pmon::util::log::IdentificationTable&()> getIdTable)
 {
-	using namespace util::log;
-	// set api dll default logging channel to copy to exe logging channel
-	SetupCopyChannel(std::move(pChannel));
-	// connecting id tables (dll => exe)
-	if (pLinkedIdTableSink_) {
-		IdentificationTable::UnregisterSink(pLinkedIdTableSink_.get());
-		pLinkedIdTableSink_.reset();
-	}
-	if (getIdTable) {
-		class Sink : public IIdentificationSink
-		{
-		public:
-			Sink(std::function<IdentificationTable& ()> getTable)
-				:
-				getTable_{ std::move(getTable) }
-			{}
-			void AddThread(uint32_t tid, uint32_t pid, std::string name) override
-			{
-				getTable_().AddThread_(tid, pid, name);
-			}
-			void AddProcess(uint32_t pid, std::string name) override
-			{
-				getTable_().AddProcess_(pid, name);
-			}
-		private:
-			std::function<IdentificationTable& ()> getTable_;
-		};
-		pLinkedIdTableSink_ = std::make_shared<Sink>(getIdTable);
-		IdentificationTable::RegisterSink(pLinkedIdTableSink_);
-		const auto bulk = IdentificationTable::GetBulk();
-		for (auto& t : bulk.threads) {
-			pLinkedIdTableSink_->AddThread(t.tid, t.pid, t.name);
-		}
-		for (auto& p : bulk.processes) {
-			pLinkedIdTableSink_->AddProcess(p.pid, p.name);
-		}
-	}
-	// return functions to access the global settings objects
-	return {
-		.getGlobalPolicy = []() -> GlobalPolicy& { return GlobalPolicy::Get(); },
-		.getLineTable = []() -> LineTable& { return LineTable::Get_(); },
-	};
+	pmon::util::log::IdentificationTable* pExeTable = getIdTable ? &getIdTable() : nullptr;
+	return LinkLogging_(pChannel.get(), pExeTable);
 }
 
 PRESENTMON_API2_EXPORT void pmUnlinkLogging_() noexcept
 {
 	using namespace util::log;
-	pmquell(FlushEntryPoint())
-	pmquell(InjectDefaultChannel({}))
 	if (pLinkedIdTableSink_) {
 		pmquell(IdentificationTable::UnregisterSink(pLinkedIdTableSink_.get()))
 		pLinkedIdTableSink_.reset();
 	}
+	pmquell(FlushEntryPoint())
+	pmquell(SeverCopyLoggingBridge())
 }
 
 PRESENTMON_API2_EXPORT void pmFlushEntryPoint_() noexcept
