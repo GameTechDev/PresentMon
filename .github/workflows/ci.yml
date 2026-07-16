@@ -97,7 +97,10 @@ jobs:
             !vcpkg_installed/**/vcpkg/blds/**
             IntelPresentMon/CommonUtilities/vcpkg_installed
             !IntelPresentMon/CommonUtilities/vcpkg_installed/**/vcpkg/blds/**
-          key: vcpkg-installed-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'triplets/**', 'IntelPresentMon/CommonUtilities/vcpkg.json', 'IntelPresentMon/CommonUtilities/vcpkg-configuration.json') }}
+          # vcpkg.props is in the key because it selects the HOST triplet: the vcpkg
+          # install stamp is named after it, so a tree cached under a different host
+          # triplet would re-run the install (and rebuild deps) on every warm run.
+          key: vcpkg-installed-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'vcpkg.props', 'triplets/**', 'IntelPresentMon/CommonUtilities/vcpkg.json', 'IntelPresentMon/CommonUtilities/vcpkg-configuration.json') }}
 
       - name: Prime vcpkg_installed timestamps (cache hit)
         if: steps.cache-vcpkg.outputs.cache-hit == 'true'

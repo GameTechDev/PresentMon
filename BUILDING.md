@@ -69,6 +69,11 @@ vcpkg dependency ABI matched to the app toolset on VS 2026; it is a no-op on
 VS 2022, where v143 is already the default. Changing a triplet's toolset causes
 vcpkg to rebuild that architecture's dependencies on the next build.
 
+vcpkg *host* dependencies resolve to the build machine's native architecture
+(`vcpkg.props`): `arm64-windows-static` on a Windows-on-Arm host, otherwise
+`x64-windows-static`. An x64 host can therefore still cross-compile the ARM64
+target, while an ARM64 host uses native rather than emulated host tools.
+
 ### Source dependencies
 
 Restore the ARM64 CEF payload (the auxiliary test data and web frontend that
