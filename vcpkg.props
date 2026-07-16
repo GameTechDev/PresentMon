@@ -1,7 +1,14 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <VcpkgUseStatic>true</VcpkgUseStatic>
-    <VcpkgHostTriplet>x64-windows-static</VcpkgHostTriplet>
+    <!-- Host dependencies run on the build machine, so resolve them for the machine's
+         native architecture: arm64 on a Windows-on-Arm host (native tools instead of
+         emulated x64 ones), x64 everywhere else. x64 remains the fallback so an x64
+         host can still cross-compile ARM64 targets (it cannot run arm64 host tools,
+         while an arm64 host can run x64 ones under emulation). An x64 MSBuild running
+         emulated on arm64 reports X64 and also lands on the (working) x64 fallback. -->
+    <VcpkgHostTriplet Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">arm64-windows-static</VcpkgHostTriplet>
+    <VcpkgHostTriplet Condition="'$(VcpkgHostTriplet)' == ''">x64-windows-static</VcpkgHostTriplet>
     <!-- Manifest files -->
     <VcpkgEnableManifest>true</VcpkgEnableManifest>
     <VcpkgManifestInstall>true</VcpkgManifestInstall>

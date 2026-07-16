@@ -13,7 +13,11 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [string]$Source
+    [string]$Source,
+
+    [Parameter()]
+    [ValidateSet('x64', 'arm64', 'ARM64')]
+    [string]$Platform = 'x64'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,12 +27,18 @@ $completed = $false
 try {
     $resolvedSource = Resolve-CefSource -Source $Source
     $cefRoot = Resolve-CefDistributionRoot -Path (Get-ObjectPropertyValue -Object $resolvedSource -Name 'archivePath')
-    Stage-CefDistribution -CefRoot $cefRoot
+    Stage-CefDistribution -CefRoot $cefRoot -Platform $Platform
     $lock = New-CefLockObject -CefRoot $cefRoot -Source $resolvedSource
-    Write-CefLock -Lock $lock
-    Update-CefInstallerFragments
-    Assert-CefStageMatchesLock
-    Assert-CefInstallerInputsMatchLock
+    Write-CefLock -Lock $lock -Platform $Platform
+    # The installer WiX fragments are generated from the x64 payload only; ARM64
+    # installer packaging is handled separately (multi-arch installer work).
+    if ($Platform -ieq 'x64') {
+        Update-CefInstallerFragments
+    }
+    Assert-CefStageMatchesLock -Platform $Platform
+    if ($Platform -ieq 'x64') {
+        Assert-CefInstallerInputsMatchLock
+    }
     $completed = $true
 } finally {
     if ($completed) {

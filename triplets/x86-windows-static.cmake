@@ -1,0 +1,10 @@
+set(VCPKG_TARGET_ARCHITECTURE x86)
+set(VCPKG_CRT_LINKAGE static)
+set(VCPKG_LIBRARY_LINKAGE static)
+
+# Pin the MSVC toolset used to build x86 dependencies to v143 to match the
+# PlatformToolset the projects link with. Without this, vcpkg builds x86
+# packages with the newest installed toolset (v145 on VS 2026), whose newer
+# vectorized-STL symbols fail to resolve when linked into the v143 binaries.
+# On VS 2022 (where v143 is the default toolset) this is a no-op.
+set(VCPKG_PLATFORM_TOOLSET v143)

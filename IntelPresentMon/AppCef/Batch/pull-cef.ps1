@@ -12,13 +12,17 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [string]$SourcePath
+    [string]$SourcePath,
+
+    [Parameter()]
+    [ValidateSet('x64', 'arm64', 'ARM64')]
+    [string]$Platform = 'x64'
 )
 
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'cef-lock.psm1') -Force -DisableNameChecking
 
-$lock = Read-CefLock
+$lock = Read-CefLock -Platform $Platform
 if (-not $SourcePath) {
     $sourceUri = Get-ObjectPropertyValue -Object $lock.source -Name 'uri'
     $sourcePath = Get-ObjectPropertyValue -Object $lock.source -Name 'path'
@@ -50,8 +54,8 @@ try {
     }
 
     $cefRoot = Resolve-CefDistributionRoot -Path $sourceArchivePath
-    Stage-CefDistribution -CefRoot $cefRoot
-    Assert-CefStageMatchesLock
+    Stage-CefDistribution -CefRoot $cefRoot -Platform $Platform
+    Assert-CefStageMatchesLock -Platform $Platform
     $completed = $true
 } finally {
     if ($completed) {

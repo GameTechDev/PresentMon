@@ -63,11 +63,12 @@ namespace pm_installer
                             break;
 
                         case "GetConsoleAppPath":
-                            if (args.Length == 2)
+                            if (args.Length == 3)
                             {
                                 var slnDir = args[0];
                                 var ver = args[1];
-                                result = Path.GetFullPath(Path.Combine(args[0], "build", "Release", $"PresentMon-{ver}-x64.exe"));
+                                var arch = args[2];
+                                result = Path.GetFullPath(Path.Combine(slnDir, "build", "Release", $"PresentMon-{ver}-{arch}.exe"));
                             }
                             else
                             {
@@ -76,10 +77,11 @@ namespace pm_installer
                             break;
 
                         case "GetConsoleAppFileName":
-                            if (args.Length == 1)
+                            if (args.Length == 2)
                             {
                                 var ver = args[0];
-                                result = $"PresentMon-{ver}-x64.exe";
+                                var arch = args[1];
+                                result = $"PresentMon-{ver}-{arch}.exe";
                             }
                             else
                             {

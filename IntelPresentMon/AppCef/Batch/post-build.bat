@@ -1,6 +1,8 @@
 @echo off
-echo Validate staged CEF payload...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0validate-cef.ps1" -Mode Stage
+set "CEF_PLATFORM=%~4"
+if "%CEF_PLATFORM%"=="" set "CEF_PLATFORM=x64"
+echo Validate staged CEF payload (%CEF_PLATFORM%)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0validate-cef.ps1" -Mode Stage -Platform "%CEF_PLATFORM%"
 if errorlevel 1 exit /b %errorlevel%
 
 echo Copy CEF binaries...
