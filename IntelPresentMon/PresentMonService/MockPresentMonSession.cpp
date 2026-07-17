@@ -96,6 +96,9 @@ bool MockPresentMonSession::CheckTraceSessions(bool forceTerminate) {
 
     if (stop_trace_join_pending_.load(std::memory_order_acquire)) {
         FinalizeStopTraceSession();
+        if (forceTerminate) {
+            ClearTrackedProcesses();
+        }
         return true;
     }
 
