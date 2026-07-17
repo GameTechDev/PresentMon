@@ -1397,8 +1397,8 @@ namespace InterimBroadcasterTests
             // setup query
             PM_BEGIN_FIXED_FRAME_QUERY(FQ)
                 pmapi::FixedQueryElement timestamp{ this, PM_METRIC_CPU_START_QPC };
-            pmapi::FixedQueryElement timeInPres{ this, PM_METRIC_IN_PRESENT_API };
-            PM_END_FIXED_QUERY query{ session, 1'000 };
+                pmapi::FixedQueryElement timeInPres{ this, PM_METRIC_IN_PRESENT_API };
+            PM_END_FIXED_QUERY query{ session, 350 };
 
             struct Row { uint64_t timestamp; double timeInPresent; };
             std::vector<Row> frames;
@@ -1418,15 +1418,17 @@ namespace InterimBroadcasterTests
             };
 
             // verify that backpressure works correctly to ensure no frames are lost
+            std::this_thread::sleep_for(machine::ScaleWait(400ms));
+
             const auto count1 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count1).c_str());
 
-            std::this_thread::sleep_for(machine::ScaleWait(300ms));
+            std::this_thread::sleep_for(machine::ScaleWait(400ms));
 
             const auto count2 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count2).c_str());
 
-            std::this_thread::sleep_for(machine::ScaleWait(500ms));
+            std::this_thread::sleep_for(machine::ScaleWait(150ms));
 
             const auto count3 = consume();
             Logger::WriteMessage(std::format("count [{}]\n", count3).c_str());

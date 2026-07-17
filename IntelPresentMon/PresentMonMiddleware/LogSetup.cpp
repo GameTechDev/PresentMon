@@ -37,9 +37,12 @@ namespace pmon::util::log
 
 		// creates a copy channel to copy entries to a channel in the same process (useful when the channel
 		// is in a different module/heap)
-		std::shared_ptr<IChannel> MakeCopyChannel_(std::shared_ptr<IChannel> pCopyTargetChannel) noexcept
+		std::shared_ptr<IChannel> MakeCopyChannel_(IChannel* pCopyTargetChannel) noexcept
 		{
 			try {
+				if (!pCopyTargetChannel) {
+					return {};
+				}
 				// channel
 				auto pChannel = std::make_shared<Channel>();
 				// error resolver
@@ -47,7 +50,7 @@ namespace pmon::util::log
 				// make and add the line-tracking policy
 				pChannel->AttachComponent(std::make_shared<LinePolicy>());
 				// configure drivers
-				pChannel->AttachComponent(std::make_shared<CopyDriver>(std::move(pCopyTargetChannel)));
+				pChannel->AttachComponent(std::make_shared<CopyDriver>(pCopyTargetChannel), "drv:copy");
 				return pChannel;
 			}
 			catch (...) {
@@ -123,12 +126,23 @@ namespace pmon::util::log
 		return GetDefaultChannelWithFactory(MakeNullChannel_);
 	}
 
-	void SetupCopyChannel(std::shared_ptr<IChannel> pCopyTargetChannel) noexcept
+	void SetupCopyChannel(IChannel* pCopyTargetChannel) noexcept
 	{
 		// reset logging level when channel is explicitly requested
 		GlobalPolicy::Get().SetLogLevelDefault();
 		GlobalPolicy::Get().SetTraceLevelDefault();
-		InjectDefaultChannel(MakeCopyChannel_(std::move(pCopyTargetChannel)));
+		SeverCopyLoggingBridge();
+		InjectDefaultChannel(MakeCopyChannel_(pCopyTargetChannel));
+	}
+
+	void SeverCopyLoggingBridge() noexcept
+	{
+		try {
+			if (auto pChan = GetDefaultChannel()) {
+				pChan->AttachComponent({}, "drv:copy");
+			}
+		}
+		catch (...) {}
 	}
 
 	void SetupODSChannel(Level logLevel, Level stackTraceLevel, bool exceptionTrace) noexcept
@@ -136,6 +150,7 @@ namespace pmon::util::log
 		GlobalPolicy::Get().SetLogLevel(logLevel);
 		GlobalPolicy::Get().SetTraceLevel(stackTraceLevel);
 		GlobalPolicy::Get().SetExceptionTrace(exceptionTrace);
+		SeverCopyLoggingBridge();
 		InjectDefaultChannel(MakeODSChannel_());
 	}
 
@@ -146,6 +161,7 @@ namespace pmon::util::log
 		try {
 			pDiagnostics_ = std::make_shared<log::DiagnosticDriver>(pConfig);
 			// attach to existing channel if present
+			SeverCopyLoggingBridge();
 			InjectDefaultChannel(MakeDiagnosticChannel_(pDiagnostics_, pConfig->enableSynchronousLogging));
 			// set global logging policy based on the configuration
 			GlobalPolicy::Get().SetLogLevel((Level)pConfig->filterLevel);
@@ -165,6 +181,7 @@ namespace pmon::util::log
 		GlobalPolicy::Get().SetLogLevel(logLevel);
 		GlobalPolicy::Get().SetTraceLevel(stackTraceLevel);
 		GlobalPolicy::Get().SetExceptionTrace(exceptionTrace);
+		SeverCopyLoggingBridge();
 		InjectDefaultChannel(MakeFileChannel_(std::move(path)));
 	}
 

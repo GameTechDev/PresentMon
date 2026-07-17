@@ -65,9 +65,18 @@ namespace pmon::svc
                 pSegment = comms_.GetFrameDataSegment(present.ProcessId);
             }
             if (pSegment) {
-                pSegment->GetStore().frameData.Push(FrameData::CopyFrameData(present));
+                if (!pSegment->GetStore().frameData.Push(FrameData::CopyFrameData(present), timeoutMs)) {
+                    pmlog_warn("Frame broadcast push timed out under backpressure")
+                        .pmwatch(present.ProcessId);
+                }
             }
 		}
+        void ReleaseAllBackpressure()
+        {
+            for (auto pid : GetPids()) {
+                UpdateReadSerial(pid, GetCurrentWriteSerial(pid).value_or(0));
+            }
+        }
         // Update the single consumer cursor for a backpressured playback ring. Playback
         // backpressure is SPSC: one producer in the service and one owning client reader.
         void UpdateReadSerial(uint32_t pid, uint64_t effectiveSerial)
