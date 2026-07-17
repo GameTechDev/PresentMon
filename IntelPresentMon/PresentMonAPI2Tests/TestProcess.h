@@ -186,7 +186,7 @@ public:
 		static constexpr auto kServiceExitTimeout = 15s;
 		if (!WaitForExit(kServiceExitTimeout)) {
 			Logger::WriteMessage(std::format(
-				"Service did not exit within {}ms after quit; terminating\n",
+				"Service did not exit within {}s after quit; terminating\n",
 				kServiceExitTimeout.count()).c_str());
 			Murder();
 			return;
