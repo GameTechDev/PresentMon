@@ -3,7 +3,6 @@
 #include "../CommonUtilities/win/WinAPI.h"
 #include <fstream>
 #include "CppUnitTest.h"
-#include "FirstFrameWait.h"
 #include "Folders.h"
 #include "StatusComparison.h"
 #include "TestProcess.h"
@@ -205,11 +204,18 @@ namespace EtlTests
 
 		processTracker = pSession->TrackProcess(processId, true, true);
 
-		if (!pmon::tests::TryWaitForFirstFrame(
-			controlPipe_,
-			processId,
-			"etl-playback",
-			std::chrono::seconds(waitTimeSecs))) {
+		const auto firstFrameDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(waitTimeSecs);
+		bool gotFirstFrame = false;
+		while (std::chrono::steady_clock::now() < firstFrameDeadline) {
+			frameQuery.Consume(processTracker, blobs);
+			if (blobs.GetNumBlobsPopulated() > 0) {
+				gotFirstFrame = true;
+				goldCsvFile.VerifyBlobAgainstCsv(processName, processId, queryElements, blobs, outputCsvFile);
+				break;
+			}
+			std::this_thread::sleep_for(8ms);
+		}
+		if (!gotFirstFrame) {
 			throw CsvException("Timeout waiting to consume first frame");
 		}
 
@@ -228,6 +234,23 @@ namespace EtlTests
 				goldCsvFile.VerifyBlobAgainstCsv(processName, processId, queryElements, blobs, outputCsvFile);
 			}
 		}
+		// Drain the backpressured playback ring so the service output thread cannot
+		// block indefinitely during session teardown.
+		int drainEmptyPollCount = 0;
+		while (drainEmptyPollCount < pollCount) {
+			frameQuery.Consume(processTracker, blobs);
+			if (blobs.GetNumBlobsPopulated() == 0) {
+				if (++drainEmptyPollCount >= pollCount) {
+					break;
+				}
+				std::this_thread::sleep_for(8ms);
+			}
+			else {
+				drainEmptyPollCount = 0;
+				goldCsvFile.VerifyBlobAgainstCsv(processName, processId, queryElements, blobs, outputCsvFile);
+			}
+		}
+		processTracker.FlushFrames();
 	}
 
 	TEST_CLASS(GoldEtlCsvTests)
