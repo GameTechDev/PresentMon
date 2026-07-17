@@ -151,6 +151,20 @@ namespace InterPresentActivityTests
             Assert::AreEqual((uint64_t)9000, PsoStats_(frame).summedBusyQpc);
         }
 
+        TEST_METHOD(CompleteFrameIsIdempotentForSamePresentEvent)
+        {
+            InterPresentActivity trace;
+            PresentEvent frame{};
+            frame.ProcessId = 42;
+
+            trace.CompleteFrame(&frame, 8000);
+            Assert::IsTrue(frame.InterPresentFrameCompleted);
+            Assert::AreEqual((uint64_t)8000, frame.InterPresentFramePeriodQpc);
+
+            trace.CompleteFrame(&frame, 9000);
+            Assert::AreEqual((uint64_t)8000, frame.InterPresentFramePeriodQpc);
+        }
+
         TEST_METHOD(MultiFrameInFlightCreditsBusyEachFrame)
         {
             InterPresentActivity trace;

@@ -163,10 +163,9 @@ void InterPresentActivity::CompleteFrame(PresentEvent* pEvent, uint64_t interPre
         pmlog_warn("Inter-present CompleteFrame called with null PresentEvent");
         return;
     }
+    // Same present can be finalized from QueuePacket_Stop and MMIO flip (either order).
+    // Only the first interPresentCloseQpc wins, matching GpuTrace::CompleteFrame.
     if (pEvent->InterPresentFrameCompleted) {
-        pmlog_warn("Inter-present frame stats already completed for this PresentEvent")
-            .pmwatch(pEvent->ProcessId)
-            .pmwatch(interPresentCloseQpc);
         return;
     }
 
