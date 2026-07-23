@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2026 Intel Corporation
+// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "MetricsCalculator.h"
 #include "MetricsCalculatorInternal.h"
@@ -132,61 +132,6 @@ namespace pmon::util::metrics
             nextScreenTime = screenTime;
             nextDisplayedPresent->displayed[0].second = nextScreenTime;
         }
-    }
-
-
-    DisplayIndexing DisplayIndexing::Calculate(
-        const FrameData& present,
-        const FrameData* nextDisplayed)
-    {
-        DisplayIndexing result{};
-
-        // Get display count
-        auto displayCount = present.displayed.Size();  // ConsoleAdapter/PresentSnapshot method
-
-        // Check if displayed
-        bool displayed = present.finalState == PresentResult::Presented && displayCount > 0;
-
-        // hasNextDisplayed
-        result.hasNextDisplayed = (nextDisplayed != nullptr);
-
-        // Figure out range to process based on three cases:
-        // Case 1: Not displayed → empty range [0, 0)
-        // Case 2: Displayed, no next → process [0..N-2], postpone N-1 → range [0, N-1)
-        // Case 3: Displayed, with next → process postponed [N-1] → range [N-1, N)
-
-        if (!displayed || displayCount == 0) {
-            // Case 1: Not displayed
-            result.startIndex = 0;
-            result.endIndex = 0;  // Empty range
-        }
-        else if (nextDisplayed == nullptr) {
-            // Case 2: Postpone last display
-            result.startIndex = 0;
-            result.endIndex = displayCount - 1;  // One past [N-2] = [N-1] (excludes last!)
-        }
-        else {
-            // Case 3: Process postponed last display
-            result.startIndex = displayCount - 1;
-            result.endIndex = displayCount;  // One past [N-1] = [N]
-        }
-
-        // appIndex - find first NotSet or Application frame
-        // Search from startIndex through ALL displays (not just the processing range)
-        result.appIndex = std::numeric_limits<size_t>::max();
-        if (displayCount > 0) {
-            for (size_t i = result.startIndex; i < displayCount; ++i) {
-                auto frameType = present.displayed[i].first;
-                if (frameType == FrameType::NotSet || frameType == FrameType::Application) {
-                    result.appIndex = i;
-                    break;
-                }
-            }
-        }
-        else {
-            result.appIndex = 0;
-        }
-        return result;
     }
 
 
