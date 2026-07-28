@@ -35,7 +35,8 @@ private:
         bool isPlaybackRetimed,
         bool isPlaybackBackpressured,
         bool isPlaybackResetOldest);
-    void StopTraceSession();
+    void RequestStopTraceSession();
+    void FinalizeStopTraceSession();
 
     void DequeueAnalyzedInfo(
         std::vector<ProcessEvent>* processEvents,
@@ -83,4 +84,5 @@ private:
     mutable std::mutex session_mutex_;
     // TODO: evaluate necessity/improvements on this construct
     std::atomic<bool> session_active_{false};  // Lock-free session state for hot path queries
+    std::atomic<bool> stop_trace_join_pending_{ false };
 };

@@ -137,7 +137,27 @@ namespace pmon::mid
 
     Middleware& Middleware::operator=(Middleware&&) = default;
 
-    Middleware::~Middleware() = default;
+    Middleware::~Middleware() noexcept
+    {
+        try {
+            std::vector<uint32_t> trackedPids;
+            trackedPids.reserve(frameMetricsSources_.size());
+            for (const auto& entry : frameMetricsSources_) {
+                trackedPids.push_back(entry.first);
+            }
+            for (uint32_t pid : trackedPids) {
+                try {
+                    StopTracking(pid);
+                }
+                catch (...) {
+                    pmlog_warn(std::format("StopTracking failed during middleware teardown for pid [{}]", pid));
+                }
+            }
+        }
+        catch (...) {
+            pmlog_error(util::ReportException("Middleware teardown"));
+        }
+    }
     
     const PM_INTROSPECTION_ROOT* Middleware::GetIntrospectionData()
     {

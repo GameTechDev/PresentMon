@@ -8,10 +8,10 @@ namespace pmon::util::log
 	class CopyDriver : public IDriver
 	{
 	public:
-		CopyDriver(std::shared_ptr<IChannel> pChannel);
+		explicit CopyDriver(IChannel* pChannel) noexcept;
 		void Submit(const Entry&) override;
 		void Flush() override;
 	private:
-		std::shared_ptr<IChannel> pChannel_;
+		IChannel* pChannel_;
 	};
 }

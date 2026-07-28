@@ -28,7 +28,7 @@ namespace pmon::mid
 		Middleware& operator=(const Middleware&) = delete;
 		Middleware(Middleware&&);
 		Middleware& operator=(Middleware&&);
-		~Middleware();
+		~Middleware() noexcept;
 		const PM_INTROSPECTION_ROOT* GetIntrospectionData();
 		void FreeIntrospectionData(const PM_INTROSPECTION_ROOT* pRoot);
 		void StartTracking(uint32_t processId);

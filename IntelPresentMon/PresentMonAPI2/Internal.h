@@ -15,17 +15,22 @@ PRESENTMON_API2_EXPORT _CrtMemState pmCreateHeapCheckpoint_();
 // log configuration support functions
 struct LoggingSingletons
 {
-	std::function<pmon::util::log::GlobalPolicy& ()> getGlobalPolicy;
-	std::function<pmon::util::log::LineTable& ()> getLineTable;
+	using GlobalPolicyRefFn = pmon::util::log::GlobalPolicy & (*)();
+	using LineTableRefFn = pmon::util::log::LineTable & (*)();
+	GlobalPolicyRefFn getGlobalPolicy = nullptr;
+	LineTableRefFn getLineTable = nullptr;
 	operator bool() const noexcept
 	{
 		return getGlobalPolicy || getLineTable;
 	}
 };
-// function to connect (subordinate) the dll logging system to the exe one
-// replace default channel (nullptr) with a channel that copies entries to pChannel
-// optionally hook up an id table to copy entries to as well
-// return getters for config singletons in the dll to config from the exe
+// Connect (subordinate) the dll logging system to the host module.
+// Prefer pmLinkLoggingPtrs_ for all in-repo callers: do not pass shared_ptr or
+// std::function across module boundaries (/MT heap). pmLinkLogging_ remains exported
+// for older loader/middleware ABI (v2.5.1 mangled name); avoid new call sites.
+PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLoggingPtrs_(
+	pmon::util::log::IChannel* pChannel,
+	pmon::util::log::IdentificationTable* pExeTable);
 PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(
 	std::shared_ptr<pmon::util::log::IChannel> pChannel,
 	std::function<pmon::util::log::IdentificationTable&()> getIdTable);

@@ -64,13 +64,17 @@ namespace pmon::test
 		{
 			std::mutex mtx;
 			bool linked = false;
-			LoggingSingletons getters{};
 		};
 
 		LogLinkState& GetLogLinkState_()
 		{
 			static LogLinkState state;
 			return state;
+		}
+
+		util::log::IdentificationTable* GetLinkIdTablePtr_() noexcept
+		{
+			return util::log::IdentificationTable::GetPtr();
 		}
 
 		util::log::Level ParseLogLevel_(const std::string& logLevel)
@@ -165,21 +169,15 @@ namespace pmon::test
 			}
 
 			auto& linkState = GetLogLinkState_();
-			LoggingSingletons gettersCopy{};
+			LoggingSingletons getters{};
 			{
 				std::lock_guard lock{ linkState.mtx };
-				if (!linkState.linked) {
-					linkState.getters = pmLinkLogging_(
-						pChannel,
-						[]() -> util::log::IdentificationTable& {
-							return util::log::IdentificationTable::Get_(); });
-					linkState.linked = true;
-				}
-				gettersCopy = linkState.getters;
+				getters = pmLinkLoggingPtrs_(pChannel.get(), GetLinkIdTablePtr_());
+				linkState.linked = true;
 			}
 
-			if (gettersCopy) {
-				auto& dllPolicy = gettersCopy.getGlobalPolicy();
+			if (getters) {
+				auto& dllPolicy = getters.getGlobalPolicy();
 				dllPolicy.SetLogLevel(level);
 				dllPolicy.SetTraceLevel(util::log::Level::Error);
 				dllPolicy.SetExceptionTrace(false);
@@ -204,7 +202,6 @@ namespace pmon::test
 		util::log::FlushEntryPoint();
 		auto& linkState = GetLogLinkState_();
 		std::lock_guard lock{ linkState.mtx };
-		linkState.getters = {};
 		linkState.linked = false;
 	}
 }

@@ -183,7 +183,14 @@ public:
 	{
 		Assert::IsTrue(process_.running());
 		Assert::AreEqual("quit-ok"s, Command("quit"));
-		process_.wait();
+		static constexpr auto kServiceExitTimeout = 15s;
+		if (!WaitForExit(kServiceExitTimeout)) {
+			Logger::WriteMessage(std::format(
+				"Service did not exit within {}s after quit; terminating\n",
+				kServiceExitTimeout.count()).c_str());
+			Murder();
+			return;
+		}
 	}
 	void Ping()
 	{
