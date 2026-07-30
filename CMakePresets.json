@@ -50,6 +50,40 @@
         "PMON_ENABLE_UCI": "AUTO",
         "PMON_SIGNING_BACKEND": "AUTO"
       }
+    },
+    {
+      "name": "windows-win32-base",
+      "hidden": true,
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "Win32",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build/cmake/${presetName}",
+      "cacheVariables": {
+        "PMON_OUTPUT_ROOT": "${sourceDir}/build"
+      }
+    },
+    {
+      "name": "windows-win32-dependencies",
+      "displayName": "Windows Win32 Dependency Restore",
+      "description": "Restore pinned Win32 vcpkg dependencies into build/ThirdParty",
+      "inherits": "windows-win32-base",
+      "cacheVariables": {
+        "PMON_AUTO_RESTORE_VCPKG": true,
+        "PMON_DEPLOYMENT_PROFILE": "DEVELOPER",
+        "PMON_ENABLE_UCI": "OFF"
+      }
+    },
+    {
+      "name": "windows-win32-developer",
+      "displayName": "Windows Win32 Developer",
+      "description": "Win32 standalone component build",
+      "inherits": "windows-win32-base",
+      "cacheVariables": {
+        "PMON_DEPLOYMENT_PROFILE": "DEVELOPER",
+        "PMON_ENABLE_UCI": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -69,6 +103,18 @@
       "name": "windows-x64-production-release",
       "displayName": "Windows x64 Production Release",
       "configurePreset": "windows-x64-production",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-win32-developer-debug",
+      "displayName": "Windows Win32 Developer Debug",
+      "configurePreset": "windows-win32-developer",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-win32-developer-release",
+      "displayName": "Windows Win32 Developer Release",
+      "configurePreset": "windows-win32-developer",
       "configuration": "Release"
     }
   ]

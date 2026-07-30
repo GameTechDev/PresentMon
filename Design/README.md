@@ -7,6 +7,7 @@ This directory contains the authoritative design and execution record for the CM
 - [CMake Migration Design](CMakeMigration.md): goals, decisions, target organization, and migration phases.
 - [Phase 0 - Parity Baseline](Phase0-ParityBaseline.md): MSBuild baseline, artifact contract, tests, and known failures.
 - [Phase 1 - CMake Infrastructure](Phase1-CMakeInfrastructure.md): root project, presets, options, shared policies, and verification.
+- [Phase 2 - Foundation and Standalone Targets](Phase2-FoundationAndStandalone.md): foundation split, console, provider, tools, and multi-architecture verification.
 
 ## Document Convention
 

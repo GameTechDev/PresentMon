@@ -1,8 +1,12 @@
 include_guard(GLOBAL)
 
 function(pmon_register_artifact artifact_path)
-    cmake_path(ABSOLUTE_PATH artifact_path BASE_DIRECTORY "${PROJECT_SOURCE_DIR}")
-    set_property(GLOBAL APPEND PROPERTY PMON_EXPECTED_ARTIFACTS "${artifact_path}")
+    if(IS_ABSOLUTE "${artifact_path}" OR artifact_path MATCHES "^\\$<")
+        set(resolved_artifact_path "${artifact_path}")
+    else()
+        set(resolved_artifact_path "${PROJECT_SOURCE_DIR}/${artifact_path}")
+    endif()
+    set_property(GLOBAL APPEND PROPERTY PMON_EXPECTED_ARTIFACTS "${resolved_artifact_path}")
 endfunction()
 
 function(pmon_add_artifact_verification_target)

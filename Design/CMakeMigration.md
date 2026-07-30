@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft. Phases 0 and 1 are complete for the primary x64 migration.
+Draft. Phases 0 through 2 are complete.
 
 This document defines a new CMake migration plan based only on the current source tree. Existing experimental branches and designs are intentionally excluded.
 
@@ -294,6 +294,8 @@ Status: Complete. See [Phase 1 - CMake Infrastructure](Phase1-CMakeInfrastructur
 
 ### Phase 2: Standalone and Foundation Targets
 
+Status: Complete. See [Phase 2 - Foundation and Standalone Targets](Phase2-FoundationAndStandalone.md).
+
 - Convert CommonUtilities base, PresentData, and metrics.
 - Convert the console application.
 - Convert Provider, ETLTrimmer, `etw_list`, and `pm_convert_csv`.
@@ -363,4 +365,4 @@ Each phase must pass its relevant gates before proceeding:
 
 ## Immediate Next Step
 
-Begin Phase 2 with the internal foundation targets, then convert the standalone console and tools against those dependencies.
+Begin Phase 3 with Versioning, Interprocess, wrapper libraries, ControlLib, and the service/API target graph.

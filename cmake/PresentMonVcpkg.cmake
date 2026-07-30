@@ -53,7 +53,12 @@ function(pmon_configure_vcpkg)
             "vcpkg toolchain file"
         )
     endif()
-    set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "vcpkg target triplet")
+    if(CMAKE_GENERATOR_PLATFORM STREQUAL "Win32")
+        set(default_target_triplet "x86-windows-static")
+    else()
+        set(default_target_triplet "x64-windows-static")
+    endif()
+    set(VCPKG_TARGET_TRIPLET "${default_target_triplet}" CACHE STRING "vcpkg target triplet")
     set(VCPKG_HOST_TRIPLET "x64-windows-static" CACHE STRING "vcpkg host triplet")
     set(VCPKG_MANIFEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "vcpkg manifest directory")
     set(
@@ -64,9 +69,9 @@ function(pmon_configure_vcpkg)
     )
     set(
         VCPKG_INSTALLED_DIR
-        "${CMAKE_CURRENT_SOURCE_DIR}/build/ThirdParty/vcpkg_installed"
+        "${CMAKE_CURRENT_SOURCE_DIR}/build/ThirdParty/vcpkg_installed/${default_target_triplet}"
         CACHE PATH
-        "Shared vcpkg installation root"
+        "Shared per-architecture vcpkg installation root"
     )
     set(
         ENV{VCPKG_DOWNLOADS}

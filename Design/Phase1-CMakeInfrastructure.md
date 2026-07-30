@@ -49,7 +49,7 @@ Build presets:
 - `windows-x64-developer-release`
 - `windows-x64-production-release`
 
-Normal developer and production configuration does not permit vcpkg network restoration. The dependency preset performs the explicit restore into `build/ThirdParty/vcpkg_installed`, with source downloads under `build/ThirdParty/vcpkg-downloads`.
+Normal developer and production configuration does not permit vcpkg network restoration. Dependency presets perform explicit restores into per-triplet directories under `build/ThirdParty/vcpkg_installed`, with source downloads under `build/ThirdParty/vcpkg-downloads`.
 
 ## Component Options
 

@@ -13,6 +13,7 @@ function(pmon_create_compiler_targets)
         pmon_build_options
         INTERFACE
             /MP
+            /sdl
             /external:W0
             $<$<COMPILE_LANGUAGE:CXX>:/permissive->
             $<$<COMPILE_LANGUAGE:CXX>:/std:c++latest>
@@ -22,6 +23,8 @@ function(pmon_create_compiler_targets)
         INTERFACE
             CEREAL_THREAD_SAFE=1
             BOOST_ALLOW_DEPRECATED_HEADERS
+            UNICODE
+            _UNICODE
     )
     set_property(TARGET pmon_build_options PROPERTY FOLDER "Build")
 
