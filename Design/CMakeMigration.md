@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft. Phase 0 is complete for the primary x64 baseline.
+Draft. Phases 0 and 1 are complete for the primary x64 migration.
 
 This document defines a new CMake migration plan based only on the current source tree. Existing experimental branches and designs are intentionally excluded.
 
@@ -284,6 +284,8 @@ Final CMake target names may retain existing product names while using aliases a
 
 ### Phase 1: CMake Infrastructure
 
+Status: Complete. See [Phase 1 - CMake Infrastructure](Phase1-CMakeInfrastructure.md).
+
 - Add root CMake project and presets.
 - Add common MSVC, output, version, and generation helpers.
 - Add pinned dependency integration.
@@ -361,4 +363,4 @@ Each phase must pass its relevant gates before proceeding:
 
 ## Immediate Next Step
 
-Begin Phase 1 by defining the root CMake project, presets, component options, output contract, and shared MSVC policy without converting product targets yet.
+Begin Phase 2 with the internal foundation targets, then convert the standalone console and tools against those dependencies.

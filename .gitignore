@@ -4,6 +4,7 @@
 # Build results
 /build/
 PresentMon/build/
+CMakeUserPresets.json
 
 # Claude Code
 .claude/

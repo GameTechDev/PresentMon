@@ -1,0 +1,75 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-x64-base",
+      "hidden": true,
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build/cmake/${presetName}",
+      "cacheVariables": {
+        "PMON_OUTPUT_ROOT": "${sourceDir}/build"
+      }
+    },
+    {
+      "name": "windows-x64-dependencies",
+      "displayName": "Windows x64 Dependency Restore",
+      "description": "Restore pinned vcpkg dependencies into build/ThirdParty",
+      "inherits": "windows-x64-base",
+      "cacheVariables": {
+        "PMON_AUTO_RESTORE_VCPKG": true,
+        "PMON_DEPLOYMENT_PROFILE": "DEVELOPER",
+        "PMON_ENABLE_UCI": "OFF"
+      }
+    },
+    {
+      "name": "windows-x64-developer",
+      "displayName": "Windows x64 Developer",
+      "description": "Local developer build with uiAccess disabled and optional signing",
+      "inherits": "windows-x64-base",
+      "cacheVariables": {
+        "PMON_DEPLOYMENT_PROFILE": "DEVELOPER",
+        "PMON_ENABLE_UCI": "AUTO"
+      }
+    },
+    {
+      "name": "windows-x64-production",
+      "displayName": "Windows x64 Production",
+      "description": "Production build with uiAccess enabled and required signing",
+      "inherits": "windows-x64-base",
+      "cacheVariables": {
+        "PMON_DEPLOYMENT_PROFILE": "PRODUCTION",
+        "PMON_ENABLE_UCI": "AUTO",
+        "PMON_SIGNING_BACKEND": "AUTO"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-x64-developer-debug",
+      "displayName": "Windows x64 Developer Debug",
+      "configurePreset": "windows-x64-developer",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-x64-developer-release",
+      "displayName": "Windows x64 Developer Release",
+      "configurePreset": "windows-x64-developer",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-x64-production-release",
+      "displayName": "Windows x64 Production Release",
+      "configurePreset": "windows-x64-production",
+      "configuration": "Release"
+    }
+  ]
+}
