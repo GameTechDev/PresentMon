@@ -532,6 +532,18 @@ bool ValidateMetricValue(double expected, double actual)
     return Validate(expected, actual);
 }
 
+void ValidateMetricOrThrow(Header columnId, size_t line, double gold, double actual) {
+    if (!ValidateMetricValue(gold, actual)) {
+        throw CsvValidationException(columnId, line, gold, actual);
+    }
+}
+
+void ValidateFrameTypeOrThrow(Header columnId, size_t line, PM_FRAME_TYPE gold, PM_FRAME_TYPE test) {
+    if (!ValidateFrameType(gold, test)) {
+        throw CsvValidationException(columnId, line, gold, test);
+    }
+}
+
 std::optional<std::ofstream> CreateCsvFile(std::string& output_dir, std::string& processName)
 {
     // Setup csv file
@@ -792,7 +804,6 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
         // Go through all of the active headers and validate results
         for (const auto& pair : activeColHeadersMap_) {
 
-            bool columnsMatch = false;
             switch (pair.second)
             {
             case Header_Application:
@@ -820,7 +831,7 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
                 ValidateOrThrow(pair.second, line_, v2MetricRow_.presentMode, presentMode);
                 break;
             case Header_FrameType:
-                columnsMatch = ValidateFrameType(v2MetricRow_.frameType, frameType);
+                ValidateFrameTypeOrThrow(pair.second, line_, v2MetricRow_.frameType, frameType);
                 break;
             case Header_TimeInSeconds:
                 ValidateOrThrow(pair.second, line_, v2MetricRow_.presentStartQPC, timeQpc);
@@ -829,13 +840,13 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
                 ValidateOrThrow(pair.second, line_, v2MetricRow_.cpuFrameQpc, cpuStartQpc);
                 break;
             case Header_MsBetweenAppStart:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msBetweenAppStart, msBetweenAppStart);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msBetweenAppStart, msBetweenAppStart);
                 break;
             case Header_MsCPUBusy:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msCpuBusy, msCpuBusy);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msCpuBusy, msCpuBusy);
                 break;
             case Header_MsCPUWait:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msCpuWait, msCpuWait);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msCpuWait, msCpuWait);
                 break;
             case Header_MsGPULatency:
                 ValidateOrThrow(pair.second, line_, v2MetricRow_.msGpuLatency, msGpuLatency);
@@ -850,34 +861,34 @@ bool CsvParser::VerifyBlobAgainstCsv(const std::string& processName, const unsig
                 ValidateOrThrow(pair.second, line_, v2MetricRow_.msGpuWait, msGpuWait);
                 break;
             case Header_MsBetweenSimulationStart:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msBetweenSimStart, msBetweenSimStartTime);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msBetweenSimStart, msBetweenSimStartTime);
                 break;
             case Header_MsUntilDisplayed:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msUntilDisplayed, msUntilDisplayed);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msUntilDisplayed, msUntilDisplayed);
                 break;
             case Header_MsBetweenDisplayChange:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msBetweenDisplayChange, msBetweenDisplayChange);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msBetweenDisplayChange, msBetweenDisplayChange);
                 break;
             case Header_MsPCLatency:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msPcLatency, msPcLatency);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msPcLatency, msPcLatency);
                 break;
             case Header_MsAnimationError:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msAnimationError, msAnimationError);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msAnimationError, msAnimationError);
                 break;
             case Header_AnimationTime:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.animationTime, animationTime);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.animationTime, animationTime);
                 break;
             case Header_MsFlipDelay:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msFlipDelay, msFrameDelay);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msFlipDelay, msFrameDelay);
                 break;
             case Header_MsClickToPhotonLatency:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msClickToPhotonLatency, msClickToPhotonLatency);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msClickToPhotonLatency, msClickToPhotonLatency);
                 break;
             case Header_MsAllInputToPhotonLatency:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msAllInputToPhotonLatency, msAllInputToPhotonLatency);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msAllInputToPhotonLatency, msAllInputToPhotonLatency);
                 break;
             case Header_MsInstrumentedLatency:
-                columnsMatch = ValidateMetricValue(v2MetricRow_.msInstrumentedLatency, msInstrumentedLatency);
+                ValidateMetricOrThrow(pair.second, line_, v2MetricRow_.msInstrumentedLatency, msInstrumentedLatency);
                 break;
             default:
                 // Unknown header, skip validation

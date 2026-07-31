@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -73,6 +73,8 @@
     <ClInclude Include="Math.h" />
     <ClInclude Include="SampleStatistics.h" />
     <ClInclude Include="mc\FrameMetricsMemberMap.h" />
+    <ClInclude Include="mc\AnimationErrorTracker.h" />
+    <ClInclude Include="mc\DisplayFrameQueue.h" />
     <ClInclude Include="mc\MetricsCalculator.h" />
     <ClInclude Include="mc\MetricsCalculatorInternal.h" />
     <ClInclude Include="mc\MetricsTypes.h" />
@@ -165,6 +167,8 @@
     <ClCompile Include="log\TimePoint.cpp" />
     <ClCompile Include="log\Verbose.cpp" />
     <ClCompile Include="mc\MetricsCalculator.cpp" />
+    <ClCompile Include="mc\AnimationErrorTracker.cpp" />
+    <ClCompile Include="mc\DisplayFrameQueue.cpp" />
     <ClCompile Include="mc\MetricsCalculatorCpuGpu.cpp" />
     <ClCompile Include="mc\MetricsCalculatorDisplay.cpp" />
     <ClCompile Include="mc\MetricsCalculatorInput.cpp" />

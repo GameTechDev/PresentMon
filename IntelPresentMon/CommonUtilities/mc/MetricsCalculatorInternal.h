@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2026 Intel Corporation
+// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
 
@@ -31,12 +31,7 @@ namespace pmon::util::metrics
         FrameMetrics& metrics);
 
     void CalculateAnimationMetrics(
-        const QpcConverter& qpc,
-        const SwapChainCoreState& swapChain,
-        const FrameData& present,
-        bool isDisplayed,
-        bool isAppFrame,
-        uint64_t screenTime,
+        const AnimationDisplayContext& animation,
         FrameMetrics& metrics);
 
     void CalculateInputLatencyMetrics(
