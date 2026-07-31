@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Optional reference for IDE: Test -> Configure Run Settings. Serial native tests only.
+     PM_TEST_REDIRECT_CRT_ASSERTS is agent-only (run_presentmon_tests.ps1), not via runsettings. -->
+<RunSettings>
+
+  <RunConfiguration>
+
+    <MaxCpuCount>1</MaxCpuCount>
+
+  </RunConfiguration>
+
+  <MSTest>
+
+    <Parallelize>
+
+      <Workers>1</Workers>
+
+      <Scope>MethodLevel</Scope>
+
+    </Parallelize>
+
+  </MSTest>
+
+</RunSettings>
+

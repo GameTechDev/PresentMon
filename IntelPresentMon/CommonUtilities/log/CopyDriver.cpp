@@ -2,14 +2,20 @@
 
 namespace pmon::util::log
 {
-	CopyDriver::CopyDriver(IChannel* pChannel) noexcept
+	CopyDriver::CopyDriver(IChannel* pChannel, HostLogEntryForwardFn forwardFn) noexcept
 		:
-		pChannel_{ pChannel }
+		pChannel_{ pChannel },
+		forwardFn_{ forwardFn }
 	{}
 	void CopyDriver::Submit(const Entry& e)
 	{
 		if (pChannel_) {
-			pChannel_->Submit(e);
+			if (forwardFn_) {
+				forwardFn_(pChannel_, e);
+			}
+			else {
+				pChannel_->Submit(e);
+			}
 		}
 	}
 	void CopyDriver::Flush()

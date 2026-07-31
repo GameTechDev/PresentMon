@@ -61,7 +61,7 @@ _CrtMemState(*pFunc_pmCreateHeapCheckpoint__)() = nullptr;
 LoggingSingletons(*pFunc_pmLinkLogging__)(std::shared_ptr<pmon::util::log::IChannel>,
 	std::function<pmon::util::log::IdentificationTable&()>) = nullptr;
 LoggingSingletons(*pFunc_pmLinkLoggingPtrs__)(pmon::util::log::IChannel*,
-	pmon::util::log::IdentificationTable*) = nullptr;
+	pmon::util::log::IdentificationTable*, PmLogEntryForwardFn, PmIdAddThreadFn, PmIdAddProcessFn) = nullptr;
 void(*pFunc_pmUnlinkLogging__)() = nullptr;
 void(*pFunc_pmFlushEntryPoint__)() = nullptr;
 void(*pFunc_pmSetupODSLogging__)(PM_DIAGNOSTIC_LEVEL, PM_DIAGNOSTIC_LEVEL, bool) = nullptr;
@@ -365,7 +365,7 @@ PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(std::shared_ptr<pmon::ut
 	if (pFunc_pmLinkLoggingPtrs__) {
 		pmon::util::log::IChannel* pChan = pChannel.get();
 		pmon::util::log::IdentificationTable* pExeTable = getIdTable ? &getIdTable() : nullptr;
-		return pFunc_pmLinkLoggingPtrs__(pChan, pExeTable);
+		return pFunc_pmLinkLoggingPtrs__(pChan, pExeTable, nullptr, nullptr, nullptr);
 	}
 	if (!pFunc_pmLinkLogging__) {
 		return {};
@@ -373,7 +373,8 @@ PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(std::shared_ptr<pmon::ut
 	return pFunc_pmLinkLogging__(pChannel, std::move(getIdTable));
 }
 PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLoggingPtrs_(pmon::util::log::IChannel* pChannel,
-	pmon::util::log::IdentificationTable* pExeTable)
+	pmon::util::log::IdentificationTable* pExeTable, PmLogEntryForwardFn forwardLogEntryFn,
+	PmIdAddThreadFn forwardAddThreadFn, PmIdAddProcessFn forwardAddProcessFn) noexcept
 {
 	if (!middlewareLoadedSuccessfully_) {
 		if (auto status = LoadLibrary_(); status != PM_STATUS_SUCCESS) {
@@ -383,7 +384,8 @@ PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLoggingPtrs_(pmon::util::log::ICh
 	if (!pFunc_pmLinkLoggingPtrs__) {
 		return {};
 	}
-	return pFunc_pmLinkLoggingPtrs__(pChannel, pExeTable);
+	return pFunc_pmLinkLoggingPtrs__(pChannel, pExeTable, forwardLogEntryFn, forwardAddThreadFn,
+		forwardAddProcessFn);
 }
 PRESENTMON_API2_EXPORT void pmUnlinkLogging_() noexcept
 {

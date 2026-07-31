@@ -104,6 +104,7 @@
     <ClInclude Include="rng\OptionalMinMax.h" />
     <ClInclude Include="rng\PairToRange.h" />
     <ClInclude Include="str\String.h" />
+    <ClInclude Include="test\CrtDiagnosticsRedirect.h" />
     <ClInclude Include="test\FloatAssert.h" />
     <ClInclude Include="test\MachineExpectations.h" />
     <ClInclude Include="third\reflect.hpp" />
@@ -131,6 +132,7 @@
     <ClCompile Include="cli\CliFramework.cpp" />
     <ClCompile Include="Env.cpp" />
     <ClCompile Include="Exception.cpp" />
+    <ClCompile Include="test\CrtDiagnosticsRedirect.cpp" />
     <ClCompile Include="file\FileUtils.cpp" />
     <ClCompile Include="file\PathUtils.cpp" />
     <ClCompile Include="file\SecureSubdirectory.cpp" />

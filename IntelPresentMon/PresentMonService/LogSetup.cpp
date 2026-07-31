@@ -1,4 +1,5 @@
-﻿#include "LogSetup.h"
+﻿#include "../CommonUtilities/test/CrtDiagnosticsRedirect.h"
+#include "LogSetup.h"
 #include <chrono>
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/log/Channel.h"
@@ -160,6 +161,7 @@ namespace logsetup
 
 	LogChannelManager::LogChannelManager() noexcept
 	{
+		pmon::util::test::MaybeInstallCrtAssertRedirect();
 		InstallSehTranslator();
 		BootDefaultChannelEager();
 	}

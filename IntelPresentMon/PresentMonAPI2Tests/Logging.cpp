@@ -16,7 +16,10 @@
 #include "../CommonUtilities/win/WinAPI.h"
 #include "../CommonUtilities/Exception.h"
 #include "../PresentMonAPIWrapperCommon/PmErrorCodeProvider.h"
+#include "../CommonUtilities/log/HostLogEntryForward.h"
+#include "../CommonUtilities/log/HostIdentificationForward.h"
 #include "../PresentMonAPI2/Internal.h"
+#include "TestDiagnosticsRedirect.h"
 
 #include <cctype>
 #include <filesystem>
@@ -172,7 +175,10 @@ namespace pmon::test
 			LoggingSingletons getters{};
 			{
 				std::lock_guard lock{ linkState.mtx };
-				getters = pmLinkLoggingPtrs_(pChannel.get(), GetLinkIdTablePtr_());
+				getters = pmLinkLoggingPtrs_(pChannel.get(), GetLinkIdTablePtr_(),
+					&util::log::ForwardLogEntryToHostChannel,
+					&util::log::ForwardAddThreadToHostIdTable,
+					&util::log::ForwardAddProcessToHostIdTable);
 				linkState.linked = true;
 			}
 
@@ -192,6 +198,7 @@ namespace pmon::test
 
 	LogChannelManager::LogChannelManager() noexcept
 	{
+		pmon::test::ReapplyTestDiagnosticsRedirectIfEnabled();
 		util::InstallSehTranslator();
 		util::log::BootDefaultChannelEager();
 	}

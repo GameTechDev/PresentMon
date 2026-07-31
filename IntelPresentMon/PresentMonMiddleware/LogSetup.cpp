@@ -9,8 +9,10 @@
 #include "../CommonUtilities/log/ErrorCodeResolver.h"
 #include "../CommonUtilities/win/HrErrorCodeProvider.h"
 #include "../PresentMonAPIWrapperCommon/PmErrorCodeProvider.h"
+#include "../CommonUtilities/win/WinAPI.h"
 #include "../CommonUtilities/log/CopyDriver.h"
 #include "../CommonUtilities/log/DiagnosticDriver.h"
+#include "../CommonUtilities/log/Log.h"
 #include "LogSetup.h"
 #include <memory>
 
@@ -37,7 +39,8 @@ namespace pmon::util::log
 
 		// creates a copy channel to copy entries to a channel in the same process (useful when the channel
 		// is in a different module/heap)
-		std::shared_ptr<IChannel> MakeCopyChannel_(IChannel* pCopyTargetChannel) noexcept
+		std::shared_ptr<IChannel> MakeCopyChannel_(IChannel* pCopyTargetChannel,
+			HostLogEntryForwardFn forwardFn) noexcept
 		{
 			try {
 				if (!pCopyTargetChannel) {
@@ -50,7 +53,7 @@ namespace pmon::util::log
 				// make and add the line-tracking policy
 				pChannel->AttachComponent(std::make_shared<LinePolicy>());
 				// configure drivers
-				pChannel->AttachComponent(std::make_shared<CopyDriver>(pCopyTargetChannel), "drv:copy");
+				pChannel->AttachComponent(std::make_shared<CopyDriver>(pCopyTargetChannel, forwardFn), "drv:copy");
 				return pChannel;
 			}
 			catch (...) {
@@ -126,13 +129,14 @@ namespace pmon::util::log
 		return GetDefaultChannelWithFactory(MakeNullChannel_);
 	}
 
-	void SetupCopyChannel(IChannel* pCopyTargetChannel) noexcept
+	void SetupCopyChannel(IChannel* pCopyTargetChannel, HostLogEntryForwardFn forwardFn) noexcept
 	{
 		// reset logging level when channel is explicitly requested
 		GlobalPolicy::Get().SetLogLevelDefault();
 		GlobalPolicy::Get().SetTraceLevelDefault();
+		FlushEntryPoint();
 		SeverCopyLoggingBridge();
-		InjectDefaultChannel(MakeCopyChannel_(pCopyTargetChannel));
+		InjectDefaultChannel(MakeCopyChannel_(pCopyTargetChannel, forwardFn));
 	}
 
 	void SeverCopyLoggingBridge() noexcept

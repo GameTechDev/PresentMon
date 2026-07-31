@@ -28,9 +28,19 @@ struct LoggingSingletons
 // Prefer pmLinkLoggingPtrs_ for all in-repo callers: do not pass shared_ptr or
 // std::function across module boundaries (/MT heap). pmLinkLogging_ remains exported
 // for older loader/middleware ABI (v2.5.1 mangled name); avoid new call sites.
+// return getters for config singletons in the dll to config from the exe
+using PmLogEntryForwardFn = void(*)(pmon::util::log::IChannel*,
+	const pmon::util::log::Entry&) noexcept;
+using PmIdAddThreadFn = void(*)(pmon::util::log::IdentificationTable* pTable, uint32_t tid,
+	uint32_t pid, const char* name, size_t nameLen) noexcept;
+using PmIdAddProcessFn = void(*)(pmon::util::log::IdentificationTable* pTable, uint32_t pid,
+	const char* name, size_t nameLen) noexcept;
 PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLoggingPtrs_(
 	pmon::util::log::IChannel* pChannel,
-	pmon::util::log::IdentificationTable* pExeTable);
+	pmon::util::log::IdentificationTable* pExeTable,
+	PmLogEntryForwardFn forwardLogEntryFn,
+	PmIdAddThreadFn forwardAddThreadFn,
+	PmIdAddProcessFn forwardAddProcessFn) noexcept;
 PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLogging_(
 	std::shared_ptr<pmon::util::log::IChannel> pChannel,
 	std::function<pmon::util::log::IdentificationTable&()> getIdTable);

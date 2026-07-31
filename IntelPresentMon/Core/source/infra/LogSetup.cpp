@@ -19,6 +19,8 @@
 #include <CommonUtilities/str/String.h>
 #include <CommonUtilities/log/PanicLogger.h>
 #include <PresentMonAPIWrapperCommon/PmErrorCodeProvider.h>
+#include <CommonUtilities/log/HostLogEntryForward.h>
+#include <CommonUtilities/log/HostIdentificationForward.h>
 #include <PresentMonAPI2/Internal.h>
 #include <PresentMonAPI2/PresentMonDiagnostics.h>
 #include <Core/source/infra/util/FolderResolver.h>
@@ -131,7 +133,10 @@ namespace p2c
 			// connect dll channel and id table to exe, get access to global settings in dll
 			LoggingSingletons getters;
 			if (linkMiddlewareLogs) {
-				getters = pmLinkLoggingPtrs_(pChan.get(), IdentificationTable::GetPtr());
+				getters = pmLinkLoggingPtrs_(pChan.get(), IdentificationTable::GetPtr(),
+					&ForwardLogEntryToHostChannel,
+					&ForwardAddThreadToHostIdTable,
+					&ForwardAddProcessToHostIdTable);
 			}
 			// set the global policy settings
 			if (opt.logLevel) {
