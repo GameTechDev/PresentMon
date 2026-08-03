@@ -18,13 +18,15 @@ function(pmon_create_compiler_targets)
             $<$<COMPILE_LANGUAGE:CXX>:/permissive->
             $<$<COMPILE_LANGUAGE:CXX>:/std:c++latest>
     )
+    # Most targets are Unicode. The few MultiByte ones (SampleClient, CefNano)
+    # opt out by setting the PMON_MULTIBYTE property on the consuming target.
     target_compile_definitions(
         pmon_build_options
         INTERFACE
             CEREAL_THREAD_SAFE=1
             BOOST_ALLOW_DEPRECATED_HEADERS
-            UNICODE
-            _UNICODE
+            "$<$<NOT:$<BOOL:$<TARGET_PROPERTY:PMON_MULTIBYTE>>>:UNICODE;_UNICODE>"
+            "$<$<BOOL:$<TARGET_PROPERTY:PMON_MULTIBYTE>>:_MBCS>"
     )
     set_property(TARGET pmon_build_options PROPERTY FOLDER "Build")
 

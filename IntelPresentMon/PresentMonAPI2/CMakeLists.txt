@@ -1,0 +1,48 @@
+add_library(
+    PresentMonAPI2
+    SHARED
+        dllmain.cpp
+        PresentMonAPI.cpp
+        PresentMonDiagnostics.cpp
+        PresentMonAPI2.rc
+)
+
+target_compile_definitions(
+    PresentMonAPI2
+    PRIVATE
+        PRESENTMONAPI2_EXPORTS
+        _WINDOWS
+        _USRDLL
+        $<$<CONFIG:Debug>:_CRTDBG_MAP_ALLOC>
+)
+target_link_libraries(
+    PresentMonAPI2
+    PRIVATE
+        pmon::build_options
+        pmon::warnings_default
+        pmon::version_resource
+        pmon::common_utilities
+        pmon::middleware
+        shlwapi
+)
+target_compile_options(
+    PresentMonAPI2
+    PRIVATE
+        /EHa
+        $<$<CONFIG:Release>:/guard:cf>
+)
+target_link_options(
+    PresentMonAPI2
+    PRIVATE
+        /SUBSYSTEM:WINDOWS
+        /MANIFESTUAC:NO
+        $<$<CONFIG:Release>:/guard:cf>
+)
+set_target_properties(
+    PresentMonAPI2
+    PROPERTIES
+        FOLDER "Service and SDK"
+)
+
+pmon_register_artifact("$<TARGET_FILE:PresentMonAPI2>")
+pmon_register_artifact("$<TARGET_LINKER_FILE:PresentMonAPI2>")

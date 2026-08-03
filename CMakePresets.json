@@ -48,7 +48,8 @@
       "cacheVariables": {
         "PMON_DEPLOYMENT_PROFILE": "PRODUCTION",
         "PMON_ENABLE_UCI": "AUTO",
-        "PMON_SIGNING_BACKEND": "AUTO"
+        "PMON_SIGNING_BACKEND": "AUTO",
+        "PMON_OUTPUT_ROOT": "${sourceDir}/build/production"
       }
     },
     {

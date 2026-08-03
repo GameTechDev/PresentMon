@@ -41,13 +41,24 @@ include(PresentMonArtifacts)
 include(PresentMonMessageCompiler)
 include(PresentMonUci)
 include(PresentMonSigning)
+include(PresentMonCef)
 
 pmon_configure_options()
 pmon_configure_output_directories()
 pmon_create_compiler_targets()
 pmon_create_version_target()
+pmon_create_version_resource_target()
 pmon_configure_uci()
 pmon_configure_signing()
+if(PMON_ARCHITECTURE STREQUAL "x64")
+    pmon_configure_cef()
+else()
+    set(PMON_CEF_EFFECTIVE_ROOT "Not applicable")
+endif()
+
+if(PMON_BUILD_TESTS)
+    enable_testing()
+endif()
 
 add_subdirectory(IntelPresentMon/CommonUtilities)
 add_subdirectory(PresentData)
@@ -67,6 +78,80 @@ if(PMON_BUILD_TOOLS)
     add_subdirectory(Tools/pm_convert_csv)
 endif()
 
+# The service, SDK, and UI stacks have no maintained Win32 configuration.
+if(PMON_ARCHITECTURE STREQUAL "x64")
+    if(PMON_BUILD_SERVICE OR PMON_BUILD_SDK OR PMON_BUILD_UI)
+        add_subdirectory(IntelPresentMon/Versioning)
+        add_subdirectory(IntelPresentMon/Interprocess)
+        add_subdirectory(IntelPresentMon/ControlLib)
+        add_subdirectory(IntelPresentMon/PresentMonAPIWrapperCommon)
+        add_subdirectory(IntelPresentMon/PresentMonAPIWrapper)
+        add_subdirectory(IntelPresentMon/PresentMonService)
+        add_subdirectory(IntelPresentMon/PresentMonMiddleware)
+        add_subdirectory(IntelPresentMon/PresentMonAPI2)
+        add_subdirectory(IntelPresentMon/PresentMonAPI2Loader)
+    endif()
+    if(PMON_BUILD_SDK)
+        add_subdirectory(IntelPresentMon/SampleClient)
+    endif()
+    if(PMON_BUILD_UI)
+        add_subdirectory(IntelPresentMon/Core)
+    endif()
+endif()
+
+if(
+    PMON_BUILD_TESTS
+    AND PMON_BUILD_SERVICE
+    AND PMON_BUILD_SDK
+    AND TARGET PresentMonService
+    AND TARGET PresentMonAPI2
+    AND TARGET PresentMonAPI2Loader
+    AND TARGET SampleClient
+)
+    add_test(
+        NAME pmon_service_sdk_smoke
+        COMMAND
+            powershell.exe
+            -NoLogo
+            -NoProfile
+            -NonInteractive
+            -ExecutionPolicy Bypass
+            -File "${PROJECT_SOURCE_DIR}/cmake/RunServiceSdkSmoke.ps1"
+            -ServiceExecutable "$<TARGET_FILE:PresentMonService>"
+            -SampleClientExecutable "$<TARGET_FILE:SampleClient>"
+            -MiddlewareDll "$<TARGET_FILE:PresentMonAPI2>"
+            -LogDirectory "${PROJECT_BINARY_DIR}/smoke/$<CONFIG>"
+    )
+    set_tests_properties(
+        pmon_service_sdk_smoke
+        PROPERTIES
+            LABELS "phase3;smoke;integration"
+            TIMEOUT 120
+    )
+
+    add_custom_target(
+        pmon_verify_service_sdk
+        COMMAND
+            "${CMAKE_CTEST_COMMAND}"
+            --test-dir "${PROJECT_BINARY_DIR}"
+            --build-config "$<CONFIG>"
+            --output-on-failure
+            --tests-regex "^pmon_service_sdk_smoke$"
+            --no-tests=error
+        COMMENT "Running the service/SDK behavioral smoke test"
+        USES_TERMINAL
+        VERBATIM
+    )
+    add_dependencies(
+        pmon_verify_service_sdk
+        PresentMonService
+        PresentMonAPI2
+        PresentMonAPI2Loader
+        SampleClient
+    )
+    set_property(TARGET pmon_verify_service_sdk PROPERTY FOLDER "Build")
+endif()
+
 pmon_add_artifact_verification_target()
 
 message(STATUS "")
@@ -80,5 +165,6 @@ message(STATUS "  Output root:        ${PMON_OUTPUT_ROOT}")
 message(STATUS "  UCI mode:           ${PMON_ENABLE_UCI}")
 message(STATUS "  UCI included:       ${PMON_UCI_ENABLED}")
 message(STATUS "  Signing backend:    ${PMON_SELECTED_SIGNING_BACKEND}")
+message(STATUS "  CEF stage:          ${PMON_CEF_EFFECTIVE_ROOT}")
 message(STATUS "")
 message(STATUS "Configured enabled PresentMon targets.")

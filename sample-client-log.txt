@@ -1,0 +1,372 @@
+[@Error] <37464:13412> {2026-07-31 13:42:41.8073958 PDT}
+  Minimal Sample Client for Intel PresentMon service 
+
+
+SampleClient.exe [OPTIONS]
+
+
+OPTIONS:
+  -h,     --help              Print this help message and exit 
+
+Mode:
+          --mode ENUM:value in {AddGpuMetric->8,CheckMetric->5,CsvFrameQuery->4,DiagnosticsDemo->10,DynamicQuery->1,DynamicQueryNoTargetAll->2,EtlLogger->16,FrameQuery->3,IntrospectAllDynamicOptions->13,Introspection->0,IntrospectionDevices->20,IpcComponentServer->19,LogDemo->9,MetricList->6,MultiClient->14,PacedFramePlayback->18,PacedPlayback->17,PlaybackDynamicQuery->12,PlaybackFrameQuery->11,ServiceCrashClient->15,WrapperStaticQuery->7} OR {8,5,4,10,1,2,16,3,13,0,20,19,9,6,14,18,17,12,11,15,7} REQUIRED 
+                              Which demonstration mode to run 
+          --submode INT       Which submode option to run for the given mode 
+
+Connection:
+          --control-pipe TEXT Name of the named pipe to use for the client-service control 
+                              channel 
+          --middleware-dll-path TEXT 
+                              Override middleware DLL path discovery with custom path 
+
+Sampling:
+          --metric-offset FLOAT 
+                              Offset from top for frame data. Used in --dynamic-query-sample 
+          --window-size FLOAT Window size used for metrics calculation. Used in 
+                              --dynamic-query-sample 
+          --process-id UINT   Process Id to use for polling or frame data capture 
+          --process-name TEXT Name of process to use for polling or frame data capture 
+          --metric TEXT       PM_METRIC, ex. PM_METRIC_PRESENTED_FPS 
+          --default-adapter-id UINT 
+                              GPU device id to use for system-wide dynamic polling 
+          --telemetry-period-ms UINT 
+                              Telemetry period in milliseconds 
+          --etw-flush-period-ms UINT 
+                              ETW manual flush period in milliseconds 
+          --run-time FLOAT    How long to capture for, in seconds 
+          --run-start FLOAT   How many seconds to delay before beginning run 
+          --poll-period FLOAT Period in seconds for polling the API query 
+          --output-path TEXT  Full path to output to 
+          --frame-limit UINT  Maximum number of frames to capture (0 for unlimited) 
+          --frame-start-threshold-sec FLOAT 
+                              Seconds to wait for the first frame before stopping 
+                              (PacedFramePlayback) 
+          --frame-inactivity-threshold-sec FLOAT 
+                              Seconds without frames after capture has started before stopping 
+                              (PacedFramePlayback) 
+
+Logging:
+          --log-level ENUM:value in {debug->60,error->20,fatal->10,info->40,none->0,performance->50,verbose->70,verbose2->80,warning->30} OR {60,20,10,40,0,50,70,80,30} 
+                              Severity to log at 
+          --log-trace-level ENUM:value in {debug->60,error->20,fatal->10,info->40,none->0,performance->50,verbose->70,verbose2->80,warning->30} OR {60,20,10,40,0,50,70,80,30} 
+                              Severity to print stacktrace at 
+          --log-trace-exceptions 
+                              Add stack trace to all thrown exceptions (including SEH 
+                              exceptions) 
+          --log-deny-list TEXT:FILE Excludes: --log-allow-list 
+                              Path to log deny list (with trace overrides) 
+          --log-allow-list TEXT:FILE Excludes: --log-deny-list 
+                              Path to log allow list (with trace overrides) 
+          --log-folder TEXT   Folder to create log file(s) in 
+          --log-name-pid      Append PID to the log file name 
+          --log-verbose-modules ENUM:value in {chrome->14,core_hotkey->5,core_metric->4,core_window->6,count->15,dyninteg->13,etwq->7,ipc_ring->10,ipc_sto->9,kact->8,met_use->11,middleware->12,procwatch->1,tele_gpu->2,uci->3,v8async->0} OR {14,5,4,6,15,13,7,10,9,8,11,12,1,2,3,0} ... 
+                              Verbose logging modules to enable 
+
+Service:
+          --service-pace-playback 
+                              Pace ETL playback on the service 
+          --service-etl-path TEXT 
+                              Path of the ETL file to pass to the service for playback 
+
+Testing:
+          --test-expect-error Indicates to test modes that fail state is being tested 
+          --min-max-percentile-stats-only 
+                              Limits paced playback dynamic queries to min, percentile, and max 
+                              stats 
+          --ipc-system-ring-capacity UINT 
+                              System telemetry ring capacity for the IPC component server 
+          --ipc-system-samples-per-push UINT 
+                              Samples per push batch for the IPC component server 
+
+  >> at main 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\SampleClient\SampleClient.cpp(324)
+[@Error] <29296:24376> {2026-07-31 13:42:51.6253054 PDT}
+  Minimal Sample Client for Intel PresentMon service 
+
+
+SampleClient.exe [OPTIONS]
+
+
+OPTIONS:
+  -h,     --help              Print this help message and exit 
+
+Mode:
+          --mode ENUM:value in {AddGpuMetric->8,CheckMetric->5,CsvFrameQuery->4,DiagnosticsDemo->10,DynamicQuery->1,DynamicQueryNoTargetAll->2,EtlLogger->16,FrameQuery->3,IntrospectAllDynamicOptions->13,Introspection->0,IntrospectionDevices->20,IpcComponentServer->19,LogDemo->9,MetricList->6,MultiClient->14,PacedFramePlayback->18,PacedPlayback->17,PlaybackDynamicQuery->12,PlaybackFrameQuery->11,ServiceCrashClient->15,WrapperStaticQuery->7} OR {8,5,4,10,1,2,16,3,13,0,20,19,9,6,14,18,17,12,11,15,7} REQUIRED 
+                              Which demonstration mode to run 
+          --submode INT       Which submode option to run for the given mode 
+
+Connection:
+          --control-pipe TEXT Name of the named pipe to use for the client-service control 
+                              channel 
+          --middleware-dll-path TEXT 
+                              Override middleware DLL path discovery with custom path 
+
+Sampling:
+          --metric-offset FLOAT 
+                              Offset from top for frame data. Used in --dynamic-query-sample 
+          --window-size FLOAT Window size used for metrics calculation. Used in 
+                              --dynamic-query-sample 
+          --process-id UINT   Process Id to use for polling or frame data capture 
+          --process-name TEXT Name of process to use for polling or frame data capture 
+          --metric TEXT       PM_METRIC, ex. PM_METRIC_PRESENTED_FPS 
+          --default-adapter-id UINT 
+                              GPU device id to use for system-wide dynamic polling 
+          --telemetry-period-ms UINT 
+                              Telemetry period in milliseconds 
+          --etw-flush-period-ms UINT 
+                              ETW manual flush period in milliseconds 
+          --run-time FLOAT    How long to capture for, in seconds 
+          --run-start FLOAT   How many seconds to delay before beginning run 
+          --poll-period FLOAT Period in seconds for polling the API query 
+          --output-path TEXT  Full path to output to 
+          --frame-limit UINT  Maximum number of frames to capture (0 for unlimited) 
+          --frame-start-threshold-sec FLOAT 
+                              Seconds to wait for the first frame before stopping 
+                              (PacedFramePlayback) 
+          --frame-inactivity-threshold-sec FLOAT 
+                              Seconds without frames after capture has started before stopping 
+                              (PacedFramePlayback) 
+
+Logging:
+          --log-level ENUM:value in {debug->60,error->20,fatal->10,info->40,none->0,performance->50,verbose->70,verbose2->80,warning->30} OR {60,20,10,40,0,50,70,80,30} 
+                              Severity to log at 
+          --log-trace-level ENUM:value in {debug->60,error->20,fatal->10,info->40,none->0,performance->50,verbose->70,verbose2->80,warning->30} OR {60,20,10,40,0,50,70,80,30} 
+                              Severity to print stacktrace at 
+          --log-trace-exceptions 
+                              Add stack trace to all thrown exceptions (including SEH 
+                              exceptions) 
+          --log-deny-list TEXT:FILE Excludes: --log-allow-list 
+                              Path to log deny list (with trace overrides) 
+          --log-allow-list TEXT:FILE Excludes: --log-deny-list 
+                              Path to log allow list (with trace overrides) 
+          --log-folder TEXT   Folder to create log file(s) in 
+          --log-name-pid      Append PID to the log file name 
+          --log-verbose-modules ENUM:value in {chrome->14,core_hotkey->5,core_metric->4,core_window->6,count->15,dyninteg->13,etwq->7,ipc_ring->10,ipc_sto->9,kact->8,met_use->11,middleware->12,procwatch->1,tele_gpu->2,uci->3,v8async->0} OR {14,5,4,6,15,13,7,10,9,8,11,12,1,2,3,0} ... 
+                              Verbose logging modules to enable 
+
+Service:
+          --service-pace-playback 
+                              Pace ETL playback on the service 
+          --service-etl-path TEXT 
+                              Path of the ETL file to pass to the service for playback 
+
+Testing:
+          --test-expect-error Indicates to test modes that fail state is being tested 
+          --min-max-percentile-stats-only 
+                              Limits paced playback dynamic queries to min, percentile, and max 
+                              stats 
+          --ipc-system-ring-capacity UINT 
+                              System telemetry ring capacity for the IPC component server 
+          --ipc-system-samples-per-push UINT 
+                              Samples per push batch for the IPC component server 
+
+  >> at main 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\SampleClient\SampleClient.cpp(324)
+[@Error] <9296:18908> {2026-07-31 13:51:27.4597688 PDT}
+  Minimal Sample Client for Intel PresentMon service 
+
+
+SampleClient.exe [OPTIONS]
+
+
+OPTIONS:
+  -h,     --help              Print this help message and exit 
+
+Mode:
+          --mode ENUM:value in {AddGpuMetric->8,CheckMetric->5,CsvFrameQuery->4,DiagnosticsDemo->10,DynamicQuery->1,DynamicQueryNoTargetAll->2,EtlLogger->16,FrameQuery->3,IntrospectAllDynamicOptions->13,Introspection->0,IntrospectionDevices->20,IpcComponentServer->19,LogDemo->9,MetricList->6,MultiClient->14,PacedFramePlayback->18,PacedPlayback->17,PlaybackDynamicQuery->12,PlaybackFrameQuery->11,ServiceCrashClient->15,WrapperStaticQuery->7} OR {8,5,4,10,1,2,16,3,13,0,20,19,9,6,14,18,17,12,11,15,7} REQUIRED 
+                              Which demonstration mode to run 
+          --submode INT       Which submode option to run for the given mode 
+
+Connection:
+          --control-pipe TEXT Name of the named pipe to use for the client-service control 
+                              channel 
+          --middleware-dll-path TEXT 
+                              Override middleware DLL path discovery with custom path 
+
+Sampling:
+          --metric-offset FLOAT 
+                              Offset from top for frame data. Used in --dynamic-query-sample 
+          --window-size FLOAT Window size used for metrics calculation. Used in 
+                              --dynamic-query-sample 
+          --process-id UINT   Process Id to use for polling or frame data capture 
+          --process-name TEXT Name of process to use for polling or frame data capture 
+          --metric TEXT       PM_METRIC, ex. PM_METRIC_PRESENTED_FPS 
+          --default-adapter-id UINT 
+                              GPU device id to use for system-wide dynamic polling 
+          --telemetry-period-ms UINT 
+                              Telemetry period in milliseconds 
+          --etw-flush-period-ms UINT 
+                              ETW manual flush period in milliseconds 
+          --run-time FLOAT    How long to capture for, in seconds 
+          --run-start FLOAT   How many seconds to delay before beginning run 
+          --poll-period FLOAT Period in seconds for polling the API query 
+          --output-path TEXT  Full path to output to 
+          --frame-limit UINT  Maximum number of frames to capture (0 for unlimited) 
+          --frame-start-threshold-sec FLOAT 
+                              Seconds to wait for the first frame before stopping 
+                              (PacedFramePlayback) 
+          --frame-inactivity-threshold-sec FLOAT 
+                              Seconds without frames after capture has started before stopping 
+                              (PacedFramePlayback) 
+
+Logging:
+          --log-level ENUM:value in {debug->60,error->20,fatal->10,info->40,none->0,performance->50,verbose->70,verbose2->80,warning->30} OR {60,20,10,40,0,50,70,80,30} 
+                              Severity to log at 
+          --log-trace-level ENUM:value in {debug->60,error->20,fatal->10,info->40,none->0,performance->50,verbose->70,verbose2->80,warning->30} OR {60,20,10,40,0,50,70,80,30} 
+                              Severity to print stacktrace at 
+          --log-trace-exceptions 
+                              Add stack trace to all thrown exceptions (including SEH 
+                              exceptions) 
+          --log-deny-list TEXT:FILE Excludes: --log-allow-list 
+                              Path to log deny list (with trace overrides) 
+          --log-allow-list TEXT:FILE Excludes: --log-deny-list 
+                              Path to log allow list (with trace overrides) 
+          --log-folder TEXT   Folder to create log file(s) in 
+          --log-name-pid      Append PID to the log file name 
+          --log-verbose-modules ENUM:value in {chrome->14,core_hotkey->5,core_metric->4,core_window->6,count->15,dyninteg->13,etwq->7,ipc_ring->10,ipc_sto->9,kact->8,met_use->11,middleware->12,procwatch->1,tele_gpu->2,uci->3,v8async->0} OR {14,5,4,6,15,13,7,10,9,8,11,12,1,2,3,0} ... 
+                              Verbose logging modules to enable 
+
+Service:
+          --service-pace-playback 
+                              Pace ETL playback on the service 
+          --service-etl-path TEXT 
+                              Path of the ETL file to pass to the service for playback 
+
+Testing:
+          --test-expect-error Indicates to test modes that fail state is being tested 
+          --min-max-percentile-stats-only 
+                              Limits paced playback dynamic queries to min, percentile, and max 
+                              stats 
+          --ipc-system-ring-capacity UINT 
+                              System telemetry ring capacity for the IPC component server 
+          --ipc-system-samples-per-push UINT 
+                              Samples per push batch for the IPC component server 
+
+  >> at main 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\SampleClient\SampleClient.cpp(324)
+[@Error] <31740:20308> {2026-07-31 13:52:31.7317662 PDT}
+  Minimal Sample Client for Intel PresentMon service 
+
+
+SampleClient.exe [OPTIONS]
+
+
+OPTIONS:
+  -h,     --help              Print this help message and exit 
+
+Mode:
+          --mode ENUM:value in {AddGpuMetric->8,CheckMetric->5,CsvFrameQuery->4,DiagnosticsDemo->10,DynamicQuery->1,DynamicQueryNoTargetAll->2,EtlLogger->16,FrameQuery->3,IntrospectAllDynamicOptions->13,Introspection->0,IntrospectionDevices->20,IpcComponentServer->19,LogDemo->9,MetricList->6,MultiClient->14,PacedFramePlayback->18,PacedPlayback->17,PlaybackDynamicQuery->12,PlaybackFrameQuery->11,ServiceCrashClient->15,WrapperStaticQuery->7} OR {8,5,4,10,1,2,16,3,13,0,20,19,9,6,14,18,17,12,11,15,7} REQUIRED 
+                              Which demonstration mode to run 
+          --submode INT       Which submode option to run for the given mode 
+
+Connection:
+          --control-pipe TEXT Name of the named pipe to use for the client-service control 
+                              channel 
+          --middleware-dll-path TEXT 
+                              Override middleware DLL path discovery with custom path 
+
+Sampling:
+          --metric-offset FLOAT 
+                              Offset from top for frame data. Used in --dynamic-query-sample 
+          --window-size FLOAT Window size used for metrics calculation. Used in 
+                              --dynamic-query-sample 
+          --process-id UINT   Process Id to use for polling or frame data capture 
+          --process-name TEXT Name of process to use for polling or frame data capture 
+          --metric TEXT       PM_METRIC, ex. PM_METRIC_PRESENTED_FPS 
+          --default-adapter-id UINT 
+                              GPU device id to use for system-wide dynamic polling 
+          --telemetry-period-ms UINT 
+                              Telemetry period in milliseconds 
+          --etw-flush-period-ms UINT 
+                              ETW manual flush period in milliseconds 
+          --run-time FLOAT    How long to capture for, in seconds 
+          --run-start FLOAT   How many seconds to delay before beginning run 
+          --poll-period FLOAT Period in seconds for polling the API query 
+          --output-path TEXT  Full path to output to 
+          --frame-limit UINT  Maximum number of frames to capture (0 for unlimited) 
+          --frame-start-threshold-sec FLOAT 
+                              Seconds to wait for the first frame before stopping 
+                              (PacedFramePlayback) 
+          --frame-inactivity-threshold-sec FLOAT 
+                              Seconds without frames after capture has started before stopping 
+                              (PacedFramePlayback) 
+
+Logging:
+          --log-level ENUM:value in {debug->60,error->20,fatal->10,info->40,none->0,performance->50,verbose->70,verbose2->80,warning->30} OR {60,20,10,40,0,50,70,80,30} 
+                              Severity to log at 
+          --log-trace-level ENUM:value in {debug->60,error->20,fatal->10,info->40,none->0,performance->50,verbose->70,verbose2->80,warning->30} OR {60,20,10,40,0,50,70,80,30} 
+                              Severity to print stacktrace at 
+          --log-trace-exceptions 
+                              Add stack trace to all thrown exceptions (including SEH 
+                              exceptions) 
+          --log-deny-list TEXT:FILE Excludes: --log-allow-list 
+                              Path to log deny list (with trace overrides) 
+          --log-allow-list TEXT:FILE Excludes: --log-deny-list 
+                              Path to log allow list (with trace overrides) 
+          --log-folder TEXT   Folder to create log file(s) in 
+          --log-name-pid      Append PID to the log file name 
+          --log-verbose-modules ENUM:value in {chrome->14,core_hotkey->5,core_metric->4,core_window->6,count->15,dyninteg->13,etwq->7,ipc_ring->10,ipc_sto->9,kact->8,met_use->11,middleware->12,procwatch->1,tele_gpu->2,uci->3,v8async->0} OR {14,5,4,6,15,13,7,10,9,8,11,12,1,2,3,0} ... 
+                              Verbose logging modules to enable 
+
+Service:
+          --service-pace-playback 
+                              Pace ETL playback on the service 
+          --service-etl-path TEXT 
+                              Path of the ETL file to pass to the service for playback 
+
+Testing:
+          --test-expect-error Indicates to test modes that fail state is being tested 
+          --min-max-percentile-stats-only 
+                              Limits paced playback dynamic queries to min, percentile, and max 
+                              stats 
+          --ipc-system-ring-capacity UINT 
+                              System telemetry ring capacity for the IPC component server 
+          --ipc-system-samples-per-push UINT 
+                              Samples per push batch for the IPC component server 
+
+  >> at main 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\SampleClient\SampleClient.cpp(324)
+[@Debug] <31360:39756> {2026-07-31 13:53:05.1239298 PDT}
+  pmOpenSessionWithPipe
+     pipe ? pipe : "null" => pmon-phase3-review-1756562810
+  >> at pmOpenSessionWithPipe 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\PresentMonAPI2\PresentMonAPI.cpp(201)
+[@Error] <31360:39756> {2026-07-31 13:53:05.6381998 PDT}
+  [class pmon::ipc::PmStatusError] Timeout waiting for service action pipe to become available CODE:[12]
+  !PM_STATUS [0x0000000C] (PM_STATUS_PIPE_ERROR): Pipe Error => An error occurred in connecting to or communicating over named pipes
+  >> at pmOpenSessionWithPipe 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\PresentMonAPI2\PresentMonAPI.cpp(214)
+[@Error] <31360:39756> {2026-07-31 13:53:05.6551889 PDT}
+  Exception caught in SampleClient main
+[class pmapi::ApiErrorException] error opening session ctrl=pmon-phase3-review-1756562810 | Error: PIPE_ERROR (12) Pipe Error: An error occurred in connecting to or communicating over named pipes
+  >> at main 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\SampleClient\SampleClient.cpp(409)
+[@Debug] <34976:29916> {2026-07-31 13:53:46.7776733 PDT}
+  pmOpenSessionWithPipe
+     pipe ? pipe : "null" => \\.\pipe\pmonphase3review1418049692
+  >> at pmOpenSessionWithPipe 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\PresentMonAPI2\PresentMonAPI.cpp(201)
+[@Debug] <34976:29916> {2026-07-31 13:53:46.7778343 PDT}
+  Action Dispatch
+     Action::Identifier => OpenSession
+     stx.remotePid => 0
+  >> at pmon::ipc::act::SymmetricActionConnector<struct pmon::mid::MiddlewareExecutionContext>::LogDispatch_ 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\PresentMonService\../Interprocess/source/act/SymmetricActionConnector.h(143)
+[@Error] <34976:symact-pmonphase3review1418049692-cli(17236)> {2026-07-31 13:53:46.7784254 PDT}
+  Execution error response to SyncRequest
+  >> at pmon::ipc::act::SyncRequest 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\Interprocess\source\act\Transfer.h(35)
+[@Info] <34976:symact-pmonphase3review1418049692-cli(17236)> {2026-07-31 13:53:46.7785513 PDT}
+  ActionClient exiting
+  >> at pmon::ipc::act::SymmetricActionClient<struct pmon::mid::MiddlewareExecutionContext>::Run_ 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\PresentMonMiddleware\../Interprocess/source/act/SymmetricActionClient.h(111)
+[@Error] <34976:29916> {2026-07-31 13:53:46.7786239 PDT}
+  [class pmon::util::Exception] Execution error response to SyncRequest
+  !PM_STATUS [0x00000001] (PM_STATUS_FAILURE): Failure => Operation failed
+  >> at pmOpenSessionWithPipe 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\PresentMonAPI2\PresentMonAPI.cpp(214)
+[@Error] <34976:29916> {2026-07-31 13:53:46.7875880 PDT}
+  Exception caught in SampleClient main
+[class pmapi::ApiErrorException] error opening session ctrl=\\.\pipe\pmonphase3review1418049692 | Error: FAILURE (1) Failure: Operation failed
+  >> at main 
+     D:\Source\PresentMon\PresentMon\IntelPresentMon\SampleClient\SampleClient.cpp(409)

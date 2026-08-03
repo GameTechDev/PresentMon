@@ -2,7 +2,9 @@
 
 ## Status
 
-Complete for Debug and Release on x64 and the maintained Win32 standalone subset.
+Build conversion is complete for Debug and Release on x64 and the maintained
+Win32 standalone subset. Deterministic functional verification remains open
+under the current phase-local behavioral gate.
 
 ## Scope
 
@@ -180,11 +182,16 @@ Runtime smoke checks:
 
 PresentMon, `etw_list`, and `pm_convert_csv` intentionally return a nonzero status for the tested help or missing-argument paths; their expected output was produced.
 
+These checks cover startup and argument handling, but they do not exercise a
+representative functional workflow. A deterministic Phase 2 behavioral workflow
+must be added before full migration parity is declared.
+
 ## Deferred
 
 - Versioning, Interprocess, service, ControlLib, and API targets.
 - Metric enum generation owned by Interprocess.
-- Tests and CTest registration.
+- Deterministic phase-local functional verification.
+- Full automated test-suite conversion and CTest registration.
 - Production payload signing.
 - CEF, UI, shaders, staging, MSI, and MSM targets.
 - Narrowing repository-root public include paths where current headers prevent it.

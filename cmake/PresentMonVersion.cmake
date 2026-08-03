@@ -84,3 +84,23 @@ function(pmon_create_version_target)
 
     set(PMON_VERSION_HEADER "${version_header}" PARENT_SCOPE)
 endfunction()
+
+# Supplies the PM_VER_* definitions that IntelPresentMon .rc scripts expect.
+# MSBuild injects these through the ResourceCompile section of Common.props.
+function(pmon_create_version_resource_target)
+    string(REPLACE "." "," file_version_numbers "${PMON_FILE_VERSION}")
+    string(REPLACE "." "," product_version_numbers "${PMON_PRODUCT_VERSION}")
+
+    add_library(pmon_version_resource INTERFACE)
+    add_library(pmon::version_resource ALIAS pmon_version_resource)
+    target_compile_definitions(
+        pmon_version_resource
+        INTERFACE
+            "PM_VER_FILE_NUM=${file_version_numbers}"
+            "PM_VER_PRODUCT_NUM=${product_version_numbers}"
+            "PM_VER_FILE_STR=\"${PMON_FILE_VERSION}\""
+            "PM_VER_PRODUCT_STR=\"${PMON_PRODUCT_VERSION}\""
+            "PM_VER_COPYRIGHT=\"${PMON_COPYRIGHT}\""
+    )
+    set_property(TARGET pmon_version_resource PROPERTY FOLDER "Build")
+endfunction()

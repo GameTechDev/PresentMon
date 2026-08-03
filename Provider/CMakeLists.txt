@@ -4,9 +4,6 @@ pmon_compile_message_manifest(
     "Intel-PresentMon"
 )
 
-string(REPLACE "." "," pmon_file_version_numbers "${PMON_FILE_VERSION}")
-string(REPLACE "." "," pmon_product_version_numbers "${PMON_PRODUCT_VERSION}")
-
 add_library(
     pmon_provider
     SHARED
@@ -19,17 +16,13 @@ target_link_libraries(
     PRIVATE
         pmon::build_options
         pmon::warnings_strict
+        pmon::version_resource
 )
 target_compile_definitions(
     pmon_provider
     PRIVATE
         _WINDOWS
         _USRDLL
-        "PM_VER_FILE_NUM=${pmon_file_version_numbers}"
-        "PM_VER_PRODUCT_NUM=${pmon_product_version_numbers}"
-        "PM_VER_FILE_STR=\"${PMON_FILE_VERSION}\""
-        "PM_VER_PRODUCT_STR=\"${PMON_PRODUCT_VERSION}\""
-        "PM_VER_COPYRIGHT=\"${PMON_COPYRIGHT}\""
         $<$<STREQUAL:${PMON_ARCHITECTURE},Win32>:ISX86>
 )
 target_compile_options(

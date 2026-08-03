@@ -1,0 +1,116 @@
+set(core_sources
+        gfx/Graphics.cpp
+        gfx/impl/FastRenderer.cpp
+        gfx/layout/AxisMapping.cpp
+        gfx/layout/Element.cpp
+        gfx/layout/FlexElement.cpp
+        gfx/layout/GraphData.cpp
+        gfx/layout/GraphElement.cpp
+        gfx/layout/HistogramPlotElement.cpp
+        gfx/layout/LinePlotElement.cpp
+        gfx/layout/PlotElement.cpp
+        gfx/layout/ReadoutElement.cpp
+        gfx/layout/style/RawAttributeHelpers.cpp
+        gfx/layout/style/Selector.cpp
+        gfx/layout/style/StyleCompiler.cpp
+        gfx/layout/style/Stylesheet.cpp
+        gfx/layout/TextElement.cpp
+        gfx/prim/BrushPrimitive.cpp
+        gfx/prim/EnumConversion.cpp
+        gfx/prim/RectBorderPrimitive.cpp
+        gfx/prim/RectMultiBorderPrimitive.cpp
+        gfx/prim/RectPrimitive.cpp
+        gfx/prim/RetainedPrimitive.cpp
+        gfx/prim/TextPrimitive.cpp
+        gfx/prim/TextStylePrimitive.cpp
+        infra/LogSetup.cpp
+        infra/util/CooldownTimer.cpp
+        infra/util/FolderResolver.cpp
+        kernel/Kernel.cpp
+        kernel/Overlay.cpp
+        kernel/OverlayContainer.cpp
+        kernel/WindowActivateHandler.cpp
+        kernel/WindowMoveHandler.cpp
+        kernel/WindowSpawnHandler.cpp
+        pmon/DynamicQuery.cpp
+        pmon/FrameMetricCapabilitiesCsv.cpp
+        pmon/metric/DynamicPollingFetcher.cpp
+        pmon/metric/MetricFetcher.cpp
+        pmon/PresentMon.cpp
+        pmon/RawFrameDataWriter.cpp
+        pmon/StatisticsTracker.cpp
+        pmon/Timekeeper.cpp
+        win/EventHookManager.cpp
+        win/GpuUtilization.cpp
+        win/HotkeyListener.cpp
+        win/Key.cpp
+        win/MessageBox.cpp
+        win/MessageMap.cpp
+        win/ModSet.cpp
+        win/OverlayWindow.cpp
+        win/ProcessMapBuilder.cpp
+        win/StandardWindow.cpp
+        win/WinAPI.cpp
+        win/Window.cpp
+        win/WndClass.cpp
+)
+list(TRANSFORM core_sources PREPEND "source/")
+
+add_library(pmon_core STATIC ${core_sources})
+add_library(pmon::core ALIAS pmon_core)
+
+target_compile_definitions(
+    pmon_core
+    PUBLIC
+        IS_DEBUG=$<IF:$<CONFIG:Debug>,1,0>
+    PRIVATE
+        _CRT_SECURE_NO_WARNINGS
+)
+target_include_directories(
+    pmon_core
+    PUBLIC
+        "${PROJECT_SOURCE_DIR}"
+        # Public Core headers use sibling-relative includes such as
+        # <PresentMonAPI2/PresentMonAPI.h>.
+        "${PROJECT_SOURCE_DIR}/IntelPresentMon"
+)
+target_link_libraries(
+    pmon_core
+    PUBLIC
+        pmon::common_utilities
+        pmon::api_wrapper
+        pmon::api_wrapper_common
+        PresentMonAPI2Loader
+    PRIVATE
+        pmon::build_options
+        pmon::warnings_default
+        d2d1
+        d3d11
+        d3dcompiler
+        dcomp
+        dwrite
+        dxgi
+        pdh
+        user32
+        winmm
+)
+target_compile_options(
+    pmon_core
+    PRIVATE
+        /EHa
+        /fp:fast
+        $<$<CONFIG:Release>:/guard:cf>
+)
+target_link_options(
+    pmon_core
+    INTERFACE
+        $<$<CONFIG:Release>:/guard:cf>
+)
+set_target_properties(
+    pmon_core
+    PROPERTIES
+        OUTPUT_NAME Core
+        FOLDER "UI and Capture"
+)
+
+pmon_register_artifact("$<TARGET_FILE:pmon_core>")
