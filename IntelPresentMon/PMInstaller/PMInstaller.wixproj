@@ -30,6 +30,29 @@
     </LinkerAdditionalOptions>
     <SuppressIces>ICE60</SuppressIces>
   </PropertyGroup>
+  <!-- ARM64 (Windows on Arm) produces an arm64-targeted MSI. Unlike the x86/x64
+       configs (which keep the WiX tooling Platform at x86 and force -arch x64),
+       the ARM64 MSI is driven by a real ARM64 Platform so the solution's
+       Release|ARM64 build selects it; -arch arm64 sets the package architecture. -->
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|ARM64' ">
+    <OutputPath>..\..\build\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>..\..\build\obj\PMInstaller-$(Platform)-$(Configuration)\</IntermediateOutputPath>
+    <DefineConstants>Debug;ConsoleAppVersion=$(PresentMonVersion);ProductVersion=$(PresentMonProductVersion)</DefineConstants>
+    <CompilerAdditionalOptions>-arch arm64</CompilerAdditionalOptions>
+    <LinkerAdditionalOptions>
+    </LinkerAdditionalOptions>
+    <SuppressIces>
+    </SuppressIces>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|ARM64' ">
+    <OutputPath>..\..\build\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>..\..\build\obj\PMInstaller-$(Platform)-$(Configuration)\</IntermediateOutputPath>
+    <CompilerAdditionalOptions>-arch arm64</CompilerAdditionalOptions>
+    <DefineConstants>ConsoleAppVersion=$(PresentMonVersion);ProductVersion=$(PresentMonProductVersion)</DefineConstants>
+    <LinkerAdditionalOptions>
+    </LinkerAdditionalOptions>
+    <SuppressIces>ICE60</SuppressIces>
+  </PropertyGroup>
   <PropertyGroup>
     <DefineConstants>$(DefineConstants);PM.ServiceDirId=service_folder</DefineConstants>
   </PropertyGroup>
@@ -133,8 +156,15 @@
              Text="No wixlib found under $(SolutionDir)build\$(Configuration)\ (or ...\en-us\). Build produced nothing." />
   </Target>
 
+  <!-- The staged CEF payload is architecture-specific, so validate it against
+       the matching lock. The wixproj Platform is x86 for the x64 MSI (see the
+       -arch x64 configs) and ARM64 for the Windows-on-Arm MSI. -->
+  <PropertyGroup>
+    <CefValidatePlatform Condition="'$(Platform)'=='ARM64'">arm64</CefValidatePlatform>
+    <CefValidatePlatform Condition="'$(CefValidatePlatform)'==''">x64</CefValidatePlatform>
+  </PropertyGroup>
   <Target Name="ValidateCefInstallerInputs" BeforeTargets="Compile">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\AppCef\Batch\validate-cef.ps1&quot; -Mode Installer -OutputRoot &quot;$(MSBuildThisFileDirectory)..\..\build\$(Configuration)&quot;" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\AppCef\Batch\validate-cef.ps1&quot; -Mode Installer -Platform $(CefValidatePlatform) -OutputRoot &quot;$(MSBuildThisFileDirectory)..\..\build\$(Configuration)&quot;" />
   </Target>
 
     <!--

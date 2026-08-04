@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "IntelPresentMon/AppCef/Batch/upgrade-cef.ps1",
+  "source": {
+    "type": "uri",
+    "uri": "https://cef-builds.spotifycdn.com/cef_binary_149.0.4%2Bg2f1bfd8%2Bchromium-149.0.7827.156_windowsarm64_minimal.tar.bz2",
+    "fileName": "cef_binary_149.0.4+g2f1bfd8+chromium-149.0.7827.156_windowsarm64_minimal.tar.bz2",
+    "size": 156829187,
+    "sha256": "a771b428ff91e5b0a6d6d2bdf91cb24329d6571bb124857ec987c26c396be85e"
+  },
+  "cef": {
+    "CEF_VERSION": "149.0.4+g2f1bfd8+chromium-149.0.7827.156",
+    "CEF_VERSION_MAJOR": 149,
+    "CEF_VERSION_MINOR": 0,
+    "CEF_VERSION_PATCH": 4,
+    "CEF_COMMIT_NUMBER": 3528,
+    "CEF_COMMIT_HASH": "2f1bfd842a0b6a9e770b708654986b6e5f17d772",
+    "CHROME_VERSION_MAJOR": 149,
+    "CHROME_VERSION_MINOR": 0,
+    "CHROME_VERSION_BUILD": 7827,
+    "CHROME_VERSION_PATCH": 156
+  },
+  "payload": [
+    {
+      "path": "bootstrap.exe",
+      "stagePath": "Bin/bootstrap.exe",
+      "group": "Bin",
+      "size": 1809408,
+      "sha256": "5f5b04ad9819778e04d85dfece8a7f9d354b34ef1b985b335a77ae30c4176fb6"
+    },
+    {
+      "path": "bootstrapc.exe",
+      "stagePath": "Bin/bootstrapc.exe",
+      "group": "Bin",
+      "size": 1811456,
+      "sha256": "2b436e940b829dcd601d1fd9afb3947658c5909e7b4864c41f763a55829f7b7a"
+    },
+    {
+      "path": "chrome_100_percent.pak",
+      "stagePath": "Resources/chrome_100_percent.pak",
+      "group": "Resources",
+      "size": 727220,
+      "sha256": "576c79fe9721badda233a258004966a330307ef5a82f46805005d325f6695df6"
+    },
+    {
+      "path": "chrome_200_percent.pak",
+      "stagePath": "Resources/chrome_200_percent.pak",
+      "group": "Resources",
+      "size": 1228799,
+      "sha256": "45cb065cb8eddfb3c07b424e32c0edeff533cfd256446636408ed8fa9c16a599"
+    },
+    {
+      "path": "chrome_elf.dll",
+      "stagePath": "Bin/chrome_elf.dll",
+      "group": "Bin",
+      "size": 1413632,
+      "sha256": "168af68893938226ca95457e251c376f0fe4d7220c0db46bc334b7eddee81082"
+    },
+    {
+      "path": "d3dcompiler_47.dll",
+      "stagePath": "Bin/d3dcompiler_47.dll",
+      "group": "Bin",
+      "size": 8140672,
+      "sha256": "1e59fd5cb9c3df2c38ffef93c3d858288c39a9d7c954d8bf3a9675686a2aff7f"
+    },
+    {
+      "path": "dxcompiler.dll",
+      "stagePath": "Bin/dxcompiler.dll",
+      "group": "Bin",
+      "size": 22788096,
+      "sha256": "6e818ad2c946b7967cbcc73e81ae3339843419c1b66155fb5b19f66b3e9bd74f"
+    },
+    {
+      "path": "dxil.dll",
+      "stagePath": "Bin/dxil.dll",
+      "group": "Bin",
+      "size": 2903128,
+      "sha256": "3a32ce3e827081b71976b66db5aa54f360d308b03044b3d806ac82f1e1bce2b4"
+    },
+    {
+      "path": "icudtl.dat",
+      "stagePath": "Resources/icudtl.dat",
+      "group": "Resources",
+      "size": 10876560,
+      "sha256": "bd8c145abdf3f8383276ce01dfa4ae48709bef9fef1c0711eb7c3fab4f6eb7c2"
+    },
+    {
+      "path": "libcef.dll",
+      "stagePath": "Bin/libcef.dll",
+      "group": "Bin",
+      "size": 260520448,
+      "sha256": "4b2ebd968650b80ed7bab6f7db87d7535e6b310cdfd3007cb50288b58d283050"
+    },
+    {
+      "path": "libEGL.dll",
+      "stagePath": "Bin/libEGL.dll",
+      "group": "Bin",
+      "size": 503808,
+      "sha256": "a8c61124d1bb21b6282c6c152eeebdbf18b12eaeeaa79d7d9d0649c0247640ac"
+    },
+    {
+      "path": "libGLESv2.dll",
+      "stagePath": "Bin/libGLESv2.dll",
+      "group": "Bin",
+      "size": 7260672,
+      "sha256": "43a708cf1367c97c0940b72276a7a48209be562bcddd5ee59734482a82781af7"
+    },
+    {
+      "path": "locales/en-US.pak",
+      "stagePath": "Resources/locales/en-US.pak",
+      "group": "Resources",
+      "size": 598883,
+      "sha256": "7e6c06a9af097a1296090bd60b03d189afc8e82b5ae9b8df316d0e968476d1db"
+    },
+    {
+      "path": "resources.pak",
+      "stagePath": "Resources/resources.pak",
+      "group": "Resources",
+      "size": 12929399,
+      "sha256": "2da81fd0ad4bc17c057ba88bc27f265946b210307ac6dc7e70989b60788a34f3"
+    },
+    {
+      "path": "v8_context_snapshot.bin",
+      "stagePath": "Bin/v8_context_snapshot.bin",
+      "group": "Bin",
+      "size": 740912,
+      "sha256": "63847a4f52965dbfe5caa704542f6b2695556b4d816d695e2ee0b4c418b91d3b"
+    },
+    {
+      "path": "vk_swiftshader_icd.json",
+      "stagePath": "Bin/vk_swiftshader_icd.json",
+      "group": "Bin",
+      "size": 106,
+      "sha256": "32d83ff113fef532a9f97e0d2831f8656628ab1c99e9060f0332b1532839afd9"
+    },
+    {
+      "path": "vk_swiftshader.dll",
+      "stagePath": "Bin/vk_swiftshader.dll",
+      "group": "Bin",
+      "size": 20139008,
+      "sha256": "58477a0dafff64a166a7ce85056ea7a31a7f8c804ece9d26f3b97bea1f8bb811"
+    },
+    {
+      "path": "vulkan-1.dll",
+      "stagePath": "Bin/vulkan-1.dll",
+      "group": "Bin",
+      "size": 983040,
+      "sha256": "bde50846f525a82420fc74f519f71447b58d57b532291047e5a16cec45c369c1"
+    }
+  ]
+}

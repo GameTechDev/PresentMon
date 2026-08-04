@@ -1,5 +1,10 @@
 [CmdletBinding()]
-param()
+param(
+    # Target architecture for the CEF payload. The auxiliary test data and web
+    # frontend are architecture-neutral; only the CEF distribution is per-arch.
+    [ValidateSet('x64', 'arm64')]
+    [string]$Platform = 'x64'
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -26,8 +31,8 @@ function Invoke-BootstrapStep {
 }
 
 try {
-    Invoke-BootstrapStep "Pull CEF" {
-        & (Join-Path $repoRoot "IntelPresentMon\AppCef\Batch\pull-cef.ps1")
+    Invoke-BootstrapStep "Pull CEF ($Platform)" {
+        & (Join-Path $repoRoot "IntelPresentMon\AppCef\Batch\pull-cef.ps1") -Platform $Platform
     }
 
     Invoke-BootstrapStep "Pull auxiliary test data" {
