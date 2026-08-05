@@ -9,7 +9,9 @@ This directory contains the authoritative design and execution record for the CM
 - [Phase 1 - CMake Infrastructure](Phase1-CMakeInfrastructure.md): root project, presets, options, shared policies, and verification.
 - [Phase 2 - Foundation and Standalone Targets](Phase2-FoundationAndStandalone.md): foundation split, console, provider, tools, and multi-architecture verification.
 - [Phase 3 - Service and SDK](Phase3-ServiceAndSdk.md): service split, Interprocess, ControlLib, wrappers, middleware, API DLLs, and Core.
-- [Phase 4 - UI and Capture](Phase4-UiAndCapture.md): CEF, shaders, PresentMonUI, KernelProcess, and the remaining payload, deployment, and signing work.
+- [Phase 4 - UI and Capture](Phase4-UiAndCapture.md): CEF, shaders,
+  PresentMonUI, KernelProcess, and the remaining payload, deployment, signing,
+  and behavioral verification work.
 
 ## Document Convention
 

@@ -3,18 +3,18 @@
 ## Status
 
 Phase 4 is in progress. The CEF dependency integration, shader compilation,
-and native `PresentMonUI` and `KernelProcess` CMake targets are implemented.
-They establish the native UI and kernel process build boundary, but they do
-not yet produce the complete runnable UI and capture deployment.
+native `PresentMonUI` and `KernelProcess` CMake targets, and the remaining
+runtime payload staging are implemented. Deployment-profile manifests, signing,
+and behavioral verification are still open before Phase 4 is complete.
 
 | Area | State | Current boundary |
 | --- | --- | --- |
 | CEF dependency | Implemented | Fixed CMake stage, explicit restore, incremental runtime staging, and explicit CI integrity verification. |
 | Shaders | Implemented | The two shipping HLSL shaders compile through CMake with the original MSBuild settings. |
 | PresentMonUI | Implemented | The x64 `WIN32` executable reproduces the original `CefNano.vcxproj` native target contract. |
-| KernelProcess | Implemented | The x64 `WIN32` executable reproduces the original `KernelProcess.vcxproj` native target contract. |
-| Runtime payload | Remaining | Web content, presets, blocklists, and CLI-related payload are not staged by CMake. |
-| Deployment and signing | Remaining | Phase 4 products are not signed or packaged yet. |
+| KernelProcess | Implemented | The x64 `WIN32` executable reproduces the original native target contract; deployment-profile manifest selection remains open. |
+| Runtime payload | Implemented | Web output, presets, blocklist, and CLI wrappers stage incrementally through `cmake/PresentMonUiPayload.cmake`. |
+| Deployment and signing | Remaining | CMake does not yet sign and verify the complete production native payload built through Phase 4; MSI and MSM packaging belongs to Phase 6. |
 | Behavioral verification | Remaining | A deterministic UI and representative capture/control workflow is still required. |
 
 `PresentMonUI` and shader compilation are available only for x64 when
@@ -187,9 +187,26 @@ not add a raw legacy CEF include or library path. `Core` keeps its `IS_DEBUG`
 definition private, so it does not leak into the UI compilation. The unused
 Boost.Process include and dependency are not part of the target contract.
 
-The legacy AppCef post-build batch file is not invoked from CMake. Its CEF and
-shader responsibilities are replaced by explicit CMake dependencies. Its
-remaining payload and deployment responsibilities have not yet been converted.
+The legacy AppCef post-build batch file is not invoked from CMake. Its CEF
+responsibilities are replaced by explicit CMake dependencies. Shader compilation
+came from `Shaders.vcxitems` and is replaced separately. Web, preset, and
+blocklist staging is implemented in `cmake/PresentMonUiPayload.cmake`; CLI
+wrappers stage through the same module on `KernelProcess`.
+
+## Implemented KernelProcess Contract
+
+`IntelPresentMon/KernelProcess/CMakeLists.txt` builds the x64 `WIN32` target
+`KernelProcess` as `PresentMon.exe`. The registration-only
+`kact/KernelActionRegistration.cpp` remains a direct executable source.
+KernelProcess has build-order dependencies on `PresentMonUI` and
+`PresentMonService`, matching the two legacy application project references
+without linking either executable.
+
+The native target currently preserves the legacy per-configuration manifest:
+Debug uses `uiAccess=false` and Release uses `uiAccess=true`. This is native
+project parity, not the final deployment policy. The remaining deployment unit
+must make the choice profile-based so every developer build uses `false` and the
+production Release build uses `true`.
 
 ## Current Output Boundary
 
@@ -199,10 +216,14 @@ An enabled default UI build currently produces or stages:
 - `PresentMon.exe` (the KernelProcess executable) and its normal debug outputs.
 - `Shaders/Line_PS.cso` and `Shaders/Line_VS.cso`.
 - Every CEF runtime and resource file named by the lock.
+- The locked Vite web output under `ipm-ui-vue/`, four preset JSON files under
+  `Presets/`, and the blocklist under `BlockLists/`.
+- `presentmon-cli.cmd` beside `PresentMon.exe` and `presentmon-cli.bat` under
+  `pathed/`.
 
-It does not yet stage the web application, presets, blocklists, or CLI
-wrappers. Building `PresentMonUI` is therefore not yet proof of a complete
-launchable UI deployment.
+Building `PresentMonUI` and `KernelProcess` now stages the legacy runtime
+payload, but deployment-profile manifests, signing, and the deterministic
+behavioral gate are still required before Phase 4 is complete.
 
 ## Current Verification
 
@@ -223,9 +244,10 @@ The cleaned target graph was verified on August 4, 2026:
 ## Deployment and Signing Status
 
 Production configuration can select the existing EDSS or SignTool backend. No
-Phase 4 product signing pipeline has been attached yet. In particular,
-`PresentMonUI`, `KernelProcess`, and their staged payload are not currently
-signed, signature-verified, or packaged by the CMake Phase 4 flow.
+production signing pipeline has been attached yet. Phase 4 owns signing and
+signature verification for the complete native payload built through this
+phase, including the products converted in Phases 2 and 3. MSI and MSM
+packaging remains Phase 6 work.
 
 The remaining deployment work must define the complete payload, apply developer
 and production manifest policy, sign the required production files, and verify
@@ -236,21 +258,14 @@ UI manifest.
 
 ## Remaining Work Plan
 
-### 1. Convert the Remaining Payload
+### 1. Apply Deployment Manifest Policy
 
-- Build and stage the web application consumed by the CEF scheme handlers.
-- Stage presets, blocklists, and CLI-related files from explicit source lists.
-- Replace the remaining behavior of the legacy AppCef post-build batch file.
+- Keep `PresentMonUI` non-elevated in every profile.
+- Change KernelProcess manifest selection from configuration-based to
+  profile-based: developer Debug and Release use `uiAccess=false`; production
+  Release uses `uiAccess=true`.
 
-### 2. Apply Deployment Policy and Signing
-
-- Define the complete developer and production payload manifests.
-- Attach the selected signing backend to the required production binaries.
-- Verify signatures after all payload mutation and before packaging.
-- Keep signing credentials and tool-specific configuration outside the source
-  tree.
-
-### 3. Add Deterministic Behavioral Verification
+### 2. Add Deterministic Behavioral Verification
 
 The completion check must exercise the staged web UI and a representative
 KernelProcess capture or control path. It must define:
@@ -265,6 +280,17 @@ A process launch or `--help` result alone is insufficient. If deterministic
 readiness or shutdown needs a small product seam, add that seam as part of this
 phase rather than relying on timing guesses.
 
+### 3. Apply Production Signing
+
+- Attach the selected EDSS or direct SignTool backend to the complete
+  production native payload built through Phase 4, including the products
+  converted in Phases 2 and 3.
+- Add a Win32 production Release build and include its maintained x86 payload,
+  including `Intel-PresentMon32.dll`, in signing and signature verification.
+- Verify signatures after all payload mutation and before Phase 6 packaging.
+- Keep signing credentials and tool-specific configuration outside the source
+  tree.
+
 ### 4. Complete the Build Matrix
 
 - Build clean x64 Debug and Release developer configurations.
@@ -272,9 +298,11 @@ phase rather than relying on timing guesses.
   recompile unchanged shaders or C++, or relink unchanged products.
 - Confirm `PMON_BUILD_UI=OFF` does not create UI or shader targets.
 - Confirm Win32 remains free of UI, shader, and CEF product dependencies.
+- Build the maintained Win32 production Release payload.
 - Run the explicit CEF integrity target in CI.
-- Build the production payload, sign it, verify it, and package it.
+- Build the production payload, sign it, and verify it.
 - Run the deterministic UI and capture workflow against the staged payload.
+- Leave MSI and MSM packaging to Phase 6.
 
 ## Phase Completion Criteria
 

@@ -78,4 +78,5 @@ set_target_properties(
 
 pmon_target_uses_cef(PresentMonUI)
 pmon_target_uses_shaders(PresentMonUI)
+pmon_target_uses_ui_payload(PresentMonUI)
 

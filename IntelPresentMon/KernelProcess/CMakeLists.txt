@@ -62,3 +62,5 @@ set_target_properties(
         FOLDER "UI and Capture"
         VS_DEBUGGER_WORKING_DIRECTORY "${PMON_OUTPUT_ROOT}/$<CONFIG>"
 )
+
+pmon_target_uses_kernel_payload(KernelProcess)

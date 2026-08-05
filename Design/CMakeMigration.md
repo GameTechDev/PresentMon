@@ -5,9 +5,9 @@
 Draft. Build implementation is complete through Phase 3. Phase 4 has implemented
 the fixed CEF dependency boundary, shader compilation, and the native
 `PresentMonUI` and `KernelProcess` targets. The remaining Phase 4
-payload, deployment, and signing work are still open. Phase 2 still requires a
-deterministic functional backfill under the phase-local behavioral gate; Phase 3
-satisfies that gate.
+payload, deployment, signing, behavioral verification, and final build-matrix
+work are still open. Phase 2 still requires a deterministic functional backfill
+under the phase-local behavioral gate; Phase 3 satisfies that gate.
 
 This document defines a new CMake migration plan based only on the current source tree. Existing experimental branches and designs are intentionally excluded.
 
@@ -115,15 +115,22 @@ Deployment policy is independent of Debug and Release optimization:
 PMON_DEPLOYMENT_PROFILE=DEVELOPER|PRODUCTION
 ```
 
-The developer profile uses `uiAccess=false`, does not require signing, and produces locally runnable builds. The production profile uses `uiAccess=true` and requires signed payloads before packaging.
+The developer profile uses `uiAccess=false`, does not require signing, and
+produces locally runnable builds. In the production profile, KernelProcess uses
+`uiAccess=true` and requires signing; `PresentMonUI` remains
+`uiAccess=false` in every profile. Production payloads must be signed before
+packaging.
 
-Signing is implemented as an explicit CMake build stage. Automatic backend selection uses this order:
+Signing will be an explicit CMake build stage. Automatic backend selection uses
+this order:
 
 1. EDSS PowerShell backend when available.
 2. Direct SignTool backend using the named certificate in `PrivateCertStore`.
 3. Fail when neither backend is available.
 
-If the EDSS backend is detected but signing fails, the build fails instead of falling back to the test certificate. CMake verifies payload signatures before building production packages and verifies the MSI after signing.
+If the EDSS backend is detected but signing fails, the signing stage must fail
+instead of falling back to the test certificate. Phase 4 verifies payload
+signatures before Phase 6 packaging. Phase 6 verifies the MSI after signing.
 
 Options will control component inclusion. Individual internal libraries will follow automatically from target dependencies rather than having separate user-facing switches.
 
@@ -323,18 +330,38 @@ the PresentMonUI and KernelProcess targets are implemented. See
 [Phase 4 - UI and Capture](Phase4-UiAndCapture.md) for the current contract and
 remaining plan.
 
-- Integrate locked CEF restoration and wrapper build.
+- Integrate locked CEF restoration, wrapper build, and incremental runtime
+  staging. Complete.
 - Convert shader compilation. Complete as a standalone `pmon_compile_shaders`
   target, now wired into the `PresentMonUI` build graph through
   `pmon_target_uses_shaders()`.
 - Convert UI and kernel process targets. `PresentMonUI` and `KernelProcess`
   are complete.
-- Stage CEF, web, preset, blocklist, and CLI payloads.
-- Apply the existing developer and production deployment profiles to the UI,
-  kernel process, and their staged payloads.
-- Apply the existing EDSS and direct SignTool signing backends to Phase 4
-  payloads.
-- Verify production signatures before packaging.
+- Stage the remaining web, preset, blocklist, and CLI payloads. Complete.
+- Apply the developer and production deployment policies to the UI, kernel
+  process, and their staged payloads.
+- Run the deterministic UI and representative capture/control workflow.
+- Sign the complete production native payload built through Phase 4 and verify
+  its signatures before Phase 6 packaging.
+
+#### Remaining Phase 4 Work Units
+
+Complete these units separately and stop for review after each one:
+
+1. Convert only the remaining runtime payload. Complete.
+2. Apply deployment-profile manifest policy. Both Debug and Release developer
+   builds use `uiAccess=false`; the production Release build uses
+   `uiAccess=true`. Replace the current configuration-only KernelProcess choice
+   with `PMON_DEPLOYMENT_PROFILE`; `PresentMonUI` remains non-elevated.
+3. Run and record the deterministic developer-profile UI and representative
+   capture/control workflow against the complete staged payload.
+4. Attach the selected EDSS or direct SignTool backend to the complete
+   production native payload built through Phase 4, including the products
+   converted in Phases 2 and 3. Add the Win32 production Release build required
+   for the maintained x86 payload, including `Intel-PresentMon32.dll`, and
+   verify every required signature after payload mutation.
+5. Complete the Phase 4 build matrix and regression checks. Stop at a signed,
+   signature-verified native payload; MSI and MSM packaging remain Phase 6.
 
 #### Phase 4 Rules
 
@@ -499,6 +526,7 @@ environment-qualified omission is recorded as such; it is not a passing result.
 
 ## Immediate Next Step
 
-PresentMonUI, KernelProcess, CEF runtime staging, and shader compilation are
-implemented. The next implementation step is the remaining Phase 4 web,
-preset, blocklist, CLI payload, deployment, and signing work.
+PresentMonUI, KernelProcess, CEF runtime staging, shader compilation, and the
+remaining runtime payload are implemented. The next implementation unit is
+deployment-profile manifest policy for KernelProcess. Stop for review before
+signing or behavioral verification.
