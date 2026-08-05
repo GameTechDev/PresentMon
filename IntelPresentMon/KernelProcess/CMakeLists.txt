@@ -51,10 +51,9 @@ target_link_options(
     KernelProcess
     PRIVATE
         $<$<CONFIG:Release>:/guard:cf>
-        # Reproduces KernelProcess.vcxproj's Release-only UACUIAccess=true.
-        $<$<CONFIG:Release>:/MANIFESTUAC:level='asInvoker'>
-        $<$<CONFIG:Release>:/MANIFESTUAC:uiAccess='true'>
 )
+pmon_apply_kernel_process_manifest(KernelProcess)
+pmon_attach_kernel_process_developer_signing(KernelProcess)
 set_target_properties(
     KernelProcess
     PROPERTIES

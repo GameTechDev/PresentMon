@@ -202,11 +202,16 @@ KernelProcess has build-order dependencies on `PresentMonUI` and
 `PresentMonService`, matching the two legacy application project references
 without linking either executable.
 
-The native target currently preserves the legacy per-configuration manifest:
-Debug uses `uiAccess=false` and Release uses `uiAccess=true`. This is native
-project parity, not the final deployment policy. The remaining deployment unit
-must make the choice profile-based so every developer build uses `false` and the
-production Release build uses `true`.
+The native target applies deployment manifest policy through CMake:
+
+- Debug uses `uiAccess=false` in every deployment profile.
+- Release uses `uiAccess=true` in both DEVELOPER and PRODUCTION profiles
+  (matching legacy `KernelProcess.vcxproj` Release / Release-EDSS linking).
+
+Developer Release builds run the legacy test-certificate SignTool post-build on
+`PresentMon.exe` when the certificate is installed; production Release builds
+rely on the EDSS signing stage and do not attach the test-certificate
+post-build to KernelProcess.
 
 ## Current Output Boundary
 
@@ -243,8 +248,10 @@ The cleaned target graph was verified on August 4, 2026:
 
 ## Deployment and Signing Status
 
-Production configuration can select the existing EDSS or SignTool backend. No
-production signing pipeline has been attached yet. Phase 4 owns signing and
+Production configuration uses EDSS only (`PMON_EDSS_SIGN_SCRIPT` must point at an
+external script before configure).
+Developer configuration uses SignTool for the KernelProcess Release post-build.
+Phase 4 owns signing and
 signature verification for the complete native payload built through this
 phase, including the products converted in Phases 2 and 3. MSI and MSM
 packaging remains Phase 6 work.
@@ -261,9 +268,14 @@ UI manifest.
 ### 1. Apply Deployment Manifest Policy
 
 - Keep `PresentMonUI` non-elevated in every profile.
-- Change KernelProcess manifest selection from configuration-based to
-  profile-based: developer Debug and Release use `uiAccess=false`; production
-  Release uses `uiAccess=true`.
+- KernelProcess manifest policy: Debug uses `uiAccess=false`; Release uses
+  `uiAccess=true` for both DEVELOPER and PRODUCTION profiles.
+- Developer Release: test-certificate SignTool sign and verify on KernelProcess
+  (legacy vcxproj post-build parity).
+- Production Release: EDSS payload signing via `pmon_sign_production_payload`
+  (invokes the script from `PMON_EDSS_SIGN_SCRIPT` with `-OutputRoot`
+  `"${PMON_OUTPUT_ROOT}/Release"` after the Release payload exists; the script
+  lives outside the repo); no test-certificate post-build on KernelProcess.
 
 ### 2. Add Deterministic Behavioral Verification
 
@@ -282,14 +294,14 @@ phase rather than relying on timing guesses.
 
 ### 3. Apply Production Signing
 
-- Attach the selected EDSS or direct SignTool backend to the complete
-  production native payload built through Phase 4, including the products
+- Attach EDSS to the complete production native payload built through Phase 4,
+  including the products
   converted in Phases 2 and 3.
 - Add a Win32 production Release build and include its maintained x86 payload,
   including `Intel-PresentMon32.dll`, in signing and signature verification.
 - Verify signatures after all payload mutation and before Phase 6 packaging.
 - Keep signing credentials and tool-specific configuration outside the source
-  tree.
+  tree (reference template: `C:\PresentMonBuilder\sign-production-payload.ps1`).
 
 ### 4. Complete the Build Matrix
 

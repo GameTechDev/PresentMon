@@ -103,6 +103,9 @@ if(PMON_ARCHITECTURE STREQUAL "x64")
     endif()
 endif()
 
+pmon_add_production_signing_targets()
+pmon_add_installer_scaffolding()
+
 message(STATUS "")
 message(STATUS "PresentMon configuration")
 message(STATUS "  Version:            ${PMON_VERSION}")

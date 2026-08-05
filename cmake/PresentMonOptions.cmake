@@ -44,14 +44,6 @@ function(pmon_configure_options)
         ON
         OFF
     )
-    pmon_define_enum_cache(
-        PMON_SIGNING_BACKEND
-        AUTO
-        "Production signing backend"
-        AUTO
-        EDSS
-        SIGNTOOL
-    )
 
     set(
         PMON_UCI_ROOT
@@ -63,7 +55,7 @@ function(pmon_configure_options)
         PMON_EDSS_SIGN_SCRIPT
         ""
         CACHE FILEPATH
-        "PowerShell entry point for the EDSS signing backend"
+        "External EDSS signing script (PRODUCTION: set PMON_EDSS_SIGN_SCRIPT env or -D before configure)"
     )
     set(
         PMON_SIGNTOOL_EXECUTABLE
@@ -83,8 +75,13 @@ function(pmon_configure_options)
         CACHE STRING
         "Certificate subject used by the direct SignTool backend"
     )
+    set(
+        PMON_SIGNTOOL_TIMESTAMP_URL
+        "http://timestamp.comodoca.com/authenticode"
+        CACHE STRING
+        "Timestamp server URL for the developer SignTool post-build step"
+    )
 
     set(PMON_DEPLOYMENT_PROFILE "${PMON_DEPLOYMENT_PROFILE}" PARENT_SCOPE)
     set(PMON_ENABLE_UCI "${PMON_ENABLE_UCI}" PARENT_SCOPE)
-    set(PMON_SIGNING_BACKEND "${PMON_SIGNING_BACKEND}" PARENT_SCOPE)
 endfunction()

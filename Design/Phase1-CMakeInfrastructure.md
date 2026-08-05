@@ -16,7 +16,7 @@ Phase 1 established:
 - Shared MSVC runtime, language, warning, and output policy targets.
 - Pinned vcpkg manifest integration.
 - Optional UCI discovery.
-- Production signing backend selection.
+- Production signing lane (EDSS; profile-selected).
 
 ## Added Build Files
 
@@ -61,9 +61,8 @@ These Boolean options default to `ON`:
 
 Policy options:
 
-- `PMON_DEPLOYMENT_PROFILE=DEVELOPER|PRODUCTION`
+- `PMON_DEPLOYMENT_PROFILE=DEVELOPER|PRODUCTION` (DEVELOPER uses SignTool; PRODUCTION requires EDSS)
 - `PMON_ENABLE_UCI=AUTO|ON|OFF`
-- `PMON_SIGNING_BACKEND=AUTO|EDSS|SIGNTOOL`
 - `PMON_USE_VCPKG=ON|OFF`
 - `PMON_AUTO_RESTORE_VCPKG=ON|OFF`
 
@@ -128,15 +127,12 @@ Runtime collector staging and packaging remain part of the target and packaging 
 
 ## Signing Behavior
 
-Developer configurations select no signing backend.
+`PMON_DEPLOYMENT_PROFILE` selects the signing lane:
 
-Production `AUTO` selection uses:
+- `DEVELOPER`: SignTool (test certificate) for KernelProcess Release post-build. SignTool discovery is optional at configure and enforced at sign time.
+- `PRODUCTION`: EDSS only. Set `PMON_EDSS_SIGN_SCRIPT` (environment variable or `-D` cache entry) to an external PowerShell signing script outside the repo (for example under `PresentMonBuilder`) before configure; configuration fails if unset or the path does not exist. No in-repo script and no SignTool fallback.
 
-1. An explicitly configured EDSS script, the `PMON_EDSS_SIGN_SCRIPT` environment variable, or `C:/PresentMonBuilder/full-sign-build.ps1`.
-2. The newest Windows SDK SignTool.
-3. Configuration failure when neither exists.
-
-Explicit `EDSS` and `SIGNTOOL` selections fail configuration when the requested tool is unavailable. Artifact signing, certificate validation, signature verification, and packaging order remain Phase 4 work.
+Artifact signing beyond KernelProcess post-build, certificate validation, signature verification, and packaging order remain Phase 4 work.
 
 ## Verification
 
@@ -155,8 +151,8 @@ Results:
 
 - Pinned vcpkg dependencies restored successfully.
 - Developer Debug and Release infrastructure builds succeeded.
-- Production Release infrastructure build succeeded and selected EDSS first.
-- Removing the EDSS script from consideration selected SignTool.
+- Production Release infrastructure build succeeded when `PMON_EDSS_SIGN_SCRIPT` pointed at an external script.
+- Production configure fails with a clear error when `PMON_EDSS_SIGN_SCRIPT` is unset.
 - `PMON_ENABLE_UCI=AUTO` configured without the unavailable SDK.
 - `PMON_ENABLE_UCI=ON` failed as required when the SDK was unavailable.
 

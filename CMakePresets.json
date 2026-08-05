@@ -33,7 +33,7 @@
     {
       "name": "windows-x64-developer",
       "displayName": "Windows x64 Developer",
-      "description": "Local developer build with uiAccess disabled and optional signing",
+      "description": "Local developer build (SignTool test cert on Release KernelProcess); Debug uiAccess=false, Release uiAccess=true",
       "inherits": "windows-x64-base",
       "cacheVariables": {
         "PMON_DEPLOYMENT_PROFILE": "DEVELOPER",
@@ -43,12 +43,11 @@
     {
       "name": "windows-x64-production",
       "displayName": "Windows x64 Production",
-      "description": "Production build with a required signing backend",
+      "description": "Production build (set PMON_EDSS_SIGN_SCRIPT to external signing script before configure)",
       "inherits": "windows-x64-base",
       "cacheVariables": {
         "PMON_DEPLOYMENT_PROFILE": "PRODUCTION",
-        "PMON_ENABLE_UCI": "AUTO",
-        "PMON_SIGNING_BACKEND": "AUTO"
+        "PMON_ENABLE_UCI": "AUTO"
       }
     },
     {
