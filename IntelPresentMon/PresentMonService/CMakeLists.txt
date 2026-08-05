@@ -109,6 +109,7 @@ target_link_libraries(
         pmon::build_options
         pmon::warnings_default
         pmon::version_resource
+        pmon::release_link_policy
 )
 target_compile_options(
     PresentMonService
@@ -154,5 +155,3 @@ if(PMON_UCI_ENABLED)
         VERBATIM
     )
 endif()
-
-pmon_register_artifact("$<TARGET_FILE:PresentMonService>")

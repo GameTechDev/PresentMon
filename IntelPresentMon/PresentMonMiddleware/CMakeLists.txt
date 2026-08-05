@@ -70,5 +70,3 @@ set_target_properties(
         OUTPUT_NAME PresentMonMiddleware
         FOLDER "Service and SDK"
 )
-
-pmon_register_artifact("$<TARGET_FILE:pmon_middleware>")

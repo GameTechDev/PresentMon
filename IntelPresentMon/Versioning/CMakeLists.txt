@@ -61,5 +61,3 @@ set_target_properties(
         OUTPUT_NAME IPMVersioning
         FOLDER "Foundation"
 )
-
-pmon_register_artifact("$<TARGET_FILE:pmon_versioning>")

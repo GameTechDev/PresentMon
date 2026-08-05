@@ -119,5 +119,3 @@ set_target_properties(
             "${PMON_OUTPUT_ROOT}/lib/CommonUtilities-${PMON_ARCHITECTURE}-$<CONFIG>"
         FOLDER "Foundation"
 )
-
-pmon_register_artifact("$<TARGET_FILE:pmon_common_utilities>")

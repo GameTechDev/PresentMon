@@ -15,6 +15,7 @@ target_link_libraries(
     PRIVATE
         pmon::build_options
         pmon::warnings_default
+        pmon::release_link_policy
         pmon::common_utilities
         pmon::present_data
         ole32
@@ -22,5 +23,3 @@ target_link_libraries(
         tdh
 )
 set_target_properties(ETLTrimmer PROPERTIES FOLDER "Tools")
-
-pmon_register_artifact("$<TARGET_FILE:ETLTrimmer>")

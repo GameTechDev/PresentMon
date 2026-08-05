@@ -144,31 +144,20 @@ Phase 2 added:
 
 The existing x64 presets remain unchanged at the command-line interface.
 
-## Artifact Verification
-
-Converted externally consumed outputs are registered with `pmon_register_artifact()`.
-
-- x64 verification checks seven artifacts.
-- Win32 verification checks six artifacts.
-
-The Metrics library is an internal implementation artifact and is not included in the parity manifest.
-
 ## Verification
 
-Build and artifact verification succeeded for:
+Build verification succeeded for:
 
 ```powershell
 cmake --preset windows-x64-dependencies
 cmake --preset windows-x64-developer
 cmake --build --preset windows-x64-developer-debug
 cmake --build --preset windows-x64-developer-release
-cmake --build --preset windows-x64-developer-release --target pmon_verify_artifacts
 
 cmake --preset windows-win32-dependencies
 cmake --preset windows-win32-developer
 cmake --build --preset windows-win32-developer-debug
 cmake --build --preset windows-win32-developer-release
-cmake --build --preset windows-win32-developer-release --target pmon_verify_artifacts
 ```
 
 Runtime smoke checks:

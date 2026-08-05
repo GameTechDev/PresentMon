@@ -17,13 +17,11 @@ Phase 1 established:
 - Pinned vcpkg manifest integration.
 - Optional UCI discovery.
 - Production signing backend selection.
-- Artifact registration and verification support.
 
 ## Added Build Files
 
 - `CMakeLists.txt`
 - `CMakePresets.json`
-- `cmake/PresentMonArtifacts.cmake`
 - `cmake/PresentMonCompiler.cmake`
 - `cmake/PresentMonOptions.cmake`
 - `cmake/PresentMonOutput.cmake`
@@ -31,7 +29,6 @@ Phase 1 established:
 - `cmake/PresentMonUci.cmake`
 - `cmake/PresentMonVcpkg.cmake`
 - `cmake/PresentMonVersion.cmake`
-- `cmake/VerifyArtifacts.cmake`
 
 `CMakeUserPresets.json` is ignored so machine-specific paths and overrides remain local.
 
@@ -61,10 +58,6 @@ These Boolean options default to `ON`:
 - `PMON_BUILD_UI`
 - `PMON_BUILD_PROVIDER`
 - `PMON_BUILD_TOOLS`
-- `PMON_BUILD_TESTS`
-- `PMON_BUILD_INSTALLER`
-- `PMON_BUILD_MERGE_MODULE`
-- `PMON_BUILD_REFLECTOR`
 
 Policy options:
 
@@ -96,8 +89,28 @@ Target-specific exceptions such as `build/lib/CommonUtilities-x64-<Configuration
 - `/std:c++latest`.
 - Suppressed warnings for external headers.
 - Existing shared cereal and Boost definitions.
+- Release `/Gy` and `/Oi`, matching the whole-program-optimization policy
+  every tracked legacy `.vcxproj` pairs with `/GL` (see below).
 
-`pmon::warnings_default` supplies `/W3`. `pmon::warnings_strict` supplies `/W4 /WX` and linker warnings-as-errors. Converted targets will select the policy matching their MSBuild baseline.
+`pmon::warnings_default` supplies `/W3`. `pmon::warnings_strict` supplies
+`/W4 /WX` compile warnings only. Linker warnings-as-errors is a separate
+`pmon::warnings_strict_link` target: a STATIC library cannot scope a linker
+option to its own (nonexistent) link step, so CMake forwards a static
+library's link options to whatever finally links it, and combining `/WX` into
+`pmon::warnings_strict` would leak it into every consumer of a static library
+that uses the strict policy for its own compilation but never asked for
+warnings-as-errors at link time. Only actual executable and DLL targets that
+want that policy link `pmon::warnings_strict_link`. Converted targets will
+select the policy matching their MSBuild baseline.
+
+`CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE`, `CMAKE_MSVC_DEBUG_INFORMATION_FORMAT`,
+and `CMAKE_VS_JUST_MY_CODE_DEBUGGING` are set before any target is created
+(in `pmon_create_compiler_targets()`), so `/GL`/`/LTCG`, matching Debug/Release
+debug-information format, and Just My Code are the default for every target
+without each `CMakeLists.txt` repeating them. `pmon::release_link_policy`
+supplies the matching Release `/DEBUG /OPT:REF /OPT:ICF` linker policy for
+executable and DLL targets; STATIC libraries have no link step to apply it
+to.
 
 The static MSVC runtime is the default for both Debug and Release.
 
@@ -125,12 +138,6 @@ Production `AUTO` selection uses:
 
 Explicit `EDSS` and `SIGNTOOL` selections fail configuration when the requested tool is unavailable. Artifact signing, certificate validation, signature verification, and packaging order remain Phase 4 work.
 
-## Artifact Verification
-
-Converted targets will call `pmon_register_artifact()` for externally consumed outputs. The `pmon_verify_artifacts` target checks the generated per-configuration manifest and fails when an expected artifact is missing.
-
-Phase 1 registers no product artifacts because no product targets exist yet.
-
 ## Verification
 
 Verified on Windows with Visual Studio 2022, MSVC 19.44, and Windows SDK 10.0.26100.0:
@@ -140,7 +147,6 @@ cmake --preset windows-x64-dependencies
 cmake --preset windows-x64-developer
 cmake --build --preset windows-x64-developer-debug
 cmake --build --preset windows-x64-developer-release
-cmake --build --preset windows-x64-developer-debug --target pmon_verify_artifacts
 cmake --preset windows-x64-production
 cmake --build --preset windows-x64-production-release
 ```
@@ -153,7 +159,6 @@ Results:
 - Removing the EDSS script from consideration selected SignTool.
 - `PMON_ENABLE_UCI=AUTO` configured without the unavailable SDK.
 - `PMON_ENABLE_UCI=ON` failed as required when the SDK was unavailable.
-- Artifact verification succeeded with the expected Phase 1 count of zero.
 
 ## Deferred
 

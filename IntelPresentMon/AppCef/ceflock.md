@@ -61,18 +61,15 @@ restore, configure the source explicitly:
 > cmake --build build\cmake\windows-x64-developer --config Debug --target pmon_restore_cef
 ```
 
-`pmon_validate_cef` checks the fixed CMake stage without downloading anything
-and prints the restore command above when the stage is missing or invalid.
 `pmon_stage_cef_runtime` incrementally copies the locked runtime files into the
-build output, removes only stale files owned by that staging operation, and
-revalidates the payload there. Its ownership manifest lives under the selected
-output root, so recreating the CMake configure tree does not lose stale-file
-cleanup state.
-`pmon_verify_cef` depends on staging and repeatably verifies the stage, output,
-and owned stale-file removal without downloading anything.
+build output. Normal product builds do not perform CEF hash validation.
+`pmon_restore_cef` validates a restored stage before publishing it.
+`pmon_verify_cef` is the explicit offline CI check for the published CMake stage
+and its staged runtime payload.
 
-The four CEF utility targets are excluded from CMake CLI and generated Visual
-Studio default builds until a product target depends on them.
+Restore and CI verification are excluded from normal CMake CLI and generated
+Visual Studio builds. Runtime staging becomes part of the normal build when a
+product target uses CEF.
 
 `pull-cef.ps1` also accepts `-Generator`, `-Platform`, and `-Toolset` for the
 wrapper build. Their defaults are `Visual Studio 17 2022`, `x64`, and `v143`.

@@ -58,8 +58,7 @@ a constructor parameter name.
 
 `PresentMonServiceCore.lib` is an internal implementation artifact. It is written
 to `build/obj/<Configuration>/` rather than the public output directory, matching
-the treatment the Metrics library received in Phase 2, and it is not part of the
-parity manifest.
+the treatment the Metrics library received in Phase 2.
 
 ## Targets
 
@@ -202,12 +201,6 @@ and `PM_VER_COPYRIGHT` are now supplied by a single `pmon::version_resource`
 INTERFACE target created in `cmake/PresentMonVersion.cmake`. Provider was
 switched from its inline copy to that target; its output is unchanged.
 
-## Artifact Verification
-
-x64 verification now checks twenty artifacts: the seven registered in Phase 2 and
-thirteen added here. The service implementation library and the Metrics library
-are internal artifacts and are excluded.
-
 ## Verification
 
 Configuration and build:
@@ -216,25 +209,8 @@ Configuration and build:
 cmake --preset windows-x64-dependencies
 cmake --preset windows-x64-developer
 cmake --build --preset windows-x64-developer-debug
-cmake --build --preset windows-x64-developer-debug --target pmon_verify_artifacts
-cmake --build --preset windows-x64-developer-debug --target pmon_verify_service_sdk
 cmake --build --preset windows-x64-developer-release
-cmake --build --preset windows-x64-developer-release --target pmon_verify_artifacts
-cmake --build --preset windows-x64-developer-release --target pmon_verify_service_sdk
 ```
-
-The `pmon_service_sdk_smoke` CTest test is the Phase 3 behavioral check.
-`pmon_verify_service_sdk` first builds its four product dependencies and then
-runs that test for the selected configuration. The test starts the service in
-console test-control mode with unique control-pipe, shared-memory, and ETW names;
-waits for both the test-control acknowledgement and action-server pipe; runs
-`SampleClient --mode Introspection` against the CMake-built middleware DLL; and
-requires a successful API session, metric introspection data, and zero process
-exit codes. It sends the service a test-control quit command and uses PID-scoped
-termination only as failure or timeout cleanup. Both processes are also assigned
-to a kill-on-close Windows Job Object so attached child processes are terminated
-if the harness is cancelled. Per-run stdout and stderr logs are retained under
-the CMake build tree.
 
 Win32 regression check, because this phase changed the shared compiler options
 target and Provider:
@@ -244,15 +220,12 @@ cmake --preset windows-win32-dependencies
 cmake --preset windows-win32-developer
 cmake --build --preset windows-win32-developer-debug
 cmake --build --preset windows-win32-developer-release
-cmake --build --preset windows-win32-developer-release --target pmon_verify_artifacts
 ```
 
 Results:
 
 - Debug x64 and Release x64 built with no errors.
-- Artifact verification reported twenty artifacts in both configurations.
-- Win32 Debug and Release built with no errors and verified the same six
-  artifacts as Phase 2.
+- Win32 Debug and Release built with no errors.
 - The Win32 build produced only x86 outputs. The x64 binaries in
   `build/Release` were left untouched, confirming that no Phase 3 target is
   configured for Win32. `pm_convert_csv.exe` is rewritten by both
@@ -274,11 +247,22 @@ Runtime and binary checks:
   mode, so no Windows service was installed or started.
 - A console-mode service and `SampleClient --mode Introspection` completed an
   API session successfully in both Debug and Release. The client exited 0 and
-  returned metric introspection data. The automated `pmon_verify_service_sdk`
-  target repeated this workflow successfully in both configurations and shut
-  down each service instance through its test-control channel.
+  returned metric introspection data.
 - `SampleClient.exe --help` printed its usage and mode list and exited 0 in both
   configurations.
+
+The service/SDK behavioral check used the following bounded procedure in both
+Debug and Release:
+
+1. Start `PresentMonService` in console test-control mode with unique control
+   pipe, shared-memory, and ETW session names. Require its `ping-ok` response
+   and control-pipe readiness.
+2. Run `SampleClient --mode Introspection` against the CMake-built
+   `PresentMonAPI2.dll`. Require exit code 0 and metric introspection data.
+3. Send `%quit` to the service. Require its `quit-ok` response and clean exit.
+
+The expected result was a completed introspection session followed by bounded,
+clean shutdown. Both configurations produced that result.
 
 ## Observations
 

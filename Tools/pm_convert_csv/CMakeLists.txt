@@ -5,6 +5,8 @@ target_link_libraries(
     PRIVATE
         pmon::build_options
         pmon::warnings_strict
+        pmon::warnings_strict_link
+        pmon::release_link_policy
 )
 set_target_properties(
     pm_convert_csv
@@ -22,5 +24,3 @@ add_custom_command(
         "${PMON_OUTPUT_ROOT}/$<CONFIG>/pm_convert_csv.exe"
     VERBATIM
 )
-
-pmon_register_artifact("${PMON_OUTPUT_ROOT}/$<CONFIG>/pm_convert_csv.exe")

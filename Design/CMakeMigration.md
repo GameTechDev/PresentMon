@@ -2,10 +2,12 @@
 
 ## Status
 
-Draft. Build implementation is complete through Phase 3. Phase 4 is in
-progress, and its fixed CEF dependency boundary passed preflight acceptance.
-Phase 2 still requires a deterministic functional backfill under the
-phase-local behavioral gate; Phase 3 satisfies that gate.
+Draft. Build implementation is complete through Phase 3. Phase 4 has implemented
+the fixed CEF dependency boundary, shader compilation, and the native
+`PresentMonUI` and `KernelProcess` targets. The remaining Phase 4
+payload, deployment, and signing work are still open. Phase 2 still requires a
+deterministic functional backfill under the phase-local behavioral gate; Phase 3
+satisfies that gate.
 
 This document defines a new CMake migration plan based only on the current source tree. Existing experimental branches and designs are intentionally excluded.
 
@@ -71,19 +73,15 @@ ARM and ARM64 are excluded. Their existing project configurations cover only par
 
 ### Output Contract
 
-The developer profile preserves the current externally consumed layout under
-the `build/` output root. The production profile uses the isolated
-`build/production/` root so manifest and signature state cannot overwrite a
-developer payload. Within the selected profile root, the layout is:
+All profiles preserve the current externally consumed layout under `build/`:
 
-- Runtime artifacts: `<output-root>/<Configuration>/`
-- Intermediate and generated files: `<output-root>/obj/`
-- Common utility libraries: `<output-root>/lib/`
-- Localized installer outputs: `<output-root>/<Configuration>/en-us/`
+- Runtime artifacts: `build/<Configuration>/`
+- Intermediate and generated files: `build/obj/`
+- Common utility libraries: `build/lib/`
+- Localized installer outputs: `build/<Configuration>/en-us/`
 
-Production staging, signing, verification, and packaging consume the production
-root exclusively. The fixed CMake CEF dependency stage remains shared at
-`build/ThirdParty/cef`; it is an input dependency, not a signed product output.
+The fixed CMake CEF dependency stage is `build/ThirdParty/cef`; it is an input
+dependency, not a signed product output.
 
 Important names to preserve include:
 
@@ -109,10 +107,6 @@ PMON_BUILD_SDK
 PMON_BUILD_UI
 PMON_BUILD_PROVIDER
 PMON_BUILD_TOOLS
-PMON_BUILD_TESTS
-PMON_BUILD_INSTALLER
-PMON_BUILD_MERGE_MODULE
-PMON_BUILD_REFLECTOR
 ```
 
 Deployment policy is independent of Debug and Release optimization:
@@ -255,7 +249,8 @@ Service and SDK
 
 UI and capture
   pmon_core
-  pmon_cef_support
+  pmon_cef
+  pmon_compile_shaders
   PresentMonUI
   KernelProcess
 
@@ -300,7 +295,7 @@ Status: Complete. See [Phase 1 - CMake Infrastructure](Phase1-CMakeInfrastructur
 - Add common MSVC, output, version, and generation helpers.
 - Add pinned dependency integration.
 - Add component options.
-- Add artifact manifest and parity-check support.
+- Define the common output contract.
 
 ### Phase 2: Standalone and Foundation Targets
 
@@ -323,13 +318,17 @@ Status: Complete. See [Phase 3 - Service and SDK](Phase3-ServiceAndSdk.md).
 
 ### Phase 4: UI and Capture
 
-Status: In progress. The CEF Restoration Plan below is accepted. See
-[Phase 4 - UI and Capture](Phase4-UiAndCapture.md) for the implementation and
-verification record.
+Status: In progress. CEF restore and runtime staging, shader compilation, and
+the PresentMonUI and KernelProcess targets are implemented. See
+[Phase 4 - UI and Capture](Phase4-UiAndCapture.md) for the current contract and
+remaining plan.
 
 - Integrate locked CEF restoration and wrapper build.
-- Convert shader compilation.
-- Convert UI and kernel process targets.
+- Convert shader compilation. Complete as a standalone `pmon_compile_shaders`
+  target, now wired into the `PresentMonUI` build graph through
+  `pmon_target_uses_shaders()`.
+- Convert UI and kernel process targets. `PresentMonUI` and `KernelProcess`
+  are complete.
 - Stage CEF, web, preset, blocklist, and CLI payloads.
 - Apply the existing developer and production deployment profiles to the UI,
   kernel process, and their staged payloads.
@@ -337,7 +336,7 @@ verification record.
   payloads.
 - Verify production signatures before packaging.
 
-#### Phase 4 Preflight Rules
+#### Phase 4 Rules
 
 The CefNano and KernelProcess registration-only translation units must be linked
 directly into their executable or supplied through an object-library mechanism
@@ -346,25 +345,61 @@ static implementation library. This applies to `CefActionRegistration.cpp` and
 both `KernelActionRegistration.cpp` files and preserves the static action
 registrars by the same rule established for the Phase 3 service split.
 
-Developer and production outputs must not share a runtime root. Developer
-presets retain the parity layout under `build/<Configuration>/`; the production
-preset uses `build/production/<Configuration>/`. Production staging, signing,
-signature verification, and packaging must consume only the isolated production
-root. This separation must be verified before production payload work begins.
-
 Before Phase 4 is marked complete, the phase document must define and record a
 deterministic behavioral workflow for PresentMonUI and KernelProcess. The check
 must exercise the CEF/web UI and a representative capture or control workflow,
 including deterministic readiness and shutdown. Launch, `--help`, and artifact
 checks alone do not satisfy this requirement, and Phase 5 does not own it.
 
-#### CEF Restoration Plan
+#### PresentMonUI Target Integration Plan
 
-Status: Accepted on August 3, 2026. Steps 1 through 5 and the fixed-stage
-verification contract passed. Results are recorded in
+Status: Implemented. `IntelPresentMon/AppCef/CMakeLists.txt` builds
+`PresentMonUI` as a `WIN32` executable with CEF runtime staging and shader
+compilation in its normal build graph. The exact target contract and current
+verification results are in
 [Phase 4 - UI and Capture](Phase4-UiAndCapture.md).
 
-Complete and review steps 1 through 3 before converting the UI target.
+1. Correct the two shared prerequisites instead of working around them in the
+   UI target. Make `pmon_core`'s `IS_DEBUG` definition private because only Core
+   implementation files consume it and AppCef defines the same macro locally.
+   Make the shared CMake version-resource copyright match `Version.props`; do
+   not create a PresentMonUI-only resource definition.
+2. Add `IntelPresentMon/AppCef/CMakeLists.txt` and include it after Core inside
+   the existing x64 and `PMON_BUILD_UI` guard. Create a `WIN32` executable named
+   `PresentMonUI` from all 19 `ClCompile` items in `CefNano.vcxproj`,
+   `AppCef.rc`, and `compatibility.manifest`. Keep
+   `CefActionRegistration.cpp` and `KernelActionRegistration.cpp` directly in
+   the executable so their static registration cannot be discarded. Normalize
+   the four malformed AppCef sibling-relative includes to the existing
+   target-root include form instead of adding an AppCef include-directory shim.
+3. Reproduce the legacy target contract with target-scoped CMake: MultiByte and
+   static CRT, the version/build macros, `/EHa`, `/fp:fast`, matching debug
+   information format (`/ZI`+JMC for Debug, `/Zi` for Release) and Release
+   function-level linking, intrinsics, and Control Flow Guard, and whole-program
+   behavior through `INTERPROCEDURAL_OPTIMIZATION_RELEASE`, the Windows
+   subsystem, the embedded compatibility manifest, and the existing output name
+   and directory. Link the existing CommonUtilities, Core, Interprocess,
+   Versioning, CEF, and build policy targets plus the explicit DWrite, Dwmapi,
+   and Shcore dependencies; do not link Boost.Process, which legacy `CefNano`
+   does not link either. Do not add legacy CEF paths or call `post-build.bat`.
+4. Put CEF runtime staging and shader compilation in the product graph.
+   Building PresentMonUI incrementally copies the fixed CMake CEF runtime and
+   compiles both shaders. Normal builds do not download or validate CEF. Restore
+   validates before publishing, and integrity verification remains an explicit
+   CI operation.
+5. Verify a fresh x64 Debug and Release default build, generated Visual Studio
+   Build Solution, failure and recovery for a missing or invalid CEF stage,
+   incremental rebuild behavior, `PMON_BUILD_UI=OFF`, Win32 exclusion,
+   x64/Windows-subsystem imports, version/icon/manifest resources,
+   and an unchanged legacy CEF-stage fingerprint. Record the commands and
+   results in the Phase 4 document, then stop for review. This gate establishes
+   a correctly built and staged native executable; it does not claim UI runtime
+   parity before the separately scoped web and behavioral work is complete.
+
+#### CEF Restoration Plan
+
+Status: Implemented. Results are recorded in
+[Phase 4 - UI and Capture](Phase4-UiAndCapture.md).
 
 1. Update `cef-lock.psm1`, `pull-cef.ps1`, and `validate-cef.ps1` to select
    exactly one of two named stages: `Legacy` at `IntelPresentMon/AppCef/Cef` or
@@ -378,28 +413,25 @@ Complete and review steps 1 through 3 before converting the UI target.
    result, and publishes a complete stage. An extracted-directory fallback is
    available only to the legacy pull workflow; lock upgrades require a URI or
    archive so every lock records an archive SHA-256.
-3. Add a non-downloading `pmon_validate_cef` target. It validates the lock
-   metadata and runtime payload plus the headers, import libraries, and Debug
-   and Release wrapper libraries required by consumers. Once the UI target is
-   added, its build depends on validation. Missing or invalid CEF fails with the
-   exact `pmon_restore_cef` command to run.
+3. Keep integrity checks out of normal product builds. Restore validates the
+   lock metadata, runtime payload, headers, import libraries, and Debug and
+   Release wrapper libraries before publishing the CMake stage. The explicit
+   `pmon_verify_cef` CI target validates the published stage and copied payload
+   without downloading anything.
 4. Add an interface target for the CEF headers and imported targets for
    `libcef` and the Debug and Release wrapper libraries. Consumers use these
    targets instead of paths under `IntelPresentMon/AppCef/Cef`.
 5. Add incremental CMake staging with declared outputs and dependencies. Copy
-   the locked CEF runtime files into the selected build output, remove only
-   stale files previously owned by that staging command, and validate every
-   locked file after copying. Add a default-excluded `pmon_verify_cef` target
-   that exercises stage and output validation plus owned stale-file removal
-   without network access.
+   only the locked CEF runtime files into the selected build output using
+   copy-if-different behavior. Do not perform hash validation during normal
+   product builds.
 
 Verification must prove that the legacy stage still works, CMake restores and
 validates its fixed separate stage, normal configure performs no download, a
 corrupt or structurally incomplete stage is rejected, a repeated restore
 succeeds, Debug and Release select the correct wrapper libraries, and CMake
-never changes the legacy stage. It must also prove that both CMake CLI default
-builds and generated Visual Studio Build Solution omit the four CEF utility
-targets until a real consumer depends on them.
+never changes the legacy stage. Normal builds include runtime staging only when
+a real CEF consumer is enabled; restore and CI verification remain explicit.
 
 ### Phase 5: Tests
 
@@ -467,7 +499,6 @@ environment-qualified omission is recorded as such; it is not a passing result.
 
 ## Immediate Next Step
 
-Convert shader compilation and the UI and kernel process targets under the
-Phase 4 preflight rules. Then wire the accepted CEF boundary into the UI,
-complete runtime payload staging, and apply the existing deployment and signing
-infrastructure.
+PresentMonUI, KernelProcess, CEF runtime staging, and shader compilation are
+implemented. The next implementation step is the remaining Phase 4 web,
+preset, blocklist, CLI payload, deployment, and signing work.

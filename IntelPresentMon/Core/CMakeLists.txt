@@ -61,9 +61,8 @@ add_library(pmon::core ALIAS pmon_core)
 
 target_compile_definitions(
     pmon_core
-    PUBLIC
-        IS_DEBUG=$<IF:$<CONFIG:Debug>,1,0>
     PRIVATE
+        IS_DEBUG=$<IF:$<CONFIG:Debug>,1,0>
         _CRT_SECURE_NO_WARNINGS
 )
 target_include_directories(
@@ -112,5 +111,3 @@ set_target_properties(
         OUTPUT_NAME Core
         FOLDER "UI and Capture"
 )
-
-pmon_register_artifact("$<TARGET_FILE:pmon_core>")

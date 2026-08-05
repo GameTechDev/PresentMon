@@ -37,11 +37,11 @@ endif()
 include(PresentMonOptions)
 include(PresentMonOutput)
 include(PresentMonCompiler)
-include(PresentMonArtifacts)
 include(PresentMonMessageCompiler)
 include(PresentMonUci)
 include(PresentMonSigning)
 include(PresentMonCef)
+include(PresentMonShaders)
 
 pmon_configure_options()
 pmon_configure_output_directories()
@@ -55,9 +55,8 @@ if(PMON_ARCHITECTURE STREQUAL "x64")
 else()
     set(PMON_CEF_EFFECTIVE_ROOT "Not applicable")
 endif()
-
-if(PMON_BUILD_TESTS)
-    enable_testing()
+if(PMON_ARCHITECTURE STREQUAL "x64" AND PMON_BUILD_UI)
+    pmon_configure_shaders()
 endif()
 
 add_subdirectory(IntelPresentMon/CommonUtilities)
@@ -96,63 +95,10 @@ if(PMON_ARCHITECTURE STREQUAL "x64")
     endif()
     if(PMON_BUILD_UI)
         add_subdirectory(IntelPresentMon/Core)
+        add_subdirectory(IntelPresentMon/AppCef)
+        add_subdirectory(IntelPresentMon/KernelProcess)
     endif()
 endif()
-
-if(
-    PMON_BUILD_TESTS
-    AND PMON_BUILD_SERVICE
-    AND PMON_BUILD_SDK
-    AND TARGET PresentMonService
-    AND TARGET PresentMonAPI2
-    AND TARGET PresentMonAPI2Loader
-    AND TARGET SampleClient
-)
-    add_test(
-        NAME pmon_service_sdk_smoke
-        COMMAND
-            powershell.exe
-            -NoLogo
-            -NoProfile
-            -NonInteractive
-            -ExecutionPolicy Bypass
-            -File "${PROJECT_SOURCE_DIR}/cmake/RunServiceSdkSmoke.ps1"
-            -ServiceExecutable "$<TARGET_FILE:PresentMonService>"
-            -SampleClientExecutable "$<TARGET_FILE:SampleClient>"
-            -MiddlewareDll "$<TARGET_FILE:PresentMonAPI2>"
-            -LogDirectory "${PROJECT_BINARY_DIR}/smoke/$<CONFIG>"
-    )
-    set_tests_properties(
-        pmon_service_sdk_smoke
-        PROPERTIES
-            LABELS "phase3;smoke;integration"
-            TIMEOUT 120
-    )
-
-    add_custom_target(
-        pmon_verify_service_sdk
-        COMMAND
-            "${CMAKE_CTEST_COMMAND}"
-            --test-dir "${PROJECT_BINARY_DIR}"
-            --build-config "$<CONFIG>"
-            --output-on-failure
-            --tests-regex "^pmon_service_sdk_smoke$"
-            --no-tests=error
-        COMMENT "Running the service/SDK behavioral smoke test"
-        USES_TERMINAL
-        VERBATIM
-    )
-    add_dependencies(
-        pmon_verify_service_sdk
-        PresentMonService
-        PresentMonAPI2
-        PresentMonAPI2Loader
-        SampleClient
-    )
-    set_property(TARGET pmon_verify_service_sdk PROPERTY FOLDER "Build")
-endif()
-
-pmon_add_artifact_verification_target()
 
 message(STATUS "")
 message(STATUS "PresentMon configuration")

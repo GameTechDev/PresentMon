@@ -24,6 +24,7 @@ target_link_libraries(
         pmon::build_options
         pmon::warnings_default
         pmon::version_resource
+        pmon::release_link_policy
         pmon::common_utilities
         pmon::versioning
 )
@@ -44,6 +45,3 @@ set_target_properties(
     PROPERTIES
         FOLDER "Service and SDK"
 )
-
-pmon_register_artifact("$<TARGET_FILE:PresentMonAPI2Loader>")
-pmon_register_artifact("$<TARGET_LINKER_FILE:PresentMonAPI2Loader>")

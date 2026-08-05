@@ -16,6 +16,8 @@ target_link_libraries(
     PRIVATE
         pmon::build_options
         pmon::warnings_strict
+        pmon::warnings_strict_link
+        pmon::release_link_policy
         pmon::version_resource
 )
 target_compile_definitions(
@@ -47,5 +49,3 @@ set_target_properties(
         OUTPUT_NAME "${provider_output_name}"
         FOLDER "PresentMon/Provider"
 )
-
-pmon_register_artifact("$<TARGET_FILE:pmon_provider>")

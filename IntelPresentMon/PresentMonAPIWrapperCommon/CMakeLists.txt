@@ -39,5 +39,3 @@ set_target_properties(
         OUTPUT_NAME PresentMonAPIWrapperCommon
         FOLDER "Service and SDK"
 )
-
-pmon_register_artifact("$<TARGET_FILE:pmon_api_wrapper_common>")

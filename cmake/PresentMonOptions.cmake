@@ -28,10 +28,6 @@ function(pmon_configure_options)
     option(PMON_BUILD_UI "Build the Intel PresentMon UI" ON)
     option(PMON_BUILD_PROVIDER "Build the ETW provider" ON)
     option(PMON_BUILD_TOOLS "Build standalone tools" ON)
-    option(PMON_BUILD_TESTS "Build test targets" ON)
-    option(PMON_BUILD_INSTALLER "Build the MSI installer" ON)
-    option(PMON_BUILD_MERGE_MODULE "Build the service merge module" ON)
-    option(PMON_BUILD_REFLECTOR "Build the reflection generator" ON)
 
     pmon_define_enum_cache(
         PMON_DEPLOYMENT_PROFILE

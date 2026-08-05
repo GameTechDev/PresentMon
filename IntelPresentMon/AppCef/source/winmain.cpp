@@ -13,7 +13,6 @@
 #include <Versioning/BuildId.h>
 #include <CommonUtilities/win/Utilities.h>
 #include <dwmapi.h>
-#include <boost/process.hpp>
 #include <Shobjidl.h>
 #include <ShellScalingApi.h>
 #include <include/cef_version.h>

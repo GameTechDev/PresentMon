@@ -2,241 +2,293 @@
 
 ## Status
 
-In progress. The fixed two-stage CEF dependency preflight passed acceptance on
-August 3, 2026. Shader compilation, the PresentMonUI and KernelProcess targets,
-web, preset, blocklist, and CLI staging, and application of the deployment and
-signing policies remain open.
+Phase 4 is in progress. The CEF dependency integration, shader compilation,
+and native `PresentMonUI` and `KernelProcess` CMake targets are implemented.
+They establish the native UI and kernel process build boundary, but they do
+not yet produce the complete runnable UI and capture deployment.
 
-Phase 2 deterministic behavioral verification is still pending. That debt does
-not prevent Phase 4 implementation from proceeding, but it must be resolved
-before full migration parity and cutover are declared.
+| Area | State | Current boundary |
+| --- | --- | --- |
+| CEF dependency | Implemented | Fixed CMake stage, explicit restore, incremental runtime staging, and explicit CI integrity verification. |
+| Shaders | Implemented | The two shipping HLSL shaders compile through CMake with the original MSBuild settings. |
+| PresentMonUI | Implemented | The x64 `WIN32` executable reproduces the original `CefNano.vcxproj` native target contract. |
+| KernelProcess | Implemented | The x64 `WIN32` executable reproduces the original `KernelProcess.vcxproj` native target contract. |
+| Runtime payload | Remaining | Web content, presets, blocklists, and CLI-related payload are not staged by CMake. |
+| Deployment and signing | Remaining | Phase 4 products are not signed or packaged yet. |
+| Behavioral verification | Remaining | A deterministic UI and representative capture/control workflow is still required. |
 
-## Scope Implemented for Review
+`PresentMonUI` and shader compilation are available only for x64 when
+`PMON_BUILD_UI` is enabled. CEF restore and CI verification remain available in
+any x64 configure; runtime staging enters normal builds only through a CEF
+consumer. Win32 has no maintained UI stack. The generated configurations remain
+Debug and Release.
 
-- Root CMake integration for CEF support.
-- An explicit CMake restore target and a non-downloading validation target.
-- CEF header, `libcef`, and wrapper targets for future consumers.
-- Lock-driven CEF runtime staging infrastructure.
-- Separate developer and production output roots.
+Developer and production profiles preserve the original
+`build/<Configuration>/` output layout.
 
-No C or C++ product source file has been moved or modified for this work. Build
-changes include the root `CMakeLists.txt`, files under `cmake/`, CMake presets
-and output policy, and the AppCef batch scripts. Documentation changes are
-recorded in this file, the migration design, the design index, and the CEF lock
-guide.
+## Implemented CEF Contract
 
-## Phase 4 Preflight Decisions
+### Source of Truth and Fixed Stage
 
-### Registration-Only Translation Units
-
-The Phase 3 service conversion established that a translation unit whose only
-effect is static registration can be discarded when it is an unreferenced member
-of a static library. Phase 4 has the same risk in:
-
-```text
-IntelPresentMon/AppCef/source/util/cact/CefActionRegistration.cpp
-IntelPresentMon/AppCef/source/util/KernelActionRegistration.cpp
-IntelPresentMon/KernelProcess/kact/KernelActionRegistration.cpp
-```
-
-These files must be compiled directly into their executable or supplied through
-an object-library mechanism that guarantees inclusion. A Phase 4 implementation
-must not leave them as ordinary unreferenced members of a static implementation
-library.
-
-### Deployment Output Isolation
-
-Developer and production builds must not write different manifest or signature
-states to the same runtime directory. Developer presets retain the parity path:
+`IntelPresentMon/AppCef/cef-lock.json` is the source of truth for the CEF
+archive identity and runtime payload. CMake uses exactly one published CEF
+stage:
 
 ```text
-build/<Configuration>/
+build/ThirdParty/cef
 ```
 
-The production preset uses:
+The legacy MSBuild stage under `IntelPresentMon/AppCef/Cef` remains separate.
+CMake targets do not read from it, write to it, or accept an arbitrary CEF root.
 
-```text
-build/production/<Configuration>/
-```
+CMake configure only creates targets and reads the lock. Configure never
+downloads, extracts, builds, restores, or publishes CEF. A fresh configure is
+therefore allowed to succeed when the fixed stage does not exist.
 
-Production staging, signing, signature verification, and packaging must consume
-only the production root. The output helper rejects a production configuration
-that explicitly selects the developer root. This isolation was verified before
-production payload work begins.
+### Explicit Restore
 
-### Behavioral Verification
-
-Phase 4 cannot be completed by build, artifact, launch, or `--help` checks. Its
-completion record must include a deterministic workflow that exercises the
-staged CEF/web UI and a representative KernelProcess capture or control path.
-The procedure must define readiness, observable success, timeout behavior, and
-controlled shutdown. It may be a focused phase-local integration test and does
-not need to wait for Phase 5 CTest conversion.
-
-This workflow is a Phase 4 completion requirement, not a blocker to beginning
-shader compilation or target conversion. It must be defined before the UI target
-architecture is considered final because deterministic readiness or shutdown
-may require a small test seam.
-
-## Fixed CEF Destinations
-
-Only two published CEF destinations are supported:
-
-```text
-Legacy  IntelPresentMon/AppCef/Cef
-CMake   build/ThirdParty/cef
-```
-
-`pull-cef.ps1` and `validate-cef.ps1` select them with
-`-StageKind Legacy|CMake`; `Legacy` is the default for compatibility with
-existing MSBuild callers. Published-stage selection is closed; a third
-destination cannot be configured.
-
-This two-stage boundary is transitional. At the Phase 7 MSBuild cutover,
-remove the `Legacy` stage kind, its callers, and
-`IntelPresentMon/AppCef/Cef`. `build/ThirdParty/cef` then becomes the sole
-published stage; the transition must not preserve both indefinitely.
-
-Temporary extraction, wrapper-build, staging, and retired directories are
-internal implementation details. They do not create another supported
-published stage.
-
-Both stages are restored from `IntelPresentMon/AppCef/cef-lock.json`. The lock
-covers the 13 runtime files under `Bin` and the five resource files under
-`Resources`. Stage validation also checks the CEF version metadata and the
-header and library artifacts required by consumers even though those build-time
-files are not part of the shipping payload lock.
-
-## Restore and Validation Contract
-
-The CMake-stage restore accepts the locked URI or a local archive whose SHA-256
-matches the lock. It does not accept an extracted directory. Only the legacy
-pull workflow retains the extracted-directory fallback. Lock upgrades require
-a URI or archive so every new lock records an archive SHA-256.
-
-Restore builds the wrapper in temporary storage, validates the completed stage,
-and then publishes it. Restore and stage validation use a named cross-process
-mutex so a validator cannot inspect a stage while it is being replaced. The CEF
-wrapper helper uses CMake configure and build commands. `pull-cef.ps1` accepts
-`-Generator`, `-Platform`, and `-Toolset` and forwards them to the wrapper
-helper; the defaults are Visual Studio 17 2022, x64, and v143. An empty platform
-or toolset omits the corresponding CMake generator option. The wrapper build
-does not depend on `vswhere.exe` being present on `PATH`.
-
-Stage validation covers:
-
-- CEF version metadata from `Include/include/cef_version.h`.
-- Every locked runtime and resource file, including rejection of unexpected
-  files under the locked `Bin` and `Resources` trees.
-- The CEF headers required by current consumers and the Debug and Release
-  `libcef` import libraries.
-- The Debug and Release `libcef_dll_wrapper` libraries.
-
-Output validation checks every locked runtime file after staging. Incremental
-runtime staging declares its outputs and records only the files it owns, so a
-later lock change can remove stale CEF files without deleting unrelated output.
-The ownership manifest is stored under the selected output root rather than a
-configure tree, so deleting or replacing a CMake build tree does not lose the
-cleanup record for the shared runtime output.
-
-## CMake Integration
-
-`cmake/PresentMonCef.cmake` provides `pmon_configure_cef()`, called from the root
-`CMakeLists.txt`, and `pmon_target_uses_cef()` for future consumers.
-
-The only CEF restore cache input is:
-
-```cmake
-PMON_CEF_SOURCE   # optional matching archive or the locked URI
-```
-
-Configure never downloads or restores CEF. The CMake stage is always the fixed
-`build/ThirdParty/cef` path.
-
-Utility targets:
-
-- `pmon_restore_cef` explicitly restores the fixed CMake stage.
-- `pmon_validate_cef` validates that stage locally and prints the exact restore
-  command when validation fails.
-- `pmon_stage_cef_runtime` incrementally stages the locked runtime payload into
-  the selected configuration output and validates it there.
-- `pmon_verify_cef` depends on runtime staging and repeatably verifies the stage,
-  output payload, and owned stale-file removal without network access.
-
-All four utility targets must be excluded from CMake CLI and generated Visual
-Studio default builds until a real product consumer depends on them. The future
-UI target will use `pmon_target_uses_cef()` and depend on validation; runtime
-staging will become part of that product dependency graph. No product target is
-wired to CEF yet.
-
-Consumer targets:
-
-```text
-pmon_cef_headers  (INTERFACE)        build/ThirdParty/cef/Include
-pmon_cef_libcef   (IMPORTED SHARED)  Bin/libcef.dll, Lib/<Config>/libcef.lib
-pmon_cef_wrapper  (IMPORTED STATIC)  Lib/<Config>/libcef_dll_wrapper.lib
-pmon_cef          (INTERFACE)        aggregate, alias pmon::cef
-```
-
-Debug and Release use their matching import and wrapper library directories.
-`MAP_IMPORTED_CONFIG_RELWITHDEBINFO` and
-`MAP_IMPORTED_CONFIG_MINSIZEREL` map only those two conventional configurations
-to Release. PresentMon itself supports and generates only Debug and Release.
-
-## Acceptance Verification
-
-Accepted on August 3, 2026, using Visual Studio 2022, MSVC v143, and CMake
-4.4.0-rc2. These are results from the fixed-destination implementation; results
-from the earlier arbitrary-destination prototype were not reused.
-
-Use a matching local archive for a network-independent restore test:
+CEF restore is an opt-in operation:
 
 ```powershell
-cmake --preset windows-x64-developer `
-    -DPMON_CEF_SOURCE:STRING=C:/path/to/locked-cef-archive.tar.bz2
-cmake --build --preset windows-x64-developer-debug --target pmon_validate_cef
 cmake --build --preset windows-x64-developer-debug --target pmon_restore_cef
-cmake --build --preset windows-x64-developer-debug --target pmon_validate_cef
-cmake --build --preset windows-x64-developer-release --target pmon_validate_cef
-cmake --build --preset windows-x64-developer-debug --target pmon_stage_cef_runtime
-cmake --build --preset windows-x64-developer-debug --target pmon_verify_cef
-cmake --build --preset windows-x64-developer-debug
-cmake --build --preset windows-x64-developer-release
-
-IntelPresentMon/AppCef/Batch/pull-cef.ps1 `
-    C:/path/to/locked-cef-archive.tar.bz2 -StageKind Legacy
-IntelPresentMon/AppCef/Batch/validate-cef.ps1 -Mode Stage -StageKind Legacy
 ```
 
-| Check | Recorded result |
+`PMON_CEF_SOURCE` may name a local archive or URI. When it is empty, restore
+uses the URI recorded by the lock. The archive must match the locked SHA-256;
+an extracted directory is not accepted for the CMake stage.
+
+Restore extracts and builds the wrapper in temporary storage, validates the
+completed temporary stage, and publishes it only after validation succeeds.
+Stage replacement and inspection are serialized across processes. A failed
+restore must not publish a partial stage over a previously valid one.
+
+Restore validates the version metadata, locked runtime and resource files,
+required headers, Debug and Release import libraries, and Debug and Release
+wrapper libraries before publication.
+
+### Normal UI Builds
+
+`pmon_target_uses_cef(PresentMonUI)` links the CEF targets and makes
+`pmon_stage_cef_runtime` a product dependency. Normal UI builds perform only
+incremental CEF runtime staging. They do not perform a full CEF validation and
+they never invoke restore.
+
+Runtime staging copies the lock-derived payload from `build/ThirdParty/cef`
+to the selected configuration output. The files are declared build outputs,
+and unchanged files are not recopied. Staging copies the current locked payload;
+it does not run integrity checks or manage unrelated output files.
+
+If the fixed stage or a declared stage input is absent, the build fails. The
+developer must run the explicit restore target and build again.
+
+### Explicit CI Integrity Check
+
+`pmon_verify_cef` is the explicit, offline CEF integrity target for CI and
+troubleshooting:
+
+```powershell
+cmake --build --preset windows-x64-developer-debug --target pmon_verify_cef
+```
+
+It validates the fixed stage and staged output. It is intentionally excluded
+from normal builds. CI should invoke it explicitly when CEF integrity is part
+of the job's scope.
+
+### CEF Consumer Targets
+
+| Target | Contract |
 | --- | --- |
-| Fixed stages and source policy | Both stages validated with 313 files. Invalid stage names, extracted CMake sources, alternate URIs, wrong archive hashes, and extracted-directory lock upgrades were rejected. |
-| Configure behavior | A fresh x64 configure with both stages absent succeeded without downloading or creating either stage. Win32 configure created no CEF targets. |
-| Restore behavior | CMake archive restore passed in 45.3 seconds and repeated in 41.8 seconds; legacy archive restore passed in 42.2 seconds. Each restore left the other stage unchanged and left no staging or retired directories. |
-| Failure diagnostics | Missing, hash-corrupt, and structurally incomplete CMake stages were rejected, and the CMake target printed the exact `pmon_restore_cef` command. |
-| Concurrency | A second process waited 2,999 milliseconds on the named stage mutex and then completed, proving cross-process serialization. |
-| Consumer targets | A throwaway `pmon::cef` consumer compiled, linked, and ran in Debug and Release. Its generated project selected the matching import and wrapper libraries, and validation ran before compilation. |
-| Runtime staging | Debug and Release staged and validated all 18 locked files. Repeated staging was incremental; the verification target removed its owned stale sentinel, preserved an unrelated sentinel, and reused ownership state from a different configure tree. |
-| Default builds | CMake CLI Debug and Release default builds performed no CEF restore, validation, or staging. All four CEF utilities had zero Visual Studio `Build.0` entries. |
-| Output isolation | Developer configure retained `build`; production default and preset configure selected `build/production`. Production rejected both exact and case-variant forms of the developer root. |
-| Regression | Clean x64 Debug and Release builds passed, with the service/SDK smoke test passing in both configurations. Clean Win32 Debug and Release builds passed; that configuration defines no tests. |
+| `pmon::cef_headers` | Headers from `build/ThirdParty/cef/Include`. |
+| `pmon::cef_libcef` | `libcef.dll` plus the matching Debug or Release import library. |
+| `pmon::cef_wrapper` | The matching Debug or Release `libcef_dll_wrapper` static library. |
+| `pmon::cef` | Aggregate interface used by product targets. |
 
-The two stages had identical 313-path file sets. All non-wrapper file hashes
-matched; the four locally built Debug and Release wrapper library and PDB hashes
-differed.
+## Implemented Shader Contract
 
-Production configure selected the SignTool backend. A signed production build
-was not run because the required certificate and EDSS script are unavailable in
-this environment; production signature verification remains Phase 4 product
-work.
+`cmake/PresentMonShaders.cmake` is configured only for an x64 UI build. A build
+with `PMON_BUILD_UI=OFF` does not create the shader target and does not require
+`fxc.exe`.
 
-## Deferred
+`pmon_compile_shaders` produces:
 
-- Shader compilation and the PresentMonUI and KernelProcess targets.
-- Wiring CEF validation and runtime staging into PresentMonUI.
-- Web, preset, blocklist, and CLI payload staging.
-- Application of the existing developer/production manifest policy to the UI
-  and kernel process.
-- Application of the existing EDSS and direct SignTool backends to Phase 4
-  payloads and production signature verification.
-- The deterministic Phase 4 UI and capture behavioral workflow.
+| Source | Profile | Entry | Output |
+| --- | --- | --- | --- |
+| `IntelPresentMon/Shaders/Line_PS.hlsl` | `ps_4_0` | `main` | `<output>/<Configuration>/Shaders/Line_PS.cso` |
+| `IntelPresentMon/Shaders/Line_VS.hlsl` | `vs_4_0` | `main` | `<output>/<Configuration>/Shaders/Line_VS.cso` |
+
+This reproduces the original `Shaders.vcxitems` output contract. Debug uses
+`/Od /Zi`; Release uses neither option. Those Debug settings are inherited by
+the original MSBuild project through `UseDebugLibraries`, so CMake expresses
+the resulting flags directly by configuration.
+
+With no override, CMake selects the x64 `fxc.exe` from the same Windows SDK
+version selected for the native build. `PMON_FXC_EXECUTABLE` may override that
+path and must resolve to an existing file, not a directory. Both each HLSL
+source and the resolved compiler are tracked as build inputs.
+
+`pmon_target_uses_shaders(PresentMonUI)` attaches shader compilation to the UI
+target. Repeated builds are incremental, and removing one output rebuilds only
+that shader.
+
+Debug shader output contains nondeterministic compiler debug data. Debug
+parity should therefore be checked by size and disassembly, not by requiring a
+stable file hash. Release output can be compared directly for the selected SDK
+and inputs.
+
+## Implemented PresentMonUI Contract
+
+`IntelPresentMon/AppCef/CMakeLists.txt` defines `PresentMonUI` as one x64
+`WIN32` executable. Its native source list contains the same 19 compilation
+units as `IntelPresentMon/AppCef/CefNano.vcxproj`, plus `AppCef.rc` and
+`compatibility.manifest`.
+
+The two static-registration translation units are direct executable sources:
+
+```text
+source/util/cact/CefActionRegistration.cpp
+source/util/KernelActionRegistration.cpp
+```
+
+They must remain direct sources, or move only to an object-library mechanism
+that guarantees inclusion. Ordinary unreferenced members of a static library
+could be discarded and silently remove their registrations.
+
+### Original MSBuild Target Contract
+
+The CMake target preserves the observable contract of `CefNano.vcxproj`:
+
+| Contract | CMake result |
+| --- | --- |
+| Product identity | `PresentMonUI.exe`, Windows subsystem, in the common configuration output root. |
+| Architecture | x64 only; no Win32 target. |
+| Runtime and character set | Static MSVC runtime and MultiByte (`_MBCS`). |
+| Common compile policy | `/W3`, `/sdl`, `/permissive-`, C++ latest, multiprocess compilation, and external warnings disabled. |
+| Target compile policy | `_SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING`, `/EHa`, and `/fp:fast`. |
+| Release compile policy | Whole-program optimization, `/Gy`, `/Oi`, and Control Flow Guard. |
+| Debug information | Debug Edit and Continue with Just My Code; Release Program Database information and linker `/DEBUG`. |
+| Release link policy | Reference optimization and COMDAT folding. |
+| PresentMon libraries | `CommonUtilities`, `Core`, `Interprocess`, and `Versioning` through their CMake targets. |
+| Platform libraries | `dwrite`, `dwmapi`, and `shcore` are explicit link dependencies. |
+| CEF | Normal load-time `libcef.dll` import through `pmon::cef`; no delay-load contract. |
+| Resources | Existing icon and VERSIONINFO fields plus the compatibility manifest. |
+| Manifest | `asInvoker` with `uiAccess=false`. |
+
+The build strings remain observable as `PM_BUILD_WINSDK_VERSION_STR="10.0"`
+and `PM_BUILD_CRT_RUNTIME_STR="MultiThreadedDebug"` or `"MultiThreaded"`.
+Version and copyright strings come from the shared version-resource target and
+match `Version.props`.
+
+The resource's tracked `CefNano.exe` InternalName and OriginalFilename values
+remain unchanged for parity even though the produced target is
+`PresentMonUI.exe`.
+
+Native include paths come from linked target interfaces. The UI target does
+not add a raw legacy CEF include or library path. `Core` keeps its `IS_DEBUG`
+definition private, so it does not leak into the UI compilation. The unused
+Boost.Process include and dependency are not part of the target contract.
+
+The legacy AppCef post-build batch file is not invoked from CMake. Its CEF and
+shader responsibilities are replaced by explicit CMake dependencies. Its
+remaining payload and deployment responsibilities have not yet been converted.
+
+## Current Output Boundary
+
+An enabled default UI build currently produces or stages:
+
+- `PresentMonUI.exe` and its normal debug outputs.
+- `PresentMon.exe` (the KernelProcess executable) and its normal debug outputs.
+- `Shaders/Line_PS.cso` and `Shaders/Line_VS.cso`.
+- Every CEF runtime and resource file named by the lock.
+
+It does not yet stage the web application, presets, blocklists, or CLI
+wrappers. Building `PresentMonUI` is therefore not yet proof of a complete
+launchable UI deployment.
+
+## Current Verification
+
+The cleaned target graph was verified on August 4, 2026:
+
+- x64 Debug and Release `PresentMonUI` builds succeeded.
+- x64 Debug and Release `KernelProcess` builds succeeded, producing
+  `build/<Config>/PresentMon.exe` with the reproduced per-configuration manifest.
+- An immediate repeat changed none of the 18 staged CEF files, ran no CEF copy
+  commands, and ran no CEF validation.
+- Removing one staged CEF file caused only that file to be copied again.
+- The explicit `pmon_verify_cef` target validated both the fixed stage and the
+  Debug and Release runtime payloads.
+- A Win32 Release build succeeded without UI or CEF product targets.
+- An x64 configure with `PMON_BUILD_UI=OFF` generated neither `PresentMonUI` nor
+  `pmon_compile_shaders`.
+
+## Deployment and Signing Status
+
+Production configuration can select the existing EDSS or SignTool backend. No
+Phase 4 product signing pipeline has been attached yet. In particular,
+`PresentMonUI`, `KernelProcess`, and their staged payload are not currently
+signed, signature-verified, or packaged by the CMake Phase 4 flow.
+
+The remaining deployment work must define the complete payload, apply developer
+and production manifest policy, sign the required production files, and verify
+signatures after signing and before packaging.
+PresentMonUI must retain its current non-elevated manifest; KernelProcess must
+receive its own legacy-compatible deployment policy rather than inheriting the
+UI manifest.
+
+## Remaining Work Plan
+
+### 1. Convert the Remaining Payload
+
+- Build and stage the web application consumed by the CEF scheme handlers.
+- Stage presets, blocklists, and CLI-related files from explicit source lists.
+- Replace the remaining behavior of the legacy AppCef post-build batch file.
+
+### 2. Apply Deployment Policy and Signing
+
+- Define the complete developer and production payload manifests.
+- Attach the selected signing backend to the required production binaries.
+- Verify signatures after all payload mutation and before packaging.
+- Keep signing credentials and tool-specific configuration outside the source
+  tree.
+
+### 3. Add Deterministic Behavioral Verification
+
+The completion check must exercise the staged web UI and a representative
+KernelProcess capture or control path. It must define:
+
+- A deterministic readiness signal.
+- An observable successful UI operation.
+- An observable capture or control result.
+- Bounded timeouts for startup, operation, and shutdown.
+- Controlled shutdown and cleanup after both success and failure.
+
+A process launch or `--help` result alone is insufficient. If deterministic
+readiness or shutdown needs a small product seam, add that seam as part of this
+phase rather than relying on timing guesses.
+
+### 4. Complete the Build Matrix
+
+- Build clean x64 Debug and Release developer configurations.
+- Confirm immediate repeat builds do not restage unchanged CEF files,
+  recompile unchanged shaders or C++, or relink unchanged products.
+- Confirm `PMON_BUILD_UI=OFF` does not create UI or shader targets.
+- Confirm Win32 remains free of UI, shader, and CEF product dependencies.
+- Run the explicit CEF integrity target in CI.
+- Build the production payload, sign it, verify it, and package it.
+- Run the deterministic UI and capture workflow against the staged payload.
+
+## Phase Completion Criteria
+
+Phase 4 is complete when all of the following are true:
+
+- CMake builds both `PresentMonUI` and KernelProcess with their original native
+  target contracts.
+- The output contains the complete owned CEF, shader, web, preset, blocklist,
+  CLI, and native executable payload.
+- Ordinary builds remain incremental and never download CEF.
+- Restore validates CEF before publication, and CI runs the explicit offline
+  CEF integrity check.
+- The production payload is signed and signature verification passes.
+- The deterministic UI and representative capture/control workflow passes with
+  bounded startup and shutdown.
+- Existing non-UI configurations continue to build with their intended target
+  set.

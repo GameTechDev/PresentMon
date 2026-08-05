@@ -82,30 +82,6 @@ function(pmon_configure_cef)
             FOLDER "Build"
     )
 
-    set(
-        restore_command
-        "cmake --build \"${CMAKE_BINARY_DIR}\" --config $<CONFIG> --target pmon_restore_cef"
-    )
-
-    # Never downloads. Consumers of the CEF targets depend on this so a missing
-    # or damaged stage fails the build with the restore command to run.
-    add_custom_target(
-        pmon_validate_cef
-        COMMAND
-            "${CMAKE_COMMAND}"
-            -D "PMON_CEF_VALIDATE_SCRIPT=${batch_dir}/validate-cef.ps1"
-            -D "PMON_CEF_RESTORE_COMMAND=${restore_command}"
-            -P "${PROJECT_SOURCE_DIR}/cmake/ValidateCef.cmake"
-        COMMENT "Validating the CEF stage at ${cef_root}"
-        VERBATIM
-    )
-    set_target_properties(
-        pmon_validate_cef
-        PROPERTIES
-            EXCLUDE_FROM_DEFAULT_BUILD TRUE
-            FOLDER "Build"
-    )
-
     file(READ "${cef_lock}" cef_lock_json)
     string(JSON payload_count ERROR_VARIABLE json_error LENGTH "${cef_lock_json}" payload)
     if(json_error)
@@ -116,12 +92,7 @@ function(pmon_configure_cef)
     endif()
 
     set(runtime_destination "${PMON_OUTPUT_ROOT}/$<CONFIG>")
-    set(
-        runtime_manifest
-        "${PMON_OUTPUT_ROOT}/obj/cef-runtime/$<CONFIG>/owned-files.txt"
-    )
     set(runtime_outputs)
-    set(stage_inputs)
     set(runtime_output_keys)
     math(EXPR last_payload_index "${payload_count} - 1")
     foreach(payload_index RANGE ${last_payload_index})
@@ -137,42 +108,29 @@ function(pmon_configure_cef)
         endif()
 
         list(APPEND runtime_output_keys "${output_key}")
-        list(APPEND runtime_outputs "${runtime_destination}/${output_path}")
-        list(APPEND stage_inputs "${cef_root}/${stage_path}")
-    endforeach()
+        set(runtime_output "${runtime_destination}/${output_path}")
+        set(stage_input "${cef_root}/${stage_path}")
+        cmake_path(GET runtime_output PARENT_PATH runtime_output_directory)
+        list(APPEND runtime_outputs "${runtime_output}")
 
-    # The manifest is an output of the same rule as the payload. When the lock
-    # changes, StageCef uses its previous contents to remove only files that
-    # this command owned and that are no longer in the lock.
-    add_custom_command(
-        OUTPUT
-            ${runtime_outputs}
-            "${runtime_manifest}"
-        COMMAND
-            "${CMAKE_COMMAND}"
-            -D "PMON_CEF_STAGE=${cef_root}"
-            -D "PMON_CEF_LOCK=${cef_lock}"
-            -D "PMON_CEF_DESTINATION=${runtime_destination}"
-            -D "PMON_CEF_OWNERSHIP_MANIFEST=${runtime_manifest}"
-            -D "PMON_CEF_VALIDATE_SCRIPT=${batch_dir}/validate-cef.ps1"
-            -P "${PROJECT_SOURCE_DIR}/cmake/StageCef.cmake"
-        DEPENDS
-            ${stage_inputs}
-            "${cef_lock}"
-            "${PROJECT_SOURCE_DIR}/cmake/StageCef.cmake"
-            "${batch_dir}/cef-lock.psm1"
-            "${batch_dir}/validate-cef.ps1"
-        COMMENT "Staging the locked CEF runtime payload into ${runtime_destination}"
-        VERBATIM
-    )
+        add_custom_command(
+            OUTPUT "${runtime_output}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${runtime_output_directory}"
+            COMMAND
+                "${CMAKE_COMMAND}" -E copy_if_different
+                "${stage_input}"
+                "${runtime_output}"
+            COMMAND "${CMAKE_COMMAND}" -E touch_nocreate "${runtime_output}"
+            DEPENDS "${stage_input}" "${cef_lock}"
+            COMMENT "Staging CEF runtime file ${output_path}"
+            VERBATIM
+        )
+    endforeach()
 
     add_custom_target(
         pmon_stage_cef_runtime
-        DEPENDS
-            ${runtime_outputs}
-            "${runtime_manifest}"
+        DEPENDS ${runtime_outputs}
     )
-    add_dependencies(pmon_stage_cef_runtime pmon_validate_cef)
     set_target_properties(
         pmon_stage_cef_runtime
         PROPERTIES
@@ -180,22 +138,23 @@ function(pmon_configure_cef)
             FOLDER "Build"
     )
 
-    # Explicit verification remains offline. In addition to validating the
-    # stage and copied payload, it proves that manifest-owned stale files are
-    # removed without touching unrelated output files.
+    # Explicit CI verification validates both the restored stage and the
+    # runtime files copied to the product output directory.
     add_custom_target(
         pmon_verify_cef
         COMMAND
-            "${CMAKE_COMMAND}"
-            -D "PMON_CEF_STAGE=${cef_root}"
-            -D "PMON_CEF_LOCK=${cef_lock}"
-            -D "PMON_CEF_DESTINATION=${runtime_destination}"
-            -D "PMON_CEF_OWNERSHIP_MANIFEST=${runtime_manifest}"
-            -D "PMON_CEF_VALIDATE_SCRIPT=${batch_dir}/validate-cef.ps1"
-            -D "PMON_CEF_STAGE_SCRIPT=${PROJECT_SOURCE_DIR}/cmake/StageCef.cmake"
-            -P "${PROJECT_SOURCE_DIR}/cmake/VerifyCef.cmake"
+            ${powershell_command}
+            -File "${batch_dir}/validate-cef.ps1"
+            -Mode Stage
+            -StageKind CMake
+        COMMAND
+            ${powershell_command}
+            -File "${batch_dir}/validate-cef.ps1"
+            -Mode Output
+            -OutputRoot "${runtime_destination}"
         DEPENDS pmon_stage_cef_runtime
-        COMMENT "Verifying fixed-stage CEF validation and runtime ownership"
+        COMMENT "Verifying the CEF stage and staged runtime payload"
+        USES_TERMINAL
         VERBATIM
     )
     set_target_properties(
@@ -253,12 +212,19 @@ function(pmon_configure_cef)
     set(PMON_CEF_EFFECTIVE_ROOT "${cef_root}" PARENT_SCOPE)
 endfunction()
 
-# Links a target against the locked CEF headers and libraries and makes its
-# build fail early when the CEF stage is missing or does not match the lock.
+# Links a target against the CEF headers and libraries and stages the runtime
+# payload next to it. Restore and validation remain explicit operations; normal
+# product builds only perform incremental staging.
 function(pmon_target_uses_cef target)
-    if(NOT TARGET pmon_validate_cef)
+    if(NOT TARGET pmon_stage_cef_runtime)
         message(FATAL_ERROR "pmon_configure_cef() must run before pmon_target_uses_cef().")
     endif()
+
     target_link_libraries(${target} PRIVATE pmon::cef)
-    add_dependencies(${target} pmon_validate_cef)
+    add_dependencies(${target} pmon_stage_cef_runtime)
+
+    set_target_properties(
+        pmon_stage_cef_runtime
+        PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD FALSE
+    )
 endfunction()

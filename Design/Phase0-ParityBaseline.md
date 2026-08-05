@@ -225,7 +225,7 @@ build/Debug/SampleClient.exe
 build/lib/CommonUtilities-x64-Debug/IPMCommonUtilities.lib
 ```
 
-The UI post-build also stages CEF binaries, CEF resources, shaders, presets, blocklists, CLI wrappers, and web assets under `build/Debug`.
+The UI post-build also stages CEF binaries, CEF resources, presets, blocklists, CLI wrappers, and web assets under `build/Debug`. Shaders are not staged by that post-build step: the shared `Shaders.vcxitems` `FxCompile` items compile `Line_PS.hlsl`/`Line_VS.hlsl` directly into `build/Debug/Shaders` as part of the normal build, the same way `ClCompile` produces `.obj` files.
 
 ### Release x64 Main Solution
 

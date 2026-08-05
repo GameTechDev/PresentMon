@@ -20,6 +20,7 @@ target_link_libraries(
     PRIVATE
         pmon::build_options
         pmon::warnings_default
+        pmon::release_link_policy
         pmon::common_utilities
         pmon::interprocess
         pmon::api_wrapper
@@ -51,5 +52,3 @@ set_target_properties(
         PMON_MULTIBYTE ON
         FOLDER "Service and SDK"
 )
-
-pmon_register_artifact("$<TARGET_FILE:SampleClient>")

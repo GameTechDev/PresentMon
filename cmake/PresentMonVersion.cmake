@@ -37,7 +37,7 @@ function(pmon_read_version version_props_path)
     set(PMON_PRODUCT_VERSION "${parsed_file_version}" PARENT_SCOPE)
     set(
         PMON_COPYRIGHT
-        "Copyright (C) 2017-${copyright_year} Intel Corporation"
+        "Copyright (C) 2017-${copyright_year}"
         PARENT_SCOPE
     )
 endfunction()

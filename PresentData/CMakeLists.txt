@@ -61,5 +61,3 @@ add_custom_command(
         "${PMON_OUTPUT_ROOT}/$<CONFIG>/PresentData.lib"
     VERBATIM
 )
-
-pmon_register_artifact("${PMON_OUTPUT_ROOT}/$<CONFIG>/PresentData.lib")

@@ -43,6 +43,8 @@ target_link_libraries(
     PRIVATE
         pmon::build_options
         pmon::warnings_strict
+        pmon::warnings_strict_link
+        pmon::release_link_policy
         pmon::version_header
         pmon::metrics
         advapi32
@@ -57,5 +59,3 @@ set_target_properties(
         OUTPUT_NAME "PresentMon-${PMON_VERSION}-${PMON_ARCH_TAG}"
         FOLDER "PresentMon/Console"
 )
-
-pmon_register_artifact("$<TARGET_FILE:PresentMonConsole>")
