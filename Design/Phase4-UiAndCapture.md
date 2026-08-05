@@ -263,6 +263,38 @@ PresentMonUI must retain its current non-elevated manifest; KernelProcess must
 receive its own legacy-compatible deployment policy rather than inheriting the
 UI manifest.
 
+### Production signing closure (build order)
+
+There is no `windows-win32-production` configure preset. Win32 uses the
+DEVELOPER profile only (`windows-win32-developer` +
+`windows-win32-developer-release`).
+
+Production EDSS signing runs after the full Release payload exists under
+`${PMON_OUTPUT_ROOT}/Release`:
+
+1. Configure and build x64 **production** Release (`windows-x64-production` /
+   `windows-x64-production-release`) so the main native payload, CEF staging, and
+   `Intel-PresentMon.dll` (x64 provider) are in `build/Release`.
+2. Configure and build Win32 **developer** Release
+   (`windows-win32-developer-release`) into the same `build/Release` tree so
+   maintained x86 artifacts (for example `PresentMon-<version>-x86.exe` and
+   `Intel-PresentMon32.dll`) land beside the x64 outputs without a second
+   output root.
+3. Invoke `pmon_sign_production_payload` (external script from
+   `PMON_EDSS_SIGN_SCRIPT`, template
+   `C:\PresentMonBuilder\sign-production-payload.ps1`) with `-OutputRoot`
+   `"${PMON_OUTPUT_ROOT}/Release"` and `-Verify` (CMake always passes
+   `-Verify` for production payload signing). The script runs `signtool verify
+   /pa` on each signed artifact before Phase 6 packaging.
+
+**Installer provider DLL:** PMInstaller packages the optional ETW provider from
+`$(var.Provider.TargetPath)` (`IntelPresentMon/PMInstaller/PresentMon.wxs`,
+`provider_group`). Under `Release-EDSS-MSI|x64` the solution maps Provider to
+`Release|x64` (`PresentMon.sln`), so the MSI ships **Intel-PresentMon.dll**,
+not **Intel-PresentMon32.dll**. The Win32 provider DLL is built for the legacy
+x86 payload step and manual `Provider/install_provider.cmd` on 32-bit hosts; it
+is not a WiX/MSM file entry today.
+
 ## Remaining Work Plan
 
 ### 1. Apply Deployment Manifest Policy
@@ -273,9 +305,11 @@ UI manifest.
 - Developer Release: test-certificate SignTool sign and verify on KernelProcess
   (legacy vcxproj post-build parity).
 - Production Release: EDSS payload signing via `pmon_sign_production_payload`
-  (invokes the script from `PMON_EDSS_SIGN_SCRIPT` with `-OutputRoot`
-  `"${PMON_OUTPUT_ROOT}/Release"` after the Release payload exists; the script
-  lives outside the repo); no test-certificate post-build on KernelProcess.
+  after x64 production Release and Win32 developer Release populate shared
+  `build/Release` (see **Production signing closure** above); invokes the script
+  from `PMON_EDSS_SIGN_SCRIPT` with `-OutputRoot`
+  `"${PMON_OUTPUT_ROOT}/Release"` and `-Verify`; no Win32 production configure; no
+  test-certificate post-build on KernelProcess.
 
 ### 2. Add Deterministic Behavioral Verification
 
@@ -297,8 +331,12 @@ phase rather than relying on timing guesses.
 - Attach EDSS to the complete production native payload built through Phase 4,
   including the products
   converted in Phases 2 and 3.
-- Add a Win32 production Release build and include its maintained x86 payload,
-  including `Intel-PresentMon32.dll`, in signing and signature verification.
+- Sign the complete production native payload under shared `build/Release` using
+  the build order in **Production signing closure** (x64 production, then Win32
+  developer Release). The EDSS sign list matches MSI-relevant binaries (x64
+  `Intel-PresentMon.dll`); `Intel-PresentMon32.dll` is not packaged by
+  PMInstaller and is omitted from the template sign script unless packaging
+  policy changes.
 - Verify signatures after all payload mutation and before Phase 6 packaging.
 - Keep signing credentials and tool-specific configuration outside the source
   tree (reference template: `C:\PresentMonBuilder\sign-production-payload.ps1`).
@@ -310,7 +348,8 @@ phase rather than relying on timing guesses.
   recompile unchanged shaders or C++, or relink unchanged products.
 - Confirm `PMON_BUILD_UI=OFF` does not create UI or shader targets.
 - Confirm Win32 remains free of UI, shader, and CEF product dependencies.
-- Build the maintained Win32 production Release payload.
+- Build Win32 developer Release into shared `build/Release` (no Win32 production
+  preset).
 - Run the explicit CEF integrity target in CI.
 - Build the production payload, sign it, and verify it.
 - Run the deterministic UI and capture workflow against the staged payload.

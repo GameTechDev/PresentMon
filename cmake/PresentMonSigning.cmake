@@ -215,6 +215,8 @@ function(pmon_add_production_signing_targets)
 
             "${PMON_OUTPUT_ROOT}/Release"
 
+            -Verify
+
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 
         COMMENT "Signing the production payload through EDSS"
