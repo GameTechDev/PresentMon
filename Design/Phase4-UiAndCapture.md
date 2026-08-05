@@ -283,9 +283,12 @@ Production EDSS signing runs after the full Release payload exists under
 3. Invoke `pmon_sign_production_payload` (external script from
    `PMON_EDSS_SIGN_SCRIPT`, template
    `C:\PresentMonBuilder\sign-production-payload.ps1`) with `-OutputRoot`
-   `"${PMON_OUTPUT_ROOT}/Release"` and `-Verify` (CMake always passes
-   `-Verify` for production payload signing). The script runs `signtool verify
-   /pa` on each signed artifact before Phase 6 packaging.
+   `"${PMON_OUTPUT_ROOT}/Release"`, `-Verify`, and (by default)
+   `-IntuneSigning` when `PMON_EDSS_INTUNE_SIGNING=ON`. Set
+   `-DPMON_EDSS_INTUNE_SIGNING=OFF` to use Credential Manager and the signing
+   account logon probe instead. CMake always passes `-Verify` for production
+   payload signing. The script runs `signtool verify /pa` on each signed
+   artifact before Phase 6 packaging.
 
 **Installer provider DLL:** PMInstaller packages the optional ETW provider from
 `$(var.Provider.TargetPath)` (`IntelPresentMon/PMInstaller/PresentMon.wxs`,
@@ -308,7 +311,8 @@ is not a WiX/MSM file entry today.
   after x64 production Release and Win32 developer Release populate shared
   `build/Release` (see **Production signing closure** above); invokes the script
   from `PMON_EDSS_SIGN_SCRIPT` with `-OutputRoot`
-  `"${PMON_OUTPUT_ROOT}/Release"` and `-Verify`; no Win32 production configure; no
+  `"${PMON_OUTPUT_ROOT}/Release"`, `-Verify`, and `-IntuneSigning` when
+  `PMON_EDSS_INTUNE_SIGNING=ON` (default); no Win32 production configure; no
   test-certificate post-build on KernelProcess.
 
 ### 2. Add Deterministic Behavioral Verification

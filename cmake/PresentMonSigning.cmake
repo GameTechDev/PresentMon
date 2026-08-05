@@ -193,6 +193,14 @@ function(pmon_add_production_signing_targets)
 
     # Run after Release payload is built (build/Release under PMON_OUTPUT_ROOT).
 
+    set(pmon_production_sign_intune_args "")
+
+    if(PMON_EDSS_INTUNE_SIGNING)
+
+        set(pmon_production_sign_intune_args -IntuneSigning)
+
+    endif()
+
     add_custom_target(
 
         pmon_sign_production_payload
@@ -214,6 +222,8 @@ function(pmon_add_production_signing_targets)
             -OutputRoot
 
             "${PMON_OUTPUT_ROOT}/Release"
+
+            ${pmon_production_sign_intune_args}
 
             -Verify
 

@@ -57,6 +57,11 @@ function(pmon_configure_options)
         CACHE FILEPATH
         "External EDSS signing script (PRODUCTION: set PMON_EDSS_SIGN_SCRIPT env or -D before configure)"
     )
+    option(
+        PMON_EDSS_INTUNE_SIGNING
+        "Pass -IntuneSigning to PMON_EDSS_SIGN_SCRIPT (EDSS in-process; no LogonUser impersonation)"
+        ON
+    )
     set(
         PMON_SIGNTOOL_EXECUTABLE
         ""
