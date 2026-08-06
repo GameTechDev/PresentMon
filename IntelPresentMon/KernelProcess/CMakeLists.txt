@@ -10,8 +10,9 @@ add_executable(
 )
 # Matches the CefNano and PresentMonService ProjectReferences in
 # KernelProcess.vcxproj: KernelProcess launches both by name at runtime and
-# does not link either.
-add_dependencies(KernelProcess PresentMonUI PresentMonService)
+# does not link either. PresentMonAPI2.dll is loaded at runtime (see
+# --middleware-dll-path); build it into the output dir before F5.
+add_dependencies(KernelProcess PresentMonUI PresentMonService PresentMonAPI2)
 
 target_link_libraries(
     KernelProcess
@@ -60,6 +61,9 @@ set_target_properties(
         OUTPUT_NAME PresentMon
         FOLDER "UI and Capture"
         VS_DEBUGGER_WORKING_DIRECTORY "${PMON_OUTPUT_ROOT}/$<CONFIG>"
+        # Matches KernelProcess.args.json preset VS-Debug-Run for F5 from the
+        # CMake-generated Visual Studio solution.
+        VS_DEBUGGER_COMMAND_ARGUMENTS "--svc-as-child --files-working --log-level verbose --middleware-dll-path .\\PresentMonAPI2.dll --log-middleware-copy"
 )
 
 pmon_target_uses_kernel_payload(KernelProcess)

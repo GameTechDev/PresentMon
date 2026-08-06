@@ -185,10 +185,6 @@
         {
           "Id": "9364f1fd-7146-4233-9e19-83cd7e3b7ddb",
           "Command": "--log-middleware-copy"
-        },
-        {
-          "Id": "c8f4e2a1-9b3d-4f7e-a1c2-6d5e8f0b2a15",
-          "Command": "--svc-flag enable-mock-telemetry"
         }
       ]
     },

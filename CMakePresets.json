@@ -87,34 +87,22 @@
   ],
   "buildPresets": [
     {
-      "name": "windows-x64-developer-debug",
-      "displayName": "Windows x64 Developer Debug",
-      "configurePreset": "windows-x64-developer",
-      "configuration": "Debug"
+      "name": "windows-x64-developer",
+      "displayName": "Windows x64 Developer Build",
+      "description": "Build windows-x64-developer; pass --config Debug or --config Release",
+      "configurePreset": "windows-x64-developer"
     },
     {
-      "name": "windows-x64-developer-release",
-      "displayName": "Windows x64 Developer Release",
-      "configurePreset": "windows-x64-developer",
-      "configuration": "Release"
+      "name": "windows-x64-production",
+      "displayName": "Windows x64 Production Build",
+      "description": "Build windows-x64-production; pass --config Debug or --config Release",
+      "configurePreset": "windows-x64-production"
     },
     {
-      "name": "windows-x64-production-release",
-      "displayName": "Windows x64 Production Release",
-      "configurePreset": "windows-x64-production",
-      "configuration": "Release"
-    },
-    {
-      "name": "windows-win32-developer-debug",
-      "displayName": "Windows Win32 Developer Debug",
-      "configurePreset": "windows-win32-developer",
-      "configuration": "Debug"
-    },
-    {
-      "name": "windows-win32-developer-release",
-      "displayName": "Windows Win32 Developer Release",
-      "configurePreset": "windows-win32-developer",
-      "configuration": "Release"
+      "name": "windows-win32-developer",
+      "displayName": "Windows Win32 Developer Build",
+      "description": "Build windows-win32-developer; pass --config Debug or --config Release",
+      "configurePreset": "windows-win32-developer"
     }
   ]
 }

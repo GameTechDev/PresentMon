@@ -139,9 +139,8 @@ Phase 2 added:
 
 - `windows-win32-dependencies`
 - `windows-win32-developer`
-- `windows-win32-developer-debug`
-- `windows-win32-developer-release`
 
+Build uses `cmake --build --preset windows-win32-developer --config Debug|Release`.
 The existing x64 presets remain unchanged at the command-line interface.
 
 ## Verification
@@ -151,13 +150,13 @@ Build verification succeeded for:
 ```powershell
 cmake --preset windows-x64-dependencies
 cmake --preset windows-x64-developer
-cmake --build --preset windows-x64-developer-debug
-cmake --build --preset windows-x64-developer-release
+cmake --build --preset windows-x64-developer --config Debug
+cmake --build --preset windows-x64-developer --config Release
 
 cmake --preset windows-win32-dependencies
 cmake --preset windows-win32-developer
-cmake --build --preset windows-win32-developer-debug
-cmake --build --preset windows-win32-developer-release
+cmake --build --preset windows-win32-developer --config Debug
+cmake --build --preset windows-win32-developer --config Release
 ```
 
 Runtime smoke checks:

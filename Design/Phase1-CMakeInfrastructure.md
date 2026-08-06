@@ -40,11 +40,11 @@ Configure presets:
 - `windows-x64-developer`: configures a developer deployment.
 - `windows-x64-production`: configures a production deployment.
 
-Build presets:
+Build presets (one per configure preset; pass `--config Debug` or `--config Release`):
 
-- `windows-x64-developer-debug`
-- `windows-x64-developer-release`
-- `windows-x64-production-release`
+- `windows-x64-developer`
+- `windows-x64-production`
+- `windows-win32-developer`
 
 Normal developer and production configuration does not permit vcpkg network restoration. Dependency presets perform explicit restores into per-triplet directories under `build/ThirdParty/vcpkg_installed`, with source downloads under `build/ThirdParty/vcpkg-downloads`.
 
@@ -141,10 +141,10 @@ Verified on Windows with Visual Studio 2022, MSVC 19.44, and Windows SDK 10.0.26
 ```powershell
 cmake --preset windows-x64-dependencies
 cmake --preset windows-x64-developer
-cmake --build --preset windows-x64-developer-debug
-cmake --build --preset windows-x64-developer-release
+cmake --build --preset windows-x64-developer --config Debug
+cmake --build --preset windows-x64-developer --config Release
 cmake --preset windows-x64-production
-cmake --build --preset windows-x64-production-release
+cmake --build --preset windows-x64-production --config Release
 ```
 
 Results:

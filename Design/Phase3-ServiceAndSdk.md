@@ -208,8 +208,8 @@ Configuration and build:
 ```powershell
 cmake --preset windows-x64-dependencies
 cmake --preset windows-x64-developer
-cmake --build --preset windows-x64-developer-debug
-cmake --build --preset windows-x64-developer-release
+cmake --build --preset windows-x64-developer --config Debug
+cmake --build --preset windows-x64-developer --config Release
 ```
 
 Win32 regression check, because this phase changed the shared compiler options
@@ -218,8 +218,8 @@ target and Provider:
 ```powershell
 cmake --preset windows-win32-dependencies
 cmake --preset windows-win32-developer
-cmake --build --preset windows-win32-developer-debug
-cmake --build --preset windows-win32-developer-release
+cmake --build --preset windows-win32-developer --config Debug
+cmake --build --preset windows-win32-developer --config Release
 ```
 
 Results:

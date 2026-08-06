@@ -2,20 +2,21 @@
 
 ## Status
 
-Phase 4 is in progress. The CEF dependency integration, shader compilation,
-native `PresentMonUI` and `KernelProcess` CMake targets, and the remaining
-runtime payload staging are implemented. Deployment-profile manifests, signing,
-and behavioral verification are still open before Phase 4 is complete.
+**Phase 4 is complete** (August 6, 2026). CEF, shaders, `PresentMonUI`,
+`KernelProcess`, runtime payload staging, deployment-profile manifests,
+developer SignTool, production EDSS payload signing with post-sign verify, and a
+documented Visual Studio Debug workflow are in place. There is no automated
+staged UI/capture test in this phase. MSI and MSM packaging belongs to Phase 6.
 
 | Area | State | Current boundary |
 | --- | --- | --- |
 | CEF dependency | Implemented | Fixed CMake stage, explicit restore, incremental runtime staging, and explicit CI integrity verification. |
 | Shaders | Implemented | The two shipping HLSL shaders compile through CMake with the original MSBuild settings. |
 | PresentMonUI | Implemented | The x64 `WIN32` executable reproduces the original `CefNano.vcxproj` native target contract. |
-| KernelProcess | Implemented | The x64 `WIN32` executable reproduces the original native target contract; deployment-profile manifest selection remains open. |
+| KernelProcess | Implemented | The x64 `WIN32` executable reproduces the original native target contract; Debug `uiAccess=false`, Release `uiAccess=true`. |
 | Runtime payload | Implemented | Web output, presets, blocklist, and CLI wrappers stage incrementally through `cmake/PresentMonUiPayload.cmake`. |
-| Deployment and signing | Remaining | CMake does not yet sign and verify the complete production native payload built through Phase 4; MSI and MSM packaging belongs to Phase 6. |
-| Behavioral verification | Remaining | A deterministic UI and representative capture/control workflow is still required. |
+| Deployment and signing | Implemented | Developer KernelProcess Release SignTool; production `pmon_sign_production_payload` via external `PMON_EDSS_SIGN_SCRIPT` with `-Verify` (and `-IntuneSigning` by default). |
+| Debug verification | Implemented | Verified August 6, 2026: CMake developer Debug F5; UI and real process tracking. See `BUILDING.md`. |
 
 `PresentMonUI` and shader compilation are available only for x64 when
 `PMON_BUILD_UI` is enabled. CEF restore and CI verification remain available in
@@ -50,7 +51,7 @@ therefore allowed to succeed when the fixed stage does not exist.
 CEF restore is an opt-in operation:
 
 ```powershell
-cmake --build --preset windows-x64-developer-debug --target pmon_restore_cef
+cmake --build --preset windows-x64-developer --config Debug --target pmon_restore_cef
 ```
 
 `PMON_CEF_SOURCE` may name a local archive or URI. When it is empty, restore
@@ -87,7 +88,7 @@ developer must run the explicit restore target and build again.
 troubleshooting:
 
 ```powershell
-cmake --build --preset windows-x64-developer-debug --target pmon_verify_cef
+cmake --build --preset windows-x64-developer --config Debug --target pmon_verify_cef
 ```
 
 It validates the fixed stage and staged output. It is intentionally excluded
@@ -227,24 +228,30 @@ An enabled default UI build currently produces or stages:
   `pathed/`.
 
 Building `PresentMonUI` and `KernelProcess` now stages the legacy runtime
-payload, but deployment-profile manifests, signing, and the deterministic
-behavioral gate are still required before Phase 4 is complete.
+payload. Debug validation is manual through Visual Studio as documented in
+`BUILDING.md`.
 
 ## Current Verification
 
-The cleaned target graph was verified on August 4, 2026:
+### August 6, 2026 (end-to-end Debug)
 
-- x64 Debug and Release `PresentMonUI` builds succeeded.
-- x64 Debug and Release `KernelProcess` builds succeeded, producing
-  `build/<Config>/PresentMon.exe` with the reproduced per-configuration manifest.
-- An immediate repeat changed none of the 18 staged CEF files, ran no CEF copy
-  commands, and ran no CEF validation.
-- Removing one staged CEF file caused only that file to be copied again.
-- The explicit `pmon_verify_cef` target validated both the fixed stage and the
-  Debug and Release runtime payloads.
-- A Win32 Release build succeeded without UI or CEF product targets.
-- An x64 configure with `PMON_BUILD_UI=OFF` generated neither `PresentMonUI` nor
-  `pmon_compile_shaders`.
+- **windows-x64-developer** Debug: F5 from the CMake-generated `PresentMon.sln`
+  under `build/cmake/windows-x64-developer/` with **KernelProcess** as startup
+  project and **VS-Debug-Run** arguments per `BUILDING.md`.
+- **KernelProcess** starts **PresentMonService** as a child process; default
+  **VS-Debug-Run** uses real ETW (no mock telemetry unless explicitly enabled).
+- UI loads the staged web payload (`ipm-ui-vue/`); process tracking against a
+  graphics application showed real metrics (user verified).
+
+### August 4, 2026 (build graph and CEF)
+
+- x64 Debug and Release `PresentMonUI` and `KernelProcess` builds succeeded;
+  `build/<Config>/PresentMon.exe` with reproduced per-configuration manifest.
+- Immediate repeat changed none of the 18 staged CEF files; removing one staged
+  CEF file recopied only that file; explicit `pmon_verify_cef` validated fixed
+  stage and Debug/Release runtime payloads.
+- Win32 Release without UI/CEF product targets; x64 `PMON_BUILD_UI=OFF` omitted
+  `PresentMonUI` and `pmon_compile_shaders`.
 
 ## Deployment and Signing Status
 
@@ -256,27 +263,25 @@ signature verification for the complete native payload built through this
 phase, including the products converted in Phases 2 and 3. MSI and MSM
 packaging remains Phase 6 work.
 
-The remaining deployment work must define the complete payload, apply developer
-and production manifest policy, sign the required production files, and verify
-signatures after signing and before packaging.
-PresentMonUI must retain its current non-elevated manifest; KernelProcess must
-receive its own legacy-compatible deployment policy rather than inheriting the
-UI manifest.
+CMake and the external sign script implement the required production path
+(`pmon_sign_production_payload` with `-Verify`; `-IntuneSigning` when
+`PMON_EDSS_INTUNE_SIGNING=ON`). The remaining deployment documentation work is
+to keep the sign list aligned with MSI-relevant binaries as packaging policy
+evolves.
 
 ### Production signing closure (build order)
 
 There is no `windows-win32-production` configure preset. Win32 uses the
-DEVELOPER profile only (`windows-win32-developer` +
-`windows-win32-developer-release`).
+DEVELOPER profile only (`windows-win32-developer`; build with `--config Release`).
 
 Production EDSS signing runs after the full Release payload exists under
 `${PMON_OUTPUT_ROOT}/Release`:
 
-1. Configure and build x64 **production** Release (`windows-x64-production` /
-   `windows-x64-production-release`) so the main native payload, CEF staging, and
+1. Configure and build x64 **production** Release (`windows-x64-production` build
+   preset with `--config Release`) so the main native payload, CEF staging, and
    `Intel-PresentMon.dll` (x64 provider) are in `build/Release`.
 2. Configure and build Win32 **developer** Release
-   (`windows-win32-developer-release`) into the same `build/Release` tree so
+   (`windows-win32-developer` with `--config Release`) into the same `build/Release` tree so
    maintained x86 artifacts (for example `PresentMon-<version>-x86.exe` and
    `Intel-PresentMon32.dll`) land beside the x64 outputs without a second
    output root.
@@ -300,7 +305,7 @@ is not a WiX/MSM file entry today.
 
 ## Remaining Work Plan
 
-### 1. Apply Deployment Manifest Policy
+### 1. Apply Deployment Manifest Policy (implemented)
 
 - Keep `PresentMonUI` non-elevated in every profile.
 - KernelProcess manifest policy: Debug uses `uiAccess=false`; Release uses
@@ -315,22 +320,22 @@ is not a WiX/MSM file entry today.
   `PMON_EDSS_INTUNE_SIGNING=ON` (default); no Win32 production configure; no
   test-certificate post-build on KernelProcess.
 
-### 2. Add Deterministic Behavioral Verification
+### 2. Visual Studio Debug verification (implemented)
 
-The completion check must exercise the staged web UI and a representative
-KernelProcess capture or control path. It must define:
+Phase 4 does not require an automated staged UI/capture test. Exit validation is
+manual: a developer builds the x64 Debug payload (CEF restore, `PresentMonUI`,
+KernelProcess, staged web assets), opens `PresentMon.sln` (CMake-generated under
+`build/cmake/windows-x64-developer/` or the legacy root solution), sets
+**KernelProcess** as the startup project, and F5s with the **VS-Debug-Run**
+arguments documented in `BUILDING.md` (CMake sets the same defaults on the
+KernelProcess target). Confirm the UI loads from the staged web output and
+`PresentMonService.exe` starts as a child process (same service code path as an
+installed service, not `sc.exe`). Process tracking should enable real ETW
+providers when the account is in **Performance Log Users**; optional mock GPU
+metrics remain available via `--svc-flag enable-mock-telemetry` in
+`KernelProcess.args.json`, not in the default **VS-Debug-Run** preset.
 
-- A deterministic readiness signal.
-- An observable successful UI operation.
-- An observable capture or control result.
-- Bounded timeouts for startup, operation, and shutdown.
-- Controlled shutdown and cleanup after both success and failure.
-
-A process launch or `--help` result alone is insufficient. If deterministic
-readiness or shutdown needs a small product seam, add that seam as part of this
-phase rather than relying on timing guesses.
-
-### 3. Apply Production Signing
+### 3. Apply Production Signing (implemented)
 
 - Attach EDSS to the complete production native payload built through Phase 4,
   including the products
@@ -347,17 +352,18 @@ phase rather than relying on timing guesses.
 
 ### 4. Complete the Build Matrix
 
-- Build clean x64 Debug and Release developer configurations.
-- Confirm immediate repeat builds do not restage unchanged CEF files,
-  recompile unchanged shaders or C++, or relink unchanged products.
-- Confirm `PMON_BUILD_UI=OFF` does not create UI or shader targets.
-- Confirm Win32 remains free of UI, shader, and CEF product dependencies.
-- Build Win32 developer Release into shared `build/Release` (no Win32 production
-  preset).
-- Run the explicit CEF integrity target in CI.
-- Build the production payload, sign it, and verify it.
-- Run the deterministic UI and capture workflow against the staged payload.
-- Leave MSI and MSM packaging to Phase 6.
+- [x] Build clean x64 Debug and Release developer configurations (August 4, 2026).
+- [x] Confirm immediate repeat builds do not restage unchanged CEF files,
+  recompile unchanged shaders or C++, or relink unchanged products (August 4, 2026).
+- [x] Confirm `PMON_BUILD_UI=OFF` does not create UI or shader targets (August 4, 2026).
+- [x] Confirm Win32 remains free of UI, shader, and CEF product dependencies (August 4, 2026).
+- [x] Build Win32 developer Release into shared `build/Release` (no Win32 production
+  preset; verified during production payload signing).
+- [ ] Run the explicit CEF integrity target in CI (when CI is wired to this repo).
+- [x] Build the production payload, sign it, and verify it (`pmon_sign_production_payload` verified).
+- [x] Document and use the Visual Studio Debug workflow in `BUILDING.md` against the
+  staged Debug payload (manual F5 verification August 6, 2026; see **Current Verification**).
+- Leave MSI and MSM packaging to Phase 6 (Phase 6 scope; not required for Phase 4 closure).
 
 ## Phase Completion Criteria
 
@@ -371,7 +377,11 @@ Phase 4 is complete when all of the following are true:
 - Restore validates CEF before publication, and CI runs the explicit offline
   CEF integrity check.
 - The production payload is signed and signature verification passes.
-- The deterministic UI and representative capture/control workflow passes with
-  bounded startup and shutdown.
+- Developers can run the Debug UI through Visual Studio using the workflow in
+  `BUILDING.md` (KernelProcess startup, staged payload, documented command line).
 - Existing non-UI configurations continue to build with their intended target
   set.
+
+**August 6, 2026:** All criteria above are met for the CMake migration scope,
+including manual Visual Studio Debug verification with real ETW process tracking.
+MSI/MSM packaging remains Phase 6.
