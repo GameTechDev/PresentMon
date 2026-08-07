@@ -2,12 +2,14 @@
 
 ## Status
 
-Draft. Build implementation is complete through Phase 3. Phase 4 has implemented
-the fixed CEF dependency boundary, shader compilation, and the native
-`PresentMonUI` and `KernelProcess` targets. The remaining Phase 4
-payload, deployment, signing, behavioral verification, and final build-matrix
-work are still open. Phase 2 still requires a deterministic functional backfill
-under the phase-local behavioral gate; Phase 3 satisfies that gate.
+Draft. Native product build implementation is complete through Phase 4. Phases 0
+through 3 and Phase 4 are documented in their phase files; see
+[Phase 4 - UI and Capture](Phase4-UiAndCapture.md) for closure criteria,
+signing, and UI verification. Phase 2 console behavior is verified for CMake-built
+`PresentMonConsole` on x64 and Win32 (August 6, 2026). Phase 5 CMake test
+targets and CTest registration are landed; Release/Win32 test builds and full
+deterministic `ctest` runs remain open. Next: Phase 6 (WiX MSI/MSM), then Phases
+7 and 8 cutover.
 
 This document defines a new CMake migration plan based only on the current source tree. Existing experimental branches and designs are intentionally excluded.
 
@@ -306,13 +308,17 @@ Status: Complete. See [Phase 1 - CMake Infrastructure](Phase1-CMakeInfrastructur
 
 ### Phase 2: Standalone and Foundation Targets
 
-Status: Build implementation complete; behavioral verification pending. See
+Status: Complete for build conversion and console behavioral verification. See
 [Phase 2 - Foundation and Standalone Targets](Phase2-FoundationAndStandalone.md).
 
 - Convert CommonUtilities base, PresentData, and metrics.
 - Convert the console application.
 - Convert Provider, ETLTrimmer, `etw_list`, and `pm_convert_csv`.
 - Verify Win32 and x64 outputs.
+- Console: CMake `PresentMonConsole` exercised on x64 and Win32 with the user's
+  functional workflow; both passed (August 6, 2026). Provider and standalone
+  tools retain the documented help and version smoke checks unless extended
+  later.
 
 ### Phase 3: Service and SDK
 
@@ -325,10 +331,10 @@ Status: Complete. See [Phase 3 - Service and SDK](Phase3-ServiceAndSdk.md).
 
 ### Phase 4: UI and Capture
 
-Status: In progress. CEF restore and runtime staging, shader compilation, and
-the PresentMonUI and KernelProcess targets are implemented. See
-[Phase 4 - UI and Capture](Phase4-UiAndCapture.md) for the current contract and
-remaining plan.
+Status: Complete (August 6, 2026). CEF, shaders, runtime payload staging,
+deployment manifests, production payload signing, and the documented Visual
+Studio Debug UI workflow are implemented and recorded in
+[Phase 4 - UI and Capture](Phase4-UiAndCapture.md). MSI and MSM remain Phase 6.
 
 - Integrate locked CEF restoration, wrapper build, and incremental runtime
   staging. Complete.
@@ -338,30 +344,12 @@ remaining plan.
 - Convert UI and kernel process targets. `PresentMonUI` and `KernelProcess`
   are complete.
 - Stage the remaining web, preset, blocklist, and CLI payloads. Complete.
-- Apply the developer and production deployment policies to the UI, kernel
-  process, and their staged payloads.
-- Run the deterministic UI and representative capture/control workflow.
-- Sign the complete production native payload built through Phase 4 and verify
-  its signatures before Phase 6 packaging.
-
-#### Remaining Phase 4 Work Units
-
-Complete these units separately and stop for review after each one:
-
-1. Convert only the remaining runtime payload. Complete.
-2. Apply deployment-profile manifest policy. Both Debug and Release developer
-   builds use `uiAccess=false`; the production Release build uses
-   `uiAccess=true`. Replace the current configuration-only KernelProcess choice
-   with `PMON_DEPLOYMENT_PROFILE`; `PresentMonUI` remains non-elevated.
-3. Run and record the deterministic developer-profile UI and representative
-   capture/control workflow against the complete staged payload.
-4. Attach the selected EDSS or direct SignTool backend to the complete
-   production native payload built through Phase 4, including the products
-   converted in Phases 2 and 3. Add the Win32 production Release build required
-   for the maintained x86 payload, including `Intel-PresentMon32.dll`, and
-   verify every required signature after payload mutation.
-5. Complete the Phase 4 build matrix and regression checks. Stop at a signed,
-   signature-verified native payload; MSI and MSM packaging remain Phase 6.
+- Apply deployment-profile manifest and signing policy. Complete.
+- Run and record the developer-profile UI and representative capture/control
+  workflow. Complete (manual F5 verification; see Phase 4 document and
+  `BUILDING.md`).
+- Sign and verify the complete production native payload before Phase 6
+  packaging. Complete (`pmon_sign_production_payload` with `-Verify`).
 
 #### Phase 4 Rules
 
@@ -462,6 +450,9 @@ a real CEF consumer is enabled; restore and CI verification remain explicit.
 
 ### Phase 5: Tests
 
+Status: In progress. CMake targets, aux restore, and CTest registration are
+implemented on x64 Debug; see [Phase 5 - Tests](Phase5-Tests.md).
+
 - Convert the GTest regression executable.
 - Integrate Visual Studio C++ Unit Test projects.
 - Preserve auxiliary data restoration and generated test cases.
@@ -526,7 +517,7 @@ environment-qualified omission is recorded as such; it is not a passing result.
 
 ## Immediate Next Step
 
-PresentMonUI, KernelProcess, CEF runtime staging, shader compilation, and the
-remaining runtime payload are implemented. The next implementation unit is
-deployment-profile manifest policy for KernelProcess. Stop for review before
-signing or behavioral verification.
+Finish Phase 5 verification: x64 Release test builds, Win32 `PresentMonTests`,
+and `ctest -L deterministic` on a CMake-built Debug payload. Then begin Phase 6
+(WiX MSI/MSM). Optional CI wiring for `pmon_verify_cef` remains documented in
+Phase 4.

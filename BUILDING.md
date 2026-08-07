@@ -85,6 +85,33 @@ Open `build\cmake\windows-x64-developer\PresentMon.sln`, set startup project **K
 
 CEF for CMake builds comes from `pmon_restore_cef` (`build/ThirdParty/cef`), not from `bootstrap.ps1` alone.
 
+### CMake tests
+
+With `PMON_BUILD_TESTS=ON` (default), configure the developer preset and build the test targets:
+
+```powershell
+cmake --preset windows-x64-developer -DPMON_BUILD_TESTS=ON
+cmake --build --preset windows-x64-developer --config Debug --target PresentMonTests PresentMonUnitTests PresentMonAPI2Tests
+```
+
+Restore pinned API2 ETL aux data (optional, not part of configure):
+
+```powershell
+cmake --build --preset windows-x64-developer --target pmon_restore_aux_testdata
+```
+
+Run deterministic CTest entries (gold console GTest, unit/API2 subsets via `vstest.console.exe`):
+
+```powershell
+ctest --test-dir build/cmake/windows-x64-developer -C Debug -L deterministic --output-on-failure
+```
+
+Skip environment-heavy tests with `ctest -LE environment`. Optional full CSV gold suite: `-DPMON_CTEST_FULL_CSV_TESTS=ON` at configure time.
+
+Optional aux ETL/CSV cases (same as VS `PresentMonTests.local.runsettings`): CMake reads `Tests/PresentMonTests.local.runsettings` at configure time and passes `--opttestdir=` to the gold CTest when the directory exists. Override with `-DPMON_PRESENTMON_TESTS_OPTTESTDIR=...`.
+
+**Test Explorer with the CMake solution:** After configure, CMake writes `PresentMonTests.generated.runsettings` under your preset build tree (for example `build/cmake/windows-x64-developer/PresentMonTests.generated.runsettings`). In Visual Studio: **Test** > **Configure Run Settings** > **Select Solution Wide runsettings File**, choose that generated file, then **Test** > **Refresh Tests**. It sets `PRESENTMON_ADDITIONAL_TEST_DIR` and Google Test Adapter **TestDiscovery** `--opttestdir=` (discovery does not inherit env vars alone). Reconfigure after changing `PresentMonTests.local.runsettings`.
+
 For Release builds, either move the full Release output payload to a secure directory such as "Program Files" or "System32", or disable the secure directory check for local development. You cannot run release builds from the IDE typically. The installer is often the easier path for Release validation:
 
 ```bat

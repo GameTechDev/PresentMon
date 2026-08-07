@@ -28,6 +28,34 @@ function(pmon_configure_options)
     option(PMON_BUILD_UI "Build the Intel PresentMon UI" ON)
     option(PMON_BUILD_PROVIDER "Build the ETW provider" ON)
     option(PMON_BUILD_TOOLS "Build standalone tools" ON)
+    option(PMON_BUILD_TESTS "Build test projects and register CTest entries" ON)
+    option(
+        PMON_CTEST_FULL_CSV_TESTS
+        "Register CTest entry for the Tests/Full gold CSV suite"
+        OFF
+    )
+
+    cmake_dependent_option(
+        PMON_BUILD_PRESENTMON_TESTS
+        "Build PresentMonTests (GTest console regression)"
+        ON
+        "PMON_BUILD_TESTS;PMON_BUILD_CONSOLE"
+        OFF
+    )
+    cmake_dependent_option(
+        PMON_BUILD_UNIT_TESTS
+        "Build PresentMonUnitTests (Visual Studio C++ unit tests; requires Core/UI stack, x64 only)"
+        ON
+        "PMON_BUILD_TESTS;PMON_BUILD_SDK;PMON_BUILD_UI"
+        OFF
+    )
+    cmake_dependent_option(
+        PMON_BUILD_API2_TESTS
+        "Build PresentMonAPI2Tests (Visual Studio C++ integration tests; x64 only)"
+        ON
+        "PMON_BUILD_TESTS;PMON_BUILD_SERVICE;PMON_BUILD_SDK;PMON_BUILD_UI"
+        OFF
+    )
 
     pmon_define_enum_cache(
         PMON_DEPLOYMENT_PROFILE

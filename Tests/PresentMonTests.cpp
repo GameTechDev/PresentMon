@@ -4,8 +4,6 @@
 #include <generated/version.h>
 #include "PresentMonTests.h"
 
-#include <src/gtest-all.cc>
-
 bool EnsureDirectoryCreated(std::wstring path)
 {
     for (auto i = path.find(L'\\');; i = path.find(L'\\', i + 1)) {
@@ -237,13 +235,7 @@ int wmain(
         }
     }
 
-    // Note: InitGoogleTest() will remove the arguments it recognizes.
-    testing::InitGoogleTest(&argc, argv);
-    if (help) {
-        return 0;
-    }
-
-    // Parse remaining command line arguments for custom commands.
+    // Parse PresentMonTests-specific options before InitGoogleTest() mutates argv.
     wchar_t* presentMonPathArg = nullptr;
     wchar_t* goldDirArg = nullptr;
     wchar_t* optTestDirArg = nullptr;
@@ -260,7 +252,7 @@ int wmain(
             continue;
         }
 
-        if (_wcsnicmp(argv[i], L"--opttestdir=", 10) == 0) {
+        if (_wcsnicmp(argv[i], L"--opttestdir=", 13) == 0) {
             optTestDirArg = argv[i] + 13;
             continue;
         }
@@ -289,10 +281,12 @@ int wmain(
             diffPath_ = argv[i] + 7;
             continue;
         }
+    }
 
-        fprintf(stderr, "error: unrecognized command line argument: %ls.\n", argv[i]);
-        fprintf(stderr, "       Use --help command line argument for usage.\n");
-        return 1;
+    // Note: InitGoogleTest() will remove the arguments it recognizes.
+    testing::InitGoogleTest(&argc, argv);
+    if (help) {
+        return 0;
     }
 
     // Check command line arguments...

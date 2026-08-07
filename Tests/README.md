@@ -58,7 +58,9 @@ To add your own test directory with ETL files and gold CSV files:
 1. Copy `PresentMonTests.runsettings.template` to `PresentMonTests.local.runsettings`
 2. Edit the `PRESENTMON_ADDITIONAL_TEST_DIR` path to point to your test directory
 3. In Visual Studio, go to **Test** → **Configure Run Settings** → **Select Solution Wide runsettings File**
-4. Select your `PresentMonTests.local.runsettings` file
+4. Select your `PresentMonTests.local.runsettings` file when using the **root** `PresentMon.sln`, or the CMake-generated `PresentMonTests.generated.runsettings` under `build/cmake/<preset>/` when using the **CMake** solution (regenerate via `cmake --preset ...` after editing the local file)
+5. Set the same aux path under `GoogleTestAdapterSettings` / `TestDiscovery` / `AdditionalTestCommandLine` as `--opttestdir=...` when maintaining a hand-edited local runsettings file (the CMake-generated file sets this automatically)
+6. Build **PresentMonTests**, then **Test** → **Refresh Tests**
 
 ### Method 2: Command Line Parameter
 

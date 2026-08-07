@@ -16,5 +16,9 @@
   
   <GoogleTestAdapterSettings>
     <PrintTestOutput>true</PrintTestOutput>
+    <!-- Discovery runs PresentMonTests.exe without RunConfiguration env vars; pass aux dir here too. -->
+    <TestDiscovery>
+      <AdditionalTestCommandLine>--opttestdir=C:\path\to\your\test\directory</AdditionalTestCommandLine>
+    </TestDiscovery>
   </GoogleTestAdapterSettings>
 </RunSettings>
