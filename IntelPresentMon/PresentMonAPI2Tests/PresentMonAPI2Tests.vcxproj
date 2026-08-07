@@ -155,6 +155,7 @@
     <ClInclude Include="Logging.h" />
     <ClInclude Include="TestCommands.h" />
     <ClInclude Include="StatusComparison.h" />
+    <ClInclude Include="TestDiagnosticsRedirect.h" />
     <ClInclude Include="TestProcess.h" />
     <ClInclude Include="Utilities.h" />
   </ItemGroup>

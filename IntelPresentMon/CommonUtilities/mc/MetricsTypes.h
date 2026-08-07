@@ -186,4 +186,26 @@ namespace pmon::util::metrics {
         bool allowsTearing = false;
         PresentMode presentMode = {};
     };
+
+    struct AnimationDisplayContext {
+        double msAnimationError = MissingFrameMetricValue();
+        double msAnimationTime = MissingFrameMetricValue();
+        AnimationErrorSource source = AnimationErrorSource::CpuStart;
+        uint64_t resolvedSimStartTime = 0;
+        uint64_t firstSimStartTime = 0;
+        bool hasResolvedSimStart = false;
+    };
+
+    struct ReadyDisplayRow {
+        FrameData present;
+        size_t displayIndex = 0;
+        uint64_t previousDisplayedScreenTime = 0;
+        uint64_t screenTime = 0;
+        uint64_t nextScreenTime = 0;
+        bool isDisplayed = false;
+        bool isAppFrame = false;
+        bool updateSwapChainAfterRow = true;
+        FrameType frameType = FrameType::NotSet;
+        AnimationDisplayContext animation;
+    };
 }

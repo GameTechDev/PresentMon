@@ -5,6 +5,8 @@
 #include "../CommonUtilities/test/MachineExpectations.h"
 #include "../PresentMonAPI2Loader/Loader.h"
 #include "../PresentMonAPI2/Internal.h"
+#include "../CommonUtilities/test/CrtDiagnosticsRedirect.h"
+#include "TestDiagnosticsRedirect.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;
@@ -26,9 +28,18 @@ void WipeAndRecreate(const fs::path& path)
 
 TEST_MODULE_INITIALIZE(Api2TestModuleInit)
 {
-	// initialize c-api setting for in-module operation
+	pmon::test::InstallTestDiagnosticsRedirect();
+	if (pmon::util::test::IsCrtAssertRedirectEnabled()) {
+		try {
+			std::error_code ec;
+			fs::create_directories(pmon::test::agentDiagnosticsFolder_, ec);
+		}
+		catch (...) {
+		}
+	}
 	pmLoaderSetPathToMiddlewareDll_("./PresentMonAPI2.dll");
 	pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL_DEBUG, PM_DIAGNOSTIC_LEVEL_ERROR, false);
+	pmon::test::ReapplyTestDiagnosticsRedirectIfEnabled();
 	// setup folders
 	WipeAndRecreate(MultiClientTests::logFolder_);
 	WipeAndRecreate(EtlLoggerTests::logFolder_);

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -73,6 +73,8 @@
     <ClInclude Include="Math.h" />
     <ClInclude Include="SampleStatistics.h" />
     <ClInclude Include="mc\FrameMetricsMemberMap.h" />
+    <ClInclude Include="mc\AnimationErrorTracker.h" />
+    <ClInclude Include="mc\DisplayFrameQueue.h" />
     <ClInclude Include="mc\MetricsCalculator.h" />
     <ClInclude Include="mc\MetricsCalculatorInternal.h" />
     <ClInclude Include="mc\MetricsTypes.h" />
@@ -102,6 +104,7 @@
     <ClInclude Include="rng\OptionalMinMax.h" />
     <ClInclude Include="rng\PairToRange.h" />
     <ClInclude Include="str\String.h" />
+    <ClInclude Include="test\CrtDiagnosticsRedirect.h" />
     <ClInclude Include="test\FloatAssert.h" />
     <ClInclude Include="test\MachineExpectations.h" />
     <ClInclude Include="third\reflect.hpp" />
@@ -129,6 +132,7 @@
     <ClCompile Include="cli\CliFramework.cpp" />
     <ClCompile Include="Env.cpp" />
     <ClCompile Include="Exception.cpp" />
+    <ClCompile Include="test\CrtDiagnosticsRedirect.cpp" />
     <ClCompile Include="file\FileUtils.cpp" />
     <ClCompile Include="file\PathUtils.cpp" />
     <ClCompile Include="file\SecureSubdirectory.cpp" />
@@ -165,6 +169,8 @@
     <ClCompile Include="log\TimePoint.cpp" />
     <ClCompile Include="log\Verbose.cpp" />
     <ClCompile Include="mc\MetricsCalculator.cpp" />
+    <ClCompile Include="mc\AnimationErrorTracker.cpp" />
+    <ClCompile Include="mc\DisplayFrameQueue.cpp" />
     <ClCompile Include="mc\MetricsCalculatorCpuGpu.cpp" />
     <ClCompile Include="mc\MetricsCalculatorDisplay.cpp" />
     <ClCompile Include="mc\MetricsCalculatorInput.cpp" />

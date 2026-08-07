@@ -10,6 +10,9 @@
 #include "../CommonUtilities/win/HrErrorCodeProvider.h"
 #include "../CommonUtilities/str/String.h"
 #include "../PresentMonAPIWrapperCommon/PmErrorCodeProvider.h"
+#include "../CommonUtilities/log/HostLogEntryForward.h"
+#include "../CommonUtilities/log/HostIdentificationForward.h"
+#include "../CommonUtilities/test/CrtDiagnosticsRedirect.h"
 #include "../PresentMonAPI2/Internal.h"
 #include "CliOptions.h"
 #include "LogSetup.h"
@@ -64,7 +67,10 @@ namespace p2sam
 			// get the channel to work on it
 			auto pChan = GetDefaultChannel();
 			// connect dll channel and id table to exe, get access to global settings in dll
-			const auto getters = pmLinkLoggingPtrs_(pChan.get(), IdentificationTable::GetPtr());
+			const auto getters = pmLinkLoggingPtrs_(pChan.get(), IdentificationTable::GetPtr(),
+				&ForwardLogEntryToHostChannel,
+				&ForwardAddThreadToHostIdTable,
+				&ForwardAddProcessToHostIdTable);
 			// shortcut for command line
 			const auto& opt = clio::Options::Get();
 			// configure logging based on command line
@@ -111,6 +117,7 @@ namespace p2sam
 	}
 	LogChannelManager::LogChannelManager() noexcept
 	{
+		pmon::util::test::MaybeInstallCrtAssertRedirect();
 		InstallSehTranslator();
 		BootDefaultChannelEager();
 	}

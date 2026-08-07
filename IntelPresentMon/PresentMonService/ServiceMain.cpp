@@ -4,6 +4,7 @@
 #include <tchar.h>
 #include <iostream>
 
+#include "../CommonUtilities/test/CrtDiagnosticsRedirect.h"
 #include "Service.h"
 #include "CliOptions.h"
 #include "LogSetup.h"
@@ -18,6 +19,7 @@ using namespace pmon;
 // common entry point whether invoked as service or as app
 int CommonEntry(DWORD argc, LPTSTR* argv, bool asApp)
 {
+	pmon::util::test::MaybeInstallCrtAssertRedirect();
 	util::log::IdentificationTable::AddThisProcess("service");
 	util::log::IdentificationTable::AddThisThread("main");
 	logsetup::LogChannelManager logMan_;

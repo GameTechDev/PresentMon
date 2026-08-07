@@ -26,24 +26,15 @@ namespace pmon::util::metrics
         } stateDeltas;
     };
 
-    // Index calculation helper
-    struct DisplayIndexing {
-        size_t startIndex;      // First display index to process
-        size_t endIndex;        // One past last index
-        size_t appIndex;        // Index of app frame (or SIZE_MAX if none)
-        bool hasNextDisplayed;
-
-        static DisplayIndexing Calculate(
-            const FrameData& present,
-            const FrameData* nextDisplayed);
-    };
-
     std::vector<ComputedMetrics> ComputeMetricsForPresent(
         const QpcConverter& qpc,
         FrameData& present,
-        FrameData* nextDisplayed,
-        SwapChainCoreState& chainState,
-        MetricsVersion version = MetricsVersion::V2);
+        SwapChainCoreState& chainState);
+
+    ComputedMetrics ComputeMetricsForReadyDisplayRow(
+        const QpcConverter& qpc,
+        const ReadyDisplayRow& row,
+        SwapChainCoreState& chainState);
 
     // === Pure Calculation Functions ===
 
@@ -56,20 +47,19 @@ namespace pmon::util::metrics
         bool isDisplayed,
         bool isAppFrame,
         FrameType frameType,
+        const AnimationDisplayContext& animation,
         const SwapChainCoreState& chain);
 
-    // Helper: Calculate CPU start time
+    // Helper: Calculate CPU start time for the current present.
+    // When ingestPreviousPresent is set (Ingest path), use that present's end instead of
+    // swap chain history, which only advances on Apply after held rows are released.
     uint64_t CalculateCPUStart(
         const SwapChainCoreState& chainState,
-        const FrameData& present);
-
-    // Helper: Calculate simulation start time (for animation error)
-    uint64_t CalculateAnimationErrorSimStartTime(
-        const SwapChainCoreState& chainState,
         const FrameData& present,
-        AnimationErrorSource source);
+        const FrameData* ingestPreviousPresent = nullptr);
 
-    // Helper: Calculate animation time
+    // Elapsed animation time from firstAppSimStartTime (or session QPC) to currentSimTime.
+    // Returns missing when currentSimTime is not after the baseline (non-transition rows never emit 0).
     double CalculateAnimationTime(
         const QpcConverter& qpc,
         uint64_t firstAppSimStartTime,
