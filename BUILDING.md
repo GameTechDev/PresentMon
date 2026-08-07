@@ -1,5 +1,9 @@
 # Building PresentMon
 
+For step-by-step CMake presets (clean clone, daily dev, production payload),
+see [Design/CMakeUserGuide.md](Design/CMakeUserGuide.md). This file retains
+shared prerequisites, MSBuild instructions, runtime behavior, and troubleshooting.
+
 ## Install Build Tool Dependencies
 
 - Visual Studio 2022
@@ -70,37 +74,40 @@ Working directory must be the configuration output folder (`build\<Configuration
 
 ### CMake + Visual Studio (Debug UI)
 
-After `bootstrap.ps1` (web UI) and CMake CEF restore, you can F5 from the solution CMake generates:
+After CMake CEF restore, build Debug from the repo root:
 
 ```powershell
 cmake --preset windows-x64-dependencies
 cmake --preset windows-x64-developer
 cmake --build --preset windows-x64-developer --config Debug --target pmon_restore_cef
-cmake --build --preset windows-x64-developer --config Debug --target PresentMonUI KernelProcess PresentMonAPI2
+cmake --build --preset windows-x64-developer --config Debug
 ```
 
-Building **KernelProcess** also builds **PresentMonService**, **PresentMonUI**, and **PresentMonAPI2** (CMake dependency). For VS F5, `build\Debug\` must contain at least `PresentMon.exe`, `PresentMonService.exe`, `PresentMonUI.exe`, `PresentMonAPI2.dll`, CEF binaries (from `pmon_restore_cef`), and staged web assets (`ipm-ui-vue\`, `Presets\`, etc.).
+The developer build preset builds **`pmon_developer_debug`** (capture stack plus
+test binaries). Open `build\cmake\windows-x64-developer\PresentMon.sln` and F5
+**KernelProcess** (default startup project). `build\Debug\` gets CEF from
+`pmon_restore_cef` and web assets from the UI payload build.
 
-Open `build\cmake\windows-x64-developer\PresentMon.sln`, set startup project **KernelProcess**, configuration **Debug**, and start debugging. CMake sets the debugger working directory to `build\Debug` and the default command line to match **VS-Debug-Run**. The legacy root `PresentMon.sln` plus `bootstrap.ps1` remains supported; use **VS-Debug-Run** there via the args JSON extension when installed. Build the **PresentMonAPI2** project once so `PresentMonAPI2.dll` is in the same output folder as `PresentMon.exe`.
-
-CEF for CMake builds comes from `pmon_restore_cef` (`build/ThirdParty/cef`), not from `bootstrap.ps1` alone.
+CEF for CMake builds comes from `pmon_restore_cef` (`build/ThirdParty/cef`), not from `bootstrap.ps1` alone. The legacy root `PresentMon.sln` plus `bootstrap.ps1` remains supported.
 
 ### CMake tests
 
-With `PMON_BUILD_TESTS=ON` (default), configure the developer preset and build the test targets:
-
-```powershell
-cmake --preset windows-x64-developer -DPMON_BUILD_TESTS=ON
-cmake --build --preset windows-x64-developer --config Debug --target PresentMonTests PresentMonUnitTests PresentMonAPI2Tests
-```
-
-Restore pinned API2 ETL aux data (optional, not part of configure):
+With `PMON_BUILD_TESTS=ON` (default), the same Debug build above already
+builds the test executables/DLLs. Optional aux restore:
 
 ```powershell
 cmake --build --preset windows-x64-developer --target pmon_restore_aux_testdata
 ```
 
-Run deterministic CTest entries (gold console GTest, unit/API2 subsets via `vstest.console.exe`):
+Run all CTest entries (gold console, command-line console, unit, API2):
+
+```powershell
+ctest --test-dir build/cmake/windows-x64-developer -C Debug --output-on-failure
+```
+
+Or: `cmake --build --preset windows-x64-developer --config Debug --target pmon_run_all_tests`.
+
+For a CI-style subset without live ETW/command-line/API2 environment cases:
 
 ```powershell
 ctest --test-dir build/cmake/windows-x64-developer -C Debug -L deterministic --output-on-failure

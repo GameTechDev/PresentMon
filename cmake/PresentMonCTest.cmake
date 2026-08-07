@@ -291,25 +291,35 @@ function(pmon_register_all_ctests)
             OPTTEST_DIR "${presentmon_opttest_dir}"
             LABELS console console.gold deterministic
         )
-    endif()
-
-    if(PMON_CTEST_FULL_CSV_TESTS AND TARGET PresentMonTests AND TARGET PresentMonConsole)
         pmon_register_presentmon_gold_test(
-            TEST_NAME presentmon.console.full_csv
+            TEST_NAME presentmon.console.commandline
             TARGET PresentMonTests
             CONSOLE_TARGET PresentMonConsole
-            GOLD_DIR "${PROJECT_SOURCE_DIR}/Tests/Full"
-            GTEST_FILTER "GoldEtlCsvTests.*"
+            GOLD_DIR "${PROJECT_SOURCE_DIR}/Tests/Gold"
+            GTEST_FILTER "CommandLineTests.*"
             OPTTEST_DIR "${presentmon_opttest_dir}"
-            LABELS console console.gold deterministic
+            LABELS console console.realtime environment
         )
+    endif()
+
+    if(PMON_BUILD_PRESENTMON_TESTS AND TARGET PresentMonTests AND TARGET PresentMonConsole)
+        if(PMON_CTEST_FULL_CSV_TESTS OR IS_DIRECTORY "${PROJECT_SOURCE_DIR}/Tests/Full")
+            pmon_register_presentmon_gold_test(
+                TEST_NAME presentmon.console.full_csv
+                TARGET PresentMonTests
+                CONSOLE_TARGET PresentMonConsole
+                GOLD_DIR "${PROJECT_SOURCE_DIR}/Tests/Full"
+                GTEST_FILTER "GoldEtlCsvTests.*"
+                OPTTEST_DIR "${presentmon_opttest_dir}"
+                LABELS console console.gold deterministic
+            )
+        endif()
     endif()
 
     if(PMON_BUILD_UNIT_TESTS AND TARGET PresentMonUnitTests)
         pmon_register_vstest_dll(
             TEST_NAME presentmon.unit
             TARGET PresentMonUnitTests
-            TEST_CASE_FILTER "FullyQualifiedName!=TestTiming.QpcTimerSpinChrono"
             LABELS unit deterministic
         )
     endif()
@@ -338,6 +348,25 @@ function(pmon_register_ctest_convenience_targets)
     endif()
 
     add_custom_target(
+        pmon_run_all_tests
+        COMMAND
+            ${CMAKE_CTEST_COMMAND}
+            --test-dir
+            "${CMAKE_BINARY_DIR}"
+            -C
+            $<CONFIG>
+            --output-on-failure
+        USES_TERMINAL
+        VERBATIM
+    )
+    set_target_properties(
+        pmon_run_all_tests
+        PROPERTIES
+            EXCLUDE_FROM_DEFAULT_BUILD TRUE
+            FOLDER "Build"
+    )
+
+    add_custom_target(
         pmon_run_deterministic_tests
         COMMAND
             ${CMAKE_CTEST_COMMAND}
@@ -360,6 +389,7 @@ function(pmon_register_ctest_convenience_targets)
 
     pmon_collect_ctest_build_dependencies(ctest_build_deps)
     if(ctest_build_deps)
+        add_dependencies(pmon_run_all_tests ${ctest_build_deps})
         add_dependencies(pmon_run_deterministic_tests ${ctest_build_deps})
     endif()
 endfunction()

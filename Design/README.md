@@ -14,6 +14,8 @@ This directory contains the authoritative design and execution record for the CM
   and behavioral verification work.
 - [Phase 5 - Tests](Phase5-Tests.md): GTest console regression, VS unit test
   DLLs, auxiliary data restore, and CTest registration.
+- [CMake Build User Guide](CMakeUserGuide.md): first-time setup, daily workflow,
+  and production native payload steps using presets.
 
 ## Document Convention
 

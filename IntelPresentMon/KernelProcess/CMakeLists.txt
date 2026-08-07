@@ -66,4 +66,6 @@ set_target_properties(
         VS_DEBUGGER_COMMAND_ARGUMENTS "--svc-as-child --files-working --log-level verbose --middleware-dll-path .\\PresentMonAPI2.dll --log-middleware-copy"
 )
 
+set_property(DIRECTORY "${CMAKE_BINARY_DIR}" PROPERTY VS_STARTUP_PROJECT KernelProcess)
+
 pmon_target_uses_kernel_payload(KernelProcess)

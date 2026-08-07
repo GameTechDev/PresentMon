@@ -45,6 +45,7 @@ include(PresentMonShaders)
 include(PresentMonUiPayload)
 include(PresentMonAuxTestData)
 include(PresentMonCTest)
+include(PresentMonDeveloper)
 
 pmon_configure_options()
 pmon_configure_output_directories()
@@ -134,6 +135,7 @@ endif()
 
 pmon_add_production_signing_targets()
 pmon_add_installer_scaffolding()
+pmon_add_developer_aggregate_targets()
 
 message(STATUS "")
 message(STATUS "PresentMon configuration")

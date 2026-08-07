@@ -89,8 +89,11 @@
     {
       "name": "windows-x64-developer",
       "displayName": "Windows x64 Developer Build",
-      "description": "Build windows-x64-developer; pass --config Debug or --config Release",
-      "configurePreset": "windows-x64-developer"
+      "description": "Build pmon_developer_debug (capture stack + test binaries); pass --config Debug or --config Release",
+      "configurePreset": "windows-x64-developer",
+      "targets": [
+        "pmon_developer_debug"
+      ]
     },
     {
       "name": "windows-x64-production",
