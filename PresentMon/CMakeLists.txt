@@ -1,0 +1,61 @@
+pmon_compile_message_manifest(
+    presentmon_manifest_resource
+    "${CMAKE_CURRENT_SOURCE_DIR}/ddETWExternal.xml"
+    "ddETWExternalEvents"
+)
+
+add_executable(
+    PresentMonConsole
+    CommandLine.cpp
+    Console.cpp
+    ConsumerThread.cpp
+    CsvOutput.cpp
+    LogSetup.cpp
+    MainThread.cpp
+    OutputThread.cpp
+    Privilege.cpp
+    "${presentmon_manifest_resource}"
+)
+target_compile_definitions(
+    PresentMonConsole
+    PRIVATE
+        _WIN32_WINNT=0x0601
+        NTDDI_VERSION=0x06010000
+        WIN32_LEAN_AND_MEAN
+        _CONSOLE
+)
+target_compile_options(
+    PresentMonConsole
+    PRIVATE
+        $<$<CONFIG:Release>:/guard:cf>
+)
+target_link_options(
+    PresentMonConsole
+    PRIVATE
+        /DELAYLOAD:advapi32.dll
+        /DELAYLOAD:shell32.dll
+        /DELAYLOAD:tdh.dll
+        /DELAYLOAD:user32.dll
+        $<$<CONFIG:Release>:/guard:cf>
+)
+target_link_libraries(
+    PresentMonConsole
+    PRIVATE
+        pmon::build_options
+        pmon::warnings_strict
+        pmon::warnings_strict_link
+        pmon::release_link_policy
+        pmon::version_header
+        pmon::metrics
+        advapi32
+        delayimp
+        shell32
+        tdh
+        user32
+)
+set_target_properties(
+    PresentMonConsole
+    PROPERTIES
+        OUTPUT_NAME "PresentMon-${PMON_VERSION}-${PMON_ARCH_TAG}"
+        FOLDER "PresentMon/Console"
+)

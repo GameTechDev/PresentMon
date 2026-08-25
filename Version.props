@@ -2,7 +2,6 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Label="UserMacros">
     <VersionPropsImported>true</VersionPropsImported>
-    <!-- PresentMonVersion should be "dev" on main branch, and the version number (e.g., 2.1.0) on release branches. -->
     <PresentMonVersion Condition="'$(PresentMonVersion)'==''">2.6.0</PresentMonVersion>
     <PresentMonFileVersion Condition="'$(PresentMonFileVersion)'==''">2.6.0.0</PresentMonFileVersion>
     <PresentMonProductVersion Condition="'$(PresentMonProductVersion)'==''">$(PresentMonFileVersion)</PresentMonProductVersion>

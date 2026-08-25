@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using CppAst;
@@ -82,9 +83,15 @@ namespace StructDumperGenerator
                     return;
                 }
                 var headerDirectory = Path.GetDirectoryName(headerPath)!;
-                Console.WriteLine($"Parsing {target.DisplayName}: {target.IncludePath}");
+                Console.WriteLine(
+                    $"Parsing {target.DisplayName}: {target.IncludePath} (CppAst/libclang; may take several minutes on large headers)");
+                Console.Out.Flush();
 
-                var compilation = CppParser.ParseFile(ToClangPath_(headerPath));
+                var parseStopwatch = Stopwatch.StartNew();
+                var compilation = CppParser.ParseFile(ToClangPath_(headerPath), CreateParserOptions_());
+                parseStopwatch.Stop();
+                Console.WriteLine(
+                    $"Finished parsing {target.DisplayName} in {parseStopwatch.Elapsed.TotalSeconds:F1}s.");
                 if (compilation.HasErrors) {
                     Console.WriteLine($"Parsing failed for {target.DisplayName}:");
                     foreach (var message in compilation.Diagnostics.Messages) {
@@ -163,7 +170,7 @@ namespace StructDumperGenerator
             Console.WriteLine(
                 $"Reachable dump surface: {typedefs.Count} rooted typedef(s), {structs.Count} type dumper(s), {enumsOut.Count} enum dumper(s).");
 
-            var templatePath = Path.Combine(repositoryRoot, "Reflector", "StructDumpers.h.scriban");
+            var templatePath = Path.Combine(GetReflectorProjectDirectory(), "StructDumpers.h.scriban");
             Console.WriteLine($"Loading template: {MakeRepositoryRelativePath_(repositoryRoot, templatePath)}");
             var templateText = File.ReadAllText(templatePath);
             var template = Template.Parse(templateText);
@@ -407,20 +414,44 @@ namespace StructDumperGenerator
             return type;
         }
 
-        static string FindRepositoryRoot()
+        static CppParserOptions CreateParserOptions_()
         {
-            foreach (var candidate in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory }) {
+            // Vendor headers are monolithic (IGCL ~9k lines, NVAPI ~24k). Default CppAst options parse
+            // all comments and system includes, which can take 15+ minutes per header on Windows.
+            var options = new CppParserOptions().ConfigureForWindowsMsvc(CppTargetCpu.X86_64);
+            options.ParseComments = false;
+            options.ParseSystemIncludes = false;
+            return options;
+        }
+
+        static string GetReflectorProjectDirectory()
+        {
+            foreach (var candidate in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() }) {
                 var current = new DirectoryInfo(candidate);
                 while (current != null) {
-                    if (File.Exists(Path.Combine(current.FullName, "PresentMon.sln")) &&
-                        File.Exists(Path.Combine(current.FullName, "Reflector", "StructDumpers.h.scriban"))) {
-                        return current.FullName;
+                    var scribanPath = Path.Combine(
+                        current.FullName,
+                        "Tools",
+                        "Reflector",
+                        "StructDumpers.h.scriban");
+                    if (File.Exists(scribanPath)) {
+                        return Path.GetDirectoryName(scribanPath)!;
                     }
                     current = current.Parent;
                 }
             }
 
-            throw new DirectoryNotFoundException("Unable to locate repository root.");
+            throw new DirectoryNotFoundException("Unable to locate Tools/Reflector project directory.");
+        }
+
+        static string FindRepositoryRoot()
+        {
+            var reflectorDir = GetReflectorProjectDirectory();
+            var repositoryRoot = Directory.GetParent(reflectorDir)!.Parent!.FullName;
+            if (!File.Exists(Path.Combine(repositoryRoot, "PresentMon.sln"))) {
+                throw new DirectoryNotFoundException("Unable to locate repository root.");
+            }
+            return repositoryRoot;
         }
 
         static string ToSystemPath_(string path)

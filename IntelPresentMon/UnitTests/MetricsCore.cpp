@@ -4778,6 +4778,7 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             // so this is emitted immediately and UpdateAfterReadyDisplayRow is called.
             // lastDisplayedScreenTime must remain 100 after this.
             (void)Process(qpc, swapChain, MakeFrame(PresentResult::Discarded, 950, 10, 950, {}));
+            Assert::AreEqual(uint64_t(100), swapChain.swapChain.lastDisplayedAppScreenTime);
 
             // The first queued app anchor. Its previousDisplayedScreenTime must be
             // derived from the seed (100), not from the zeroed-out state (0).
@@ -4788,9 +4789,21 @@ TEST_CLASS(ComputeMetricsForPresentTests)
                 { { FrameType::Application, 132 } }, 1032));
 
             Assert::AreEqual(size_t(1), rows.size());
-            // simStep = (1032 - 1016) / 1 = 16ms; displayStep = delta(116, 132) = 16ms
-            Assert::AreEqual(0.0, rows[0].msAnimationError, 0.0001);
-            Assert::AreEqual(16.0, rows[0].msAnimationTime, 0.0001);
+
+            // This the first timline origin at screen time 116. It has no animation
+            // error, but its display delta proves that the dropped frame preserved the
+            // seed's screen time of 100.
+            Assert::IsFalse(HasMetricValue(rows[0].msAnimationError));
+            AssertAreEqualWithinTolerance(16.0, rows[0].msAnimationTime, 0.0001);
+            AssertAreEqualWithinTolerance(16.0, rows[0].msDisplayedTime, 0.0001);
+
+            // Supply lookahead for the app frame at screen time 132. Its interval has
+            // simStep = (1032 - 1016) / 1 = 16ms and displayStep = 132 - 116 = 16ms.
+            auto intervalRows = Process(qpc, swapChain, MakeFrame(PresentResult::Presented, 1200, 16, 1200,
+                { { FrameType::Application, 148 } }, 1048));
+            Assert::AreEqual(size_t(1), intervalRows.size());
+            AssertAreEqualWithinTolerance(0.0, intervalRows[0].msAnimationError, 0.0001);
+            AssertAreEqualWithinTolerance(32.0, intervalRows[0].msAnimationTime, 0.0001);
         }
 
         TEST_METHOD(DroppedFrames_DoNotEnterAnimationIntervals)

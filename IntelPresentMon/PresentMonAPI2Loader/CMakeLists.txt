@@ -1,0 +1,47 @@
+add_library(
+    PresentMonAPI2Loader
+    SHARED
+        dllmain.cpp
+        Implementation.cpp
+        PresentMonAPI2Loader.rc
+)
+
+target_compile_definitions(
+    PresentMonAPI2Loader
+    PRIVATE
+        PRESENTMONAPI2_EXPORTS
+        _WINDOWS
+        _USRDLL
+)
+target_include_directories(
+    PresentMonAPI2Loader
+    PUBLIC
+        "${PROJECT_SOURCE_DIR}"
+)
+target_link_libraries(
+    PresentMonAPI2Loader
+    PRIVATE
+        pmon::build_options
+        pmon::warnings_default
+        pmon::version_resource
+        pmon::release_link_policy
+        pmon::common_utilities
+        pmon::versioning
+)
+target_compile_options(
+    PresentMonAPI2Loader
+    PRIVATE
+        $<$<CONFIG:Release>:/guard:cf>
+)
+target_link_options(
+    PresentMonAPI2Loader
+    PRIVATE
+        /SUBSYSTEM:WINDOWS
+        /MANIFESTUAC:NO
+        $<$<CONFIG:Release>:/guard:cf>
+)
+set_target_properties(
+    PresentMonAPI2Loader
+    PROPERTIES
+        FOLDER "Service and SDK"
+)
