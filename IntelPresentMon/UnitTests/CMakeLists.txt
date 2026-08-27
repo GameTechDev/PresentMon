@@ -11,6 +11,7 @@ add_library(
         MetricCapabilitiesTests.cpp
         MetricsCore.cpp
         PresentFrameTypeDeferralTests.cpp
+        IgclControlLibCompatibilityTests.cpp
         TelemetryAvailabilityMergeTests.cpp
         SwapChainTests.cpp
         Style.cpp

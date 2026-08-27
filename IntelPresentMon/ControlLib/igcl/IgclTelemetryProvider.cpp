@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "IgclTelemetryProvider.h"
 
+#include "IgclControlLibCompatibility.h"
 #include "../TelemetryMetricDiscovery.h"
 #include "../Exceptions.h"
 #include "../../CommonUtilities/Qpc.h"
@@ -73,6 +74,10 @@ namespace pmon::tel::igcl
 
     IgclTelemetryProvider::IgclTelemetryProvider()
     {
+        if (AreIgclControlLibsMismatched()) {
+            throw Except<TelemetrySubsystemAbsent>("IGCL control library unavailable");
+        }
+
         ctl_init_args_t ctlInitArgs{
             .Size = sizeof(ctl_init_args_t),
             .AppVersion = CTL_MAKE_VERSION(CTL_IMPL_MAJOR_VERSION, CTL_IMPL_MINOR_VERSION),
