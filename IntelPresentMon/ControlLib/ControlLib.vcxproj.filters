@@ -70,6 +70,9 @@
     <ClInclude Include="TelemetryDeviceFingerprint.h" />
     <ClInclude Include="TelemetryProvider.h" />
     <ClInclude Include="EndpointCache.h" />
+    <ClInclude Include="igcl\IgclControlLibCompatibility.h">
+      <Filter>Intel</Filter>
+    </ClInclude>
     <ClInclude Include="igcl\IgclTelemetryProvider.h">
       <Filter>Intel</Filter>
     </ClInclude>
@@ -116,6 +119,9 @@
     </ClCompile>
     <ClCompile Include="adl\AdlTelemetryProvider.cpp">
       <Filter>Adl</Filter>
+    </ClCompile>
+    <ClCompile Include="igcl\IgclControlLibCompatibility.cpp">
+      <Filter>Intel</Filter>
     </ClCompile>
     <ClCompile Include="igcl\IgclTelemetryProvider.cpp">
       <Filter>Intel</Filter>
