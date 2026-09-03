@@ -2,15 +2,34 @@
 
 The AppCef web UI lives under `IntelPresentMon\AppCef\ipm-ui-vue`. It is a Vue and Vite application whose production assets are built before the capture application is packaged or run from staged files.
 
-## Bootstrap Path
+## Normal CMake Path
 
-From the repository root, run:
+The examples use the Windows `py` launcher. On a machine with only
+`python.exe`, use `python` wherever `py -3` appears. After installing the Python
+requirements, configure and build normally:
 
 ```powershell
-> .\bootstrap.ps1
+> py -3 -m pip install -r requirements.txt
+> cmake -B build -S . -G "Visual Studio 17 2022"
+> cmake --build build --config Debug
 ```
 
-The bootstrap script enters `IntelPresentMon\AppCef`, runs `Batch\build-web.bat`, installs npm packages with `npm ci`, and builds the production web assets with `npm run build`.
+For Visual Studio 2026 (Experimental), use its distinct binary tree:
+
+```powershell
+> cmake -B build-vs2026 -S . -G "Visual Studio 18 2026"
+> cmake --build build-vs2026 --config Debug
+```
+
+CMake invokes `Scripts\web.py` during configuration. It runs `npm ci` only when
+the package lock fingerprint or installed dependency check is stale, then builds the
+production web assets. Subsequent configurations reuse the current npm install.
+
+To prepare only the web UI, run:
+
+```powershell
+> py -3 Scripts\web.py ensure
+```
 
 ## Manual Production Build
 
@@ -23,7 +42,8 @@ To rebuild only the web UI, run:
 > popd
 ```
 
-Run this on a fresh clone, after package changes, or when the production web assets need to be refreshed.
+This manual workflow remains useful for focused web development. The normal
+CMake path performs the equivalent preparation automatically.
 
 ## Development Server
 

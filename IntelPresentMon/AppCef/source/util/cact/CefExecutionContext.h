@@ -1,7 +1,7 @@
 #pragma once
 #include <Interprocess/source/act/ActionHelper.h>
 #include <Interprocess/source/act/SymmetricActionConnector.h>
-#include "../CommonUtilities/pipe/ManualAsyncEvent.h"
+#include <CommonUtilities/pipe/ManualAsyncEvent.h>
 #include <memory>
 #include <set>
 #include <unordered_map>

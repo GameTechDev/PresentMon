@@ -378,7 +378,7 @@ PRESENTMON_API2_EXPORT LoggingSingletons pmLinkLoggingPtrs_(pmon::util::log::ICh
 {
 	if (!middlewareLoadedSuccessfully_) {
 		if (auto status = LoadLibrary_(); status != PM_STATUS_SUCCESS) {
-			throw LoaderExcept_(status);
+			return {};
 		}
 	}
 	if (!pFunc_pmLinkLoggingPtrs__) {

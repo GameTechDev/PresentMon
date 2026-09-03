@@ -17,6 +17,8 @@
     <RootNamespace>PresentMonAPI2Tests</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectSubType>NativeUnitTestProject</ProjectSubType>
+    <RunSettingsFilePath>$(MSBuildProjectDirectory)\..\..\Tests\PresentMonTests.runsettings</RunSettingsFilePath>
+    <RunSettingsFilePath Condition="Exists('$(MSBuildProjectDirectory)\..\..\Tests\PresentMonTests.local.runsettings')">$(MSBuildProjectDirectory)\..\..\Tests\PresentMonTests.local.runsettings</RunSettingsFilePath>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -173,5 +175,6 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="..\..\Tests\PresentMonTestData.targets" />
   </ImportGroup>
 </Project>

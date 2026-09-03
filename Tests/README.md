@@ -2,9 +2,26 @@
 
 PresentMon testing is primarily done by having a specific PresentMon build analyze a collection of ETW logs and ensuring its output matches the expected result.  The PresentMonTests application will add a test for every matching `test_case_<number>.etl`/.csv pair it finds under a specified root directory.
 
-`Tools\run_tests.cmd` will build all configurations of PresentMon, and use PresentMonTests to validate the x86 and x64 builds using the contents of the Tests\Gold directory.
+For the classic Visual Studio build, `Tools\run_tests.cmd` builds all
+configurations of PresentMon and uses PresentMonTests to validate the x86 and
+x64 builds with the contents of `Tests\Gold`.
 
 The usual automated path mirrors Visual Studio Test Explorer: `vstest.console` on `PresentMonAPI2Tests` and `PresentMonUnitTests`, plus the `PresentMonTests` gtest executable against Debug x64 outputs under `build\Debug\`.
+
+For CMake builds, CTest discovers every framework test as a separate flat entry.
+List them with:
+
+```powershell
+ctest --test-dir build -C Debug -N
+ctest --test-dir build -C Debug -L deterministic --output-on-failure
+```
+
+Names preserve the familiar executable, suite, and method components, for
+example `PresentMonUnitTests.AlgorithmTests.TestExtremeQueue.MaxAddEmpty`.
+Running CTest normally prints one pass/fail row per method. Use `-R` to select a
+method or suite, and `-L deterministic` to exclude environment-dependent cases.
+The complete configure, build, and test workflow is documented in
+[BUILDING.md](../BUILDING.md#run-tests-with-ctest).
 
 
 #### PresentMonTestEtls Coverage
@@ -49,16 +66,25 @@ The following expected cases are currently missing (WIP):
 - [2,17-23] All Windows7 paths
 - [30] Non-Win7 Microsoft_Windows_Dwm_Core::FlipChain_(Pending|Complete|Dirty) with previous Microsoft_Windows_Dwm_Core::PresentHistory[Detailed]::Start
 
-## Adding Custom Test Directories
+## Default and Custom Test Directories
 
-To add your own test directory with ETL files and gold CSV files:
+The default test directory is `Tests\AuxData\Data`. Building or running an
+ETL-dependent test checks the pinned auxiliary data and restores it if needed.
+The checked-in and CMake-generated Visual Studio projects automatically attach
+the corresponding runsettings file.
+
+To replace the default with your own directory of ETL files and gold CSV files:
 
 ### Method 1: Using local runsettings file (Recommended)
 
-1. Copy `PresentMonTests.runsettings.template` to `PresentMonTests.local.runsettings`
-2. Edit the `PRESENTMON_ADDITIONAL_TEST_DIR` path to point to your test directory
-3. In Visual Studio, go to **Test** → **Configure Run Settings** → **Select Solution Wide runsettings File**
-4. Select your `PresentMonTests.local.runsettings` file
+1. Copy `PresentMonTests.runsettings.template` to `PresentMonTests.local.runsettings`.
+2. Replace both example custom paths with your directory.
+3. Refresh Test Explorer. The root solution selects the local file automatically.
+   A CMake build detects the change, regenerates its attached runsettings file,
+   and uses the same custom path for CTest.
+
+No test recompilation is required for a directory-only change. CMake users can
+instead configure with `-DPMON_PRESENTMON_TESTS_CUSTOM_DIR=...`.
 
 ### Method 2: Command Line Parameter
 
