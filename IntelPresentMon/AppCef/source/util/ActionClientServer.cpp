@@ -1,5 +1,5 @@
 #include "ActionClientServer.h"
-#include "../KernelProcess/kact/OpenSession.h"
+#include <KernelProcess/kact/OpenSession.h>
 
 namespace p2c::client::util
 {

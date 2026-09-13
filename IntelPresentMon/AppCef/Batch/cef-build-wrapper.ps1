@@ -1,94 +1,123 @@
-﻿<#
+<#
 .SYNOPSIS
-  Out-of-source build of the CEF C++ wrapper.
+    Build the CEF C++ wrapper with CMake.
 
 .DESCRIPTION
-  1. Takes a single, positional parameter: the path to your CEF redist root (the dir with CMakeLists.txt).  
-  2. If `<redist>/build` already exists, exits immediately.  
-  3. Finds VS via vswhere and locates vcvarsall.bat.  
-  4. Creates and cds into `<redist>/build`.  
-  5. Invokes CMake **directly**.  
-  6. Invokes msbuild for Release and then Debug (each in its own vcvarsall/msbuild invocation).
+    Configures an out-of-source Visual Studio build and builds both Release and
+    Debug. The defaults match the supported PresentMon CMake toolchain.
 
 .PARAMETER RedistPath
-  (Positional) Path to the root of your CEF redist directory.
+    Path to the root of the extracted CEF distribution.
+
+.PARAMETER Clean
+    Remove the existing wrapper build directory before configuring.
+
+.PARAMETER Generator
+    CMake generator used for the wrapper build.
+
+.PARAMETER Platform
+    CMake generator platform used for the wrapper build.
+
+.PARAMETER Toolset
+    CMake generator toolset used for the wrapper build.
 #>
 
+[CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true, Position=0)]
+    [Parameter(Mandatory = $true, Position = 0)]
     [string]$RedistPath,
 
     [Parameter()]
-    [switch]$Clean
+    [switch]$Clean,
+
+    [Parameter()]
+    [string]$Generator = 'Visual Studio 17 2022',
+
+    [Parameter()]
+    [string]$Platform = 'x64',
+
+    [Parameter()]
+    [string]$Toolset = 'v143'
 )
 
-# Resolve & verify
-try { $RedistPath = (Resolve-Path $RedistPath).ProviderPath } catch {
-    Write-Error "Cannot resolve path: $RedistPath"; exit 1
-}
-if (-not (Test-Path $RedistPath -PathType Container)) {
-    Write-Error "Not a valid directory: $RedistPath"; exit 1
+$ErrorActionPreference = 'Stop'
+
+$RedistPath = (Resolve-Path $RedistPath).ProviderPath
+if (-not (Test-Path -LiteralPath $RedistPath -PathType Container)) {
+    throw "Not a valid CEF distribution directory: $RedistPath"
 }
 
-# Skip if already built, unless the caller requested a clean wrapper build.
-$buildDir = Join-Path $RedistPath "build"
-if (Test-Path $buildDir) {
+$cmake = Get-Command cmake -ErrorAction Stop
+$buildDir = Join-Path $RedistPath 'build'
+if (Test-Path -LiteralPath $buildDir) {
     if ($Clean) {
         $resolvedBuildDir = (Resolve-Path $buildDir).ProviderPath
-        $resolvedRedistPath = (Resolve-Path $RedistPath).ProviderPath
-        if (-not $resolvedBuildDir.StartsWith($resolvedRedistPath, [System.StringComparison]::OrdinalIgnoreCase)) {
-            Write-Error "Refusing to clean unexpected build directory: $resolvedBuildDir"
-            exit 1
+        $expectedBuildDir = [System.IO.Path]::GetFullPath((Join-Path $RedistPath 'build'))
+        if (-not $resolvedBuildDir.Equals($expectedBuildDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to clean unexpected build directory: $resolvedBuildDir"
         }
         Write-Host "Removing existing CEF wrapper build directory: $buildDir"
-        Remove-Item -LiteralPath $buildDir -Recurse -Force
+        Remove-Item -LiteralPath $resolvedBuildDir -Recurse -Force
     } else {
         Write-Host "Found existing build directory: $buildDir"
-        Write-Host "Skipping configuration and build."
+        Write-Host 'Skipping configuration and build.'
         exit 0
     }
 }
 
-# Locate VS / vcvarsall
-$vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
-if (-not (Test-Path $vswhere)) { Write-Error "vswhere.exe not found"; exit 1 }
-$vsRoot = & $vswhere -latest -products * -prerelease -requires Microsoft.Component.MSBuild -property installationPath
-if (-not $vsRoot) { Write-Error "No Visual Studio with MSBuild found"; exit 1 }
-$vcvars = Join-Path $vsRoot "VC\Auxiliary\Build\vcvarsall.bat"
-if (-not (Test-Path $vcvars)) { Write-Error "vcvarsall.bat not found"; exit 1 }
-Write-Host "Using vcvarsall.bat at: $vcvars`n"
-
-# Make build dir & enter
-Write-Host "Creating build directory at $buildDir"
-New-Item -ItemType Directory -Path $buildDir | Out-Null
-Push-Location $buildDir
-
-# Settings
-$Arch      = "x64"
-$Platform  = "x64"
-$Generator = "Visual Studio 17"
-$Solution  = Join-Path $buildDir "cef.sln"
-
-# 1) Configure with CMake (no vcvars needed)
-Write-Host "Running CMake configure..."
-cmake -G "$Generator" -A $Platform -DUSE_SANDBOX=OFF "$RedistPath"
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "CMake configuration failed (exit code $LASTEXITCODE)"; Pop-Location; exit $LASTEXITCODE
+# CEF enables /MP without a process limit. On high-core-count systems that can
+# exhaust compiler resources and surface as C1001 or D8040. Use a conservative
+# default while allowing callers to select a different explicit limit.
+$compilerProcessLimit = 4
+if ($env:CL_MPCount) {
+    $configuredCompilerProcessLimit = 0
+    if (-not [int]::TryParse($env:CL_MPCount, [ref]$configuredCompilerProcessLimit) -or
+        $configuredCompilerProcessLimit -lt 1 -or
+        $configuredCompilerProcessLimit -gt 65536) {
+        throw "CL_MPCount must be an integer between 1 and 65536: $env:CL_MPCount"
+    }
+    $compilerProcessLimit = $configuredCompilerProcessLimit
+} else {
+    $env:CL_MPCount = [string]$compilerProcessLimit
 }
 
-# 2) Build Release
-Write-Host "`nBuilding Release..."
-& cmd.exe /c "`"$vcvars`" $Arch && msbuild `"$Solution`" /m /p:Configuration=Release;Platform=$Platform"
+$configureArguments = @(
+    '-S', $RedistPath,
+    '-B', $buildDir,
+    '-G', $Generator
+)
+if ($Platform) {
+    $configureArguments += @('-A', $Platform)
+}
+if ($Toolset) {
+    $configureArguments += @('-T', $Toolset)
+}
+$configureArguments += '-DUSE_SANDBOX=OFF'
+
+$toolchainDescription = $Generator
+if ($Platform) {
+    $toolchainDescription += ", platform $Platform"
+}
+if ($Toolset) {
+    $toolchainDescription += ", toolset $Toolset"
+}
+Write-Host "Configuring the CEF wrapper with $toolchainDescription."
+& $cmake.Source @configureArguments
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Release build failed (exit code $LASTEXITCODE)"; Pop-Location; exit $LASTEXITCODE
+    throw "CEF wrapper CMake configuration failed with exit code $LASTEXITCODE."
 }
 
-# 3) Build Debug
-Write-Host "`nBuilding Debug..."
-& cmd.exe /c "`"$vcvars`" $Arch && msbuild `"$Solution`" /m /p:Configuration=Debug;Platform=$Platform"
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Debug build failed (exit code $LASTEXITCODE)"; Pop-Location; exit $LASTEXITCODE
+foreach ($configuration in @('Release', 'Debug')) {
+    Write-Host "Building the CEF wrapper for $configuration with up to $compilerProcessLimit compiler processes."
+    & $cmake.Source --build $buildDir --config $configuration
+    if ($LASTEXITCODE -ne 0) {
+        throw "CEF wrapper $configuration build failed with exit code $LASTEXITCODE."
+    }
+
+    $wrapperLibrary = Join-Path $buildDir "libcef_dll_wrapper\$configuration\libcef_dll_wrapper.lib"
+    if (-not (Test-Path -LiteralPath $wrapperLibrary -PathType Leaf)) {
+        throw "CEF wrapper output was not produced: $wrapperLibrary"
+    }
 }
 
-Pop-Location
-Write-Host "`nAll done: CEF wrapper built in $buildDir"
+Write-Host "CEF wrapper Debug and Release builds completed in $buildDir"

@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 import os
+import sys
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -240,6 +241,104 @@ class ExpectationEditor(tk.Tk):
         messagebox.showinfo("Wrote expectation", self.expectation_path)
 
 
+def find_expectation(root, measurement):
+    """Read-only lookup of the expectation for one measurement, or None."""
+    metric = measurement["metric"]
+    if measurement["section"] == "system":
+        return root.get("system", {}).get(metric)
+    device_id = int(measurement.get("device_id", 0))
+    for gpu in root.get("gpu", []):
+        if int(gpu.get("device_id", -1)) == device_id:
+            return gpu.get("metrics", {}).get(metric)
+    return None
+
+
+def count_expectations(root):
+    system_count = len(root.get("system", {}))
+    gpus = [(gpu.get("device_id"), len(gpu.get("metrics", {}))) for gpu in root.get("gpu", [])]
+    return system_count, gpus
+
+
+def check_expectations(expectation_path, measurements_path):
+    """Validate the machine expectation file. Returns (ok, lines)."""
+    lines = []
+    if not os.path.exists(expectation_path):
+        lines.append(f"error: Machine expectations not found: {expectation_path}")
+        lines.append("       This machine has not been provisioned yet. Record measurements by")
+        lines.append("       running the API2 tests, then generate the file:")
+        lines.append(f'         python "{os.path.abspath(__file__)}" --measurements "{os.path.abspath(measurements_path)}"')
+        return False, lines
+
+    try:
+        with open(expectation_path, "r", encoding="utf-8") as f:
+            root = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        lines.append(f"error: Machine expectations could not be read: {expectation_path}")
+        lines.append(f"       {e}")
+        return False, lines
+
+    if not isinstance(root, dict):
+        lines.append(f"error: Machine expectation root must be an object: {expectation_path}")
+        return False, lines
+
+    normalize_gpu_expectations(root)
+    if not isinstance(root.get("system", {}), dict):
+        lines.append("error: Machine expectation 'system' must be an object.")
+        return False, lines
+    if not isinstance(root.get("gpu", []), list):
+        lines.append("error: Machine expectation 'gpu' must be a list.")
+        return False, lines
+
+    system_count, gpus = count_expectations(root)
+    if not system_count and not any(count for _, count in gpus):
+        lines.append(f"error: Machine expectations contain no metrics: {expectation_path}")
+        return False, lines
+
+    lines.append(f"Machine expectations present: {expectation_path}")
+    summary = f"  system, {system_count} metric(s)"
+    for device_id, count in gpus:
+        summary += f"; gpu device_id {device_id}, {count} metric(s)"
+    lines.append(summary)
+
+    # Without measurements this can only confirm the file is well formed. It cannot
+    # tell whether the baseline was authored on this machine.
+    if not measurements_path or not os.path.exists(measurements_path):
+        lines.append("  (pass --measurements to also verify coverage for this machine)")
+        return True, lines
+
+    records = load_measurements(measurements_path)
+    missing = []
+    mismatched = []
+    test_cases = set()
+    for record in records:
+        test_cases.add(record.get("test_case", "<unknown>"))
+        for measurement in record.get("measurements", []):
+            expectation = find_expectation(root, measurement)
+            if expectation is None:
+                missing.append(f"{measurement['section']}.{measurement['metric']}")
+            elif measurement.get("identity_only") and isinstance(expectation, str):
+                if expectation != measurement.get("value"):
+                    mismatched.append(
+                        f"{measurement['section']}.{measurement['metric']}: "
+                        f"expected {expectation!r}, measured {measurement.get('value')!r}"
+                    )
+
+    lines.append(f"  measurements: {len(records)} test case(s) recorded")
+    if mismatched:
+        lines.append("error: Machine expectations were authored on different hardware:")
+        for item in sorted(set(mismatched)):
+            lines.append(f"         {item}")
+        return False, lines
+    if missing:
+        lines.append("error: Machine expectations are missing entries for measured metrics:")
+        for item in sorted(set(missing)):
+            lines.append(f"         {item}")
+        return False, lines
+
+    lines.append("  coverage: all measured metrics have expectations")
+    return True, lines
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate or update PresentMon API2 machine expectations.")
     parser.add_argument(
@@ -253,7 +352,20 @@ def main():
         help="Path to the editable machine expectation JSON file.",
     )
     parser.add_argument("--print", action="store_true", help="Print generated JSON and exit.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify the machine expectation file exists and is usable, then exit. "
+             "Exits non-zero when this machine is not provisioned. Add --measurements "
+             "to also verify the baseline covers this machine.",
+    )
     args = parser.parse_args()
+
+    if args.check:
+        ok, lines = check_expectations(args.expectation, args.measurements)
+        for line in lines:
+            print(line, file=sys.stderr if not ok else sys.stdout)
+        return 0 if ok else 1
 
     records = load_measurements(args.measurements)
     existing = None
@@ -266,11 +378,12 @@ def main():
         for change in changes:
             print(f"{change['section']}.{change['metric']}: {change['before']} -> {change['after']}")
         print(pretty_json(generated))
-        return
+        return 0
 
     app = ExpectationEditor(args.measurements, args.expectation)
     app.mainloop()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

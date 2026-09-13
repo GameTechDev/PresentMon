@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default settings for the checked-in Visual Studio solution. -->
+<RunSettings>
+  <RunConfiguration>
+    <MaxCpuCount>1</MaxCpuCount>
+    <EnvironmentVariables>
+      <PRESENTMON_ADDITIONAL_TEST_DIR>..\..\Tests\AuxData\Data</PRESENTMON_ADDITIONAL_TEST_DIR>
+    </EnvironmentVariables>
+  </RunConfiguration>
+
+  <MSTest>
+    <Parallelize>
+      <Workers>1</Workers>
+      <Scope>MethodLevel</Scope>
+    </Parallelize>
+  </MSTest>
+
+  <GoogleTestAdapterSettings>
+    <PrintTestOutput>true</PrintTestOutput>
+    <TestDiscovery>
+      <AdditionalTestCommandLine>--golddir=&quot;..\..\Tests\Gold&quot; --opttestdir=&quot;..\..\Tests\AuxData\Data&quot;</AdditionalTestCommandLine>
+    </TestDiscovery>
+  </GoogleTestAdapterSettings>
+</RunSettings>

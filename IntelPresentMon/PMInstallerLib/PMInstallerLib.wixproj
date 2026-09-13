@@ -1,15 +1,16 @@
 ﻿<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\PmonCMakePackaging.wixproj.props" Condition="'$(PmonCMakePackaging)' == 'true'" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <!-- WiX 3.x library output -->
     <OutputType>Library</OutputType>
     <OutputName>PMInstallerLib</OutputName>
-    <IntermediateOutputPath>$(SolutionDir)build\obj\$(MSBuildProjectName)-$(Platform)-$(Configuration)</IntermediateOutputPath>
-    <OutputPath>$(SolutionDir)build\$(Configuration)</OutputPath>
+    <IntermediateOutputPath Condition="'$(PmonCMakePackaging)' != 'true'">$(SolutionDir)build\obj\$(MSBuildProjectName)-$(Platform)-$(Configuration)</IntermediateOutputPath>
+    <OutputPath Condition="'$(PmonCMakePackaging)' != 'true'">$(SolutionDir)build\$(Configuration)</OutputPath>
     <UciSdkDir Condition="'$(PMON_UCI_SDK_DIR)'!=''">$(PMON_UCI_SDK_DIR)</UciSdkDir>
     <UciSdkDir Condition="'$(UciSdkDir)'==''">$(MSBuildProjectDirectory)\..\ControlLib\uci\external</UciSdkDir>
-    <DefineConstants>$(DefineConstants);UciDistDir=$(UciSdkDir)</DefineConstants>
+    <DefineConstants Condition="'$(PmonCMakePackaging)' != 'true'">$(DefineConstants);UciDistDir=$(UciSdkDir)</DefineConstants>
     <!-- Point these at YOUR WiX 3.x install -->
     <WixToolPath>$(WIX)bin\</WixToolPath>
     <WixTargetsPath>$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
@@ -17,13 +18,14 @@
     <BindFiles>true</BindFiles>
     <ProjectGuid>{6478f2f6-92ad-4b1c-a13e-c8cea9125152}</ProjectGuid>
     <!-- Keep generated authoring under the project dir so Visual Studio can load the wixproj. -->
-    <UciDistFragmentPath>Generated\UciDist.wxs</UciDistFragmentPath>
+    <UciDistFragmentPath Condition="'$(PmonCMakePackaging)' != 'true'">Generated\UciDist.wxs</UciDistFragmentPath>
+    <UciDistFragmentPath Condition="'$(PmonCMakePackaging)' == 'true'">$(PmonUciDistFragmentPath)</UciDistFragmentPath>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Library.wxs" />
     <Compile Include="$(UciDistFragmentPath)" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(PmonCMakePackaging)' != 'true'">
     <ProjectReference Include="..\PresentMonAPI2\PresentMonAPI2.vcxproj">
       <Name>PresentMonAPI2</Name>
       <Project>{5ddba061-53a0-4835-8aaf-943f403f924f}</Project>
@@ -41,7 +43,7 @@
       <RefTargetDir>INSTALLFOLDER</RefTargetDir>
     </ProjectReference>
   </ItemGroup>
-  <Target Name="GenerateUciDistFragment" BeforeTargets="Compile">
+  <Target Name="GenerateUciDistFragment" BeforeTargets="Compile" Condition="'$(PmonCMakePackaging)' != 'true'">
     <MakeDir Directories="$(MSBuildProjectDirectory)\Generated" />
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\wix-uci-dist.ps1&quot; -UciSdkDir &quot;$(UciSdkDir)&quot; -OutPath &quot;$(MSBuildProjectDirectory)\$(UciDistFragmentPath)&quot;" />
   </Target>

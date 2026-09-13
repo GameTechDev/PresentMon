@@ -1,0 +1,2 @@
+# PresentMon build orchestration currently uses only the Python standard library.
+# Keep this file as the single installation entry point for future pinned tooling.

@@ -48,6 +48,24 @@ function New-BuildIdHeader {
     Set-Content -LiteralPath $outFile -Value $content
 }
 
+function Get-FileMd5HashHex {
+    param([Parameter(Mandatory)][string]$Path)
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try {
+        $fs = [System.IO.File]::OpenRead($Path)
+        try {
+            $bytes = $md5.ComputeHash($fs)
+        }
+        finally {
+            $fs.Dispose()
+        }
+    }
+    finally {
+        $md5.Dispose()
+    }
+    return ([System.BitConverter]::ToString($bytes) -replace '-', '')
+}
+
 
 
 ##########################
@@ -142,9 +160,7 @@ foreach ($line in $signatureA_current_lines) {
             continue
         }
 
-        # Get MD5 hash of the file
-        # (You can change -Algorithm to e.g. SHA256 if desired)
-        $hash = (Get-FileHash $changedFile -Algorithm MD5).Hash
+        $hash = Get-FileMd5HashHex -Path $changedFile
         $signatureB_current += $hash
     }
 }

@@ -86,31 +86,43 @@ namespace p2sam
 			}
 			if (opt.logLevel) {
 				GlobalPolicy::Get().SetLogLevel(*opt.logLevel);
-				getters.getGlobalPolicy().SetLogLevel(*opt.logLevel);
+				if (getters) {
+					getters.getGlobalPolicy().SetLogLevel(*opt.logLevel);
+				}
 			}
 			if (opt.logVerboseModules) {
 				for (auto mod : *opt.logVerboseModules) {
 					GlobalPolicy::Get().ActivateVerboseModule(mod);
-					getters.getGlobalPolicy().ActivateVerboseModule(mod);
+					if (getters) {
+						getters.getGlobalPolicy().ActivateVerboseModule(mod);
+					}
 				}
 			}
 			if (opt.logTraceLevel) {
 				GlobalPolicy::Get().SetTraceLevel(*opt.logTraceLevel);
-				getters.getGlobalPolicy().SetTraceLevel(*opt.logTraceLevel);
+				if (getters) {
+					getters.getGlobalPolicy().SetTraceLevel(*opt.logTraceLevel);
+				}
 			}
 			if (opt.logTraceExceptions) {
 				GlobalPolicy::Get().SetExceptionTrace(*opt.logTraceExceptions);
 				GlobalPolicy::Get().SetSehTracing(*opt.logTraceExceptions);
-				getters.getGlobalPolicy().SetExceptionTrace(*opt.logTraceExceptions);
-				getters.getGlobalPolicy().SetSehTracing(*opt.logTraceExceptions);
+				if (getters) {
+					getters.getGlobalPolicy().SetExceptionTrace(*opt.logTraceExceptions);
+					getters.getGlobalPolicy().SetSehTracing(*opt.logTraceExceptions);
+				}
 			}
 			if (opt.logDenyList) {
 				pmquell(LineTable::IngestList(*opt.logDenyList, true))
-				pmquell(getters.getLineTable().IngestList_(*opt.logDenyList, true))
+				if (getters) {
+					pmquell(getters.getLineTable().IngestList_(*opt.logDenyList, true))
+				}
 			}
 			else if (opt.logAllowList) {
 				pmquell(LineTable::IngestList(*opt.logAllowList, false))
-				pmquell(getters.getLineTable().IngestList_(*opt.logAllowList, false))
+				if (getters) {
+					pmquell(getters.getLineTable().IngestList_(*opt.logAllowList, false))
+				}
 			}
 		}
 		catch (...) {}

@@ -1,0 +1,49 @@
+include(PresentMonCppUnitTest)
+
+add_library(
+    PresentMonUnitTests
+    SHARED
+        ExtremeQueue.cpp
+        FixedVectorTests.cpp
+        InterPresentActivityTests.cpp
+        LoggingTests.cpp
+        MetricCapabilitiesTests.cpp
+        MetricsCore.cpp
+        TelemetryAvailabilityMergeTests.cpp
+        SwapChainTests.cpp
+        Style.cpp
+        Timing.cpp
+        "${PROJECT_SOURCE_DIR}/IntelPresentMon/CommonUtilities/test/MachineExpectations.cpp"
+)
+target_include_directories(
+    PresentMonUnitTests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/IntelPresentMon"
+)
+target_link_libraries(
+    PresentMonUnitTests
+    PRIVATE
+        pmon::build_options
+        pmon::warnings_default
+        pmon::release_link_policy
+        pmon::common_utilities
+        pmon::present_data
+        pmon::metrics
+        pmon::control
+        pmon::core
+        tdh
+)
+target_compile_options(
+    PresentMonUnitTests
+    PRIVATE
+        /EHa
+        /fp:fast
+)
+set_target_properties(
+    PresentMonUnitTests
+    PROPERTIES
+        OUTPUT_NAME PresentMonUnitTests
+        FOLDER "Tests"
+)
+
+pmon_apply_cppunittest_framework(PresentMonUnitTests)

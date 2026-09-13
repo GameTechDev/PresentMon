@@ -16,7 +16,7 @@
 #include "AsyncEndpointCollection.h"
 #include "ActionClientServer.h"
 #include "V8Transfer.h"
-#include "../KernelProcess/kact/PushSpecification.h"
+#include <KernelProcess/kact/PushSpecification.h>
 
 
 namespace p2c::client::util

@@ -1,23 +1,26 @@
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\..\Version.props" Condition="Exists('..\..\Version.props') and '$(VersionPropsImported)'==''" />
+  <Import Project="..\PmonCMakePackaging.wixproj.props" Condition="'$(PmonCMakePackaging)' == 'true'" />
   <PropertyGroup>
     <!-- Build a MERGE MODULE -->
     <OutputType>Module</OutputType>
     <OutputName>PresentMonSharedService</OutputName>
-    <IntermediateOutputPath>$(SolutionDir)build\obj\$(MSBuildProjectName)-$(Platform)-$(Configuration)</IntermediateOutputPath>
-    <OutputPath>$(SolutionDir)build\$(Configuration)\en-us\</OutputPath>
+    <IntermediateOutputPath Condition="'$(PmonCMakePackaging)' != 'true'">$(SolutionDir)build\obj\$(MSBuildProjectName)-$(Platform)-$(Configuration)</IntermediateOutputPath>
+    <OutputPath Condition="'$(PmonCMakePackaging)' != 'true'">$(SolutionDir)build\$(Configuration)\en-us\</OutputPath>
     <!-- Point to your WiX 3.11 install -->
     <WixToolPath>$(WIX)bin\</WixToolPath>
     <WixTargetsPath>$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
     <!-- If your wixlib expects a specific DirectoryRef Id -->
     <DefineConstants>PM.ServiceDirId=service_folder;ProductVersion=$(PresentMonProductVersion)</DefineConstants>
+    <!-- ICE03: merge module decorates each harvested UCI component id; ModuleComponents keys exceed 72 chars. -->
+    <SuppressIces>ICE03</SuppressIces>
     <ProjectGuid>{dc72c6b9-ca78-46c4-9962-e927b7a8d607}</ProjectGuid>
   </PropertyGroup>
   <ItemGroup>
     <!-- The module authoring file -->
     <Compile Include="ServiceMergeModule.wxs" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(PmonCMakePackaging)' != 'true'">
     <ProjectReference Include="..\PMInstallerLib\PMInstallerLib.wixproj">
       <Name>PMInstallerLib</Name>
       <Project>{6478f2f6-92ad-4b1c-a13e-c8cea9125152}</Project>

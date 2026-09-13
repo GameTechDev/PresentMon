@@ -41,6 +41,8 @@
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <WindowsTargetPlatformVersion Condition="'$(Platform)'=='ARM'">10.0</WindowsTargetPlatformVersion>
     <WindowsTargetPlatformVersion Condition="'$(Platform)'=='ARM64'">10.0</WindowsTargetPlatformVersion>
+    <RunSettingsFilePath>$(MSBuildProjectDirectory)\PresentMonTests.runsettings</RunSettingsFilePath>
+    <RunSettingsFilePath Condition="Exists('$(MSBuildProjectDirectory)\PresentMonTests.local.runsettings')">$(MSBuildProjectDirectory)\PresentMonTests.local.runsettings</RunSettingsFilePath>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -333,5 +335,6 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="PresentMonTestData.targets" />
   </ImportGroup>
 </Project>

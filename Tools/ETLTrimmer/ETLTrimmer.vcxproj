@@ -38,13 +38,13 @@
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\vcpkg.props" />
-    <Import Project="..\IntelPresentMon\Common.props" />
+    <Import Project="..\..\vcpkg.props" />
+    <Import Project="..\..\IntelPresentMon\Common.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\vcpkg.props" />
-    <Import Project="..\IntelPresentMon\Common.props" />
+    <Import Project="..\..\vcpkg.props" />
+    <Import Project="..\..\IntelPresentMon\Common.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" />
@@ -96,10 +96,10 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\IntelPresentMon\CommonUtilities\CommonUtilities.vcxproj">
+    <ProjectReference Include="..\..\IntelPresentMon\CommonUtilities\CommonUtilities.vcxproj">
       <Project>{08a704d8-ca1c-45e9-8ede-542a1a43b53e}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\PresentData\PresentData.vcxproj">
+    <ProjectReference Include="..\..\PresentData\PresentData.vcxproj">
       <Project>{892028e5-32f6-45fc-8ab2-90fcbcac4bf6}</Project>
     </ProjectReference>
   </ItemGroup>

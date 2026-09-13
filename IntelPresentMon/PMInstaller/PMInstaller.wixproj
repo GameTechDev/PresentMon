@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" DefaultTargets="Build" InitialTargets="EnsureWixToolsetInstalled" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\..\Version.props" Condition="Exists('..\..\Version.props') and '$(VersionPropsImported)'==''" />
+  <Import Project="..\PmonCMakePackaging.wixproj.props" Condition="'$(PmonCMakePackaging)' == 'true'" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
@@ -12,9 +13,10 @@
     <Name>PMInstaller</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
-    <OutputPath>..\..\build\$(Configuration)\</OutputPath>
-    <IntermediateOutputPath>..\..\build\obj\PMInstaller-$(Platform)-$(Configuration)\</IntermediateOutputPath>
-    <DefineConstants>Debug;ConsoleAppVersion=$(PresentMonVersion);ProductVersion=$(PresentMonProductVersion)</DefineConstants>
+    <OutputPath Condition="'$(PmonCMakePackaging)' != 'true'">..\..\build\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath Condition="'$(PmonCMakePackaging)' != 'true'">..\..\build\obj\PMInstaller-$(Platform)-$(Configuration)\</IntermediateOutputPath>
+    <DefineConstants Condition="'$(PmonCMakePackaging)' != 'true'">Debug;ConsoleAppVersion=$(PresentMonVersion);ProductVersion=$(PresentMonProductVersion)</DefineConstants>
+    <DefineConstants Condition="'$(PmonCMakePackaging)' == 'true'">$(DefineConstants);Debug;ConsoleAppVersion=$(PresentMonVersion);ProductVersion=$(PresentMonProductVersion)</DefineConstants>
     <CompilerAdditionalOptions>-arch x64</CompilerAdditionalOptions>
     <LinkerAdditionalOptions>
     </LinkerAdditionalOptions>
@@ -22,10 +24,11 @@
     </SuppressIces>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
-    <OutputPath>..\..\build\$(Configuration)\</OutputPath>
-    <IntermediateOutputPath>..\..\build\obj\PMInstaller-$(Platform)-$(Configuration)\</IntermediateOutputPath>
+    <OutputPath Condition="'$(PmonCMakePackaging)' != 'true'">..\..\build\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath Condition="'$(PmonCMakePackaging)' != 'true'">..\..\build\obj\PMInstaller-$(Platform)-$(Configuration)\</IntermediateOutputPath>
     <CompilerAdditionalOptions>-arch x64</CompilerAdditionalOptions>
-    <DefineConstants>ConsoleAppVersion=$(PresentMonVersion);ProductVersion=$(PresentMonProductVersion)</DefineConstants>
+    <DefineConstants Condition="'$(PmonCMakePackaging)' != 'true'">ConsoleAppVersion=$(PresentMonVersion);ProductVersion=$(PresentMonProductVersion)</DefineConstants>
+    <DefineConstants Condition="'$(PmonCMakePackaging)' == 'true'">$(DefineConstants);ConsoleAppVersion=$(PresentMonVersion);ProductVersion=$(PresentMonProductVersion)</DefineConstants>
     <LinkerAdditionalOptions>
     </LinkerAdditionalOptions>
     <SuppressIces>ICE60</SuppressIces>
@@ -42,7 +45,11 @@
     <EmbeddedResource Include="en-us.wxl" />
   </ItemGroup>
   <ItemGroup>
-    <WixExtension Include="PMInstallerExtension">
+    <WixExtension Include="PMInstallerExtension" Condition="'$(PmonCMakePackaging)' == 'true'">
+      <HintPath>$(PmonInstallerExtensionDll)</HintPath>
+      <Name>PMInstallerExtension</Name>
+    </WixExtension>
+    <WixExtension Include="PMInstallerExtension" Condition="'$(PmonCMakePackaging)' != 'true'">
       <HintPath>..\..\build\obj\PMInstallerExtension-$(Configuration)\PMInstallerExtension.dll</HintPath>
       <Name>PMInstallerExtension</Name>
     </WixExtension>
@@ -55,7 +62,7 @@
       <Name>WixUtilExtension</Name>
     </WixExtension>
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(PmonCMakePackaging)' != 'true'">
     <ProjectReference Include="..\..\Provider\Provider.vcxproj">
       <Name>Provider</Name>
       <Project>{807370fb-ade0-403a-a278-df50893e5f94}</Project>
@@ -119,7 +126,15 @@
     <Error Text="The WiX Toolset v3.11 (or newer) build tools must be installed to build this project. To download the WiX Toolset, see http://wixtoolset.org/releases/" />
   </Target>
 
-  <Target Name="AddReferencedWixLibs" BeforeTargets="Link">
+  <Target Name="EnsureCMakeWixLibInputs" BeforeTargets="Link" Condition="'$(PmonCMakePackaging)' == 'true'">
+    <Message Text="@@ Linking wixlibs: @(WixLibrary)" Importance="High" />
+    <Error Condition="'$(PmonWixLibPath)' == ''"
+           Text="CMake packaging requires PmonWixLibPath when PmonCMakePackaging=true." />
+    <Error Condition="'@(WixLibrary)' == ''"
+           Text="No wixlib found at $(PmonWixLibPath). Build PMInstallerLib in CMake mode first." />
+  </Target>
+
+  <Target Name="AddReferencedWixLibs" BeforeTargets="Link" Condition="'$(PmonCMakePackaging)' != 'true'">
     <!-- Build the wixlib first -->
     <MSBuild Projects="..\PMInstallerLib\PMInstallerLib.wixproj"
              Targets="Build"
@@ -134,7 +149,10 @@
   </Target>
 
   <Target Name="ValidateCefInstallerInputs" BeforeTargets="Compile">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\AppCef\Batch\validate-cef.ps1&quot; -Mode Installer -OutputRoot &quot;$(MSBuildThisFileDirectory)..\..\build\$(Configuration)&quot;" />
+    <Exec Condition="'$(PmonCMakePackaging)' == 'true'"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\AppCef\Batch\validate-cef.ps1&quot; -Mode Installer -OutputRoot &quot;$(PmonPayloadRoot)&quot;" />
+    <Exec Condition="'$(PmonCMakePackaging)' != 'true'"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\AppCef\Batch\validate-cef.ps1&quot; -Mode Installer -OutputRoot &quot;$(MSBuildThisFileDirectory)..\..\build\$(Configuration)&quot;" />
   </Target>
 
     <!--

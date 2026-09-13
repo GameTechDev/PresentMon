@@ -17,7 +17,73 @@ function Get-CefLockPath {
 }
 
 function Get-CefStagePath {
+    param(
+        [Parameter()]
+        [ValidateSet('Legacy', 'CMake')]
+        [string]$StageKind = 'Legacy'
+    )
+
+    if ($StageKind -eq 'CMake') {
+        return Join-Path (Get-RepoRoot) 'build\ThirdParty\cef'
+    }
     return Join-Path (Get-AppCefRoot) 'Cef'
+}
+
+function Get-CefStageMutexName {
+    param(
+        [Parameter()]
+        [ValidateSet('Legacy', 'CMake')]
+        [string]$StageKind = 'Legacy'
+    )
+
+    $identity = ((Get-RepoRoot).ToLowerInvariant() + '|' + $StageKind.ToLowerInvariant())
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($identity)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha256.ComputeHash($bytes)
+    } finally {
+        $sha256.Dispose()
+    }
+    $suffix = -join ($hash[0..15] | ForEach-Object { $_.ToString('x2') })
+    return "Local\PresentMonCefStage-$suffix"
+}
+
+function Enter-CefStageLock {
+    param(
+        [Parameter()]
+        [ValidateSet('Legacy', 'CMake')]
+        [string]$StageKind = 'Legacy',
+
+        [Parameter()]
+        [int]$TimeoutSeconds = 3600
+    )
+
+    $name = Get-CefStageMutexName -StageKind $StageKind
+    $mutex = [System.Threading.Mutex]::new($false, $name)
+    try {
+        try {
+            $acquired = $mutex.WaitOne([System.TimeSpan]::FromSeconds($TimeoutSeconds))
+        } catch [System.Threading.AbandonedMutexException] {
+            $acquired = $true
+        }
+        if (-not $acquired) {
+            throw "Timed out waiting for the $StageKind CEF stage lock."
+        }
+        return $mutex
+    } catch {
+        $mutex.Dispose()
+        throw
+    }
+}
+
+function Exit-CefStageLock {
+    param([Parameter(Mandatory = $true)][System.Threading.Mutex]$Mutex)
+
+    try {
+        $Mutex.ReleaseMutex()
+    } finally {
+        $Mutex.Dispose()
+    }
 }
 
 function Test-UriSource {
@@ -313,11 +379,16 @@ function Resolve-CefDistributionRoot {
 }
 
 function Assert-CefWrapperBuilt {
-    param([Parameter(Mandatory = $true)][string]$CefRoot)
+    param(
+        [Parameter(Mandatory = $true)][string]$CefRoot,
+        [Parameter()][string]$Generator = 'Visual Studio 17 2022',
+        [Parameter()][string]$Platform = 'x64',
+        [Parameter()][string]$Toolset = 'v143'
+    )
 
     $buildScript = Join-Path $PSScriptRoot 'cef-build-wrapper.ps1'
     Write-Host "Building CEF wrapper from a clean build directory."
-    & $buildScript $CefRoot -Clean
+    & $buildScript $CefRoot -Clean -Generator $Generator -Platform $Platform -Toolset $Toolset
     if ($LASTEXITCODE -ne 0) {
         throw "CEF wrapper build failed with exit code $LASTEXITCODE."
     }
@@ -339,48 +410,182 @@ function Copy-DirectoryContents {
         Copy-Item -Destination $Destination -Recurse -Force
 }
 
-function Stage-CefDistribution {
-    param([Parameter(Mandatory = $true)][string]$CefRoot)
+function Assert-CefStageBuildInputsAtPath {
+    param([Parameter(Mandatory = $true)][string]$StagePath)
 
-    Assert-CefWrapperBuilt -CefRoot $CefRoot
+    $requiredFiles = @(
+        'Include\include\base\cef_callback.h',
+        'Include\include\cef_app.h',
+        'Include\include\cef_client.h',
+        'Include\include\cef_parser.h',
+        'Include\include\cef_scheme.h',
+        'Include\include\cef_task.h',
+        'Include\include\cef_v8.h',
+        'Include\include\cef_version.h',
+        'Include\include\internal\cef_types.h',
+        'Include\include\wrapper\cef_closure_task.h',
+        'Include\include\wrapper\cef_helpers.h',
+        'Lib\Debug\libcef.lib',
+        'Lib\Debug\libcef_dll_wrapper.lib',
+        'Lib\Release\libcef.lib',
+        'Lib\Release\libcef_dll_wrapper.lib'
+    )
 
-    $stage = Get-CefStagePath
-    $appRoot = Get-AppCefRoot
-    $resolvedAppRoot = (Resolve-Path $appRoot).ProviderPath
-    $stageParent = (Resolve-Path (Split-Path -Parent $stage)).ProviderPath
-    if (-not $stageParent.Equals($resolvedAppRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Refusing to clean unexpected CEF stage path: $stage"
+    $errors = New-Object System.Collections.Generic.List[string]
+    foreach ($relative in $requiredFiles) {
+        $path = Join-Path $StagePath $relative
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            $errors.Add("Missing CEF build input: $relative")
+            continue
+        }
+        if ((Get-Item -LiteralPath $path).Length -eq 0) {
+            $errors.Add("Empty CEF build input: $relative")
+        }
     }
 
-    if (Test-Path $stage) {
-        Remove-Item -LiteralPath $stage -Recurse -Force
+    if ($errors.Count -ne 0) {
+        throw "CEF build inputs are incomplete at ${StagePath}:`n$($errors -join "`n")"
     }
+}
 
-    New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Bin') | Out-Null
-    New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Lib\Debug') | Out-Null
-    New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Lib\Release') | Out-Null
-    New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Include') | Out-Null
-    New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Resources') | Out-Null
+function Copy-CefDistributionToPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$CefRoot,
+        [Parameter(Mandatory = $true)][string]$Destination
+    )
 
-    Copy-DirectoryContents -Source (Join-Path $CefRoot 'Release') -Destination (Join-Path $stage 'Bin') -ExcludeFileName @('cef_sandbox.lib', 'libcef.lib')
-    Copy-DirectoryContents -Source (Join-Path $CefRoot 'include') -Destination (Join-Path $stage 'Include\include')
-    Copy-DirectoryContents -Source (Join-Path $CefRoot 'Resources') -Destination (Join-Path $stage 'Resources')
+    New-Item -ItemType Directory -Force -Path (Join-Path $Destination 'Bin') | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $Destination 'Lib\Debug') | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $Destination 'Lib\Release') | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $Destination 'Include') | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $Destination 'Resources') | Out-Null
 
-    Copy-Item -LiteralPath (Join-Path $CefRoot 'Release\libcef.lib') -Destination (Join-Path $stage 'Lib\Debug\libcef.lib') -Force
-    Copy-Item -LiteralPath (Join-Path $CefRoot 'Release\libcef.lib') -Destination (Join-Path $stage 'Lib\Release\libcef.lib') -Force
-    Copy-DirectoryContents -Source (Join-Path $CefRoot 'build\libcef_dll_wrapper\Debug') -Destination (Join-Path $stage 'Lib\Debug')
-    Copy-DirectoryContents -Source (Join-Path $CefRoot 'build\libcef_dll_wrapper\Release') -Destination (Join-Path $stage 'Lib\Release')
+    Copy-DirectoryContents -Source (Join-Path $CefRoot 'Release') -Destination (Join-Path $Destination 'Bin') -ExcludeFileName @('cef_sandbox.lib', 'libcef.lib')
+    Copy-DirectoryContents -Source (Join-Path $CefRoot 'include') -Destination (Join-Path $Destination 'Include\include')
+    Copy-DirectoryContents -Source (Join-Path $CefRoot 'Resources') -Destination (Join-Path $Destination 'Resources')
 
-    $localesPath = Join-Path $stage 'Resources\locales'
+    Copy-Item -LiteralPath (Join-Path $CefRoot 'Release\libcef.lib') -Destination (Join-Path $Destination 'Lib\Debug\libcef.lib') -Force
+    Copy-Item -LiteralPath (Join-Path $CefRoot 'Release\libcef.lib') -Destination (Join-Path $Destination 'Lib\Release\libcef.lib') -Force
+    Copy-DirectoryContents -Source (Join-Path $CefRoot 'build\libcef_dll_wrapper\Debug') -Destination (Join-Path $Destination 'Lib\Debug')
+    Copy-DirectoryContents -Source (Join-Path $CefRoot 'build\libcef_dll_wrapper\Release') -Destination (Join-Path $Destination 'Lib\Release')
+
+    $localesPath = Join-Path $Destination 'Resources\locales'
     if (Test-Path $localesPath -PathType Container) {
         Get-ChildItem -LiteralPath $localesPath -File | Where-Object { $_.Name -ine 'en-US.pak' } | Remove-Item -Force
     }
 
-    Write-Host "Staged CEF files at $stage"
+    Assert-CefStageBuildInputsAtPath -StagePath $Destination
+    Write-Host "Staged CEF files at $Destination"
+}
+
+function Stage-CefDistribution {
+    param(
+        [Parameter(Mandatory = $true)][string]$CefRoot,
+        [Parameter()]
+        [ValidateSet('Legacy', 'CMake')]
+        [string]$StageKind = 'Legacy',
+        [Parameter()][string]$Generator = 'Visual Studio 17 2022',
+        [Parameter()][string]$Platform = 'x64',
+        [Parameter()][string]$Toolset = 'v143'
+    )
+
+    $stage = Get-CefStagePath -StageKind $StageKind
+    Assert-CefWrapperBuilt -CefRoot $CefRoot -Generator $Generator -Platform $Platform -Toolset $Toolset
+    if (Test-Path -LiteralPath $stage) {
+        Remove-Item -LiteralPath $stage -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $stage | Out-Null
+    Copy-CefDistributionToPath -CefRoot $CefRoot -Destination $stage
+}
+
+function New-CefStageWorkPath {
+    param(
+        [Parameter()]
+        [ValidateSet('Legacy', 'CMake')]
+        [string]$StageKind = 'Legacy'
+    )
+
+    $destination = Get-CefStagePath -StageKind $StageKind
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
+    $suffix = [System.IO.Path]::GetRandomFileName() -replace '\.', ''
+    $work = "$destination.staging-$suffix"
+    New-Item -ItemType Directory -Path $work | Out-Null
+    return $work
+}
+
+function Publish-CefStage {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter()]
+        [ValidateSet('Legacy', 'CMake')]
+        [string]$StageKind = 'Legacy'
+    )
+
+    $destination = Get-CefStagePath -StageKind $StageKind
+    $retired = $null
+    if (Test-Path -LiteralPath $destination) {
+        $suffix = [System.IO.Path]::GetRandomFileName() -replace '\.', ''
+        $retired = "$destination.retired-$suffix"
+        Move-Item -LiteralPath $destination -Destination $retired -Force
+    }
+
+    try {
+        Move-Item -LiteralPath $Source -Destination $destination -Force
+    } catch {
+        if ($retired) {
+            Move-Item -LiteralPath $retired -Destination $destination -Force
+            $retired = $null
+        }
+        throw
+    }
+
+    if ($retired) {
+        try {
+            Remove-Item -LiteralPath $retired -Recurse -Force
+        } catch {
+            Write-Warning "Failed to remove the previous CEF stage: $retired"
+        }
+    }
+}
+
+function Install-CefStage {
+    param(
+        [Parameter(Mandatory = $true)][string]$CefRoot,
+        [Parameter()]
+        [ValidateSet('Legacy', 'CMake')]
+        [string]$StageKind = 'Legacy',
+        [Parameter()][string]$Generator = 'Visual Studio 17 2022',
+        [Parameter()][string]$Platform = 'x64',
+        [Parameter()][string]$Toolset = 'v143'
+    )
+
+    $stage = Get-CefStagePath -StageKind $StageKind
+    $mutex = Enter-CefStageLock -StageKind $StageKind
+    $work = $null
+    try {
+        Assert-CefWrapperBuilt -CefRoot $CefRoot -Generator $Generator -Platform $Platform -Toolset $Toolset
+        $work = New-CefStageWorkPath -StageKind $StageKind
+        Copy-CefDistributionToPath -CefRoot $CefRoot -Destination $work
+        Assert-CefStagePathMatchesLock -StagePath $work
+        Publish-CefStage -Source $work -StageKind $StageKind
+    } finally {
+        if ($work -and (Test-Path -LiteralPath $work)) {
+            Remove-Item -LiteralPath $work -Recurse -Force
+        }
+        Exit-CefStageLock -Mutex $mutex
+    }
+
+    Write-Host "Published CEF stage at $stage"
 }
 
 function Get-CefPayloadEntriesFromStage {
-    $stage = Get-CefStagePath
+    param(
+        [Parameter()]
+        [ValidateSet('Legacy', 'CMake')]
+        [string]$StageKind = 'Legacy'
+    )
+
+    $stage = Get-CefStagePath -StageKind $StageKind
     $entries = @()
     $groups = @(
         @{ Name = 'Bin'; Root = (Join-Path $stage 'Bin'); OutputPrefix = '' },
@@ -429,28 +634,25 @@ function New-CefLockObject {
             size = $sourceInfo.Length
             sha256 = Get-FileSha256 -Path $sourceInfo.FullName
         }
-    } else {
+    } elseif ($sourceKind -eq 'archive') {
         $sourceInput = Get-ObjectPropertyValue -Object $Source -Name 'input'
         $sourceResolved = (Resolve-Path $sourceInput).ProviderPath
         $sourceInfo = Get-Item -LiteralPath $sourceResolved
-        $sourceType = if ($sourceInfo.PSIsContainer) {
-            $stagePath = (Resolve-Path (Get-CefStagePath)).ProviderPath
-            if ($sourceResolved.Equals($stagePath, [System.StringComparison]::OrdinalIgnoreCase)) { 'staged' } else { 'directory' }
-        } else {
-            'archive'
+        if ($sourceInfo.PSIsContainer) {
+            throw 'CEF lock generation requires a URI or archive so the lock records an archive SHA-256.'
         }
         $source = [ordered]@{
-            type = $sourceType
+            type = 'archive'
             fileName = $sourceInfo.Name
+            size = $sourceInfo.Length
+            sha256 = Get-FileSha256 -Path $sourceResolved
         }
         $repoRelativePath = ConvertTo-RepoRelativePath -Path $sourceResolved
         if ($repoRelativePath) {
             $source.path = $repoRelativePath
         }
-        if (-not $sourceInfo.PSIsContainer) {
-            $source.size = $sourceInfo.Length
-            $source.sha256 = Get-FileSha256 -Path $sourceResolved
-        }
+    } else {
+        throw "CEF lock generation does not support source type: $sourceKind"
     }
 
     return [ordered]@{
@@ -458,7 +660,7 @@ function New-CefLockObject {
         generatedBy = 'IntelPresentMon/AppCef/Batch/upgrade-cef.ps1'
         source = $source
         cef = Read-CefVersionMetadata -CefRoot $CefRoot
-        payload = Get-CefPayloadEntriesFromStage
+        payload = Get-CefPayloadEntriesFromStage -StageKind Legacy
     }
 }
 
@@ -519,19 +721,41 @@ function Compare-CefPayload {
     return $errors
 }
 
-function Assert-CefStageMatchesLock {
+function Assert-CefStagePathMatchesLock {
+    param([Parameter(Mandatory = $true)][string]$StagePath)
+
+    if (-not (Test-Path -LiteralPath $StagePath -PathType Container)) {
+        throw "CEF stage directory not found: $StagePath"
+    }
+
     $lock = Read-CefLock
-    $metadata = Read-CefVersionMetadata -CefRoot (Get-CefStagePath)
+    $metadata = Read-CefVersionMetadata -CefRoot $StagePath
     foreach ($name in $lock.cef.PSObject.Properties.Name) {
         if ([string]$metadata[$name] -ne [string]$lock.cef.$name) {
             throw "Staged CEF metadata does not match lock for $name. Expected $($lock.cef.$name), found $($metadata[$name])."
         }
     }
-    $errors = @(Compare-CefPayload -Expected $lock.payload -Root (Get-CefStagePath) -Mode Stage)
+    $errors = @(Compare-CefPayload -Expected $lock.payload -Root $StagePath -Mode Stage)
     if ($errors.Count -ne 0) {
-        throw "Staged CEF payload does not match $(Get-CefLockPath):`n$($errors -join "`n")"
+        throw "Staged CEF payload at $StagePath does not match $(Get-CefLockPath):`n$($errors -join "`n")"
     }
-    Write-Host "CEF staged payload matches lock."
+    Assert-CefStageBuildInputsAtPath -StagePath $StagePath
+    Write-Host "CEF staged payload at $StagePath matches lock and its build inputs are present."
+}
+
+function Assert-CefStageMatchesLock {
+    param(
+        [Parameter()]
+        [ValidateSet('Legacy', 'CMake')]
+        [string]$StageKind = 'Legacy'
+    )
+
+    $mutex = Enter-CefStageLock -StageKind $StageKind
+    try {
+        Assert-CefStagePathMatchesLock -StagePath (Get-CefStagePath -StageKind $StageKind)
+    } finally {
+        Exit-CefStageLock -Mutex $mutex
+    }
 }
 
 function Assert-CefOutputMatchesLock {
@@ -662,6 +886,7 @@ function Assert-CefInstallerInputsMatchLock {
                 throw "Installer CEF fragment is stale: $actualPath. Run IntelPresentMon\AppCef\Batch\upgrade-cef.ps1 to refresh it."
             }
         }
+
     } finally {
         if (Test-Path $temp) {
             Remove-Item -LiteralPath $temp -Recurse -Force
@@ -669,3 +894,27 @@ function Assert-CefInstallerInputsMatchLock {
     }
     Write-Host "CEF installer fragments match lock."
 }
+
+Export-ModuleMember -Function @(
+    'Get-RepoRoot',
+    'Get-CefStagePath',
+    'Enter-CefStageLock',
+    'Exit-CefStageLock',
+    'Test-UriSource',
+    'Test-CefKeepWorkDirectories',
+    'Get-CefTempDirectories',
+    'Clear-CefTempDirectories',
+    'Read-CefLock',
+    'Get-FileSha256',
+    'Get-ObjectPropertyValue',
+    'Resolve-CefSource',
+    'Resolve-CefDistributionRoot',
+    'Stage-CefDistribution',
+    'Install-CefStage',
+    'New-CefLockObject',
+    'Write-CefLock',
+    'Assert-CefStageMatchesLock',
+    'Assert-CefOutputMatchesLock',
+    'Update-CefInstallerFragments',
+    'Assert-CefInstallerInputsMatchLock'
+)

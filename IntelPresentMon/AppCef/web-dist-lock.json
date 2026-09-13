@@ -1,0 +1,16 @@
+{
+  "outputs": [
+    "index.html",
+    "css/index.css",
+    "js/app.js",
+    "fonts/materialdesignicons-webfont.woff2",
+    "fonts/roboto-cyrillic-400-normal.woff2",
+    "fonts/roboto-cyrillic-ext-400-normal.woff2",
+    "fonts/roboto-greek-400-normal.woff2",
+    "fonts/roboto-latin-400-normal.woff2",
+    "fonts/roboto-latin-ext-400-normal.woff2",
+    "fonts/roboto-math-400-normal.woff2",
+    "fonts/roboto-symbols-400-normal.woff2",
+    "fonts/roboto-vietnamese-400-normal.woff2"
+  ]
+}

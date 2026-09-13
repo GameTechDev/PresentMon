@@ -1,6 +1,6 @@
-#include "../IntelPresentMon/CommonUtilities/win/WinAPI.h"
-#include "../IntelPresentMon/CommonUtilities/win/Utilities.h"
-#include "../IntelPresentMon/CommonUtilities/Hash.h"
+#include "../../IntelPresentMon/CommonUtilities/win/WinAPI.h"
+#include "../../IntelPresentMon/CommonUtilities/win/Utilities.h"
+#include "../../IntelPresentMon/CommonUtilities/Hash.h"
 #include <initguid.h>
 #include <evntcons.h>
 #include <cguid.h>
@@ -16,12 +16,12 @@
 #include <unordered_set>
 #include <ranges>
 #include "CliOptions.h"
-#include "../PresentData/PresentMonTraceSession.hpp"
-#include "../PresentData/PresentMonTraceConsumer.hpp"
-#include "../PresentData/ETW/Microsoft_Windows_EventMetadata.h"
-#include "../PresentData/ETW/NT_Process.h"
-#include "../PresentData/ETW/Microsoft_Windows_Kernel_Process.h"
-#include "../PresentData/ETW/Microsoft_Windows_DxgKrnl.h"
+#include "../../PresentData/PresentMonTraceSession.hpp"
+#include "../../PresentData/PresentMonTraceConsumer.hpp"
+#include "../../PresentData/ETW/Microsoft_Windows_EventMetadata.h"
+#include "../../PresentData/ETW/NT_Process.h"
+#include "../../PresentData/ETW/Microsoft_Windows_Kernel_Process.h"
+#include "../../PresentData/ETW/Microsoft_Windows_DxgKrnl.h"
 
 namespace rn = std::ranges;
 namespace vi = rn::views;

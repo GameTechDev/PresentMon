@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Imported by WiX projects when PmonCMakePackaging=true (Phase 6 CMake lane). -->
+  <PropertyGroup Condition="'$(PmonCMakePackaging)' == 'true'">
+    <BuildProjectReferences>false</BuildProjectReferences>
+    <DefineSolutionProperties>false</DefineSolutionProperties>
+    <DefineConstants>$(DefineConstants);PmonUseExplicitConsolePath=true;PmonCMakePackaging=true;PmonConsoleTargetPath=$(PmonConsoleTargetPath);PmonConsoleTargetFileName=$(PmonConsoleTargetFileName);PmonPresentMonAPI2LoaderLibSource=$(PmonPresentMonAPI2LoaderLibSource);PmonPresentMonAPI2HeaderSource=$(PmonPresentMonAPI2HeaderSource);Provider.TargetPath=$(PmonProviderTargetPath);Provider.ProjectDir=$(PmonProviderProjectDir);PresentMon.TargetPath=$(PmonPresentMonTargetPath);PresentMon.TargetDir=$(PmonPresentMonTargetDir);PresentMon.TargetFileName=$(PmonPresentMonTargetFileName);KernelProcess.TargetPath=$(PmonKernelProcessTargetPath);KernelProcess.TargetFileName=$(PmonKernelProcessTargetFileName);PresentMonService.TargetPath=$(PmonPresentMonServiceTargetPath);PresentMonService.TargetDir=$(PmonPresentMonServiceTargetDir);PresentMonService.TargetFileName=$(PmonPresentMonServiceTargetFileName);PresentMonAPI2.TargetPath=$(PmonPresentMonAPI2TargetPath);PresentMonAPI2.TargetFileName=$(PmonPresentMonAPI2TargetFileName);PresentMonAPI2.ProjectDir=$(PmonPresentMonAPI2ProjectDir);PresentMonAPI2Loader.TargetPath=$(PmonPresentMonAPI2LoaderTargetPath);PresentMonAPI2Loader.TargetDir=$(PmonPresentMonAPI2LoaderTargetDir);PresentMonAPI2Loader.TargetFileName=$(PmonPresentMonAPI2LoaderTargetFileName);SolutionDir=$(PmonSolutionDir);UciDistDir=$(PmonUciDistDir)</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(PmonCMakePackaging)' == 'true' and '$(PmonOutputPath)' != ''">
+    <OutputPath>$(PmonOutputPath)</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(PmonCMakePackaging)' == 'true' and '$(PmonIntermediateOutputPath)' != ''">
+    <IntermediateOutputPath>$(PmonIntermediateOutputPath)</IntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(PmonCMakePackaging)' == 'true' and '$(PmonWixLibPath)' != '' and '$(MSBuildProjectName)' != 'PMInstallerLib'">
+    <WixLibrary Include="$(PmonWixLibPath)" />
+  </ItemGroup>
+</Project>
