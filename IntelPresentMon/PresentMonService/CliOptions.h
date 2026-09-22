@@ -17,6 +17,8 @@ namespace clio
 	private: Group gc_{ this, "Connection", "Control client connection" }; public:
 		Option<std::string> etwSessionName{ this, "--etw-session-name", "PMService", "Name to use when creating the ETW session" };
 		Option<std::string> controlPipe{ this, "--control-pipe", "", "Name of the named pipe to use for the client-service control channel" };
+		Flag controlPipeAllowAuClients{ this, "--control-pipe-allow-au-clients",
+			"When using --control-pipe, allow authenticated users to connect (default: creator-only CO)" };
 		Option<std::string> shmNamePrefix{ this, "--shm-name-prefix", R"(Global\pm_svc_shm)", "Prefix to use when naming shared memory segments" };
 
 	private: Group gs_{ this, "Shared Memory", "Shared memory ring sizing" }; public:

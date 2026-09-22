@@ -1,8 +1,6 @@
 #include "Pipe.h"
 #include "../win/Security.h"
-#include <mutex>
 #include <string_view>
-#include <unordered_set>
 
 namespace pmon::util::pipe
 {
@@ -75,9 +73,9 @@ namespace pmon::util::pipe
 		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, Connect_(name), name, true });
 	}
 	std::unique_ptr<DuplexPipe> DuplexPipe::MakeAsPtr(const std::string& name, as::io_context& ioctx,
-		const std::string& security, PipeServerCreateOptions options)
+		const std::string& security)
 	{
-		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, Make_(name, security, options), name, false });
+		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, Make_(name, security), name, false });
 	}
 	size_t DuplexPipe::GetWriteBufferPending() const
 	{
@@ -138,6 +136,16 @@ namespace pmon::util::pipe
 		// SY: create/listen; AU: client read/write without FILE_CREATE_PIPE_INSTANCE or DACL change
 		return std::format("D:P(A;;GA;;;SY)(A;;0x{:x};;;AU)S:(ML;;NW;;;LW)", kClientPipeConnectAccess);
 	}
+	std::string DuplexPipe::GetPrivateControlPipeSecurityString(bool allowAuthenticatedClients)
+	{
+		// Use the creating process user SID explicitly. SDDL CO is not reliable for cross-process
+		// client ConnectFile on named pipes created by a sibling process.
+		const auto userSid = win::GetCurrentProcessUserSidString();
+		if (allowAuthenticatedClients) {
+			return std::format("D:(A;;GA;;;{})(A;;0x{:x};;;AU)", userSid, kClientPipeConnectAccess);
+		}
+		return std::format("D:(A;;GA;;;{})", userSid);
+	}
 
 	DuplexPipe::DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient)
 		:
@@ -172,27 +180,7 @@ namespace pmon::util::pipe
 		}
 		return handle.Release();
 	}
-	namespace
-	{
-		std::mutex firstPipeInstanceMutex;
-		std::unordered_set<std::string> firstPipeInstanceAttempted;
-
-		win::Handle TryCreateNamedPipe_(const std::string& name, DWORD openMode, uint32_t maxInstances,
-			SECURITY_ATTRIBUTES* pSecurityAttributes)
-		{
-			return win::Handle{ CreateNamedPipeA(
-				name.c_str(),
-				openMode,
-				PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_REJECT_REMOTE_CLIENTS,
-				maxInstances,
-				4096,
-				4096,
-				0,
-				pSecurityAttributes) };
-		}
-	}
-
-	HANDLE DuplexPipe::Make_(const std::string& name, const std::string& security, PipeServerCreateOptions options)
+	HANDLE DuplexPipe::Make_(const std::string& name, const std::string& security)
 	{
 		pmlog_dbg(std::format("Creating instance of [{}] with security [{}]", name, security));
 		// structure required for creating named pipe, create with placeholder pointer for descriptor
@@ -209,27 +197,15 @@ namespace pmon::util::pipe
 		}
 		// if we have a security string, call create pipe with above structure, else call with nullptr
 		SECURITY_ATTRIBUTES* pSecurityAttributes = security.empty() ? nullptr : &securityAttributes;
-		DWORD openMode = PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED;
-		bool useFirstPipeInstance = false;
-		if (options.serviceControlHardening) {
-			std::lock_guard lock{ firstPipeInstanceMutex };
-			if (!firstPipeInstanceAttempted.contains(name)) {
-				useFirstPipeInstance = true;
-				firstPipeInstanceAttempted.insert(name);
-			}
-		}
-		if (useFirstPipeInstance) {
-			openMode |= FILE_FLAG_FIRST_PIPE_INSTANCE;
-		}
-		win::Handle handle = TryCreateNamedPipe_(name, openMode, options.maxInstances, pSecurityAttributes);
-		if (!handle && useFirstPipeInstance && GetLastError() == ERROR_ACCESS_DENIED) {
-			pmlog_warn(
-				"Named pipe first-instance create failed; pipe name may already be in use (possible squatting or stale instance)")
-				.pmwatch(name)
-				.hr();
-			openMode &= ~FILE_FLAG_FIRST_PIPE_INSTANCE;
-			handle = TryCreateNamedPipe_(name, openMode, options.maxInstances, pSecurityAttributes);
-		}
+		win::Handle handle(CreateNamedPipeA(
+			name.c_str(),
+			PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+			PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_REJECT_REMOTE_CLIENTS,
+			PIPE_UNLIMITED_INSTANCES,
+			4096,
+			4096,
+			0,
+			pSecurityAttributes));
 		if (!handle) {
 			pmlog_error("Server failed to create named pipe instance").pmwatch(name).hr();
 			throw Except<PipeError>("Server failed to create named pipe instance");

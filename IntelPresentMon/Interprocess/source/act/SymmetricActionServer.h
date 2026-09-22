@@ -28,13 +28,11 @@ namespace pmon::ipc::act
 
     public:
         SymmetricActionServer(ExecCtx context, std::string basePipeName,
-            uint32_t reservedPipeInstanceCount, std::string securityString, bool allowConnectionlessSend = false,
-            pipe::PipeServerCreateOptions pipeServerCreateOptions = {})
+            uint32_t reservedPipeInstanceCount, std::string securityString, bool allowConnectionlessSend = false)
             :
             reservedPipeInstanceCount_{ reservedPipeInstanceCount },
             basePipeName_{ std::move(basePipeName) },
             security_{ std::move(securityString) },
-            pipeServerCreateOptions_{ pipeServerCreateOptions },
             ctx_{ std::move(context) },
             worker_{ std::format("symact-{}-srv", MakeWorkerName_(basePipeName_)), &SymmetricActionServer::Run_, this},
             allowConnectionlessSend_{ allowConnectionlessSend }
@@ -124,7 +122,7 @@ namespace pmon::ipc::act
             try {
                 // create connector and suspend until client connects
                 auto pConn = co_await SymmetricActionConnector<ExecCtx>::AcceptClientConnection(
-                    basePipeName_, ioctx_, security_, pipeServerCreateOptions_);
+                    basePipeName_, ioctx_, security_);
                 // insert a session context object for this connection, will be initialized properly upon OpenSession action
                 sessionId = pConn->GetId();
                 auto&&[i, b] = sessions_.emplace(*sessionId, SessionContextType{ .pConn = std::move(pConn) });
@@ -175,7 +173,6 @@ namespace pmon::ipc::act
         uint32_t reservedPipeInstanceCount_;
         std::string basePipeName_;
         std::string security_;
-        pipe::PipeServerCreateOptions pipeServerCreateOptions_;
         as::io_context ioctx_;
         // maps session uid => session (uid is same as session recv (in) pipe id)
         SessionsMap sessions_;

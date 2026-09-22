@@ -473,6 +473,8 @@ private:
 	{
 		// make sure ioctx thread is running and keep it running until service launches
 		auto workGuard = ReserveIoctxThread_();
+		Assert::IsTrue(util::pipe::DuplexPipe::WaitForVacancy(common.ctrlPipe, svcPipeTimeout_),
+			L"Timed out waiting for control pipe vacancy before service start");
 		// launch the service
 		service.emplace(ioctx_, jobMan_, args, common);
 		// ensure that service pipe is available

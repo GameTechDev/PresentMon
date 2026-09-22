@@ -112,11 +112,10 @@ namespace pmon::ipc::act
             return pInPipe_->GetId();
         }
         static as::awaitable<std::unique_ptr<SymmetricActionConnector>> AcceptClientConnection(
-            const std::string& basePipeName, as::io_context& ioctx, const std::string& security,
-            pipe::PipeServerCreateOptions pipeServerOptions = {})
+            const std::string& basePipeName, as::io_context& ioctx, const std::string& security)
         {
             using namespace as::experimental::awaitable_operators;
-            auto pConn = std::make_unique<SymmetricActionConnector>(basePipeName, ioctx, security, pipeServerOptions);
+            auto pConn = std::make_unique<SymmetricActionConnector>(basePipeName, ioctx, security);
             co_await(pConn->pInPipe_->Accept() && pConn->pOutPipe_->Accept());
             co_return pConn;
         }
@@ -125,11 +124,10 @@ namespace pmon::ipc::act
         {
             return std::make_unique<SymmetricActionConnector>(basePipeName, ioctx);
         }
-        SymmetricActionConnector(const std::string& basePipeName, as::io_context& ioctx, const std::string& security,
-            pipe::PipeServerCreateOptions pipeServerOptions = {})
+        SymmetricActionConnector(const std::string& basePipeName, as::io_context& ioctx, const std::string& security)
             :
-            pOutPipe_{ pipe::DuplexPipe::MakeAsPtr(basePipeName + "-out", ioctx, security, pipeServerOptions) },
-            pInPipe_{ pipe::DuplexPipe::MakeAsPtr(basePipeName + "-in", ioctx, security, pipeServerOptions) }
+            pOutPipe_{ pipe::DuplexPipe::MakeAsPtr(basePipeName + "-out", ioctx, security) },
+            pInPipe_{ pipe::DuplexPipe::MakeAsPtr(basePipeName + "-in", ioctx, security) }
         {}
         SymmetricActionConnector(const std::string& basePipeName, as::io_context& ioctx)
             :

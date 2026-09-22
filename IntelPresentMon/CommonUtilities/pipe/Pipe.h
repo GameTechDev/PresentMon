@@ -11,7 +11,6 @@
 #include "../Exception.h"
 #include "../log/Log.h"
 #include "SecurityMode.h"
-#include "PipeServerCreateOptions.h"
 #include "CoroMutex.h"
 #include <ranges>
 
@@ -41,7 +40,7 @@ namespace pmon::util::pipe
 		static DuplexPipe Make(const std::string& name, as::io_context& ioctx, const std::string& security = {});
 		static std::unique_ptr<DuplexPipe> ConnectAsPtr(const std::string& name, as::io_context& ioctx);
 		static std::unique_ptr<DuplexPipe> MakeAsPtr(const std::string& name, as::io_context& ioctx,
-			const std::string& security = {}, PipeServerCreateOptions options = {});
+			const std::string& security = {});
 		template<class H, class P>
 		as::awaitable<void> WritePacket(const H& header, const P& payload, std::optional<uint32_t> timeoutMs = {})
 		{
@@ -110,12 +109,12 @@ namespace pmon::util::pipe
 		std::string GetName() const;
 		static std::string GetSecurityString(SecurityMode mode);
 		static std::string GetServiceControlPipeSecurityString();
+		static std::string GetPrivateControlPipeSecurityString(bool allowAuthenticatedClients);
 	private:
 		// functions
 		DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient);
 		static HANDLE Connect_(const std::string& name);
-		static HANDLE Make_(const std::string& name, const std::string& security = {},
-			PipeServerCreateOptions options = {});
+		static HANDLE Make_(const std::string& name, const std::string& security = {});
 		// wrapper to convert EOF system_error to PipeBroken error, with optional timeout
 		as::awaitable<void> Read_(size_t byteCount, std::optional<uint32_t> timeoutMs = {});
 		// wrapper to convert EOF system_error to PipeBroken error, with optional timeout
