@@ -15,14 +15,22 @@ namespace pmon::svc
 
     ActionServer::ActionServer(Service* pSvc, PresentMon* pPmon, std::optional<std::string> pipeName)
     {
-        // if we have a pipe name override, that indicates we don't need special permissions
-        auto sec = pipe::DuplexPipe::GetSecurityString(pipeName ?
-            pipe::SecurityMode::Child : pipe::SecurityMode::Service);
+        constexpr uint32_t reservedPipeInstanceCount = 2;
+        pipe::PipeServerCreateOptions pipeServerOptions;
+        std::string sec;
+        if (pipeName) {
+            sec = pipe::DuplexPipe::GetSecurityString(pipe::SecurityMode::Child);
+        }
+        else {
+            sec = pipe::DuplexPipe::GetServiceControlPipeSecurityString();
+            pipeServerOptions.maxInstances = reservedPipeInstanceCount;
+            pipeServerOptions.serviceControlHardening = true;
+        }
         // construct (and start) the server
         pImpl_ = std::make_shared<act::SymmetricActionServer<acts::ActionExecutionContext>>(
             acts::ActionExecutionContext{ .pSvc = pSvc, .pPmon = pPmon },
             pipeName.value_or(gid::defaultControlPipeName),
-            2, std::move(sec)
+            reservedPipeInstanceCount, std::move(sec), false, pipeServerOptions
         );
     }
 }
