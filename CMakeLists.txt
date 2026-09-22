@@ -69,6 +69,7 @@ include(PresentMonShaders)
 include(PresentMonUiPayload)
 include(PresentMonAuxTestData)
 include(PresentMonCTest)
+include(PresentMonCommandLineArguments)
 
 pmon_configure_options()
 pmon_configure_output_directories()
@@ -171,6 +172,8 @@ pmon_add_production_signing_targets()
 pmon_add_win32_component_signing_targets()
 include(PresentMonPackaging)
 pmon_register_packaging_targets()
+
+pmon_register_command_line_args_symlinks()
 
 message(STATUS "")
 message(STATUS "PresentMon configuration")
