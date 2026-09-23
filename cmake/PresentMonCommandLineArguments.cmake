@@ -87,10 +87,9 @@ function(pmon_register_command_line_args_symlinks)
         pmon_link_command_line_args
         COMMAND
             ${CMAKE_COMMAND}
-            -DCMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
-            -DCMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
-            -DPMON_COMMAND_LINE_ARGS_APPLY=1
-            -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/PresentMonCommandLineArguments.cmake
+            -S "${CMAKE_SOURCE_DIR}"
+            -B "${CMAKE_BINARY_DIR}"
+            -DPMON_LINK_COMMAND_LINE_ARGS=ON
         USES_TERMINAL
         VERBATIM
     )
@@ -105,7 +104,3 @@ function(pmon_register_command_line_args_symlinks)
         _pmon_command_line_args_apply()
     endif()
 endfunction()
-
-if(PMON_COMMAND_LINE_ARGS_APPLY)
-    _pmon_command_line_args_apply()
-endif()
