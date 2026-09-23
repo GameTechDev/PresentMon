@@ -28,7 +28,7 @@ function(_pmon_command_line_args_apply)
         list(GET _pmon_fields 2 _pmon_source_rel)
 
         set(_pmon_vcxproj "${CMAKE_BINARY_DIR}/${_pmon_subdir}/${_pmon_target}.vcxproj")
-        if(NOT EXISTS "${_pmon_vcxproj}")
+        if(NOT TARGET "${_pmon_target}" AND NOT EXISTS "${_pmon_vcxproj}")
             continue()
         endif()
 
@@ -90,7 +90,7 @@ function(pmon_register_command_line_args_symlinks)
             -DCMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
             -DCMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
             -DPMON_COMMAND_LINE_ARGS_APPLY=1
-            -P ${CMAKE_CURRENT_LIST_DIR}/PresentMonCommandLineArguments.cmake
+            -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/PresentMonCommandLineArguments.cmake
         USES_TERMINAL
         VERBATIM
     )
