@@ -144,6 +144,11 @@ namespace pmon::util::pipe
 		// SY: create/listen; AU: client read/write without FILE_CREATE_PIPE_INSTANCE or DACL change
 		return std::format("D:P(A;;GA;;;SY)(A;;0x{:x};;;AU)S:(ML;;NW;;;LW)", kClientPipeConnectAccess);
 	}
+	DWORD DuplexPipe::GetClientPipeConnectAccessMask() noexcept
+	{
+		return kClientPipeConnectAccess;
+	}
+
 	std::string DuplexPipe::GetPrivateControlPipeSecurityString(bool allowAuthenticatedClients)
 	{
 		// Use the creating process user SID explicitly. SDDL CO is not reliable for cross-process

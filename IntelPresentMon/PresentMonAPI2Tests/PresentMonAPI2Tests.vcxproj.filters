@@ -30,6 +30,12 @@
     <ClCompile Include="MultiClientTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="PipeAcceptReliabilityTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PipeSecurityRegressionTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="EtlLoggerTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

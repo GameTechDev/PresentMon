@@ -1,5 +1,6 @@
 #pragma once
 #include "MiddlewareExecutionContext.h"
+#include "../CommonUtilities/win/ServiceProcess.h"
 #include <string>
 
 namespace pmon::mid
@@ -11,4 +12,10 @@ namespace pmon::mid
 		ipc::act::SymmetricActionConnector<MiddlewareExecutionContext>& conn);
 
 	bool IsDefaultSharedServiceControlPipe(const std::string& controlPipeBaseName) noexcept;
+
+	void ValidateSharedServiceScmRecord(const util::win::WindowsServiceVerificationInfo& scmInfo);
+
+	void ValidateSharedServicePipeServerProcessId(
+		uint32_t pipeServerPid,
+		const util::win::WindowsServiceVerificationInfo& scmInfo);
 }

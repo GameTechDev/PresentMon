@@ -102,7 +102,7 @@ namespace pmon::ipc::act
             try {
                 // maintain N available connector instances at all times
                 for (uint32_t i = 0; i < reservedPipeInstanceCount_; i++) {
-                    as::co_spawn(ioctx_, SessionStrand_(), as::detached);
+                    as::co_spawn(ioctx_, AcceptLoop_(), as::detached);
                 }
                 // run the io context event handler until signalled to exit
                 ioctx_.run();
@@ -116,21 +116,29 @@ namespace pmon::ipc::act
                 std::terminate();
             }
         }
-        as::awaitable<void> SessionStrand_()
+        as::awaitable<void> AcceptLoop_()
         {
-            std::optional<uint32_t> sessionId;
+            while (IsRunning()) {
+                try {
+                    auto pConn = co_await SymmetricActionConnector<ExecCtx>::AcceptClientConnection(
+                        basePipeName_, ioctx_, security_);
+                    as::co_spawn(ioctx_, HandleSession_(std::move(pConn)), as::detached);
+                }
+                catch (const pipe::BenignPipeError&) {
+                    pmlog_dbg(util::ReportException());
+                }
+                catch (...) {
+                    pmlog_error(util::ReportException());
+                }
+            }
+        }
+        as::awaitable<void> HandleSession_(std::unique_ptr<SymmetricActionConnector<ExecCtx>> pConn)
+        {
+            const uint32_t sessionId = pConn->GetId();
             try {
-                // create connector and suspend until client connects
-                auto pConn = co_await SymmetricActionConnector<ExecCtx>::AcceptClientConnection(
-                    basePipeName_, ioctx_, security_);
-                // insert a session context object for this connection, will be initialized properly upon OpenSession action
-                sessionId = pConn->GetId();
-                auto&&[i, b] = sessions_.emplace(*sessionId, SessionContextType{ .pConn = std::move(pConn) });
-                pmlog_info(std::format("Action pipe connected id:{}", *sessionId));
+                auto&&[i, b] = sessions_.emplace(sessionId, SessionContextType{ .pConn = std::move(pConn) });
+                pmlog_info(std::format("Action pipe connected id:{}", sessionId));
                 auto& stx = i->second;
-                // fork this acceptor coroutine
-                as::co_spawn(ioctx_, SessionStrand_(), as::detached);
-                // run the action handler until client session is terminated
                 while (true) {
                     co_await stx.pConn->SyncHandleRequest(ctx_, stx);
                 }
@@ -141,13 +149,8 @@ namespace pmon::ipc::act
             catch (...) {
                 pmlog_error(util::ReportException());
             }
-            if (sessionId) {
-                const auto clientPid = DisposeSession_(*sessionId);
-                pmlog_info(std::format("Action pipe disconnected, session closed id:{} pid:{}", *sessionId, clientPid.value_or(0)));
-            }
-            else {
-                pmlog_info("Sessionless pipe disconnected");
-            }
+            const auto clientPid = DisposeSession_(sessionId);
+            pmlog_info(std::format("Action pipe disconnected, session closed id:{} pid:{}", sessionId, clientPid.value_or(0)));
         }
         std::optional<uint32_t> DisposeSession_(uint32_t sid)
         {

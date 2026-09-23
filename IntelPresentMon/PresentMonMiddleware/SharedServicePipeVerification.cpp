@@ -47,23 +47,38 @@ namespace pmon::mid
 			return *scmInfo;
 		}
 
-		void ValidateSharedServiceScmRecord_(const WindowsServiceVerificationInfo& scmInfo)
-		{
-			if (scmInfo.binaryPath.empty() ||
-				!ExecutableBaseNameIsPresentMonServiceWide_(std::filesystem::path{ scmInfo.binaryPath })) {
-				pmlog_error("Shared service binary path is not PresentMonService.exe")
-					.pmwatch(str::ToNarrow(scmInfo.binaryPath))
-					.diag();
-				throw Except<PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH,
-					"Shared service binary path mismatch");
-			}
-			if (!ServiceStartNameIsLocalSystem(scmInfo.serviceStartName)) {
-				pmlog_error("Shared service is not configured to run as LocalSystem")
-					.pmwatch(str::ToNarrow(scmInfo.serviceStartName))
-					.diag();
-				throw Except<PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH,
-					"Shared service account mismatch");
-			}
+	}
+
+	void ValidateSharedServiceScmRecord(const WindowsServiceVerificationInfo& scmInfo)
+	{
+		if (scmInfo.binaryPath.empty() ||
+			!ExecutableBaseNameIsPresentMonServiceWide_(std::filesystem::path{ scmInfo.binaryPath })) {
+			pmlog_error("Shared service binary path is not PresentMonService.exe")
+				.pmwatch(str::ToNarrow(scmInfo.binaryPath))
+				.diag();
+			throw Except<PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH,
+				"Shared service binary path mismatch");
+		}
+		if (!ServiceStartNameIsLocalSystem(scmInfo.serviceStartName)) {
+			pmlog_error("Shared service is not configured to run as LocalSystem")
+				.pmwatch(str::ToNarrow(scmInfo.serviceStartName))
+				.diag();
+			throw Except<PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH,
+				"Shared service account mismatch");
+		}
+	}
+
+	void ValidateSharedServicePipeServerProcessId(
+		uint32_t pipeServerPid,
+		const WindowsServiceVerificationInfo& scmInfo)
+	{
+		if (pipeServerPid != scmInfo.processId) {
+			pmlog_error("Control pipe server process does not match SCM service process")
+				.pmwatch(pipeServerPid)
+				.pmwatch(scmInfo.processId)
+				.diag();
+			throw Except<PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH,
+				"Control pipe server is not PresentMonSharedService");
 		}
 	}
 
@@ -84,7 +99,7 @@ namespace pmon::mid
 		}
 
 		const auto scmInfo = RequireSharedServiceScmInfo_();
-		ValidateSharedServiceScmRecord_(scmInfo);
+		ValidateSharedServiceScmRecord(scmInfo);
 		pmlog_dbg("Shared PresentMon Windows service is running and configured before pipe connect")
 			.pmwatch(scmInfo.processId)
 			.pmwatch(str::ToNarrow(scmInfo.binaryPath));
@@ -100,16 +115,8 @@ namespace pmon::mid
 
 		const uint32_t pipeServerPid = conn.ResolveConnectedServerProcessId();
 		const auto scmInfo = RequireSharedServiceScmInfo_();
-		ValidateSharedServiceScmRecord_(scmInfo);
-
-		if (pipeServerPid != scmInfo.processId) {
-			pmlog_error("Control pipe server process does not match SCM service process")
-				.pmwatch(pipeServerPid)
-				.pmwatch(scmInfo.processId)
-				.diag();
-			throw Except<PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH,
-				"Control pipe server is not PresentMonSharedService");
-		}
+		ValidateSharedServiceScmRecord(scmInfo);
+		ValidateSharedServicePipeServerProcessId(pipeServerPid, scmInfo);
 
 		pmlog_info("Verified shared service control pipe server identity")
 			.pmwatch(pipeServerPid)

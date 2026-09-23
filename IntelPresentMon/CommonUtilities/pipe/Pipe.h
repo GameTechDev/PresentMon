@@ -112,6 +112,8 @@ namespace pmon::util::pipe
 		static std::string GetSecurityString(SecurityMode mode);
 		static std::string GetServiceControlPipeSecurityString();
 		static std::string GetPrivateControlPipeSecurityString(bool allowAuthenticatedClients);
+		// Client connect mask; must not include FILE_CREATE_PIPE_INSTANCE or DACL change rights.
+		static DWORD GetClientPipeConnectAccessMask() noexcept;
 	private:
 		// functions
 		DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient);

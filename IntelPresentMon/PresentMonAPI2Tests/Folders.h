@@ -66,3 +66,13 @@ namespace MockTelemetryTests
 {
 	static constexpr const char* logFolder_ = "TestLogs\\MockTelemetry";
 }
+
+namespace PipeAcceptReliabilityTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\PipeAcceptReliability";
+}
+
+namespace PipeSecurityRegressionTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\PipeSecurityRegression";
+}
