@@ -1,5 +1,6 @@
 #include "Pipe.h"
 #include "../win/Security.h"
+#include "../win/ServiceProcess.h"
 #include <string_view>
 
 namespace pmon::util::pipe
@@ -122,6 +123,13 @@ namespace pmon::util::pipe
 	std::string DuplexPipe::GetName() const
 	{
 		return name_;
+	}
+	bool DuplexPipe::TryGetConnectedServerProcessId(uint32_t& serverProcessId) noexcept
+	{
+		if (!asioPipeHandle_.is_open()) {
+			return false;
+		}
+		return win::TryGetNamedPipeServerProcessId(asioPipeHandle_.native_handle(), serverProcessId);
 	}
 	std::string DuplexPipe::GetSecurityString(SecurityMode mode)
 	{

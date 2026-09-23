@@ -107,6 +107,8 @@ namespace pmon::util::pipe
 		static bool WaitForVacancy(const std::string& baseName, uint32_t timeoutMs, bool noSuffix = false, uint32_t pollPeriodMs = 5);
 		uint32_t GetId() const;
 		std::string GetName() const;
+		// Client-side only: pipe handle must be connected (post-CreateFile).
+		bool TryGetConnectedServerProcessId(uint32_t& serverProcessId) noexcept;
 		static std::string GetSecurityString(SecurityMode mode);
 		static std::string GetServiceControlPipeSecurityString();
 		static std::string GetPrivateControlPipeSecurityString(bool allowAuthenticatedClients);

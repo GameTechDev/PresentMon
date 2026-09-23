@@ -59,6 +59,7 @@ set(common_utilities_sources
     win/Privileges.cpp
     win/ProcessMapBuilder.cpp
     win/Security.cpp
+    win/ServiceProcess.cpp
     win/Utilities.cpp
 )
 

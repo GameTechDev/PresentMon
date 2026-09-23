@@ -23,7 +23,7 @@
 		X_(STATUS, MIDDLEWARE_MISSING_ENDPOINT, "Middleware Missing Endpoint", "", "A required endpoint function was not found in the Middleware DLL") \
 		X_(STATUS, MIDDLEWARE_VERSION_LOW, "Middleware Version Low", "", "Middleware DLL version was found to be too low for compatibility") \
 		X_(STATUS, MIDDLEWARE_VERSION_HIGH, "Middleware Version High", "", "Middleware DLL version was found to be too high for compatibility") \
-		X_(STATUS, MIDDLEWARE_SERVICE_MISMATCH, "Middleware Service Mismatch", "", "Middleware DLL build ID does not match that of the service") \
+		X_(STATUS, MIDDLEWARE_SERVICE_MISMATCH, "Middleware Service Mismatch", "", "Shared PresentMon service verification failed (build or config mismatch, service unavailable, or control pipe held by another process)") \
 		X_(STATUS, QUERY_MALFORMED, "Query Malformed", "", "There are errors or inconsistencies in the elements of the query being registered") \
 		X_(STATUS, MODE_MISMATCH, "Mode Mismatch", "", "Operation is not valid for the current service mode") \
 		X_(STATUS, FEATURE_DISABLED, "Feature Disabled", "", "The requested feature is disabled or not available")
