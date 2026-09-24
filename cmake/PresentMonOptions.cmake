@@ -96,6 +96,11 @@ function(pmon_configure_options)
         "Register CTest entry for the Tests/Full gold CSV suite"
         OFF
     )
+    option(
+        PMON_LINK_COMMAND_LINE_ARGS
+        "Symlink source-tree *.args.json presets beside generated Visual Studio projects in -B build"
+        OFF
+    )
 
     cmake_dependent_option(
         PMON_BUILD_PRESENTMON_TESTS

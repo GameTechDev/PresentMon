@@ -644,6 +644,12 @@ as the startup project, and use these arguments:
 Use `<binary-tree>\Debug` as the working directory. With `--svc-as-child`, the
 UI starts `PresentMonService.exe` from the same directory.
 
+For the Visual Studio Command Line Arguments extension with `-B build`, configure
+or re-configure with `-DPMON_LINK_COMMAND_LINE_ARGS=ON` to symlink source-tree
+`*.args.json` presets next to generated projects. The
+`pmon_link_command_line_args` build target runs the same configure step with that
+option enabled (for example after editing presets).
+
 Realtime ETW workflows normally require membership in `Performance Log Users`.
 Sign out and back in after adding the user to that group. Debug uses
 `uiAccess=false`. Release `PresentMon.exe` uses `uiAccess=true` and normally
