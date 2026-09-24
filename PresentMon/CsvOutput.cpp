@@ -64,6 +64,7 @@ const char* FrameTypeToString(FrameType ft)
     case FrameType::Application: return "Application";
     case FrameType::Intel_XEFG:  return "Intel XeSS-FG";
     case FrameType::AMD_AFMF:    return "AMD AFMF";
+    case FrameType::AMD_FSR_FG:  return "AMD FSR FG";
     }
 
     return "Unknown";
