@@ -1,8 +1,8 @@
 include_guard(GLOBAL)
 
 function(_pmon_command_line_args_is_build_binary_dir out_var)
-    cmake_path(SET _pmon_expected_build_dir "${CMAKE_SOURCE_DIR}/build" NORMALIZE)
-    cmake_path(SET _pmon_actual_binary_dir "${CMAKE_BINARY_DIR}" NORMALIZE)
+    cmake_path(SET _pmon_expected_build_dir NORMALIZE "${CMAKE_SOURCE_DIR}/build")
+    cmake_path(SET _pmon_actual_binary_dir NORMALIZE "${CMAKE_BINARY_DIR}")
     if(_pmon_actual_binary_dir STREQUAL _pmon_expected_build_dir)
         set("${out_var}" TRUE PARENT_SCOPE)
     else()
