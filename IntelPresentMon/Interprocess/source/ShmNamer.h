@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <string>
 #include <optional>
+#include <string_view>
 
 
 namespace pmon::ipc
@@ -14,7 +15,8 @@ namespace pmon::ipc
 		std::string MakeIntrospectionReadyName() const;
 		std::string MakeSystemName() const;
 		std::string MakeGpuName(uint32_t deviceId) const;
-		std::string MakeFrameName(uint32_t pid) const;
+		std::string MakeFrameName(uint32_t pid, std::string_view generation) const;
+		static std::string MakeFrameGeneration();
 		const std::string& GetSalt() const;
 		const std::string& GetPrefix() const;
 	private:

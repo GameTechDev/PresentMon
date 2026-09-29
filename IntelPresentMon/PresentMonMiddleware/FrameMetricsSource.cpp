@@ -159,7 +159,8 @@ namespace pmon::mid
 		}
 	}
 
-	FrameMetricsSource::FrameMetricsSource(ipc::MiddlewareComms& comms, uint32_t processId, size_t perSwapChainCapacity,
+	FrameMetricsSource::FrameMetricsSource(ipc::MiddlewareComms& comms, uint32_t processId,
+		const std::string& frameSegmentName, size_t perSwapChainCapacity,
 		std::function<void(uint64_t)> progressCallback)
 		:
 		comms_{ comms },
@@ -167,8 +168,7 @@ namespace pmon::mid
 		perSwapChainCapacity_{ perSwapChainCapacity == 0 ? size_t{ 1 } : perSwapChainCapacity },
 		progressCallback_{ std::move(progressCallback) }
 	{
-		// open the data store from ipc
-		comms_.OpenFrameDataStore(processId_);
+		comms_.OpenFrameDataStore(processId_, frameSegmentName);
 		pStore_ = &comms_.GetFrameDataStore(processId_);
 		const auto range = pStore_->frameData.GetSerialRange();
 		nextFrameSerial_ = range.first;

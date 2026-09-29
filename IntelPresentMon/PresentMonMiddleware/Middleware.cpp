@@ -178,9 +178,10 @@ namespace pmon::mid
             throw util::Except<ipc::PmStatusError>(PM_STATUS_ALREADY_TRACKING_PROCESS,
                 std::format("Process [{}] is already being tracked", targetPid));
         }
-        pActionClient_->DispatchSync(StartTracking::Params{ targetPid });
+        const auto trackRes = pActionClient_->DispatchSync(StartTracking::Params{ targetPid });
         frameMetricsSources_.emplace(targetPid,
-            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, kFrameMetricsPerSwapChainCapacity));
+            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, trackRes.frameSegmentName,
+                kFrameMetricsPerSwapChainCapacity));
 
         pmlog_info(std::format("Started tracking pid [{}]", targetPid)).diag();
     }
@@ -191,7 +192,7 @@ namespace pmon::mid
             throw util::Except<ipc::PmStatusError>(PM_STATUS_ALREADY_TRACKING_PROCESS,
                 std::format("Process [{}] is already being tracked", targetPid));
         }
-        pActionClient_->DispatchSync(StartTracking::Params{
+        const auto trackRes = pActionClient_->DispatchSync(StartTracking::Params{
             .targetPid = targetPid,
             .isPlayback = true,
             .isBackpressured = isBackpressured
@@ -208,8 +209,8 @@ namespace pmon::mid
             };
         }
         frameMetricsSources_.emplace(targetPid,
-            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, kFrameMetricsPerSwapChainCapacity,
-                std::move(progressCallback)));
+            std::make_unique<FrameMetricsSource>(*pComms_, targetPid, trackRes.frameSegmentName,
+                kFrameMetricsPerSwapChainCapacity, std::move(progressCallback)));
 
         pmlog_info(std::format("Started playback tracking pid [{}]", targetPid)).diag();
     }

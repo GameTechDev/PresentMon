@@ -26,9 +26,15 @@ namespace pmon::ipc
 	{
 		return std::format("{}_{}_gpu_{}", prefix_, salt_, deviceId);
 	}
-	std::string ShmNamer::MakeFrameName(uint32_t pid) const
+	std::string ShmNamer::MakeFrameName(uint32_t pid, std::string_view generation) const
 	{
-		return std::format("{}_{}_tgt_{}", prefix_, salt_, pid);
+		return std::format("{}_{}_tgt_{}_{}", prefix_, salt_, pid, generation);
+	}
+	std::string ShmNamer::MakeFrameGeneration()
+	{
+		std::random_device rd;
+		const uint64_t bits = (static_cast<uint64_t>(rd()) << 32) | static_cast<uint64_t>(rd());
+		return std::format("{:016x}", bits);
 	}
 	const std::string& ShmNamer::GetSalt() const
 	{

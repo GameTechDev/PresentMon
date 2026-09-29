@@ -1,6 +1,7 @@
 ﻿// Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/win/WinAPI.h"
+#include "../CommonUtilities/win/Handle.h"
 #include "../CommonUtilities/Env.h"
 #include "../CommonUtilities/PrecisionWaiter.h"
 #include "CppUnitTest.h"
@@ -910,10 +911,10 @@ namespace InterimBroadcasterTests
 
             // launch target and track it
             auto pres = fixture_.LaunchPresenter();
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            const auto trackRes = client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
             // open the store
-            pComms->OpenFrameDataStore(pres.GetId());
+            pComms->OpenFrameDataStore(pres.GetId(), trackRes.frameSegmentName);
 
             // verify static data
             auto& store = pComms->GetFrameDataStore(pres.GetId());
@@ -925,13 +926,11 @@ namespace InterimBroadcasterTests
         {
             mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-            const ipc::ShmNamer namer{ client.GetShmPrefix(), client.GetShmSalt() };
-
             auto pres = fixture_.LaunchPresenter();
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
-            pComms->OpenFrameDataStore(pres.GetId());
+            const auto trackRes = client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            pComms->OpenFrameDataStore(pres.GetId(), trackRes.frameSegmentName);
 
-            AssertSegmentRejectsWrite_(namer.MakeFrameName(pres.GetId()));
+            AssertSegmentRejectsWrite_(trackRes.frameSegmentName);
         }
         TEST_METHOD(TrackUntrack)
         {
@@ -940,10 +939,10 @@ namespace InterimBroadcasterTests
 
             // launch target and track it
             auto pres = fixture_.LaunchPresenter();
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            const auto trackRes = client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
             // verify the store exists
-            pComms->OpenFrameDataStore(pres.GetId());
+            pComms->OpenFrameDataStore(pres.GetId(), trackRes.frameSegmentName);
 
             // verify the service tracking, as expected
             {
@@ -968,7 +967,30 @@ namespace InterimBroadcasterTests
             }
 
             // verify segment can no longer be opened
-            Assert::ExpectException<std::exception>([&] {pComms->OpenFrameDataStore(pres.GetId()); });
+            Assert::ExpectException<std::exception>([&] {
+                pComms->OpenFrameDataStore(pres.GetId(), trackRes.frameSegmentName);
+            });
+        }
+        TEST_METHOD(RetainedReadHandleDoesNotBlockRetrack)
+        {
+            mid::ActionClient ownerClient{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pres = fixture_.LaunchPresenter();
+            const auto firstTrack = ownerClient.DispatchSync(
+                svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            const std::wstring wideName{ firstTrack.frameSegmentName.begin(), firstTrack.frameSegmentName.end() };
+            util::win::Handle pin{ OpenFileMappingW(FILE_MAP_READ, FALSE, wideName.c_str()) };
+            Assert::IsTrue(static_cast<bool>(pin));
+
+            ownerClient.DispatchSync(svc::acts::StopTracking::Params{ .targetPid = pres.GetId() });
+
+            mid::ActionClient retryClient{ fixture_.GetCommonArgs().ctrlPipe };
+            const auto secondTrack = retryClient.DispatchSync(
+                svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            Assert::AreNotEqual(firstTrack.frameSegmentName, secondTrack.frameSegmentName);
+
+            retryClient.DispatchSync(svc::acts::StopTracking::Params{ .targetPid = pres.GetId() });
         }
         // make sure we get frames over time
         TEST_METHOD(ReadFrames)
@@ -981,10 +1003,10 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
             // make sure the flush period propagates to the flusher thread
             std::this_thread::sleep_for(1ms);
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            const auto trackRes = client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
             // open the store
-            pComms->OpenFrameDataStore(pres.GetId());
+            pComms->OpenFrameDataStore(pres.GetId(), trackRes.frameSegmentName);
             auto& frames = pComms->GetFrameDataStore(pres.GetId()).frameData;
 
             pmon::tests::WaitForFirstFrame(frames, "realtime-read");
@@ -1026,9 +1048,9 @@ namespace InterimBroadcasterTests
             auto pres = fixture_.LaunchPresenter();
             client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
             std::this_thread::sleep_for(1ms);
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            const auto trackRes = client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
-            pComms->OpenFrameDataStore(pres.GetId());
+            pComms->OpenFrameDataStore(pres.GetId(), trackRes.frameSegmentName);
             auto& ring = pComms->GetFrameDataStore(pres.GetId()).frameData;
 
             pmon::tests::WaitForFirstFrame(ring, "rt-wrap-no-miss");
@@ -1096,9 +1118,9 @@ namespace InterimBroadcasterTests
             auto pres = fixture_.LaunchPresenter();
             client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
             std::this_thread::sleep_for(1ms);
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+            const auto trackRes = client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
-            pComms->OpenFrameDataStore(pres.GetId());
+            pComms->OpenFrameDataStore(pres.GetId(), trackRes.frameSegmentName);
             auto& ring = pComms->GetFrameDataStore(pres.GetId()).frameData;
 
             pmon::tests::WaitForFirstFrame(ring, "rt-wrap-miss");
@@ -1139,10 +1161,10 @@ namespace InterimBroadcasterTests
 
             // track known target
             const uint32_t pid = 12820;
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
+            const auto trackRes = client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
 
             // open the store
-            pComms->OpenFrameDataStore(pid);
+            pComms->OpenFrameDataStore(pid, trackRes.frameSegmentName);
 
             // verify static data
             auto& store = pComms->GetFrameDataStore(pid);
@@ -1163,10 +1185,10 @@ namespace InterimBroadcasterTests
             std::this_thread::sleep_for(1ms);
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
+            const auto trackRes = client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
 
             // open the store
-            pComms->OpenFrameDataStore(pid);
+            pComms->OpenFrameDataStore(pid, trackRes.frameSegmentName);
             auto& frames = pComms->GetFrameDataStore(pid).frameData;
 
             pmon::tests::WaitForFirstFrame(frames, "paced-playback-read");
@@ -1208,10 +1230,10 @@ namespace InterimBroadcasterTests
 
             // track known target
             const uint32_t pid = 12820;
-            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
+            const auto trackRes = client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
 
             // open the store
-            pComms->OpenFrameDataStore(pid);
+            pComms->OpenFrameDataStore(pid, trackRes.frameSegmentName);
 
             // verify static data
             auto& store = pComms->GetFrameDataStore(pid);
@@ -1233,11 +1255,11 @@ namespace InterimBroadcasterTests
 
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
-            client.DispatchSync(svc::acts::StartTracking::Params{
+            const auto trackRes = client.DispatchSync(svc::acts::StartTracking::Params{
                 .targetPid = pid, .isPlayback = true, .isBackpressured = true });
 
             // open the store
-            pComms->OpenFrameDataStore(pid);
+            pComms->OpenFrameDataStore(pid, trackRes.frameSegmentName);
             auto& ring = pComms->GetFrameDataStore(pid).frameData;
 
             pmon::tests::WaitForFirstFrame(ring, "backpressured-playback");
@@ -1330,10 +1352,10 @@ namespace InterimBroadcasterTests
             std::this_thread::sleep_for(1ms);
 
             const uint32_t pid = 19736;
-            client.DispatchSync(svc::acts::StartTracking::Params{
+            const auto trackRes = client.DispatchSync(svc::acts::StartTracking::Params{
                 .targetPid = pid, .isPlayback = true, .isBackpressured = true });
 
-            pComms->OpenFrameDataStore(pid);
+            pComms->OpenFrameDataStore(pid, trackRes.frameSegmentName);
             auto& ring = pComms->GetFrameDataStore(pid).frameData;
 
             pmon::tests::WaitForFirstFrame(ring, "pb-wrap-backpressure");
@@ -1406,7 +1428,8 @@ namespace InterimBroadcasterTests
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 19736;
             auto tracker = query.TrackProcess(pid, true, true);
-            pmon::tests::WaitForFirstFrame(fixture_.GetCommonArgs().ctrlPipe, pid, "backpressured-playback-3dm");
+            pmon::tests::WaitForFirstFrame(fixture_.GetCommonArgs().ctrlPipe, pid, "backpressured-playback-3dm",
+                pmon::tests::DefaultFirstFrameWaitLimit, 1, { .isPlayback = true, .isBackpressured = true });
 
             const auto consume = [&] {
                 return uint32_t(query.ForEachConsume(tracker, [&] {
@@ -1485,7 +1508,8 @@ namespace InterimBroadcasterTests
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
             auto tracker = query.TrackProcess(pid, true, true);
-            pmon::tests::WaitForFirstFrame(fixture_.GetCommonArgs().ctrlPipe, pid, "legacy-backpressured-playback");
+            pmon::tests::WaitForFirstFrame(fixture_.GetCommonArgs().ctrlPipe, pid, "legacy-backpressured-playback",
+                pmon::tests::DefaultFirstFrameWaitLimit, 1, { .isPlayback = true, .isBackpressured = true });
 
             const auto consume = [&] {
                 return uint32_t(query.ForEachConsume(tracker, [&] {

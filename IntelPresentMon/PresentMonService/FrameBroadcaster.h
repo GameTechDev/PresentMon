@@ -19,11 +19,11 @@ namespace pmon::svc
 	public:
         using Segment = ipc::OwnedDataSegment<ipc::FrameDataStore>;
         FrameBroadcaster(ipc::ServiceComms& comms) : comms_{ comms } {}
-		std::shared_ptr<Segment> RegisterTarget(uint32_t pid, bool isPlayback, bool isBackpressured)
+		ipc::FrameDataSegmentRef RegisterTarget(uint32_t pid, bool isPlayback, bool isBackpressured)
 		{
             std::lock_guard lk{ mtx_ };
-            auto pSegment = comms_.CreateOrGetFrameDataSegment(pid, isBackpressured);
-            auto& store = pSegment->GetStore();
+            auto ref = comms_.CreateOrGetFrameDataSegment(pid, isBackpressured);
+            auto& store = ref.segment->GetStore();
             auto& book = store.bookkeeping;
             // init bookkeeping only once and only here
             if (!book.bookkeepingInitComplete) {
@@ -52,7 +52,7 @@ namespace pmon::svc
                     pmlog_warn("Process exited right as it was being initialized").pmwatch(pid);
                 }
             }
-            return pSegment;
+            return ref;
 		}
         void Broadcast(const PresentEvent& present, std::optional<uint32_t> timeoutMs = {})
 		{

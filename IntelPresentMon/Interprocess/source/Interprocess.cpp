@@ -14,6 +14,7 @@
 #include "../../PresentMonService/GlobalIdentifiers.h"
 #include <windows.h>
 #include <sddl.h>
+#include <boost/interprocess/exceptions.hpp>
 #include <mutex>
 #include <optional>
 #include <unordered_map>
@@ -163,72 +164,72 @@ namespace pmon::ipc
                 return namer_;
             }
             // data store access
-            std::shared_ptr<OwnedDataSegment<FrameDataStore>>
-                CreateOrGetFrameDataSegment(uint32_t pid, bool backpressured) override
+            FrameDataSegmentRef CreateOrGetFrameDataSegment(uint32_t pid, bool backpressured) override
             {
-                // resolve out existing or new weak ptr, try and lock
-                auto& pWeak = frameShmWeaks_[pid];
-                auto pFrameData = pWeak.lock();
-                if (!pFrameData) {
-                    // if weak ptr was new (or expired), lock will not work and we need to construct
-                    // make a frame data store as shared ptr
-                    const auto segmentName = namer_.MakeFrameName(pid);
-                    const DataStoreSizingInfo sizing{
-                        .ringSamples = frameRingSamples_,
-                        .backpressured = backpressured,
-                    };
-                    pFrameData = std::shared_ptr<OwnedDataSegment<FrameDataStore>>(
-                        new OwnedDataSegment<FrameDataStore>(
-                            segmentName,
-                            sizing,
-                            static_cast<const bip::permissions&>(Permissions_{ Permissions_::kReadOnly })),
-                        [pid, segmentName](OwnedDataSegment<FrameDataStore>* pSegment) {
-                            pmlog_dbg("Frame data segment destroyed")
-                                .pmwatch(pid)
-                                .pmwatch(segmentName);
-                            delete pSegment;
-                        });
-                    // store a weak reference
-                    pWeak = pFrameData;
-                    pmlog_dbg("Frame data segment created")
-                        .pmwatch(pid)
-                        .pmwatch(segmentName)
-                        .pmwatch(backpressured);
+                std::scoped_lock frameLock{ frameShmMutex_ };
+                auto& entry = frameShmEntries_[pid];
+                if (auto pFrameData = entry.segment.lock()) {
+                    return FrameDataSegmentRef{ std::move(pFrameData), entry.segmentName };
                 }
-                // remove stale elements to keep map lean
-                for (auto it = frameShmWeaks_.begin(); it != frameShmWeaks_.end(); ) {
-                    if (it->second.expired()) {
-                        const auto segmentName = namer_.MakeFrameName(it->first);
-                        pmlog_dbg("Frame data segment released")
-                            .pmwatch(it->first)
+
+                const DataStoreSizingInfo sizing{
+                    .ringSamples = frameRingSamples_,
+                    .backpressured = backpressured,
+                };
+                static constexpr int kMaxCreateAttempts_ = 8;
+                for (int attempt = 0; attempt < kMaxCreateAttempts_; ++attempt) {
+                    const auto generation = ShmNamer::MakeFrameGeneration();
+                    const auto segmentName = namer_.MakeFrameName(pid, generation);
+                    try {
+                        auto pFrameData = std::shared_ptr<OwnedDataSegment<FrameDataStore>>(
+                            new OwnedDataSegment<FrameDataStore>(
+                                segmentName,
+                                sizing,
+                                static_cast<const bip::permissions&>(Permissions_{ Permissions_::kReadOnly })),
+                            [pid, segmentName](OwnedDataSegment<FrameDataStore>* pSegment) {
+                                pmlog_dbg("Frame data segment destroyed")
+                                    .pmwatch(pid)
+                                    .pmwatch(segmentName);
+                                delete pSegment;
+                            });
+                        entry.segment = pFrameData;
+                        entry.segmentName = segmentName;
+                        pmlog_dbg("Frame data segment created")
+                            .pmwatch(pid)
+                            .pmwatch(segmentName)
+                            .pmwatch(backpressured);
+                        return FrameDataSegmentRef{ std::move(pFrameData), segmentName };
+                    }
+                    catch (const bip::interprocess_exception& ex) {
+                        if (ex.get_native_error() != ERROR_ALREADY_EXISTS) {
+                            throw;
+                        }
+                        pmlog_warn("Frame segment name collision; retrying with new generation")
+                            .pmwatch(pid)
                             .pmwatch(segmentName);
-                        it = frameShmWeaks_.erase(it);
-                    }
-                    else {
-                        ++it;
                     }
                 }
-                return pFrameData;
+                throw std::runtime_error{ "Failed to create frame data segment" };
             }
             std::shared_ptr<OwnedDataSegment<FrameDataStore>>
                 GetFrameDataSegment(uint32_t pid) override
             {
-                if (auto i = frameShmWeaks_.find(pid); i != frameShmWeaks_.end()) {
-                    if (auto pSegment = i->second.lock()) {
+                std::scoped_lock frameLock{ frameShmMutex_ };
+                if (auto i = frameShmEntries_.find(pid); i != frameShmEntries_.end()) {
+                    if (auto pSegment = i->second.segment.lock()) {
                         return pSegment;
                     }
-                    // if weak ptr has expired, garbage collect from the map
-                    const auto segmentName = namer_.MakeFrameName(pid);
                     pmlog_dbg("Frame data segment released")
                         .pmwatch(pid)
-                        .pmwatch(segmentName);
-                    frameShmWeaks_.erase(i);
+                        .pmwatch(i->second.segmentName);
+                    frameShmEntries_.erase(i);
                 }
                 return {};
             }
             std::vector<uint32_t> GetFramePids() const override
             {
-                return frameShmWeaks_ | vi::filter([](auto&& p) {return !p.second.expired(); }) |
+                std::scoped_lock frameLock{ frameShmMutex_ };
+                return frameShmEntries_ | vi::filter([](auto&& p) { return !p.second.segment.expired(); }) |
                     vi::keys | rn::to<std::vector>();
             }
             GpuDataStore& GetGpuDataStore(uint32_t deviceId) override
@@ -307,7 +308,13 @@ namespace pmon::ipc
             bool introCpuComplete_ = false;
 
             std::optional<OwnedDataSegment<SystemDataStore>> systemShm_;
-            std::unordered_map<uint32_t, std::weak_ptr<OwnedDataSegment<FrameDataStore>>> frameShmWeaks_;
+            struct FrameShmEntry_
+            {
+                std::weak_ptr<OwnedDataSegment<FrameDataStore>> segment;
+                std::string segmentName;
+            };
+            mutable std::mutex frameShmMutex_;
+            std::unordered_map<uint32_t, FrameShmEntry_> frameShmEntries_;
             std::unordered_map<uint32_t, OwnedDataSegment<GpuDataStore>> gpuShms_;
         };
 
@@ -354,30 +361,26 @@ namespace pmon::ipc
                 // responsibility to track this resource
                 return root.ApiClone(blockAllocator);
             }
-            void OpenFrameDataStore(uint32_t pid) override
+            void OpenFrameDataStore(uint32_t pid, const std::string& segmentName) override
             {
-                // If already open, nothing to do
                 if (frameShms_.find(pid) != frameShms_.end()) {
                     return;
                 }
 
-                const auto segName = namer_.MakeFrameName(pid);
                 frameShms_.emplace(
                     std::piecewise_construct,
                     std::forward_as_tuple(pid),
-                    std::forward_as_tuple(segName)
+                    std::forward_as_tuple(segmentName)
                 );
                 pmlog_dbg("Frame data segment opened")
                     .pmwatch(pid)
-                    .pmwatch(segName);
+                    .pmwatch(segmentName);
             }
             void CloseFrameDataStore(uint32_t pid) override
             {
                 if (auto it = frameShms_.find(pid); it != frameShms_.end()) {
-                    const auto segName = namer_.MakeFrameName(pid);
                     pmlog_dbg("Frame data segment closed")
-                        .pmwatch(pid)
-                        .pmwatch(segName);
+                        .pmwatch(pid);
                     frameShms_.erase(it);
                 }
             }
