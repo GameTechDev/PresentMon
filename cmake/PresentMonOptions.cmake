@@ -101,6 +101,11 @@ function(pmon_configure_options)
         "Symlink source-tree *.args.json presets beside generated Visual Studio projects in -B build"
         OFF
     )
+    option(
+        PMON_BUILD_FUZZERS
+        "Build libFuzzer targets"
+        OFF
+    )
 
     cmake_dependent_option(
         PMON_BUILD_PRESENTMON_TESTS
@@ -190,6 +195,7 @@ function(pmon_configure_options)
         PMON_BUILD_PROVIDER
         PMON_BUILD_TOOLS
         PMON_BUILD_TESTS
+        PMON_BUILD_FUZZERS
         PMON_BUILD_PRESENTMON_TESTS
         PMON_BUILD_UNIT_TESTS
         PMON_BUILD_API2_TESTS

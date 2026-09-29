@@ -25,6 +25,8 @@ specialized paths with their own binary directories.
   `PMON_BUILD_SCOPE=PROVIDER` on x64 or Win32.
 - [Build Reflector (code generation)](#build-reflector-code-generation) —
   separate CMake project under `Tools/Reflector` (x64 only); no C++ product targets.
+- [Build the service protocol fuzzer](#build-the-service-protocol-fuzzer) —
+  optional x64 MSVC libFuzzer target with AddressSanitizer.
 
 Developer Debug builds are unsigned. Developer Release builds use a local test
 certificate for `PresentMon.exe` and automatically create an unsigned developer
@@ -338,6 +340,42 @@ cmake --build build-vs2026 --config Debug
 
 Run only the command matching the generator you configured. Runnable output is
 under `<binary-tree>\Debug`.
+
+## Build the service protocol fuzzer
+
+The service protocol fuzzer is an optional x64 target that uses the experimental
+MSVC libFuzzer integration and AddressSanitizer. Install the **C++ AddressSanitizer**
+component for the selected Visual Studio instance. Fuzzers are disabled by
+default and do not affect normal builds.
+
+Configure a service-only Visual Studio 2022 build:
+
+```powershell
+$buildDir = "build-fuzz-service-vs2022-x64"
+cmake -B $buildDir -S . `
+    -G "Visual Studio 17 2022" `
+    -A x64 `
+    -DPMON_BUILD_SCOPE=FULL `
+    -DPMON_BUILD_CONSOLE=OFF `
+    -DPMON_BUILD_SERVICE=ON `
+    -DPMON_BUILD_SDK=OFF `
+    -DPMON_BUILD_UI=OFF `
+    -DPMON_BUILD_PROVIDER=OFF `
+    -DPMON_BUILD_TOOLS=OFF `
+    -DPMON_BUILD_TESTS=OFF `
+    -DPMON_BUILD_FUZZERS=ON
+```
+
+Build and run the service protocol fuzzer:
+
+```powershell
+cmake --build $buildDir --config Debug --target PresentMonServiceProtocolFuzzer
+& "$buildDir\Debug\PresentMonServiceProtocolFuzzer.exe" -runs=1000
+```
+
+The target stages the required AddressSanitizer runtime beside the executable.
+It currently deserializes arbitrary input as the service protocol
+`PacketHeader`; it does not start the service or execute actions.
 
 ## Set up the Developer Release test certificate
 

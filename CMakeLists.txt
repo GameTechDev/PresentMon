@@ -140,6 +140,20 @@ if(PMON_ARCHITECTURE STREQUAL "x64")
     endif()
 endif()
 
+if(PMON_BUILD_FUZZERS)
+    if(NOT PMON_ARCHITECTURE STREQUAL "x64")
+        message(FATAL_ERROR "PresentMon fuzzers require an x64 build.")
+    endif()
+    if(NOT PMON_BUILD_SERVICE)
+        message(
+            FATAL_ERROR
+            "PresentMon fuzzers currently target the service protocol. "
+            "Configure with PMON_BUILD_SERVICE=ON."
+        )
+    endif()
+    add_subdirectory(IntelPresentMon/Fuzzing)
+endif()
+
 if(PMON_BUILD_TESTS)
     enable_testing()
     pmon_configure_aux_testdata()
@@ -193,6 +207,7 @@ message(STATUS "  UCI included:       ${PMON_UCI_ENABLED}")
 message(STATUS "  Signing backend:    ${PMON_SELECTED_SIGNING_BACKEND}")
 message(STATUS "  CEF stage:          ${PMON_CEF_EFFECTIVE_ROOT}")
 message(STATUS "  Build tests:        ${PMON_BUILD_TESTS}")
+message(STATUS "  Build fuzzers:      ${PMON_BUILD_FUZZERS}")
 if(PMON_BUILD_TESTS)
     message(STATUS "  PresentMonTests:    ${PMON_BUILD_PRESENTMON_TESTS}")
     message(STATUS "  Unit tests:         ${PMON_BUILD_UNIT_TESTS}")
