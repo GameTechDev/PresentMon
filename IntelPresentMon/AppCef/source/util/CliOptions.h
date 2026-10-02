@@ -1,4 +1,6 @@
 #pragma once
+#include <map>
+#include <string>
 #include <CommonUtilities/cli/CliFramework.h>
 #include <CommonUtilities/log/Level.h>
 #include "UiProcessGuard.h"
@@ -7,11 +9,35 @@ namespace p2c::client::util::cli
 {
 	using namespace ::pmon::util;
 	using namespace ::pmon::util::cli;
+
+	enum class PresentmonInitFailure
+	{
+		None,
+		ServiceUnavailable,
+		Generic,
+	};
+
+	inline constexpr const char* PresentmonInitFailureToken(PresentmonInitFailure failure)
+	{
+		switch (failure) {
+		case PresentmonInitFailure::ServiceUnavailable: return "service-unavailable";
+		case PresentmonInitFailure::Generic: return "generic";
+		default: return "";
+		}
+	}
+
 	struct Options : public OptionsBase<Options>
 	{
 	private:
 		CLI::CheckedTransformer logLevelTf_{ log::GetLevelMapNarrow(), CLI::ignore_case };
 		CLI::CheckedTransformer logVmodTf_{ log::GetVerboseModuleMapNarrow(), CLI::ignore_case };
+		CLI::CheckedTransformer presentmonInitFailureTf_{
+			std::map<std::string, PresentmonInitFailure>{
+				{PresentmonInitFailureToken(PresentmonInitFailure::ServiceUnavailable), PresentmonInitFailure::ServiceUnavailable},
+				{PresentmonInitFailureToken(PresentmonInitFailure::Generic), PresentmonInitFailure::Generic},
+			},
+			CLI::ignore_case
+		};
 
 	private: Group gd_{ this, "Debugging", "Aids in debugging this tool" }; public:
 		Option<std::string> url{ this, "--p2c-url", "", "URL to load instead of app files" };
@@ -21,7 +47,7 @@ namespace p2c::client::util::cli
 		Flag filesWorking{ this, "--p2c-files-working", "Use the working directory for file storage" };
 		Flag traceExceptions{ this, "--p2c-trace-exceptions", "Add stack trace to all thrown exceptions (including SEH exceptions)" };
 		Flag enableUiDevOptions{ this, "--p2c-enable-ui-dev-options", "Enable advanced UI elements useful during development" };
-		Flag presentmonInitFailed{ this, "--p2c-presentmon-init-failed", "PresentMon API initialization failed before UI startup" };
+		Option<PresentmonInitFailure> presentmonInitFailed{ this, "--p2c-presentmon-init-failed", PresentmonInitFailure::None, "Initialization failure classification to show at startup (service-unavailable or generic)", presentmonInitFailureTf_ };
 		Option<std::string> webRoot{ this, "--p2c-web-root", "", "Filesystem path to directory holding SPA assets" };
 		Option<std::string> uiMutexName{ this, "--p2c-ui-mutex-name", DefaultUiBrowserProcessMutexSuffix, "Suffix for the UI browser process mutex name" };
 		Flag enableChromiumDebug{ this, "--p2c-enable-chromium-debug", "Enable Chromium devtools connections on port 9009" };

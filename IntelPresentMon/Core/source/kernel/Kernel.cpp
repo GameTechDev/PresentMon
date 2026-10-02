@@ -13,6 +13,7 @@
 #include <Core/source/cli/CliOptions.h>
 #include <CommonUtilities/str/String.h>
 #include <CommonUtilities/Exception.h>
+#include <PresentMonAPIWrapperCommon/Exception.h>
 #include <CommonUtilities/win/Utilities.h>
 using namespace std::literals;
 using namespace ::pmon::util;
@@ -20,6 +21,25 @@ namespace cwin = ::pmon::util::win;
 
 namespace p2c::kern
 {
+    namespace
+    {
+        bool IsServicePipeError_(std::exception_ptr pEx)
+        {
+            try {
+                std::rethrow_exception(pEx);
+            }
+            catch (const pmapi::ApiErrorException& e) {
+                return e.GetCode() == PM_STATUS_PIPE_ERROR;
+            }
+            catch (const Exception& e) {
+                return e.HasPmStatus() && e.GeneratePmStatus() == PM_STATUS_PIPE_ERROR;
+            }
+            catch (...) {
+                return false;
+            }
+        }
+    }
+
     using str::ToWide;
 
     Kernel::Kernel(KernelHandler* pHandler, bool headless)
@@ -87,6 +107,11 @@ namespace p2c::kern
     bool Kernel::InitializationFailed() const
     {
         return hasMarshalledException.load();
+    }
+
+    bool Kernel::ServiceUnavailable() const
+    {
+        return serviceUnavailable_;
     }
 
     void Kernel::SetCapture(bool active)
@@ -209,6 +234,7 @@ namespace p2c::kern
             pmlog_error(ReportException()).no_trace();
             marshalledException = std::current_exception();
             hasMarshalledException.store(true);
+            serviceUnavailable_ = IsServicePipeError_(marshalledException);
         }
         constructionSemaphore.release();
 

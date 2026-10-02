@@ -122,8 +122,12 @@ namespace p2c::client::cef
         auto core = CefV8Value::CreateObject(nullptr, nullptr);
         AddFunctionToObject_("invokeEndpoint", core, pAccessor);
         AddFunctionToObject_("registerSignalHandler", core, pAccessor);
+        const auto& uiOpt = util::cli::Options::Get();
         core->SetValue("presentmonInitFailed",
-            CefV8Value::CreateBool((bool)util::cli::Options::Get().presentmonInitFailed),
+            CefV8Value::CreateBool((bool)uiOpt.presentmonInitFailed),
+            V8_PROPERTY_ATTRIBUTE_READONLY);
+        core->SetValue("presentmonInitFailure",
+            CefV8Value::CreateString(util::cli::PresentmonInitFailureToken(*uiOpt.presentmonInitFailed)),
             V8_PROPERTY_ATTRIBUTE_READONLY);
         context->GetGlobal()->SetValue("core", std::move(core), V8_PROPERTY_ATTRIBUTE_NONE);
     }

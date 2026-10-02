@@ -10,6 +10,7 @@
 #include "../AppCef/source/util/cact/StalePidAction.h"
 #include "../AppCef/source/util/cact/HotkeyFiredAction.h"
 #include "../AppCef/source/util/UiProcessGuard.h"
+#include "../AppCef/source/util/CliOptions.h"
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
 #include "../PresentMonAPIWrapper/StaticQuery.h"
 #include "../Interprocess/source/SystemDeviceId.h"
@@ -597,7 +598,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 					args.push_back("--p2c-" + f);
 				}
 				if (kernel.InitializationFailed()) {
+					const auto classification = kernel.ServiceUnavailable()
+						? p2c::client::util::cli::PresentmonInitFailure::ServiceUnavailable
+						: p2c::client::util::cli::PresentmonInitFailure::Generic;
 					args.push_back("--p2c-presentmon-init-failed");
+					args.push_back(p2c::client::util::cli::PresentmonInitFailureToken(classification));
 				}
 				for (auto& o : *opt.uiOptions) {
 					if (o.first == "url" && is_debug && !allOriginsAllowed) {

@@ -15,14 +15,29 @@ const route = useRoute()
 
 // === State ===
 interface ErrorMessage {
+  kicker: string;
   title: string;
   text: string;
+  guidance: string;
+}
+function presentmonInitError(classification: string): ErrorMessage {
+  if (classification === 'service-unavailable') {
+    return {
+      kicker: 'Service unavailable',
+      title: 'PresentMon Initialization Error',
+      text: 'Failed to initialize PresentMon API. Ensure that PresentMon Service is installed and running, and try again.',
+      guidance: 'Start or restart the PresentMon Service, then relaunch Intel PresentMon.',
+    }
+  }
+  return {
+    kicker: 'Initialization failed',
+    title: 'PresentMon Initialization Error',
+    text: 'PresentMon failed to initialize. See the log for details.',
+    guidance: 'See the PresentMon log, then relaunch Intel PresentMon.',
+  }
 }
 const dialogError = ref<ErrorMessage|null>(
-  Api.presentmonInitFailed ? {
-    title: 'PresentMon Initialization Error',
-    text: 'Failed to initialize PresentMon API. Ensure that PresentMon Service is installed and running, and try again.',
-  } : null
+  Api.presentmonInitFailed ? presentmonInitError(Api.presentmonInitFailure) : null
 );
 
 // === Stores ===
@@ -99,10 +114,7 @@ Api.registerHotkeyHandler((action: number) => {
   }
 })
 Api.registerPresentmonInitFailedHandler(() => {
-  dialogError.value = {
-    title: 'PresentMon Initialization Error',
-    text: 'Failed to initialize PresentMon API. Ensure that PresentMon Service is installed and running, and try again.',
-  }
+  dialogError.value = presentmonInitError(Api.presentmonInitFailure)
   console.error('received presentmon init failed signal')
 })
 Api.registerOverlayDiedHandler(() => {
@@ -229,7 +241,7 @@ watch(() => loadout.widgets, async () => {
                 <v-icon size="34">mdi-alert-outline</v-icon>
               </div>
               <div>
-                <div class="error-dialog-kicker">Service unavailable</div>
+                <div class="error-dialog-kicker">{{ dialogError!.kicker }}</div>
                 <div id="initialization-error-title" class="error-dialog-title">
                   {{ dialogError!.title }}
                 </div>
@@ -241,7 +253,7 @@ watch(() => loadout.widgets, async () => {
               </p>
               <div class="error-dialog-guidance">
                 <v-icon size="19">mdi-information-outline</v-icon>
-                <span>Start or restart the PresentMon Service, then relaunch Intel PresentMon.</span>
+                <span>{{ dialogError!.guidance }}</span>
               </div>
             </div>
           </v-card-text>

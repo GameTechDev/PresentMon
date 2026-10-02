@@ -51,6 +51,7 @@ namespace p2c::kern
         const pmapi::intro::Root& GetIntrospectionRoot() const;
         uint32_t GetDefaultGpuDeviceId() const;
         bool InitializationFailed() const;
+        bool ServiceUnavailable() const;
     private:
         // functions
         bool IsIdle_() const;
@@ -75,6 +76,7 @@ namespace p2c::kern
         std::binary_semaphore constructionSemaphore;
         std::exception_ptr marshalledException;
         std::atomic<bool> hasMarshalledException = false;
+        bool serviceUnavailable_ = false;
         ::pmon::util::mt::Thread thread;
         bool headless;
     };
