@@ -22,6 +22,8 @@ type AsyncCallback = (arg: any) => void;
 type SignalCallback = (...args: any[]) => void;
 
 interface Core {
+    readonly presentmonInitFailed: boolean;
+    readonly presentmonInitFailure: string;
     invokeEndpoint(key: string, payload: any, resolve: AsyncCallback, reject: AsyncCallback): void;
     registerSignalHandler(key: string, callback: SignalCallback): void;
 }
@@ -29,6 +31,12 @@ interface Core {
 export class Api {
     private static get core(): Core {
         return (window as unknown as {core: Core}).core;
+    }
+    static get presentmonInitFailed(): boolean {
+        return this.core.presentmonInitFailed;
+    }
+    static get presentmonInitFailure(): string {
+        return this.core.presentmonInitFailure ?? '';
     }
     private static invokeEndpointFuture(key: string, payload: any): Promise<any> {
         return new Promise((resolve: AsyncCallback, reject: AsyncCallback) => {

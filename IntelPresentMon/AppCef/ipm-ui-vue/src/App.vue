@@ -15,10 +15,30 @@ const route = useRoute()
 
 // === State ===
 interface ErrorMessage {
+  kicker: string;
   title: string;
   text: string;
+  guidance: string;
 }
-const dialogError = ref<ErrorMessage|null>(null);
+function presentmonInitError(classification: string): ErrorMessage {
+  if (classification === 'service-unavailable') {
+    return {
+      kicker: 'Service unavailable',
+      title: 'PresentMon Initialization Error',
+      text: 'Failed to initialize PresentMon API. Ensure that PresentMon Service is installed and running, and try again.',
+      guidance: 'Start or restart the PresentMon Service, then relaunch Intel PresentMon.',
+    }
+  }
+  return {
+    kicker: 'Initialization failed',
+    title: 'PresentMon Initialization Error',
+    text: 'PresentMon failed to initialize. See the log for details.',
+    guidance: 'See the PresentMon log, then relaunch Intel PresentMon.',
+  }
+}
+const dialogError = ref<ErrorMessage|null>(
+  Api.presentmonInitFailed ? presentmonInitError(Api.presentmonInitFailure) : null
+);
 
 // === Stores ===
 const prefs = usePreferencesStore()
@@ -94,10 +114,7 @@ Api.registerHotkeyHandler((action: number) => {
   }
 })
 Api.registerPresentmonInitFailedHandler(() => {
-  dialogError.value = {
-    title: 'PresentMon Initialization Error',
-    text: 'Failed to initialize PresentMon API. Ensure that PresentMon Service is installed and running, and try again.',
-  }
+  dialogError.value = presentmonInitError(Api.presentmonInitFailure)
   console.error('received presentmon init failed signal')
 })
 Api.registerOverlayDiedHandler(() => {
@@ -208,13 +225,37 @@ watch(() => loadout.widgets, async () => {
       </div>
 
       <!-- Fullscreen Modal for Serious Errors -->
-      <v-dialog v-model="errorDialogActive" persistent max-width="500">
-        <v-card>
-          <v-card-title class="text-h5 text-error">
-            {{ dialogError!.title }}
-          </v-card-title>
-          <v-card-text>
-            {{ dialogError!.text }}
+      <v-dialog
+        v-model="errorDialogActive"
+        persistent
+        max-width="560"
+        scrim="#080a0d"
+        aria-labelledby="initialization-error-title"
+        aria-describedby="initialization-error-description"
+      >
+        <v-card class="error-dialog-card" rounded="lg" elevation="24">
+          <div class="error-dialog-accent"></div>
+          <v-card-text class="pa-0">
+            <div class="error-dialog-header">
+              <div class="error-dialog-icon">
+                <v-icon size="34">mdi-alert-outline</v-icon>
+              </div>
+              <div>
+                <div class="error-dialog-kicker">{{ dialogError!.kicker }}</div>
+                <div id="initialization-error-title" class="error-dialog-title">
+                  {{ dialogError!.title }}
+                </div>
+              </div>
+            </div>
+            <div class="error-dialog-body">
+              <p id="initialization-error-description">
+                {{ dialogError!.text }}
+              </p>
+              <div class="error-dialog-guidance">
+                <v-icon size="19">mdi-information-outline</v-icon>
+                <span>{{ dialogError!.guidance }}</span>
+              </div>
+            </div>
           </v-card-text>
         </v-card>
       </v-dialog>
@@ -307,6 +348,92 @@ watch(() => loadout.widgets, async () => {
 
 .v-list-item--active {
   font-weight: 400;
+}
+
+.error-dialog-card {
+  overflow: hidden;
+  color: #f5f7fa;
+  background: linear-gradient(145deg, #24272d 0%, #1b1d22 100%);
+  border: 1px solid rgba(255, 82, 82, 0.28);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.error-dialog-accent {
+  height: 4px;
+  background: linear-gradient(90deg, #ff5252 0%, #ff7b6b 55%, rgba(255, 123, 107, 0.15) 100%);
+}
+
+.error-dialog-header {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  padding: 28px 28px 18px;
+  text-align: center;
+}
+
+.error-dialog-icon {
+  display: flex;
+  flex: 0 0 58px;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  color: #ff6b6b;
+  background: rgba(255, 82, 82, 0.12);
+  border: 1px solid rgba(255, 82, 82, 0.22);
+  border-radius: 50%;
+}
+
+.error-dialog-kicker {
+  margin-bottom: 4px;
+  color: #ff8a80;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.error-dialog-title {
+  color: #ff6b6b;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.error-dialog-body {
+  padding: 0 32px 28px;
+  text-align: center;
+  color: rgba(245, 247, 250, 0.86);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.error-dialog-body p {
+  margin: 0;
+}
+
+.error-dialog-guidance {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 20px;
+  padding: 14px 16px;
+  text-align: left;
+  color: rgba(245, 247, 250, 0.72);
+  font-size: 13px;
+  line-height: 1.45;
+  background: rgba(255, 255, 255, 0.045);
+  border-left: 2px solid rgba(255, 138, 128, 0.65);
+  border-radius: 4px;
+}
+
+.error-dialog-guidance .v-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #ff8a80;
 }
 
 * {
