@@ -23,9 +23,8 @@ namespace p2c::client::util::cact
     struct CefSessionContext
     {
         // common session context items
-        std::unique_ptr<ipc::act::SymmetricActionConnector<CefExecutionContext>> pConn;
+        std::shared_ptr<ipc::act::SymmetricActionConnector<CefExecutionContext>> pConn;
         uint32_t remotePid = 0;
-        uint32_t nextCommandToken = 0;
     };
 
     struct CefExecutionContext

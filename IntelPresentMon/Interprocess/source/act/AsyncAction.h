@@ -97,9 +97,10 @@ namespace pmon::ipc::act
 	struct ActionParamsTraits;
 
 	template<class A>
-	concept Request = std::is_base_of_v<AsyncActionBase_<A, typename A::ExecutionContext>, A> && requires {
+	concept Request = requires {
 		typename A::Params;
 		typename A::Response;
+		{ A::Identifier } -> std::convertible_to<const char*>;
 	};
 
 	template<class A>

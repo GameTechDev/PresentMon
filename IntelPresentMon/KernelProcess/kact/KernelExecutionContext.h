@@ -19,9 +19,8 @@ namespace kproc::kact
     struct KernelSessionContext
     {
         // common session context items
-        std::unique_ptr<ipc::act::SymmetricActionConnector<KernelExecutionContext>> pConn;
+        std::shared_ptr<ipc::act::SymmetricActionConnector<KernelExecutionContext>> pConn;
         uint32_t remotePid = 0;
-        uint32_t nextCommandToken = 0;
     };
 
     struct KernelExecutionContext

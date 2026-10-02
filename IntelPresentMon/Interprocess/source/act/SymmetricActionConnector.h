@@ -4,146 +4,321 @@
 #include "../../../CommonUtilities/pipe/Pipe.h"
 #include "../../../CommonUtilities/str/String.h"
 #include "Transfer.h"
+#include "ResponseRouter.h"
 #include "AsyncActionCollection.h"
-#include <boost/asio/experimental/awaitable_operators.hpp>
-#include <type_traits>
-
+#include "SessionEndReason.h"
+#include "CommandTokenAllocator.h"
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <optional>
+#include <deque>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace pmon::ipc::act
 {
+	// Bound for WaitForShutdown and for the destructor's join. A timeout is not
+	// permission to detach: the destructor fails fast instead of returning while
+	// the runner can still touch borrowed execution-context state.
+	inline constexpr std::chrono::milliseconds kShutdownTimeout{ 2000 };
+	inline constexpr std::chrono::milliseconds kShutdownPollPeriod{ 5 };
+	// Late responses after a response timeout consume one expiration record.
+	// Evicted tokens are forgotten, so a later response is an unknown token.
+	inline constexpr size_t kMaxExpiredResponseTokens = 64;
+
 	template<class ExecCtx>
-	class SymmetricActionConnector
+	class SymmetricActionConnector : public ResponseRouter
+		, public std::enable_shared_from_this<SymmetricActionConnector<ExecCtx>>
 	{
 	public:
-        // types
-        using SessionContextType = typename ExecCtx::SessionContextType;
-        // functions
-        as::awaitable<void> SyncHandleRequest(ExecCtx& ctx, SessionContextType& stx)
-        {
-            PacketHeader header;
-            try {
-                // read packet from the pipe into buffer, partially deserialize (header only)
-                header = co_await pInPipe_->ReadPacketConsumeHeader<PacketHeader>();
-                // -- do per-action processing based on received header --
-                // any action other than OpenSession without having clientPid is an anomaly
-                // TODO: make this processing a customization point in ExecutionContext and move it out of here
-                if (header.identifier != "OpenSession") {
-                    assert(bool(stx.remotePid));
-                    if (!stx.remotePid) {
-                        pmlog_warn("Received action without a valid session opened").diag();
-                    }
-                }
-                // lookup the command by identifier and execute it with remaining buffer contents
-                // response is then transmitted over the pipe to remote
-                // TODO: make this return result code (increment error count based on this)
-                co_await AsyncActionCollection<ExecCtx>::Get().Find(header.identifier).Execute(ctx, stx, header, *pInPipe_);
-                co_return;
-            }
-            catch (const pipe::PipeError&) {
-                // we assume any pipe-transport related errors are not recoverable and proceed to terminate connection
-                throw;
-            }
-            catch (...) {
-                pmlog_error(util::ReportException());
-            }
-            // if the output buffer is dirty, we're not sure what state we're in so just clear it
-            if (pInPipe_->GetWriteBufferPending()) {
-                pInPipe_->ClearWriteBuffer();
-            }
-            auto resHeader = MakeResponseHeader(header, TransportStatus::TransportFailure, PM_STATUS_SUCCESS);
-            co_await pInPipe_->WritePacket(std::move(resHeader), EmptyPayload{}, ctx.responseWriteTimeoutMs);
-        }
-        template<class Params>
-        auto DispatchSync(Params&& params, as::io_context& ioctx, SessionContextType& stx)
-        {
-            LogDispatch_<Params>(stx);
-            // wrap the SyncRequest in a coro so we can assure non-concurrent increment of the token
-            // CAUTION: this coro has captures that will blow up if we try and exit this function before completion
-            // currently OK because we block on future, but any future refactor needs to take this into consideration
-            const auto coro = [](auto&& params, SessionContextType& stx, util::pipe::DuplexPipe& pipe) -> AwaitableFromParams<Params> {
-                co_return co_await SyncRequest<ActionFromParams<Params>>(std::forward<Params>(params), stx.nextCommandToken++, pipe);
-            };
-            return as::co_spawn(ioctx, coro(std::forward<Params>(params), stx, *pOutPipe_), as::use_future).get();
-        }
-        // TODO: this should support both retained requests and unretained events
-        // need to figure out fully async request flow and how to implement the continuation API(s)
-        template<class Params>
-        auto DispatchDetached(Params&& params, as::io_context& ioctx, SessionContextType& stx)
-        {
-            using ParamsT = std::decay_t<Params>;
-            LogDispatch_<ParamsT>(stx);
-            // wrap the AsyncEmit in a coro so we can assure non-concurrent increment of the token
-            const auto coro = [](ParamsT params, SessionContextType& stx, util::pipe::DuplexPipe& pipe) -> as::awaitable<void> {
-                try {
-                    co_await AsyncEmit<ActionFromParams<ParamsT>>(params, stx.nextCommandToken++, pipe);
-                }
-                catch (...) {
-                    pmlog_error(ReportException());
-                }
-            };
-            as::co_spawn(ioctx, coro(ParamsT{ std::forward<Params>(params) }, stx, *pOutPipe_), as::detached);
-        }
-        template<class Params>
-        void DispatchWithContinuation(Params&& params, as::io_context& ioctx, SessionContextType& stx,
-            std::function<void(ResponseFromParams<Params>&&, std::exception_ptr)> conti)
-        {
-            LogDispatch_<Params>(stx);
-            // wrap the AsyncEmit in a coro so we can assure non-concurrent increment of the token
-            const auto coro = [](auto params, SessionContextType& stx, util::pipe::DuplexPipe& pipe, auto conti)
-                -> as::awaitable<void> {
-                try {
-                    try {
-                        auto res = co_await SyncRequest<ActionFromParams<Params>>(std::forward<Params>(params), stx.nextCommandToken++, pipe);
-                        conti(std::move(res), {});
-                    }
-                    catch (...) {
-                        pmlog_dbg(ReportException("Error in IPC dispatch"));
-                        conti({}, std::current_exception());
-                    }
-                }
-                catch (...) {
-                    pmlog_error(ReportException("Final failure in calling continuation"));
-                }
-            };
-            as::co_spawn(ioctx, coro(std::forward<Params>(params), stx, *pOutPipe_, std::move(conti)), as::detached);
-        }
-        uint32_t GetId() const
-        {
-            return pInPipe_->GetId();
-        }
-        static as::awaitable<std::unique_ptr<SymmetricActionConnector>> AcceptClientConnection(
-            const std::string& basePipeName, as::io_context& ioctx, const std::string& security)
-        {
-            using namespace as::experimental::awaitable_operators;
-            auto pConn = std::make_unique<SymmetricActionConnector>(basePipeName, ioctx, security);
-            co_await(pConn->pInPipe_->Accept() && pConn->pOutPipe_->Accept());
-            co_return pConn;
-        }
-        static std::unique_ptr<SymmetricActionConnector> ConnectToServer(
-            const std::string& basePipeName, as::io_context& ioctx)
-        {
-            return std::make_unique<SymmetricActionConnector>(basePipeName, ioctx);
-        }
-        SymmetricActionConnector(const std::string& basePipeName, as::io_context& ioctx, const std::string& security)
-            :
-            pOutPipe_{ pipe::DuplexPipe::MakeAsPtr(basePipeName + "-out", ioctx, security) },
-            pInPipe_{ pipe::DuplexPipe::MakeAsPtr(basePipeName + "-in", ioctx, security) }
-        {}
-        SymmetricActionConnector(const std::string& basePipeName, as::io_context& ioctx)
-            :
-            pOutPipe_{ pipe::DuplexPipe::ConnectAsPtr(basePipeName + "-in", ioctx) },
-            pInPipe_{ pipe::DuplexPipe::ConnectAsPtr(basePipeName + "-out", ioctx) }
-        {}
+		using SessionContextType = typename ExecCtx::SessionContextType;
+
+		// Sole reader of the pipe. Returns the reason the session ended.
+		// Every exit has already failed pending requesters.
+		as::awaitable<SessionEndReason> RunReaderLoop(ExecCtx& ctx, SessionContextType& stx)
+		{
+			ioThreadId_.store(std::this_thread::get_id(), std::memory_order_release);
+			std::exception_ptr error;
+			try {
+				while (!sessionEnded_.load(std::memory_order_acquire)) {
+					const auto header = co_await pPipe_->ReadPacketConsumeHeader<PacketHeader>();
+					if (sessionEnded_.load(std::memory_order_acquire)) {
+						break;
+					}
+					if (!IsPlausibleHeader(header)) {
+						pmlog_error("Rejecting implausible packet header")
+							.pmwatch(header.headerVersion).pmwatch((int)header.packetType);
+						throw util::Except<ProtocolViolation>("Implausible packet header");
+					}
+					if (header.packetType == PacketType::ActionResponse) {
+						RouteResponse_(header);
+					}
+					else {
+						co_await ExecuteIncoming_(ctx, stx, header);
+					}
+				}
+			}
+			catch (...) {
+				error = std::current_exception();
+				NoteReaderFailure_(error);
+			}
+			if (pPipe_) {
+				pPipe_->Close();
+			}
+			if (endReason_) {
+				co_return *endReason_;
+			}
+			const auto reason = error ? ClassifyEnd_(error) : SessionEndReason::PeerDisconnected;
+			if (reason == SessionEndReason::ProtocolFailure || reason == SessionEndReason::ResponseTimeout) {
+				if (error) {
+					try {
+						std::rethrow_exception(error);
+					}
+					catch (...) {
+						pmlog_error(util::ReportException());
+					}
+				}
+			}
+			else if (error) {
+				try {
+					std::rethrow_exception(error);
+				}
+				catch (...) {
+					pmlog_dbg(util::ReportException());
+				}
+			}
+			co_return reason;
+		}
+		// DispatchSync from the action io thread would deadlock the reader.
+		void EnsureNotIoThread() const
+		{
+			VerifyNotIoThread_();
+		}
+		template<class Params>
+		void LogOutgoing(uint32_t remotePid) const
+		{
+			using Action = ActionFromParams<Params>;
+			pmlog_dbg("Action Dispatch").pmwatch(Action::Identifier).pmwatch(remotePid);
+		}
+		uint32_t GetId() const
+		{
+			return pPipe_->GetId();
+		}
+		bool SessionHasEnded() const
+		{
+			return sessionEnded_.load(std::memory_order_acquire);
+		}
+		void RegisterPending(uint32_t commandToken, PendingResponse& pending) override
+		{
+			if (sessionEnded_) {
+				throw util::Except<util::Exception>("Cannot send request, session has ended");
+			}
+			if (!pendingResponses_.emplace(commandToken, &pending).second) {
+				pmlog_error("Duplicate pending command token").pmwatch(commandToken);
+				throw util::Except<ProtocolViolation>("Duplicate pending command token");
+			}
+		}
+		void ExpirePending(uint32_t commandToken) override
+		{
+			pendingResponses_.erase(commandToken);
+			if (!expiredResponseTokens_.insert(commandToken).second) {
+				return;
+			}
+			expiredResponseTokenOrder_.push_back(commandToken);
+			while (expiredResponseTokenOrder_.size() > kMaxExpiredResponseTokens) {
+				expiredResponseTokens_.erase(expiredResponseTokenOrder_.front());
+				expiredResponseTokenOrder_.pop_front();
+			}
+		}
+		uint32_t AllocateCommandToken() override
+		{
+			return tokens_.Allocate([this](uint32_t token) {
+				return pendingResponses_.contains(token) || expiredResponseTokens_.contains(token);
+			});
+		}
+		util::pipe::DuplexPipe& GetPipe() override
+		{
+			return *pPipe_;
+		}
+		as::io_context& GetIoContext() override
+		{
+			return ioctx_;
+		}
+		static std::shared_ptr<SymmetricActionConnector> MakeListener(
+			const std::string& pipeName, as::io_context& ioctx, const std::string& security,
+			pipe::PipeLimits limits)
+		{
+			return std::make_shared<SymmetricActionConnector>(pipeName, ioctx, security, std::move(limits));
+		}
+		as::awaitable<void> AcceptConnection()
+		{
+			co_await pPipe_->Accept();
+		}
+		// Fails waiters and cancels the pipe. The reader resumes and returns `reason`.
+		// Must be called on the io thread. A second call is a no-op.
+		void EndSession(SessionEndReason reason)
+		{
+			if (sessionEnded_.load(std::memory_order_acquire)) {
+				return;
+			}
+			// A reader-classified peer, protocol, or timeout reason wins over LocalShutdown.
+			if (!endReason_) {
+				endReason_ = reason;
+			}
+			FailAllPending_(std::make_exception_ptr(
+				util::Except<pipe::PipeOperationCanceled>("Session ended by local shutdown")));
+			if (pPipe_) {
+				pPipe_->Close();
+			}
+		}
+		static std::shared_ptr<SymmetricActionConnector> ConnectToServer(
+			const std::string& pipeName, as::io_context& ioctx,
+			CommandTokenAllocator tokens = {})
+		{
+			return std::make_shared<SymmetricActionConnector>(pipeName, ioctx, std::move(tokens));
+		}
+		SymmetricActionConnector(const std::string& pipeName, as::io_context& ioctx,
+			const std::string& security, pipe::PipeLimits limits)
+			:
+			ioctx_{ ioctx },
+			pPipe_{ pipe::DuplexPipe::MakeAsPtr(pipeName, ioctx, security, std::move(limits)) }
+		{}
+		SymmetricActionConnector(const std::string& pipeName, as::io_context& ioctx,
+			CommandTokenAllocator tokens)
+			:
+			ioctx_{ ioctx },
+			pPipe_{ pipe::DuplexPipe::ConnectAsPtr(pipeName, ioctx, MakePipeLimits_()) },
+			tokens_{ std::move(tokens) }
+		{}
 	private:
-        // functions
-        template<class Params>
-        void LogDispatch_(const SessionContextType& stx) const
-        {
-            using Action = ActionFromParams<Params>;
-            pmlog_dbg("Action Dispatch").pmwatch(Action::Identifier).pmwatch(stx.remotePid);
-        }
-		// data
-		std::unique_ptr<pipe::DuplexPipe> pOutPipe_;
-		std::unique_ptr<pipe::DuplexPipe> pInPipe_;
+		static pipe::PipeLimits MakePipeLimits_()
+		{
+			return { .minBodyBytes = kMinPacketBodyBytes, .maxBodyBytes = kMaxPacketBodyBytes };
+		}
+		static SessionEndReason ClassifyEnd_(std::exception_ptr error)
+		{
+			try {
+				std::rethrow_exception(error);
+			}
+			catch (const pipe::PipeReadTimeout&) {
+				return SessionEndReason::ResponseTimeout;
+			}
+			catch (const ProtocolViolation&) {
+				return SessionEndReason::ProtocolFailure;
+			}
+			catch (const pipe::PipeOperationCanceled&) {
+				return SessionEndReason::LocalShutdown;
+			}
+			catch (const pipe::BenignPipeError&) {
+				return SessionEndReason::PeerDisconnected;
+			}
+			catch (const pipe::PipeError&) {
+				return SessionEndReason::ProtocolFailure;
+			}
+			catch (...) {
+				return SessionEndReason::ProtocolFailure;
+			}
+		}
+		as::awaitable<void> ExecuteIncoming_(ExecCtx& ctx, SessionContextType& stx, const PacketHeader& header)
+		{
+			try {
+				if (header.identifier != "OpenSession") {
+					assert(bool(stx.remotePid));
+					if (!stx.remotePid) {
+						pmlog_warn("Received action without a valid session opened").diag();
+					}
+				}
+				co_await AsyncActionCollection<ExecCtx>::Get().Find(header.identifier).Execute(ctx, stx, header, *pPipe_);
+				co_return;
+			}
+			catch (const pipe::PipeError&) {
+				throw;
+			}
+			catch (const ProtocolViolation&) {
+				throw;
+			}
+			catch (...) {
+				pmlog_error(util::ReportException());
+			}
+			pPipe_->DiscardPacketPayload();
+			if (pPipe_->GetWriteBufferPending()) {
+				pPipe_->ClearWriteBuffer();
+			}
+			if (header.packetType == PacketType::ActionEvent) {
+				co_return;
+			}
+			auto resHeader = MakeResponseHeader(header, TransportStatus::TransportFailure, PM_STATUS_SUCCESS);
+			co_await pPipe_->WritePacket(std::move(resHeader), EmptyPayload{}, ctx.responseWriteTimeoutMs);
+		}
+		bool ConsumeExpired_(uint32_t commandToken)
+		{
+			if (!expiredResponseTokens_.erase(commandToken)) {
+				return false;
+			}
+			for (auto it = expiredResponseTokenOrder_.begin(); it != expiredResponseTokenOrder_.end(); ++it) {
+				if (*it == commandToken) {
+					expiredResponseTokenOrder_.erase(it);
+					break;
+				}
+			}
+			return true;
+		}
+		void RouteResponse_(const PacketHeader& header)
+		{
+			const auto token = header.commandToken;
+			if (auto i = pendingResponses_.find(token); i != pendingResponses_.end()) {
+				auto& pending = *i->second;
+				pendingResponses_.erase(i);
+				pending.Complete(header, *pPipe_);
+				return;
+			}
+			pPipe_->DiscardPacketPayload();
+			if (ConsumeExpired_(token)) {
+				pmlog_warn("Consumed late response for an expired request").pmwatch(token);
+				return;
+			}
+			pmlog_error("Response for unknown command token").pmwatch(token);
+			throw util::Except<ProtocolViolation>("Response for unknown command token");
+		}
+		void NoteReaderFailure_(std::exception_ptr error)
+		{
+			const auto classified = ClassifyEnd_(error);
+			if (!endReason_ || (*endReason_ == SessionEndReason::LocalShutdown
+				&& classified != SessionEndReason::LocalShutdown)) {
+				endReason_ = classified;
+			}
+			if (!sessionEnded_.load(std::memory_order_acquire)) {
+				FailAllPending_(error);
+			}
+		}
+		void FailAllPending_(std::exception_ptr error)
+		{
+			sessionEnded_.store(true, std::memory_order_release);
+			auto pending = std::move(pendingResponses_);
+			pendingResponses_.clear();
+			expiredResponseTokens_.clear();
+			expiredResponseTokenOrder_.clear();
+			for (auto& entry : pending) {
+				entry.second->Fail(error);
+			}
+		}
+		void VerifyNotIoThread_() const
+		{
+			if (std::this_thread::get_id() == ioThreadId_.load(std::memory_order_acquire)) {
+				assert(false && "DispatchSync called from the action io thread");
+				pmlog_error("DispatchSync called from the action io thread");
+				throw util::Except<util::Exception>("DispatchSync called from the action io thread");
+			}
+		}
+		as::io_context& ioctx_;
+		std::unique_ptr<pipe::DuplexPipe> pPipe_;
+		CommandTokenAllocator tokens_;
+		std::unordered_map<uint32_t, PendingResponse*> pendingResponses_;
+		std::unordered_set<uint32_t> expiredResponseTokens_;
+		std::deque<uint32_t> expiredResponseTokenOrder_;
+		std::optional<SessionEndReason> endReason_;
+		std::atomic<bool> sessionEnded_{ false };
+		std::atomic<std::thread::id> ioThreadId_{};
 	};
 }

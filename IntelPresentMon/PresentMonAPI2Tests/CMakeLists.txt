@@ -53,6 +53,7 @@ add_library(
         PacedFrameTests.cpp
         PacedPollingTests.cpp
         RealtimeMetricTests.cpp
+        TransportDemuxTests.cpp
         UiLaunchTests.cpp
         "${PROJECT_SOURCE_DIR}/IntelPresentMon/CommonUtilities/test/MachineExpectations.cpp"
 )

@@ -3,18 +3,23 @@
 
 namespace pmon::util::pipe
 {
-	as::awaitable<void> CoroMutex::Lock()
+	as::awaitable<bool> CoroMutex::Lock()
 	{
 		if (counter_++ == 0) {
-			co_return;
+			co_return true;
 		}
 
 		auto ec = boost::system::error_code{};
+		auto granted = std::make_shared<bool>(false);
 		Timer timer{ ctx_ };
 		timer.expires_after(Timer::duration::max());
-		waiters_.push_back(&timer);
+		waiters_.push_back(Waiter{ &timer, granted });
 		co_await timer.async_wait(as::redirect_error(as::use_awaitable, ec));
+		if (!*granted) {
+			co_return false;
+		}
 		holdoff_ = false;
+		co_return true;
 	}
 	bool CoroMutex::TryLock()
 	{
@@ -38,8 +43,24 @@ namespace pmon::util::pipe
 		}
 
 		holdoff_ = true;
-		waiters_.front()->cancel();
+		if (waiters_.front().granted) {
+			*waiters_.front().granted = true;
+		}
+		waiters_.front().timer->cancel();
 		waiters_.pop_front();
+	}
+	void CoroMutex::CancelWaiters()
+	{
+		auto pending = std::move(waiters_);
+		waiters_.clear();
+		for (auto& waiter : pending) {
+			if (counter_ > 0) {
+				--counter_;
+			}
+			if (waiter.timer) {
+				waiter.timer->cancel();
+			}
+		}
 	}
 
 
@@ -61,7 +82,9 @@ namespace pmon::util::pipe
 
 	as::awaitable<CoroLockGuard> CoroLock(CoroMutex& mtx)
 	{
-		co_await mtx.Lock();
+		if (!co_await mtx.Lock()) {
+			co_return CoroLockGuard{};
+		}
 		co_return CoroLockGuard{ mtx };
 	}
 }

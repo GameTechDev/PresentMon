@@ -24,6 +24,9 @@
     <ClCompile Include="RealtimeMetricTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TransportDemuxTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="PacedPollingTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

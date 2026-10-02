@@ -8,36 +8,64 @@
 
 namespace pmon::svc::acts
 {
-    void ActionExecutionContext::Dispose(SessionContextType& stx)
+    // Runs for every disposed session, including one that never sent a valid OpenSession.
+    // Each step is guarded on the session actually having requested something, because the
+    // updates are not free (UpdateTracking will start an ETW session even for an empty pid
+    // set) and any client can open and drop sessions as fast as it likes.
+    //
+    // SessionEndReason stays the transport cause. SessionCleanupMode decides whether
+    // global state may be recomputed. Final teardown is set before the action server
+    // is drained and before StopTraceSessions. LocalShutdown during normal operation
+    // still skips recompute. Release session-local backpressure and ETL either way.
+    void ActionExecutionContext::Dispose(SessionContextType& stx, ipc::act::SessionDisposition disposition)
     {
-        for (auto const& [pid, target] : stx.trackedPids) {
-            if (target.backpressureReadSerial) {
-                ReleaseBackpressure(pid);
+        const bool recomputeGlobal = ipc::act::ShouldRecomputeGlobalState(disposition);
+        if (!stx.trackedPids.empty()) {
+            for (auto const& [pid, target] : stx.trackedPids) {
+                if (target.backpressureReadSerial) {
+                    ReleaseBackpressure(pid);
+                }
+            }
+            stx.trackedPids.clear();
+            if (recomputeGlobal) {
+                pPmon->UpdateTracking(GetTrackedPidSet());
+                UpdatePeriodicLogFlushing();
             }
         }
-        // etw log trace cleanup
-        auto& etw = pPmon->GetEtwLogger();
-        for (auto id : stx.etwLogSessionIds) {
-            if (etw.HasActiveSession(id)) {
-                etw.CancelLogSession(id);
+        // etw log trace cleanup is session-local even during LocalShutdown
+        if (!stx.etwLogSessionIds.empty()) {
+            auto& etw = pPmon->GetEtwLogger();
+            for (auto id : stx.etwLogSessionIds) {
+                if (etw.HasActiveSession(id)) {
+                    etw.CancelLogSession(id);
+                }
             }
+            stx.etwLogSessionIds.clear();
         }
-        // tracked pids cleanup
-        stx.trackedPids.clear();
-        pPmon->UpdateTracking(GetTrackedPidSet());
-        UpdatePeriodicLogFlushing();
         // telemetry period cleanup
-        stx.requestedTelemetryPeriodMs.reset();
-        UpdateTelemetryPeriod();
+        if (stx.requestedTelemetryPeriodMs) {
+            stx.requestedTelemetryPeriodMs.reset();
+            if (recomputeGlobal) {
+                UpdateTelemetryPeriod();
+            }
+        }
         // etw flush cleanup
-        stx.requestedEtwFlushPeriodMs.reset();
-        UpdateEtwFlushPeriod();
+        if (stx.requestedEtwFlushPeriodMs) {
+            stx.requestedEtwFlushPeriodMs.reset();
+            if (recomputeGlobal) {
+                UpdateEtwFlushPeriod();
+            }
+        }
         // metric use cleanup
-        pmlog_verb(pmon::util::log::V::met_use)("Session closing, removing metric usage")
-            .pmwatch(stx.remotePid)
-            .serialize("sessionMetricUsage", stx.metricUsage);
-        stx.metricUsage.clear();
-        UpdateMetricUsage();
+        if (!stx.metricUsage.empty()) {
+            pmlog_verb(pmon::util::log::V::met_use)("Session closing, removing metric usage")
+                .pmwatch(stx.remotePid)
+                .serialize("sessionMetricUsage", stx.metricUsage);
+            stx.metricUsage.clear();
+            if (recomputeGlobal) {
+                UpdateMetricUsage();
+            }
+        }
     }
     void ActionExecutionContext::UpdateTelemetryPeriod() const
     {

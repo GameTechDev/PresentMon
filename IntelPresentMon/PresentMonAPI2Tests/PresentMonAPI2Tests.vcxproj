@@ -114,6 +114,7 @@
     <ClCompile Include="Logging.cpp" />
     <ClCompile Include="MockTelemetryTests.cpp" />
     <ClCompile Include="RealtimeMetricTests.cpp" />
+    <ClCompile Include="TransportDemuxTests.cpp" />
     <ClCompile Include="UiLaunchTests.cpp" />
   </ItemGroup>
   <ItemGroup>

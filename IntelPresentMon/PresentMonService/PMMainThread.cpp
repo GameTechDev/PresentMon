@@ -19,6 +19,7 @@
 
 #include "../CommonUtilities/log/GlogShim.h"
 #include "testing/TestControl.h"
+#include "../Interprocess/source/act/ActionServerShutdown.h"
 
 
 using namespace std::literals;
@@ -272,7 +273,7 @@ void PresentMonMainThread(Service* const pSvc)
         // communication controller for testing purposes
         std::unique_ptr<pmon::svc::testing::TestControlModule> pTcm;
         if (opt.enableTestControl) {
-            pTcm = std::make_unique<pmon::svc::testing::TestControlModule>(&pm, pSvc);
+            pTcm = std::make_unique<pmon::svc::testing::TestControlModule>(&pm, pSvc, pActionServer.get());
         }
 
         // periodically check trace sessions while waiting for service stop event
@@ -280,8 +281,14 @@ void PresentMonMainThread(Service* const pSvc)
             pm.CheckTraceSessions();
         }
 
-        // Stop the PresentMon sessions
-        pm.StopTraceSessions();
+        // Drain the action server while PresentMon, ETW, and the broadcaster are still alive.
+        // StopTraceSessions runs only after the runner has been joined.
+        pTcm.reset();
+        pmon::ipc::act::JoinActionServerThenStopTraces(*pActionServer, [] {}, [&] {
+            pActionServer.reset();
+        }, [&] {
+            pm.StopTraceSessions();
+        });
         // wait for the telemetry threads to exit
         if (telemetryThread.joinable()) {
             telemetryThread.join();

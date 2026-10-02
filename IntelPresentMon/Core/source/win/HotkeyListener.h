@@ -22,6 +22,9 @@ namespace p2c::win
 		Hotkeys(const Hotkeys&) = delete;
 		Hotkeys& operator=(const Hotkeys&) = delete;
 		~Hotkeys();
+		// Clears the handler, posts WM_QUIT, and joins the listener thread.
+		// After this returns the handler cannot call into the action server.
+		void Stop();
 		bool BindAction(int action, win::Key key, win::ModSet mods);
 		bool ClearAction(int action);
 		void SetHandler(std::function<void(int)> handler);

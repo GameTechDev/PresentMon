@@ -8,6 +8,22 @@ namespace pmon::util::pipe
 
 	std::atomic<uint32_t> DuplexPipe::nextUid_ = 0;
 
+	namespace
+	{
+		// A client is free to connect and vanish before the accept completes. That costs
+		// the listener its pipe instance, but it is ordinary traffic on a public pipe
+		// rather than a failure, so it is reported as benign and the caller re-arms.
+		[[noreturn]] void ThrowAcceptError_(DWORD error)
+		{
+			if (error == ERROR_NO_DATA /* pipe is being closed */ || error == ERROR_BROKEN_PIPE) {
+				pmlog_dbg("Client vanished before the pipe connection was accepted").hr(error);
+				throw Except<PipeBroken>("Client vanished before the pipe connection was accepted");
+			}
+			pmlog_error("Failure accepting pipe connection").hr(error);
+			throw Except<PipeError>("Failure accepting pipe connection");
+		}
+	}
+
 	as::awaitable<void> DuplexPipe::Accept()
 	{
 		assert(!asioPipeHandle_.is_open());
@@ -23,8 +39,7 @@ namespace pmon::util::pipe
 		}
 		if (const auto error = GetLastError(); error == ERROR_IO_PENDING) {
 			// async operation is in-flight and not yet complete, do async wait while not complete
-			bool completed = false;
-			while (!completed) {
+			for (;;) {
 				co_await connEvt.async_wait(as::use_awaitable);
 				// after completion signal, get result to A) make sure not a spurious wake,
 				// B) make sure there was no error, and C) conclude the overlapped operation cleanly
@@ -32,9 +47,8 @@ namespace pmon::util::pipe
 				if (GetOverlappedResult(rawPipeHandle_, &over, &dummyBytes, FALSE)) {
 					break;
 				}
-				if (GetLastError() != ERROR_IO_INCOMPLETE) {
-					pmlog_error("Failure accepting pipe connection").hr();
-					throw Except<PipeError>("Failure accepting pipe connection");
+				if (const auto waitError = GetLastError(); waitError != ERROR_IO_INCOMPLETE) {
+					ThrowAcceptError_(waitError);
 				}
 			}
 			// now we have connected, so transfer pipe ownership to asio
@@ -47,26 +61,56 @@ namespace pmon::util::pipe
 		}
 		else {
 			// some error has occurred during connection
-			pmlog_error("Failure accepting pipe connection").hr();
-			throw Except<PipeError>("Failure accepting pipe connection");
+			ThrowAcceptError_(error);
 		}
 		pmlog_dbg(std::format("{}:{} has received a connection", name_, uid_));
 	}
-	DuplexPipe DuplexPipe::Connect(const std::string& name, as::io_context& ioctx)
+	DuplexPipe DuplexPipe::Connect(const std::string& name, as::io_context& ioctx, PipeLimits limits)
 	{
-		return DuplexPipe{ ioctx, Connect_(name), name, true };
+		return DuplexPipe{ ioctx, Connect_(name), name, true, limits };
 	}
-	DuplexPipe DuplexPipe::Make(const std::string& name, as::io_context& ioctx, const std::string& security)
+	DuplexPipe DuplexPipe::Make(const std::string& name, as::io_context& ioctx, const std::string& security, PipeLimits limits)
 	{
-		return DuplexPipe{ ioctx, Make_(name), name, false };
+		return DuplexPipe{ ioctx, Make_(name), name, false, limits };
 	}
-	std::unique_ptr<DuplexPipe> DuplexPipe::ConnectAsPtr(const std::string& name, as::io_context& ioctx)
+	std::unique_ptr<DuplexPipe> DuplexPipe::ConnectAsPtr(const std::string& name, as::io_context& ioctx, PipeLimits limits)
 	{
-		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, Connect_(name), name, true });
+		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, Connect_(name), name, true, limits });
 	}
-	std::unique_ptr<DuplexPipe> DuplexPipe::MakeAsPtr(const std::string& name, as::io_context& ioctx, const std::string& security)
+	std::unique_ptr<DuplexPipe> DuplexPipe::MakeAsPtr(const std::string& name, as::io_context& ioctx, const std::string& security, PipeLimits limits)
 	{
-		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, Make_(name, security), name, false });
+		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, Make_(name, security), name, false, limits });
+	}
+	void DuplexPipe::DiscardPacketPayload()
+	{
+		readBuf_.consume(readBuf_.size());
+	}
+	void DuplexPipe::Cancel()
+	{
+		if (!asioPipeHandle_.is_open()) {
+			return;
+		}
+		boost::system::error_code ec;
+		asioPipeHandle_.cancel(ec);
+		if (ec) {
+			pmlog_warn("Failure cancelling pipe operations").pmwatch(ec.message());
+		}
+	}
+	void DuplexPipe::Close()
+	{
+		Cancel();
+		boost::system::error_code ec;
+		if (asioPipeHandle_.is_open()) {
+			asioPipeHandle_.close(ec);
+			if (ec) {
+				pmlog_warn("Failure closing pipe").pmwatch(ec.message());
+			}
+		}
+		rawPipeHandle_.Clear();
+		// After the handle is closed, wake CoroMutex waiters so they observe
+		// the closed pipe and return instead of resuming into a write.
+		writeMtx_.CancelWaiters();
+		readMtx_.CancelWaiters();
 	}
 	size_t DuplexPipe::GetWriteBufferPending() const
 	{
@@ -76,9 +120,8 @@ namespace pmon::util::pipe
 	{
 		return writeBuf_.consume(GetWriteBufferPending());
 	}
-	bool DuplexPipe::WaitForAvailability(const std::string& baseName, uint32_t timeoutMs, bool noSuffix, uint32_t pollPeriodMs)
+	bool DuplexPipe::WaitForAvailability(const std::string& name, uint32_t timeoutMs, uint32_t pollPeriodMs)
 	{
-		const auto name = baseName + (noSuffix ? "" : "-in");
 		const auto start = std::chrono::high_resolution_clock::now();
 		while (std::chrono::high_resolution_clock::now() - start < 1ms * timeoutMs) {
 			if (WaitNamedPipeA(name.c_str(), 0)) {
@@ -90,9 +133,8 @@ namespace pmon::util::pipe
 		}
 		return false;
 	}
-	bool DuplexPipe::WaitForVacancy(const std::string& baseName, uint32_t timeoutMs, bool noSuffix, uint32_t pollPeriodMs)
+	bool DuplexPipe::WaitForVacancy(const std::string& name, uint32_t timeoutMs, uint32_t pollPeriodMs)
 	{
-		const auto name = baseName + (noSuffix ? "" : "-out");
 		const auto start = std::chrono::high_resolution_clock::now();
 		while (std::chrono::high_resolution_clock::now() - start < 1ms * timeoutMs) {
 			if (!WaitNamedPipeA(name.c_str(), 0)) {
@@ -123,9 +165,10 @@ namespace pmon::util::pipe
 		}
 	}
 
-	DuplexPipe::DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient)
+	DuplexPipe::DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient, PipeLimits limits)
 		:
 		name_{ std::move(name) },
+		limits_{ limits },
 		rawPipeHandle_{ pipeHandle },
 		asioPipeHandle_{ ioctx },
 		readStream_{ &readBuf_ },
@@ -197,7 +240,7 @@ namespace pmon::util::pipe
 				as::as_tuple(as::use_awaitable)) || Timeout_(*timeoutMs));
 			// 2nd index active means timed out
 			if (result.index() == 1) {
-				throw Except<PipeError>("Timeout during read");
+				throw Except<PipeReadTimeout>("Timeout during read");
 			}
 			// otherwise 1st index active => extract error code and transform
 			auto&& [ec, n] = std::get<0>(result);

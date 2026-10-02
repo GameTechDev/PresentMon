@@ -7,6 +7,7 @@
 #include "../CommonUtilities/test/MachineExpectations.h"
 #include <string>
 #include <ranges>
+#include <vector>
 #include "Folders.h"
 #include "JobManager.h"
 
@@ -570,6 +571,187 @@ namespace MultiClientTests
 		}
 	};
 
+	// Every case here misuses the control pipe and then proves that a legitimate client
+	// is still admitted and served.
+	TEST_CLASS(TransportLifetimeTests)
+	{
+		TestFixture fixture_;
+		static constexpr auto rejectionDeadline_ = 3s;
+		// matches reservedPipeInstanceCount passed by PresentMonService::ActionServer
+		static constexpr uint32_t reservedAcceptors_ = 2;
+
+	public:
+		TEST_METHOD_INITIALIZE(Setup)
+		{
+			fixture_.Setup();
+		}
+		TEST_METHOD_CLEANUP(Cleanup)
+		{
+			fixture_.Cleanup();
+		}
+		// Connect and vanish. Repeated churn must not consume admission capacity, because
+		// one accepted handle is already a whole session.
+		TEST_METHOD(OneSidedConnectAndClose)
+		{
+			WaitForAcceptorCount_(reservedAcceptors_);
+			for (int i = 0; i < 50; i++) {
+				AssertRawConnects_();
+				// each vanishing client costs a pipe instance, so the replacement has to
+				// arrive before the next one, or the reserve erodes one connect at a time
+				AssertAcceptorReserveHeld_();
+			}
+			AssertClientCanRunASession_();
+			AssertTransportIdle_();
+		}
+		// Hold connections open. Holding more than the reserved instance count must not
+		// block anyone, because acceptors are replenished per accept.
+		TEST_METHOD(HeldConnectionsDoNotStarveAdmission)
+		{
+			std::vector<RawPipeClient> held;
+			for (uint32_t i = 0; i < reservedAcceptors_ * 4; i++) {
+				held.emplace_back(CtrlPipe_());
+				AssertConnected_(held.back());
+			}
+			AssertClientCanRunASession_();
+			held.clear();
+			AssertTransportIdle_();
+		}
+		// guards against the suffixed names ever being reintroduced
+		TEST_METHOD(HalfPipeAbuseIsNotExpressible)
+		{
+			AssertPipeAbsent_(CtrlPipe_() + "-in");
+			AssertPipeAbsent_(CtrlPipe_() + "-out");
+		}
+		// a declared body larger than the protocol maximum must be refused before the
+		// receive buffer is grown to hold it
+		TEST_METHOD(OversizedDeclaredBodyRejected)
+		{
+			AssertDeclaredBodySizeRejected_(0x7fffffff);
+			AssertClientCanRunASession_();
+			AssertTransportIdle_();
+		}
+		TEST_METHOD(UndersizedDeclaredBodyRejected)
+		{
+			AssertDeclaredBodySizeRejected_(0);
+			AssertDeclaredBodySizeRejected_(1);
+			AssertClientCanRunASession_();
+			AssertTransportIdle_();
+		}
+		// a sender that declares a length and then stalls must lose only its own session
+		TEST_METHOD(PartialBodyTimesOutOnlyOffendingSession)
+		{
+			RawPipeClient raw{ CtrlPipe_() };
+			AssertConnected_(raw);
+			raw.WriteTruncatedBody(4096, 2048);
+			// the victim runs for the whole duration of the offender's stall
+			auto client = fixture_.LaunchClient();
+			Assert::IsTrue(raw.WaitForServerClose(10s),
+				L"Stalled session was not closed by the body read timeout");
+			client.Quit();
+			AssertTransportIdle_();
+		}
+		// the cap must shed load without ever becoming a permanent lockout
+		TEST_METHOD(SessionCapEnforced)
+		{
+			// matches the SymmetricActionServer default maxConcurrentSessions
+			constexpr uint32_t sessionCap = 64;
+			std::vector<RawPipeClient> held;
+			for (uint32_t i = 0; i < sessionCap; i++) {
+				held.emplace_back(CtrlPipe_());
+				AssertConnected_(held.back());
+			}
+			WaitForSessionCount_(sessionCap);
+			RawPipeClient excess{ CtrlPipe_() };
+			AssertConnected_(excess);
+			Assert::IsTrue(excess.WaitForServerClose(rejectionDeadline_),
+				L"Session beyond the cap was not dropped");
+			held.clear();
+			AssertClientCanRunASession_();
+			AssertTransportIdle_();
+		}
+		// shutting down with traffic in every state must not hang or crash
+		TEST_METHOD(ShutdownWithConnectionsInFlight)
+		{
+			std::vector<RawPipeClient> held;
+			for (uint32_t i = 0; i < reservedAcceptors_ * 2; i++) {
+				held.emplace_back(CtrlPipe_());
+			}
+			auto client = fixture_.LaunchClient();
+			fixture_.StopService();
+		}
+	private:
+		const std::string& CtrlPipe_() const
+		{
+			return fixture_.GetControlPipeName();
+		}
+		void AssertDeclaredBodySizeRejected_(uint32_t declaredSize)
+		{
+			RawPipeClient raw{ CtrlPipe_() };
+			AssertConnected_(raw);
+			raw.WriteDeclaredBodySize(declaredSize);
+			Assert::IsTrue(raw.WaitForServerClose(rejectionDeadline_),
+				L"Out of range packet body size was not rejected promptly");
+		}
+		void AssertRawConnects_()
+		{
+			RawPipeClient raw{ CtrlPipe_() };
+			AssertConnected_(raw);
+		}
+		// a real client completing a session is the only convincing proof of serviceability
+		void AssertClientCanRunASession_()
+		{
+			auto client = fixture_.LaunchClient();
+			client.Quit();
+		}
+		void AssertTransportIdle_()
+		{
+			WaitForSessionCount_(0);
+			WaitForAcceptorCount_(reservedAcceptors_);
+			const auto status = fixture_.service->QueryStatus();
+			Assert::AreEqual(0u, status.actionSessionCount, L"Sessions leaked after abuse");
+			Assert::AreEqual(reservedAcceptors_, status.actionAcceptorCount,
+				L"Acceptor pool was not replenished after abuse");
+		}
+		// A replacement listener is counted before the one it replaces is released, so the
+		// pool can read one high for an instant but must never read low: that is exactly
+		// the erosion this case is about, and it needs no settling time to observe.
+		void AssertAcceptorReserveHeld_()
+		{
+			const auto count = fixture_.service->QueryStatus().actionAcceptorCount;
+			Assert::IsTrue(count >= reservedAcceptors_, util::str::ToWide(std::format(
+				"A vanishing client consumed a listener, pool down to {}", count)).c_str());
+		}
+		void WaitForSessionCount_(uint32_t expected)
+		{
+			for (int i = 0; i < 100; i++) {
+				if (fixture_.service->QueryStatus().actionSessionCount == expected) {
+					return;
+				}
+				std::this_thread::sleep_for(20ms);
+			}
+		}
+		void WaitForAcceptorCount_(uint32_t expected)
+		{
+			for (int i = 0; i < 100; i++) {
+				if (fixture_.service->QueryStatus().actionAcceptorCount == expected) {
+					return;
+				}
+				std::this_thread::sleep_for(20ms);
+			}
+		}
+		static void AssertConnected_(const RawPipeClient& raw)
+		{
+			Assert::IsTrue(raw.IsConnected(), util::str::ToWide(std::format(
+				"Raw connect to the control pipe failed with error {}", raw.GetConnectError())).c_str());
+		}
+		static void AssertPipeAbsent_(const std::string& name)
+		{
+			const RawPipeClient raw{ name, 0ms };
+			Assert::IsFalse(raw.IsConnected(), L"A suffixed half-pipe name still exists");
+			Assert::AreEqual((DWORD)ERROR_FILE_NOT_FOUND, raw.GetConnectError());
+		}
+	};
+
 	TEST_CLASS(ServiceCrashTests)
 	{
 	private:
@@ -588,7 +770,10 @@ namespace MultiClientTests
 				return args;
 			}
 		} fixture_;
-		static constexpr auto clientExitTimeout_ = 3s;
+		// the case is about a client exiting at all rather than hanging on a dead service;
+		// a Debug teardown (introspection, shm, query release) alone can run for seconds
+		// on a loaded machine, so the budget is generous on purpose
+		static constexpr auto clientExitTimeout_ = 10s;
 
 		void RunCrashCase_(const std::vector<std::string>& args)
 		{

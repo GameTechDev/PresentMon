@@ -20,12 +20,29 @@ namespace pmon::util::pipe
 	using namespace std::literals;
 
 	PM_DEFINE_EX(PipeError);
+	// A read that had a deadline and missed it. Distinct from a peer disconnect so
+	// the session owner can report SessionEndReason::ResponseTimeout.
+	PM_DEFINE_EX_FROM(PipeError, PipeReadTimeout);
 	// pipe errors that are often part of acceptable program flow
 	PM_DEFINE_EX_FROM(PipeError, BenignPipeError);
 	// pipe was broken (closed by remote)
 	PM_DEFINE_EX_FROM(BenignPipeError, PipeBroken);
 	// pipe operation was canceled (e.g. by operator ||, ioctx.stop)
 	PM_DEFINE_EX_FROM(BenignPipeError, PipeOperationCanceled);
+
+	// Bounds imposed on the length prefix of an incoming packet. The declared body
+	// length is remote input, so it is validated before the receive buffer is grown
+	// to hold it. Owners with a known packet shape pass tighter limits at construction.
+	struct PipeLimits
+	{
+		uint32_t minBodyBytes = 1;
+		uint32_t maxBodyBytes = 1024 * 1024;
+		// once a length has been declared the sender has committed, so a stall is abuse
+		uint32_t bodyReadTimeoutMs = 2000;
+	};
+
+	// Written into the stream before the body is serialized, then overwritten in place.
+	inline constexpr uint32_t kPacketBodyLengthPlaceholder = 0x54454D50u;
 
 	class DuplexPipe
 	{
@@ -36,20 +53,22 @@ namespace pmon::util::pipe
 		DuplexPipe& operator=(DuplexPipe&&) = delete;
 		~DuplexPipe() = default;
 		as::awaitable<void> Accept();
-		static DuplexPipe Connect(const std::string& name, as::io_context& ioctx);
-		static DuplexPipe Make(const std::string& name, as::io_context& ioctx, const std::string& security = {});
-		static std::unique_ptr<DuplexPipe> ConnectAsPtr(const std::string& name, as::io_context& ioctx);
-		static std::unique_ptr<DuplexPipe> MakeAsPtr(const std::string& name, as::io_context& ioctx, const std::string& security = {});
+		static DuplexPipe Connect(const std::string& name, as::io_context& ioctx, PipeLimits limits = {});
+		static DuplexPipe Make(const std::string& name, as::io_context& ioctx, const std::string& security = {}, PipeLimits limits = {});
+		static std::unique_ptr<DuplexPipe> ConnectAsPtr(const std::string& name, as::io_context& ioctx, PipeLimits limits = {});
+		static std::unique_ptr<DuplexPipe> MakeAsPtr(const std::string& name, as::io_context& ioctx, const std::string& security = {}, PipeLimits limits = {});
 		template<class H, class P>
 		as::awaitable<void> WritePacket(const H& header, const P& payload, std::optional<uint32_t> timeoutMs = {})
 		{
 			// lock while this coro is running to prevent other coros from causing an overlapped operation fault
 			auto lk = co_await CoroLock(writeMtx_);
-			// some sanity checks
+			// Close cancels a waiter. Do not write on the closed handle.
+			if (!lk || !asioPipeHandle_.is_open()) {
+				throw Except<PipeOperationCanceled>("Write on closed pipe");
+			}
 			assert(writeBuf_.size() == 0);
-			assert(asioPipeHandle_.is_open());
 			// first we directly write bytes for the size of the body as a placeholder until we know how many are serialized
-			const uint32_t placeholderSize = 'TEMP';
+			const uint32_t placeholderSize = kPacketBodyLengthPlaceholder;
 			writeStream_.write(reinterpret_cast<const char*>(&placeholderSize), sizeof(placeholderSize));
 			// record how many bytes used for the serialization of the size
 			const auto sizeSize = writeBuf_.size();
@@ -57,6 +76,11 @@ namespace pmon::util::pipe
 			writeArchive_(header, payload);
 			// calculate size of body
 			const auto payloadSize = uint32_t(writeBuf_.size() - sizeSize);
+			if (payloadSize < limits_.minBodyBytes || payloadSize > limits_.maxBodyBytes) {
+				pmlog_error("Packet body size out of range").pmwatch(payloadSize);
+				writeBuf_.consume(writeBuf_.size());
+				throw Except<PipeError>("Packet body size out of range");
+			}
 			// replace the placeholder with the actual body size
 			const auto pSizeInPlace = const_cast<char*>(&*as::buffers_begin(writeBuf_.data()));
 			auto replacement = std::string_view{ reinterpret_cast<const char*>(&payloadSize), sizeof(payloadSize) };
@@ -64,22 +88,31 @@ namespace pmon::util::pipe
 			// transmit the packet
 			co_await Write_(timeoutMs);
 		}
+		// idleTimeoutMs bounds only the wait for the length prefix, which may legitimately
+		// be preceded by an arbitrarily long idle period; the body is always bounded by
+		// PipeLimits::bodyReadTimeoutMs once the sender has declared a length
 		template<class H>
-		as::awaitable<H> ReadPacketConsumeHeader(std::optional<uint32_t> timeoutMs = {})
+		as::awaitable<H> ReadPacketConsumeHeader(std::optional<uint32_t> idleTimeoutMs = {})
 		{
 			// lock while this coro is running to prevent other coros from interrupting stream sequence
 			// and/or causing an overlapped operation fault
 			auto lk = co_await CoroLock(readMtx_);
-			// some sanity checks
+			if (!lk || !asioPipeHandle_.is_open()) {
+				throw Except<PipeOperationCanceled>("Read on closed pipe");
+			}
 			assert(readBuf_.size() == 0);
-			assert(asioPipeHandle_.is_open());
 			// read in request
 			// first read the number of bytes in the request payload (always 4-byte read)
 			uint32_t payloadSize;
-			co_await Read_(sizeof(payloadSize), timeoutMs);
+			co_await Read_(sizeof(payloadSize), idleTimeoutMs);
 			readStream_.read(reinterpret_cast<char*>(&payloadSize), sizeof(payloadSize));
+			// validate the declared length before growing the receive buffer to fit it
+			if (payloadSize < limits_.minBodyBytes || payloadSize > limits_.maxBodyBytes) {
+				pmlog_error("Packet body size out of range").pmwatch(payloadSize);
+				throw Except<PipeError>("Packet body size out of range");
+			}
 			// read the payload
-			co_await Read_(payloadSize, timeoutMs);
+			co_await Read_(payloadSize, limits_.bodyReadTimeoutMs);
 			// deserialize header portion of request payload
 			H header;
 			readArchive_(header);
@@ -92,24 +125,40 @@ namespace pmon::util::pipe
 		P ConsumePacketPayload()
 		{
 			P payload;
-			readArchive_(payload);
+			try {
+				readArchive_(payload);
+			}
+			catch (...) {
+				DiscardPacketPayload();
+				throw;
+			}
 			if (const auto sz = readBuf_.size()) {
 				assert("unexpected data when reading packet payload from buffer!!" && false);
-				pmlog_warn(std::format("Buffer contained unexpected data of size", sz));
+				pmlog_warn(std::format("Buffer contained unexpected data of size {}", sz));
 				readBuf_.consume(sz);
 			}
 			return payload;
 		}
+		// drops a packet body without deserializing it, for when the concrete payload
+		// type is unknown but the stream must be left positioned at the next packet
+		void DiscardPacketPayload();
+		// Aborts any in-flight read or write on this pipe, so a coroutine suspended on it
+		// resumes with PipeOperationCanceled and unwinds through its own cleanup instead
+		// of being destroyed silently when the io context goes away.
+		void Cancel();
+		// Closes the pipe handle so the peer observes a disconnect. Cancel only
+		// aborts this side's in-flight operations.
+		void Close();
 		size_t GetWriteBufferPending() const;
 		void ClearWriteBuffer();
-		static bool WaitForAvailability(const std::string& baseName, uint32_t timeoutMs, bool noSuffix = false, uint32_t pollPeriodMs = 5);
-		static bool WaitForVacancy(const std::string& baseName, uint32_t timeoutMs, bool noSuffix = false, uint32_t pollPeriodMs = 5);
+		static bool WaitForAvailability(const std::string& name, uint32_t timeoutMs, uint32_t pollPeriodMs = 5);
+		static bool WaitForVacancy(const std::string& name, uint32_t timeoutMs, uint32_t pollPeriodMs = 5);
 		uint32_t GetId() const;
 		std::string GetName() const;
 		static std::string GetSecurityString(SecurityMode mode);
 	private:
 		// functions
-		DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient);
+		DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient, PipeLimits limits);
 		static HANDLE Connect_(const std::string& name);
 		static HANDLE Make_(const std::string& name, const std::string& security = {});
 		// wrapper to convert EOF system_error to PipeBroken error, with optional timeout
@@ -121,6 +170,7 @@ namespace pmon::util::pipe
 		// data
 		static std::atomic<uint32_t> nextUid_;
 		std::string name_;
+		PipeLimits limits_;
 		uint32_t uid_ = nextUid_++;
 		win::Handle rawPipeHandle_;
 		as::windows::stream_handle asioPipeHandle_;

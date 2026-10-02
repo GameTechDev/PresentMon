@@ -4,6 +4,7 @@
 #include <boost/asio/windows/object_handle.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
 #include <deque>
+#include <memory>
 
 namespace pmon::util::pipe
 {
@@ -21,12 +22,20 @@ namespace pmon::util::pipe
 		CoroMutex& operator=(CoroMutex&&) = default;
 		~CoroMutex() = default;
 
-		as::awaitable<void> Lock();
+		// false when Close cancelled the wait. The caller does not own the mutex.
+		as::awaitable<bool> Lock();
 		bool TryLock();
 		void Unlock();
+		// Wakes every coroutine blocked in Lock without granting the mutex.
+		void CancelWaiters();
 	private:
+		struct Waiter
+		{
+			Timer* timer = nullptr;
+			std::shared_ptr<bool> granted;
+		};
 		as::io_context& ctx_;
-		std::deque<Timer*> waiters_;
+		std::deque<Waiter> waiters_;
 		int counter_ = 0;
 		// used to check for the the same coro unlocking 2+ times
 		bool holdoff_ = false;
@@ -37,8 +46,10 @@ namespace pmon::util::pipe
 		friend as::awaitable<CoroLockGuard> CoroLock(CoroMutex& mtx);
 		using CoroMutexType = CoroMutex;
 	public:
+		CoroLockGuard() = default;
 		CoroLockGuard(const CoroLockGuard&) = delete;
 		CoroLockGuard& operator=(const CoroLockGuard&) = delete;
+		explicit operator bool() const { return pMtx_ != nullptr; }
 		CoroLockGuard(CoroLockGuard&& other);
 		CoroLockGuard& operator=(CoroLockGuard&& rhs);
 		~CoroLockGuard();

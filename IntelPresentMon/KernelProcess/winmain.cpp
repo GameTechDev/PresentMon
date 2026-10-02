@@ -28,6 +28,9 @@
 #include <boost/process/v2/windows/as_user_launcher.hpp>
 #include <ranges>
 #include <iostream>
+#include <memory>
+#include <mutex>
+#include <exception>
 #include <filesystem>
 
 using namespace pmon;
@@ -39,33 +42,46 @@ namespace as = boost::asio;
 
 namespace kproc
 {
-	using KernelServer = ipc::act::SymmetricActionServer<kact::KernelExecutionContext>;
+	using KernelServer = ipc::act::SymmetricActionServer<kact::KernelExecutionContext, ipc::act::SinglePeerServerPolicy>;
 
 	namespace cact = p2c::client::util::cact;
 
 	class KernelHandler : public p2c::kern::KernelHandler
 	{
 	public:
-		KernelHandler(KernelServer& server) : server_{ server } {}
+		KernelHandler(KernelServer& server) : server_{ &server } {}
+		void Detach()
+		{
+			std::lock_guard lk{ mtx_ };
+			server_ = nullptr;
+		}
 		void OnTargetLost(uint32_t pid) override
 		{
-			server_.DispatchDetached(cact::TargetLostAction::Params{ pid });
+			Send_(cact::TargetLostAction::Params{ pid });
 		}
 		void OnOverlayDied() override
 		{
-			server_.DispatchDetached(cact::OverlayDiedAction::Params{});
+			Send_(cact::OverlayDiedAction::Params{});
 		}
 		void OnPresentmonInitFailed() override
 		{
-			server_.DispatchDetached(cact::PresentmonInitFailedAction::Params{});
+			Send_(cact::PresentmonInitFailedAction::Params{});
 		}
 		void OnStalePidSelected() override
 		{
-			server_.DispatchDetached(cact::StalePidAction::Params{});
+			Send_(cact::StalePidAction::Params{});
 		}
 	private:
-		// data
-		KernelServer& server_;
+		template<class Params>
+		void Send_(Params&& params)
+		{
+			std::lock_guard lk{ mtx_ };
+			if (server_) {
+				server_->DispatchDetached(std::forward<Params>(params));
+			}
+		}
+		std::mutex mtx_;
+		KernelServer* server_ = nullptr;
 	};
 	class HeadlessKernelHandler : public p2c::kern::KernelHandler
 	{
@@ -418,7 +434,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				svcChild = bp2::windows::default_launcher{}(ioctx, "PresentMonService.exe"s, std::move(args));
 			}
 			// wait for pipe availability of service api
-			if (!::pmon::util::win::WaitForNamedPipe(*opt.controlPipe + "-in", 1500000)) {
+			if (!::pmon::util::win::WaitForNamedPipe(*opt.controlPipe, 1500000)) {
 				pmlog_error("timeout waiting for child service control pipe to go online");
 				return -1;
 			}
@@ -551,11 +567,13 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		p2c::win::Hotkeys hotkeys;
 		// this server receives a connection from the CEF render process
 		const auto actName = std::format(R"(\\.\pipe\ipm-cef-channel-{})", GetCurrentProcessId());
-		KernelServer server{ kact::KernelExecutionContext{ .ppKernel = &pKernel, .pHotkeys = &hotkeys },
-			actName, 1, "D:(A;;GA;;;WD)S:(ML;;NW;;;ME)", headless };
+		auto pServer = std::make_unique<KernelServer>(kact::KernelExecutionContext{ .ppKernel = &pKernel, .pHotkeys = &hotkeys },
+			actName, 1, "D:(A;;GA;;;WD)S:(ML;;NW;;;ME)", headless);
 		// set the hotkey manager to send notifications via the action server
-		hotkeys.SetHandler([&](int action) {
-			server.DispatchDetached(p2c::client::util::cact::HotkeyFiredAction::Params{ .actionId = action });
+		hotkeys.SetHandler([&pServer](int action) {
+			if (pServer) {
+				pServer->DispatchDetached(p2c::client::util::cact::HotkeyFiredAction::Params{ .actionId = action });
+			}
 		});
 		// select which handler to use for kernel async events/signals
 		auto pKernelHandler = [&]() -> std::unique_ptr<::p2c::kern::KernelHandler> {
@@ -565,13 +583,37 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			}
 			else {
 				// this handler receives events from the kernel and transmits them to the render process via the server
-				return std::make_unique<KernelHandler>(server);
+				return std::make_unique<KernelHandler>(*pServer);
 			}
 		}();
 		// the kernel manages the PresentMon data collection and the overlay rendering
 		p2c::kern::Kernel kernel{ pKernelHandler.get(), headless};
 		// new we set this pointer, giving the server access to the Kernel
 		pKernel = &kernel;
+		// Destroyed first: stop hotkeys, join and destroy the server while Kernel is alive.
+		struct ActionServerTeardown_
+		{
+			p2c::win::Hotkeys& hotkeys;
+			std::unique_ptr<KernelServer>& server;
+			KernelHandler* handler = nullptr;
+			~ActionServerTeardown_()
+			{
+				hotkeys.Stop();
+				if (handler) {
+					handler->Detach();
+				}
+				if (!server) {
+					return;
+				}
+				server->BeginShutdown();
+				if (!server->WaitForShutdown()) {
+					pmlog_error("Kernel action server runner did not stop while Kernel was still alive");
+					std::terminate();
+				}
+				server.reset();
+			}
+		} actionServerTeardown_{ hotkeys, pServer,
+			dynamic_cast<KernelHandler*>(pKernelHandler.get()) };
 		// run the UI when not headless
 		if (!headless) {
 			uint64_t uiLaunchAttempt = 0;

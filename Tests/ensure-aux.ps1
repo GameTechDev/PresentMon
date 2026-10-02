@@ -6,6 +6,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop
 
 function Resolve-InputPath([string]$Path, [string]$BasePath) {
     if ([System.IO.Path]::IsPathRooted($Path)) {
