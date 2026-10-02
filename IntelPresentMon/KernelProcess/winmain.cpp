@@ -596,6 +596,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 					}
 					args.push_back("--p2c-" + f);
 				}
+				if (kernel.InitializationFailed()) {
+					args.push_back("--p2c-presentmon-init-failed");
+				}
 				for (auto& o : *opt.uiOptions) {
 					if (o.first == "url" && is_debug && !allOriginsAllowed) {
 						// needed in order to connect Chrome debuggers to CEF

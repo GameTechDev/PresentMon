@@ -18,7 +18,12 @@ interface ErrorMessage {
   title: string;
   text: string;
 }
-const dialogError = ref<ErrorMessage|null>(null);
+const dialogError = ref<ErrorMessage|null>(
+  Api.presentmonInitFailed ? {
+    title: 'PresentMon Initialization Error',
+    text: 'Failed to initialize PresentMon API. Ensure that PresentMon Service is installed and running, and try again.',
+  } : null
+);
 
 // === Stores ===
 const prefs = usePreferencesStore()

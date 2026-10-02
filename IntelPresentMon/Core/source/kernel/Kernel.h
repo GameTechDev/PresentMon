@@ -50,6 +50,7 @@ namespace p2c::kern
         void SetEtlLogging(bool active);
         const pmapi::intro::Root& GetIntrospectionRoot() const;
         uint32_t GetDefaultGpuDeviceId() const;
+        bool InitializationFailed() const;
     private:
         // functions
         bool IsIdle_() const;

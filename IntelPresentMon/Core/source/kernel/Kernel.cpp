@@ -30,7 +30,9 @@ namespace p2c::kern
         headless{ headless }
     {
         constructionSemaphore.acquire();
-        HandleMarshalledException_();
+        if (headless) {
+            HandleMarshalledException_();
+        }
     }
 
     Kernel::~Kernel()
@@ -80,6 +82,11 @@ namespace p2c::kern
             return 0;
         }
         return pm->GetDefaultGpuDeviceId();
+    }
+
+    bool Kernel::InitializationFailed() const
+    {
+        return hasMarshalledException.load();
     }
 
     void Kernel::SetCapture(bool active)

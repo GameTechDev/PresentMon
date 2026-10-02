@@ -60,8 +60,8 @@ namespace pmon::ipc::act
                 if (allowConnectionlessSend_) {
                     return ResponseFromParams<Params>{};
                 }
-                assert(false && "Server attempting to send when no client is connected");
                 pmlog_error("Server attempting to send when no client is connected");
+                throw Except<Exception>("Server attempting to send when no client is connected");
             }
             auto& stx = sessions_.begin()->second;
             return stx.pConn->DispatchSync(std::forward<Params>(params), ioctx_, stx);
