@@ -19,3 +19,21 @@ PresentMonAPI.h, PresentMonAPI2Loader.lib, and PresentMonAPI2Loader.dll are opti
 ## Diagnostics
 
 All of the PresentMonAPI functions return an enum type PM_STATUS that indicates success/failure and can give a hint as to the cause of any failure. For more detailed diagnostic messages, refer to PresentMonDiagnostics.h found in the PresentMonAPI2 project directory.
+
+# Failure recovery
+
+The installer configures `PresentMonSharedService` so Windows starts it again after an abnormal process exit, then stops trying. The Recovery action is "Run a program", not "Restart the Service". Restart does not take a command line. The program is `sc.exe start PresentMonSharedService --recovery-fail-count %1%`. `%1%` is the failure-count placeholder SCM substitutes when it runs the command (the same placeholder the Recovery tab checkbox documents as `/fail=%1%`). `sc.exe start` passes `--recovery-fail-count N` through to the service. The command string is fixed at install time. The service does not register or rewrite it.
+
+| Failure in the window | Action | Holdoff |
+| --- | --- | --- |
+| 1st | start with `--recovery-fail-count 1` | 2 seconds |
+| 2nd | start with `--recovery-fail-count 2` | 15 seconds |
+| 3rd | start with `--recovery-fail-count 3` | 60 seconds |
+| 4th | start with `--recovery-fail-count 4` | 5 minutes |
+| 5th and later | stay stopped | |
+
+The failure count resets after 30 minutes with no failure. That reset does not start the service. A later start gets a fresh budget only after those 30 minutes have elapsed. A clean stop (`sc.exe stop`) does not count as a failure.
+
+On a recovery start the service log contains `SCM recovery start, fail count N`. A normal start has no `--recovery-fail-count` argument and does not log that line.
+
+An existing client session is not reconnected. The next API call on that handle returns `PM_STATUS_SESSION_NOT_OPEN`. Opening a new session after the service is back is the caller's responsibility.
