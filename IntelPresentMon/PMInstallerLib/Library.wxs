@@ -74,7 +74,33 @@
                   Impersonate="no"
                   Return="ignore" />
 
+    <!-- Crash recovery: after 2s, 15s, 60s, then 5m, start the service again, then stay stopped.
+         The action is "run", not "restart". Restart does not take arguments. The failure command is
+         the single string SCM runs. %1% is the failure-count placeholder SCM substitutes, the same
+         placeholder the Recovery tab checkbox documents. The text in front of it is our option
+         recovery-fail-count, then sc.exe start passes that through to the service.
+         The command is static; the service does not rewrite it.
+         The empty action (//0) is required. If the last action is run, the SCM repeats it forever.
+         reset= 1800 clears the failure count after 30 minutes with no failure; it does not start the service.
+         failureflag 0 counts only abnormal process death, not a clean SERVICE_STOPPED.
+         sc.exe is invoked directly so cmd does not expand %1%. -->
+    <CustomAction Id="ConfigureSharedServiceRecovery"
+                  Directory="SystemFolder"
+                  ExeCommand='sc.exe failure PresentMonSharedService reset= 1800 actions= run/2000/run/15000/run/60000/run/300000//0 command= "sc.exe start PresentMonSharedService --recovery-fail-count %1%"'
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+    <CustomAction Id="ConfigureSharedServiceRecoveryFlag"
+                  Directory="SystemFolder"
+                  ExeCommand='sc.exe failureflag PresentMonSharedService 0'
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
     <InstallExecuteSequence>
+        <!-- Configure recovery before the service is started. -->
+        <Custom Action="ConfigureSharedServiceRecovery" After="InstallServices">NOT REMOVE</Custom>
+        <Custom Action="ConfigureSharedServiceRecoveryFlag" After="ConfigureSharedServiceRecovery">NOT REMOVE</Custom>
         <!-- After InstallServices has registered the service (and StartServices would have run) -->
         <Custom Action="TryStartSharedService" After="StartServices">1</Custom>
     </InstallExecuteSequence>

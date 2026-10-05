@@ -26,6 +26,7 @@ namespace clio
 	private: Group gd_{ this, "Debugging", "Aids in debugging this tool" }; public:
 		Flag debug{ this, "--debug,-d", "Stall service by running in a loop after startup waiting for debugger to connect" };
 		Option<long long> timedStop{ this, "--timed-stop", -1, "Signal stop event after specified number of milliseconds" };
+		Option<uint32_t> recoveryFailCount{ this, "--recovery-fail-count", 0, "Failure count SCM passes when it starts the service on recovery" };
 
 	private: Group gr_{ this, "Playback", "Playback of recorded ETL files" }; public:
 		Option<std::string> etlTestFile{ this, "--etl-test-file", "", "Etl test file including necessary path", CLI::ExistingFile };

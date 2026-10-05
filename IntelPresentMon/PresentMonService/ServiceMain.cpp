@@ -50,6 +50,10 @@ int CommonEntry(DWORD argc, LPTSTR* argv, bool asApp)
 		log::GetLevelName(log::GlobalPolicy::Get().GetLogLevel()),
 		log::GetLevelName(PMLOG_BUILD_LEVEL_)));
 
+	if (const auto failCount = clio::Options::Get().recoveryFailCount.AsOptional()) {
+		pmlog_warn(std::format("SCM recovery start, fail count {}.", *failCount)).no_trace();
+	}
+
 	if (asApp) {
 		auto& svc = ConsoleDebugMockService::Get();
 		svc.Run();
