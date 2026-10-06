@@ -27,6 +27,7 @@ namespace pmon::ipc::act
     namespace as = boost::asio;
 
     template<class ExecCtx, class ServerPolicy = RequestResponseServerPolicy>
+        requires TransportSessionContext<typename ExecCtx::SessionContextType>
     class SymmetricActionServer
     {
         using SessionContextType = typename ExecCtx::SessionContextType;
@@ -38,7 +39,11 @@ namespace pmon::ipc::act
             Lifecycle lifecycle;
             AdmissionGate admission;
             as::io_context ioctx;
+            // Application session state and the transport connector for each session,
+            // keyed by the same session id. Only AddSession_ and RemoveSession_ change
+            // either map, so the two always hold the same keys.
             SessionsMap sessions;
+            std::unordered_map<uint32_t, std::shared_ptr<Connector>> connectors;
             // Acceptors blocked in ConnectNamedPipe. They hold this State across the
             // suspend, so Drain_ must close them or the pipe name outlives shutdown.
             std::vector<std::shared_ptr<Connector>> listeners_;
@@ -107,8 +112,8 @@ namespace pmon::ipc::act
             void EndConnectedSessions_()
             {
                 std::vector<std::shared_ptr<Connector>> conns;
-                for (auto& entry : sessions) {
-                    conns.push_back(entry.second.pConn);
+                for (auto& entry : connectors) {
+                    conns.push_back(entry.second);
                 }
                 for (auto& conn : conns) {
                     if (conn) {
@@ -243,10 +248,9 @@ namespace pmon::ipc::act
                     co_return;
                 }
                 const auto sessionId = pConn->GetId();
-                auto& stx = sessions.emplace(sessionId, SessionContextType{ .pConn = std::move(pConn) }).first->second;
-                sessionCount.store((uint32_t)sessions.size(), std::memory_order_relaxed);
+                auto& stx = AddSession_(sessionId, pConn);
                 pmlog_info(std::format("Action pipe connected id:{}", sessionId));
-                const auto reason = co_await stx.pConn->RunReaderLoop(ctx, stx);
+                const auto reason = co_await pConn->RunReaderLoop(ctx, stx);
                 const auto clientPid = DisposeSession_(sessionId, reason);
                 pmlog_info(std::format("Action pipe disconnected, session closed id:{} pid:{}",
                     sessionId, clientPid.value_or(0)));
@@ -272,13 +276,35 @@ namespace pmon::ipc::act
                             pmlog_error(util::ReportException("Failure disposing session"));
                         }
                     }
-                    sessions.erase(i);
-                    sessionCount.store((uint32_t)sessions.size(), std::memory_order_relaxed);
+                    RemoveSession_(sid);
                 }
                 else {
                     pmlog_warn("Session to be removed not found");
                 }
                 return remotePid;
+            }
+            SessionContextType& AddSession_(uint32_t sid, std::shared_ptr<Connector> pConn)
+            {
+                connectors.emplace(sid, std::move(pConn));
+                auto& stx = sessions.emplace(sid, SessionContextType{}).first->second;
+                assert(sessions.size() == connectors.size());
+                sessionCount.store((uint32_t)sessions.size(), std::memory_order_relaxed);
+                return stx;
+            }
+            void RemoveSession_(uint32_t sid)
+            {
+                sessions.erase(sid);
+                connectors.erase(sid);
+                assert(sessions.size() == connectors.size());
+                sessionCount.store((uint32_t)sessions.size(), std::memory_order_relaxed);
+            }
+            // Null when the session is gone.
+            std::shared_ptr<Connector> FindConnector_(uint32_t sid) const
+            {
+                if (auto i = connectors.find(sid); i != connectors.end()) {
+                    return i->second;
+                }
+                return nullptr;
             }
             as::awaitable<SessionContextType*> LookupSinglePeer_()
             {
@@ -368,7 +394,7 @@ namespace pmon::ipc::act
                     try {
                         std::shared_ptr<Connector> conn;
                         if (state->sessions.size() == 1) {
-                            conn = state->sessions.begin()->second.pConn;
+                            conn = state->FindConnector_(state->sessions.begin()->first);
                         }
                         else if (state->sessions.size() > 1) {
                             pmlog_error("Single-peer action server observed multiple sessions")
@@ -426,7 +452,7 @@ namespace pmon::ipc::act
                         uint32_t remotePid = 0;
                         if (auto i = state->sessions.find(sessionId); i != state->sessions.end()) {
                             remotePid = i->second.remotePid;
-                            conn = i->second.pConn;
+                            conn = state->FindConnector_(sessionId);
                         }
                         if (!conn) {
                             pmlog_error("Server send addressed to an unknown session").pmwatch(sessionId);
@@ -466,7 +492,7 @@ namespace pmon::ipc::act
                     uint32_t remotePid = 0;
                     if (state->sessions.size() == 1) {
                         remotePid = state->sessions.begin()->second.remotePid;
-                        conn = state->sessions.begin()->second.pConn;
+                        conn = state->FindConnector_(state->sessions.begin()->first);
                     }
                     if (!conn) {
                         if (!state->allowConnectionlessSend && state->sessions.size() != 1) {
@@ -511,7 +537,7 @@ namespace pmon::ipc::act
                         uint32_t remotePid = 0;
                         if (auto i = state->sessions.find(sessionId); i != state->sessions.end()) {
                             remotePid = i->second.remotePid;
-                            conn = i->second.pConn;
+                            conn = state->FindConnector_(sessionId);
                         }
                         if (!conn) {
                             pmlog_error("Server send addressed to an unknown session").pmwatch(sessionId);

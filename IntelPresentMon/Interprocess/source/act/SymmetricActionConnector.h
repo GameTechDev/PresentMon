@@ -29,7 +29,6 @@ namespace pmon::ipc::act
 
 	template<class ExecCtx>
 	class SymmetricActionConnector : public ResponseRouter
-		, public std::enable_shared_from_this<SymmetricActionConnector<ExecCtx>>
 	{
 	public:
 		using SessionContextType = typename ExecCtx::SessionContextType;

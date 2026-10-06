@@ -1,14 +1,6 @@
 #pragma once
-#include <Interprocess/source/act/ActionHelper.h>
-#include <Interprocess/source/act/SymmetricActionConnector.h>
-#include <CommonUtilities/pipe/ManualAsyncEvent.h>
-#include <memory>
-#include <set>
-#include <unordered_map>
-#include <string>
 #include <optional>
 #include <cstdint>
-#include <chrono>
 
 namespace p2c::client::util
 {
@@ -17,13 +9,8 @@ namespace p2c::client::util
 
 namespace p2c::client::util::cact
 {
-    using namespace ::pmon;
-    struct CefExecutionContext;
-
     struct CefSessionContext
     {
-        // common session context items
-        std::shared_ptr<ipc::act::SymmetricActionConnector<CefExecutionContext>> pConn;
         uint32_t remotePid = 0;
     };
 

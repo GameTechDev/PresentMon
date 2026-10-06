@@ -28,9 +28,11 @@ namespace pmon::ipc::act
     PM_DEFINE_EX_FROM(ActionClientError, ServerDroppedError);
 
     template<class ExecCtx>
+        requires TransportSessionContext<typename ExecCtx::SessionContextType>
     class SymmetricActionClient
     {
         using SessionContextType = typename ExecCtx::SessionContextType;
+        using Connector = SymmetricActionConnector<ExecCtx>;
         // Shared with the runner thread so shutdown never captures a raw this.
         // The runner std::thread itself stays on this object so the io thread
         // does not join itself.
@@ -39,6 +41,8 @@ namespace pmon::ipc::act
             Lifecycle lifecycle;
             AdmissionGate admission;
             as::io_context ioctx;
+            // Declared after ioctx so it is destroyed before the context its pipe uses.
+            std::shared_ptr<Connector> conn;
             SessionContextType stx;
             ExecCtx ctx;
             std::string basePipeName;
@@ -55,8 +59,7 @@ namespace pmon::ipc::act
                 ctx{ std::move(context) },
                 basePipeName{ std::move(pipeName) }
             {
-                stx.pConn = SymmetricActionConnector<ExecCtx>::ConnectToServer(
-                    basePipeName, ioctx, std::move(tokens));
+                conn = Connector::ConnectToServer(basePipeName, ioctx, std::move(tokens));
             }
             bool OnIoThread() const
             {
@@ -82,8 +85,8 @@ namespace pmon::ipc::act
                 // A peer error already queued on this executor classifies itself
                 // before LocalShutdown can relabel it.
                 co_await as::post(co_await as::this_coro::executor, as::use_awaitable);
-                if (stx.pConn) {
-                    stx.pConn->EndSession(SessionEndReason::LocalShutdown);
+                if (conn) {
+                    conn->EndSession(SessionEndReason::LocalShutdown);
                 }
                 co_await as::post(co_await as::this_coro::executor, as::use_awaitable);
                 as::steady_timer timer{ co_await as::this_coro::executor };
@@ -122,7 +125,7 @@ namespace pmon::ipc::act
             as::awaitable<void> SessionStrand_()
             {
                 try {
-                    co_await stx.pConn->RunReaderLoop(ctx, stx);
+                    co_await conn->RunReaderLoop(ctx, stx);
                 }
                 catch (...) {
                     pmlog_error(util::ReportException());
@@ -189,7 +192,7 @@ namespace pmon::ipc::act
         template<class Params>
         auto DispatchSync(Params&& params, std::optional<uint32_t> responseTimeoutMs = {})
         {
-            state_->stx.pConn->EnsureNotIoThread();
+            state_->conn->EnsureNotIoThread();
             using Result = ResponseFromParams<Params>;
             using ParamsT = std::decay_t<Params>;
             std::promise<Result> promise;
@@ -197,7 +200,7 @@ namespace pmon::ipc::act
             const auto remotePid = state_->stx.remotePid;
             const auto accepted = state_->admission.TryAdmit(state_->lifecycle, [&] {
                 auto state = state_;
-                auto conn = state_->stx.pConn;
+                auto conn = state_->conn;
                 as::co_spawn(state_->ioctx, [state, conn, remotePid, owned = ParamsT{ std::forward<Params>(params) },
                     &promise, responseTimeoutMs]() mutable -> as::awaitable<void> {
                     try {
@@ -228,7 +231,7 @@ namespace pmon::ipc::act
             const auto remotePid = state_->stx.remotePid;
             const auto accepted = state_->admission.TryAdmit(state_->lifecycle, [&] {
                 auto state = state_;
-                auto conn = state_->stx.pConn;
+                auto conn = state_->conn;
                 as::co_spawn(state_->ioctx, [conn, remotePid, owned = ParamsT{ std::forward<Params>(params) }]() -> as::awaitable<void> {
                     conn->LogOutgoing<ParamsT>(remotePid);
                     if (conn->SessionHasEnded()) {
@@ -259,7 +262,7 @@ namespace pmon::ipc::act
             const auto remotePid = state_->stx.remotePid;
             const auto accepted = state_->admission.TryAdmit(state_->lifecycle, [&] {
                 auto state = state_;
-                auto conn = state_->stx.pConn;
+                auto conn = state_->conn;
                 as::co_spawn(state_->ioctx, [conn, remotePid, owned = ParamsT{ std::forward<Params>(params) },
                     cont = std::move(cont)]() mutable -> as::awaitable<void> {
                     conn->LogOutgoing<ParamsT>(remotePid);
@@ -333,9 +336,9 @@ namespace pmon::ipc::act
         {
             state_->stx.remotePid = serverPid;
         }
-        SymmetricActionConnector<ExecCtx>& SessionConnector_()
+        Connector& SessionConnector_()
         {
-            return *state_->stx.pConn;
+            return *state_->conn;
         }
 
     private:

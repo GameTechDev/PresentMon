@@ -29,8 +29,7 @@ namespace pmon::svc::acts
 {
     struct ActionSessionContext
     {
-        // common session context items
-        std::shared_ptr<ipc::act::SymmetricActionConnector<ActionExecutionContext>> pConn;
+        // required by the transport, see TransportSessionContext
         uint32_t remotePid = 0;
 
         // custom items

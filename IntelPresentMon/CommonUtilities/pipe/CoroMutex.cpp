@@ -69,6 +69,13 @@ namespace pmon::util::pipe
 	{}
 	CoroLockGuard& CoroLockGuard::operator=(CoroLockGuard&& rhs)
 	{
+		if (this == &rhs) {
+			return *this;
+		}
+		// release any mutex already held before taking ownership of rhs
+		if (pMtx_) {
+			pMtx_->Unlock();
+		}
 		pMtx_ = std::exchange(rhs.pMtx_, nullptr);
 		return *this;
 	}

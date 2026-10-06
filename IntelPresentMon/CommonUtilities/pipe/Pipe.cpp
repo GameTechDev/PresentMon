@@ -71,7 +71,7 @@ namespace pmon::util::pipe
 	}
 	DuplexPipe DuplexPipe::Make(const std::string& name, as::io_context& ioctx, const std::string& security, PipeLimits limits)
 	{
-		return DuplexPipe{ ioctx, Make_(name), name, false, limits };
+		return DuplexPipe{ ioctx, Make_(name, security), name, false, limits };
 	}
 	std::unique_ptr<DuplexPipe> DuplexPipe::ConnectAsPtr(const std::string& name, as::io_context& ioctx, PipeLimits limits)
 	{

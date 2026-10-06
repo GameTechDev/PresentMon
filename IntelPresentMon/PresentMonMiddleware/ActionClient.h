@@ -17,8 +17,7 @@ namespace pmon::mid
     struct MiddlewareExecutionContext;
     struct MiddlewareSessionContext
     {
-        // common session context items
-        std::shared_ptr<SymmetricActionConnector<MiddlewareExecutionContext>> pConn;
+        // required by the transport, see TransportSessionContext
         uint32_t remotePid = 0;
     };
     struct MiddlewareExecutionContext

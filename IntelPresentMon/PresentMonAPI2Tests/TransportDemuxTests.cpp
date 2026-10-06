@@ -40,7 +40,6 @@ namespace TransportDemuxTests
 
 	struct ServerSessionContext
 	{
-		std::shared_ptr<SymmetricActionConnector<ServerExecutionContext>> pConn;
 		uint32_t remotePid = 0;
 	};
 
@@ -146,7 +145,6 @@ namespace TransportDemuxTests
 
 	struct ClientSessionContext
 	{
-		std::shared_ptr<SymmetricActionConnector<ClientExecutionContext>> pConn;
 		uint32_t remotePid = 0;
 	};
 
@@ -157,6 +155,14 @@ namespace TransportDemuxTests
 		std::optional<uint32_t> responseWriteTimeoutMs;
 		std::atomic<uint32_t>* pEventCount = nullptr;
 	};
+
+	// The transport owns its connectors; a session context only has to carry remotePid.
+	static_assert(TransportSessionContext<ServerSessionContext>);
+	static_assert(TransportSessionContext<ClientSessionContext>);
+	struct SessionContextWithoutRemotePid_ {};
+	static_assert(!TransportSessionContext<SessionContextWithoutRemotePid_>);
+	struct SessionContextWithWideRemotePid_ { uint64_t remotePid = 0; };
+	static_assert(!TransportSessionContext<SessionContextWithWideRemotePid_>);
 
 	// --- actions -----------------------------------------------------------------------
 
@@ -662,6 +668,18 @@ namespace TransportDemuxTests
 		TEST_METHOD_INITIALIZE(Setup)
 		{
 			RegisterActions_();
+		}
+		// Walkthrough: one client, one request, no pushes
+		TEST_METHOD(WalkthroughOneRequest)
+		{
+            const auto pipeName = MakeUniquePipeName_();
+            std::atomic<uint32_t> disposeCount = 0;
+            std::atomic<uint32_t> eventCount = 0;
+            TestServer<RequestResponseServerPolicy> server{ pipeName, disposeCount };
+			auto pClient = ConnectClient_(pipeName, eventCount);
+            // a 10-minute response timeout so pausing in the debugger does not trigger a timeout
+            const auto res = pClient->DispatchSync(EchoWithPush::Params{ .value = 42, .pushCount = 0 }, 600000);
+            Assert::AreEqual(42u, res.value);
 		}
 		// the framing floor must match what the protocol actually serializes, otherwise
 		// the pipe layer rejects legitimate minimal packets or lets junk through
@@ -1322,6 +1340,60 @@ namespace TransportDemuxTests
 			std::this_thread::sleep_for(50ms);
 			Assert::AreEqual(1u, eventCountA.load() + eventCountB.load());
 			Assert::IsTrue(eventCountA.load() != eventCountB.load());
+		}
+		// A disposed session leaves both the session map and the connector map, so a send
+		// addressed to it is refused while the surviving session is still reachable.
+		TEST_METHOD(AddressedSendToDisposedSessionIsRefused)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCountA = 0;
+			std::atomic<uint32_t> eventCountB = 0;
+			TestServer<AddressedMultiPeerServerPolicy> server{ pipeName, disposeCount };
+			auto pClientA = ConnectClient_(pipeName, eventCountA);
+			const auto idsA = server.CopySessionIds();
+			Assert::AreEqual((size_t)1, idsA.size());
+			const auto idA = idsA.front();
+			auto pClientB = ConnectClient_(pipeName, eventCountB);
+			const auto idsAB = server.CopySessionIds();
+			Assert::AreEqual((size_t)2, idsAB.size());
+			const auto idB = idsAB[0] == idA ? idsAB[1] : idsAB[0];
+
+			pClientA.reset();
+			WaitForSessionCount_(server, 1);
+			Assert::AreEqual(1u, server.GetSessionCount());
+			Assert::AreEqual(1u, disposeCount.load());
+			Assert::ExpectException<util::Exception>([&] {
+				server.DispatchToSession(idA, PushNotice::Params{ .value = 1 });
+			});
+
+			server.DispatchToSession(idB, PushNotice::Params{ .value = 2 });
+			for (int i = 0; i < 200 && eventCountB.load() == 0; i++) {
+				std::this_thread::sleep_for(10ms);
+			}
+			Assert::AreEqual(1u, eventCountB.load(), L"Surviving session did not receive its send");
+			Assert::AreEqual(0u, eventCountA.load());
+		}
+		// After the only peer leaves, an unaddressed send must reach the next peer.
+		TEST_METHOD(SinglePeerSendReachesReplacementPeer)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> firstEvents = 0;
+			std::atomic<uint32_t> secondEvents = 0;
+			TestServer server{ pipeName, disposeCount };
+			ConnectClient_(pipeName, firstEvents).reset();
+			WaitForSessionCount_(server, 0);
+			Assert::AreEqual(0u, server.GetSessionCount());
+
+			auto pSecond = ConnectClient_(pipeName, secondEvents);
+			Assert::AreEqual(1u, server.GetSessionCount());
+			server.DispatchDetached(PushNotice::Params{ .value = 3 });
+			for (int i = 0; i < 200 && secondEvents.load() == 0; i++) {
+				std::this_thread::sleep_for(10ms);
+			}
+			Assert::AreEqual(1u, secondEvents.load(), L"Send did not reach the replacement peer");
+			Assert::AreEqual(0u, firstEvents.load());
 		}
 		TEST_METHOD(DispatchAcceptanceIsDecidedWithScheduling)
 		{
