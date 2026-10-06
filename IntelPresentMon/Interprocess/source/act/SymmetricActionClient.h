@@ -4,12 +4,10 @@
 #include "SymmetricActionConnector.h"
 #include "AdmissionGate.h"
 #include "Lifecycle.h"
-#include "../../../CommonUtilities/str/String.h"
+#include "ActionRunner.h"
 #include "../../../CommonUtilities/log/IdentificationTable.h"
-#include "AsyncActionCollection.h"
 #include "ActionContext.h"
 #include <atomic>
-#include <cassert>
 #include <format>
 #include <future>
 #include <memory>
@@ -117,6 +115,8 @@ namespace pmon::ipc::act
                 catch (...) {
                     lifecycle.MarkStopped();
                     pmlog_error(ReportException());
+                    // if the action server crashes for any reason, the service should restart at this point
+                    // TODO: don't make this mandatory for all uses of the server (client in this case)
                     log::GetDefaultChannel()->Flush();
                     std::terminate();
                 }
@@ -145,7 +145,7 @@ namespace pmon::ipc::act
             runner_ = std::thread([state = state_] {
                 InstallSehTranslator();
                 log::IdentificationTable::AddThisThread(
-                    std::format("symact-{}-cli", MakeWorkerName_(state->basePipeName)));
+                    std::format("symact-{}-cli", MakeWorkerName(state->basePipeName)));
                 state->Run();
             });
         }
@@ -158,32 +158,7 @@ namespace pmon::ipc::act
         // Destroying this object on its own action io thread is unsupported.
         ~SymmetricActionClient()
         {
-            if (!state_) {
-                return;
-            }
-            if (state_->OnIoThread()) {
-                pmlog_error("Destroying the action client on its io thread is unsupported");
-                assert(false && "Destroying the action client on its io thread");
-                log::GetDefaultChannel()->Flush();
-                std::terminate();
-            }
-            try {
-                state_->BeginShutdown();
-            }
-            catch (...) {
-                pmlog_error(ReportException("Failure starting action client shutdown"));
-                log::GetDefaultChannel()->Flush();
-                std::terminate();
-            }
-            if (!state_->lifecycle.WaitFor(kShutdownTimeout)) {
-                pmlog_error("Action client runner did not stop after cancellation; refusing to detach");
-                log::GetDefaultChannel()->Flush();
-                std::terminate();
-            }
-            if (runner_.joinable()) {
-                runner_.join();
-            }
-            state_.reset();
+            StopAndJoinRunner(state_, runner_, "action client");
         }
 
         // Rejected when the lifecycle is no longer Running. Acceptance is decided
@@ -192,32 +167,31 @@ namespace pmon::ipc::act
         template<class Params>
         auto DispatchSync(Params&& params, std::optional<uint32_t> responseTimeoutMs = {})
         {
-            state_->conn->EnsureNotIoThread();
+            // it would block the only thread that can read the response
+            if (state_->OnIoThread()) {
+                throw Except<ActionClientError>("DispatchSync cannot run on the action io thread");
+            }
             using Result = ResponseFromParams<Params>;
             using ParamsT = std::decay_t<Params>;
             std::promise<Result> promise;
             auto future = promise.get_future();
+            // CAUTION: the coroutine below captures promise by reference. That is only safe because
+            // this function blocks on the future until the coroutine has set it; keep that wait if refactoring.
             const auto remotePid = state_->stx.remotePid;
-            const auto accepted = state_->admission.TryAdmit(state_->lifecycle, [&] {
-                auto state = state_;
-                auto conn = state_->conn;
-                as::co_spawn(state_->ioctx, [state, conn, remotePid, owned = ParamsT{ std::forward<Params>(params) },
-                    &promise, responseTimeoutMs]() mutable -> as::awaitable<void> {
+            const auto accepted = SpawnAdmitted(state_, [conn = state_->conn, remotePid,
+                owned = ParamsT{ std::forward<Params>(params) }, &promise, responseTimeoutMs]() mutable -> as::awaitable<void> {
+                try {
+                    conn->LogOutgoing<ParamsT>(remotePid);
+                    auto result = co_await SyncRequest<ActionFromParams<ParamsT>>(owned, *conn, responseTimeoutMs);
+                    promise.set_value(std::move(result));
+                }
+                catch (...) {
                     try {
-                        conn->LogOutgoing<ParamsT>(remotePid);
-                        auto result = co_await SyncRequest<ActionFromParams<ParamsT>>(owned, *conn, {}, responseTimeoutMs);
-                        promise.set_value(std::move(result));
+                        promise.set_exception(std::current_exception());
                     }
                     catch (...) {
-                        try {
-                            promise.set_exception(std::current_exception());
-                        }
-                        catch (...) {
-                        }
                     }
-                }, [state](std::exception_ptr) {
-                    state->admission.CompleteOne();
-                });
+                }
             });
             if (!accepted) {
                 throw Except<ServerDroppedError>("Action client is not running; cannot dispatch");
@@ -229,23 +203,18 @@ namespace pmon::ipc::act
         {
             using ParamsT = std::decay_t<Params>;
             const auto remotePid = state_->stx.remotePid;
-            const auto accepted = state_->admission.TryAdmit(state_->lifecycle, [&] {
-                auto state = state_;
-                auto conn = state_->conn;
-                as::co_spawn(state_->ioctx, [conn, remotePid, owned = ParamsT{ std::forward<Params>(params) }]() -> as::awaitable<void> {
-                    conn->LogOutgoing<ParamsT>(remotePid);
-                    if (conn->SessionHasEnded()) {
-                        co_return;
-                    }
-                    try {
-                        co_await AsyncEmit<ActionFromParams<ParamsT>>(owned, *conn);
-                    }
-                    catch (...) {
-                        pmlog_error(ReportException());
-                    }
-                }, [state](std::exception_ptr) {
-                    state->admission.CompleteOne();
-                });
+            const auto accepted = SpawnAdmitted(state_, [conn = state_->conn, remotePid,
+                owned = ParamsT{ std::forward<Params>(params) }]() -> as::awaitable<void> {
+                conn->LogOutgoing<ParamsT>(remotePid);
+                if (conn->SessionHasEnded()) {
+                    co_return;
+                }
+                try {
+                    co_await AsyncEmit<ActionFromParams<ParamsT>>(owned, *conn);
+                }
+                catch (...) {
+                    pmlog_error(ReportException());
+                }
             });
             if (!accepted) {
                 throw Except<ServerDroppedError>("Action client is not running; cannot dispatch");
@@ -260,36 +229,30 @@ namespace pmon::ipc::act
         {
             using ParamsT = std::decay_t<Params>;
             const auto remotePid = state_->stx.remotePid;
-            const auto accepted = state_->admission.TryAdmit(state_->lifecycle, [&] {
-                auto state = state_;
-                auto conn = state_->conn;
-                as::co_spawn(state_->ioctx, [conn, remotePid, owned = ParamsT{ std::forward<Params>(params) },
-                    cont = std::move(cont)]() mutable -> as::awaitable<void> {
-                    conn->LogOutgoing<ParamsT>(remotePid);
+            const auto accepted = SpawnAdmitted(state_, [conn = state_->conn, remotePid,
+                owned = ParamsT{ std::forward<Params>(params) }, cont = std::move(cont)]() mutable -> as::awaitable<void> {
+                conn->LogOutgoing<ParamsT>(remotePid);
+                try {
+                    if (conn->SessionHasEnded()) {
+                        throw util::Except<util::Exception>("Cannot send request, session has ended");
+                    }
+                    auto res = co_await SyncRequest<ActionFromParams<ParamsT>>(owned, *conn);
                     try {
-                        if (conn->SessionHasEnded()) {
-                            throw util::Except<util::Exception>("Cannot send request, session has ended");
-                        }
-                        auto res = co_await SyncRequest<ActionFromParams<ParamsT>>(owned, *conn);
-                        try {
-                            cont(std::move(res), {});
-                        }
-                        catch (...) {
-                            pmlog_error(ReportException("Final failure in calling continuation"));
-                        }
+                        cont(std::move(res), {});
                     }
                     catch (...) {
-                        pmlog_dbg(ReportException("Error in IPC dispatch"));
-                        try {
-                            cont({}, std::current_exception());
-                        }
-                        catch (...) {
-                            pmlog_error(ReportException("Final failure in calling continuation"));
-                        }
+                        pmlog_error(ReportException("Final failure in calling continuation"));
                     }
-                }, [state](std::exception_ptr) {
-                    state->admission.CompleteOne();
-                });
+                }
+                catch (...) {
+                    pmlog_dbg(ReportException("Error in IPC dispatch"));
+                    try {
+                        cont({}, std::current_exception());
+                    }
+                    catch (...) {
+                        pmlog_error(ReportException("Final failure in calling continuation"));
+                    }
+                }
             });
             if (!accepted) {
                 throw Except<ServerDroppedError>("Action client is not running; cannot dispatch");
@@ -342,14 +305,6 @@ namespace pmon::ipc::act
         }
 
     private:
-        static std::string MakeWorkerName_(const std::string& pipeNameBase)
-        {
-            constexpr std::string_view prefix = R"(\\.\pipe\)";
-            if (pipeNameBase.starts_with(prefix)) {
-                return pipeNameBase.substr(prefix.size());
-            }
-            return pipeNameBase;
-        }
         std::shared_ptr<State> state_;
         std::thread runner_;
     };

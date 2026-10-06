@@ -15,6 +15,15 @@ namespace pmon::svc
 
     using ServerImpl = act::SymmetricActionServer<acts::ActionExecutionContext>;
 
+    namespace
+    {
+        // pImpl_ is type-erased so the header does not need the server template
+        ServerImpl& Impl(const std::shared_ptr<void>& pImpl)
+        {
+            return *static_cast<ServerImpl*>(pImpl.get());
+        }
+    }
+
     ActionServer::ActionServer(Service* pSvc, PresentMon* pPmon, std::optional<std::string> pipeName)
     {
         // if we have a pipe name override, that indicates we don't need special permissions
@@ -29,22 +38,22 @@ namespace pmon::svc
     }
     void ActionServer::EnterFinalTeardown()
     {
-        static_cast<ServerImpl*>(pImpl_.get())->EnterFinalTeardown();
+        Impl(pImpl_).EnterFinalTeardown();
     }
     void ActionServer::BeginShutdown()
     {
-        static_cast<ServerImpl*>(pImpl_.get())->BeginShutdown();
+        Impl(pImpl_).BeginShutdown();
     }
     bool ActionServer::WaitForShutdown()
     {
-        return static_cast<ServerImpl*>(pImpl_.get())->WaitForShutdown();
+        return Impl(pImpl_).WaitForShutdown();
     }
     uint32_t ActionServer::GetSessionCount() const
     {
-        return static_cast<const ServerImpl*>(pImpl_.get())->GetSessionCount();
+        return Impl(pImpl_).GetSessionCount();
     }
     uint32_t ActionServer::GetAcceptorCount() const
     {
-        return static_cast<const ServerImpl*>(pImpl_.get())->GetAcceptorCount();
+        return Impl(pImpl_).GetAcceptorCount();
     }
 }

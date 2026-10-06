@@ -35,7 +35,6 @@ namespace pmon::ipc::act
 
 	template<Request C>
 	auto SyncRequest(const typename C::Params& params, ResponseRouter& router,
-		std::optional<uint32_t> writeTimeoutMs = {},
 		std::optional<uint32_t> responseTimeoutMs = {}) -> as::awaitable<typename C::Response>
 	{
 		// Allocated on the action io thread, skipping pending and retained expired values.
@@ -81,7 +80,7 @@ namespace pmon::ipc::act
 		};
 		// register before writing, otherwise a fast responder can race ahead of us
 		const PendingRegistration registration{ router, commandToken, completion };
-		co_await router.GetPipe().WritePacket(reqHeader, params, writeTimeoutMs);
+		co_await router.GetPipe().WritePacket(reqHeader, params);
 		// on the way out the registration expires this token, so a response that arrives
 		// after we have given up is dropped by the reader loop rather than killing the session
 		const std::chrono::milliseconds responseTimeout{ responseTimeoutMs.value_or(kDefaultResponseTimeoutMs) };
@@ -97,8 +96,7 @@ namespace pmon::ipc::act
 	}
 
 	template<Event C>
-	auto AsyncEmit(const typename C::Params& params, ResponseRouter& router,
-		std::optional<uint32_t> writeTimeoutMs = {}) -> as::awaitable<void>
+	auto AsyncEmit(const typename C::Params& params, ResponseRouter& router) -> as::awaitable<void>
 	{
 		const auto commandToken = router.AllocateCommandToken();
 		const PacketHeader reqHeader{
@@ -109,6 +107,6 @@ namespace pmon::ipc::act
 			.actionVersion = C::Version,
 		};
 		// events are never answered, so no token is registered
-		co_await router.GetPipe().WritePacket(reqHeader, params, writeTimeoutMs);
+		co_await router.GetPipe().WritePacket(reqHeader, params);
 	}
 }

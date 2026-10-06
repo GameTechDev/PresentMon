@@ -1,21 +1,12 @@
 #pragma once
-#include "../../Interprocess/source/act/SymmetricActionConnector.h"
-#include "../../CommonUtilities/pipe/ManualAsyncEvent.h"
-#include <memory>
-#include <set>
-#include <unordered_map>
-#include <string>
 #include <optional>
 #include <cstdint>
-#include <chrono>
 #include "../../Core/source/kernel/Kernel.h"
 #include "../../Core/source/win/HotkeyListener.h"
 
 namespace kproc::kact
 {
     using namespace ::pmon;
-    struct KernelExecutionContext;
-
     struct KernelSessionContext
     {
         // required by the transport, see TransportSessionContext

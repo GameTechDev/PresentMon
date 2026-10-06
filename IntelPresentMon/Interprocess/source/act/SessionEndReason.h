@@ -10,7 +10,8 @@ namespace pmon::ipc::act
 	{
 		PeerDisconnected,
 		ProtocolFailure,
-		ResponseTimeout,
+		// the peer declared a packet length and then stopped sending its body
+		PeerStalled,
 		LocalShutdown,
 	};
 

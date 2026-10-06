@@ -21,7 +21,7 @@ namespace pmon::util::pipe
 
 	PM_DEFINE_EX(PipeError);
 	// A read that had a deadline and missed it. Distinct from a peer disconnect so
-	// the session owner can report SessionEndReason::ResponseTimeout.
+	// the session owner can report SessionEndReason::PeerStalled.
 	PM_DEFINE_EX_FROM(PipeError, PipeReadTimeout);
 	// pipe errors that are often part of acceptable program flow
 	PM_DEFINE_EX_FROM(PipeError, BenignPipeError);
@@ -54,7 +54,6 @@ namespace pmon::util::pipe
 		~DuplexPipe() = default;
 		as::awaitable<void> Accept();
 		static DuplexPipe Connect(const std::string& name, as::io_context& ioctx, PipeLimits limits = {});
-		static DuplexPipe Make(const std::string& name, as::io_context& ioctx, const std::string& security = {}, PipeLimits limits = {});
 		static std::unique_ptr<DuplexPipe> ConnectAsPtr(const std::string& name, as::io_context& ioctx, PipeLimits limits = {});
 		static std::unique_ptr<DuplexPipe> MakeAsPtr(const std::string& name, as::io_context& ioctx, const std::string& security = {}, PipeLimits limits = {});
 		template<class H, class P>
@@ -88,11 +87,11 @@ namespace pmon::util::pipe
 			// transmit the packet
 			co_await Write_(timeoutMs);
 		}
-		// idleTimeoutMs bounds only the wait for the length prefix, which may legitimately
-		// be preceded by an arbitrarily long idle period; the body is always bounded by
-		// PipeLimits::bodyReadTimeoutMs once the sender has declared a length
+		// The wait for the length prefix has no limit, because a peer may stay idle between
+		// packets for any length of time. Once a length has been declared, the body is
+		// bounded by PipeLimits::bodyReadTimeoutMs.
 		template<class H>
-		as::awaitable<H> ReadPacketConsumeHeader(std::optional<uint32_t> idleTimeoutMs = {})
+		as::awaitable<H> ReadPacketConsumeHeader()
 		{
 			// lock while this coro is running to prevent other coros from interrupting stream sequence
 			// and/or causing an overlapped operation fault
@@ -104,7 +103,7 @@ namespace pmon::util::pipe
 			// read in request
 			// first read the number of bytes in the request payload (always 4-byte read)
 			uint32_t payloadSize;
-			co_await Read_(sizeof(payloadSize), idleTimeoutMs);
+			co_await Read_(sizeof(payloadSize));
 			readStream_.read(reinterpret_cast<char*>(&payloadSize), sizeof(payloadSize));
 			// validate the declared length before growing the receive buffer to fit it
 			if (payloadSize < limits_.minBodyBytes || payloadSize > limits_.maxBodyBytes) {
@@ -142,12 +141,9 @@ namespace pmon::util::pipe
 		// drops a packet body without deserializing it, for when the concrete payload
 		// type is unknown but the stream must be left positioned at the next packet
 		void DiscardPacketPayload();
-		// Aborts any in-flight read or write on this pipe, so a coroutine suspended on it
-		// resumes with PipeOperationCanceled and unwinds through its own cleanup instead
-		// of being destroyed silently when the io context goes away.
-		void Cancel();
-		// Closes the pipe handle so the peer observes a disconnect. Cancel only
-		// aborts this side's in-flight operations.
+		// Aborts this side's in-flight reads and writes, then closes the handle so the
+		// peer observes a disconnect. A coroutine suspended on the pipe resumes with
+		// PipeOperationCanceled and unwinds through its own cleanup.
 		void Close();
 		size_t GetWriteBufferPending() const;
 		void ClearWriteBuffer();
@@ -161,11 +157,14 @@ namespace pmon::util::pipe
 		DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient, PipeLimits limits);
 		static HANDLE Connect_(const std::string& name);
 		static HANDLE Make_(const std::string& name, const std::string& security = {});
+		// aborts any in-flight read or write on this pipe; used by Close
+		void Cancel_();
 		// wrapper to convert EOF system_error to PipeBroken error, with optional timeout
 		as::awaitable<void> Read_(size_t byteCount, std::optional<uint32_t> timeoutMs = {});
 		// wrapper to convert EOF system_error to PipeBroken error, with optional timeout
 		as::awaitable<void> Write_(std::optional<uint32_t> timeoutMs = {});
-		as::awaitable<void> Timeout_(uint32_t ms);
+		// true when the deadline expired, false when the wait was cancelled; never throws
+		as::awaitable<bool> Timeout_(uint32_t ms);
 		void TransformError_(const boost::system::error_code& ec);
 		// data
 		static std::atomic<uint32_t> nextUid_;

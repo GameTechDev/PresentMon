@@ -14,7 +14,6 @@ namespace pmon::mid
     using namespace acts;
 
     // define minimial context for client side connection
-    struct MiddlewareExecutionContext;
     struct MiddlewareSessionContext
     {
         // required by the transport, see TransportSessionContext

@@ -113,7 +113,4 @@ namespace pmon::ipc::act
 
 	template<class Params>
 	using ResponseFromParams = typename ActionFromParams<Params>::Response;
-
-	template<class Params>
-	using AwaitableFromParams = pipe::as::awaitable<ResponseFromParams<Params>>;
 }

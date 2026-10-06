@@ -662,6 +662,38 @@ namespace TransportDemuxTests
 		return std::make_unique<TestClient>(pipeName, eventCount);
 	}
 
+	// Counts C++ exceptions raised anywhere in this process while it is alive, including
+	// ones that are caught. 0xE06D7363 is the SEH code MSVC uses for every C++ throw.
+	class CxxThrowCounter_
+	{
+	public:
+		CxxThrowCounter_()
+		{
+			count_.store(0);
+			handle_ = AddVectoredExceptionHandler(1, &Handler_);
+		}
+		CxxThrowCounter_(const CxxThrowCounter_&) = delete;
+		CxxThrowCounter_& operator=(const CxxThrowCounter_&) = delete;
+		~CxxThrowCounter_()
+		{
+			RemoveVectoredExceptionHandler(handle_);
+		}
+		uint32_t Count() const
+		{
+			return count_.load();
+		}
+	private:
+		static LONG CALLBACK Handler_(EXCEPTION_POINTERS* pInfo)
+		{
+			if (pInfo->ExceptionRecord->ExceptionCode == 0xE06D7363) {
+				count_.fetch_add(1);
+			}
+			return EXCEPTION_CONTINUE_SEARCH;
+		}
+		static inline std::atomic<uint32_t> count_{ 0 };
+		PVOID handle_ = nullptr;
+	};
+
 	TEST_CLASS(DemuxTests)
 	{
 	public:
@@ -717,6 +749,32 @@ namespace TransportDemuxTests
 			}
 			Assert::AreEqual(requestCount * pushesPerRequest, eventCount.load(),
 				L"Pushed events were lost while requests were in flight");
+		}
+		// Every packet body read races a timer. When the read wins, the cancelled timer
+		// must finish without throwing, so healthy traffic raises no C++ exceptions at all.
+		TEST_METHOD(HealthyTrafficThrowsNoExceptions)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			TestServer server{ pipeName, disposeCount };
+			auto pClient = ConnectClient_(pipeName, eventCount);
+
+			constexpr uint32_t requestCount = 50;
+			uint32_t throws = 0;
+			{
+				CxxThrowCounter_ counter;
+				for (uint32_t i = 0; i < requestCount; i++) {
+					const auto res = pClient->DispatchSync(EchoWithPush::Params{ .value = i, .pushCount = 1 });
+					Assert::AreEqual(i, res.value);
+				}
+				for (int i = 0; i < 100 && eventCount.load() < requestCount; i++) {
+					std::this_thread::sleep_for(10ms);
+				}
+				throws = counter.Count();
+			}
+			Assert::AreEqual(requestCount, eventCount.load(), L"Pushed events were lost");
+			Assert::AreEqual(0u, throws, L"Healthy request, response and event traffic raised C++ exceptions");
 		}
 		// concurrent callers on one session share a reader loop; each must get its own answer
 		TEST_METHOD(ConcurrentRequestsOnOneSessionDoNotCrossTalk)
@@ -1728,14 +1786,14 @@ namespace TransportDemuxTests
 					std::this_thread::sleep_for(10ms);
 				}
 				Assert::AreEqual((size_t)1, reasons.size());
-				Assert::IsTrue(reasons[0] == SessionEndReason::ResponseTimeout,
+				Assert::IsTrue(reasons[0] == SessionEndReason::PeerStalled,
 					L"Body-read timeout was relabeled");
 				Assert::IsTrue(modes[0] == SessionCleanupMode::FinalTeardown);
 				Assert::AreEqual(0u, updateTracking.load());
 				server.BeginShutdown();
 				server.WaitForShutdown();
 				Assert::AreEqual((size_t)1, reasons.size(), L"Shutdown added a second disposal");
-				Assert::IsTrue(reasons[0] == SessionEndReason::ResponseTimeout);
+				Assert::IsTrue(reasons[0] == SessionEndReason::PeerStalled);
 			}
 		}
 		TEST_METHOD(NoActionAdmittedAfterFinalTeardownStopping)

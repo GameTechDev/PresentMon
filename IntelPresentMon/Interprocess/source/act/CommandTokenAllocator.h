@@ -1,7 +1,6 @@
 #pragma once
 #include "../../../CommonUtilities/Exception.h"
 #include <cstdint>
-#include <utility>
 
 namespace pmon::ipc::act
 {

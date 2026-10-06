@@ -5,9 +5,8 @@
 #include "AdmissionGate.h"
 #include "Lifecycle.h"
 #include "ServerSendPolicy.h"
-#include "../../../CommonUtilities/str/String.h"
+#include "ActionRunner.h"
 #include "../../../CommonUtilities/log/IdentificationTable.h"
-#include "AsyncActionCollection.h"
 #include "ActionContext.h"
 #include <atomic>
 #include <cassert>
@@ -71,6 +70,7 @@ namespace pmon::ipc::act
                 basePipeName{ std::move(pipeName) },
                 security{ std::move(securityString) }
             {
+                // Only set pSessionMap if ExecCtx can be assigned a const SessionsMap*
                 if constexpr (requires(ExecCtx& e, const SessionsMap* pSessions) { e.pSessionMap = pSessions; }) {
                     ctx.pSessionMap = &sessions;
                 }
@@ -142,6 +142,7 @@ namespace pmon::ipc::act
             {
                 runnerId.store(std::this_thread::get_id(), std::memory_order_release);
                 try {
+                    // maintain N available connector instances at all times
                     for (uint32_t i = 0; i < reservedPipeInstanceCount; i++) {
                         if (!SpawnListener_()) {
                             break;
@@ -153,6 +154,8 @@ namespace pmon::ipc::act
                 catch (...) {
                     lifecycle.MarkStopped();
                     pmlog_error(ReportException());
+                    // if the action server crashes for any reason, the service should restart at this point
+                    // TODO: don't make this mandatory for all uses of the server
                     log::GetDefaultChannel()->Flush();
                     std::terminate();
                 }
@@ -213,6 +216,7 @@ namespace pmon::ipc::act
             {
                 bool accepted = false;
                 try {
+                    // suspend until a client connects to this listener
                     co_await pConn->AcceptConnection();
                     accepted = true;
                 }
@@ -227,6 +231,7 @@ namespace pmon::ipc::act
                     acceptorCount.fetch_sub(1, std::memory_order_relaxed);
                     co_return;
                 }
+                // start a replacement listener so the pool stays at full strength
                 SpawnListener_();
                 acceptorCount.fetch_sub(1, std::memory_order_relaxed);
                 if (accepted) {
@@ -248,8 +253,10 @@ namespace pmon::ipc::act
                     co_return;
                 }
                 const auto sessionId = pConn->GetId();
+                // insert a session context object for this connection, will be initialized properly upon OpenSession action
                 auto& stx = AddSession_(sessionId, pConn);
                 pmlog_info(std::format("Action pipe connected id:{}", sessionId));
+                // run the action handler until client session is terminated
                 const auto reason = co_await pConn->RunReaderLoop(ctx, stx);
                 const auto clientPid = DisposeSession_(sessionId, reason);
                 pmlog_info(std::format("Action pipe disconnected, session closed id:{} pid:{}",
@@ -306,25 +313,6 @@ namespace pmon::ipc::act
                 }
                 return nullptr;
             }
-            as::awaitable<SessionContextType*> LookupSinglePeer_()
-            {
-                if (sessions.empty()) {
-                    co_return nullptr;
-                }
-                if (sessions.size() != 1) {
-                    pmlog_error("Single-peer action server observed multiple sessions")
-                        .pmwatch(sessions.size());
-                    co_return nullptr;
-                }
-                co_return &sessions.begin()->second;
-            }
-            as::awaitable<SessionContextType*> LookupSession_(uint32_t sessionId)
-            {
-                if (auto i = sessions.find(sessionId); i != sessions.end()) {
-                    co_return &i->second;
-                }
-                co_return nullptr;
-            }
         };
 
     public:
@@ -337,7 +325,7 @@ namespace pmon::ipc::act
             runner_ = std::thread([state = state_] {
                 InstallSehTranslator();
                 log::IdentificationTable::AddThisThread(
-                    std::format("symact-{}-srv", MakeWorkerName_(state->basePipeName)));
+                    std::format("symact-{}-srv", MakeWorkerName(state->basePipeName)));
                 state->Run();
             });
         }
@@ -349,32 +337,7 @@ namespace pmon::ipc::act
         // Destroying this object on its own action io thread is unsupported.
         ~SymmetricActionServer()
         {
-            if (!state_) {
-                return;
-            }
-            if (state_->OnIoThread()) {
-                pmlog_error("Destroying the action server on its io thread is unsupported");
-                assert(false && "Destroying the action server on its io thread");
-                log::GetDefaultChannel()->Flush();
-                std::terminate();
-            }
-            try {
-                state_->BeginShutdown();
-            }
-            catch (...) {
-                pmlog_error(ReportException("Failure starting action server shutdown"));
-                log::GetDefaultChannel()->Flush();
-                std::terminate();
-            }
-            if (!state_->lifecycle.WaitFor(kShutdownTimeout)) {
-                pmlog_error("Action server runner did not stop after cancellation; refusing to detach");
-                log::GetDefaultChannel()->Flush();
-                std::terminate();
-            }
-            if (runner_.joinable()) {
-                runner_.join();
-            }
-            state_.reset();
+            StopAndJoinRunner(state_, runner_, "action server");
         }
         template<class Params>
         auto DispatchSync(Params&& params, std::optional<uint32_t> responseTimeoutMs = {})
@@ -387,45 +350,42 @@ namespace pmon::ipc::act
             using ParamsT = std::decay_t<Params>;
             std::promise<Result> promise;
             auto future = promise.get_future();
-            const auto accepted = state_->admission.TryAdmit(state_->lifecycle, [&] {
-                auto state = state_;
-                as::co_spawn(state_->ioctx, [state, owned = ParamsT{ std::forward<Params>(params) },
-                    &promise, responseTimeoutMs]() mutable -> as::awaitable<void> {
+            // CAUTION: the coroutine below captures promise by reference. That is only safe because
+            // this function blocks on the future until the coroutine has set it; keep that wait if refactoring.
+            const auto accepted = SpawnAdmitted(state_, [state = state_, owned = ParamsT{ std::forward<Params>(params) },
+                &promise, responseTimeoutMs]() mutable -> as::awaitable<void> {
+                try {
+                    std::shared_ptr<Connector> conn;
+                    if (state->sessions.size() == 1) {
+                        conn = state->FindConnector_(state->sessions.begin()->first);
+                    }
+                    else if (state->sessions.size() > 1) {
+                        pmlog_error("Single-peer action server observed multiple sessions")
+                            .pmwatch(state->sessions.size());
+                    }
+                    if (!conn) {
+                        if (state->allowConnectionlessSend) {
+                            promise.set_value(Result{});
+                        }
+                        else {
+                            pmlog_error("Server attempting to send when no client is connected");
+                            promise.set_exception(std::make_exception_ptr(
+                                Except<util::Exception>("Server attempting to send when no client is connected")));
+                        }
+                        co_return;
+                    }
+                    const auto remotePid = state->sessions.begin()->second.remotePid;
+                    conn->LogOutgoing<ParamsT>(remotePid);
+                    auto result = co_await SyncRequest<ActionFromParams<ParamsT>>(owned, *conn, responseTimeoutMs);
+                    promise.set_value(std::move(result));
+                }
+                catch (...) {
                     try {
-                        std::shared_ptr<Connector> conn;
-                        if (state->sessions.size() == 1) {
-                            conn = state->FindConnector_(state->sessions.begin()->first);
-                        }
-                        else if (state->sessions.size() > 1) {
-                            pmlog_error("Single-peer action server observed multiple sessions")
-                                .pmwatch(state->sessions.size());
-                        }
-                        if (!conn) {
-                            if (state->allowConnectionlessSend) {
-                                promise.set_value(Result{});
-                            }
-                            else {
-                                pmlog_error("Server attempting to send when no client is connected");
-                                promise.set_exception(std::make_exception_ptr(
-                                    Except<util::Exception>("Server attempting to send when no client is connected")));
-                            }
-                            co_return;
-                        }
-                        const auto remotePid = state->sessions.begin()->second.remotePid;
-                        conn->LogOutgoing<ParamsT>(remotePid);
-                        auto result = co_await SyncRequest<ActionFromParams<ParamsT>>(owned, *conn, {}, responseTimeoutMs);
-                        promise.set_value(std::move(result));
+                        promise.set_exception(std::current_exception());
                     }
                     catch (...) {
-                        try {
-                            promise.set_exception(std::current_exception());
-                        }
-                        catch (...) {
-                        }
                     }
-                }, [state = state_](std::exception_ptr) {
-                    state->admission.CompleteOne();
-                });
+                }
             });
             if (!accepted) {
                 throw Except<util::Exception>("Action server is not running");
@@ -443,37 +403,34 @@ namespace pmon::ipc::act
             using ParamsT = std::decay_t<Params>;
             std::promise<Result> promise;
             auto future = promise.get_future();
-            const auto accepted = state_->admission.TryAdmit(state_->lifecycle, [&] {
-                auto state = state_;
-                as::co_spawn(state_->ioctx, [state, sessionId, owned = ParamsT{ std::forward<Params>(params) },
-                    &promise, responseTimeoutMs]() mutable -> as::awaitable<void> {
+            // CAUTION: the coroutine below captures promise by reference. That is only safe because
+            // this function blocks on the future until the coroutine has set it; keep that wait if refactoring.
+            const auto accepted = SpawnAdmitted(state_, [state = state_, sessionId, owned = ParamsT{ std::forward<Params>(params) },
+                &promise, responseTimeoutMs]() mutable -> as::awaitable<void> {
+                try {
+                    std::shared_ptr<Connector> conn;
+                    uint32_t remotePid = 0;
+                    if (auto i = state->sessions.find(sessionId); i != state->sessions.end()) {
+                        remotePid = i->second.remotePid;
+                        conn = state->FindConnector_(sessionId);
+                    }
+                    if (!conn) {
+                        pmlog_error("Server send addressed to an unknown session").pmwatch(sessionId);
+                        promise.set_exception(std::make_exception_ptr(
+                            Except<util::Exception>("Server send addressed to an unknown session")));
+                        co_return;
+                    }
+                    conn->LogOutgoing<ParamsT>(remotePid);
+                    auto result = co_await SyncRequest<ActionFromParams<ParamsT>>(owned, *conn, responseTimeoutMs);
+                    promise.set_value(std::move(result));
+                }
+                catch (...) {
                     try {
-                        std::shared_ptr<Connector> conn;
-                        uint32_t remotePid = 0;
-                        if (auto i = state->sessions.find(sessionId); i != state->sessions.end()) {
-                            remotePid = i->second.remotePid;
-                            conn = state->FindConnector_(sessionId);
-                        }
-                        if (!conn) {
-                            pmlog_error("Server send addressed to an unknown session").pmwatch(sessionId);
-                            promise.set_exception(std::make_exception_ptr(
-                                Except<util::Exception>("Server send addressed to an unknown session")));
-                            co_return;
-                        }
-                        conn->LogOutgoing<ParamsT>(remotePid);
-                        auto result = co_await SyncRequest<ActionFromParams<ParamsT>>(owned, *conn, {}, responseTimeoutMs);
-                        promise.set_value(std::move(result));
+                        promise.set_exception(std::current_exception());
                     }
                     catch (...) {
-                        try {
-                            promise.set_exception(std::current_exception());
-                        }
-                        catch (...) {
-                        }
                     }
-                }, [state = state_](std::exception_ptr) {
-                    state->admission.CompleteOne();
-                });
+                }
             });
             if (!accepted) {
                 throw Except<util::Exception>("Action server is not running");
@@ -485,34 +442,29 @@ namespace pmon::ipc::act
             requires ServerPolicy::kUnaddressedSend
         {
             using ParamsT = std::decay_t<Params>;
-            const auto accepted = state_->admission.TryAdmit(state_->lifecycle, [&] {
-                auto state = state_;
-                as::co_spawn(state_->ioctx, [state, owned = ParamsT{ std::forward<Params>(params) }]() -> as::awaitable<void> {
-                    std::shared_ptr<Connector> conn;
-                    uint32_t remotePid = 0;
-                    if (state->sessions.size() == 1) {
-                        remotePid = state->sessions.begin()->second.remotePid;
-                        conn = state->FindConnector_(state->sessions.begin()->first);
+            const auto accepted = SpawnAdmitted(state_, [state = state_, owned = ParamsT{ std::forward<Params>(params) }]() -> as::awaitable<void> {
+                std::shared_ptr<Connector> conn;
+                uint32_t remotePid = 0;
+                if (state->sessions.size() == 1) {
+                    remotePid = state->sessions.begin()->second.remotePid;
+                    conn = state->FindConnector_(state->sessions.begin()->first);
+                }
+                if (!conn) {
+                    if (!state->allowConnectionlessSend) {
+                        pmlog_warn("Server dropping detached send because no client is connected");
                     }
-                    if (!conn) {
-                        if (!state->allowConnectionlessSend && state->sessions.size() != 1) {
-                            pmlog_warn("Server dropping detached send because no client is connected");
-                        }
-                        co_return;
-                    }
-                    conn->LogOutgoing<ParamsT>(remotePid);
-                    if (conn->SessionHasEnded()) {
-                        co_return;
-                    }
-                    try {
-                        co_await AsyncEmit<ActionFromParams<ParamsT>>(owned, *conn);
-                    }
-                    catch (...) {
-                        pmlog_error(ReportException());
-                    }
-                }, [state](std::exception_ptr) {
-                    state->admission.CompleteOne();
-                });
+                    co_return;
+                }
+                conn->LogOutgoing<ParamsT>(remotePid);
+                if (conn->SessionHasEnded()) {
+                    co_return;
+                }
+                try {
+                    co_await AsyncEmit<ActionFromParams<ParamsT>>(owned, *conn);
+                }
+                catch (...) {
+                    pmlog_error(ReportException());
+                }
             });
             if (!accepted) {
                 pmlog_warn("Dropping server send because the action server is not running");
@@ -528,39 +480,36 @@ namespace pmon::ipc::act
             using ParamsT = std::decay_t<Params>;
             std::promise<void> promise;
             auto future = promise.get_future();
-            const auto accepted = state_->admission.TryAdmit(state_->lifecycle, [&] {
-                auto state = state_;
-                as::co_spawn(state_->ioctx, [state, sessionId, owned = ParamsT{ std::forward<Params>(params) },
-                    &promise]() mutable -> as::awaitable<void> {
+            // CAUTION: the coroutine below captures promise by reference. That is only safe because
+            // this function blocks on the future until the coroutine has set it; keep that wait if refactoring.
+            const auto accepted = SpawnAdmitted(state_, [state = state_, sessionId, owned = ParamsT{ std::forward<Params>(params) },
+                &promise]() mutable -> as::awaitable<void> {
+                try {
+                    std::shared_ptr<Connector> conn;
+                    uint32_t remotePid = 0;
+                    if (auto i = state->sessions.find(sessionId); i != state->sessions.end()) {
+                        remotePid = i->second.remotePid;
+                        conn = state->FindConnector_(sessionId);
+                    }
+                    if (!conn) {
+                        pmlog_error("Server send addressed to an unknown session").pmwatch(sessionId);
+                        promise.set_exception(std::make_exception_ptr(
+                            Except<util::Exception>("Server send addressed to an unknown session")));
+                        co_return;
+                    }
+                    conn->LogOutgoing<ParamsT>(remotePid);
+                    if (!conn->SessionHasEnded()) {
+                        co_await AsyncEmit<ActionFromParams<ParamsT>>(owned, *conn);
+                    }
+                    promise.set_value();
+                }
+                catch (...) {
                     try {
-                        std::shared_ptr<Connector> conn;
-                        uint32_t remotePid = 0;
-                        if (auto i = state->sessions.find(sessionId); i != state->sessions.end()) {
-                            remotePid = i->second.remotePid;
-                            conn = state->FindConnector_(sessionId);
-                        }
-                        if (!conn) {
-                            pmlog_error("Server send addressed to an unknown session").pmwatch(sessionId);
-                            promise.set_exception(std::make_exception_ptr(
-                                Except<util::Exception>("Server send addressed to an unknown session")));
-                            co_return;
-                        }
-                        conn->LogOutgoing<ParamsT>(remotePid);
-                        if (!conn->SessionHasEnded()) {
-                            co_await AsyncEmit<ActionFromParams<ParamsT>>(owned, *conn);
-                        }
-                        promise.set_value();
+                        promise.set_exception(std::current_exception());
                     }
                     catch (...) {
-                        try {
-                            promise.set_exception(std::current_exception());
-                        }
-                        catch (...) {
-                        }
                     }
-                }, [state = state_](std::exception_ptr) {
-                    state->admission.CompleteOne();
-                });
+                }
             });
             if (!accepted) {
                 throw Except<util::Exception>("Action server is not running");
@@ -613,28 +562,25 @@ namespace pmon::ipc::act
             }
             std::promise<std::vector<uint32_t>> promise;
             auto future = promise.get_future();
-            const auto accepted = state_->admission.TryAdmit(state_->lifecycle, [&] {
-                auto state = state_;
-                as::co_spawn(state_->ioctx, [state, &promise]() -> as::awaitable<void> {
+            // CAUTION: the coroutine below captures promise by reference. That is only safe because
+            // this function blocks on the future until the coroutine has set it; keep that wait if refactoring.
+            const auto accepted = SpawnAdmitted(state_, [state = state_, &promise]() -> as::awaitable<void> {
+                try {
+                    std::vector<uint32_t> ids;
+                    ids.reserve(state->sessions.size());
+                    for (auto& entry : state->sessions) {
+                        ids.push_back(entry.first);
+                    }
+                    promise.set_value(std::move(ids));
+                }
+                catch (...) {
                     try {
-                        std::vector<uint32_t> ids;
-                        ids.reserve(state->sessions.size());
-                        for (auto& entry : state->sessions) {
-                            ids.push_back(entry.first);
-                        }
-                        promise.set_value(std::move(ids));
+                        promise.set_exception(std::current_exception());
                     }
                     catch (...) {
-                        try {
-                            promise.set_exception(std::current_exception());
-                        }
-                        catch (...) {
-                        }
                     }
-                    co_return;
-                }, [state = state_](std::exception_ptr) {
-                    state->admission.CompleteOne();
-                });
+                }
+                co_return;
             });
             if (!accepted) {
                 throw Except<util::Exception>("Action server is not running");
@@ -643,14 +589,6 @@ namespace pmon::ipc::act
         }
 
     private:
-        static std::string MakeWorkerName_(const std::string& pipeNameBase)
-        {
-            constexpr std::string_view prefix = R"(\\.\pipe\)";
-            if (pipeNameBase.starts_with(prefix)) {
-                return pipeNameBase.substr(prefix.size());
-            }
-            return pipeNameBase;
-        }
         std::shared_ptr<State> state_;
         std::thread runner_;
     };

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "../../../CommonUtilities/pipe/Pipe.h"
-#include "../../../CommonUtilities/str/String.h"
 #include "Transfer.h"
 #include "ResponseRouter.h"
 #include "AsyncActionCollection.h"
@@ -37,7 +36,6 @@ namespace pmon::ipc::act
 		// Every exit has already failed pending requesters.
 		as::awaitable<SessionEndReason> RunReaderLoop(ExecCtx& ctx, SessionContextType& stx)
 		{
-			ioThreadId_.store(std::this_thread::get_id(), std::memory_order_release);
 			std::exception_ptr error;
 			try {
 				while (!sessionEnded_.load(std::memory_order_acquire)) {
@@ -69,30 +67,16 @@ namespace pmon::ipc::act
 				co_return *endReason_;
 			}
 			const auto reason = error ? ClassifyEnd_(error) : SessionEndReason::PeerDisconnected;
-			if (reason == SessionEndReason::ProtocolFailure || reason == SessionEndReason::ResponseTimeout) {
-				if (error) {
-					try {
-						std::rethrow_exception(error);
-					}
-					catch (...) {
-						pmlog_error(util::ReportException());
-					}
+			// a peer that broke the protocol or stalled is an error; a disconnect or local shutdown is routine
+			if (error) {
+				if (reason == SessionEndReason::ProtocolFailure || reason == SessionEndReason::PeerStalled) {
+					pmlog_error(util::ReportException({}, error));
 				}
-			}
-			else if (error) {
-				try {
-					std::rethrow_exception(error);
-				}
-				catch (...) {
-					pmlog_dbg(util::ReportException());
+				else {
+					pmlog_dbg(util::ReportException({}, error));
 				}
 			}
 			co_return reason;
-		}
-		// DispatchSync from the action io thread would deadlock the reader.
-		void EnsureNotIoThread() const
-		{
-			VerifyNotIoThread_();
 		}
 		template<class Params>
 		void LogOutgoing(uint32_t remotePid) const
@@ -201,7 +185,7 @@ namespace pmon::ipc::act
 				std::rethrow_exception(error);
 			}
 			catch (const pipe::PipeReadTimeout&) {
-				return SessionEndReason::ResponseTimeout;
+				return SessionEndReason::PeerStalled;
 			}
 			catch (const ProtocolViolation&) {
 				return SessionEndReason::ProtocolFailure;
@@ -222,15 +206,22 @@ namespace pmon::ipc::act
 		as::awaitable<void> ExecuteIncoming_(ExecCtx& ctx, SessionContextType& stx, const PacketHeader& header)
 		{
 			try {
+				// any action other than OpenSession without having remotePid is an anomaly
+				// TODO: make this processing a customization point in ExecutionContext and move it out of here
 				if (header.identifier != "OpenSession") {
 					assert(bool(stx.remotePid));
 					if (!stx.remotePid) {
 						pmlog_warn("Received action without a valid session opened").diag();
 					}
 				}
+				// lookup the command by identifier and execute it with remaining buffer contents
+				// response is then transmitted over the pipe to remote
+				// TODO: make this return result code (increment error count based on this)
 				co_await AsyncActionCollection<ExecCtx>::Get().Find(header.identifier).Execute(ctx, stx, header, *pPipe_);
 				co_return;
 			}
+			// we assume any pipe-transport related errors and protocol violations are not
+			// recoverable and proceed to terminate connection
 			catch (const pipe::PipeError&) {
 				throw;
 			}
@@ -241,6 +232,7 @@ namespace pmon::ipc::act
 				pmlog_error(util::ReportException());
 			}
 			pPipe_->DiscardPacketPayload();
+			// if the output buffer is dirty, we're not sure what state we're in so just clear it
 			if (pPipe_->GetWriteBufferPending()) {
 				pPipe_->ClearWriteBuffer();
 			}
@@ -302,14 +294,6 @@ namespace pmon::ipc::act
 				entry.second->Fail(error);
 			}
 		}
-		void VerifyNotIoThread_() const
-		{
-			if (std::this_thread::get_id() == ioThreadId_.load(std::memory_order_acquire)) {
-				assert(false && "DispatchSync called from the action io thread");
-				pmlog_error("DispatchSync called from the action io thread");
-				throw util::Except<util::Exception>("DispatchSync called from the action io thread");
-			}
-		}
 		as::io_context& ioctx_;
 		std::unique_ptr<pipe::DuplexPipe> pPipe_;
 		CommandTokenAllocator tokens_;
@@ -318,6 +302,5 @@ namespace pmon::ipc::act
 		std::deque<uint32_t> expiredResponseTokenOrder_;
 		std::optional<SessionEndReason> endReason_;
 		std::atomic<bool> sessionEnded_{ false };
-		std::atomic<std::thread::id> ioThreadId_{};
 	};
 }

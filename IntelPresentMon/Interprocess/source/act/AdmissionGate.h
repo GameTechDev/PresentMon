@@ -1,7 +1,6 @@
 #pragma once
 #include "Lifecycle.h"
 #include <atomic>
-#include <cstdint>
 #include <mutex>
 
 namespace pmon::ipc::act

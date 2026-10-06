@@ -20,6 +20,7 @@ namespace pmon::svc::acts
     void ActionExecutionContext::Dispose(SessionContextType& stx, ipc::act::SessionDisposition disposition)
     {
         const bool recomputeGlobal = ipc::act::ShouldRecomputeGlobalState(disposition);
+        // tracked pids cleanup
         if (!stx.trackedPids.empty()) {
             for (auto const& [pid, target] : stx.trackedPids) {
                 if (target.backpressureReadSerial) {

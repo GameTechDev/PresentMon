@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "../../../CommonUtilities/log/Log.h"
-#include <cstdlib>
+#include <exception>
 #include <vector>
 
 namespace pmon::ipc::act

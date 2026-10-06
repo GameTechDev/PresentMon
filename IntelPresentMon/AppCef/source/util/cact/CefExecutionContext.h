@@ -11,6 +11,7 @@ namespace p2c::client::util::cact
 {
     struct CefSessionContext
     {
+        // required by the transport, see TransportSessionContext
         uint32_t remotePid = 0;
     };
 

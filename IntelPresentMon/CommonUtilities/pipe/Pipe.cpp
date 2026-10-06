@@ -69,10 +69,6 @@ namespace pmon::util::pipe
 	{
 		return DuplexPipe{ ioctx, Connect_(name), name, true, limits };
 	}
-	DuplexPipe DuplexPipe::Make(const std::string& name, as::io_context& ioctx, const std::string& security, PipeLimits limits)
-	{
-		return DuplexPipe{ ioctx, Make_(name, security), name, false, limits };
-	}
 	std::unique_ptr<DuplexPipe> DuplexPipe::ConnectAsPtr(const std::string& name, as::io_context& ioctx, PipeLimits limits)
 	{
 		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, Connect_(name), name, true, limits });
@@ -85,7 +81,7 @@ namespace pmon::util::pipe
 	{
 		readBuf_.consume(readBuf_.size());
 	}
-	void DuplexPipe::Cancel()
+	void DuplexPipe::Cancel_()
 	{
 		if (!asioPipeHandle_.is_open()) {
 			return;
@@ -98,7 +94,7 @@ namespace pmon::util::pipe
 	}
 	void DuplexPipe::Close()
 	{
-		Cancel();
+		Cancel_();
 		boost::system::error_code ec;
 		if (asioPipeHandle_.is_open()) {
 			asioPipeHandle_.close(ec);
@@ -238,9 +234,12 @@ namespace pmon::util::pipe
 		if (timeoutMs) {
 			const auto result = co_await(as::async_read(asioPipeHandle_, readBuf_, as::transfer_exactly(byteCount),
 				as::as_tuple(as::use_awaitable)) || Timeout_(*timeoutMs));
-			// 2nd index active means timed out
+			// 2nd index active means the timer finished first: expired, or cancelled from outside
 			if (result.index() == 1) {
-				throw Except<PipeReadTimeout>("Timeout during read");
+				if (std::get<1>(result)) {
+					throw Except<PipeReadTimeout>("Timeout during read");
+				}
+				throw Except<PipeOperationCanceled>("Read canceled");
 			}
 			// otherwise 1st index active => extract error code and transform
 			auto&& [ec, n] = std::get<0>(result);
@@ -257,9 +256,12 @@ namespace pmon::util::pipe
 		if (timeoutMs) {
 			const auto result = co_await(as::async_write(asioPipeHandle_, writeBuf_, as::as_tuple(as::use_awaitable))
 				|| Timeout_(*timeoutMs));
-			// 2nd index active means timed out
+			// 2nd index active means the timer finished first: expired, or cancelled from outside
 			if (result.index() == 1) {
-				throw Except<PipeError>("Timeout during write");
+				if (std::get<1>(result)) {
+					throw Except<PipeError>("Timeout during write");
+				}
+				throw Except<PipeOperationCanceled>("Write canceled");
 			}
 			// otherwise 1st index active => extract error code and transform
 			auto&& [ec, n] = std::get<0>(result);
@@ -270,11 +272,15 @@ namespace pmon::util::pipe
 			TransformError_(ec);
 		}
 	}
-	as::awaitable<void> DuplexPipe::Timeout_(uint32_t ms)
+	as::awaitable<bool> DuplexPipe::Timeout_(uint32_t ms)
 	{
 		as::deadline_timer timer{ co_await as::this_coro::executor };
 		timer.expires_from_now(boost::posix_time::millisec{ ms });
-		co_await timer.async_wait(as::use_awaitable);
+		// Losing the race to the I/O cancels this wait. That is the normal case, so it
+		// completes quietly instead of throwing; only a real expiry reports true.
+		auto ec = boost::system::error_code{};
+		co_await timer.async_wait(as::redirect_error(as::use_awaitable, ec));
+		co_return !ec;
 	}
 	
 	void DuplexPipe::TransformError_(const boost::system::error_code& ec)

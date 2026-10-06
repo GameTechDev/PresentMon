@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "../Interprocess/source/act/SymmetricActionConnector.h"
+#include "../Interprocess/source/act/SessionEndReason.h"
 #include "../Interprocess/source/ShmNamer.h"
 #include "../CommonUtilities/win/Handle.h"
 #include <atomic>
@@ -19,11 +19,6 @@
 #include "Service.h"
 #include "FrameBroadcaster.h"
 #include "MetricUse.h"
-
-namespace pmon::svc::acts
-{
-    struct ActionExecutionContext;
-}
 
 namespace pmon::svc::acts
 {
