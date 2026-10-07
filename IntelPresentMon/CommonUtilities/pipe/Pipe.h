@@ -151,6 +151,8 @@ namespace pmon::util::pipe
 		static bool WaitForVacancy(const std::string& name, uint32_t timeoutMs, uint32_t pollPeriodMs = 5);
 		uint32_t GetId() const;
 		std::string GetName() const;
+		// server side only, after Accept
+		uint32_t GetClientProcessId() const;
 		static std::string GetSecurityString(SecurityMode mode);
 	private:
 		// functions

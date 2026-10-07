@@ -91,6 +91,9 @@
     <ClInclude Include="TestProcess.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="RawPipeClient.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Logging.h">
       <Filter>Header Files</Filter>
     </ClInclude>

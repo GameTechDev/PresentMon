@@ -137,6 +137,12 @@ namespace pmon::ipc::act
 		as::awaitable<void> AcceptConnection()
 		{
 			co_await pPipe_->Accept();
+			clientPid_ = pPipe_->GetClientProcessId();
+		}
+		// process id of the pipe client, as reported by the system; set once accepted
+		uint32_t GetClientProcessId() const
+		{
+			return clientPid_;
 		}
 		// Fails waiters and cancels the pipe. The reader resumes and returns `reason`.
 		// Must be called on the io thread. A second call is a no-op.
@@ -218,6 +224,12 @@ namespace pmon::ipc::act
 				// response is then transmitted over the pipe to remote
 				// TODO: make this return result code (increment error count based on this)
 				co_await AsyncActionCollection<ExecCtx>::Get().Find(header.identifier).Execute(ctx, stx, header, *pPipe_);
+				// an accepted peer must open its session as itself, every time it opens it
+				if (clientPid_ && header.identifier == "OpenSession" && stx.remotePid != clientPid_) {
+					pmlog_error("OpenSession pid does not match the pipe client")
+						.pmwatch(stx.remotePid).pmwatch(clientPid_);
+					throw util::Except<ProtocolViolation>("OpenSession pid does not match the pipe client");
+				}
 				co_return;
 			}
 			// we assume any pipe-transport related errors and protocol violations are not
@@ -297,6 +309,8 @@ namespace pmon::ipc::act
 		as::io_context& ioctx_;
 		std::unique_ptr<pipe::DuplexPipe> pPipe_;
 		CommandTokenAllocator tokens_;
+		// zero on the connecting side, which has no peer to verify
+		uint32_t clientPid_ = 0;
 		std::unordered_map<uint32_t, PendingResponse*> pendingResponses_;
 		std::unordered_set<uint32_t> expiredResponseTokens_;
 		std::deque<uint32_t> expiredResponseTokenOrder_;

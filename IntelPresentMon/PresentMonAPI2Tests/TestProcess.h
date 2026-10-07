@@ -6,6 +6,7 @@
 #include "JobManager.h"
 #include "Logging.h"
 #include "TestCommands.h"
+#include "RawPipeClient.h"
 #include "../CommonUtilities/file/FileUtils.h"
 #include "../CommonUtilities/pipe/Pipe.h"
 #include <boost/process.hpp>
@@ -73,79 +74,6 @@ inline void AppendVerboseModulesArgs_(std::vector<std::string>& args,
 	args.push_back(flag);
 	args.insert(args.end(), values.begin(), values.end());
 }
-
-// raw control-pipe client for transport abuse cases, which need to write bytes the
-// real client would never produce (and sometimes to write nothing at all)
-class RawPipeClient
-{
-public:
-	// A server posts a bounded number of pipe instances, so a connect can legitimately find
-	// them all taken (ERROR_PIPE_BUSY) or find the name momentarily gone while acceptors are
-	// replenished (ERROR_FILE_NOT_FOUND). Real clients poll through this via
-	// WaitForAvailability, and so must we. Pass a zero timeout to probe without waiting.
-	explicit RawPipeClient(const std::string& pipeName, std::chrono::milliseconds connectTimeout = 2s)
-	{
-		const auto deadline = std::chrono::steady_clock::now() + connectTimeout;
-		do {
-			handle_ = pmon::util::win::Handle{ CreateFileA(pipeName.c_str(),
-				GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr) };
-			connectError_ = GetLastError();
-			if (handle_ || (connectError_ != ERROR_PIPE_BUSY && connectError_ != ERROR_FILE_NOT_FOUND)) {
-				return;
-			}
-			std::this_thread::sleep_for(2ms);
-		} while (std::chrono::steady_clock::now() < deadline);
-	}
-	RawPipeClient(const RawPipeClient&) = delete;
-	RawPipeClient& operator=(const RawPipeClient&) = delete;
-	RawPipeClient(RawPipeClient&&) = default;
-	RawPipeClient& operator=(RawPipeClient&&) = default;
-	~RawPipeClient() = default;
-	bool IsConnected() const
-	{
-		return (bool)handle_;
-	}
-	DWORD GetConnectError() const
-	{
-		return connectError_;
-	}
-	void Write(const void* pData, size_t size)
-	{
-		DWORD written = 0;
-		WriteFile(handle_, pData, (DWORD)size, &written, nullptr);
-	}
-	void WriteDeclaredBodySize(uint32_t size)
-	{
-		Write(&size, sizeof(size));
-	}
-	// writes a length prefix followed by fewer bytes than promised, then stops
-	void WriteTruncatedBody(uint32_t declaredSize, uint32_t actualSize)
-	{
-		WriteDeclaredBodySize(declaredSize);
-		const std::vector<char> filler(actualSize, '\0');
-		Write(filler.data(), filler.size());
-	}
-	// true once the server has closed its end, which is how a rejected session is observed
-	bool WaitForServerClose(std::chrono::milliseconds timeout)
-	{
-		const auto deadline = std::chrono::steady_clock::now() + timeout;
-		while (std::chrono::steady_clock::now() < deadline) {
-			DWORD available = 0;
-			if (!PeekNamedPipe(handle_, nullptr, 0, nullptr, &available, nullptr)) {
-				return true;
-			}
-			std::this_thread::sleep_for(5ms);
-		}
-		return false;
-	}
-	void Close()
-	{
-		handle_.Clear();
-	}
-private:
-	pmon::util::win::Handle handle_;
-	DWORD connectError_ = 0;
-};
 
 // base class to represent child processes launched by test cases
 class TestProcess

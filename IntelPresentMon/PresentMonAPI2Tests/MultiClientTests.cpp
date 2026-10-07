@@ -10,6 +10,7 @@
 #include <vector>
 #include "Folders.h"
 #include "JobManager.h"
+#include "../Interprocess/source/act/SessionLimits.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -19,6 +20,9 @@ using namespace pmon;
 
 namespace MultiClientTests
 {
+	// every client here runs as the same user, so they share one allowance
+	constexpr uint32_t kSessionsPerUser = ipc::act::SessionLimits{}.maxSessionsPerIdentity;
+
 	class TestFixture : public CommonTestFixture
 	{
 	protected:
@@ -546,7 +550,7 @@ namespace MultiClientTests
 				Assert::AreEqual(0ull, status.frameStorePids.size());
 			}
 		}
-		// test a large number of clients running
+		// test as many concurrent clients as one user is allowed
 		TEST_METHOD(ClientStressTest)
 		{
 			// launch target for tracking
@@ -554,7 +558,7 @@ namespace MultiClientTests
 			std::this_thread::sleep_for(util::test::ScaleWait(150ms));
 			// launch clients
 			std::vector<std::unique_ptr<ClientProcess>> clientPtrs;
-			for (int i = 0; i < 32; i++) {
+			for (uint32_t i = 0; i < kSessionsPerUser; i++) {
 				clientPtrs.push_back(fixture_.LaunchClientAsPtr({
 					"--process-id"s, std::to_string(presenter.GetId()),
 					"--run-time"s, "1.25"s,
@@ -577,6 +581,8 @@ namespace MultiClientTests
 	{
 		TestFixture fixture_;
 		static constexpr auto rejectionDeadline_ = 3s;
+		// matches the SessionLimits default handshakeTimeoutMs
+		static constexpr auto handshakeDeadline_ = 3s;
 		// matches reservedPipeInstanceCount passed by PresentMonService::ActionServer
 		static constexpr uint32_t reservedAcceptors_ = 2;
 
@@ -604,17 +610,38 @@ namespace MultiClientTests
 			AssertTransportIdle_();
 		}
 		// Hold connections open. Holding more than the reserved instance count must not
-		// block anyone, because acceptors are replenished per accept.
+		// block anyone, because acceptors are replenished per accept. One slot of the
+		// per-user allowance is left for the client.
 		TEST_METHOD(HeldConnectionsDoNotStarveAdmission)
 		{
+			static_assert(kSessionsPerUser - 1 > reservedAcceptors_);
 			std::vector<RawPipeClient> held;
-			for (uint32_t i = 0; i < reservedAcceptors_ * 4; i++) {
+			for (uint32_t i = 0; i < kSessionsPerUser - 1; i++) {
 				held.emplace_back(CtrlPipe_());
 				AssertConnected_(held.back());
 			}
 			AssertClientCanRunASession_();
 			held.clear();
 			AssertTransportIdle_();
+		}
+		// Connections that never open a session are shed by the service at the handshake
+		// deadline, releasing their sessions while the holder still has its handles open.
+		TEST_METHOD(IdleConnectionsShedAtHandshakeDeadline)
+		{
+			std::vector<RawPipeClient> held;
+			for (uint32_t i = 0; i < reservedAcceptors_ * 2; i++) {
+				held.emplace_back(CtrlPipe_());
+				AssertConnected_(held.back());
+			}
+			const auto start = std::chrono::steady_clock::now();
+			for (auto& raw : held) {
+				Assert::IsTrue(raw.WaitForServerClose(handshakeDeadline_ + 2s),
+					L"An idle connection outlived the handshake deadline");
+			}
+			Assert::IsTrue(std::chrono::steady_clock::now() - start >= handshakeDeadline_ / 2,
+				L"Idle connections were closed long before the handshake deadline");
+			AssertTransportIdle_();
+			AssertClientCanRunASession_();
 		}
 		// guards against the suffixed names ever being reintroduced
 		TEST_METHOD(HalfPipeAbuseIsNotExpressible)
@@ -650,21 +677,22 @@ namespace MultiClientTests
 			client.Quit();
 			AssertTransportIdle_();
 		}
-		// the cap must shed load without ever becoming a permanent lockout
-		TEST_METHOD(SessionCapEnforced)
+		// One user may hold only its allowance of sessions. The next connection is refused
+		// well before the handshake deadline could shed it. The cap across users needs
+		// distinct users and is covered by the transport tests.
+		TEST_METHOD(PerUserSessionLimitEnforced)
 		{
-			// matches the SymmetricActionServer default maxConcurrentSessions
-			constexpr uint32_t sessionCap = 64;
 			std::vector<RawPipeClient> held;
-			for (uint32_t i = 0; i < sessionCap; i++) {
+			for (uint32_t i = 0; i < kSessionsPerUser; i++) {
 				held.emplace_back(CtrlPipe_());
 				AssertConnected_(held.back());
 			}
-			WaitForSessionCount_(sessionCap);
+			WaitForSessionCount_(kSessionsPerUser);
+			Assert::AreEqual(kSessionsPerUser, fixture_.service->QueryStatus().actionSessionCount);
 			RawPipeClient excess{ CtrlPipe_() };
 			AssertConnected_(excess);
-			Assert::IsTrue(excess.WaitForServerClose(rejectionDeadline_),
-				L"Session beyond the cap was not dropped");
+			Assert::IsTrue(excess.WaitForServerClose(1s),
+				L"A connection beyond the per-user limit was not refused");
 			held.clear();
 			AssertClientCanRunASession_();
 			AssertTransportIdle_();

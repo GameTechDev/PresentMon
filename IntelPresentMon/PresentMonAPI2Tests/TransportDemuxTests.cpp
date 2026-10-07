@@ -11,6 +11,7 @@
 #include "../Interprocess/source/act/SymmetricActionClient.h"
 #include "../Interprocess/source/act/SymmetricActionServer.h"
 #include "../Interprocess/source/act/ActionServerShutdown.h"
+#include "RawPipeClient.h"
 #include <cereal/archives/binary.hpp>
 #include <atomic>
 #include <condition_variable>
@@ -551,6 +552,8 @@ namespace TransportDemuxTests
 		std::optional<uint32_t> bodyReadTimeoutMs;
 		ServerExecutionContext::ProtocolGate* protocolGate = nullptr;
 		std::shared_ptr<std::atomic<bool>> borrowedAlive;
+		SessionLimits limits;
+		ClientIdentityResolver resolveClient = util::win::GetProcessUserSid;
 	};
 
 	// Policy selects single-peer push, request/response, or addressed send.
@@ -577,7 +580,7 @@ namespace TransportDemuxTests
 					.lifetime = ServerExecutionContext::LifetimeNote::Make(
 						hooks.events, hooks.borrowedAlive),
 				},
-				pipeName, reservedAcceptors, std::string{} }
+				pipeName, reservedAcceptors, std::string{}, false, hooks.limits, std::move(hooks.resolveClient) }
 		{
 			push_ = [this](uint32_t value) {
 				if constexpr (Policy::kUnaddressedSend) {
@@ -614,11 +617,12 @@ namespace TransportDemuxTests
 	class TestClient : public SymmetricActionClient<ClientExecutionContext>
 	{
 	public:
-		TestClient(const std::string& pipeName, std::atomic<uint32_t>& eventCount)
+		TestClient(const std::string& pipeName, std::atomic<uint32_t>& eventCount,
+			uint32_t claimedPid = GetCurrentProcessId())
 			:
 			SymmetricActionClient{ pipeName, ClientExecutionContext{ .pEventCount = &eventCount } }
 		{
-			const auto res = DispatchSync(OpenSession::Params{ .clientPid = GetCurrentProcessId() });
+			const auto res = DispatchSync(OpenSession::Params{ .clientPid = claimedPid });
 			EstablishSession_(res.serverPid);
 		}
 	};
@@ -661,6 +665,44 @@ namespace TransportDemuxTests
 			L"Timed out waiting for the test transport pipe");
 		return std::make_unique<TestClient>(pipeName, eventCount);
 	}
+
+	// A refused connection is accepted at the pipe level and closed by the server without
+	// ever becoming a session. The connect itself must succeed, so a busy or missing pipe
+	// fails the test instead of passing for a refusal. Nothing is sent, so within the wait
+	// only refusal can close it; callers keep the handshake deadline well beyond it.
+	template<class Server>
+	bool ConnectionIsRefused_(const Server& server, const std::string& pipeName)
+	{
+		const auto sessionsBefore = server.GetSessionCount();
+		RawPipeClient raw{ pipeName };
+		Assert::IsTrue(raw.IsConnected(), L"Could not connect to the test transport pipe");
+		return raw.WaitForServerClose(1s) && server.GetSessionCount() == sessionsBefore;
+	}
+
+	// Charges each accepted connection to whichever identity the test selected last,
+	// standing in for distinct users that one test process cannot be.
+	class FakeIdentities_
+	{
+	public:
+		explicit FakeIdentities_(std::string initial) : current_{ std::move(initial) } {}
+		// Call only once the server has resolved the previous connection: one that has
+		// opened its session, or has been admitted or refused, already has been.
+		void Select(std::string identity)
+		{
+			std::lock_guard lock{ mutex_ };
+			current_ = std::move(identity);
+		}
+		ClientIdentityResolver Resolver()
+		{
+			return [this](uint32_t) {
+				std::lock_guard lock{ mutex_ };
+				return current_;
+			};
+		}
+	private:
+		std::mutex mutex_;
+		std::string current_;
+	};
 
 	// Counts C++ exceptions raised anywhere in this process while it is alive, including
 	// ones that are caught. 0xE06D7363 is the SEH code MSVC uses for every C++ throw.
@@ -1818,7 +1860,207 @@ namespace TransportDemuxTests
 			server.WaitForShutdown();
 			Assert::AreEqual(0u, server.GetSessionCount());
 		}
+		// one identity holding its whole session quota costs only that identity
+		TEST_METHOD(IdentitySessionQuotaDoesNotLimitOtherIdentities)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			constexpr uint32_t quota = 4;
+			FakeIdentities_ identities{ "attacker" };
+			TestServer<RequestResponseServerPolicy> server{ pipeName, disposeCount, nullptr, nullptr, ServerTestHooks{
+				.limits = { .maxSessions = 16, .maxSessionsPerIdentity = quota },
+				.resolveClient = identities.Resolver(),
+			} };
+			std::vector<std::unique_ptr<TestClient>> held;
+			for (uint32_t i = 0; i < quota; i++) {
+				held.push_back(ConnectClient_(pipeName, eventCount));
+			}
+			Assert::IsTrue(ConnectionIsRefused_(server, pipeName), L"An identity was admitted beyond its session quota");
+
+			identities.Select("victim");
+			auto pVictim = ConnectClient_(pipeName, eventCount);
+			const auto res = pVictim->DispatchSync(EchoWithPush::Params{ .value = 8, .pushCount = 0 });
+			Assert::AreEqual(8u, res.value);
+			Assert::AreEqual(quota + 1, server.GetSessionCount());
+		}
+		// idle raw handles that never open a session are charged to the same quota, so
+		// holding them up to and past it costs only the identity that holds them
+		TEST_METHOD(IdleConnectionsOfOneIdentityDoNotBlockAnother)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			constexpr uint32_t quota = 4;
+			FakeIdentities_ identities{ "attacker" };
+			TestServer<RequestResponseServerPolicy> server{ pipeName, disposeCount, nullptr, nullptr, ServerTestHooks{
+				.limits = { .maxSessions = 16, .maxSessionsPerIdentity = quota, .handshakeTimeoutMs = 60000 },
+				.resolveClient = identities.Resolver(),
+			} };
+			std::vector<RawPipeClient> held;
+			for (uint32_t i = 0; i < quota; i++) {
+				held.emplace_back(pipeName);
+				Assert::IsTrue(held.back().IsConnected());
+			}
+			WaitForSessionCount_(server, quota);
+			Assert::AreEqual(quota, server.GetSessionCount());
+			Assert::IsTrue(ConnectionIsRefused_(server, pipeName),
+				L"An identity holding its quota in idle connections was admitted again");
+
+			identities.Select("victim");
+			auto pVictim = ConnectClient_(pipeName, eventCount);
+			const auto res = pVictim->DispatchSync(EchoWithPush::Params{ .value = 9, .pushCount = 0 });
+			Assert::AreEqual(9u, res.value);
+			for (auto& raw : held) {
+				Assert::IsFalse(raw.IsClosedByServer(), L"An admitted idle connection was dropped before its deadline");
+			}
+		}
+		// a connection that never opens its session is closed at the deadline, while an
+		// opened session may stay idle past it
+		TEST_METHOD(UnopenedSessionClosedAtHandshakeDeadline)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::mutex disposeMutex;
+			std::vector<SessionEndReason> reasons;
+			std::atomic<uint32_t> eventCount = 0;
+			constexpr auto deadline = 200ms;
+			TestServer<RequestResponseServerPolicy> server{ pipeName, disposeCount, &disposeMutex, &reasons, ServerTestHooks{
+				.limits = { .handshakeTimeoutMs = (uint32_t)deadline.count() },
+			} };
+			auto pClient = ConnectClient_(pipeName, eventCount);
+			RawPipeClient raw{ pipeName };
+			Assert::IsTrue(raw.IsConnected());
+			const auto start = std::chrono::steady_clock::now();
+			Assert::IsTrue(raw.WaitForServerClose(2s), L"An unopened session outlived the handshake deadline");
+			Assert::IsTrue(std::chrono::steady_clock::now() - start >= deadline / 2,
+				L"An unopened session was closed long before the handshake deadline");
+			for (int i = 0; i < 200 && disposeCount.load() == 0; i++) {
+				std::this_thread::sleep_for(10ms);
+			}
+			{
+				std::lock_guard lock{ disposeMutex };
+				Assert::AreEqual((size_t)1, reasons.size());
+				Assert::IsTrue(reasons[0] == SessionEndReason::PeerStalled);
+			}
+			const auto res = pClient->DispatchSync(EchoWithPush::Params{ .value = 10, .pushCount = 0 });
+			Assert::AreEqual(10u, res.value, L"An opened session was closed by the handshake deadline");
+			Assert::AreEqual(1u, server.GetSessionCount());
+		}
+		// the allowance is charged per live session, so it comes back as sessions end
+		TEST_METHOD(IdentityAllowanceReturnsWhenSessionsEnd)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			// the real resolver: every connection here is charged to this process's user
+			TestServer<RequestResponseServerPolicy> server{ pipeName, disposeCount, nullptr, nullptr, ServerTestHooks{
+				.limits = { .maxSessionsPerIdentity = 2 },
+			} };
+			auto pClientA = ConnectClient_(pipeName, eventCount);
+			auto pClientB = ConnectClient_(pipeName, eventCount);
+			Assert::IsTrue(ConnectionIsRefused_(server, pipeName), L"An identity was admitted beyond its session quota");
+			pClientA.reset();
+			WaitForSessionCount_(server, 1);
+			pClientA = ConnectClient_(pipeName, eventCount);
+			Assert::AreEqual(2u, server.GetSessionCount(), L"A session quota slot was not returned on disconnect");
+		}
+		// the global cap still bounds the server when every session has its own identity
+		TEST_METHOD(SessionCapHoldsAcrossIdentities)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			constexpr uint32_t cap = 3;
+			FakeIdentities_ identities{ "user0" };
+			TestServer<RequestResponseServerPolicy> server{ pipeName, disposeCount, nullptr, nullptr, ServerTestHooks{
+				.limits = { .maxSessions = cap },
+				.resolveClient = identities.Resolver(),
+			} };
+			std::vector<std::unique_ptr<TestClient>> clients;
+			for (uint32_t i = 0; i < cap; i++) {
+				identities.Select(std::format("user{}", i));
+				clients.push_back(ConnectClient_(pipeName, eventCount));
+			}
+			identities.Select("late");
+			Assert::IsTrue(ConnectionIsRefused_(server, pipeName), L"A session beyond the cap was admitted");
+			clients.front().reset();
+			WaitForSessionCount_(server, cap - 1);
+			auto pLate = ConnectClient_(pipeName, eventCount);
+			const auto res = pLate->DispatchSync(EchoWithPush::Params{ .value = 12, .pushCount = 0 });
+			Assert::AreEqual(12u, res.value);
+		}
+		// a connection that cannot be charged to anyone is refused
+		TEST_METHOD(UnresolvableClientIsRefused)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> resolveAttempts = 0;
+			TestServer<RequestResponseServerPolicy> server{ pipeName, disposeCount, nullptr, nullptr, ServerTestHooks{
+				.resolveClient = [&](uint32_t) -> std::string {
+					resolveAttempts.fetch_add(1);
+					throw util::Except<util::Exception>("identity unavailable");
+				},
+			} };
+			Assert::IsTrue(ConnectionIsRefused_(server, pipeName), L"A client without an identity was admitted");
+			Assert::AreEqual(1u, resolveAttempts.load(), L"The refusal did not come from identity resolution");
+		}
+		// a single-peer server does not attribute its one session to an identity
+		TEST_METHOD(SinglePeerDoesNotResolveIdentity)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			TestServer server{ pipeName, disposeCount, nullptr, nullptr, ServerTestHooks{
+				.resolveClient = [](uint32_t) -> std::string {
+					throw util::Except<util::Exception>("identity unavailable");
+				},
+			} };
+			auto pClient = ConnectClient_(pipeName, eventCount);
+			const auto res = pClient->DispatchSync(EchoWithPush::Params{ .value = 13, .pushCount = 0 });
+			Assert::AreEqual(13u, res.value);
+		}
+		// a session must be opened under the pid of the process that connected it
+		TEST_METHOD(OpenSessionUnderAnotherPidIsAProtocolFailure)
+		{
+			AssertOpenSessionUnderPidFails_<RequestResponseServerPolicy>(GetCurrentProcessId() + 4);
+			AssertOpenSessionUnderPidFails_<RequestResponseServerPolicy>(0);
+			AssertOpenSessionUnderPidFails_<SinglePeerServerPolicy>(GetCurrentProcessId() + 4);
+		}
 	private:
+		template<class Policy>
+		static void AssertOpenSessionUnderPidFails_(uint32_t claimedPid)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::mutex disposeMutex;
+			std::vector<SessionEndReason> reasons;
+			std::atomic<uint32_t> eventCount = 0;
+			TestServer<Policy> server{ pipeName, disposeCount, &disposeMutex, &reasons };
+			Assert::IsTrue(util::pipe::DuplexPipe::WaitForAvailability(pipeName, 2000),
+				L"Timed out waiting for the test transport pipe");
+			// the OpenSession response may or may not arrive before the server drops the session
+			bool served = false;
+			try {
+				TestClient spoofer{ pipeName, eventCount, claimedPid };
+				spoofer.DispatchSync(EchoWithPush::Params{ .value = 14, .pushCount = 0 });
+				served = true;
+			}
+			catch (...) {
+			}
+			Assert::IsFalse(served, L"A session opened under another pid was served");
+			for (int i = 0; i < 200 && disposeCount.load() == 0; i++) {
+				std::this_thread::sleep_for(10ms);
+			}
+			{
+				std::lock_guard lock{ disposeMutex };
+				Assert::AreEqual((size_t)1, reasons.size());
+				Assert::IsTrue(reasons[0] == SessionEndReason::ProtocolFailure);
+			}
+			auto pHonest = ConnectClient_(pipeName, eventCount);
+			const auto res = pHonest->DispatchSync(EchoWithPush::Params{ .value = 15, .pushCount = 0 });
+			Assert::AreEqual(15u, res.value);
+		}
 		template<class Server>
 		static void WaitForSessionCount_(const Server& server, uint32_t expected)
 		{

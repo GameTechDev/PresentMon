@@ -1,5 +1,6 @@
 #include "Pipe.h"
 #include "../win/Security.h"
+#include "../win/HrError.h"
 #include <string_view>
 
 namespace pmon::util::pipe
@@ -152,11 +153,21 @@ namespace pmon::util::pipe
 	{
 		return name_;
 	}
+	uint32_t DuplexPipe::GetClientProcessId() const
+	{
+		// asio only exposes native_handle() as non-const; reading it does not modify the handle
+		const auto handle = const_cast<as::windows::stream_handle&>(asioPipeHandle_).native_handle();
+		ULONG pid = 0;
+		if (!GetNamedPipeClientProcessId(handle, &pid)) {
+			throw Except<win::HrError>("Failed getting pipe client process id");
+		}
+		return (uint32_t)pid;
+	}
 	std::string DuplexPipe::GetSecurityString(SecurityMode mode)
 	{
 		switch (mode) {
 		default:case SecurityMode::None: return {};
-		case SecurityMode::Service: return "D:P(A;;GA;;;AU)S:(ML;;NW;;;LW)"s;
+		case SecurityMode::Service: return "D:P(A;;GA;;;AU)S:(ML;;NW;;;ME)"s;
 		case SecurityMode::Child: return "D:(A;OICI;GA;;;WD)"s;
 		}
 	}
