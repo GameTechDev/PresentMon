@@ -8,9 +8,7 @@
 #include "ActionRunner.h"
 #include "SessionLimits.h"
 #include "../../../CommonUtilities/log/IdentificationTable.h"
-#include "../../../CommonUtilities/win/Security.h"
 #include "ActionContext.h"
-#include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <format>
@@ -35,24 +33,17 @@ namespace pmon::ipc::act
         using SessionContextType = typename ExecCtx::SessionContextType;
         using SessionsMap = std::unordered_map<uint32_t, SessionContextType>;
         using Connector = SymmetricActionConnector<ExecCtx>;
-        // transport side of an admitted session
-        struct Peer
-        {
-            std::shared_ptr<Connector> conn;
-            // the client identity the session is charged to; empty on a single-peer server
-            std::string identity;
-        };
 
         struct State : std::enable_shared_from_this<State>
         {
             Lifecycle lifecycle;
             AdmissionGate admission;
             as::io_context ioctx;
-            // Application session state and the transport peer for each session, keyed by
-            // the same session id. Only AddSession_ and RemoveSession_ change either map,
-            // so the two always hold the same keys.
+            // Application session state and the transport connector for each session,
+            // keyed by the same session id. Only AddSession_ and RemoveSession_ change
+            // either map, so the two always hold the same keys.
             SessionsMap sessions;
-            std::unordered_map<uint32_t, Peer> peers;
+            std::unordered_map<uint32_t, std::shared_ptr<Connector>> connectors;
             // Acceptors blocked in ConnectNamedPipe. They hold this State across the
             // suspend, so Drain_ must close them or the pipe name outlives shutdown.
             std::vector<std::shared_ptr<Connector>> listeners_;
@@ -67,18 +58,16 @@ namespace pmon::ipc::act
             bool allowConnectionlessSend = false;
             uint32_t reservedPipeInstanceCount = 0;
             SessionLimits limits;
-            ClientIdentityResolver resolveClient;
             std::string basePipeName;
             std::string security;
 
             State(ExecCtx context, std::string pipeName, uint32_t reserved, std::string securityString,
-                bool connectionless, SessionLimits sessionLimits, ClientIdentityResolver resolver)
+                bool connectionless, SessionLimits sessionLimits)
                 :
                 ctx{ std::move(context) },
                 allowConnectionlessSend{ connectionless },
                 reservedPipeInstanceCount{ reserved },
                 limits{ sessionLimits },
-                resolveClient{ std::move(resolver) },
                 basePipeName{ std::move(pipeName) },
                 security{ std::move(securityString) }
             {
@@ -88,7 +77,6 @@ namespace pmon::ipc::act
                 }
                 assert(reservedPipeInstanceCount > 0);
                 assert(limits.maxSessions >= reservedPipeInstanceCount);
-                assert(ServerPolicy::kSinglePeer || resolveClient);
             }
             bool OnIoThread() const
             {
@@ -125,8 +113,8 @@ namespace pmon::ipc::act
             void EndConnectedSessions_()
             {
                 std::vector<std::shared_ptr<Connector>> conns;
-                for (auto& entry : peers) {
-                    conns.push_back(entry.second.conn);
+                for (auto& entry : connectors) {
+                    conns.push_back(entry.second);
                 }
                 for (auto& conn : conns) {
                     if (conn) {
@@ -256,14 +244,15 @@ namespace pmon::ipc::act
                 if (!lifecycle.IsRunning()) {
                     co_return;
                 }
-                auto identity = Admit_(*pConn);
-                if (!identity) {
+                if (!Admit_()) {
                     co_return;
                 }
                 const auto sessionId = pConn->GetId();
                 // insert a session context object for this connection, will be initialized properly upon OpenSession action
-                auto& stx = AddSession_(sessionId, Peer{ .conn = pConn, .identity = std::move(*identity) });
-                pmlog_info(std::format("Action pipe connected id:{}", sessionId));
+                auto& stx = AddSession_(sessionId, pConn);
+                // the client pid here is reported by the system, not claimed by the peer
+                pmlog_info(std::format("Action pipe connected id:{} client pid:{}",
+                    sessionId, pConn->GetClientProcessId()));
                 as::steady_timer handshakeDeadline{ ioctx };
                 if constexpr (!ServerPolicy::kSinglePeer) {
                     handshakeDeadline.expires_after(std::chrono::milliseconds{ limits.handshakeTimeoutMs });
@@ -276,44 +265,23 @@ namespace pmon::ipc::act
                 }
                 // run the action handler until client session is terminated
                 const auto reason = co_await pConn->RunReaderLoop(ctx, stx);
-                const auto clientPid = DisposeSession_(sessionId, reason);
-                pmlog_info(std::format("Action pipe disconnected, session closed id:{} pid:{}",
-                    sessionId, clientPid.value_or(0)));
+                const auto claimedPid = DisposeSession_(sessionId, reason);
+                pmlog_info(std::format("Action pipe disconnected, session closed id:{} client pid:{} claimed pid:{}",
+                    sessionId, pConn->GetClientProcessId(), claimedPid.value_or(0)));
             }
-            // The identity to charge the session to (empty on a single-peer server),
-            // or nullopt when the connection is refused.
-            std::optional<std::string> Admit_(Connector& conn)
+            // False when the connection is refused.
+            bool Admit_() const
             {
                 if (ServerPolicy::kSinglePeer && !sessions.empty()) {
                     pmlog_warn("Refusing action pipe connection, single-peer server already has a session");
-                    return {};
+                    return false;
                 }
                 if (sessions.size() >= limits.maxSessions) {
                     pmlog_warn("Refusing action pipe connection, session cap reached")
                         .pmwatch(limits.maxSessions);
-                    return {};
+                    return false;
                 }
-                if constexpr (ServerPolicy::kSinglePeer) {
-                    return std::string{};
-                }
-                else {
-                    std::string identity;
-                    try {
-                        identity = resolveClient(conn.GetClientProcessId());
-                    }
-                    catch (...) {
-                        pmlog_warn(util::ReportException("Refusing action pipe connection, client identity unresolved"));
-                        return {};
-                    }
-                    const auto held = std::ranges::count_if(peers,
-                        [&](const auto& entry) { return entry.second.identity == identity; });
-                    if ((uint32_t)held >= limits.maxSessionsPerIdentity) {
-                        pmlog_warn("Refusing action pipe connection, identity session quota reached")
-                            .pmwatch(identity).pmwatch(limits.maxSessionsPerIdentity);
-                        return {};
-                    }
-                    return identity;
-                }
+                return true;
             }
             void EndSessionIfNotOpened_(uint32_t sid)
             {
@@ -350,26 +318,26 @@ namespace pmon::ipc::act
                 }
                 return remotePid;
             }
-            SessionContextType& AddSession_(uint32_t sid, Peer peer)
+            SessionContextType& AddSession_(uint32_t sid, std::shared_ptr<Connector> pConn)
             {
-                peers.emplace(sid, std::move(peer));
+                connectors.emplace(sid, std::move(pConn));
                 auto& stx = sessions.emplace(sid, SessionContextType{}).first->second;
-                assert(sessions.size() == peers.size());
+                assert(sessions.size() == connectors.size());
                 sessionCount.store((uint32_t)sessions.size(), std::memory_order_relaxed);
                 return stx;
             }
             void RemoveSession_(uint32_t sid)
             {
                 sessions.erase(sid);
-                peers.erase(sid);
-                assert(sessions.size() == peers.size());
+                connectors.erase(sid);
+                assert(sessions.size() == connectors.size());
                 sessionCount.store((uint32_t)sessions.size(), std::memory_order_relaxed);
             }
             // Null when the session is gone.
             std::shared_ptr<Connector> FindConnector_(uint32_t sid) const
             {
-                if (auto i = peers.find(sid); i != peers.end()) {
-                    return i->second.conn;
+                if (auto i = connectors.find(sid); i != connectors.end()) {
+                    return i->second;
                 }
                 return nullptr;
             }
@@ -378,11 +346,10 @@ namespace pmon::ipc::act
     public:
         SymmetricActionServer(ExecCtx context, std::string basePipeName,
             uint32_t reservedPipeInstanceCount, std::string securityString, bool allowConnectionlessSend = false,
-            SessionLimits limits = {}, ClientIdentityResolver resolveClient = win::GetProcessUserSid)
+            SessionLimits limits = {})
         {
             state_ = std::make_shared<State>(std::move(context), std::move(basePipeName),
-                reservedPipeInstanceCount, std::move(securityString), allowConnectionlessSend,
-                limits, std::move(resolveClient));
+                reservedPipeInstanceCount, std::move(securityString), allowConnectionlessSend, limits);
             runner_ = std::thread([state = state_] {
                 InstallSehTranslator();
                 log::IdentificationTable::AddThisThread(

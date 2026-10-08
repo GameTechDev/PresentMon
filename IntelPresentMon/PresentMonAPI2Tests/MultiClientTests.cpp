@@ -20,9 +20,6 @@ using namespace pmon;
 
 namespace MultiClientTests
 {
-	// every client here runs as the same user, so they share one allowance
-	constexpr uint32_t kSessionsPerUser = ipc::act::SessionLimits{}.maxSessionsPerIdentity;
-
 	class TestFixture : public CommonTestFixture
 	{
 	protected:
@@ -550,7 +547,7 @@ namespace MultiClientTests
 				Assert::AreEqual(0ull, status.frameStorePids.size());
 			}
 		}
-		// test as many concurrent clients as one user is allowed
+		// test a large number of clients running
 		TEST_METHOD(ClientStressTest)
 		{
 			// launch target for tracking
@@ -558,7 +555,7 @@ namespace MultiClientTests
 			std::this_thread::sleep_for(util::test::ScaleWait(150ms));
 			// launch clients
 			std::vector<std::unique_ptr<ClientProcess>> clientPtrs;
-			for (uint32_t i = 0; i < kSessionsPerUser; i++) {
+			for (int i = 0; i < 32; i++) {
 				clientPtrs.push_back(fixture_.LaunchClientAsPtr({
 					"--process-id"s, std::to_string(presenter.GetId()),
 					"--run-time"s, "1.25"s,
@@ -610,13 +607,11 @@ namespace MultiClientTests
 			AssertTransportIdle_();
 		}
 		// Hold connections open. Holding more than the reserved instance count must not
-		// block anyone, because acceptors are replenished per accept. One slot of the
-		// per-user allowance is left for the client.
+		// block anyone, because acceptors are replenished per accept.
 		TEST_METHOD(HeldConnectionsDoNotStarveAdmission)
 		{
-			static_assert(kSessionsPerUser - 1 > reservedAcceptors_);
 			std::vector<RawPipeClient> held;
-			for (uint32_t i = 0; i < kSessionsPerUser - 1; i++) {
+			for (uint32_t i = 0; i < reservedAcceptors_ * 4; i++) {
 				held.emplace_back(CtrlPipe_());
 				AssertConnected_(held.back());
 			}
@@ -677,22 +672,22 @@ namespace MultiClientTests
 			client.Quit();
 			AssertTransportIdle_();
 		}
-		// One user may hold only its allowance of sessions. The next connection is refused
-		// well before the handshake deadline could shed it. The cap across users needs
-		// distinct users and is covered by the transport tests.
-		TEST_METHOD(PerUserSessionLimitEnforced)
+		// The cap must shed load without ever becoming a permanent lockout. The connection
+		// beyond it is refused well before the handshake deadline could shed it.
+		TEST_METHOD(SessionCapEnforced)
 		{
+			constexpr uint32_t sessionCap = ipc::act::SessionLimits{}.maxSessions;
 			std::vector<RawPipeClient> held;
-			for (uint32_t i = 0; i < kSessionsPerUser; i++) {
+			for (uint32_t i = 0; i < sessionCap; i++) {
 				held.emplace_back(CtrlPipe_());
 				AssertConnected_(held.back());
 			}
-			WaitForSessionCount_(kSessionsPerUser);
-			Assert::AreEqual(kSessionsPerUser, fixture_.service->QueryStatus().actionSessionCount);
+			WaitForSessionCount_(sessionCap);
+			Assert::AreEqual(sessionCap, fixture_.service->QueryStatus().actionSessionCount);
 			RawPipeClient excess{ CtrlPipe_() };
 			AssertConnected_(excess);
 			Assert::IsTrue(excess.WaitForServerClose(1s),
-				L"A connection beyond the per-user limit was not refused");
+				L"Session beyond the cap was not dropped");
 			held.clear();
 			AssertClientCanRunASession_();
 			AssertTransportIdle_();

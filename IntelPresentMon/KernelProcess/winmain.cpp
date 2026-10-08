@@ -398,8 +398,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			bid::BuildIdShortHash(), !bid::BuildIdDirtyFlag()));
 
 		// launch the service as a child process if desired (typically during development)
-		const auto logSvcPipe = opt.logSvcPipe.AsOptional().value_or(
-			std::format("pm2-child-svc-log-{}", GetCurrentProcessId()));
 		as::io_context ioctx;
 		std::optional<bp2::basic_process<as::io_context::executor_type>> svcChild;
 		if (opt.svcAsChild) {
@@ -409,7 +407,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				"--shm-name-prefix"s, *opt.shmNamePrefix,
 				"--etw-session-name"s, *opt.etwSessionName,
 				"--log-level"s, util::log::GetLevelName(util::log::GlobalPolicy::Get().GetLogLevel()),
-				"--log-pipe-name"s, logSvcPipe,
 				"--enable-stdio-log"s,
 			};
 			// append verbose module options
@@ -438,11 +435,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				pmlog_error("timeout waiting for child service control pipe to go online");
 				return -1;
 			}
-		}
-
-		if (opt.logSvcPipeEnable) {
-			// connect to service's log pipe (best effort)
-			ConnectToLoggingSourcePipe(logSvcPipe);
 		}
 
 		//// connect to the middleware diagnostic layer (not generally used by ipm since we connect

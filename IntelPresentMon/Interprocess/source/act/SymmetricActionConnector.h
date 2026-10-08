@@ -223,12 +223,13 @@ namespace pmon::ipc::act
 				// lookup the command by identifier and execute it with remaining buffer contents
 				// response is then transmitted over the pipe to remote
 				// TODO: make this return result code (increment error count based on this)
+				const auto pidBefore = stx.remotePid;
 				co_await AsyncActionCollection<ExecCtx>::Get().Find(header.identifier).Execute(ctx, stx, header, *pPipe_);
-				// an accepted peer must open its session as itself, every time it opens it
-				if (clientPid_ && header.identifier == "OpenSession" && stx.remotePid != clientPid_) {
-					pmlog_error("OpenSession pid does not match the pipe client")
+				// the peer claimed a pid other than the one the system reports for the pipe client;
+				// remotePid is only used for diagnostics, so this is reported rather than refused
+				if (clientPid_ && stx.remotePid != pidBefore && stx.remotePid != clientPid_) {
+					pmlog_warn("Session claimed a pid that does not match the pipe client")
 						.pmwatch(stx.remotePid).pmwatch(clientPid_);
-					throw util::Except<ProtocolViolation>("OpenSession pid does not match the pipe client");
 				}
 				co_return;
 			}

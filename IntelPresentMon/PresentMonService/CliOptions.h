@@ -33,11 +33,9 @@ namespace clio
 
 	private: Group gl_{ this, "Logging", "Control logging behavior" }; public:
 		Option<std::string> logDir{ this, "--log-dir", "", "Enable logging to a file in the specified directory" };
-		Option<std::string> logPipeName{ this, "--log-pipe-name", pmon::gid::defaultLogPipeBaseName, "Name of the pipe to connect to for log IPC" };
 		Flag enableStdioLog{ this, "--enable-stdio-log", "Enable logging to stderr" };
 		Flag disableColorizedStdioLog{ this, "--disable-colorized-stdio-log", "Disable colorized stderr logging in console mode" };
 		Flag enableDebuggerLog{ this, "--enable-debugger-log", "Enable logging to system debugger" };
-		Flag disableIpcLog{ this, "--disable-ipc-log", "Disable logging to named pipe connection" };
 		Option<Level> logLevel{ this, "--log-level", Level::Error, "Severity to log at", logLevelTf_ };
 		Flag logNamePid{ this, "--log-name-pid", "Append PID to log files instead of timestamp" };
 		Option<std::vector<V>> logVerboseModules{ this, "--log-verbose-modules", {}, "Verbose logging modules to enable", logVmodTf_ };

@@ -37,10 +37,6 @@
       "Command": "--log-verbose-modules tele_gpu"
     },
     {
-      "Id": "bab48d6d-3a48-4b3b-9ed9-903e381824c6",
-      "Command": "--log-svc-pipe-enable"
-    },
-    {
       "Id": "bda24a31-51f4-481a-96f0-037e62a1e578",
       "Command": "--middleware-dll-path .\\PresentMonAPI2.dll"
     },

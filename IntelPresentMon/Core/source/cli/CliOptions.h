@@ -1,7 +1,6 @@
 #pragma once
 #include <CommonUtilities/cli/CliFramework.h>
 #include <CommonUtilities/log/Level.h>
-#include <PresentMonService/GlobalIdentifiers.h>
 #include <format>
 #include <map>
 
@@ -55,8 +54,6 @@ namespace p2c::cli
 		Option<std::string> logDenyList{ this, "--log-deny-list", "", "Path to log deny list (with trace overrides)", CLI::ExistingFile };
 		Option<std::string> logAllowList{ this, "--log-allow-list", "", "Path to log allow list (with trace overrides)", CLI::ExistingFile };
 		Option<std::string> logFolder{ this, "--log-folder", "", "Path to directory in which to store log files", CLI::ExistingDirectory };
-		Option<std::string> logSvcPipe{ this, "--log-svc-pipe", ::pmon::gid::defaultLogPipeBaseName, "Base name of pipe to use when connecting to service IPC log" };
-		Flag logSvcPipeEnable{ this, "--log-svc-pipe-enable", "Enable pipe connection to service IPC log stream" };
 		Flag logMiddlewareCopy{ this, "--log-middleware-copy", "Copy log entries from middleware channel to this client" };
 		Flag logSynchronous{ this, "--log-synchronous", "Enable synchronous logging (submit waits for processing and flush)" };
 		Option<std::vector<log::V>> logVerboseModules{ this, "--log-verbose-modules", {}, "Verbose logging modules to enable", logVmodTf_ };
