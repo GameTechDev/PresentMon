@@ -3,50 +3,76 @@
 #include "HrError.h"
 #include "../log/Log.h"
 #include "../str/String.h"
-#include <algorithm>
-#include <cwctype>
+#include <shellapi.h>
 #include <vector>
 
 namespace pmon::util::win
 {
 	namespace
 	{
-		std::wstring StripServiceConfigQuotes_(std::wstring value)
+		// SC_HANDLE must be closed with CloseServiceHandle, not CloseHandle.
+		struct ScHandle_
 		{
-			if (value.size() >= 2u && value.front() == L'"' && value.back() == L'"') {
-				return value.substr(1, value.size() - 2u);
+			SC_HANDLE handle = nullptr;
+			explicit ScHandle_(SC_HANDLE h) noexcept : handle{ h } {}
+			~ScHandle_()
+			{
+				if (handle) {
+					CloseServiceHandle(handle);
+				}
 			}
-			return value;
-		}
+			ScHandle_(const ScHandle_&) = delete;
+			ScHandle_& operator=(const ScHandle_&) = delete;
+			explicit operator bool() const noexcept { return handle != nullptr; }
+			SC_HANDLE Get() const noexcept { return handle; }
+		};
 
-		std::wstring ToLowerWide_(std::wstring value)
+		struct LocalWstrArray_
 		{
-			std::ranges::transform(value, value.begin(), [](wchar_t c) {
-				return (wchar_t)::towlower(c);
-			});
-			return value;
-		}
+			wchar_t** argv = nullptr;
+			explicit LocalWstrArray_(wchar_t** p) noexcept : argv{ p } {}
+			~LocalWstrArray_()
+			{
+				if (argv) {
+					::LocalFree(argv);
+				}
+			}
+			LocalWstrArray_(const LocalWstrArray_&) = delete;
+			LocalWstrArray_& operator=(const LocalWstrArray_&) = delete;
+		};
 	}
 
 	bool ServiceStartNameIsLocalSystem(const std::wstring& serviceStartName) noexcept
 	{
-		const auto normalized = ToLowerWide_(serviceStartName);
+		const auto normalized = str::ToLower(serviceStartName);
 		return normalized == L"localsystem" ||
-			normalized == L"nt authority\\localsystem" ||
-			normalized.ends_with(L"\\localsystem");
+			normalized == L"nt authority\\localsystem";
+	}
+
+	std::wstring ServiceExecutablePathFromCommandLine(const std::wstring& commandLine)
+	{
+		if (commandLine.empty()) {
+			return {};
+		}
+		int argc = 0;
+		LocalWstrArray_ argv{ ::CommandLineToArgvW(commandLine.c_str(), &argc) };
+		if (!argv.argv || argc < 1 || !argv.argv[0] || argv.argv[0][0] == L'\0') {
+			return {};
+		}
+		return argv.argv[0];
 	}
 
 	std::optional<WindowsServiceVerificationInfo> TryGetWindowsServiceVerificationInfo(
 		const std::wstring& serviceName) noexcept
 	{
 		try {
-			const Handle hScm{ OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT) };
+			const ScHandle_ hScm{ OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT) };
 			if (!hScm) {
 				pmlog_warn("OpenSCManager failed for service verification query").hr();
 				return std::nullopt;
 			}
-			const Handle hService{
-				OpenServiceW(reinterpret_cast<SC_HANDLE>(hScm.Get()), serviceName.c_str(),
+			const ScHandle_ hService{
+				OpenServiceW(hScm.Get(), serviceName.c_str(),
 					SERVICE_QUERY_STATUS | SERVICE_QUERY_CONFIG) };
 			if (!hService) {
 				const auto err = GetLastError();
@@ -72,7 +98,7 @@ namespace pmon::util::win
 				.dwServiceFlags = 0,
 			};
 			DWORD bytesNeeded = 0;
-			if (!QueryServiceStatusEx(reinterpret_cast<SC_HANDLE>(hService.Get()), SC_STATUS_PROCESS_INFO,
+			if (!QueryServiceStatusEx(hService.Get(), SC_STATUS_PROCESS_INFO,
 				reinterpret_cast<LPBYTE>(&status), sizeof(status), &bytesNeeded)) {
 				pmlog_warn("QueryServiceStatusEx failed").pmwatch(str::ToNarrow(serviceName)).hr();
 				return std::nullopt;
@@ -86,7 +112,7 @@ namespace pmon::util::win
 			}
 
 			DWORD configBytesNeeded = 0;
-			QueryServiceConfigW(reinterpret_cast<SC_HANDLE>(hService.Get()), nullptr, 0, &configBytesNeeded);
+			QueryServiceConfigW(hService.Get(), nullptr, 0, &configBytesNeeded);
 			const DWORD configErr = GetLastError();
 			if (configErr != ERROR_INSUFFICIENT_BUFFER || configBytesNeeded == 0) {
 				pmlog_warn("QueryServiceConfigW size query failed").pmwatch(str::ToNarrow(serviceName)).hr();
@@ -94,7 +120,7 @@ namespace pmon::util::win
 			}
 			std::vector<BYTE> configBuffer(configBytesNeeded);
 			auto* pConfig = reinterpret_cast<QUERY_SERVICE_CONFIGW*>(configBuffer.data());
-			if (!QueryServiceConfigW(reinterpret_cast<SC_HANDLE>(hService.Get()), pConfig, configBytesNeeded,
+			if (!QueryServiceConfigW(hService.Get(), pConfig, configBytesNeeded,
 				&configBytesNeeded)) {
 				pmlog_warn("QueryServiceConfigW failed").pmwatch(str::ToNarrow(serviceName)).hr();
 				return std::nullopt;
@@ -102,7 +128,7 @@ namespace pmon::util::win
 
 			std::wstring binaryPath;
 			if (pConfig->lpBinaryPathName) {
-				binaryPath = StripServiceConfigQuotes_(pConfig->lpBinaryPathName);
+				binaryPath = ServiceExecutablePathFromCommandLine(pConfig->lpBinaryPathName);
 			}
 			std::wstring serviceStartName;
 			if (pConfig->lpServiceStartName) {
@@ -125,13 +151,13 @@ namespace pmon::util::win
 	std::optional<WindowsServiceProcessInfo> TryGetWindowsServiceProcessInfo(const std::wstring& serviceName) noexcept
 	{
 		try {
-			const Handle hScm{ OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT) };
+			const ScHandle_ hScm{ OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT) };
 			if (!hScm) {
 				pmlog_warn("OpenSCManager failed for service process query").hr();
 				return std::nullopt;
 			}
-			const Handle hService{
-				OpenServiceW(reinterpret_cast<SC_HANDLE>(hScm.Get()), serviceName.c_str(), SERVICE_QUERY_STATUS) };
+			const ScHandle_ hService{
+				OpenServiceW(hScm.Get(), serviceName.c_str(), SERVICE_QUERY_STATUS) };
 			if (!hService) {
 				const auto err = GetLastError();
 				const auto serviceNameNarrow = str::ToNarrow(serviceName);
@@ -155,7 +181,7 @@ namespace pmon::util::win
 				.dwServiceFlags = 0,
 			};
 			DWORD bytesNeeded = 0;
-			if (!QueryServiceStatusEx(reinterpret_cast<SC_HANDLE>(hService.Get()), SC_STATUS_PROCESS_INFO,
+			if (!QueryServiceStatusEx(hService.Get(), SC_STATUS_PROCESS_INFO,
 				reinterpret_cast<LPBYTE>(&status), sizeof(status), &bytesNeeded)) {
 				pmlog_warn("QueryServiceStatusEx failed").pmwatch(str::ToNarrow(serviceName)).hr();
 				return std::nullopt;

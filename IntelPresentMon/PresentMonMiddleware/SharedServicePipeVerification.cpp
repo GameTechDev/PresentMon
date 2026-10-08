@@ -6,8 +6,6 @@
 #include "../CommonUtilities/log/Log.h"
 #include "../CommonUtilities/Exception.h"
 #include "../CommonUtilities/str/String.h"
-#include <algorithm>
-#include <cwctype>
 #include <filesystem>
 #include <format>
 
@@ -19,21 +17,21 @@ namespace pmon::mid
 
 	namespace
 	{
+		// Named pipes are case-insensitive. Fold before the default-pipe gate so a
+		// differently cased well-known name cannot skip the shared-service checks.
 		std::string NormalizeControlPipeBaseName_(std::string pipeName)
 		{
 			constexpr std::string_view prefix = R"(\\.\pipe\)";
-			if (pipeName.starts_with(prefix)) {
-				return pipeName;
+			std::string lowered = str::ToLower(pipeName);
+			if (lowered.starts_with(prefix)) {
+				return lowered;
 			}
-			return std::string{ prefix } + pipeName;
+			return std::string{ prefix } + lowered;
 		}
 
 		bool ExecutableBaseNameIsPresentMonServiceWide_(const std::filesystem::path& imagePath)
 		{
-			const auto fileName = imagePath.filename().wstring();
-			std::wstring lower = fileName;
-			std::ranges::transform(lower, lower.begin(), [](wchar_t c) { return (wchar_t)::towlower(c); });
-			return lower == L"presentmonservice.exe";
+			return str::ToLower(imagePath.filename().wstring()) == L"presentmonservice.exe";
 		}
 
 		WindowsServiceVerificationInfo RequireSharedServiceScmInfo_()

@@ -98,6 +98,18 @@ namespace PipeSecurityRegressionTests
 			Assert::IsFalse(pmon::mid::IsDefaultSharedServiceControlPipe(R"(\\.\pipe\pm-custom-ctrl)"));
 		}
 
+		TEST_METHOD(IsDefaultSharedServiceControlPipe_MatchesDefaultCaseInsensitively)
+		{
+			Assert::IsTrue(pmon::mid::IsDefaultSharedServiceControlPipe(
+				R"(\\.\pipe\SHAREDPRESENTMONSVCNAMEDPIPE)"));
+			Assert::IsTrue(pmon::mid::IsDefaultSharedServiceControlPipe(
+				R"(\\.\PIPE\sharedpresentmonsvcnamedpipe)"));
+			Assert::IsTrue(pmon::mid::IsDefaultSharedServiceControlPipe(
+				"SharedPresentMonSvcNamedPipe"));
+			Assert::IsFalse(pmon::mid::IsDefaultSharedServiceControlPipe(
+				R"(\\.\PIPE\pm-custom-ctrl)"));
+		}
+
 		TEST_METHOD(ValidateSharedServicePipeServerProcessId_MatchSucceeds)
 		{
 			util::win::WindowsServiceVerificationInfo scmInfo{};
@@ -125,6 +137,59 @@ namespace PipeSecurityRegressionTests
 			scmInfo.processId = 1;
 			scmInfo.binaryPath = L"C:\\Windows\\not-presentmon.exe";
 			scmInfo.serviceStartName = L"LocalSystem";
+			Assert::ExpectException<pmon::ipc::PmStatusError>([&] {
+				pmon::mid::ValidateSharedServiceScmRecord(scmInfo);
+			});
+		}
+
+		TEST_METHOD(ValidateSharedServiceScmRecord_AcceptsLocalSystemAliases)
+		{
+			util::win::WindowsServiceVerificationInfo scmInfo{};
+			scmInfo.processId = 1;
+			scmInfo.binaryPath = L"C:\\Program Files\\PresentMon\\PresentMonService.exe";
+			scmInfo.serviceStartName = L"LocalSystem";
+			pmon::mid::ValidateSharedServiceScmRecord(scmInfo);
+			scmInfo.serviceStartName = L"NT AUTHORITY\\LocalSystem";
+			pmon::mid::ValidateSharedServiceScmRecord(scmInfo);
+			scmInfo.serviceStartName = L"nt authority\\localsystem";
+			pmon::mid::ValidateSharedServiceScmRecord(scmInfo);
+		}
+
+		TEST_METHOD(ValidateSharedServiceScmRecord_RejectsLocalSystemLookalikeAccounts)
+		{
+			util::win::WindowsServiceVerificationInfo scmInfo{};
+			scmInfo.processId = 1;
+			scmInfo.binaryPath = L"C:\\Program Files\\PresentMon\\PresentMonService.exe";
+			scmInfo.serviceStartName = L".\\LocalSystem";
+			Assert::ExpectException<pmon::ipc::PmStatusError>([&] {
+				pmon::mid::ValidateSharedServiceScmRecord(scmInfo);
+			});
+			scmInfo.serviceStartName = L"DOMAIN\\LocalSystem";
+			Assert::ExpectException<pmon::ipc::PmStatusError>([&] {
+				pmon::mid::ValidateSharedServiceScmRecord(scmInfo);
+			});
+			scmInfo.serviceStartName = L"NT AUTHORITY\\LocalService";
+			Assert::ExpectException<pmon::ipc::PmStatusError>([&] {
+				pmon::mid::ValidateSharedServiceScmRecord(scmInfo);
+			});
+		}
+
+		TEST_METHOD(ServiceExecutablePathFromCommandLine_TakesImageToken)
+		{
+			const auto withArgs = util::win::ServiceExecutablePathFromCommandLine(
+				LR"("C:\Program Files\PresentMon\PresentMonService.exe" --log-level debug)");
+			Assert::IsTrue(withArgs == LR"(C:\Program Files\PresentMon\PresentMonService.exe)");
+
+			const auto decoy = util::win::ServiceExecutablePathFromCommandLine(
+				LR"(C:\Windows\System32\cmd.exe /c C:\temp\PresentMonService.exe)");
+			Assert::IsTrue(decoy == LR"(C:\Windows\System32\cmd.exe)");
+
+			util::win::WindowsServiceVerificationInfo scmInfo{};
+			scmInfo.processId = 1;
+			scmInfo.serviceStartName = L"LocalSystem";
+			scmInfo.binaryPath = withArgs;
+			pmon::mid::ValidateSharedServiceScmRecord(scmInfo);
+			scmInfo.binaryPath = decoy;
 			Assert::ExpectException<pmon::ipc::PmStatusError>([&] {
 				pmon::mid::ValidateSharedServiceScmRecord(scmInfo);
 			});

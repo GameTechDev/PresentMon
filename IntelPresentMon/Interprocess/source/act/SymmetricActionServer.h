@@ -7,8 +7,11 @@
 #include "../../../CommonUtilities/mt/Thread.h"
 #include "AsyncActionCollection.h"
 #include "ActionContext.h"
+#include <chrono>
 #include <thread>
 #include <boost/asio/experimental/awaitable_operators.hpp>
+#include <boost/asio/redirect_error.hpp>
+#include <boost/asio/steady_timer.hpp>
 
 
 namespace pmon::ipc::act
@@ -118,17 +121,29 @@ namespace pmon::ipc::act
         }
         as::awaitable<void> AcceptLoop_()
         {
+            // CreateNamedPipe runs before AcceptClientConnection suspends. Without a
+            // yield, a persistent failure (access denied on a squatted name) spins
+            // this coroutine and stalls the single io thread.
+            constexpr auto acceptRetryDelay = std::chrono::milliseconds{ 200 };
             while (IsRunning()) {
+                bool accepted = false;
                 try {
                     auto pConn = co_await SymmetricActionConnector<ExecCtx>::AcceptClientConnection(
                         basePipeName_, ioctx_, security_);
                     as::co_spawn(ioctx_, HandleSession_(std::move(pConn)), as::detached);
+                    accepted = true;
                 }
                 catch (const pipe::BenignPipeError&) {
                     pmlog_dbg(util::ReportException());
                 }
                 catch (...) {
                     pmlog_error(util::ReportException());
+                }
+                if (!accepted && IsRunning()) {
+                    auto ec = boost::system::error_code{};
+                    as::steady_timer timer{ ioctx_ };
+                    timer.expires_after(acceptRetryDelay);
+                    co_await timer.async_wait(as::redirect_error(as::use_awaitable, ec));
                 }
             }
         }
