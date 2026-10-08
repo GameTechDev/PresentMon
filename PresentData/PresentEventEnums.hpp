@@ -40,4 +40,5 @@ enum class FrameType {
     Repeated = 3,
     Intel_XEFG = 50,
     AMD_AFMF = 100,
+    AMD_FSR_FG = 101,
 };
