@@ -68,6 +68,8 @@ namespace pmon::tel::igcl
 
             bool useNewBandwidthTelemetry = true;
 
+            bool usePowerTelemetryV2 = true;
+
             TelemetrySampleBuffer_ telemetrySamples{};
             pmon::tele::EndpointCache<ctl_mem_state_t> memoryStateEndpointCache{};
 
@@ -83,6 +85,9 @@ namespace pmon::tel::igcl
         void EnumeratePowerDomains_(DeviceState_& device) const;
         void EnumerateFans_(DeviceState_& device) const;
         ipc::MetricCapabilities BuildCapsForDevice_(DeviceState_& device) const;
+
+        static ctl_power_telemetry_t NormalizePowerTelemetryV2_(
+            const ctl_power_telemetry_v2_t& source) noexcept;
 
         const ctl_power_telemetry_t& PollTelemetryEndpoint_(
             DeviceState_& device,
