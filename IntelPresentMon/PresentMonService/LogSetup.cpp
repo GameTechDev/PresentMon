@@ -114,11 +114,12 @@ namespace logsetup
 				pChannel->AttachComponent(std::make_shared<BasicFileDriver>( std::make_shared<TextFormatter>(),
 					std::make_shared<SimpleFileStrategy>(fullPath)), "drv:file");
 			}
-			// setup ipc logging connection for clients
-			if (!opt.disableIpcLog) {
+			// setup ipc logging connection for the parent of a child/console service; the
+			// installed service has no log pipe because a client that never reads stalls the sender
+			if (asApp && !opt.disableIpcLog) {
 				try {
 					auto pSender = std::make_shared<NamedPipeMarshallSender>(*opt.logPipeName,
-						asApp ? pipe::SecurityMode::Child : pipe::SecurityMode::Service);
+						pipe::SecurityMode::Child);
 					log::IdentificationTable::RegisterSink(pSender);
 					auto pDriver = std::make_shared<log::MarshallDriver>(pSender);
 					pChannel->AttachComponent(std::move(pDriver));
