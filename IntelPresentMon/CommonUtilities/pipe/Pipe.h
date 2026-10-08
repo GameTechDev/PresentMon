@@ -39,7 +39,8 @@ namespace pmon::util::pipe
 		static DuplexPipe Connect(const std::string& name, as::io_context& ioctx);
 		static DuplexPipe Make(const std::string& name, as::io_context& ioctx, const std::string& security = {});
 		static std::unique_ptr<DuplexPipe> ConnectAsPtr(const std::string& name, as::io_context& ioctx);
-		static std::unique_ptr<DuplexPipe> MakeAsPtr(const std::string& name, as::io_context& ioctx, const std::string& security = {});
+		static std::unique_ptr<DuplexPipe> MakeAsPtr(const std::string& name, as::io_context& ioctx,
+			const std::string& security = {});
 		template<class H, class P>
 		as::awaitable<void> WritePacket(const H& header, const P& payload, std::optional<uint32_t> timeoutMs = {})
 		{
@@ -106,7 +107,13 @@ namespace pmon::util::pipe
 		static bool WaitForVacancy(const std::string& baseName, uint32_t timeoutMs, bool noSuffix = false, uint32_t pollPeriodMs = 5);
 		uint32_t GetId() const;
 		std::string GetName() const;
+		// Client-side only: pipe handle must be connected (post-CreateFile).
+		bool TryGetConnectedServerProcessId(uint32_t& serverProcessId) noexcept;
 		static std::string GetSecurityString(SecurityMode mode);
+		static std::string GetServiceControlPipeSecurityString();
+		static std::string GetPrivateControlPipeSecurityString(bool allowAuthenticatedClients);
+		// Client connect mask; must not include FILE_CREATE_PIPE_INSTANCE or DACL change rights.
+		static DWORD GetClientPipeConnectAccessMask() noexcept;
 	private:
 		// functions
 		DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient);

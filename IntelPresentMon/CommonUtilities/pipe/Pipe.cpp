@@ -1,10 +1,19 @@
 #include "Pipe.h"
 #include "../win/Security.h"
+#include "../win/ServiceProcess.h"
 #include <string_view>
 
 namespace pmon::util::pipe
 {
 	using namespace as::experimental::awaitable_operators;
+
+	namespace
+	{
+		// Must match AU ACE in GetServiceControlPipeSecurityString(). Do not use GENERIC_READ|GENERIC_WRITE
+		// here: for named pipes that maps in FILE_CREATE_PIPE_INSTANCE, which AU must not hold.
+		constexpr DWORD kClientPipeConnectAccess =
+			FILE_READ_DATA | FILE_WRITE_DATA | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | SYNCHRONIZE;
+	}
 
 	std::atomic<uint32_t> DuplexPipe::nextUid_ = 0;
 
@@ -64,7 +73,8 @@ namespace pmon::util::pipe
 	{
 		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, Connect_(name), name, true });
 	}
-	std::unique_ptr<DuplexPipe> DuplexPipe::MakeAsPtr(const std::string& name, as::io_context& ioctx, const std::string& security)
+	std::unique_ptr<DuplexPipe> DuplexPipe::MakeAsPtr(const std::string& name, as::io_context& ioctx,
+		const std::string& security)
 	{
 		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, Make_(name, security), name, false });
 	}
@@ -114,6 +124,13 @@ namespace pmon::util::pipe
 	{
 		return name_;
 	}
+	bool DuplexPipe::TryGetConnectedServerProcessId(uint32_t& serverProcessId) noexcept
+	{
+		if (!asioPipeHandle_.is_open()) {
+			return false;
+		}
+		return win::TryGetNamedPipeServerProcessId(asioPipeHandle_.native_handle(), serverProcessId);
+	}
 	std::string DuplexPipe::GetSecurityString(SecurityMode mode)
 	{
 		switch (mode) {
@@ -121,6 +138,26 @@ namespace pmon::util::pipe
 		case SecurityMode::Service: return "D:P(A;;GA;;;AU)S:(ML;;NW;;;LW)"s;
 		case SecurityMode::Child: return "D:(A;OICI;GA;;;WD)"s;
 		}
+	}
+	std::string DuplexPipe::GetServiceControlPipeSecurityString()
+	{
+		// SY: create/listen; AU: client read/write without FILE_CREATE_PIPE_INSTANCE or DACL change
+		return std::format("D:P(A;;GA;;;SY)(A;;0x{:x};;;AU)S:(ML;;NW;;;LW)", kClientPipeConnectAccess);
+	}
+	DWORD DuplexPipe::GetClientPipeConnectAccessMask() noexcept
+	{
+		return kClientPipeConnectAccess;
+	}
+
+	std::string DuplexPipe::GetPrivateControlPipeSecurityString(bool allowAuthenticatedClients)
+	{
+		// Use the creating process user SID explicitly. SDDL CO is not reliable for cross-process
+		// client ConnectFile on named pipes created by a sibling process.
+		const auto userSid = win::GetCurrentProcessUserSidString();
+		if (allowAuthenticatedClients) {
+			return std::format("D:(A;;GA;;;{})(A;;0x{:x};;;AU)", userSid, kClientPipeConnectAccess);
+		}
+		return std::format("D:(A;;GA;;;{})", userSid);
 	}
 
 	DuplexPipe::DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient)
@@ -144,7 +181,7 @@ namespace pmon::util::pipe
 	{
 		win::Handle handle(CreateFileA(
 			name.c_str(),					// Pipe name 
-			GENERIC_READ | GENERIC_WRITE,	// Desired access: Read/Write 
+			kClientPipeConnectAccess,		// Desired access (see kClientPipeConnectAccess comment)
 			0,								// No sharing 
 			NULL,							// Default security attributes
 			OPEN_EXISTING,					// Opens existing pipe 
@@ -173,18 +210,17 @@ namespace pmon::util::pipe
 		}
 		// if we have a security string, call create pipe with above structure, else call with nullptr
 		SECURITY_ATTRIBUTES* pSecurityAttributes = security.empty() ? nullptr : &securityAttributes;
-		// create the named pipe and retain the handle in a wrapper object
 		win::Handle handle(CreateNamedPipeA(
 			name.c_str(),
-			PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,							// open mode
-			PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_REJECT_REMOTE_CLIENTS,	// pipe mode
-			PIPE_UNLIMITED_INSTANCES,											// max instances
-			4096,					// out buffer
-			4096,					// in buffer
-			0,						// timeout
-			pSecurityAttributes));	// security
+			PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+			PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_REJECT_REMOTE_CLIENTS,
+			PIPE_UNLIMITED_INSTANCES,
+			4096,
+			4096,
+			0,
+			pSecurityAttributes));
 		if (!handle) {
-			pmlog_error("Server failed to create named pipe instance").hr();
+			pmlog_error("Server failed to create named pipe instance").pmwatch(name).hr();
 			throw Except<PipeError>("Server failed to create named pipe instance");
 		}
 		// release the owned handle to be captured by some other owner

@@ -6,4 +6,5 @@
 namespace pmon::util::win
 {
 	UniqueLocalPtr<void> MakeSecurityDescriptor(const std::string& desc);
+	std::string GetCurrentProcessUserSidString();
 }

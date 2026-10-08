@@ -257,7 +257,8 @@ void PresentMonMainThread(Service* const pSvc)
         PresentMon pm{ frameBroadcaster, !opt.etlTestFile };
 
         // Start named pipe action RPC server (active threaded)
-        auto pActionServer = std::make_unique<ActionServer>(pSvc, &pm, opt.controlPipe.AsOptional());
+        auto pActionServer = std::make_unique<ActionServer>(pSvc, &pm, opt.controlPipe.AsOptional(),
+            opt.controlPipeAllowAuClients);
 
         try {
             telemetryThread = std::jthread{ TelemetryThreadEntry_, pSvc, &pm, pComms.get() };

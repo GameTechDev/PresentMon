@@ -6,6 +6,7 @@
 #include "Transfer.h"
 #include "AsyncActionCollection.h"
 #include <boost/asio/experimental/awaitable_operators.hpp>
+#include <format>
 #include <type_traits>
 
 
@@ -110,6 +111,23 @@ namespace pmon::ipc::act
         uint32_t GetId() const
         {
             return pInPipe_->GetId();
+        }
+        // Client-side: both duplex legs must report the same server PID.
+        uint32_t ResolveConnectedServerProcessId()
+        {
+            uint32_t inPid = 0;
+            uint32_t outPid = 0;
+            if (!pInPipe_->TryGetConnectedServerProcessId(inPid)) {
+                throw util::Except<pipe::PipeError>("Failed to resolve server process id from control pipe in-leg");
+            }
+            if (!pOutPipe_->TryGetConnectedServerProcessId(outPid)) {
+                throw util::Except<pipe::PipeError>("Failed to resolve server process id from control pipe out-leg");
+            }
+            if (inPid != outPid) {
+                throw util::Except<pipe::PipeError>(std::format(
+                    "Control pipe server process id mismatch (in={} out={})", inPid, outPid));
+            }
+            return inPid;
         }
         static as::awaitable<std::unique_ptr<SymmetricActionConnector>> AcceptClientConnection(
             const std::string& basePipeName, as::io_context& ioctx, const std::string& security)

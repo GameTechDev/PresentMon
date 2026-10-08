@@ -21,10 +21,13 @@
     <ClInclude Include="LogSetup.h" />
     <ClInclude Include="MetricBinding.h" />
     <ClInclude Include="Middleware.h" />
+    <ClInclude Include="MiddlewareExecutionContext.h" />
     <ClInclude Include="QueryValidation.h" />
+    <ClInclude Include="SharedServicePipeVerification.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Middleware.cpp" />
+    <ClCompile Include="SharedServicePipeVerification.cpp" />
     <ClCompile Include="DynamicQuery.cpp" />
     <ClCompile Include="DynamicStat.cpp" />
     <ClCompile Include="FrameMetricsSource.cpp" />

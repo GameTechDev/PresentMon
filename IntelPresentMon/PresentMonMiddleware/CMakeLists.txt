@@ -12,6 +12,7 @@ add_library(
         MetricBinding.cpp
         Middleware.cpp
         QueryValidation.cpp
+        SharedServicePipeVerification.cpp
 )
 add_library(pmon::middleware ALIAS pmon_middleware)
 # ActionClient.h includes the generated AllActions.h. INTERFACE libraries carry

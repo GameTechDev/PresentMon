@@ -87,6 +87,18 @@ namespace pmon::ipc::act
         {
             stx_.remotePid = serverPid;
         }
+        const std::string& GetControlPipeBaseName_() const
+        {
+            return basePipeName_;
+        }
+        SymmetricActionConnector<ExecCtx>& GetActionConnector_()
+        {
+            return *stx_.pConn;
+        }
+        const SymmetricActionConnector<ExecCtx>& GetActionConnector_() const
+        {
+            return *stx_.pConn;
+        }
 
     private:
         // function
