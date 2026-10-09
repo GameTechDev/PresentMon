@@ -5,7 +5,6 @@
 #include <assert.h>
 #include <strsafe.h>
 #include <dbt.h>
-#include <format>
 #include "PMMainThread.h"
 #include <iostream>
 #include <chrono>
@@ -134,7 +133,7 @@ void ConcreteService::ServiceInit()
 		FALSE,          // auto reset event
 		FALSE,          // not signaled
 		NULL);          // no name
-	if (mServiceStopEventHandle == nullptr) {
+	if (mResetPowerTelemetryEventHandle == nullptr) {
 		ReportServiceStatus(SERVICE_STOPPED, GetLastError(), 0);
 		return;
 	}

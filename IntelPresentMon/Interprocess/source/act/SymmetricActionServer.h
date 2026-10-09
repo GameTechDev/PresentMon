@@ -53,6 +53,7 @@ namespace pmon::ipc::act
             // suspended strand, and that frame would keep State (and the pipe)
             // alive past the runner join. Drain_ waits until this hits zero.
             std::atomic<int> liveStrands_{ 0 };
+            static constexpr std::chrono::milliseconds kListenerRetryDelay{ 200 };
             std::atomic<std::thread::id> runnerId{};
             ExecCtx ctx;
             bool allowConnectionlessSend = false;
@@ -143,11 +144,10 @@ namespace pmon::ipc::act
             {
                 runnerId.store(std::this_thread::get_id(), std::memory_order_release);
                 try {
-                    // maintain N available connector instances at all times
+                    // maintain N available connector instances at all times; one that cannot be
+                    // created now is retried by SpawnListener_ after kListenerRetryDelay
                     for (uint32_t i = 0; i < reservedPipeInstanceCount; i++) {
-                        if (!SpawnListener_()) {
-                            break;
-                        }
+                        SpawnListener_();
                     }
                     ioctx.run();
                     pmlog_info("ActionServer exiting");
@@ -186,6 +186,7 @@ namespace pmon::ipc::act
                 }
                 catch (...) {
                     pmlog_error(util::ReportException("Failed creating action pipe instance"));
+                    SpawnListenerAfterDelay_();
                     return false;
                 }
                 acceptorCount.fetch_add(1, std::memory_order_relaxed);
@@ -209,6 +210,35 @@ namespace pmon::ipc::act
                 }
                 return true;
             }
+            // Replaces a listener after kListenerRetryDelay. Used when one could not be created or
+            // failed to accept for a reason other than a vanished client: retrying at once would
+            // spin the io thread on a persistent failure, such as the pipe name held by another
+            // process, and giving up would shrink the listener pool for good. Counted as a live
+            // strand, so shutdown waits for it; it does nothing once shutdown has begun.
+            void SpawnListenerAfterDelay_()
+            {
+                auto self = this->shared_from_this();
+                liveStrands_.fetch_add(1, std::memory_order_acq_rel);
+                try {
+                    as::co_spawn(ioctx, [self]() -> as::awaitable<void> {
+                        as::steady_timer timer{ self->ioctx };
+                        timer.expires_after(kListenerRetryDelay);
+                        auto ec = boost::system::error_code{};
+                        co_await timer.async_wait(as::redirect_error(as::use_awaitable, ec));
+                        try {
+                            self->SpawnListener_();
+                        }
+                        catch (...) {
+                            pmlog_error(util::ReportException("Failed replacing action pipe listener"));
+                        }
+                        self->liveStrands_.fetch_sub(1, std::memory_order_acq_rel);
+                    }, as::detached);
+                }
+                catch (...) {
+                    liveStrands_.fetch_sub(1, std::memory_order_acq_rel);
+                    throw;
+                }
+            }
             void RemoveListener_(const std::shared_ptr<Connector>& pConn)
             {
                 std::erase(listeners_, pConn);
@@ -216,6 +246,7 @@ namespace pmon::ipc::act
             as::awaitable<void> SessionStrand_(std::shared_ptr<Connector> pConn)
             {
                 bool accepted = false;
+                bool unexpectedFailure = false;
                 try {
                     // suspend until a client connects to this listener
                     co_await pConn->AcceptConnection();
@@ -226,14 +257,21 @@ namespace pmon::ipc::act
                 }
                 catch (...) {
                     pmlog_error(util::ReportException("Accept ended without a session"));
+                    unexpectedFailure = true;
                 }
                 RemoveListener_(pConn);
                 if (!lifecycle.IsRunning()) {
                     acceptorCount.fetch_sub(1, std::memory_order_relaxed);
                     co_return;
                 }
-                // start a replacement listener so the pool stays at full strength
-                SpawnListener_();
+                // start a replacement listener so the pool stays at full strength; after an
+                // unexpected failure wait first, so a persistent failure cannot spin
+                if (unexpectedFailure) {
+                    SpawnListenerAfterDelay_();
+                }
+                else {
+                    SpawnListener_();
+                }
                 acceptorCount.fetch_sub(1, std::memory_order_relaxed);
                 if (accepted) {
                     co_await ServeSession_(std::move(pConn));

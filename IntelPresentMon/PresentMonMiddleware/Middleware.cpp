@@ -119,6 +119,8 @@ namespace pmon::mid
         const auto pipeName = pipeNameOverride.transform(&std::string::c_str)
             .value_or(pmon::gid::defaultControlPipeName);
 
+        EnsureSharedPresentMonServiceAvailableBeforePipeConnect(pipeName);
+
         // Try to open a named pipe to action server; wait for it, if necessary
         if (!pipe::DuplexPipe::WaitForAvailability(pipeName, 500)) {
             throw util::Except<ipc::PmStatusError>(PM_STATUS_PIPE_ERROR,

@@ -153,7 +153,13 @@ namespace pmon::util::pipe
 		std::string GetName() const;
 		// server side only, after Accept
 		uint32_t GetClientProcessId() const;
+		// Client-side only: pipe handle must be connected (post-CreateFile).
+		bool TryGetConnectedServerProcessId(uint32_t& serverProcessId) noexcept;
 		static std::string GetSecurityString(SecurityMode mode);
+		static std::string GetServiceControlPipeSecurityString();
+		static std::string GetPrivateControlPipeSecurityString(bool allowAuthenticatedClients);
+		// Client connect mask; must not include FILE_CREATE_PIPE_INSTANCE or DACL change rights.
+		static DWORD GetClientPipeConnectAccessMask() noexcept;
 	private:
 		// functions
 		DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient, PipeLimits limits);

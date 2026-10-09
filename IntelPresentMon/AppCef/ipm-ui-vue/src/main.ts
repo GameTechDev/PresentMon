@@ -19,6 +19,7 @@ import { useHotkeyStore } from '@/stores/hotkey';
 import { useIntrospectionStore } from '@/stores/introspection';
 import { loadBlocklists } from './core/block-list'
 import { usePreferencesStore } from './stores/preferences'
+import { Api } from './core/api'
 
 if (isDevBuild()) {
     const script = document.createElement('script');
@@ -108,7 +109,9 @@ var app:any;
 async function boot() {
     app = createApp(App)
     app.use(createPinia())
-    await initStores()
+    if (!Api.presentmonInitFailed) {
+        await initStores()
+    }
     app.use(router)
     app.use(vuetify)
     await router.isReady()

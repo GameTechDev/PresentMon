@@ -125,6 +125,7 @@
     <ClInclude Include="win\Process.h" />
     <ClInclude Include="win\ProcessMapBuilder.h" />
     <ClInclude Include="win\Security.h" />
+    <ClInclude Include="win\ServiceProcess.h" />
     <ClInclude Include="win\Utilities.h" />
     <ClInclude Include="win\WinAPI.h" />
   </ItemGroup>
@@ -201,6 +202,7 @@
     <ClCompile Include="win\Privileges.cpp" />
     <ClCompile Include="win\ProcessMapBuilder.cpp" />
     <ClCompile Include="win\Security.cpp" />
+    <ClCompile Include="win\ServiceProcess.cpp" />
     <ClCompile Include="win\Utilities.cpp" />
   </ItemGroup>
   <ItemGroup>

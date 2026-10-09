@@ -74,4 +74,6 @@ TEST_MODULE_INITIALIZE(Api2TestModuleInit)
 	WipeAndRecreate(RealtimeMetricTests::outFolder_);
 	WipeAndRecreate(LoggingTests::logFolder_);
 	WipeAndRecreate(MockTelemetryTests::logFolder_);
+	WipeAndRecreate(PipeAcceptReliabilityTests::logFolder_);
+	WipeAndRecreate(PipeSecurityRegressionTests::logFolder_);
 }

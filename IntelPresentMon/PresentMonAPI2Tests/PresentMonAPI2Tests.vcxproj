@@ -108,6 +108,8 @@
     <ClCompile Include="..\CommonUtilities\test\MachineExpectations.cpp" />
     <ClCompile Include="ModuleInit.cpp" />
     <ClCompile Include="MultiClientTests.cpp" />
+    <ClCompile Include="PipeAcceptReliabilityTests.cpp" />
+    <ClCompile Include="PipeSecurityRegressionTests.cpp" />
     <ClCompile Include="PacedFrameTests.cpp" />
     <ClCompile Include="PacedPollingTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />

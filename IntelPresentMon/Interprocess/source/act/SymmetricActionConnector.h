@@ -144,6 +144,15 @@ namespace pmon::ipc::act
 		{
 			return clientPid_;
 		}
+		// Client side: process id of the pipe server, as reported by the system.
+		uint32_t ResolveConnectedServerProcessId()
+		{
+			uint32_t serverPid = 0;
+			if (!pPipe_->TryGetConnectedServerProcessId(serverPid)) {
+				throw util::Except<pipe::PipeError>("Failed to resolve server process id from control pipe");
+			}
+			return serverPid;
+		}
 		// Fails waiters and cancels the pipe. The reader resumes and returns `reason`.
 		// Must be called on the io thread. A second call is a no-op.
 		void EndSession(SessionEndReason reason)

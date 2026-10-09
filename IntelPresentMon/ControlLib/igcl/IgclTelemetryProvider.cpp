@@ -501,6 +501,55 @@ namespace pmon::tel::igcl
         return caps;
     }
 
+    ctl_power_telemetry_t IgclTelemetryProvider::NormalizePowerTelemetryV2_(
+        const ctl_power_telemetry_v2_t& source) noexcept
+    {
+        ctl_power_telemetry_t destination{
+            .Size = sizeof(ctl_power_telemetry_t),
+            .Version = source.Version,
+        };
+
+        destination.timeStamp = source.timeStamp;
+        destination.gpuEnergyCounter = source.gpuEnergyCounter;
+        destination.gpuVoltage = source.gpuVoltage;
+        destination.gpuCurrentClockFrequency = source.gpuCurrentClockFrequency;
+        destination.gpuCurrentTemperature = source.gpuCurrentTemperature;
+        destination.globalActivityCounter = source.globalActivityCounter;
+        destination.renderComputeActivityCounter = source.renderComputeActivityCounter;
+        destination.mediaActivityCounter = source.mediaActivityCounter;
+        destination.gpuPowerLimited = source.gpuPowerLimited;
+        destination.gpuTemperatureLimited = source.gpuTemperatureLimited;
+        destination.gpuCurrentLimited = source.gpuCurrentLimited;
+        destination.gpuVoltageLimited = source.gpuVoltageLimited;
+        destination.gpuUtilizationLimited = source.gpuUtilizationLimited;
+        destination.vramEnergyCounter = source.vramEnergyCounter;
+        destination.vramVoltage = source.vramVoltage;
+        destination.vramCurrentClockFrequency = source.vramCurrentClockFrequency;
+        destination.vramCurrentEffectiveFrequency = source.vramCurrentEffectiveFrequency;
+        destination.vramReadBandwidthCounter = source.vramReadBandwidthCounter;
+        destination.vramWriteBandwidthCounter = source.vramWriteBandwidthCounter;
+        destination.vramCurrentTemperature = source.vramCurrentTemperature;
+        // these 5 fields were deprecated in V1 and always returned false
+        destination.vramPowerLimited = false;
+        destination.vramTemperatureLimited = false;
+        destination.vramCurrentLimited = false;
+        destination.vramVoltageLimited = false;
+        destination.vramUtilizationLimited = false;
+        destination.totalCardEnergyCounter = source.totalCardEnergyCounter;
+        for (uint32_t i = 0; i < CTL_PSU_COUNT; i++) { destination.psu[i] = source.psu[i]; }
+        for (uint32_t i = 0; i < CTL_FAN_COUNT; i++) { destination.fanSpeed[i] = source.fanSpeed[i]; }
+        destination.gpuVrTemp = source.gpuVrTemp;
+        destination.vramVrTemp = source.vramVrTemp;
+        destination.saVrTemp = source.saVrTemp;
+        destination.gpuEffectiveClock = source.gpuEffectiveClock;
+        destination.gpuOverVoltagePercent = source.gpuOverVoltagePercent;
+        destination.gpuPowerPercent = source.gpuPowerPercent;
+        destination.gpuTemperaturePercent = source.gpuTemperaturePercent;
+        destination.vramReadBandwidth = source.vramReadBandwidth;
+        destination.vramWriteBandwidth = source.vramWriteBandwidth;
+        return destination;
+    }
+
     const ctl_power_telemetry_t& IgclTelemetryProvider::PollTelemetryEndpoint_(
         DeviceState_& device,
         int64_t requestQpc) const
@@ -514,16 +563,40 @@ namespace pmon::tel::igcl
         pmlog_verb(v::tele_gpu)("telemetry poll tick")
             .pmwatch(device.fingerprint.deviceName)
             .pmwatch(device.providerDeviceId);
-        const auto pollResult = ctlPowerTelemetryGet(device.handle, &currentSample);
-        if (pollResult != CTL_RESULT_SUCCESS) {
-            pmlog_warn("ctlPowerTelemetryGet failed").code(pollResult).every(60s)
-                .pmwatch(device.fingerprint.deviceName);
-            currentSample = {
-                .Size = sizeof(ctl_power_telemetry_t),
+
+        if (device.usePowerTelemetryV2) {
+            ctl_power_telemetry_v2_t v2Sample{
+                .Size = sizeof(ctl_power_telemetry_v2_t),
                 .Version = 1,
             };
+            const auto result = ctlPowerTelemetryGetV2(device.handle, &v2Sample);
+            if (result == CTL_RESULT_SUCCESS) {
+                currentSample = NormalizePowerTelemetryV2_(v2Sample);
+            }
+            else if (result == CTL_RESULT_ERROR_NOT_INITIALIZED) {
+                device.usePowerTelemetryV2 = false;
+                pmlog_info("ctlPowerTelemetryGetV2 not initialized, falling back to ctlPowerTelemetryGet")
+                    .pmwatch(device.fingerprint.deviceName).pmwatch(device.providerDeviceId);
+            }
+            else {
+                pmlog_warn("ctlPowerTelemetryGetV2 failed").code(result).every(std::chrono::seconds{ 60 })
+                    .pmwatch(device.fingerprint.deviceName).pmwatch(device.providerDeviceId);
+            }
         }
-        pmlog_verb(v::tele_gpu)("ctlPowerTelemetryGet output")
+
+        if (!device.usePowerTelemetryV2) {
+            const auto pollResult = ctlPowerTelemetryGet(device.handle, &currentSample);
+            if (pollResult != CTL_RESULT_SUCCESS) {
+                pmlog_warn("ctlPowerTelemetryGet failed").code(pollResult).every(60s)
+                    .pmwatch(device.fingerprint.deviceName);
+                currentSample = {
+                    .Size = sizeof(ctl_power_telemetry_t),
+                    .Version = 1,
+                };
+            }
+        }
+
+        pmlog_verb(v::tele_gpu)(device.usePowerTelemetryV2 ? "ctlPowerTelemetryGetV2 output" : "ctlPowerTelemetryGet output")
             .pmwatch(device.fingerprint.deviceName)
             .pmwatch(device.providerDeviceId)
             .pmwatch(ref::DumpGenerated(currentSample));

@@ -50,6 +50,8 @@ add_library(
         MockTelemetryTests.cpp
         ModuleInit.cpp
         MultiClientTests.cpp
+        PipeAcceptReliabilityTests.cpp
+        PipeSecurityRegressionTests.cpp
         PacedFrameTests.cpp
         PacedPollingTests.cpp
         RealtimeMetricTests.cpp

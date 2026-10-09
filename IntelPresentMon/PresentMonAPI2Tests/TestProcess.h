@@ -38,6 +38,9 @@ struct CommonProcessArgs
 	std::string logFolder;
 	std::string sampleClientMode;
 	bool suppressService = false;
+	// When false, kernel UI tests load about:blank. Set true to launch the app UI
+	// so in-window error modals can be observed.
+	bool launchAppUi = false;
 };
 
 inline std::vector<std::string> SplitVerboseModulesArgs_(const std::string& raw)
@@ -364,8 +367,12 @@ private:
 			"--control-pipe"s, common.ctrlPipe,
 			"--shm-name-prefix"s, common.shmNamePrefix,
 			"--middleware-dll-path"s, "PresentMonAPI2.dll"s,
-			"--ui-option"s, "url"s, "about:blank"s,
 		};
+		if (!common.launchAppUi) {
+			allArgs.append_range(std::vector<std::string>{
+				"--ui-option"s, "url"s, "about:blank"s,
+			});
+		}
 		AppendVerboseModulesArgs_(allArgs, common.logVerboseModules, "--log-verbose-modules");
 		allArgs.append_range(customArgs);
 		return allArgs;
@@ -473,6 +480,8 @@ private:
 	{
 		// make sure ioctx thread is running and keep it running until service launches
 		auto workGuard = ReserveIoctxThread_();
+		Assert::IsTrue(util::pipe::DuplexPipe::WaitForVacancy(common.ctrlPipe, svcPipeTimeout_),
+			L"Timed out waiting for control pipe vacancy before service start");
 		// launch the service
 		service.emplace(ioctx_, jobMan_, args, common);
 		// ensure that service pipe is available

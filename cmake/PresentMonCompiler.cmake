@@ -63,6 +63,7 @@ function(pmon_create_compiler_targets)
     target_link_options(
         pmon_release_link_policy
         INTERFACE
+            $<$<CONFIG:Release>:/CETCOMPAT>
             $<$<CONFIG:Release>:/DEBUG>
             $<$<CONFIG:Release>:/OPT:REF>
             $<$<CONFIG:Release>:/OPT:ICF>

@@ -303,6 +303,10 @@ namespace pmon::ipc::act
         {
             return *state_->conn;
         }
+        const std::string& GetControlPipeBaseName_() const
+        {
+            return state_->basePipeName;
+        }
 
     private:
         std::shared_ptr<State> state_;

@@ -13,7 +13,8 @@ namespace pmon::svc
     class ActionServer
     {
     public:
-        ActionServer(Service* pSvc, PresentMon* pPmon, std::optional<std::string> pipeName);
+        ActionServer(Service* pSvc, PresentMon* pPmon, std::optional<std::string> pipeName,
+            bool controlPipeAllowAuClients = false);
         ~ActionServer() = default;
         // Marks disposal as final teardown. Does not stop the runner.
         void EnterFinalTeardown();

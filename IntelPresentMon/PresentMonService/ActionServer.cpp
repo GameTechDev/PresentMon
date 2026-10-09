@@ -1,6 +1,7 @@
 // Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "../CommonUtilities/str/String.h"
+#include "../CommonUtilities/pipe/Pipe.h"
 #include "../Interprocess/source/act/SymmetricActionServer.h"
 #include "ActionServer.h"
 #include "GlobalIdentifiers.h"
@@ -24,16 +25,23 @@ namespace pmon::svc
         }
     }
 
-    ActionServer::ActionServer(Service* pSvc, PresentMon* pPmon, std::optional<std::string> pipeName)
+    ActionServer::ActionServer(Service* pSvc, PresentMon* pPmon, std::optional<std::string> pipeName,
+        bool controlPipeAllowAuClients)
     {
-        // if we have a pipe name override, that indicates we don't need special permissions
-        auto sec = pipe::DuplexPipe::GetSecurityString(pipeName ?
-            pipe::SecurityMode::Child : pipe::SecurityMode::Service);
+        constexpr uint32_t reservedPipeInstanceCount = 2;
+
+        std::string sec;
+        if (pipeName) {
+            sec = pipe::DuplexPipe::GetPrivateControlPipeSecurityString(controlPipeAllowAuClients);
+        }
+        else {
+            sec = pipe::DuplexPipe::GetServiceControlPipeSecurityString();
+        }
         // construct (and start) the server
         pImpl_ = std::make_shared<ServerImpl>(
             acts::ActionExecutionContext{ .pSvc = pSvc, .pPmon = pPmon },
             pipeName.value_or(gid::defaultControlPipeName),
-            2, std::move(sec)
+            reservedPipeInstanceCount, std::move(sec), false
         );
     }
     void ActionServer::EnterFinalTeardown()
