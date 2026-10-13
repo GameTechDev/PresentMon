@@ -17,6 +17,7 @@
 #include <ShellScalingApi.h>
 #include <include/cef_version.h>
 #include "util/CefLog.h"
+#include "util/KernelLink.h"
 
 
 #pragma comment(lib, "Dwmapi.lib")
@@ -33,7 +34,15 @@ constexpr const char* BrowserWindowClassName = "BrowserWindowClass";
 constexpr const char* MessageWindowClassName = "MessageWindowClass";
 constexpr const int quitCefCode = 0xABAD1DEA;
 CefRefPtr<client::cef::NanoCefBrowserClient> pBrowserClient;
+// the UI's connection to the kernel, see KernelLink
+std::unique_ptr<client::util::KernelLink> pKernelLink;
 HWND hwndAppMsg = nullptr;
+
+// runs on the CEF UI thread; null until the browser has been created
+CefRefPtr<CefBrowser> GetBrowserForKernelEvents()
+{
+    return pBrowserClient ? pBrowserClient->GetBrowser() : nullptr;
+}
 
 LRESULT CALLBACK BrowserWindowWndProc(HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param)
 {
@@ -41,8 +50,6 @@ LRESULT CALLBACK BrowserWindowWndProc(HWND window_handle, UINT message, WPARAM w
     {
     case WM_CREATE:
     {
-        pBrowserClient = new ccef::NanoCefBrowserClient{};
-
         RECT rect = { 0 };
         GetClientRect(window_handle, &rect);
         CefRect cefRect;
@@ -60,9 +67,10 @@ LRESULT CALLBACK BrowserWindowWndProc(HWND window_handle, UINT message, WPARAM w
         if (Options::Get().url) {
             url = *Options::Get().url;
         }
+        // the renderer reads the kernel's reported versions from extra_info
         CefBrowserHost::CreateBrowser(
             info, pBrowserClient.get(), url,
-            settings, {}, {}
+            settings, pKernelLink->MakeBrowserExtraInfo(), {}
         );
         break;
     }
@@ -251,6 +259,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             settings.log_severity = cefLogSeverity;
             CefInitialize(main_args, settings, app.get(), nullptr);
         }
+        // The browser client exists before the kernel link, so a kernel event finds it; the
+        // link exists before the browser, so the page's first call finds the relay.
+        pBrowserClient = new ccef::NanoCefBrowserClient{};
+        pKernelLink = std::make_unique<client::util::KernelLink>(*opt.actHandle, &GetBrowserForKernelEvents);
+        pBrowserClient->SetKernelCallRelay(&pKernelLink->GetCallRelay());
         auto hwndBrowser = CreateBrowserWindow(hInstance, nCmdShow);
         client::util::SetUiBrowserWindowMutexSuffix(hwndBrowser, *opt.uiMutexName);
         hwndAppMsg = CreateMessageWindow(hInstance);
@@ -263,6 +276,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         }
 
         DestroyWindow(hwndAppMsg);
+        // close the kernel session while CEF can still run the tasks it posts
+        pBrowserClient->SetKernelCallRelay(nullptr);
+        pKernelLink.reset();
         CefShutdown();
         client::util::ClearUiBrowserWindowMutexSuffix(hwndBrowser);
         DestroyWindow(hwndBrowser);

@@ -8,8 +8,12 @@
 #include "../CommonUtilities/win/com/ComPtr.h"
 #include <UIAutomation.h>
 #include <oleauto.h>
+#include <algorithm>
 #include <chrono>
+#include <filesystem>
 #include <format>
+#include <fstream>
+#include <iterator>
 #include <future>
 #include <memory>
 #include <string>
@@ -58,6 +62,29 @@ namespace UiLaunchTests
 			std::this_thread::sleep_for(25ms);
 		} while (std::chrono::steady_clock::now() < deadline);
 		return predicate();
+	}
+
+	// names of the pipes that exist on this machine right now
+	static std::vector<std::wstring> ListPipeNames_()
+	{
+		std::vector<std::wstring> names;
+		WIN32_FIND_DATAW data{};
+		const auto hFind = FindFirstFileW(LR"(\\.\pipe\*)", &data);
+		if (hFind == INVALID_HANDLE_VALUE) {
+			return names;
+		}
+		do {
+			names.push_back(data.cFileName);
+		} while (FindNextFileW(hFind, &data));
+		FindClose(hFind);
+		return names;
+	}
+
+	static bool FileContains_(const std::filesystem::path& path, const std::string& text)
+	{
+		std::ifstream file{ path };
+		const std::string contents{ std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{} };
+		return contents.find(text) != std::string::npos;
 	}
 
 	static HWND WaitForUiWindow_(const std::string& mutexSuffix)
@@ -148,6 +175,34 @@ namespace UiLaunchTests
 		TEST_METHOD_CLEANUP(Cleanup)
 		{
 			fixture_.Cleanup();
+		}
+
+		// The kernel serves its UI over a private pipe pair: the UI's session opens, and the
+		// kernel's old public pipe (ipm-cef-channel-<pid>), which any process could connect
+		// to, does not exist.
+		TEST_METHOD(UiSessionUsesPrivatePipePair)
+		{
+			const auto mutexSuffix = MakeMutexSuffix_("PrivatePipePair");
+			// the kernel's file log is buffered; synchronous logging writes each entry through
+			auto kernelArgs = MakeKernelArgs_(mutexSuffix);
+			kernelArgs.push_back("--log-synchronous"s);
+			auto kernel = fixture_.LaunchKernel(kernelArgs);
+			WaitForUiWindow_(mutexSuffix);
+			const auto kernelPid = kernel.GetId();
+			// on OpenSession the kernel logs "Kernel open action for cef=<ui pid> krn=<kernel pid>"
+			const auto logPath = std::filesystem::path{ logFolder_ } / "pmlog.txt";
+			Assert::IsTrue(WaitFor_(15s, [&] {
+				return FileContains_(logPath, std::format(" krn={}", kernelPid));
+			}), L"The UI did not open its session with the kernel");
+			const auto pipes = ListPipeNames_();
+			const auto publicName = std::format(L"ipm-cef-channel-{}", kernelPid);
+			const auto pairPrefix = std::format(L"pm-kernel-ui-{}-", kernelPid);
+			Assert::IsFalse(std::ranges::any_of(pipes, [&](const std::wstring& name) { return name == publicName; }),
+				L"The kernel published a public pipe for its UI");
+			Assert::IsTrue(std::ranges::any_of(pipes, [&](const std::wstring& name) { return name.starts_with(pairPrefix); }),
+				L"The kernel's private pipe pair was not found");
+
+			TerminateUiInstanceAndWait_(mutexSuffix, kernel);
 		}
 
 		TEST_METHOD(ApplicationLaunchBringsExistingUiToForeground)

@@ -8,6 +8,10 @@
 #include <optional>
 #include "util/AsyncEndpointCollection.h"
 
+namespace p2c::client::util::kernel_relay
+{
+    class CallRelay;
+}
 
 namespace p2c::client::cef
 {
@@ -18,6 +22,9 @@ namespace p2c::client::cef
     {
     public:
         NanoCefBrowserClient();
+        // Kernel calls from the page are handed to this relay. Set before the browser is created,
+        // since only the page sends them; null leaves them unhandled.
+        void SetKernelCallRelay(util::kernel_relay::CallRelay* pRelay);
         CefRefPtr<CefBrowser> GetBrowser();
         CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override;
         CefRefPtr<CefDisplayHandler> GetDisplayHandler() override;
@@ -40,6 +47,7 @@ namespace p2c::client::cef
         CefRefPtr<CefContextMenuHandler> pContextMenuHandler;
         CefRefPtr<CefBrowser> pBrowser;
         util::AsyncEndpointCollection endpoints;
+        util::kernel_relay::CallRelay* pKernelCallRelay = nullptr;
 
         // Include the default reference counting implementation.
         IMPLEMENT_REFCOUNTING(NanoCefBrowserClient);

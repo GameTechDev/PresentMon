@@ -111,14 +111,14 @@ namespace p2c::client::util::async
             constexpr bool isDebugBuild = true;
 #endif
             const auto pKernelWrapper = accessor.GetKernelWrapper();
-            const auto pClient = pKernelWrapper ? pKernelWrapper->pClient.get() : nullptr;
+            const auto versions = pKernelWrapper ? pKernelWrapper->kernelVersions : KernelWrapper::KernelVersions{};
 
             auto info = MakeCefObject(
                 CefProp{ "productName", std::string{ "Intel(R) PresentMon" } },
                 CefProp{ "productVersion", std::string{ PM_VER_PRODUCT_STR } },
                 CefProp{ "fileVersion", std::string{ PM_VER_FILE_STR } },
                 CefProp{ "apiVersion", FormatApiHeaderVersion_() },
-                CefProp{ "middlewareApiVersion", pClient ? pClient->GetMiddlewareApiVersion() : std::string{ "unknown" } },
+                CefProp{ "middlewareApiVersion", versions.middlewareApiVersion },
                 CefProp{ "buildId", std::string{ ::pmon::bid::BuildIdUid() } },
                 CefProp{ "buildHash", std::string{ ::pmon::bid::BuildIdLongHash() } },
                 CefProp{ "buildHashShort", std::string{ ::pmon::bid::BuildIdShortHash() } },
@@ -128,9 +128,9 @@ namespace p2c::client::util::async
                 CefProp{ "isDebugBuild", isDebugBuild },
                 CefProp{ "compileDate", std::string{ __DATE__ } },
                 CefProp{ "compileTime", std::string{ __TIME__ } },
-                CefProp{ "serviceBuildId", pClient ? pClient->GetServiceBuildId() : std::string{ "unknown" } },
-                CefProp{ "serviceBuildTime", pClient ? pClient->GetServiceBuildTime() : std::string{ "unknown" } },
-                CefProp{ "serviceVersion", pClient ? pClient->GetServiceVersion() : std::string{ "unknown" } },
+                CefProp{ "serviceBuildId", versions.serviceBuildId },
+                CefProp{ "serviceBuildTime", versions.serviceBuildTime },
+                CefProp{ "serviceVersion", versions.serviceVersion },
                 CefProp{ "cefVersion", std::string{ CEF_VERSION } },
                 CefProp{ "cefVersionMajor", CEF_VERSION_MAJOR },
                 CefProp{ "cefVersionMinor", CEF_VERSION_MINOR },
