@@ -56,6 +56,21 @@ namespace pmon::util::pipe
 		static DuplexPipe Connect(const std::string& name, as::io_context& ioctx, PipeLimits limits = {});
 		static std::unique_ptr<DuplexPipe> ConnectAsPtr(const std::string& name, as::io_context& ioctx, PipeLimits limits = {});
 		static std::unique_ptr<DuplexPipe> MakeAsPtr(const std::string& name, as::io_context& ioctx, const std::string& security = {}, PipeLimits limits = {});
+		// Both ends of a single-instance pipe, created and connected by this process, so no
+		// other process can ever connect to it. The client end stays a plain handle, to be
+		// handed to another process; it must not be given to asio here, because the I/O
+		// completion port association belongs to the file object both handles share.
+		struct ConnectedPair
+		{
+			std::unique_ptr<DuplexPipe> pServer;
+			win::Handle client;
+		};
+		// Throws PipeError if the name is already in use or the pair cannot be verified;
+		// the caller retries with a fresh name.
+		static ConnectedPair MakeConnectedPair(const std::string& name, as::io_context& ioctx,
+			const std::string& security, PipeLimits limits = {});
+		// Wraps the client end of a connected pair received from the process that created it.
+		static std::unique_ptr<DuplexPipe> AdoptConnectedClientAsPtr(HANDLE clientHandle, as::io_context& ioctx, PipeLimits limits = {});
 		template<class H, class P>
 		as::awaitable<void> WritePacket(const H& header, const P& payload, std::optional<uint32_t> timeoutMs = {})
 		{
@@ -162,9 +177,10 @@ namespace pmon::util::pipe
 		static DWORD GetClientPipeConnectAccessMask() noexcept;
 	private:
 		// functions
-		DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient, PipeLimits limits);
+		// connected: the handle needs no accept (a client end, or either end of a connected pair)
+		DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool connected, PipeLimits limits);
 		static HANDLE Connect_(const std::string& name);
-		static HANDLE Make_(const std::string& name, const std::string& security = {});
+		static HANDLE Make_(const std::string& name, const std::string& security = {}, bool singleInstance = false);
 		// aborts any in-flight read or write on this pipe; used by Close
 		void Cancel_();
 		// wrapper to convert EOF system_error to PipeBroken error, with optional timeout

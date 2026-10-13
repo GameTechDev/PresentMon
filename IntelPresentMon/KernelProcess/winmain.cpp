@@ -43,7 +43,7 @@ namespace as = boost::asio;
 
 namespace kproc
 {
-	using KernelServer = ipc::act::SymmetricActionServer<kact::KernelExecutionContext, ipc::act::SinglePeerServerPolicy>;
+	using KernelServer = ipc::act::SymmetricActionServer<kact::KernelExecutionContext, ipc::act::PairedSinglePeerServerPolicy>;
 
 	namespace cact = p2c::client::util::cact;
 
@@ -558,10 +558,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		p2c::kern::Kernel* pKernel = nullptr;
 		// active object that creates a window and sinks raw input messages to listen for hotkey presses
 		p2c::win::Hotkeys hotkeys;
-		// this server receives a connection from the CEF render process
-		const auto actName = std::format(R"(\\.\pipe\ipm-cef-channel-{})", GetCurrentProcessId());
+		// this server serves the UI. It has no listening pipe: each UI launch gets a private pipe pair
+		// whose client end only that UI inherits (OpenPairedSession), so no other process can connect
 		auto pServer = std::make_unique<KernelServer>(kact::KernelExecutionContext{ .ppKernel = &pKernel, .pHotkeys = &hotkeys },
-			actName, 1, "D:(A;;GA;;;WD)S:(ML;;NW;;;ME)", headless);
+			std::format("pm-kernel-ui-{}", GetCurrentProcessId()),
+			util::pipe::DuplexPipe::GetPrivateControlPipeSecurityString(false), headless);
 		// set the hotkey manager to send notifications via the action server
 		hotkeys.SetHandler([&pServer](int action) {
 			if (pServer) {
@@ -647,12 +648,18 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 					args.push_back(o.second);
 				}
 				const auto cefLogPipe = std::format("pm-ui-log-{}-{}", GetCurrentProcessId(), uiLaunchAttempt++);
+				// a new pipe pair for this UI; this also ends the session of any UI launched before it
+				auto uiPipe = pServer->OpenPairedSession();
+				// the launcher passes on only listed handles, and each must be marked inheritable
+				if (!SetHandleInformation(uiPipe, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT)) {
+					pmlog_error("Failed to make the UI pipe handle inheritable").hr();
+				}
 				// add fixed CLI options to the args vector
 				args.append_range(std::vector{
 					"--p2c-log-level"s, util::log::GetLevelName(*opt.logLevel),
 					"--p2c-log-trace-level"s, util::log::GetLevelName(*opt.logTraceLevel),
 					"--p2c-ui-mutex-name"s, *opt.uiMutexName,
-					"--p2c-act-name"s, actName,
+					"--p2c-act-handle"s, std::to_string((uintptr_t)uiPipe.Get()),
 					"--p2c-log-pipe-name"s, cefLogPipe
 				});
 				// launch the CEF browser process, which in turn launches all the other processes in the CEF process constellation
@@ -662,22 +669,29 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 					::pmon::util::file::ScopedWorkingDirectory setInstallWorkingDirectory{
 						infra::util::FolderResolver::ResolveInstallPath()
 					};
+					// the UI inherits the pipe handle and no other handle; auto, because the launchers'
+					// call operators are not virtual and must be called on the concrete type
+					auto launch = [&](auto& launcher) {
+						launcher.inherited_handles.push_back(uiPipe.Get());
+						return launcher(ioctx, "PresentMonUI.exe"s, args);
+					};
 					if (util::win::WeAreElevated()) {
 						try {
 							pmlog_info("detected elevation, attempting integrity downgrade");
 							auto mediumTokenPack = util::win::PrepareMediumIntegrityToken();
-							return bp2::windows::as_user_launcher{ mediumTokenPack.hMediumToken.Get() }(
-								ioctx, "PresentMonUI.exe"s, args
-								);
+							bp2::windows::as_user_launcher launcher{ mediumTokenPack.hMediumToken.Get() };
+							return launch(launcher);
 						}
 						catch (...) {
 							pmlog_warn(util::ReportException("Failed to downgrade integrity, falling back to standard process spawn"));
 						}
 					}
-					return bp2::windows::default_launcher{}(
-						ioctx, "PresentMonUI.exe"s, args
-						);
+					bp2::windows::default_launcher launcher;
+					return launch(launcher);
 				}();
+				// The UI has its own copy now. Ours must not stay open: the session ends only when
+				// every copy of the client end is closed, which is how the kernel sees the UI exit.
+				uiPipe = util::win::Handle{};
 
 				KillOnCloseJob uiJob{ cefChild.native_handle() };
 

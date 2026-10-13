@@ -15,6 +15,8 @@ add_executable(
         source/util/FontEnumerator.cpp
         source/util/IpcInvocationManager.cpp
         source/util/KernelActionRegistration.cpp
+        source/util/KernelLink.cpp
+        source/util/KernelRelay.cpp
         source/util/LogSetup.cpp
         source/util/PathSanitaryCheck.cpp
         source/util/SignalManager.cpp

@@ -234,6 +234,13 @@ namespace p2c::win
 		// signal success
 		return true;
 	}
+	size_t Hotkeys::ClearAll()
+	{
+		std::lock_guard lk{ mtx_ };
+		const auto count = registeredHotkeys_.size();
+		registeredHotkeys_.clear();
+		return count;
+	}
 	win::ModSet Hotkeys::GatherModifiers_() const
 	{
 		win::ModSet mods;

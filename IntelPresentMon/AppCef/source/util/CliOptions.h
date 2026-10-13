@@ -64,14 +64,15 @@ namespace p2c::client::util::cli
 	private: Group gi_{ this, "Internal", "Internal options, do not supply manually" }; public:
 		Option<std::string> cefType{ this, "--type", "", "Type of the current chromium process" };
 		Option<std::string> logPipeName{ this, "--p2c-log-pipe-name", "", "The postfix used to create the named pipe for logging source server" };
-		Option<std::string> actName{ this, "--p2c-act-name", "", "Base name for the named pipes connecting CEF and the overlay Kernel process" };
+		Option<uint64_t> actHandle{ this, "--p2c-act-handle", 0, "Inherited handle of the pipe connecting CEF and the overlay Kernel process" };
 
 		static constexpr const char* description = "PresentMon control UI";
 		static constexpr const char* name = "PresentMonUI.exe";
 
 	private:
 		MutualExclusion excl_{ logDenyList, logAllowList };
-		NoForward noForward_{ cefType, logPipeName, logVerboseModules };
+		// actHandle is meaningful only in the browser process that inherited it
+		NoForward noForward_{ cefType, logPipeName, logVerboseModules, actHandle };
 		AllowExtras ext_{ this };
 	};
 }

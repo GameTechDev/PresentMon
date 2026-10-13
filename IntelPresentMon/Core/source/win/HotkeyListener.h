@@ -27,6 +27,8 @@ namespace p2c::win
 		void Stop();
 		bool BindAction(int action, win::Key key, win::ModSet mods);
 		bool ClearAction(int action);
+		// Removes every binding and returns how many were removed.
+		size_t ClearAll();
 		void SetHandler(std::function<void(int)> handler);
 	private:
 		// types

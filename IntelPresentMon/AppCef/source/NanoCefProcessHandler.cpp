@@ -14,9 +14,9 @@
 #include "util/AsyncEndpointManager.h"
 #include "util/CefValues.h"
 #include "util/CliOptions.h"
+#include "util/KernelRelay.h"
 
 using namespace pmon::util;
-using namespace std::chrono_literals;
 namespace rn = std::ranges;
 namespace vi = std::views;
 
@@ -112,11 +112,8 @@ namespace p2c::client::cef
 
     void NanoCefProcessHandler::OnContextCreated(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefV8Context> context)
     {
-        std::this_thread::sleep_for(50ms);
-        pKernelWrapper->pClient = std::make_unique<util::CefClient>(
-            *util::cli::Options::Get().actName, util::cact::CefExecutionContext{.pSignalManager = &pKernelWrapper->signals}
-        );
-        pKernelWrapper->pInvocationManager = std::make_unique<util::IpcInvocationManager>(*pKernelWrapper->pClient);
+        // kernel calls are relayed through the browser process, which holds the kernel connection
+        pKernelWrapper->pInvocationManager = std::make_unique<util::IpcInvocationManager>();
         pAccessor = new DataBindAccessor{ pBrowser, pKernelWrapper.get() };
 
         auto core = CefV8Value::CreateObject(nullptr, nullptr);
@@ -138,11 +135,33 @@ namespace p2c::client::cef
 
         pBrowser = browser_;
 
+        // versions the kernel reported to the browser process when it opened its session
+        if (extra_info) {
+            namespace kr = util::kernel_relay;
+            auto& versions = pKernelWrapper->kernelVersions;
+            versions.serviceBuildId = extra_info->GetString(kr::kServiceBuildIdKey).ToString();
+            versions.serviceBuildTime = extra_info->GetString(kr::kServiceBuildTimeKey).ToString();
+            versions.serviceVersion = extra_info->GetString(kr::kServiceVersionKey).ToString();
+            versions.middlewareApiVersion = extra_info->GetString(kr::kMiddlewareApiVersionKey).ToString();
+        }
+
         CefRenderProcessHandler::OnBrowserCreated(std::move(browser_), std::move(extra_info));
     }
 
     bool NanoCefProcessHandler::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefProcessId source_process, CefRefPtr<CefProcessMessage> message)
     {
+        if (pKernelWrapper->pInvocationManager && pKernelWrapper->pInvocationManager->HandleReply(*message)) {
+            return true;
+        }
+        if (message->GetName() == util::kernel_relay::kSignalMessage) {
+            const auto args = message->GetArgumentList();
+            std::optional<uint32_t> arg;
+            if (args->GetType(1) == VTYPE_INT) {
+                arg = (uint32_t)args->GetInt(1);
+            }
+            pKernelWrapper->signals.SignalFromBrowser(args->GetString(0).ToString(), arg);
+            return true;
+        }
         if (message->GetName() == util::AsyncEndpointManager::GetResolveMessageName())
         {
             pAccessor->ResolveAsyncEndpoint(
