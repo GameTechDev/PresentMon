@@ -180,14 +180,39 @@ namespace pmon::ipc::act
 			const std::string& security, pipe::PipeLimits limits)
 			:
 			ioctx_{ ioctx },
-			pPipe_{ pipe::DuplexPipe::MakeAsPtr(pipeName, ioctx, security, std::move(limits)) }
+			pPipe_{ pipe::DuplexPipe::MakeAsPtr(pipeName, ioctx, security, std::move(limits)) },
+			requireOpenSession_{ true }
 		{}
+		// Server end of a pipe pair the server created itself. The system reports the server's
+		// own process as the client of such a pipe, so the client pid stays unknown (0).
+		static std::shared_ptr<SymmetricActionConnector> FromConnectedServerPipe(
+			std::unique_ptr<pipe::DuplexPipe> pPipe, as::io_context& ioctx)
+		{
+			return std::make_shared<SymmetricActionConnector>(std::move(pPipe), ioctx, true, CommandTokenAllocator{});
+		}
+		// Client end of a pipe pair, received from the process that created it.
+		static std::shared_ptr<SymmetricActionConnector> AdoptConnectedClient(
+			util::win::Handle connectedPipe, as::io_context& ioctx, CommandTokenAllocator tokens = {})
+		{
+			return std::make_shared<SymmetricActionConnector>(
+				pipe::DuplexPipe::AdoptConnectedClientAsPtr(connectedPipe.Release(), ioctx, MakePipeLimits_()),
+				ioctx, false, std::move(tokens));
+		}
 		SymmetricActionConnector(const std::string& pipeName, as::io_context& ioctx,
 			CommandTokenAllocator tokens)
 			:
 			ioctx_{ ioctx },
 			pPipe_{ pipe::DuplexPipe::ConnectAsPtr(pipeName, ioctx, MakePipeLimits_()) },
-			tokens_{ std::move(tokens) }
+			tokens_{ std::move(tokens) },
+			requireOpenSession_{ false }
+		{}
+		SymmetricActionConnector(std::unique_ptr<pipe::DuplexPipe> pPipe, as::io_context& ioctx,
+			bool requireOpenSession, CommandTokenAllocator tokens)
+			:
+			ioctx_{ ioctx },
+			pPipe_{ std::move(pPipe) },
+			tokens_{ std::move(tokens) },
+			requireOpenSession_{ requireOpenSession }
 		{}
 	private:
 		static pipe::PipeLimits MakePipeLimits_()
@@ -221,13 +246,13 @@ namespace pmon::ipc::act
 		as::awaitable<void> ExecuteIncoming_(ExecCtx& ctx, SessionContextType& stx, const PacketHeader& header)
 		{
 			try {
-				// any action other than OpenSession without having remotePid is an anomaly
-				// TODO: make this processing a customization point in ExecutionContext and move it out of here
-				if (header.identifier != "OpenSession") {
-					assert(bool(stx.remotePid));
-					if (!stx.remotePid) {
-						pmlog_warn("Received action without a valid session opened").diag();
-					}
+				// The accepting side runs nothing until the peer has opened its session. The
+				// connecting side does not check: a server may push an event in the gap between
+				// its OpenSession response and the client recording the session.
+				if (requireOpenSession_ && !stx.remotePid && header.identifier != "OpenSession") {
+					pmlog_error("Action received before OpenSession")
+						.pmwatch(header.identifier).pmwatch(clientPid_);
+					throw util::Except<ProtocolViolation>("Action received before OpenSession");
 				}
 				// lookup the command by identifier and execute it with remaining buffer contents
 				// response is then transmitted over the pipe to remote
@@ -321,6 +346,8 @@ namespace pmon::ipc::act
 		CommandTokenAllocator tokens_;
 		// zero on the connecting side, which has no peer to verify
 		uint32_t clientPid_ = 0;
+		// true on the accepting side, see ExecuteIncoming_
+		const bool requireOpenSession_;
 		std::unordered_map<uint32_t, PendingResponse*> pendingResponses_;
 		std::unordered_set<uint32_t> expiredResponseTokens_;
 		std::deque<uint32_t> expiredResponseTokenOrder_;

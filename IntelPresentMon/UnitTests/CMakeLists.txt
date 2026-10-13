@@ -5,6 +5,7 @@ add_library(
     SHARED
         ExtremeQueue.cpp
         FixedVectorTests.cpp
+        HotkeyTests.cpp
         InterPresentActivityTests.cpp
         LoggingTests.cpp
         MetricCapabilitiesTests.cpp

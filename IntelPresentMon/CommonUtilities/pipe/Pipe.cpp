@@ -87,6 +87,44 @@ namespace pmon::util::pipe
 	{
 		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, Make_(name, security), name, false, limits });
 	}
+	DuplexPipe::ConnectedPair DuplexPipe::MakeConnectedPair(const std::string& name, as::io_context& ioctx,
+		const std::string& security, PipeLimits limits)
+	{
+		// one instance only, and creation fails if the name already exists
+		win::Handle server{ Make_(name, security, true) };
+		// fails if any other process connected first, since there is only one instance
+		win::Handle client{ Connect_(name) };
+		// the client is already connected, so this completes at once
+		win::Event connectEvent;
+		OVERLAPPED over{ .hEvent = connectEvent.Get() };
+		const auto connected = ConnectNamedPipe(server, &over);
+		const auto error = GetLastError();
+		if (connected || error != ERROR_PIPE_CONNECTED) {
+			// a started wait must end before the OVERLAPPED goes out of scope
+			if (!connected && error == ERROR_IO_PENDING) {
+				CancelIoEx(server, &over);
+				DWORD dummyBytes = 0;
+				GetOverlappedResult(server, &over, &dummyBytes, TRUE);
+			}
+			pmlog_error("Pipe pair was not connected on creation").pmwatch(name).hr(error);
+			throw Except<PipeError>("Pipe pair was not connected on creation");
+		}
+		// the only client must be this process
+		ULONG clientPid = 0;
+		if (!GetNamedPipeClientProcessId(server, &clientPid) || clientPid != GetCurrentProcessId()) {
+			pmlog_error("Pipe pair client is not this process").pmwatch(name).pmwatch(clientPid);
+			throw Except<PipeError>("Pipe pair client is not this process");
+		}
+		pmlog_dbg(std::format("Created connected pipe pair [{}]", name));
+		return ConnectedPair{
+			.pServer = std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, server.Release(), name, true, limits }),
+			.client = std::move(client),
+		};
+	}
+	std::unique_ptr<DuplexPipe> DuplexPipe::AdoptConnectedClientAsPtr(HANDLE clientHandle, as::io_context& ioctx, PipeLimits limits)
+	{
+		return std::unique_ptr<DuplexPipe>(new DuplexPipe{ ioctx, clientHandle, "adopted-client", true, limits });
+	}
 	void DuplexPipe::DiscardPacketPayload()
 	{
 		readBuf_.consume(readBuf_.size());
@@ -208,7 +246,7 @@ namespace pmon::util::pipe
 		return std::format("D:(A;;GA;;;{})", userSid);
 	}
 
-	DuplexPipe::DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient, PipeLimits limits)
+	DuplexPipe::DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool connected, PipeLimits limits)
 		:
 		name_{ std::move(name) },
 		limits_{ limits },
@@ -221,8 +259,8 @@ namespace pmon::util::pipe
 		writeArchive_{ writeStream_ },
 		writeMtx_{ ioctx }
 	{
-		if (asClient) {
-			// client is automatically connected upon creation, so immediatly transfer pipe to asio
+		if (connected) {
+			// a client end, or either end of a connected pair, needs no accept, so transfer the pipe to asio now
 			asioPipeHandle_.assign(rawPipeHandle_.Release());
 		}
 	}
@@ -242,7 +280,7 @@ namespace pmon::util::pipe
 		}
 		return handle.Release();
 	}
-	HANDLE DuplexPipe::Make_(const std::string& name, const std::string& security)
+	HANDLE DuplexPipe::Make_(const std::string& name, const std::string& security, bool singleInstance)
 	{
 		pmlog_dbg(std::format("Creating instance of [{}] with security [{}]", name, security));
 		// structure required for creating named pipe, create with placeholder pointer for descriptor
@@ -259,11 +297,12 @@ namespace pmon::util::pipe
 		}
 		// if we have a security string, call create pipe with above structure, else call with nullptr
 		SECURITY_ATTRIBUTES* pSecurityAttributes = security.empty() ? nullptr : &securityAttributes;
+		// a single instance cannot be joined by a second server, and creating it fails if the name exists
 		win::Handle handle(CreateNamedPipeA(
 			name.c_str(),
-			PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+			PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | (singleInstance ? FILE_FLAG_FIRST_PIPE_INSTANCE : 0),
 			PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_REJECT_REMOTE_CLIENTS,
-			PIPE_UNLIMITED_INSTANCES,
+			singleInstance ? 1 : PIPE_UNLIMITED_INSTANCES,
 			4096,
 			4096,
 			0,

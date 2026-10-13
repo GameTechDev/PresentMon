@@ -110,6 +110,7 @@
     <ClCompile Include="MultiClientTests.cpp" />
     <ClCompile Include="PipeAcceptReliabilityTests.cpp" />
     <ClCompile Include="PipeSecurityRegressionTests.cpp" />
+    <ClCompile Include="PipePairTests.cpp" />
     <ClCompile Include="PacedFrameTests.cpp" />
     <ClCompile Include="PacedPollingTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />
