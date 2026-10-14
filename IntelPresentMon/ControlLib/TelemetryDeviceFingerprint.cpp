@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2026 Intel Corporation
+// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "TelemetryDeviceFingerprint.h"
 #include <cctype>
@@ -46,12 +46,19 @@ namespace pmon::tel
             return false;
         }
 
-        if (OptionalEqual_(lhs.pciDeviceId, rhs.pciDeviceId) &&
-            OptionalEqual_(lhs.pciSubSystemId, rhs.pciSubSystemId)) {
-            return true;
+        // LUID and PCI bus identify a physical instance and are decisive when both sides have
+        // them; PCI device/subsystem ids and names only identify a model and are shared by
+        // identical cards, so they are only used as fallbacks
+        if (!lhs.luid.empty() && !rhs.luid.empty()) {
+            return lhs.luid == rhs.luid;
         }
 
-        if (OptionalEqual_(lhs.pciBusId, rhs.pciBusId)) {
+        if (lhs.pciBusId.has_value() && rhs.pciBusId.has_value()) {
+            return *lhs.pciBusId == *rhs.pciBusId;
+        }
+
+        if (OptionalEqual_(lhs.pciDeviceId, rhs.pciDeviceId) &&
+            OptionalEqual_(lhs.pciSubSystemId, rhs.pciSubSystemId)) {
             return true;
         }
 

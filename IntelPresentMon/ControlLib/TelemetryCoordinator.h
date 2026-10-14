@@ -67,7 +67,9 @@ namespace pmon::tel
         void ReassignGpuLogicalDeviceIdsByMemorySize_();
         GpuMemoryOrderingInfo_ QueryGpuMemorySize_(const LogicalDevice_& logicalDevice) const;
         GpuPowerOrderingInfo_ QueryGpuSustainedPowerLimit_(const LogicalDevice_& logicalDevice) const;
-        LogicalDevice_& GetOrCreateLogicalDevice_(const TelemetryDeviceFingerprint& fingerprint);
+        LogicalDevice_& GetOrCreateLogicalDevice_(
+            const TelemetryProvider& provider,
+            const TelemetryDeviceFingerprint& fingerprint);
         TelemetryDeviceFingerprint ResolveLogicalDeviceFingerprint_(const LogicalDevice_& logicalDevice) const;
         ipc::MetricCapabilities BuildMergedDeviceAvailability_(const LogicalDevice_& logicalDevice) const;
         static void PushValueToTelemetryMap_(

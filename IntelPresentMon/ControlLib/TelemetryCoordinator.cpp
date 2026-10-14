@@ -357,7 +357,7 @@ namespace pmon::tel
                         .pmwatch(fingerprint.deviceName)
                         .pmwatch(providerDeviceId)
                         .pmwatch(fingerprint.LuidAsString());
-                    auto& logicalDevice = GetOrCreateLogicalDevice_(fingerprint);
+                    auto& logicalDevice = GetOrCreateLogicalDevice_(*pProvider, fingerprint);
                     const auto logicalDeviceId = logicalDevice.logicalDeviceId;
 
                     uint32_t providerDeviceIndex = std::numeric_limits<uint32_t>::max();
@@ -705,9 +705,18 @@ namespace pmon::tel
     }
 
     TelemetryCoordinator::LogicalDevice_& TelemetryCoordinator::GetOrCreateLogicalDevice_(
+        const TelemetryProvider& provider,
         const TelemetryDeviceFingerprint& fingerprint)
     {
         for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
+            // a provider enumerates each physical device at most once, so two devices from the
+            // same provider are always distinct (e.g. identical cards with matching PCI ids / names)
+            if (fingerprint.deviceType != PM_DEVICE_TYPE_SYSTEM &&
+                std::ranges::any_of(logicalDevice.providerDevices, [&provider](const ProviderDevice_& pd) {
+                    return pd.pProvider.lock().get() == &provider;
+                })) {
+                continue;
+            }
             for (const auto& providerDevice : logicalDevice.providerDevices) {
                 const auto pProvider = providerDevice.pProvider.lock();
                 if (!pProvider) {
