@@ -229,6 +229,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         }
 
         // code from here on is only executed by the root process (browser window process)
+
+        // take the kernel pipe first: its inheritance must be cleared before CEF can launch any process
+        auto kernelPipe = client::util::TakeKernelPipeHandle(*opt.actHandle);
         auto uiInstanceMutex = client::util::TryAcquireUiBrowserProcessMutex(*opt.uiMutexName);
         if (!uiInstanceMutex.first) {
             return -1;
@@ -262,7 +265,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         // The browser client exists before the kernel link, so a kernel event finds it; the
         // link exists before the browser, so the page's first call finds the relay.
         pBrowserClient = new ccef::NanoCefBrowserClient{};
-        pKernelLink = std::make_unique<client::util::KernelLink>(*opt.actHandle, &GetBrowserForKernelEvents);
+        pKernelLink = std::make_unique<client::util::KernelLink>(std::move(kernelPipe), &GetBrowserForKernelEvents);
         pBrowserClient->SetKernelCallRelay(&pKernelLink->GetCallRelay());
         auto hwndBrowser = CreateBrowserWindow(hInstance, nCmdShow);
         client::util::SetUiBrowserWindowMutexSuffix(hwndBrowser, *opt.uiMutexName);

@@ -3,10 +3,25 @@
 
 namespace p2c::client::util
 {
-	KernelLink::KernelLink(uint64_t pipeHandleValue, kernel_relay::SignalRelay::BrowserGetter getBrowser)
+	::pmon::util::win::Handle TakeKernelPipeHandle(uint64_t pipeHandleValue)
+	{
+		if (!pipeHandleValue) {
+			pmlog_error("No kernel pipe handle was passed; the UI has no kernel link");
+			return {};
+		}
+		::pmon::util::win::Handle pipe{ reinterpret_cast<HANDLE>((uintptr_t)pipeHandleValue) };
+		// an inherited handle stays inheritable; it must never reach a process this one launches
+		if (!SetHandleInformation(pipe, HANDLE_FLAG_INHERIT, 0)) {
+			pmlog_error("Failed to clear inheritance on the kernel pipe handle; the UI has no kernel link").hr();
+			return {};
+		}
+		return pipe;
+	}
+
+	KernelLink::KernelLink(::pmon::util::win::Handle pipe, kernel_relay::SignalRelay::BrowserGetter getBrowser)
 		:
 		signals_{ getBrowser },
-		pClient_{ OpenSession_(pipeHandleValue, signals_) },
+		pClient_{ OpenSession_(std::move(pipe), signals_) },
 		calls_{ pClient_.get() }
 	{}
 
@@ -26,19 +41,14 @@ namespace p2c::client::util
 		return info;
 	}
 
-	std::unique_ptr<CefClient> KernelLink::OpenSession_(uint64_t pipeHandleValue, const kernel_relay::SignalRelay& signals)
+	std::unique_ptr<CefClient> KernelLink::OpenSession_(::pmon::util::win::Handle pipe, const kernel_relay::SignalRelay& signals)
 	{
-		if (!pipeHandleValue) {
-			pmlog_error("No kernel pipe handle was passed; the UI has no kernel link");
+		if (!pipe) {
+			// TakeKernelPipeHandle has logged why
 			return {};
 		}
-		const auto handle = reinterpret_cast<HANDLE>((uintptr_t)pipeHandleValue);
-		// an inherited handle stays inheritable; keep it out of the processes CEF launches
-		if (!SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0)) {
-			pmlog_error("Failed to clear inheritance on the kernel pipe handle").hr();
-		}
 		try {
-			return std::make_unique<CefClient>(::pmon::util::win::Handle{ handle },
+			return std::make_unique<CefClient>(std::move(pipe),
 				cact::CefExecutionContext{ .pSignalRelay = &signals });
 		}
 		catch (...) {
