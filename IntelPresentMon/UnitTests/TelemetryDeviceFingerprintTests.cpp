@@ -7,6 +7,7 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using pmon::tel::TelemetryDeviceFingerprint;
 using pmon::tel::TelemetryDeviceFingerprintMatches;
+using pmon::tel::MergeTelemetryDeviceFingerprint;
 
 namespace TelemetryDeviceFingerprintTests
 {
@@ -59,23 +60,41 @@ namespace TelemetryDeviceFingerprintTests
             Assert::IsFalse(TelemetryDeviceFingerprintMatches(a, b));
         }
 
-        TEST_METHOD(IdenticalIntelCardsWithDifferentLuidsDoNotMatchByName)
+        TEST_METHOD(DifferingLuidsDoNotPreventBusMatch)
         {
-            auto a = MakeGpu_(PM_DEVICE_VENDOR_INTEL, "Intel(R) Arc(TM) B580 Graphics");
+            auto a = MakeGpu_(PM_DEVICE_VENDOR_NVIDIA, "NVIDIA GeForce RTX 4090");
+            a.pciBusId = 2;
             a.luid = { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
             auto b = a;
             b.luid = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
+            Assert::IsTrue(TelemetryDeviceFingerprintMatches(a, b));
+        }
+
+        TEST_METHOD(SameLuidDoesNotOverrideBusMismatch)
+        {
+            auto a = MakeGpu_(PM_DEVICE_VENDOR_NVIDIA, "NVIDIA GeForce RTX 4090");
+            a.pciBusId = 1;
+            a.luid = { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+            auto b = a;
+            b.pciBusId = 2;
+
             Assert::IsFalse(TelemetryDeviceFingerprintMatches(a, b));
         }
 
-        TEST_METHOD(SameLuidMatches)
+        TEST_METHOD(MergeKeepsFirstLuid)
         {
-            auto a = MakeGpu_(PM_DEVICE_VENDOR_INTEL, "Intel(R) Arc(TM) B580 Graphics");
-            a.luid = { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            const auto b = a;
+            auto dst = MakeGpu_(PM_DEVICE_VENDOR_INTEL, "Intel(R) Arc(TM) B580 Graphics");
+            dst.luid = { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+            auto src = dst;
+            src.luid = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-            Assert::IsTrue(TelemetryDeviceFingerprintMatches(a, b));
+            MergeTelemetryDeviceFingerprint(dst, src);
+            Assert::IsTrue(dst.luid == std::vector<uint8_t>{ 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 });
+
+            auto empty = MakeGpu_(PM_DEVICE_VENDOR_INTEL, "Intel(R) Arc(TM) B580 Graphics");
+            MergeTelemetryDeviceFingerprint(empty, src);
+            Assert::IsTrue(empty.luid == src.luid);
         }
 
         TEST_METHOD(PciIdsMatchWhenBusUnavailable)

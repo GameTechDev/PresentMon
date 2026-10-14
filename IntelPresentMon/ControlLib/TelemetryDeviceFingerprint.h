@@ -17,6 +17,9 @@ namespace pmon::tel
         std::string deviceName;
         bool isIntegratedAdapter = false;
 
+        // Does not currently participate in matching: LUIDs reported by different providers are
+        // not guaranteed to be comparable. Matching by LUID would require extra data to tell
+        // which providers' LUIDs are compatible. When merging, the first non-empty LUID wins.
         std::vector<uint8_t> luid;
         // Correlation fields aligned with NVIDIA matching.
         std::optional<uint32_t> pciDeviceId;

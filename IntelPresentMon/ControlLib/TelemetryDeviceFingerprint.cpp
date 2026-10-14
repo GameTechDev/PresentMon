@@ -46,13 +46,9 @@ namespace pmon::tel
             return false;
         }
 
-        // LUID and PCI bus identify a physical instance and are decisive when both sides have
-        // them; PCI device/subsystem ids and names only identify a model and are shared by
+        // PCI bus identifies a physical instance and is decisive when both sides have it;
+        // PCI device/subsystem ids and names only identify a model and are shared by
         // identical cards, so they are only used as fallbacks
-        if (!lhs.luid.empty() && !rhs.luid.empty()) {
-            return lhs.luid == rhs.luid;
-        }
-
         if (lhs.pciBusId.has_value() && rhs.pciBusId.has_value()) {
             return *lhs.pciBusId == *rhs.pciBusId;
         }

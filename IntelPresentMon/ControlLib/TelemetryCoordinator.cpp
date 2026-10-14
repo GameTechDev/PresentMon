@@ -788,9 +788,11 @@ namespace pmon::tel
                     if (!fingerprint.luid.empty() &&
                         !providerFingerprint.luid.empty() &&
                         fingerprint.luid != providerFingerprint.luid) {
-                        pmlog_warn("Conflicting provider LUID while resolving logical-device fingerprint")
+                        pmlog_dbg("Differing provider LUID while resolving logical-device fingerprint; keeping first")
                             .pmwatch(logicalDevice.logicalDeviceId)
-                            .pmwatch(providerDevice.providerDeviceId);
+                            .pmwatch(providerDevice.providerDeviceId)
+                            .pmwatch(fingerprint.LuidAsString())
+                            .pmwatch(providerFingerprint.LuidAsString());
                     }
                     MergeTelemetryDeviceFingerprint(fingerprint, providerFingerprint);
                 }
