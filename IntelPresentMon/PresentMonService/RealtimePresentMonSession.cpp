@@ -529,31 +529,12 @@ void RealtimePresentMonSession::Output() {
         presentEvents.reserve(4096);
         terminatedProcesses.reserve(16);
 
-        // create a periodic timer used to check for terminated processes / quit while also waiting for events
-        auto hTimer = util::win::Handle(CreateWaitableTimerW(
-            nullptr, FALSE, nullptr
-        ));
-        if (!hTimer) {
-            pmlog_error("Failed creating timer").hr();
-        }
-        // set timer period to 100ms
-        {
-            const LARGE_INTEGER dueTime{ .QuadPart = 0 };
-            if (!SetWaitableTimer(hTimer, &dueTime, 100, nullptr, nullptr, FALSE)) {
-                pmlog_error("Failed setting timer").hr();
-            }
-        }
-
-        util::QpcTimer timer;
-
         while (true) {
-            // Read quit_output_thread_ here, but then check it after processing
+            // Sample the quit signal here, but then check it after processing
             // queued events. This ensures that we call DequeueAnalyzedInfo() at
             // least once after events have stopped being collected so that all
             // events are included.
-            //        
-            // TODO: consider replacing this flag with a waitable event
-            const auto quit = quit_output_thread_.load();
+            const bool quit = (bool)util::win::WaitAnyEventFor(0ms, evtQuitOutput_);
 
             // Copy and process all the collected events, and update the various
             // tracking and statistics data structures.
@@ -566,22 +547,14 @@ void RealtimePresentMonSession::Output() {
                 break;
             }
 
-            // wait for either events to process or periodic polling timer
-            while (auto idx = util::win::WaitAnyEvent(pm_consumer_->hEventsReadyEvent, hTimer)) {
-                // events are ready so we should process them
-                if (idx == 0) {
-                    pmlog_verb(v::etwq)("Event(s) ready");
-                    break;
-                }
-                pmlog_verb(v::etwq)("Doing periodic Output processing");
-                // Timer has elapsed so we should do periodic polling operations
-                // Update tracking information.
-                CheckForTerminatedRealtimeProcesses(&terminatedProcesses);
-                // check for quit signal
-                if (quit_output_thread_.load()) {
-                    pmlog_dbg("Detected quit signal");
-                    break;
-                }
+            // block until events are ready or quit is signaled; no periodic wakeup so that
+            // this thread stays dormant while nothing is being tracked
+            const auto idx = util::win::WaitAnyEvent(pm_consumer_->hEventsReadyEvent, evtQuitOutput_);
+            if (idx == 0) {
+                pmlog_verb(v::etwq)("Event(s) ready");
+            }
+            else {
+                pmlog_dbg("Detected quit signal");
             }
         }
 
@@ -592,13 +565,13 @@ void RealtimePresentMonSession::Output() {
 }
 
 void RealtimePresentMonSession::StartOutputThread() {
-    quit_output_thread_ = false;
+    evtQuitOutput_.Reset();
     output_thread_ = std::thread(&RealtimePresentMonSession::Output, this);
 }
 
 void RealtimePresentMonSession::StopOutputThread() {
     if (output_thread_.joinable()) {
-        quit_output_thread_ = true;
+        evtQuitOutput_.Set();
         output_thread_.join();
     }
 }
@@ -626,14 +599,4 @@ void RealtimePresentMonSession::HandleTerminatedProcess(uint32_t processId) {
     if (!HasLiveTrackedProcesses()) {
         evtStreamingStarted_.Reset();
     }
-}
-
-// Check if any realtime processes terminated and add them to the terminated
-// list.
-//
-// Note: handle-based polling of target process lifetime is intentionally
-// handled outside of the session layer.
-void RealtimePresentMonSession::CheckForTerminatedRealtimeProcesses(
-    std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses) {
-    (void)terminatedProcesses;
 }

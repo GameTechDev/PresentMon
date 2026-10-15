@@ -8,6 +8,7 @@
 #include "GpuMetricSelection.h"
 #include "StatusComparison.h"
 #include "TestProcess.h"
+#include "ThreadInspection.h"
 #include <string>
 #include <ranges>
 #include <fstream>
@@ -1001,6 +1002,77 @@ namespace InterimBroadcasterTests
 
             Assert::IsTrue(range1.second - range1.first < range2.second - range2.first);
             Assert::IsTrue(range2.second - range2.first < range3.second - range3.first);
+        }
+    };
+
+    TEST_CLASS(OutputThreadIdleTests)
+    {
+        TestFixture fixture_;
+
+        util::win::Handle FindOutputThread_()
+        {
+            auto hThread = pmon::tests::FindThreadByName(fixture_.service->GetId(), L"frame-out");
+            Assert::IsTrue((bool)hThread, L"Could not find frame-out thread in service");
+            return hThread;
+        }
+        static uint64_t SampleCycles_(const util::win::Handle& hThread)
+        {
+            const auto cycles = pmon::tests::GetThreadCycles(hThread);
+            Logger::WriteMessage(std::format("frame-out thread cycles: {}\n", cycles).c_str());
+            return cycles;
+        }
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup();
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        // with a client connected but nothing tracked, the output thread should never wake
+        TEST_METHOD(NoWakeWhileIdle)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            const auto hThread = FindOutputThread_();
+            const auto before = SampleCycles_(hThread);
+            std::this_thread::sleep_for(1s);
+            const auto after = SampleCycles_(hThread);
+            Assert::AreEqual(before, after, L"Output thread ran while idle");
+        }
+        // output thread should wake to process frames while tracking, then go dormant after untracking
+        TEST_METHOD(DormantAfterUntrack)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
+            std::this_thread::sleep_for(1ms);
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            pComms->OpenFrameDataStore(pres.GetId());
+            pmon::tests::WaitForFirstFrame(pComms->GetFrameDataStore(pres.GetId()).frameData,
+                "output-thread-dormant");
+
+            // verify the thread is actively running to process frames while tracking
+            const auto hThread = FindOutputThread_();
+            const auto trackingStart = SampleCycles_(hThread);
+            std::this_thread::sleep_for(machine::ScaleWait(200ms));
+            const auto trackingEnd = SampleCycles_(hThread);
+            Assert::IsTrue(trackingEnd > trackingStart, L"Output thread did not run while tracking");
+
+            client.DispatchSync(svc::acts::StopTracking::Params{ .targetPid = pres.GetId() });
+            pComms->CloseFrameDataStore(pres.GetId());
+
+            // allow any in-flight event batches to drain before measuring the dormant period
+            std::this_thread::sleep_for(machine::ScaleWait(500ms));
+            const auto idleStart = SampleCycles_(hThread);
+            std::this_thread::sleep_for(1s);
+            const auto idleEnd = SampleCycles_(hThread);
+            Assert::AreEqual(idleStart, idleEnd, L"Output thread ran after tracking stopped");
         }
     };
 
