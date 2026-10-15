@@ -350,6 +350,7 @@ namespace pmon::tel
         for (const auto& pProvider : providerPtrs_) {
             try {
                 const auto capabilityMap = pProvider->GetCaps();
+                const auto mergeTargets = ResolveMergeTargets_(*pProvider, capabilityMap);
                 for (const auto& [providerDeviceId, capabilities] : capabilityMap) {
                     const auto& fingerprint = pProvider->GetFingerPrint(providerDeviceId);
                     pmlog_dbg("Provider device LUID")
@@ -357,7 +358,9 @@ namespace pmon::tel
                         .pmwatch(fingerprint.deviceName)
                         .pmwatch(providerDeviceId)
                         .pmwatch(fingerprint.LuidAsString());
-                    auto& logicalDevice = GetOrCreateLogicalDevice_(*pProvider, fingerprint);
+                    const auto itTarget = mergeTargets.find(providerDeviceId);
+                    auto& logicalDevice = GetOrCreateLogicalDevice_(fingerprint,
+                        itTarget != mergeTargets.end() ? std::optional{ itTarget->second } : std::nullopt);
                     const auto logicalDeviceId = logicalDevice.logicalDeviceId;
 
                     uint32_t providerDeviceIndex = std::numeric_limits<uint32_t>::max();
@@ -704,40 +707,115 @@ namespace pmon::tel
         }
     }
 
-    TelemetryCoordinator::LogicalDevice_& TelemetryCoordinator::GetOrCreateLogicalDevice_(
+    std::unordered_map<ProviderDeviceId, uint32_t> TelemetryCoordinator::ResolveMergeTargets_(
         const TelemetryProvider& provider,
-        const TelemetryDeviceFingerprint& fingerprint)
+        const ProviderCapabilityMap& capabilityMap) const
     {
-        for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
-            // a provider enumerates each physical device at most once, so two devices from the
-            // same provider are always distinct (e.g. identical cards with matching PCI ids / names)
-            if (fingerprint.deviceType != PM_DEVICE_TYPE_SYSTEM &&
-                std::ranges::any_of(logicalDevice.providerDevices, [&provider](const ProviderDevice_& pd) {
-                    return pd.pProvider.lock().get() == &provider;
-                })) {
-                continue;
-            }
-            for (const auto& providerDevice : logicalDevice.providerDevices) {
-                const auto pProvider = providerDevice.pProvider.lock();
-                if (!pProvider) {
-                    pmlog_warn("Expired provider while matching logical devices")
-                        .pmwatch(logicalDeviceId)
-                        .pmwatch(providerDevice.providerDeviceId);
+        std::unordered_map<ProviderDeviceId, std::vector<uint32_t>> optionsByProviderDevice;
+        std::unordered_map<uint32_t, std::vector<ProviderDeviceId>> optionsByLogicalDevice;
+        std::unordered_map<ProviderDeviceId, const TelemetryDeviceFingerprint*> fingerprintsById;
+
+        for (const auto& entry : capabilityMap) {
+            const auto providerDeviceId = entry.first;
+            try {
+                const auto& fingerprint = provider.GetFingerPrint(providerDeviceId);
+                // system devices always merge into the single logical system device
+                if (fingerprint.deviceType == PM_DEVICE_TYPE_SYSTEM) {
                     continue;
                 }
-
-                try {
-                    const auto& candidateFingerprint = pProvider->GetFingerPrint(providerDevice.providerDeviceId);
-                    if (TelemetryDeviceFingerprintMatches(candidateFingerprint, fingerprint)) {
-                        return logicalDevicesById_.at(logicalDeviceId);
+                fingerprintsById.emplace(providerDeviceId, &fingerprint);
+                for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
+                    if (IsMergeOption_(provider, logicalDevice, fingerprint)) {
+                        optionsByProviderDevice[providerDeviceId].push_back(logicalDeviceId);
+                        optionsByLogicalDevice[logicalDeviceId].push_back(providerDeviceId);
                     }
                 }
-                catch (...) {
-                    pmlog_error(util::ReportException("GetOrCreateLogicalDevice fingerprint query failed"))
-                        .pmwatch(logicalDeviceId)
-                        .pmwatch(providerDevice.providerDeviceId);
+            }
+            catch (...) {
+                pmlog_error(util::ReportException("ResolveMergeTargets fingerprint query failed"))
+                    .pmwatch(providerDeviceId);
+            }
+        }
+
+        std::unordered_map<ProviderDeviceId, uint32_t> mergeTargets;
+        for (const auto& [providerDeviceId, logicalOptions] : optionsByProviderDevice) {
+            if (logicalOptions.size() == 1 &&
+                optionsByLogicalDevice[logicalOptions.front()].size() == 1) {
+                mergeTargets.emplace(providerDeviceId, logicalOptions.front());
+                continue;
+            }
+
+            std::string optionsText;
+            for (const auto logicalDeviceId : logicalOptions) {
+                optionsText += std::format("{}logical={} competingProviderDevices={}",
+                    optionsText.empty() ? "" : "; ",
+                    logicalDeviceId, optionsByLogicalDevice[logicalDeviceId].size());
+            }
+            const auto& fingerprint = *fingerprintsById.at(providerDeviceId);
+            pmlog_warn("Rejected ambiguous telemetry device merge; creating separate logical device")
+                .pmwatch(providerDeviceId)
+                .pmwatch((int)fingerprint.vendor)
+                .pmwatch(fingerprint.deviceName)
+                .pmwatch(logicalOptions.size())
+                .pmwatch(optionsText);
+        }
+
+        return mergeTargets;
+    }
+
+    bool TelemetryCoordinator::IsMergeOption_(
+        const TelemetryProvider& provider,
+        const LogicalDevice_& logicalDevice,
+        const TelemetryDeviceFingerprint& fingerprint) const
+    {
+        // a provider enumerates each physical device at most once, so two devices from the
+        // same provider are always distinct (e.g. identical cards with matching PCI ids / names)
+        if (std::ranges::any_of(logicalDevice.providerDevices, [&provider](const ProviderDevice_& pd) {
+                return pd.pProvider.lock().get() == &provider;
+            })) {
+            return false;
+        }
+        for (const auto& providerDevice : logicalDevice.providerDevices) {
+            const auto pProvider = providerDevice.pProvider.lock();
+            if (!pProvider) {
+                pmlog_warn("Expired provider while matching logical devices")
+                    .pmwatch(logicalDevice.logicalDeviceId)
+                    .pmwatch(providerDevice.providerDeviceId);
+                continue;
+            }
+
+            try {
+                const auto& candidateFingerprint = pProvider->GetFingerPrint(providerDevice.providerDeviceId);
+                if (TelemetryDeviceFingerprintMatches(candidateFingerprint, fingerprint)) {
+                    return true;
                 }
             }
+            catch (...) {
+                pmlog_error(util::ReportException("IsMergeOption fingerprint query failed"))
+                    .pmwatch(logicalDevice.logicalDeviceId)
+                    .pmwatch(providerDevice.providerDeviceId);
+            }
+        }
+        return false;
+    }
+
+    TelemetryCoordinator::LogicalDevice_& TelemetryCoordinator::GetOrCreateLogicalDevice_(
+        const TelemetryDeviceFingerprint& fingerprint,
+        std::optional<uint32_t> mergeTarget)
+    {
+        if (fingerprint.deviceType == PM_DEVICE_TYPE_SYSTEM) {
+            if (const auto itSystem = logicalDevicesById_.find(ipc::kSystemDeviceId);
+                itSystem != logicalDevicesById_.end()) {
+                return itSystem->second;
+            }
+        }
+        else if (mergeTarget) {
+            if (const auto itTarget = logicalDevicesById_.find(*mergeTarget);
+                itTarget != logicalDevicesById_.end()) {
+                return itTarget->second;
+            }
+            pmlog_error("Merge target logical device missing; creating new logical device")
+                .pmwatch(*mergeTarget);
         }
 
         uint32_t newId = 0;
