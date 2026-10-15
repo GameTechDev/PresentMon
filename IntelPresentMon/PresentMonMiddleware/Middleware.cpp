@@ -372,6 +372,26 @@ namespace pmon::mid
         return pActionClient_->IsRunning();
     }
 
+    const std::string& Middleware::GetServiceProductVersion() const
+    {
+        return pActionClient_->GetServiceProductVersion();
+    }
+
+    const std::string& Middleware::GetServiceBuildId() const
+    {
+        return pActionClient_->GetServiceBuildId();
+    }
+
+    const std::string& Middleware::GetServiceBuildTime() const
+    {
+        return pActionClient_->GetServiceBuildTime();
+    }
+
+    const std::string& Middleware::GetServiceBuildConfig() const
+    {
+        return pActionClient_->GetServiceBuildConfig();
+    }
+
     FrameMetricsSource& Middleware::GetFrameMetricSource_(uint32_t pid) const
     {        
         if (auto it = frameMetricsSources_.find(pid);

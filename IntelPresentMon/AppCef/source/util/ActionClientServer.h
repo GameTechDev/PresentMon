@@ -12,11 +12,21 @@ namespace p2c::client::util
         const std::string& GetServiceBuildId() const;
         const std::string& GetServiceBuildTime() const;
         const std::string& GetServiceVersion() const;
+        const std::string& GetServiceBuildConfig() const;
+        const std::string& GetMiddlewareBuildId() const;
+        const std::string& GetMiddlewareBuildTime() const;
+        const std::string& GetMiddlewareVersion() const;
+        const std::string& GetMiddlewareBuildConfig() const;
         const std::string& GetMiddlewareApiVersion() const;
     private:
         std::string serviceBuildId_;
         std::string serviceBuildTime_;
         std::string serviceVersion_;
+        std::string serviceBuildConfig_;
+        std::string middlewareBuildId_;
+        std::string middlewareBuildTime_;
+        std::string middlewareVersion_;
+        std::string middlewareBuildConfig_;
         std::string middlewareApiVersion_;
     };
 }

@@ -22,6 +22,10 @@ function boolText(value: boolean): string {
   return value ? 'Yes' : 'No';
 }
 
+function infoText(value: string): string {
+  return value.trim() === '' ? 'N/A' : value;
+}
+
 const applicationRows = computed<InfoRow[]>(() => {
   if (appInfo.value === null) {
     return [];
@@ -30,7 +34,6 @@ const applicationRows = computed<InfoRow[]>(() => {
     { label: 'Product', value: appInfo.value.productName },
     { label: 'Product Version', value: appInfo.value.productVersion },
     { label: 'API Version', value: appInfo.value.apiVersion },
-    { label: 'Middleware API Version', value: appInfo.value.middlewareApiVersion },
     { label: 'Preferences Format', value: preferencesSignature.version },
     { label: 'Loadout Format', value: loadoutSignature.version },
     { label: 'UI Dev Mode', value: boolText(appInfo.value.devModeEnabled) },
@@ -59,9 +62,23 @@ const serviceRows = computed<InfoRow[]>(() => {
     return [];
   }
   return [
-    { label: 'Service Build ID', value: appInfo.value.serviceBuildId },
-    { label: 'Service Build Time', value: appInfo.value.serviceBuildTime },
-    { label: 'Service Version', value: appInfo.value.serviceVersion },
+    { label: 'Product Version', value: infoText(appInfo.value.serviceVersion) },
+    { label: 'Build ID', value: infoText(appInfo.value.serviceBuildId) },
+    { label: 'Build Time', value: infoText(appInfo.value.serviceBuildTime) },
+    { label: 'Build Config', value: infoText(appInfo.value.serviceBuildConfig) },
+  ];
+});
+
+const middlewareRows = computed<InfoRow[]>(() => {
+  if (appInfo.value === null) {
+    return [];
+  }
+  return [
+    { label: 'Product Version', value: infoText(appInfo.value.middlewareVersion) },
+    { label: 'Build ID', value: infoText(appInfo.value.middlewareBuildId) },
+    { label: 'Build Time', value: infoText(appInfo.value.middlewareBuildTime) },
+    { label: 'Build Config', value: infoText(appInfo.value.middlewareBuildConfig) },
+    { label: 'API Version', value: infoText(appInfo.value.middlewareApiVersion) },
   ];
 });
 
@@ -126,6 +143,16 @@ onMounted(async () => {
         <v-table density="compact" class="info-table">
           <tbody>
             <tr v-for="row in serviceRows" :key="row.label">
+              <td class="info-label">{{ row.label }}</td>
+              <td class="info-value">{{ row.value }}</td>
+            </tr>
+          </tbody>
+        </v-table>
+
+        <v-card-title class="section-title">Middleware</v-card-title>
+        <v-table density="compact" class="info-table">
+          <tbody>
+            <tr v-for="row in middlewareRows" :key="row.label">
               <td class="info-label">{{ row.label }}</td>
               <td class="info-value">{{ row.value }}</td>
             </tr>

@@ -49,6 +49,10 @@ namespace pmon::mid
 		uint32_t StartEtlLogging();
 		std::string FinishEtlLogging(uint32_t etlLogSessionHandle);
 		bool ServiceConnected() const;
+		const std::string& GetServiceProductVersion() const;
+		const std::string& GetServiceBuildId() const;
+		const std::string& GetServiceBuildTime() const;
+		const std::string& GetServiceBuildConfig() const;
 	private:
 		struct QueryMetricKey
 		{

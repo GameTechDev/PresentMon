@@ -14,6 +14,7 @@
 #include <CommonUtilities/str/String.h>
 #include <CommonUtilities/Exception.h>
 #include <CommonUtilities/win/Utilities.h>
+#include <PresentMonAPI2/Internal.h>
 using namespace std::literals;
 using namespace ::pmon::util;
 namespace cwin = ::pmon::util::win;
@@ -21,6 +22,19 @@ namespace cwin = ::pmon::util::win;
 namespace p2c::kern
 {
     using str::ToWide;
+
+    namespace
+    {
+        BuildInfo MakeUnavailableBuildInfo_()
+        {
+            return {
+                .productVersion = "N/A",
+                .buildId = "N/A",
+                .buildTime = "N/A",
+                .buildConfig = "N/A",
+            };
+        }
+    }
 
     Kernel::Kernel(KernelHandler* pHandler, bool headless)
         :
@@ -80,6 +94,62 @@ namespace p2c::kern
             return 0;
         }
         return pm->GetDefaultGpuDeviceId();
+    }
+
+    BuildInfo Kernel::GetServiceBuildInfo()
+    {
+        try {
+            if (auto info = QueryServiceBuildInfo_()) {
+                return std::move(*info);
+            }
+        }
+        catch (...) {
+            pmlog_error("Exception retrieving service build info: " + ReportException().first).no_trace();
+        }
+        return MakeUnavailableBuildInfo_();
+    }
+
+    std::optional<BuildInfo> Kernel::QueryServiceBuildInfo_()
+    {
+        std::lock_guard g{ mtx };
+        if (!pm) {
+            pmlog_warn("Unable to retrieve service build info: no active session");
+            return {};
+        }
+        ::ComponentBuildInfo info{};
+        if (const auto status = pmGetServiceBuildInfo_(pm->GetSession().GetHandle(), &info);
+            status != PM_STATUS_SUCCESS) {
+            pmlog_warn("Unable to retrieve service build info").pmwatch((int)status);
+            return {};
+        }
+        return BuildInfo{
+            .productVersion = info.productVersion,
+            .buildId = info.buildId,
+            .buildTime = info.buildTime,
+            .buildConfig = info.buildConfig,
+        };
+    }
+
+    BuildInfo Kernel::GetMiddlewareBuildInfo()
+    {
+        try {
+            ::ComponentBuildInfo info{};
+            if (const auto status = pmGetMiddlewareBuildInfo_(&info);
+                status != PM_STATUS_SUCCESS) {
+                pmlog_warn("Unable to retrieve middleware build info").pmwatch((int)status);
+                return MakeUnavailableBuildInfo_();
+            }
+            return {
+                .productVersion = info.productVersion,
+                .buildId = info.buildId,
+                .buildTime = info.buildTime,
+                .buildConfig = info.buildConfig,
+            };
+        }
+        catch (...) {
+            pmlog_error("Exception retrieving middleware build info: " + ReportException().first).no_trace();
+            return MakeUnavailableBuildInfo_();
+        }
     }
 
     void Kernel::SetCapture(bool active)

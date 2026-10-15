@@ -45,4 +45,17 @@ PRESENTMON_API2_EXPORT void pmSetupODSLogging_(PM_DIAGNOSTIC_LEVEL logLevel,
 PRESENTMON_API2_EXPORT PM_STATUS pmSetupFileLogging_(const char* filename, PM_DIAGNOSTIC_LEVEL logLevel,
 	PM_DIAGNOSTIC_LEVEL stackTraceLevel, bool exceptionTrace);
 
+struct ComponentBuildInfo
+{
+	char productVersion[32];
+	char buildId[64];
+	char buildTime[32];
+	char buildConfig[4];
+};
+
+PRESENTMON_API2_EXPORT PM_STATUS pmGetServiceBuildInfo_(
+	PM_SESSION_HANDLE handle, ComponentBuildInfo* pInfo);
+PRESENTMON_API2_EXPORT PM_STATUS pmGetMiddlewareBuildInfo_(
+	ComponentBuildInfo* pInfo);
+
 PRESENTMON_API2_EXPORT PM_STATUS pmStopPlayback_(PM_SESSION_HANDLE handle);

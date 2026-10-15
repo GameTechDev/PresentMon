@@ -8,11 +8,16 @@
 #include "PresentMonAPI.h"
 #include "PresentMonDiagnostics.h"
 #include "../PresentMonMiddleware/LogSetup.h"
+#include "../Versioning/BuildId.h"
 #include "../Versioning/PresentMonAPIVersion.h"
+#include <cstring>
 #include <ranges>
 #include <string>
 #include <type_traits>
 
+#ifndef PM_VER_PRODUCT_STR
+#define PM_VER_PRODUCT_STR "unknown"
+#endif
 
 using namespace pmon;
 using namespace pmon::mid;
@@ -531,6 +536,51 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetApiVersion(PM_VERSION* pVersion)
 	}
 	*pVersion = pmon::bid::GetApiVersion();
 	return PM_STATUS_SUCCESS;
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmGetServiceBuildInfo_(
+	PM_SESSION_HANDLE handle, ComponentBuildInfo* pInfo)
+{
+	try {
+		pmlog_dbg("pmGetServiceBuildInfo_")
+			.pmwatch(handle)
+			.watch("pInfo_out", DescribePointerArg_(pInfo, false));
+		if (!pInfo) {
+			pmlog_error("null service build info outptr").diag();
+			return PM_STATUS_BAD_ARGUMENT;
+		}
+
+		const auto& middleware = LookupMiddleware_(handle);
+		ComponentBuildInfo info{};
+		strncpy_s(info.productVersion, middleware.GetServiceProductVersion().c_str(), _TRUNCATE);
+		strncpy_s(info.buildId, middleware.GetServiceBuildId().c_str(), _TRUNCATE);
+		strncpy_s(info.buildTime, middleware.GetServiceBuildTime().c_str(), _TRUNCATE);
+		strncpy_s(info.buildConfig, middleware.GetServiceBuildConfig().c_str(), _TRUNCATE);
+		*pInfo = info;
+		return PM_STATUS_SUCCESS;
+	}
+	pmcatch_report_diag(true);
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmGetMiddlewareBuildInfo_(ComponentBuildInfo* pInfo)
+{
+	try {
+		pmlog_dbg("pmGetMiddlewareBuildInfo_")
+			.watch("pInfo_out", DescribePointerArg_(pInfo, false));
+		if (!pInfo) {
+			pmlog_error("null middleware build info outptr").diag();
+			return PM_STATUS_BAD_ARGUMENT;
+		}
+
+		ComponentBuildInfo info{};
+		strncpy_s(info.productVersion, PM_VER_PRODUCT_STR, _TRUNCATE);
+		strncpy_s(info.buildId, bid::BuildIdLongHash(), _TRUNCATE);
+		strncpy_s(info.buildTime, bid::BuildIdTimestamp(), _TRUNCATE);
+		strncpy_s(info.buildConfig, bid::BuildIdConfig(), _TRUNCATE);
+		*pInfo = info;
+		return PM_STATUS_SUCCESS;
+	}
+	pmcatch_report_diag(true);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmStopPlayback_(PM_SESSION_HANDLE handle)
