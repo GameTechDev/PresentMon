@@ -201,6 +201,11 @@ PM_STATUS MockPresentMonSession::StartTraceSession(uint32_t processId, const std
         }
     }
 
+    // Set deferral time limit to 2 seconds
+    if (pm_consumer_->mDeferralTimeLimit == 0) {
+        pm_consumer_->mDeferralTimeLimit = trace_session_.mTimestampFrequency.QuadPart * 2;
+    }
+
     // Set the process id for this etl session
     etlProcessId_ = processId;
 
