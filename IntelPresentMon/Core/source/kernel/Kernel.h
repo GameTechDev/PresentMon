@@ -65,7 +65,7 @@ namespace p2c::kern
         bool IsIdle_() const;
         std::unique_ptr<OverlaySpec> PullSpec_();
         void HandleMarshalledException_() const;
-        std::optional<BuildInfo> QueryServiceBuildInfo_();
+        BuildInfo QueryServiceBuildInfo_();
         // top level root acts like state machine for spawning/running overlay
         void ThreadProcedure_();
         // loop runs while overlay window active, holds message pump etc.
@@ -74,6 +74,7 @@ namespace p2c::kern
         // data
         KernelHandler* pHandler = nullptr;
         std::optional<pmon::PresentMon> pm; // optional to defer creation to when the thread is run
+        BuildInfo serviceBuildInfo_;
         bool dying = false;
         bool clearRequested = false;
         bool inhibitTargetLostSignal = false;

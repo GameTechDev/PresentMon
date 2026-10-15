@@ -87,32 +87,19 @@ namespace ACT_NS
 				.middlewareApiVersion = "N/A",
 			};
 #ifdef PM_KERNEL_PROCESS_BUILD
-			try {
-				const auto info = (*ctx.ppKernel)->GetServiceBuildInfo();
-				res.serviceBuildId = info.buildId;
-				res.serviceBuildTime = info.buildTime;
-				res.serviceVersion = info.productVersion;
-				res.serviceBuildConfig = info.buildConfig;
-			}
-			catch (...) {
-				pmlog_error("Exception forwarding service build info").no_trace();
-			}
-			try {
-				const auto info = (*ctx.ppKernel)->GetMiddlewareBuildInfo();
-				res.middlewareBuildId = info.buildId;
-				res.middlewareBuildTime = info.buildTime;
-				res.middlewareVersion = info.productVersion;
-				res.middlewareBuildConfig = info.buildConfig;
-			}
-			catch (...) {
-				pmlog_error("Exception forwarding middleware build info").no_trace();
-			}
-			try {
-				res.middlewareApiVersion = GetMiddlewareApiVersion_();
-			}
-			catch (...) {
-				pmlog_error("Exception forwarding middleware API version").no_trace();
-			}
+			const auto serviceInfo = (*ctx.ppKernel)->GetServiceBuildInfo();
+			res.serviceBuildId = serviceInfo.buildId;
+			res.serviceBuildTime = serviceInfo.buildTime;
+			res.serviceVersion = serviceInfo.productVersion;
+			res.serviceBuildConfig = serviceInfo.buildConfig;
+
+			const auto middlewareInfo = (*ctx.ppKernel)->GetMiddlewareBuildInfo();
+			res.middlewareBuildId = middlewareInfo.buildId;
+			res.middlewareBuildTime = middlewareInfo.buildTime;
+			res.middlewareVersion = middlewareInfo.productVersion;
+			res.middlewareBuildConfig = middlewareInfo.buildConfig;
+
+			res.middlewareApiVersion = GetMiddlewareApiVersion_();
 #endif
 			pmlog_info(std::format("Kernel open action for cef={} krn={}", in.cefRenderPid, res.kernelPid));
 			return res;

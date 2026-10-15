@@ -65,8 +65,9 @@ void(*pFunc_pmFlushEntryPoint__)() = nullptr;
 void(*pFunc_pmSetupODSLogging__)(PM_DIAGNOSTIC_LEVEL, PM_DIAGNOSTIC_LEVEL, bool) = nullptr;
 PM_STATUS(*pFunc_pmSetupFileLogging__)(const char*, PM_DIAGNOSTIC_LEVEL,
 	PM_DIAGNOSTIC_LEVEL, bool) = nullptr;
-PM_STATUS(*pFunc_pmGetServiceBuildInfo__)(PM_SESSION_HANDLE, ComponentBuildInfo*) = nullptr;
-PM_STATUS(*pFunc_pmGetMiddlewareBuildInfo__)(ComponentBuildInfo*) = nullptr;
+PM_STATUS(*pFunc_pmGetServiceBuildInfo__)(
+	PM_SESSION_HANDLE, pmon::api2::ComponentBuildInfo*) = nullptr;
+PM_STATUS(*pFunc_pmGetMiddlewareBuildInfo__)(pmon::api2::ComponentBuildInfo*) = nullptr;
 PM_STATUS(*pFunc_pmStopPlayback__)(PM_SESSION_HANDLE) = nullptr;
 
 
@@ -464,7 +465,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetupFileLogging_(const char* file, PM_DIAGNO
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmGetServiceBuildInfo_(
-	PM_SESSION_HANDLE handle, ComponentBuildInfo* pInfo)
+	PM_SESSION_HANDLE handle, pmon::api2::ComponentBuildInfo* pInfo)
 {
 	LoadEndpointsIfEmpty_();
 	if (!pFunc_pmGetServiceBuildInfo__) {
@@ -473,7 +474,8 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetServiceBuildInfo_(
 	return pFunc_pmGetServiceBuildInfo__(handle, pInfo);
 }
 
-PRESENTMON_API2_EXPORT PM_STATUS pmGetMiddlewareBuildInfo_(ComponentBuildInfo* pInfo)
+PRESENTMON_API2_EXPORT PM_STATUS pmGetMiddlewareBuildInfo_(
+	pmon::api2::ComponentBuildInfo* pInfo)
 {
 	LoadEndpointsIfEmpty_();
 	if (!pFunc_pmGetMiddlewareBuildInfo__) {

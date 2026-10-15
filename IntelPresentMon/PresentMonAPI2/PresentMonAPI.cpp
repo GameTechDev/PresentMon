@@ -98,6 +98,25 @@ void RemoveHandleMapping_(const void* dependentHandle)
 	}
 }
 
+PM_STATUS ValidateComponentBuildInfoVersion_(const pmon::api2::ComponentBuildInfo& info)
+{
+	if (info.version < pmon::api2::kComponentBuildInfoVersion) {
+		pmlog_error("Component build info format is newer than the caller")
+			.pmwatch(info.version)
+			.pmwatch(pmon::api2::kComponentBuildInfoVersion)
+			.diag();
+		return PM_STATUS_MIDDLEWARE_VERSION_HIGH;
+	}
+	if (info.version > pmon::api2::kComponentBuildInfoVersion) {
+		pmlog_error("Component build info format is older than the caller")
+			.pmwatch(info.version)
+			.pmwatch(pmon::api2::kComponentBuildInfoVersion)
+			.diag();
+		return PM_STATUS_MIDDLEWARE_VERSION_LOW;
+	}
+	return PM_STATUS_SUCCESS;
+}
+
 PRESENTMON_API2_EXPORT _CrtMemState pmCreateHeapCheckpoint_()
 {
 	_CrtMemState s;
@@ -539,7 +558,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetApiVersion(PM_VERSION* pVersion)
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmGetServiceBuildInfo_(
-	PM_SESSION_HANDLE handle, ComponentBuildInfo* pInfo)
+	PM_SESSION_HANDLE handle, pmon::api2::ComponentBuildInfo* pInfo)
 {
 	try {
 		pmlog_dbg("pmGetServiceBuildInfo_")
@@ -549,9 +568,13 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetServiceBuildInfo_(
 			pmlog_error("null service build info outptr").diag();
 			return PM_STATUS_BAD_ARGUMENT;
 		}
+		if (const auto status = ValidateComponentBuildInfoVersion_(*pInfo);
+			status != PM_STATUS_SUCCESS) {
+			return status;
+		}
 
 		const auto& middleware = LookupMiddleware_(handle);
-		ComponentBuildInfo info{};
+		pmon::api2::ComponentBuildInfo info{};
 		strncpy_s(info.productVersion, middleware.GetServiceProductVersion().c_str(), _TRUNCATE);
 		strncpy_s(info.buildId, middleware.GetServiceBuildId().c_str(), _TRUNCATE);
 		strncpy_s(info.buildTime, middleware.GetServiceBuildTime().c_str(), _TRUNCATE);
@@ -562,7 +585,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetServiceBuildInfo_(
 	pmcatch_report_diag(true);
 }
 
-PRESENTMON_API2_EXPORT PM_STATUS pmGetMiddlewareBuildInfo_(ComponentBuildInfo* pInfo)
+PRESENTMON_API2_EXPORT PM_STATUS pmGetMiddlewareBuildInfo_(pmon::api2::ComponentBuildInfo* pInfo)
 {
 	try {
 		pmlog_dbg("pmGetMiddlewareBuildInfo_")
@@ -571,8 +594,12 @@ PRESENTMON_API2_EXPORT PM_STATUS pmGetMiddlewareBuildInfo_(ComponentBuildInfo* p
 			pmlog_error("null middleware build info outptr").diag();
 			return PM_STATUS_BAD_ARGUMENT;
 		}
+		if (const auto status = ValidateComponentBuildInfoVersion_(*pInfo);
+			status != PM_STATUS_SUCCESS) {
+			return status;
+		}
 
-		ComponentBuildInfo info{};
+		pmon::api2::ComponentBuildInfo info{};
 		strncpy_s(info.productVersion, PM_VER_PRODUCT_STR, _TRUNCATE);
 		strncpy_s(info.buildId, bid::BuildIdLongHash(), _TRUNCATE);
 		strncpy_s(info.buildTime, bid::BuildIdTimestamp(), _TRUNCATE);

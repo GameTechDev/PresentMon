@@ -98,42 +98,40 @@ namespace p2c::kern
 
     BuildInfo Kernel::GetServiceBuildInfo()
     {
+        std::lock_guard g{ mtx };
+        return serviceBuildInfo_;
+    }
+
+    BuildInfo Kernel::QueryServiceBuildInfo_()
+    {
         try {
-            if (auto info = QueryServiceBuildInfo_()) {
-                return std::move(*info);
+            if (!pm) {
+                pmlog_warn("Unable to retrieve service build info: no active session");
+                return MakeUnavailableBuildInfo_();
             }
+            ::pmon::api2::ComponentBuildInfo info{};
+            if (const auto status = pmGetServiceBuildInfo_(pm->GetSession().GetHandle(), &info);
+                status != PM_STATUS_SUCCESS) {
+                pmlog_warn("Unable to retrieve service build info").pmwatch((int)status);
+                return MakeUnavailableBuildInfo_();
+            }
+            return BuildInfo{
+                .productVersion = info.productVersion,
+                .buildId = info.buildId,
+                .buildTime = info.buildTime,
+                .buildConfig = info.buildConfig,
+            };
         }
         catch (...) {
             pmlog_error("Exception retrieving service build info: " + ReportException().first).no_trace();
+            return MakeUnavailableBuildInfo_();
         }
-        return MakeUnavailableBuildInfo_();
-    }
-
-    std::optional<BuildInfo> Kernel::QueryServiceBuildInfo_()
-    {
-        std::lock_guard g{ mtx };
-        if (!pm) {
-            pmlog_warn("Unable to retrieve service build info: no active session");
-            return {};
-        }
-        ::ComponentBuildInfo info{};
-        if (const auto status = pmGetServiceBuildInfo_(pm->GetSession().GetHandle(), &info);
-            status != PM_STATUS_SUCCESS) {
-            pmlog_warn("Unable to retrieve service build info").pmwatch((int)status);
-            return {};
-        }
-        return BuildInfo{
-            .productVersion = info.productVersion,
-            .buildId = info.buildId,
-            .buildTime = info.buildTime,
-            .buildConfig = info.buildConfig,
-        };
     }
 
     BuildInfo Kernel::GetMiddlewareBuildInfo()
     {
         try {
-            ::ComponentBuildInfo info{};
+            ::pmon::api2::ComponentBuildInfo info{};
             if (const auto status = pmGetMiddlewareBuildInfo_(&info);
                 status != PM_STATUS_SUCCESS) {
                 pmlog_warn("Unable to retrieve middleware build info").pmwatch((int)status);
@@ -211,7 +209,10 @@ namespace p2c::kern
             }
 
             // create the PresentMon object
-            try { pm.emplace(controlPipe); }
+            try {
+                pm.emplace(controlPipe);
+                serviceBuildInfo_ = QueryServiceBuildInfo_();
+            }
             catch (...) {
                 pHandler->OnPresentmonInitFailed();
                 pmlog_error("Failed to init presentmon api").no_trace();
