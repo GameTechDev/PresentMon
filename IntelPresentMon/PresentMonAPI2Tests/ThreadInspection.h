@@ -3,17 +3,30 @@
 #include "../CommonUtilities/win/Handle.h"
 #include <tlhelp32.h>
 #include <cstdint>
+#include <format>
+#include <stdexcept>
 #include <string_view>
 
 namespace pmon::tests
 {
 	// opens the thread in process pid whose description (SetThreadDescription) matches name
-	// returns an empty handle if no such thread is found
+	// returns an empty handle if no such thread is found; throws if the thread list cannot be captured
 	inline util::win::Handle FindThreadByName(uint32_t pid, std::wstring_view name)
 	{
-		util::win::Handle snapshot{ CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
-		if (!snapshot || snapshot.Get() == INVALID_HANDLE_VALUE) {
-			return {};
+		util::win::Handle snapshot;
+		// snapshot creation can transiently fail with ERROR_BAD_LENGTH while threads are being created
+		for (int attempt = 0; attempt < 20; attempt++) {
+			const auto hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+			if (hSnap != INVALID_HANDLE_VALUE) {
+				snapshot = util::win::Handle{ hSnap };
+				break;
+			}
+			if (GetLastError() != ERROR_BAD_LENGTH) {
+				break;
+			}
+		}
+		if (!snapshot) {
+			throw std::runtime_error{ std::format("Failed to snapshot threads, error {}", GetLastError()) };
 		}
 		THREADENTRY32 entry{ .dwSize = sizeof(THREADENTRY32) };
 		for (BOOL ok = Thread32First(snapshot, &entry); ok; ok = Thread32Next(snapshot, &entry)) {

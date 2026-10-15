@@ -185,6 +185,7 @@ void TelemetryThreadEntry_(Service* const srv, PresentMon* const pm, ipc::Servic
 void PresentMonMainThread(Service* const pSvc)
 {
     assert(pSvc);
+    util::log::IdentificationTable::AddThisThread("pm-main");
 
     // these thread containers need to be created outside of the try scope
     // so that if an exception happens, it won't block during unwinding,
@@ -275,8 +276,8 @@ void PresentMonMainThread(Service* const pSvc)
             pTcm = std::make_unique<pmon::svc::testing::TestControlModule>(&pm, pSvc);
         }
 
-        // periodically check trace sessions while waiting for service stop event
-        while (!util::win::WaitAnyEventFor(250ms, pSvc->GetServiceStopHandle())) {
+        // check trace sessions on request while waiting for service stop event
+        while (util::win::WaitAnyEvent(pSvc->GetServiceStopHandle(), pm.GetCheckTraceSessionsHandle()) == 1) {
             pm.CheckTraceSessions();
         }
 

@@ -119,6 +119,7 @@ void MockPresentMonSession::StartPlayback()
 void MockPresentMonSession::StopPlayback()
 {
     stop_playback_requested_ = true;
+    evtCheckTraceSessions_.Set();
 }
 
 PM_STATUS MockPresentMonSession::StartTraceSession(uint32_t processId, const std::string& etlPath,
