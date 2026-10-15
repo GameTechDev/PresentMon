@@ -281,6 +281,9 @@ void PresentMonMainThread(Service* const pSvc)
             pm.CheckTraceSessions();
         }
 
+        // Stop the action server (joins its worker) before stopping the PresentMon sessions,
+        // otherwise in-flight tracking actions can race with or restart the session teardown
+        pActionServer.reset();
         // Stop the PresentMon sessions
         pm.StopTraceSessions();
         // wait for the telemetry threads to exit

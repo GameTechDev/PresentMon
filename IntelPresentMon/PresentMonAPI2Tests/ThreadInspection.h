@@ -54,8 +54,17 @@ namespace pmon::tests
 	{
 		ULONG64 cycles = 0;
 		if (!QueryThreadCycleTime(hThread, &cycles)) {
-			return 0;
+			throw std::runtime_error{ std::format("Failed to query thread cycle time, error {}", GetLastError()) };
 		}
 		return (uint64_t)cycles;
+	}
+
+	inline bool IsThreadRunning(const util::win::Handle& hThread)
+	{
+		DWORD exitCode = 0;
+		if (!GetExitCodeThread(hThread, &exitCode)) {
+			throw std::runtime_error{ std::format("Failed to query thread exit code, error {}", GetLastError()) };
+		}
+		return exitCode == STILL_ACTIVE;
 	}
 }

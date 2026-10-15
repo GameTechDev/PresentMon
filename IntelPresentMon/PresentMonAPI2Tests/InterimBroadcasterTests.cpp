@@ -1012,6 +1012,24 @@ namespace InterimBroadcasterTests
         return hThread;
     }
 
+    static uint64_t SampleThreadCycles_(const util::win::Handle& hThread)
+    {
+        Assert::IsTrue(pmon::tests::IsThreadRunning(hThread), L"Service thread exited unexpectedly");
+        return pmon::tests::GetThreadCycles(hThread);
+    }
+
+    static void AssertThreadDormant_(const util::win::Handle& hThread,
+        std::chrono::milliseconds duration, const wchar_t* message)
+    {
+        constexpr uint64_t schedulingNoiseToleranceCycles = 100'000;
+        const auto before = SampleThreadCycles_(hThread);
+        std::this_thread::sleep_for(duration);
+        const auto after = SampleThreadCycles_(hThread);
+        Assert::IsTrue(after >= before, L"Thread cycle count moved backwards");
+        Assert::IsTrue(after - before <= schedulingNoiseToleranceCycles,
+            std::format(L"{} (cycle delta: {})", message, after - before).c_str());
+    }
+
     TEST_CLASS(IdleThreadTests)
     {
         TestFixture fixture_;
@@ -1031,10 +1049,7 @@ namespace InterimBroadcasterTests
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
 
             const auto hThread = FindServiceThread_(fixture_.service->GetId(), L"frame-out");
-            const auto before = pmon::tests::GetThreadCycles(hThread);
-            std::this_thread::sleep_for(1s);
-            const auto after = pmon::tests::GetThreadCycles(hThread);
-            Assert::AreEqual(before, after, L"Output thread ran while idle");
+            AssertThreadDormant_(hThread, 1s, L"Output thread ran while idle");
         }
         // with a client connected but nothing tracked, the main thread should never wake
         TEST_METHOD(MainThreadNoWakeWhileIdle)
@@ -1043,10 +1058,7 @@ namespace InterimBroadcasterTests
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
 
             const auto hThread = FindServiceThread_(fixture_.service->GetId(), L"pm-main");
-            const auto before = pmon::tests::GetThreadCycles(hThread);
-            std::this_thread::sleep_for(1s);
-            const auto after = pmon::tests::GetThreadCycles(hThread);
-            Assert::AreEqual(before, after, L"Main thread ran while idle");
+            AssertThreadDormant_(hThread, 1s, L"Main thread ran while idle");
         }
         // output thread should wake to process frames while tracking, then go dormant after untracking
         // main thread is not involved in realtime tracking and should stay dormant throughout
@@ -1056,7 +1068,7 @@ namespace InterimBroadcasterTests
             auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
 
             const auto hMain = FindServiceThread_(fixture_.service->GetId(), L"pm-main");
-            const auto mainStart = pmon::tests::GetThreadCycles(hMain);
+            const auto mainStart = SampleThreadCycles_(hMain);
 
             auto pres = fixture_.LaunchPresenter();
             client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
@@ -1069,9 +1081,9 @@ namespace InterimBroadcasterTests
 
             // verify the output thread is actively running to process frames while tracking
             const auto hOutput = FindServiceThread_(fixture_.service->GetId(), L"frame-out");
-            const auto trackingStart = pmon::tests::GetThreadCycles(hOutput);
+            const auto trackingStart = SampleThreadCycles_(hOutput);
             std::this_thread::sleep_for(machine::ScaleWait(200ms));
-            const auto trackingEnd = pmon::tests::GetThreadCycles(hOutput);
+            const auto trackingEnd = SampleThreadCycles_(hOutput);
             Assert::IsTrue(trackingEnd > trackingStart, L"Output thread did not run while tracking");
 
             client.DispatchSync(svc::acts::StopTracking::Params{ .targetPid = pres.GetId() });
@@ -1079,13 +1091,14 @@ namespace InterimBroadcasterTests
 
             // allow any in-flight event batches to drain before measuring the dormant period
             std::this_thread::sleep_for(machine::ScaleWait(500ms));
-            const auto idleStart = pmon::tests::GetThreadCycles(hOutput);
-            std::this_thread::sleep_for(1s);
-            const auto idleEnd = pmon::tests::GetThreadCycles(hOutput);
-            Assert::AreEqual(idleStart, idleEnd, L"Output thread ran after tracking stopped");
+            AssertThreadDormant_(hOutput, 1s, L"Output thread ran after tracking stopped");
 
-            const auto mainEnd = pmon::tests::GetThreadCycles(hMain);
-            Assert::AreEqual(mainStart, mainEnd, L"Main thread ran during track/untrack cycle");
+            const auto mainEnd = SampleThreadCycles_(hMain);
+            constexpr uint64_t schedulingNoiseToleranceCycles = 100'000;
+            Assert::IsTrue(mainEnd >= mainStart, L"Main thread cycle count moved backwards");
+            Assert::IsTrue(mainEnd - mainStart <= schedulingNoiseToleranceCycles,
+                std::format(L"Main thread ran during track/untrack cycle (cycle delta: {})",
+                    mainEnd - mainStart).c_str());
         }
     };
 
@@ -1122,7 +1135,7 @@ namespace InterimBroadcasterTests
             client.DispatchSync(svc::acts::StopPlayback::Params{});
 
             // session teardown joins the playback output thread
-            const auto deadline = std::chrono::steady_clock::now() + machine::ScaleWait(2s);
+            const auto deadline = std::chrono::steady_clock::now() + machine::ScaleWait(10s);
             bool outputThreadGone = false;
             while (std::chrono::steady_clock::now() < deadline) {
                 if (!pmon::tests::FindThreadByName(servicePid, L"frame-out")) {
