@@ -2354,12 +2354,24 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
     auto presentStartTime = p->PresentStartTime;
     auto appFrameId = p->AppFrameId;
     auto processId = p->ProcessId;
-    if (present->WaitingForFrameId) {
+    if (mTrackFrameType) {
+        // A waiting present is released by the completion of any later-started present from its
+        // process, whether or not that present has a PresentFrameType (e.g., frame generation was
+        // turned off), or once it is older than mDeferralTimeLimit (e.g., the process stopped
+        // presenting).  Presents can complete out of start order, so an earlier-started present
+        // must not release it.  Only a typed successor with the same FrameId takes data from it.
         for (uint32_t i = mReadyCount; i < mCompletedCount; ++i) {
             auto const& p2 = mCompletedPresents[GetRingIndex(mCompletedIndex + i)];
-            if (p2->WaitingForFrameId && p2->ProcessId == present->ProcessId) {
+            if (!p2->WaitingForFrameId) {
+                continue;
+            }
+            bool isSuccessor = p2->ProcessId == present->ProcessId &&
+                               p2->PresentStartTime < presentStartTime;
+            bool isStale = presentStartTime > p2->PresentStartTime &&
+                           presentStartTime - p2->PresentStartTime > mDeferralTimeLimit;
+            if (isSuccessor || isStale) {
                 VerboseTraceBeforeModifyingPresent(p2.get());
-                if (p2->FrameId == present->FrameId) {
+                if (isSuccessor && present->WaitingForFrameId && p2->FrameId == present->FrameId) {
                     auto it = std::find_if(p2->Displayed.begin(), p2->Displayed.end(),
                         [](const std::pair<FrameType, uint64_t>& p) {
                             return p.first == FrameType::Intel_XEFG;
@@ -2462,11 +2474,6 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                 deferredPresent->IsLost = true;
             }
             deferredPresent->WaitingForFlipFrameType = false;
-            // A PresentFrameType present is only released by the next one from its process, so the
-            // last one stays deferred forever once the runtime stops typing frames (e.g., XeSS-FG
-            // switched off or replaced by another frame generation), blocking every process until
-            // the completed ring overflows.
-            deferredPresent->WaitingForFrameId = false;
             StopTrackingPresent(deferredPresent);
             UpdateReadyCount(false);
         }
