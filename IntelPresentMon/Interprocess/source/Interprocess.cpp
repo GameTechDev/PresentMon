@@ -167,6 +167,18 @@ namespace pmon::ipc
             FrameDataSegmentRef CreateOrGetFrameDataSegment(uint32_t pid, bool backpressured) override
             {
                 std::scoped_lock frameLock{ frameShmMutex_ };
+                // remove stale elements to keep map lean
+                for (auto it = frameShmEntries_.begin(); it != frameShmEntries_.end(); ) {
+                    if (it->second.segment.expired()) {
+                        pmlog_dbg("Frame data segment released")
+                            .pmwatch(it->first)
+                            .pmwatch(it->second.segmentName);
+                        it = frameShmEntries_.erase(it);
+                    }
+                    else {
+                        ++it;
+                    }
+                }
                 auto& entry = frameShmEntries_[pid];
                 if (auto pFrameData = entry.segment.lock()) {
                     return FrameDataSegmentRef{ std::move(pFrameData), entry.segmentName };
@@ -201,7 +213,11 @@ namespace pmon::ipc
                         return FrameDataSegmentRef{ std::move(pFrameData), segmentName };
                     }
                     catch (const bip::interprocess_exception& ex) {
-                        if (ex.get_native_error() != ERROR_ALREADY_EXISTS) {
+                        const bool nameCollision =
+                            ex.get_error_code() == bip::already_exists_error ||
+                            ex.get_native_error() == ERROR_ALREADY_EXISTS;
+                        if (!nameCollision) {
+                            frameShmEntries_.erase(pid);
                             throw;
                         }
                         pmlog_warn("Frame segment name collision; retrying with new generation")
@@ -209,6 +225,7 @@ namespace pmon::ipc
                             .pmwatch(segmentName);
                     }
                 }
+                frameShmEntries_.erase(pid);
                 throw std::runtime_error{ "Failed to create frame data segment" };
             }
             std::shared_ptr<OwnedDataSegment<FrameDataStore>>
@@ -225,6 +242,16 @@ namespace pmon::ipc
                     frameShmEntries_.erase(i);
                 }
                 return {};
+            }
+            std::optional<std::string> GetFrameSegmentName(uint32_t pid) const override
+            {
+                std::scoped_lock frameLock{ frameShmMutex_ };
+                if (auto i = frameShmEntries_.find(pid); i != frameShmEntries_.end()) {
+                    if (!i->second.segment.expired()) {
+                        return i->second.segmentName;
+                    }
+                }
+                return std::nullopt;
             }
             std::vector<uint32_t> GetFramePids() const override
             {

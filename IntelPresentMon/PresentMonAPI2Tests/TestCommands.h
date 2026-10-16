@@ -1,10 +1,13 @@
-﻿#pragma once
+#pragma once
+#include <map>
 #include <set>
 #include <optional>
+#include <cereal/types/map.hpp>
 #include <cereal/types/set.hpp>
 #include <cereal/types/optional.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/types/vector.hpp>
+
 
 
 namespace pmon::test
@@ -16,6 +19,7 @@ namespace pmon::test
 			// new ipc tracking
 			std::set<uint32_t> trackedPids;
 			std::set<uint32_t> frameStorePids;
+			std::map<uint32_t, std::string> frameSegmentNames;
 			uint32_t telemetryPeriodMs;
 			std::optional<uint32_t> etwFlushPeriodMs;
 			// action transport health: open sessions and acceptors currently posted
@@ -25,7 +29,7 @@ namespace pmon::test
 			template <class Archive>
 			void serialize(Archive& ar)
 			{
-				ar(trackedPids, frameStorePids, telemetryPeriodMs, etwFlushPeriodMs,
+				ar(trackedPids, frameStorePids, frameSegmentNames, telemetryPeriodMs, etwFlushPeriodMs,
 					actionSessionCount, actionAcceptorCount);
 			}
 		};

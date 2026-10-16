@@ -3,10 +3,10 @@
 #include "../CommonUtilities/test/MachineExpectations.h"
 #include "../Interprocess/source/Interprocess.h"
 #include "../PresentMonMiddleware/ActionClient.h"
-#include "../PresentMonService/acts/StartTracking.h"
 #include <chrono>
 #include <cstdint>
 #include <format>
+#include <map>
 #include <string>
 #include <thread>
 
@@ -14,15 +14,20 @@ namespace pmon::tests
 {
 	inline constexpr std::chrono::seconds DefaultFirstFrameWaitLimit{ 5 };
 
-	struct StartTrackingOpts
-	{
-		bool isPlayback = false;
-		bool isBackpressured = false;
-	};
-
 	inline size_t FrameCountInRange_(const auto& range)
 	{
 		return range.second > range.first ? (size_t)(range.second - range.first) : 0u;
+	}
+
+	inline std::string RequireFrameSegmentName(
+		const std::map<uint32_t, std::string>& frameSegmentNames,
+		uint32_t pid)
+	{
+		const auto it = frameSegmentNames.find(pid);
+		Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsTrue(
+			it != frameSegmentNames.end(),
+			L"Expected frame segment name for tracked pid");
+		return it->second;
 	}
 
 	template<typename Ring>
@@ -62,22 +67,19 @@ namespace pmon::tests
 		return warmupRange;
 	}
 
+	// Observes an already-tracked pid's segment. Callers must StartTracking / TrackProcess
+	// first and supply the segment name from that track response or QueryStatus.
 	inline bool TryWaitForFirstFrame(
 		const std::string& ctrlPipe,
 		uint32_t pid,
+		const std::string& frameSegmentName,
 		const char* label,
 		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit,
-		size_t minFrameCount = 1,
-		StartTrackingOpts trackingOpts = {})
+		size_t minFrameCount = 1)
 	{
 		mid::ActionClient client{ ctrlPipe };
-		const auto trackRes = client.DispatchSync(pmon::svc::acts::StartTracking::Params{
-			.targetPid = pid,
-			.isPlayback = trackingOpts.isPlayback,
-			.isBackpressured = trackingOpts.isBackpressured,
-		});
 		auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-		pComms->OpenFrameDataStore(pid, trackRes.frameSegmentName);
+		pComms->OpenFrameDataStore(pid, frameSegmentName);
 		const auto warmupRange = WaitForFirstFrameRange(pComms->GetFrameDataStore(pid).frameData, label, waitLimit, minFrameCount);
 		return FrameCountInRange_(warmupRange) >= minFrameCount;
 	}
@@ -85,19 +87,14 @@ namespace pmon::tests
 	inline auto WaitForFirstFrame(
 		const std::string& ctrlPipe,
 		uint32_t pid,
+		const std::string& frameSegmentName,
 		const char* label,
 		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit,
-		size_t minFrameCount = 1,
-		StartTrackingOpts trackingOpts = {})
+		size_t minFrameCount = 1)
 	{
 		mid::ActionClient client{ ctrlPipe };
-		const auto trackRes = client.DispatchSync(pmon::svc::acts::StartTracking::Params{
-			.targetPid = pid,
-			.isPlayback = trackingOpts.isPlayback,
-			.isBackpressured = trackingOpts.isBackpressured,
-		});
 		auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-		pComms->OpenFrameDataStore(pid, trackRes.frameSegmentName);
+		pComms->OpenFrameDataStore(pid, frameSegmentName);
 		return WaitForFirstFrame(pComms->GetFrameDataStore(pid).frameData, label, waitLimit, minFrameCount);
 	}
 }

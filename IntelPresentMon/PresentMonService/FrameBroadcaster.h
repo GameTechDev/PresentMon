@@ -121,6 +121,11 @@ namespace pmon::svc
             std::lock_guard lk{ mtx_ };
             return comms_.GetFramePids();
 		}
+        std::optional<std::string> GetFrameSegmentName(uint32_t pid) const
+        {
+            std::lock_guard lk{ mtx_ };
+            return comms_.GetFrameSegmentName(pid);
+        }
         const ipc::ShmNamer& GetNamer() const
         {
             return comms_.GetNamer();

@@ -35,6 +35,7 @@ namespace pmon::ipc
 		// data store access
 		virtual FrameDataSegmentRef CreateOrGetFrameDataSegment(uint32_t pid, bool backpressured) = 0;
 		virtual std::shared_ptr<OwnedDataSegment<FrameDataStore>> GetFrameDataSegment(uint32_t pid) = 0;
+		virtual std::optional<std::string> GetFrameSegmentName(uint32_t pid) const = 0;
 		virtual std::vector<uint32_t> GetFramePids() const = 0;
 		virtual GpuDataStore& GetGpuDataStore(uint32_t deviceId) = 0;
 		virtual SystemDataStore& GetSystemDataStore() = 0;

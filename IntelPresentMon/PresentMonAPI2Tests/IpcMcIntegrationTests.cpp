@@ -335,9 +335,13 @@ namespace IpcMcIntegrationTests
             session.SetEtwFlushPeriod(8);
             std::this_thread::sleep_for(1ms);
             auto tracker = session.TrackProcess(presenter.GetId());
+            Assert::IsTrue(fixture_.service.has_value());
+            const auto segmentName = pmon::tests::RequireFrameSegmentName(
+                fixture_.service->QueryStatus().frameSegmentNames, presenter.GetId());
             pmon::tests::WaitForFirstFrame(
                 fixture_.GetCommonArgs().ctrlPipe,
                 presenter.GetId(),
+                segmentName,
                 "ipcmc-universal-frame-query");
 
             auto blobs = query.MakeBlobContainer(16);
@@ -376,9 +380,13 @@ namespace IpcMcIntegrationTests
             session.SetEtwFlushPeriod(8);
             std::this_thread::sleep_for(1ms);
             auto tracker = session.TrackProcess(presenter.GetId());
+            Assert::IsTrue(fixture_.service.has_value());
+            const auto segmentName = pmon::tests::RequireFrameSegmentName(
+                fixture_.service->QueryStatus().frameSegmentNames, presenter.GetId());
             pmon::tests::WaitForFirstFrame(
                 fixture_.GetCommonArgs().ctrlPipe,
                 presenter.GetId(),
+                segmentName,
                 "ipcmc-static-frame-query");
 
             auto blobs = query.MakeBlobContainer(16);

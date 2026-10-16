@@ -58,7 +58,7 @@ namespace RealtimeMetricTests
 
 	static pmapi::ProcessTracker TrackPresenterAndWaitForFirstFrame_(
 		pmapi::Session& session,
-		const TestFixture& fixture,
+		TestFixture& fixture,
 		const PresenterProcess& presenter,
 		const char* label,
 		size_t minFrameCount = 1)
@@ -67,9 +67,13 @@ namespace RealtimeMetricTests
 		std::this_thread::sleep_for(1ms);
 
 		auto tracker = session.TrackProcess(presenter.GetId());
+		Assert::IsTrue(fixture.service.has_value());
+		const auto segmentName = pmon::tests::RequireFrameSegmentName(
+			fixture.service->QueryStatus().frameSegmentNames, presenter.GetId());
 		pmon::tests::WaitForFirstFrame(
 			fixture.GetCommonArgs().ctrlPipe,
 			presenter.GetId(),
+			segmentName,
 			label,
 			pmon::tests::DefaultFirstFrameWaitLimit,
 			minFrameCount);

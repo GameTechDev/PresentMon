@@ -21,6 +21,7 @@
 
 #include "../PresentMonMiddleware/ActionClient.h"
 #include "../Interprocess/source/Interprocess.h"
+#include "../Interprocess/source/ViewedDataSegment.h"
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../PresentMonAPIWrapperCommon/EnumMap.h"
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
@@ -30,6 +31,7 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/windows_shared_memory.hpp>
 
+#include <atomic>
 #include <format>
 #include <thread>
 
@@ -974,13 +976,21 @@ namespace InterimBroadcasterTests
         TEST_METHOD(RetainedReadHandleDoesNotBlockRetrack)
         {
             mid::ActionClient ownerClient{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(ownerClient.GetShmPrefix(), ownerClient.GetShmSalt());
             auto pres = fixture_.LaunchPresenter();
+            ownerClient.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
+            std::this_thread::sleep_for(1ms);
             const auto firstTrack = ownerClient.DispatchSync(
                 svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
 
             const std::wstring wideName{ firstTrack.frameSegmentName.begin(), firstTrack.frameSegmentName.end() };
             util::win::Handle pin{ OpenFileMappingW(FILE_MAP_READ, FALSE, wideName.c_str()) };
-            Assert::IsTrue(static_cast<bool>(pin));
+            Assert::IsTrue((bool)pin);
+
+            // Keep the first generation mapped across stop/retrack without accessing its
+            // managed objects after the service destroys them.
+            ipc::ViewedDataSegment<ipc::FrameDataStore> oldView{ firstTrack.frameSegmentName };
+            pmon::tests::WaitForFirstFrame(oldView.GetStore().frameData, "retained-handle-first-gen");
 
             ownerClient.DispatchSync(svc::acts::StopTracking::Params{ .targetPid = pres.GetId() });
 
@@ -990,7 +1000,77 @@ namespace InterimBroadcasterTests
 
             Assert::AreNotEqual(firstTrack.frameSegmentName, secondTrack.frameSegmentName);
 
+            pComms->OpenFrameDataStore(pres.GetId(), secondTrack.frameSegmentName);
+            auto& newFrames = pComms->GetFrameDataStore(pres.GetId()).frameData;
+            const auto newRange1 = pmon::tests::WaitForFirstFrame(
+                newFrames, "retained-handle-second-gen");
+            // Poll for further progress rather than assuming a second batch arrives
+            // within a fixed 100ms window under full-suite load.
+            const auto progressDeadline = std::chrono::steady_clock::now() +
+                machine::ScaleWait(pmon::tests::DefaultFirstFrameWaitLimit);
+            auto newRange2 = newFrames.GetSerialRange();
+            while (newRange2.second <= newRange1.second &&
+                std::chrono::steady_clock::now() < progressDeadline) {
+                std::this_thread::sleep_for(25ms);
+                newRange2 = newFrames.GetSerialRange();
+            }
+
+            Assert::IsTrue(newRange2.second > newRange1.second,
+                L"Expected new generation segment to continue receiving frames");
+
             retryClient.DispatchSync(svc::acts::StopTracking::Params{ .targetPid = pres.GetId() });
+        }
+        TEST_METHOD(FrameSegmentNameCollisionRetries)
+        {
+            // Exercise CreateOrGet in-process so the generation override is visible
+            // to the same process that allocates the segment (not the service child).
+            constexpr const char* kPrefix = "pm_frame_gen_collision_test";
+            constexpr uint32_t kPid = 424242;
+            constexpr const char* kCollideGen = "0123456789abcdef";
+            constexpr const char* kOkGen = "fedcba9876543210";
+
+            auto pComms = ipc::MakeServiceComms(kPrefix, 64, 64);
+            const auto& namer = pComms->GetNamer();
+            const auto collideName = namer.MakeFrameName(kPid, kCollideGen);
+            const auto expectedName = namer.MakeFrameName(kPid, kOkGen);
+
+            util::win::Handle collidePin{ CreateFileMappingA(
+                INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, 4096, collideName.c_str()) };
+            Assert::IsTrue((bool)collidePin);
+
+            std::atomic<int> generationCalls{ 0 };
+            ipc::ShmNamer::SetFrameGenerationOverride([&] {
+                if (generationCalls.fetch_add(1) == 0) {
+                    return std::string{ kCollideGen };
+                }
+                return std::string{ kOkGen };
+            });
+            struct ClearOverride
+            {
+                ~ClearOverride() { ipc::ShmNamer::ClearFrameGenerationOverride(); }
+            } clearOverride;
+
+            const auto ref = pComms->CreateOrGetFrameDataSegment(kPid, false);
+            Assert::AreEqual(expectedName, ref.segmentName);
+            Assert::IsTrue((bool)ref.segment);
+            Assert::IsTrue(generationCalls.load() >= 2);
+            Assert::AreEqual(expectedName, *pComms->GetFrameSegmentName(kPid));
+        }
+        TEST_METHOD(SharedSessionKeepsSameSegmentName)
+        {
+            mid::ActionClient firstClient{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pres = fixture_.LaunchPresenter();
+            const auto firstTrack = firstClient.DispatchSync(
+                svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            mid::ActionClient secondClient{ fixture_.GetCommonArgs().ctrlPipe };
+            const auto secondTrack = secondClient.DispatchSync(
+                svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            Assert::AreEqual(firstTrack.frameSegmentName, secondTrack.frameSegmentName);
+
+            secondClient.DispatchSync(svc::acts::StopTracking::Params{ .targetPid = pres.GetId() });
+            firstClient.DispatchSync(svc::acts::StopTracking::Params{ .targetPid = pres.GetId() });
         }
         // make sure we get frames over time
         TEST_METHOD(ReadFrames)
@@ -1428,8 +1508,11 @@ namespace InterimBroadcasterTests
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 19736;
             auto tracker = query.TrackProcess(pid, true, true);
-            pmon::tests::WaitForFirstFrame(fixture_.GetCommonArgs().ctrlPipe, pid, "backpressured-playback-3dm",
-                pmon::tests::DefaultFirstFrameWaitLimit, 1, { .isPlayback = true, .isBackpressured = true });
+            Assert::IsTrue(fixture_.service.has_value());
+            const auto segmentName = pmon::tests::RequireFrameSegmentName(
+                fixture_.service->QueryStatus().frameSegmentNames, pid);
+            pmon::tests::WaitForFirstFrame(fixture_.GetCommonArgs().ctrlPipe, pid, segmentName,
+                "backpressured-playback-3dm");
 
             const auto consume = [&] {
                 return uint32_t(query.ForEachConsume(tracker, [&] {
@@ -1508,8 +1591,11 @@ namespace InterimBroadcasterTests
             // we know the pid of interest in this etl file, track it
             const uint32_t pid = 12820;
             auto tracker = query.TrackProcess(pid, true, true);
-            pmon::tests::WaitForFirstFrame(fixture_.GetCommonArgs().ctrlPipe, pid, "legacy-backpressured-playback",
-                pmon::tests::DefaultFirstFrameWaitLimit, 1, { .isPlayback = true, .isBackpressured = true });
+            Assert::IsTrue(fixture_.service.has_value());
+            const auto segmentName = pmon::tests::RequireFrameSegmentName(
+                fixture_.service->QueryStatus().frameSegmentNames, pid);
+            pmon::tests::WaitForFirstFrame(fixture_.GetCommonArgs().ctrlPipe, pid, segmentName,
+                "legacy-backpressured-playback");
 
             const auto consume = [&] {
                 return uint32_t(query.ForEachConsume(tracker, [&] {

@@ -1,10 +1,17 @@
-﻿#pragma once
-#include "ShmNamer.h"
+﻿#include "ShmNamer.h"
 #include <format>
+#include <functional>
+#include <mutex>
 #include <random>
 
 namespace pmon::ipc
 {
+	namespace
+	{
+		std::mutex frameGenerationMutex_;
+		std::function<std::string()> frameGenerationOverride_;
+	}
+
 	ShmNamer::ShmNamer(std::string customPrefix, std::optional<std::string> salt)
 		:
 		prefix_{ customPrefix },
@@ -30,10 +37,26 @@ namespace pmon::ipc
 	{
 		return std::format("{}_{}_tgt_{}_{}", prefix_, salt_, pid, generation);
 	}
+	void ShmNamer::SetFrameGenerationOverride(std::function<std::string()> fn)
+	{
+		std::scoped_lock lk{ frameGenerationMutex_ };
+		frameGenerationOverride_ = std::move(fn);
+	}
+	void ShmNamer::ClearFrameGenerationOverride()
+	{
+		std::scoped_lock lk{ frameGenerationMutex_ };
+		frameGenerationOverride_ = {};
+	}
 	std::string ShmNamer::MakeFrameGeneration()
 	{
+		{
+			std::scoped_lock lk{ frameGenerationMutex_ };
+			if (frameGenerationOverride_) {
+				return frameGenerationOverride_();
+			}
+		}
 		std::random_device rd;
-		const uint64_t bits = (static_cast<uint64_t>(rd()) << 32) | static_cast<uint64_t>(rd());
+		const uint64_t bits = ((uint64_t)rd() << 32) | (uint64_t)rd();
 		return std::format("{:016x}", bits);
 	}
 	const std::string& ShmNamer::GetSalt() const
