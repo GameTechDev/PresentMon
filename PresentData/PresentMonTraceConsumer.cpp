@@ -836,8 +836,10 @@ void PMTraceConsumer::HandleDxgkPresentHistory(
     case PresentMode::Composed_Copy_CPU_GDI:
         if (tokenData == 0) {
             // This is the best we can do, we won't be able to tell how many frames are actually displayed.
-            mPresentsWaitingForDWM.emplace_back(presentEvent);
-            presentEvent->PresentInDwmWaitingStruct = true;
+            if (!presentEvent->PresentInDwmWaitingStruct) {
+                mPresentsWaitingForDWM.emplace_back(presentEvent);
+                presentEvent->PresentInDwmWaitingStruct = true;
+            }
         } else {
             DebugAssert(mPresentByDxgkPresentHistoryTokenData.find(tokenData) == mPresentByDxgkPresentHistoryTokenData.end());
             mPresentByDxgkPresentHistoryTokenData[tokenData] = presentEvent;
@@ -873,8 +875,10 @@ void PMTraceConsumer::HandleDxgkPresentHistoryInfo(EVENT_HEADER const& hdr, uint
     // Composed presents are currently ignored.
     if (//eventIter->second->PresentMode == PresentMode::Composed_Composition_Atlas ||
         (eventIter->second->PresentMode == PresentMode::Composed_Flip && !eventIter->second->SeenWin32KEvents)) {
-        mPresentsWaitingForDWM.emplace_back(eventIter->second);
-        eventIter->second->PresentInDwmWaitingStruct = true;
+        if (!eventIter->second->PresentInDwmWaitingStruct) {
+            mPresentsWaitingForDWM.emplace_back(eventIter->second);
+            eventIter->second->PresentInDwmWaitingStruct = true;
+        }
     }
 
     if (eventIter->second->PresentMode == PresentMode::Composed_Copy_GPU_GDI) {
@@ -1327,11 +1331,11 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
                 ? 0
                 : hdr.ProcessId;
 
-            mGpuTrace.RegisterContext(hContext, hDevice, NodeOrdinal, processId);
+            mGpuTrace.RegisterContext(hContext, hDevice, NodeOrdinal, processId, hdr.TimeStamp.QuadPart);
             return;
         }
         case Microsoft_Windows_DxgKrnl::Context_Stop::Id:
-            mGpuTrace.UnregisterContext(mMetadata.GetEventData<uint64_t>(pEventRecord, L"hContext"));
+            mGpuTrace.UnregisterContext(mMetadata.GetEventData<uint64_t>(pEventRecord, L"hContext"), hdr.TimeStamp.QuadPart);
             return;
 
         case Microsoft_Windows_DxgKrnl::HwQueue_DCStart::Id:
@@ -1345,7 +1349,22 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
             auto hContext        = desc[0].GetData<uint64_t>();
             auto hHwQueueContext = desc[1].GetData<uint64_t>();
 
-            mGpuTrace.RegisterHwQueueContext(hContext, hHwQueueContext);
+            mGpuTrace.RegisterHwQueueContext(hContext, hHwQueueContext, hdr.TimeStamp.QuadPart);
+            return;
+        }
+
+        // Without HwQueue_Stop the HwQueue contexts would only be released with their parent context,
+        // and packets left on a destroyed HwQueue would stay counted as running.
+        case Microsoft_Windows_DxgKrnl::HwQueue_Stop::Id:
+        {
+            EventDataDesc desc[] = {
+                { L"ParentDxgHwQueue" },
+            };
+            uint32_t descCount = _countof(desc);
+            mMetadata.GetEventData(pEventRecord, desc, &descCount);
+            if (descCount == _countof(desc)) {
+                mGpuTrace.UnregisterHwQueueContext(desc[0].GetData<uint64_t>(), hdr.TimeStamp.QuadPart);
+            }
             return;
         }
 
@@ -1460,7 +1479,7 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
                                     for (auto p3 : p2->DependentPresents) {
                                         VerboseTraceBeforeModifyingPresent(p3.get());
                                         p3->WaitingForFlipFrameType = false;
-                                        StopTrackingPresent(p2);
+                                        StopTrackingPresent(p3);
                                     }
 
                                     UpdateReadyCount(true);
@@ -1882,8 +1901,9 @@ void PMTraceConsumer::HandleDWMEvent(EVENT_RECORD* pEventRecord)
         // DependentPresents.
         for (auto& hWndPair : mLastPresentByWindow) {
             auto& present = hWndPair.second;
-            if (present->PresentMode == PresentMode::Composed_Copy_GPU_GDI ||
-                present->PresentMode == PresentMode::Composed_Copy_CPU_GDI) {
+            if ((present->PresentMode == PresentMode::Composed_Copy_GPU_GDI ||
+                 present->PresentMode == PresentMode::Composed_Copy_CPU_GDI) &&
+                !present->PresentInDwmWaitingStruct) {
                 VerboseTraceBeforeModifyingPresent(present.get());
                 mPresentsWaitingForDWM.emplace_back(present);
                 present->PresentInDwmWaitingStruct = true;
@@ -1965,7 +1985,8 @@ void PMTraceConsumer::HandleDWMEvent(EVENT_RECORD* pEventRecord)
 
         Win32KPresentHistoryToken key(luidSurface, PresentCount, bindId);
         auto eventIter = mPresentByWin32KPresentHistoryToken.find(key);
-        if (eventIter != mPresentByWin32KPresentHistoryToken.end() && eventIter->second->SeenInFrameEvent) {
+        if (eventIter != mPresentByWin32KPresentHistoryToken.end() && eventIter->second->SeenInFrameEvent &&
+            !eventIter->second->PresentInDwmWaitingStruct) {
             VerboseTraceBeforeModifyingPresent(eventIter->second.get());
             mPresentsWaitingForDWM.emplace_back(eventIter->second);
             eventIter->second->PresentInDwmWaitingStruct = true;
