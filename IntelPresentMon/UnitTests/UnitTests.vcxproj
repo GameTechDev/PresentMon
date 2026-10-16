@@ -110,6 +110,7 @@
     <ClCompile Include="LoggingTests.cpp" />
     <ClCompile Include="MetricCapabilitiesTests.cpp" />
     <ClCompile Include="MetricsCore.cpp" />
+    <ClCompile Include="PresentFrameTypeDeferralTests.cpp" />
     <ClCompile Include="TelemetryAvailabilityMergeTests.cpp" />
     <ClCompile Include="SwapChainTests.cpp" />
     <ClCompile Include="Style.cpp" />
