@@ -950,6 +950,75 @@ TEST_CLASS(ComputeMetricsForPresentTests)
             Assert::AreEqual(uint64_t(22'500), afterLookaheadPresent[0].computed.metrics.screenTimeQpc);
             Assert::IsTrue(HasMetricValue(afterLookaheadPresent[0].computed.metrics.msAnimationTime));
         }
+
+        TEST_METHOD(AmdFsrFg_MultiEntryPresent_ReleasesClosedIntervalGeneratedRowsImmediately_ClosingAppRowOnLookahead)
+        {
+            // AppA seed, then gen+gen+gen+AppB, then AppC for closing-app lookahead: the
+            // multi-gen present releases timeline origin AppA together with the 3x AMD_FSR_FG
+            // rows (their own nextScreenTime is already known from sibling entries in the
+            // same present); AppB itself releases alone once the next present supplies its
+            // lookahead.
+            QpcConverter qpc(10'000'000, 0);
+            UnifiedSwapChain swapChain{};
+
+            FrameData bootstrap{};
+            bootstrap.presentStartTime = 1;
+            bootstrap.timeInPresent = 1;
+            bootstrap.readyTime = 1;
+            bootstrap.finalState = PresentResult::Presented;
+
+            (void)swapChain.ProcessPresent(qpc, std::move(bootstrap));
+
+            FrameData seed{};
+            seed.presentStartTime = 19'000;
+            seed.timeInPresent = 400;
+            seed.readyTime = 19'500;
+            seed.finalState = PresentResult::Presented;
+            seed.appSimStartTime = 18'000;
+            seed.displayed.PushBack({ FrameType::Application, 20'000 });
+
+            Assert::AreEqual(size_t(0), swapChain.ProcessPresent(qpc, std::move(seed)).size());
+
+            FrameData present{};
+            present.presentStartTime = 20'000;
+            present.timeInPresent = 600;
+            present.readyTime = 30'000;
+            present.finalState = PresentResult::Presented;
+            present.appSimStartTime = 19'500;
+            present.displayed.PushBack({ FrameType::AMD_FSR_FG, 21'000 });
+            present.displayed.PushBack({ FrameType::AMD_FSR_FG, 21'500 });
+            present.displayed.PushBack({ FrameType::AMD_FSR_FG, 22'000 });
+            present.displayed.PushBack({ FrameType::Application, 22'500 });
+
+            auto afterMultiGenPresent = swapChain.ProcessPresent(qpc, std::move(present));
+            Assert::AreEqual(size_t(4), afterMultiGenPresent.size());
+            Assert::AreEqual((int)FrameType::Application, (int)afterMultiGenPresent[0].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(20'000), afterMultiGenPresent[0].computed.metrics.screenTimeQpc);
+            Assert::IsFalse(HasMetricValue(afterMultiGenPresent[0].computed.metrics.msAnimationError));
+            Assert::AreEqual((int)FrameType::AMD_FSR_FG, (int)afterMultiGenPresent[1].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::AMD_FSR_FG, (int)afterMultiGenPresent[2].computed.metrics.frameType);
+            Assert::AreEqual((int)FrameType::AMD_FSR_FG, (int)afterMultiGenPresent[3].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(21'000), afterMultiGenPresent[1].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(21'500), afterMultiGenPresent[2].computed.metrics.screenTimeQpc);
+            Assert::AreEqual(uint64_t(22'000), afterMultiGenPresent[3].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(afterMultiGenPresent[1].computed.metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(afterMultiGenPresent[2].computed.metrics.msAnimationTime));
+            Assert::IsTrue(HasMetricValue(afterMultiGenPresent[3].computed.metrics.msAnimationTime));
+
+            FrameData lookahead{};
+            lookahead.presentStartTime = 23'000;
+            lookahead.timeInPresent = 400;
+            lookahead.readyTime = 30'500;
+            lookahead.finalState = PresentResult::Presented;
+            lookahead.appSimStartTime = 20'000;
+            lookahead.displayed.PushBack({ FrameType::Application, 24'000 });
+
+            auto afterLookaheadPresent = swapChain.ProcessPresent(qpc, std::move(lookahead));
+            Assert::AreEqual(size_t(1), afterLookaheadPresent.size());
+            Assert::AreEqual((int)FrameType::Application, (int)afterLookaheadPresent[0].computed.metrics.frameType);
+            Assert::AreEqual(uint64_t(22'500), afterLookaheadPresent[0].computed.metrics.screenTimeQpc);
+            Assert::IsTrue(HasMetricValue(afterLookaheadPresent[0].computed.metrics.msAnimationTime));
+        }
     };
 
     TEST_CLASS(DisplayedDroppedDisplayedSequenceTests)
