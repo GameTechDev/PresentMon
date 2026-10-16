@@ -3,9 +3,9 @@
 
 namespace p2c::client::util
 {
-    CefClient::CefClient(std::string pipeName, cact::CefExecutionContext context)
+    CefClient::CefClient(::pmon::util::win::Handle connectedPipe, cact::CefExecutionContext context)
         :
-        SymmetricActionClient{ std::move(pipeName), std::move(context) }
+        SymmetricActionClient{ std::move(connectedPipe), "kernel-ui", std::move(context) }
     {
         auto res = DispatchSync(kproc::kact::OpenSession::Params{ GetCurrentProcessId() });
         serviceBuildId_ = std::move(res.serviceBuildId);

@@ -52,6 +52,7 @@ add_library(
         MultiClientTests.cpp
         PipeAcceptReliabilityTests.cpp
         PipeSecurityRegressionTests.cpp
+        PipePairTests.cpp
         PacedFrameTests.cpp
         PacedPollingTests.cpp
         RealtimeMetricTests.cpp

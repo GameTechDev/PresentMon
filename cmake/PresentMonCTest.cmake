@@ -4,7 +4,7 @@ include_guard(GLOBAL)
 # (128 tests: 113 deterministic, 15 environment).
 set(
     PMON_API2_CTEST_ENVIRONMENT_NAME_REGEX
-    "RealtimeOpenSessionTest|RealtimeTrackProcessTest|RealtimeFrameMetricsTest|ApplicationLaunch|TrackUntrack|TrackPresenter|TargetTracked|UntrackOnClose|UntrackOnMurder|OpenServiceTest|DynamicQueryWithoutTracked|ServiceCrash|EtwFlush|TelemetryPeriod|FrameStoreRealtime|FrameStorePaced|FrameStoreBackpressured|FrameStorePlayback|LegacyBackpressured"
+    "RealtimeOpenSessionTest|RealtimeTrackProcessTest|RealtimeFrameMetricsTest|ApplicationLaunch|UiSessionUsesPrivatePipePair|TrackUntrack|TrackPresenter|TargetTracked|UntrackOnClose|UntrackOnMurder|OpenServiceTest|DynamicQueryWithoutTracked|ServiceCrash|EtwFlush|TelemetryPeriod|FrameStoreRealtime|FrameStorePaced|FrameStoreBackpressured|FrameStorePlayback|LegacyBackpressured"
 )
 
 function(pmon_normalize_test_data_path input_path output_variable)

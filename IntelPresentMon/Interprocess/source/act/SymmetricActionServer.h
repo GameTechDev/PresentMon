@@ -8,6 +8,7 @@
 #include "ActionRunner.h"
 #include "SessionLimits.h"
 #include "../../../CommonUtilities/log/IdentificationTable.h"
+#include "../../../CommonUtilities/file/TempFile.h"
 #include "ActionContext.h"
 #include <atomic>
 #include <cassert>
@@ -54,6 +55,7 @@ namespace pmon::ipc::act
             // alive past the runner join. Drain_ waits until this hits zero.
             std::atomic<int> liveStrands_{ 0 };
             static constexpr std::chrono::milliseconds kListenerRetryDelay{ 200 };
+            static constexpr int kPairAttempts = 3;
             std::atomic<std::thread::id> runnerId{};
             ExecCtx ctx;
             bool allowConnectionlessSend = false;
@@ -76,7 +78,8 @@ namespace pmon::ipc::act
                 if constexpr (requires(ExecCtx& e, const SessionsMap* pSessions) { e.pSessionMap = pSessions; }) {
                     ctx.pSessionMap = &sessions;
                 }
-                assert(reservedPipeInstanceCount > 0);
+                // a paired server has no listeners
+                assert(ServerPolicy::kPaired || reservedPipeInstanceCount > 0);
                 assert(limits.maxSessions >= reservedPipeInstanceCount);
             }
             bool OnIoThread() const
@@ -144,6 +147,12 @@ namespace pmon::ipc::act
             {
                 runnerId.store(std::this_thread::get_id(), std::memory_order_release);
                 try {
+                    // a paired server has no listener to keep run() busy before its first
+                    // session; stop() at shutdown ends run() regardless of this guard
+                    std::optional<as::executor_work_guard<as::io_context::executor_type>> idleGuard;
+                    if constexpr (ServerPolicy::kPaired) {
+                        idleGuard.emplace(as::make_work_guard(ioctx));
+                    }
                     // maintain N available connector instances at all times; one that cannot be
                     // created now is retried by SpawnListener_ after kListenerRetryDelay
                     for (uint32_t i = 0; i < reservedPipeInstanceCount; i++) {
@@ -242,6 +251,60 @@ namespace pmon::ipc::act
             void RemoveListener_(const std::shared_ptr<Connector>& pConn)
             {
                 std::erase(listeners_, pConn);
+            }
+            // Creates a pipe pair, serves its server end as the session, and returns the client
+            // end for the caller to hand to the process it launches.
+            as::awaitable<util::win::Handle> OpenPairedSession_()
+            {
+                // End the previous session first: the launcher asks again once its child has
+                // exited, possibly before this side has seen that pipe close.
+                EndConnectedSessions_();
+                as::steady_timer timer{ ioctx };
+                while (!sessions.empty()) {
+                    timer.expires_after(kShutdownPollPeriod);
+                    co_await timer.async_wait(as::use_awaitable);
+                }
+                if (!lifecycle.IsRunning()) {
+                    throw Except<util::Exception>("Action server stopped while opening a paired session");
+                }
+                // a random name cannot be predicted and created first; if it was, try another
+                pipe::DuplexPipe::ConnectedPair pair;
+                for (int attempt = 1;; attempt++) {
+                    const auto name = std::format(R"(\\.\pipe\{}-{})", basePipeName, file::TempFile::MakeRandomName());
+                    try {
+                        pair = pipe::DuplexPipe::MakeConnectedPair(name, ioctx, security, PipeLimits_());
+                        break;
+                    }
+                    catch (...) {
+                        if (attempt >= kPairAttempts) {
+                            throw;
+                        }
+                        pmlog_warn(util::ReportException("Retrying pipe pair creation"));
+                    }
+                }
+                SpawnSessionStrand_(Connector::FromConnectedServerPipe(std::move(pair.pServer), ioctx));
+                co_return std::move(pair.client);
+            }
+            // Serves an already connected session; counted as a live strand like a listener.
+            void SpawnSessionStrand_(std::shared_ptr<Connector> pConn)
+            {
+                auto self = this->shared_from_this();
+                liveStrands_.fetch_add(1, std::memory_order_acq_rel);
+                try {
+                    as::co_spawn(ioctx, [self, pConn = std::move(pConn)]() -> as::awaitable<void> {
+                        try {
+                            co_await self->ServeSession_(pConn);
+                        }
+                        catch (...) {
+                            pmlog_error(util::ReportException("Action session strand failed"));
+                        }
+                        self->liveStrands_.fetch_sub(1, std::memory_order_acq_rel);
+                    }, as::detached);
+                }
+                catch (...) {
+                    liveStrands_.fetch_sub(1, std::memory_order_acq_rel);
+                    throw;
+                }
             }
             as::awaitable<void> SessionStrand_(std::shared_ptr<Connector> pConn)
             {
@@ -385,15 +448,21 @@ namespace pmon::ipc::act
         SymmetricActionServer(ExecCtx context, std::string basePipeName,
             uint32_t reservedPipeInstanceCount, std::string securityString, bool allowConnectionlessSend = false,
             SessionLimits limits = {})
+            requires (!ServerPolicy::kPaired)
         {
             state_ = std::make_shared<State>(std::move(context), std::move(basePipeName),
                 reservedPipeInstanceCount, std::move(securityString), allowConnectionlessSend, limits);
-            runner_ = std::thread([state = state_] {
-                InstallSehTranslator();
-                log::IdentificationTable::AddThisThread(
-                    std::format("symact-{}-srv", MakeWorkerName(state->basePipeName)));
-                state->Run();
-            });
+            StartRunner_();
+        }
+        // A paired server has no listeners; sessions come from OpenPairedSession. Each pair is
+        // named \\.\pipe\<pairNamePrefix>-<random> and created with securityString.
+        SymmetricActionServer(ExecCtx context, std::string pairNamePrefix, std::string securityString,
+            bool allowConnectionlessSend = false)
+            requires ServerPolicy::kPaired
+        {
+            state_ = std::make_shared<State>(std::move(context), std::move(pairNamePrefix),
+                0, std::move(securityString), allowConnectionlessSend, SessionLimits{});
+            StartRunner_();
         }
         SymmetricActionServer(const SymmetricActionServer&) = delete;
         SymmetricActionServer& operator=(const SymmetricActionServer&) = delete;
@@ -582,6 +651,37 @@ namespace pmon::ipc::act
             }
             future.get();
         }
+        // Ends any current session, creates a new pipe pair, serves its server end as the only
+        // session, and returns the client end. The caller hands that handle to the process it
+        // launches and then closes its own copy; it must not do I/O on it. Blocks until the pair
+        // exists; throws if the server is not running or the pair cannot be created.
+        util::win::Handle OpenPairedSession()
+            requires ServerPolicy::kPaired
+        {
+            if (state_->OnIoThread()) {
+                throw Except<util::Exception>("OpenPairedSession called from the action io thread");
+            }
+            std::promise<util::win::Handle> promise;
+            auto future = promise.get_future();
+            // CAUTION: the coroutine below captures promise by reference. That is only safe because
+            // this function blocks on the future until the coroutine has set it; keep that wait if refactoring.
+            const auto accepted = SpawnAdmitted(state_, [state = state_, &promise]() -> as::awaitable<void> {
+                try {
+                    promise.set_value(co_await state->OpenPairedSession_());
+                }
+                catch (...) {
+                    try {
+                        promise.set_exception(std::current_exception());
+                    }
+                    catch (...) {
+                    }
+                }
+            });
+            if (!accepted) {
+                throw Except<util::Exception>("Action server is not running");
+            }
+            return future.get();
+        }
         bool IsRunning() const
         {
             return state_ && state_->lifecycle.IsRunning();
@@ -655,6 +755,15 @@ namespace pmon::ipc::act
         }
 
     private:
+        void StartRunner_()
+        {
+            runner_ = std::thread([state = state_] {
+                InstallSehTranslator();
+                log::IdentificationTable::AddThisThread(
+                    std::format("symact-{}-srv", MakeWorkerName(state->basePipeName)));
+                state->Run();
+            });
+        }
         std::shared_ptr<State> state_;
         std::thread runner_;
     };

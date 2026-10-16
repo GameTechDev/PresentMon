@@ -59,6 +59,14 @@ namespace pmon::ipc::act
             {
                 conn = Connector::ConnectToServer(basePipeName, ioctx, std::move(tokens));
             }
+            // label stands in for the pipe name in logs and the worker thread name
+            State(util::win::Handle connectedPipe, std::string label, ExecCtx context, CommandTokenAllocator tokens)
+                :
+                ctx{ std::move(context) },
+                basePipeName{ std::move(label) }
+            {
+                conn = Connector::AdoptConnectedClient(std::move(connectedPipe), ioctx, std::move(tokens));
+            }
             bool OnIoThread() const
             {
                 return std::this_thread::get_id() == runnerId.load(std::memory_order_acquire);
@@ -142,12 +150,16 @@ namespace pmon::ipc::act
         SymmetricActionClient(std::string pipeName, ExecCtx context = {}, CommandTokenAllocator tokens = {})
         {
             state_ = std::make_shared<State>(std::move(pipeName), std::move(context), std::move(tokens));
-            runner_ = std::thread([state = state_] {
-                InstallSehTranslator();
-                log::IdentificationTable::AddThisThread(
-                    std::format("symact-{}-cli", MakeWorkerName(state->basePipeName)));
-                state->Run();
-            });
+            StartRunner_();
+        }
+        // Takes the client end of a pipe pair created by the server's process (see
+        // SymmetricActionServer::OpenPairedSession). Takes win::Handle, not HANDLE: a string
+        // literal converts to void* ahead of std::string and would select this overload.
+        SymmetricActionClient(util::win::Handle connectedPipe, std::string label, ExecCtx context = {},
+            CommandTokenAllocator tokens = {})
+        {
+            state_ = std::make_shared<State>(std::move(connectedPipe), std::move(label), std::move(context), std::move(tokens));
+            StartRunner_();
         }
 
         SymmetricActionClient(const SymmetricActionClient&) = delete;
@@ -309,6 +321,15 @@ namespace pmon::ipc::act
         }
 
     private:
+        void StartRunner_()
+        {
+            runner_ = std::thread([state = state_] {
+                InstallSehTranslator();
+                log::IdentificationTable::AddThisThread(
+                    std::format("symact-{}-cli", MakeWorkerName(state->basePipeName)));
+                state->Run();
+            });
+        }
         std::shared_ptr<State> state_;
         std::thread runner_;
     };

@@ -8,6 +8,7 @@
 #include <streambuf>
 #include "util/AsyncEndpointManager.h"
 #include "NanoCefProcessHandler.h"
+#include "util/KernelRelay.h"
 
 // implemented in winmain.cpp
 void AppQuitMessageLoop();
@@ -33,6 +34,11 @@ namespace p2c::client::cef
             DISALLOW_COPY_AND_ASSIGN(NullMenuHandler);
         };
         pContextMenuHandler = new NullMenuHandler{};
+    }
+
+    void NanoCefBrowserClient::SetKernelCallRelay(util::kernel_relay::CallRelay* pRelay)
+    {
+        pKernelCallRelay = pRelay;
     }
 
     CefRefPtr<CefBrowser> NanoCefBrowserClient::GetBrowser()
@@ -66,6 +72,9 @@ namespace p2c::client::cef
 
     bool NanoCefBrowserClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefProcessId source_process, CefRefPtr<CefProcessMessage> message)
     {
+        if (pKernelCallRelay && pKernelCallRelay->HandleMessage(*message, frame)) {
+            return true;
+        }
         if (message->GetName() == util::AsyncEndpointManager::GetDispatchMessageName())
         {
             if (auto pEndpoint = endpoints.Find(message->GetArgumentList()->GetString(0)))

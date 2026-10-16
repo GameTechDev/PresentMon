@@ -2,16 +2,6 @@
 // SPDX-License-Identifier: MIT
 #include "DataBindAccessor.h"
 #include "util/Logging.h"
-#include <include/cef_task.h> 
-#include <include/base/cef_callback.h> 
-#include <include/wrapper/cef_closure_task.h> 
-#include "util/CefValues.h"
-#include <Interprocess/source/act/SymmetricActionServer.h>
-#include "util/cact/TargetLostAction.h"
-#include "util/cact/OverlayDiedAction.h"
-#include "util/cact/PresentmonInitFailedAction.h"
-#include "util/cact/StalePidAction.h"
-#include "util/SignalManager.h"
 
 
 namespace p2c::client::cef

@@ -3,6 +3,8 @@
 #pragma once
 #include <CommonUtilities/win/WinAPI.h>
 #include <include/cef_v8.h>
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -40,12 +42,11 @@ namespace p2c::client::util
 		};
 		// functions
 		void RegisterCallback(const std::string& key, CallbackContext ctx);
-		// -- Signal-firing (call from C++ to invoke a callback registered by JS side)
-		void SignalTargetLost(uint32_t pid); // targetLost(pid:number)
-		void SignalHotkeyFired(uint32_t action); // hotkeyFired(action:number)
-		void SignalPresentmonInitFailed(); // presentmonInitFailed()
-		void SignalOverlayDied(); // overlayDied()
-		void SignalStalePid(); // stalePid()
+		// Fires the callback the page registered for a kernel event forwarded by the browser
+		// process; key must be one of keyList. The signals and their arguments:
+		//   targetLost(pid:number), hotkeyFired(action:number), presentmonInitFailed(),
+		//   overlayDied(), stalePid()
+		void SignalFromBrowser(const std::string& key, std::optional<uint32_t> arg);
 	private:
 		// functions
 		template<typename... Ts>

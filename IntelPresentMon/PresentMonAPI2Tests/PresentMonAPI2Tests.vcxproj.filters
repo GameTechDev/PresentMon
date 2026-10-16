@@ -39,6 +39,9 @@
     <ClCompile Include="PipeSecurityRegressionTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="PipePairTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="EtlLoggerTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

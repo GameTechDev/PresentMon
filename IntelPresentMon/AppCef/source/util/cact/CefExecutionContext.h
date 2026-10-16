@@ -2,9 +2,9 @@
 #include <optional>
 #include <cstdint>
 
-namespace p2c::client::util
+namespace p2c::client::util::kernel_relay
 {
-    class SignalManager;
+    class SignalRelay;
 }
 
 namespace p2c::client::util::cact
@@ -21,7 +21,8 @@ namespace p2c::client::util::cact
         using SessionContextType = CefSessionContext;
 
         // data
-        SignalManager* pSignalManager = nullptr;
+        // kernel events arrive in the browser process and are forwarded to the page through this
+        const kernel_relay::SignalRelay* pSignalRelay = nullptr;
         std::optional<uint32_t> responseWriteTimeoutMs;
     };
 }

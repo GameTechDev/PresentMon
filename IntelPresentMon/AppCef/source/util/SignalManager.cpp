@@ -35,31 +35,17 @@ namespace p2c::client::util
 		}
 	}
 
-	// List of Signal-firing functions (call from C++ to invoke a callback registered by JS side)
-	//
-	// targetLost(pid:number)
-	void SignalManager::SignalTargetLost(uint32_t pid)
+	void SignalManager::SignalFromBrowser(const std::string& key, std::optional<uint32_t> arg)
 	{
-		ImplementSignal_(Keys::targetLost(), pid);
-	}
-	// hotkeyFired(action:number)
-	void SignalManager::SignalHotkeyFired(uint32_t action)
-	{
-		ImplementSignal_(Keys::hotkeyFired(), action);
-	}
-	// presentmonInitFailed()
-	void SignalManager::SignalPresentmonInitFailed()
-	{
-		ImplementSignal_(Keys::presentmonInitFailed());
-	}
-	// overlayDied()
-	void SignalManager::SignalOverlayDied()
-	{
-		ImplementSignal_(Keys::overlayDied());
-	}
-	// stalePid()
-	void SignalManager::SignalStalePid()
-	{
-		ImplementSignal_(Keys::stalePid());
+		if (std::find(std::begin(keyList), std::end(keyList), key) == std::end(keyList)) {
+			pmlog_warn(std::format("Kernel event [{}] is not a valid signal key", key));
+			return;
+		}
+		if (arg) {
+			ImplementSignal_(key, *arg);
+		}
+		else {
+			ImplementSignal_(key);
+		}
 	}
 }

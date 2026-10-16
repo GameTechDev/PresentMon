@@ -12,6 +12,9 @@
 #include "../Interprocess/source/act/SymmetricActionServer.h"
 #include "../Interprocess/source/act/ActionServerShutdown.h"
 #include "RawPipeClient.h"
+#include <boost/process/v2/process.hpp>
+#include <boost/process/v2/windows/default_launcher.hpp>
+#include <filesystem>
 #include <cereal/archives/binary.hpp>
 #include <atomic>
 #include <condition_variable>
@@ -626,6 +629,48 @@ namespace TransportDemuxTests
 		}
 	};
 
+	// A server with no listeners: each session is a pipe pair it creates in OpenPairedSession.
+	class PairedTestServer
+	{
+	public:
+		PairedTestServer(std::atomic<uint32_t>& disposeCount, std::mutex* disposeMutex = nullptr,
+			std::vector<SessionEndReason>* disposeReasons = nullptr)
+			:
+			server_{ ServerExecutionContext{
+					.pPush = &push_,
+					.pDisposeCount = &disposeCount,
+					.pDisposeMutex = disposeMutex,
+					.pDisposeReasons = disposeReasons,
+				},
+				std::format("pm-demux-pair-test-{}", GetCurrentProcessId()), std::string{} }
+		{
+			push_ = [this](uint32_t value) {
+				server_.DispatchDetached(PushNotice::Params{ .value = value });
+			};
+		}
+		util::win::Handle OpenPairedSession() { return server_.OpenPairedSession(); }
+		uint32_t GetSessionCount() const { return server_.GetSessionCount(); }
+		void BeginShutdown() { server_.BeginShutdown(); }
+		bool WaitForShutdown() { return server_.WaitForShutdown(); }
+		bool IsRunning() const { return server_.IsRunning(); }
+	private:
+		std::function<void(uint32_t)> push_;
+		SymmetricActionServer<ServerExecutionContext, PairedSinglePeerServerPolicy> server_;
+	};
+
+	class PairedTestClient : public SymmetricActionClient<ClientExecutionContext>
+	{
+	public:
+		PairedTestClient(util::win::Handle connectedPipe, std::atomic<uint32_t>& eventCount)
+			:
+			SymmetricActionClient{ std::move(connectedPipe), "pair-test",
+				ClientExecutionContext{ .pEventCount = &eventCount } }
+		{
+			const auto res = DispatchSync(OpenSession::Params{ .clientPid = GetCurrentProcessId() });
+			EstablishSession_(res.serverPid);
+		}
+	};
+
 	std::string MakeUniquePipeName_()
 	{
 		static std::atomic<uint32_t> nextId = 0;
@@ -892,6 +937,56 @@ namespace TransportDemuxTests
 			WaitForSessionCount_(server, 0);
 			Assert::AreEqual(1u, disposeCount.load(),
 				L"Dispose did not run for a session that never sent OpenSession");
+		}
+		// The server runs nothing for a peer that has not opened its session: the action is
+		// refused before it executes and the session ends as a protocol failure.
+		TEST_METHOD(ActionBeforeOpenSessionEndsSession)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			std::mutex disposeMutex;
+			std::vector<SessionEndReason> reasons;
+			TestServer server{ pipeName, disposeCount, &disposeMutex, &reasons };
+			Assert::IsTrue(util::pipe::DuplexPipe::WaitForAvailability(pipeName, 2000));
+			SymmetricActionClient<ClientExecutionContext> bareClient{
+				pipeName, ClientExecutionContext{ .pEventCount = &eventCount } };
+			bool refused = false;
+			try {
+				// if this ran, its push would reach the client before the response
+				bareClient.DispatchSync(EchoWithPush::Params{ .value = 7, .pushCount = 1 });
+			}
+			catch (...) {
+				refused = true;
+			}
+			Assert::IsTrue(refused, L"An action sent before OpenSession was served");
+			WaitForSessionCount_(server, 0);
+			Assert::AreEqual(1u, disposeCount.load(), L"The refused session was not disposed");
+			Assert::AreEqual(0u, eventCount.load(), L"The refused action executed");
+			std::lock_guard lock{ disposeMutex };
+			Assert::AreEqual((size_t)1, reasons.size());
+			Assert::IsTrue(reasons[0] == SessionEndReason::ProtocolFailure,
+				L"An action before OpenSession did not end the session as a protocol failure");
+		}
+		// The client does not require an opened session: a server may push an event before
+		// the client has recorded the OpenSession response, and that is legitimate.
+		TEST_METHOD(EventBeforeEstablishSessionIsAccepted)
+		{
+			const auto pipeName = MakeUniquePipeName_();
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			TestServer server{ pipeName, disposeCount };
+			Assert::IsTrue(util::pipe::DuplexPipe::WaitForAvailability(pipeName, 2000));
+			SymmetricActionClient<ClientExecutionContext> bareClient{
+				pipeName, ClientExecutionContext{ .pEventCount = &eventCount } };
+			WaitForSessionCount_(server, 1);
+			server.DispatchDetached(PushNotice::Params{ .value = 3 });
+			for (int i = 0; i < 100 && eventCount.load() < 1; i++) {
+				std::this_thread::sleep_for(10ms);
+			}
+			Assert::AreEqual(1u, eventCount.load(), L"An event before EstablishSession_ was not delivered");
+			Assert::IsTrue(bareClient.IsRunning(), L"An event before EstablishSession_ ended the client");
+			Assert::AreEqual(1u, server.GetSessionCount(), L"An event before EstablishSession_ ended the session");
 		}
 		// The listener count can be observed directly: every client that connects and
 		// vanishes costs one pipe instance, and every one of them must be replaced or
@@ -1893,6 +1988,131 @@ namespace TransportDemuxTests
 		{
 			AssertOpenSessionUnderPidIsServed_<RequestResponseServerPolicy>(GetCurrentProcessId() + 4);
 			AssertOpenSessionUnderPidIsServed_<SinglePeerServerPolicy>(GetCurrentProcessId() + 4);
+		}
+		// --- paired server: no listeners, each session is a pipe pair it creates ---
+		TEST_METHOD(PairedSessionServesRequestsAndEvents)
+		{
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			PairedTestServer server{ disposeCount };
+			PairedTestClient client{ server.OpenPairedSession(), eventCount };
+			const auto res = client.DispatchSync(EchoWithPush::Params{ .value = 5, .pushCount = 1 });
+			Assert::AreEqual(5u, res.value, L"A request over a pipe pair was not answered");
+			for (int i = 0; i < 100 && eventCount.load() < 1; i++) {
+				std::this_thread::sleep_for(10ms);
+			}
+			Assert::AreEqual(1u, eventCount.load(), L"An event over a pipe pair was not delivered");
+			Assert::AreEqual(1u, server.GetSessionCount());
+		}
+		TEST_METHOD(PairedActionBeforeOpenSessionEndsSession)
+		{
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			std::mutex disposeMutex;
+			std::vector<SessionEndReason> reasons;
+			PairedTestServer server{ disposeCount, &disposeMutex, &reasons };
+			SymmetricActionClient<ClientExecutionContext> bareClient{ server.OpenPairedSession(), "pair-test",
+				ClientExecutionContext{ .pEventCount = &eventCount } };
+			bool refused = false;
+			try {
+				bareClient.DispatchSync(EchoWithPush::Params{ .value = 7, .pushCount = 1 });
+			}
+			catch (...) {
+				refused = true;
+			}
+			Assert::IsTrue(refused, L"An action sent before OpenSession on a pair was served");
+			WaitForSessionCount_(server, 0);
+			Assert::AreEqual(0u, eventCount.load(), L"The refused action executed");
+			std::lock_guard lock{ disposeMutex };
+			Assert::AreEqual((size_t)1, reasons.size());
+			Assert::IsTrue(reasons[0] == SessionEndReason::ProtocolFailure);
+		}
+		// This is how the kernel sees its UI exit.
+		TEST_METHOD(PairedClientDisconnectEndsSession)
+		{
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			std::mutex disposeMutex;
+			std::vector<SessionEndReason> reasons;
+			PairedTestServer server{ disposeCount, &disposeMutex, &reasons };
+			auto pClient = std::make_unique<PairedTestClient>(server.OpenPairedSession(), eventCount);
+			Assert::AreEqual(1u, server.GetSessionCount());
+			pClient.reset();
+			WaitForSessionCount_(server, 0);
+			Assert::AreEqual(0u, server.GetSessionCount(), L"Closing the client did not end the session");
+			std::lock_guard lock{ disposeMutex };
+			Assert::AreEqual((size_t)1, reasons.size());
+			Assert::IsTrue(reasons[0] == SessionEndReason::PeerDisconnected);
+		}
+		// A relaunched UI asks for a new pair, possibly before the old pipe's close was seen.
+		TEST_METHOD(NewPairEndsPreviousSession)
+		{
+			std::atomic<uint32_t> disposeCount = 0;
+			std::atomic<uint32_t> eventCount = 0;
+			PairedTestServer server{ disposeCount };
+			PairedTestClient first{ server.OpenPairedSession(), eventCount };
+			PairedTestClient second{ server.OpenPairedSession(), eventCount };
+			Assert::AreEqual(1u, disposeCount.load(), L"A new pair did not end the previous session");
+			Assert::AreEqual(1u, server.GetSessionCount());
+			const auto res = second.DispatchSync(EchoWithPush::Params{ .value = 9, .pushCount = 0 });
+			Assert::AreEqual(9u, res.value, L"The new pair was not served");
+			bool firstRefused = false;
+			try {
+				first.DispatchSync(EchoWithPush::Params{ .value = 1, .pushCount = 0 });
+			}
+			catch (...) {
+				firstRefused = true;
+			}
+			Assert::IsTrue(firstRefused, L"The replaced session was still served");
+		}
+		TEST_METHOD(PairedServerShutsDownIdleAndWithSession)
+		{
+			{
+				std::atomic<uint32_t> disposeCount = 0;
+				PairedTestServer server{ disposeCount };
+				// with no listener and no session, only the idle guard keeps the server running
+				std::this_thread::sleep_for(100ms);
+				Assert::IsTrue(server.IsRunning(), L"An idle paired server stopped by itself");
+				server.BeginShutdown();
+				Assert::IsTrue(server.WaitForShutdown(), L"An idle paired server did not shut down");
+			}
+			{
+				std::atomic<uint32_t> disposeCount = 0;
+				std::atomic<uint32_t> eventCount = 0;
+				PairedTestServer server{ disposeCount };
+				PairedTestClient client{ server.OpenPairedSession(), eventCount };
+				server.BeginShutdown();
+				Assert::IsTrue(server.WaitForShutdown(), L"A paired server with a session did not shut down");
+				Assert::AreEqual(1u, disposeCount.load());
+			}
+		}
+		// The kernel hands the client end to the UI it launches: only the listed handle is
+		// inherited, and the session lives exactly as long as the child holding it.
+		TEST_METHOD(PairedHandleInheritedByChildKeepsSession)
+		{
+			std::atomic<uint32_t> disposeCount = 0;
+			std::mutex disposeMutex;
+			std::vector<SessionEndReason> reasons;
+			PairedTestServer server{ disposeCount, &disposeMutex, &reasons };
+			auto clientEnd = server.OpenPairedSession();
+			Assert::IsTrue((bool)SetHandleInformation(clientEnd, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT));
+			wchar_t systemDir[MAX_PATH]{};
+			Assert::IsTrue(GetSystemDirectoryW(systemDir, MAX_PATH) > 0);
+			boost::asio::io_context procCtx;
+			boost::process::v2::windows::default_launcher launcher;
+			launcher.inherited_handles.push_back(clientEnd.Get());
+			// the child does nothing with the pipe; it only holds the handle for about two seconds
+			auto child = launcher(procCtx, std::filesystem::path{ systemDir } / L"cmd.exe",
+				std::vector<std::string>{ "/c", "ping", "-n", "3", "127.0.0.1" });
+			clientEnd = util::win::Handle{};
+			std::this_thread::sleep_for(500ms);
+			Assert::AreEqual(1u, server.GetSessionCount(), L"The session ended while the child still held the handle");
+			child.wait();
+			WaitForSessionCount_(server, 0);
+			Assert::AreEqual(0u, server.GetSessionCount(), L"The session outlived the child holding the handle");
+			std::lock_guard lock{ disposeMutex };
+			Assert::AreEqual((size_t)1, reasons.size());
+			Assert::IsTrue(reasons[0] == SessionEndReason::PeerDisconnected);
 		}
 	private:
 		template<class Policy>
