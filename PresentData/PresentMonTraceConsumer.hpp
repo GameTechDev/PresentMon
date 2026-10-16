@@ -654,6 +654,7 @@ struct PMTraceConsumer
         std::function<uint64_t(const AppTimingData&)> timingSelector, bool isPcLatency = true);
     bool IsApplicationPresent(std::shared_ptr<PresentEvent> const& present);
     void SetAppTimingDataAsComplete(uint32_t processId, uint32_t appFrameId);
+    bool IsStaleAppTimingData(AppTimingData const& data, uint64_t now) const;
 
     inline uint32_t GetRingIndex(uint32_t index)
     {

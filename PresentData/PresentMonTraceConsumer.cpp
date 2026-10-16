@@ -2462,6 +2462,11 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                 deferredPresent->IsLost = true;
             }
             deferredPresent->WaitingForFlipFrameType = false;
+            // A PresentFrameType present is only released by the next one from its process, so the
+            // last one stays deferred forever once the runtime stops typing frames (e.g., XeSS-FG
+            // switched off or replaced by another frame generation), blocking every process until
+            // the completed ring overflows.
+            deferredPresent->WaitingForFrameId = false;
             StopTrackingPresent(deferredPresent);
             UpdateReadyCount(false);
         }
@@ -2478,6 +2483,12 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
             presentStartTime >= it->second.AppPresentStartTime &&
             presentStartTime - it->second.AppPresentStartTime >= mDeferralTimeLimit) {
             // Remove app frame data if the app present start time is too old
+            it = mAppTimingDataByAppFrameId.erase(it); // Erase and move to the next element
+        } else if (IsStaleAppTimingData(it->second, presentStartTime)) {
+            // Remove app frame data that can no longer be matched, whichever process it belongs to.
+            // The rules above only consider the completing present's process and need an
+            // AppPresentStart, so data from processes that never present (or never send that
+            // event) would otherwise accumulate, and every present scans this map.
             it = mAppTimingDataByAppFrameId.erase(it); // Erase and move to the next element
         }
         else {
@@ -2526,11 +2537,46 @@ void PMTraceConsumer::CompletePresent(std::shared_ptr<PresentEvent> const& p)
                 } else {
                     ++it;
                 }
+            } else if (IsStaleAppTimingData(it->second, presentStartTime)) {
+                // Stale data of another process, e.g., one that stopped presenting.
+                it = mPclTimingDataByPclFrameId.erase(it);
             } else {
                 ++it;
             }
         }
     }
+}
+
+bool PMTraceConsumer::IsStaleAppTimingData(AppTimingData const& data, uint64_t now) const
+{
+    // App timing data is matched to a present within a few frames.  Anything that has not seen an
+    // update for several deferral periods cannot be matched any more.
+    if (mDeferralTimeLimit == 0) {
+        return false;
+    }
+
+    uint64_t latest = std::max({
+        data.AppSleepStartTime,
+        data.AppSleepEndTime,
+        data.AppSimStartTime,
+        data.AppSimEndTime,
+        data.AppRenderSubmitStartTime,
+        data.AppRenderSubmitEndTime,
+        data.AppPresentStartTime,
+        data.AppPresentEndTime,
+        data.AppInputSample.first,
+        data.PclSimStartTime,
+        data.PclSimEndTime,
+        data.PclRenderSubmitStartTime,
+        data.PclRenderSubmitEndTime,
+        data.PclPresentStartTime,
+        data.PclPresentEndTime,
+        data.PclInputPingTime,
+        data.PclInputReceivedTime,
+        data.PclOutOfBandPresentStartTime,
+    });
+
+    return latest != 0 && now > latest && now - latest > 4 * mDeferralTimeLimit;
 }
 
 void PMTraceConsumer::UpdateReadyCount(bool useLock)
