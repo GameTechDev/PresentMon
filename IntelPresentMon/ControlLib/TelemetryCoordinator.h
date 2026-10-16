@@ -68,13 +68,12 @@ namespace pmon::tel
         void ReassignGpuLogicalDeviceIdsByMemorySize_();
         GpuMemoryOrderingInfo_ QueryGpuMemorySize_(const LogicalDevice_& logicalDevice) const;
         GpuPowerOrderingInfo_ QueryGpuSustainedPowerLimit_(const LogicalDevice_& logicalDevice) const;
-        // Maps provider devices to existing logical devices they should merge into. A merge is
-        // only accepted when both the provider device and the logical device have exactly one
-        // merge option; ambiguous devices are omitted so they get their own logical device.
+        // Maps provider devices to existing logical devices, resolving unique matches from
+        // strongest to weakest evidence. Unresolved ambiguous devices remain separate.
         std::unordered_map<ProviderDeviceId, uint32_t> ResolveMergeTargets_(
             const TelemetryProvider& provider,
             const ProviderCapabilityMap& capabilityMap) const;
-        bool IsMergeOption_(
+        FingerprintMatchStrength GetLogicalDeviceMatchStrength_(
             const TelemetryProvider& provider,
             const LogicalDevice_& logicalDevice,
             const TelemetryDeviceFingerprint& fingerprint) const;

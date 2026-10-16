@@ -5,7 +5,9 @@
 #include "../PresentMonAPI2/PresentMonAPI.h"
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace pmon::tel
@@ -29,9 +31,31 @@ namespace pmon::tel
         std::string LuidAsString() const;
     };
 
+    enum class FingerprintMatchStrength : uint8_t
+    {
+        None,
+        Name,
+        PciIds,
+        PciBus,
+    };
+
+    struct FingerprintMergeCandidate
+    {
+        uint32_t sourceId;
+        uint32_t targetId;
+        FingerprintMatchStrength strength;
+    };
+
+    FingerprintMatchStrength GetTelemetryDeviceFingerprintMatchStrength(
+        const TelemetryDeviceFingerprint& lhs,
+        const TelemetryDeviceFingerprint& rhs) noexcept;
+
     bool TelemetryDeviceFingerprintMatches(
         const TelemetryDeviceFingerprint& lhs,
         const TelemetryDeviceFingerprint& rhs) noexcept;
+
+    std::unordered_map<uint32_t, uint32_t> ResolveFingerprintMergeTargets(
+        std::span<const FingerprintMergeCandidate> candidates);
 
     void MergeTelemetryDeviceFingerprint(
         TelemetryDeviceFingerprint& dst,

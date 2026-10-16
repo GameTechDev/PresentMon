@@ -714,6 +714,7 @@ namespace pmon::tel
         std::unordered_map<ProviderDeviceId, std::vector<uint32_t>> optionsByProviderDevice;
         std::unordered_map<uint32_t, std::vector<ProviderDeviceId>> optionsByLogicalDevice;
         std::unordered_map<ProviderDeviceId, const TelemetryDeviceFingerprint*> fingerprintsById;
+        std::vector<FingerprintMergeCandidate> candidates;
 
         for (const auto& entry : capabilityMap) {
             const auto providerDeviceId = entry.first;
@@ -725,9 +726,12 @@ namespace pmon::tel
                 }
                 fingerprintsById.emplace(providerDeviceId, &fingerprint);
                 for (const auto& [logicalDeviceId, logicalDevice] : logicalDevicesById_) {
-                    if (IsMergeOption_(provider, logicalDevice, fingerprint)) {
+                    const auto strength = GetLogicalDeviceMatchStrength_(
+                        provider, logicalDevice, fingerprint);
+                    if (strength != FingerprintMatchStrength::None) {
                         optionsByProviderDevice[providerDeviceId].push_back(logicalDeviceId);
                         optionsByLogicalDevice[logicalDeviceId].push_back(providerDeviceId);
+                        candidates.push_back({ providerDeviceId, logicalDeviceId, strength });
                     }
                 }
             }
@@ -737,11 +741,9 @@ namespace pmon::tel
             }
         }
 
-        std::unordered_map<ProviderDeviceId, uint32_t> mergeTargets;
+        auto mergeTargets = ResolveFingerprintMergeTargets(candidates);
         for (const auto& [providerDeviceId, logicalOptions] : optionsByProviderDevice) {
-            if (logicalOptions.size() == 1 &&
-                optionsByLogicalDevice[logicalOptions.front()].size() == 1) {
-                mergeTargets.emplace(providerDeviceId, logicalOptions.front());
+            if (mergeTargets.contains(providerDeviceId)) {
                 continue;
             }
 
@@ -763,7 +765,7 @@ namespace pmon::tel
         return mergeTargets;
     }
 
-    bool TelemetryCoordinator::IsMergeOption_(
+    FingerprintMatchStrength TelemetryCoordinator::GetLogicalDeviceMatchStrength_(
         const TelemetryProvider& provider,
         const LogicalDevice_& logicalDevice,
         const TelemetryDeviceFingerprint& fingerprint) const
@@ -773,8 +775,9 @@ namespace pmon::tel
         if (std::ranges::any_of(logicalDevice.providerDevices, [&provider](const ProviderDevice_& pd) {
                 return pd.pProvider.lock().get() == &provider;
             })) {
-            return false;
+            return FingerprintMatchStrength::None;
         }
+        auto strongestMatch = FingerprintMatchStrength::None;
         for (const auto& providerDevice : logicalDevice.providerDevices) {
             const auto pProvider = providerDevice.pProvider.lock();
             if (!pProvider) {
@@ -786,17 +789,19 @@ namespace pmon::tel
 
             try {
                 const auto& candidateFingerprint = pProvider->GetFingerPrint(providerDevice.providerDeviceId);
-                if (TelemetryDeviceFingerprintMatches(candidateFingerprint, fingerprint)) {
-                    return true;
+                const auto strength = GetTelemetryDeviceFingerprintMatchStrength(
+                    candidateFingerprint, fingerprint);
+                if ((uint8_t)strength > (uint8_t)strongestMatch) {
+                    strongestMatch = strength;
                 }
             }
             catch (...) {
-                pmlog_error(util::ReportException("IsMergeOption fingerprint query failed"))
+                pmlog_error(util::ReportException("GetLogicalDeviceMatchStrength fingerprint query failed"))
                     .pmwatch(logicalDevice.logicalDeviceId)
                     .pmwatch(providerDevice.providerDeviceId);
             }
         }
-        return false;
+        return strongestMatch;
     }
 
     TelemetryCoordinator::LogicalDevice_& TelemetryCoordinator::GetOrCreateLogicalDevice_(

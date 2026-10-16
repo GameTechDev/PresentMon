@@ -5,9 +5,13 @@
 #include <PresentMonAPI2/PresentMonAPI.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+using pmon::tel::FingerprintMatchStrength;
+using pmon::tel::FingerprintMergeCandidate;
+using pmon::tel::GetTelemetryDeviceFingerprintMatchStrength;
 using pmon::tel::TelemetryDeviceFingerprint;
 using pmon::tel::TelemetryDeviceFingerprintMatches;
 using pmon::tel::MergeTelemetryDeviceFingerprint;
+using pmon::tel::ResolveFingerprintMergeTargets;
 
 namespace TelemetryDeviceFingerprintTests
 {
@@ -48,6 +52,20 @@ namespace TelemetryDeviceFingerprintTests
             nvml.deviceName = "NVIDIA GeForce RTX 4090 ";
 
             Assert::IsTrue(TelemetryDeviceFingerprintMatches(nvapi, nvml));
+            Assert::AreEqual((int)FingerprintMatchStrength::PciBus,
+                (int)GetTelemetryDeviceFingerprintMatchStrength(nvapi, nvml));
+        }
+
+        TEST_METHOD(SameBusWithConflictingDeviceIdDoesNotMatch)
+        {
+            auto a = MakeGpu_(PM_DEVICE_VENDOR_NVIDIA, "NVIDIA GeForce RTX 4090");
+            a.pciDeviceId = 0x2684;
+            a.pciSubSystemId = 0x16F310DE;
+            a.pciBusId = 2;
+            auto b = a;
+            b.pciDeviceId = 0x2704;
+
+            Assert::IsFalse(TelemetryDeviceFingerprintMatches(a, b));
         }
 
         TEST_METHOD(IdenticalAmdCardsOnDifferentBusesDoNotMatchByName)
@@ -116,6 +134,14 @@ namespace TelemetryDeviceFingerprintTests
             Assert::IsTrue(TelemetryDeviceFingerprintMatches(a, b));
         }
 
+        TEST_METHOD(NormalizedEmptyNamesDoNotMatch)
+        {
+            const auto a = MakeGpu_(PM_DEVICE_VENDOR_AMD, "---");
+            const auto b = MakeGpu_(PM_DEVICE_VENDOR_AMD, " ");
+
+            Assert::IsFalse(TelemetryDeviceFingerprintMatches(a, b));
+        }
+
         TEST_METHOD(DifferentVendorsNeverMatch)
         {
             auto a = MakeGpu_(PM_DEVICE_VENDOR_NVIDIA, "GPU");
@@ -124,6 +150,56 @@ namespace TelemetryDeviceFingerprintTests
             b.pciBusId = 1;
 
             Assert::IsFalse(TelemetryDeviceFingerprintMatches(a, b));
+        }
+    };
+
+    TEST_CLASS(FingerprintMergeResolutionTests)
+    {
+    public:
+        TEST_METHOD(StrongMatchesResolveBeforeWeakerAmbiguity)
+        {
+            const std::vector<FingerprintMergeCandidate> candidates{
+                { 10, 1, FingerprintMatchStrength::PciBus },
+                { 10, 2, FingerprintMatchStrength::PciIds },
+                { 20, 2, FingerprintMatchStrength::PciIds },
+            };
+
+            const auto targets = ResolveFingerprintMergeTargets(candidates);
+
+            Assert::AreEqual((size_t)2, targets.size());
+            Assert::AreEqual(1u, targets.at(10));
+            Assert::AreEqual(2u, targets.at(20));
+        }
+
+        TEST_METHOD(EqualStrengthAmbiguityIsRejected)
+        {
+            const std::vector<FingerprintMergeCandidate> candidates{
+                { 10, 1, FingerprintMatchStrength::Name },
+                { 10, 2, FingerprintMatchStrength::Name },
+                { 20, 1, FingerprintMatchStrength::Name },
+                { 20, 2, FingerprintMatchStrength::Name },
+            };
+
+            const auto targets = ResolveFingerprintMergeTargets(candidates);
+
+            Assert::IsTrue(targets.empty());
+        }
+
+        TEST_METHOD(ResolutionDoesNotDependOnCandidateOrder)
+        {
+            const std::vector<FingerprintMergeCandidate> forward{
+                { 10, 1, FingerprintMatchStrength::PciBus },
+                { 10, 2, FingerprintMatchStrength::PciIds },
+                { 20, 2, FingerprintMatchStrength::PciIds },
+            };
+            const std::vector<FingerprintMergeCandidate> reverse{
+                { 20, 2, FingerprintMatchStrength::PciIds },
+                { 10, 2, FingerprintMatchStrength::PciIds },
+                { 10, 1, FingerprintMatchStrength::PciBus },
+            };
+
+            Assert::IsTrue(ResolveFingerprintMergeTargets(forward) ==
+                ResolveFingerprintMergeTargets(reverse));
         }
     };
 }
