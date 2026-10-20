@@ -21,9 +21,9 @@ namespace pmon::mid
     public:
         ActionClient(const std::string& pipeName) : ClientBase{ pipeName }
         {
-            VerifySharedServiceControlPipeServerIfNeeded(GetControlPipeBaseName_(), GetActionConnector_());
+            VerifySharedServiceControlPipeServerIfNeeded(GetControlPipeBaseName_(), SessionConnector_());
             const uint32_t verifiedPipeServerPid = IsDefaultSharedServiceControlPipe(GetControlPipeBaseName_())
-                ? GetActionConnector_().ResolveConnectedServerProcessId()
+                ? SessionConnector_().ResolveConnectedServerProcessId()
                 : 0u;
             auto res = DispatchSync(OpenSession::Params{
                 .clientPid = GetCurrentProcessId(),

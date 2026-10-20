@@ -1,7 +1,8 @@
 ﻿#pragma once
-#include "../Interprocess/source/act/SymmetricActionConnector.h"
+#include "../Interprocess/source/act/SessionEndReason.h"
 #include "../Interprocess/source/ShmNamer.h"
 #include "../CommonUtilities/win/Handle.h"
+#include <atomic>
 #include <memory>
 #include <set>
 #include <unordered_map>
@@ -21,17 +22,10 @@
 
 namespace pmon::svc::acts
 {
-    struct ActionExecutionContext;
-}
-
-namespace pmon::svc::acts
-{
     struct ActionSessionContext
     {
-        // common session context items
-        std::unique_ptr<ipc::act::SymmetricActionConnector<ActionExecutionContext>> pConn;
+        // required by the transport, see TransportSessionContext
         uint32_t remotePid = 0;
-        uint32_t nextCommandToken = 0;
 
         // custom items
         struct TrackedTarget
@@ -62,7 +56,18 @@ namespace pmon::svc::acts
         std::optional<uint32_t> responseWriteTimeoutMs;
 
         // functions
-        void Dispose(SessionContextType& stx);
+        void EnterFinalTeardown()
+        {
+            cleanupMode_->store(ipc::act::SessionCleanupMode::FinalTeardown, std::memory_order_release);
+        }
+        ipc::act::SessionCleanupMode GetSessionCleanupMode() const
+        {
+            return cleanupMode_->load(std::memory_order_acquire);
+        }
+        void Dispose(SessionContextType& stx, ipc::act::SessionDisposition disposition);
+
+        std::shared_ptr<std::atomic<ipc::act::SessionCleanupMode>> cleanupMode_ =
+            std::make_shared<std::atomic<ipc::act::SessionCleanupMode>>(ipc::act::SessionCleanupMode::NormalOperation);
 
         // TODO: refactor so that these functions need not be const
         void UpdateTelemetryPeriod() const;

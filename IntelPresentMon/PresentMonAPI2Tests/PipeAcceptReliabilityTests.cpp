@@ -1,5 +1,6 @@
 // Copyright (C) 2022-2025 Intel Corporation
 // SPDX-License-Identifier: MIT
+#include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
 #include "TestProcess.h"
 #include "Folders.h"

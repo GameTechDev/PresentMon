@@ -28,9 +28,7 @@ namespace p2c::client::util::cact
 }
 
 #ifdef PM_ASYNC_ACTION_REGISTRATION_
-#include <include/cef_task.h> 
-#include <include/base/cef_callback.h> 
-#include <include/wrapper/cef_closure_task.h> 
+#include "../KernelRelay.h"
 #include "../SignalManager.h"
 namespace p2c::client::util::cact
 {
@@ -41,8 +39,7 @@ namespace p2c::client::util::cact
 	// while also enabling dependency decoupling more easily
 	void ACT_NAME::Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 	{
-		CefPostTask(TID_RENDERER, base::BindOnce(&SignalManager::SignalOverlayDied,
-			base::Unretained(ctx.pSignalManager)));
+		ctx.pSignalRelay->Forward(SignalManager::Keys::overlayDied());
 	}
 }
 #endif

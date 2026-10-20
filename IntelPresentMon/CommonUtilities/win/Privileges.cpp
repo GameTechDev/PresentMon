@@ -2,6 +2,7 @@
 #include "HrError.h"
 #include "../log/Log.h"
 #include <format>
+#include <vector>
 #include "../Memory.h"
 
 namespace pmon::util::win
@@ -125,6 +126,29 @@ namespace pmon::util::win
 		}
 		catch (...) {
 			pmlog_error("Error checking elevation");
+			return false;
+		}
+	}
+	bool WeAreBelowHighIntegrity() noexcept
+	{
+		try {
+			auto hToken = OpenCurrentProcessToken(TOKEN_QUERY);
+			DWORD size = 0;
+			GetTokenInformation(hToken, TokenIntegrityLevel, nullptr, 0, &size);
+			if (size == 0) {
+				throw Except<HrError>("Failed sizing token integrity level");
+			}
+			std::vector<uint8_t> buffer(size);
+			if (!GetTokenInformation(hToken, TokenIntegrityLevel, buffer.data(), size, &size)) {
+				throw Except<HrError>("Failed reading token integrity level");
+			}
+			const auto pSid = reinterpret_cast<const TOKEN_MANDATORY_LABEL*>(buffer.data())->Label.Sid;
+			// the integrity level is the last subauthority of the label SID
+			const auto rid = *GetSidSubAuthority(pSid, (DWORD)(*GetSidSubAuthorityCount(pSid) - 1));
+			return rid < SECURITY_MANDATORY_HIGH_RID;
+		}
+		catch (...) {
+			pmlog_error("Error checking integrity level");
 			return false;
 		}
 	}

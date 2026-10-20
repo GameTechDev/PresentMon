@@ -1,27 +1,19 @@
 #pragma once
-#include "../../Interprocess/source/act/SymmetricActionConnector.h"
-#include "../../CommonUtilities/pipe/ManualAsyncEvent.h"
-#include <memory>
-#include <set>
-#include <unordered_map>
-#include <string>
 #include <optional>
 #include <cstdint>
-#include <chrono>
 #include "../../Core/source/kernel/Kernel.h"
 #include "../../Core/source/win/HotkeyListener.h"
+#include "../../CommonUtilities/log/Log.h"
+#include "../../Interprocess/source/act/SessionEndReason.h"
+#include <format>
 
 namespace kproc::kact
 {
     using namespace ::pmon;
-    struct KernelExecutionContext;
-
     struct KernelSessionContext
     {
-        // common session context items
-        std::unique_ptr<ipc::act::SymmetricActionConnector<KernelExecutionContext>> pConn;
+        // required by the transport, see TransportSessionContext
         uint32_t remotePid = 0;
-        uint32_t nextCommandToken = 0;
     };
 
     struct KernelExecutionContext
@@ -34,5 +26,16 @@ namespace kproc::kact
 
         p2c::kern::Kernel** ppKernel = nullptr;
         p2c::win::Hotkeys* pHotkeys = nullptr;
+
+        // Called by the server once for every session that ends. Hotkey bindings belong to
+        // the UI session that made them, so none outlive it.
+        void Dispose(SessionContextType&, ipc::act::SessionDisposition disposition) const
+        {
+            if (pHotkeys) {
+                const auto cleared = pHotkeys->ClearAll();
+                pmlog_info(std::format("Kernel session ended, cleared {} hotkey bindings reason:{}",
+                    cleared, (int)disposition.reason));
+            }
+        }
     };
 }

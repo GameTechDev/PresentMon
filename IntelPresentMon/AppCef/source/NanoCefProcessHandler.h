@@ -15,6 +15,7 @@ namespace p2c::client::cef
         public CefBrowserProcessHandler
     {
     public:
+        void OnBeforeCommandLineProcessing(const CefString& processType, CefRefPtr<CefCommandLine> pCommandLine) override;
         void OnContextInitialized() override;
         CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override;
         CefRefPtr<CefRenderProcessHandler> GetRenderProcessHandler() override;

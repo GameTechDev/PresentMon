@@ -1,18 +1,14 @@
 #pragma once
-#include "../Interprocess/source/act/SymmetricActionConnector.h"
 #include <cstdint>
-#include <memory>
 #include <optional>
 
 namespace pmon::mid
 {
-    struct MiddlewareExecutionContext;
-
+    // define minimal context for client side connection
     struct MiddlewareSessionContext
     {
-        std::unique_ptr<ipc::act::SymmetricActionConnector<MiddlewareExecutionContext>> pConn;
+        // required by the transport, see TransportSessionContext
         uint32_t remotePid = 0;
-        uint32_t nextCommandToken = 0;
     };
 
     struct MiddlewareExecutionContext

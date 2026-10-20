@@ -8,7 +8,8 @@ namespace p2c::client::util
 
     class CefClient : public act::SymmetricActionClient<cact::CefExecutionContext> {
     public:
-        CefClient(std::string pipeName, cact::CefExecutionContext context = {});
+        // connectedPipe: the client end of the pipe pair the kernel created for this UI
+        CefClient(::pmon::util::win::Handle connectedPipe, cact::CefExecutionContext context);
         const std::string& GetServiceBuildId() const;
         const std::string& GetServiceBuildTime() const;
         const std::string& GetServiceVersion() const;

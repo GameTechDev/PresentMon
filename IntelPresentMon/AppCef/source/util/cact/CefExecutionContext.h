@@ -1,31 +1,18 @@
 #pragma once
-#include <Interprocess/source/act/ActionHelper.h>
-#include <Interprocess/source/act/SymmetricActionConnector.h>
-#include <CommonUtilities/pipe/ManualAsyncEvent.h>
-#include <memory>
-#include <set>
-#include <unordered_map>
-#include <string>
 #include <optional>
 #include <cstdint>
-#include <chrono>
 
-namespace p2c::client::util
+namespace p2c::client::util::kernel_relay
 {
-    class SignalManager;
+    class SignalRelay;
 }
 
 namespace p2c::client::util::cact
 {
-    using namespace ::pmon;
-    struct CefExecutionContext;
-
     struct CefSessionContext
     {
-        // common session context items
-        std::unique_ptr<ipc::act::SymmetricActionConnector<CefExecutionContext>> pConn;
+        // required by the transport, see TransportSessionContext
         uint32_t remotePid = 0;
-        uint32_t nextCommandToken = 0;
     };
 
     struct CefExecutionContext
@@ -34,7 +21,8 @@ namespace p2c::client::util::cact
         using SessionContextType = CefSessionContext;
 
         // data
-        SignalManager* pSignalManager = nullptr;
+        // kernel events arrive in the browser process and are forwarded to the page through this
+        const kernel_relay::SignalRelay* pSignalRelay = nullptr;
         std::optional<uint32_t> responseWriteTimeoutMs;
     };
 }

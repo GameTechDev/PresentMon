@@ -4,6 +4,7 @@
 // Hermetic pipe security regressions for CI (no elevation). Full SY-listener AU squat on the
 // MSI default pipe remains manual (ActionPipeProbe / optional VM).
 
+#include "../CommonUtilities/win/WinAPI.h"
 #include "CppUnitTest.h"
 #include "TestProcess.h"
 #include "Folders.h"

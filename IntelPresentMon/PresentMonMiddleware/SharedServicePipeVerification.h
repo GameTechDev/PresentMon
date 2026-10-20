@@ -1,5 +1,6 @@
 #pragma once
 #include "MiddlewareExecutionContext.h"
+#include "../Interprocess/source/act/SymmetricActionConnector.h"
 #include "../CommonUtilities/win/ServiceProcess.h"
 #include <string>
 

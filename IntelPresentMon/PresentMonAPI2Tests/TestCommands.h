@@ -18,11 +18,15 @@ namespace pmon::test
 			std::set<uint32_t> frameStorePids;
 			uint32_t telemetryPeriodMs;
 			std::optional<uint32_t> etwFlushPeriodMs;
+			// action transport health: open sessions and acceptors currently posted
+			uint32_t actionSessionCount = 0;
+			uint32_t actionAcceptorCount = 0;
 
 			template <class Archive>
 			void serialize(Archive& ar)
 			{
-				ar(trackedPids, frameStorePids, telemetryPeriodMs, etwFlushPeriodMs);
+				ar(trackedPids, frameStorePids, telemetryPeriodMs, etwFlushPeriodMs,
+					actionSessionCount, actionAcceptorCount);
 			}
 		};
 	}

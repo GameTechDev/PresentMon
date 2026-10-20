@@ -51,8 +51,8 @@ namespace pmon::svc::acts
 			stx.remotePid = in.clientPid;
 			stx.clientBuildId = in.clientBuildId;
 			ctx.pSvc->SignalClientSessionOpened();
-			pmlog_info(std::format("Open action for session #{} pid={}; [BID] cli={} svc={} [CFG] cli={} svc={}",
-				stx.pConn->GetId(), in.clientPid, in.clientBuildId, bid::BuildIdLongHash(),
+			pmlog_info(std::format("Open action for pid={}; [BID] cli={} svc={} [CFG] cli={} svc={}",
+				in.clientPid, in.clientBuildId, bid::BuildIdLongHash(),
 				in.clientBuildConfig, bid::BuildIdConfig()));
 			return Response{
 				.servicePid = GetCurrentProcessId(),

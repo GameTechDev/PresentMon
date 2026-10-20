@@ -29,10 +29,6 @@
     {
       "Id": "bc1dd7da-c628-48fe-b073-19c243473c15",
       "Command": "--shm-name-prefix pm_my_nsm"
-    },
-    {
-      "Id": "aafe8ea9-f424-4996-9b6d-109bd2a76f40",
-      "Command": "--disable-ipc-log"
     }
   ]
 }

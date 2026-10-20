@@ -17,4 +17,7 @@ namespace pmon::util::win
 	void EnablePrivilege(HANDLE hToken, const std::string& privName);
 	TokenPack PrepareMediumIntegrityToken();
 	bool WeAreElevated() noexcept;
+	// Reads the token's integrity level, not its elevation type: a medium-integrity token
+	// restricted from an elevated one still reports itself as elevated. False on error.
+	bool WeAreBelowHighIntegrity() noexcept;
 }
