@@ -289,8 +289,9 @@ struct PresentEvent {
     // additional application frame.
     bool DisplayedViaFlipFrameType;
 
-    // If WaitingForFrameId, the present is waiting for another present with the same FrameId (or,
-    // until a PresentFrameType_Info event with a different FrameId).
+    // If WaitingForFrameId, the present is waiting until either a later-started present from the
+    // same process completes (which may have the same FrameId and need data from this one), or any
+    // present starting more than mDeferralTimeLimit later completes.
     bool WaitingForFrameId;
 
     // Data from NV DisplayDriver event

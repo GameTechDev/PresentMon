@@ -9,6 +9,7 @@ add_library(
         LoggingTests.cpp
         MetricCapabilitiesTests.cpp
         MetricsCore.cpp
+        PresentFrameTypeDeferralTests.cpp
         TelemetryAvailabilityMergeTests.cpp
         SwapChainTests.cpp
         Style.cpp
