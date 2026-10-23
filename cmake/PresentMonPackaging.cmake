@@ -259,6 +259,12 @@ function(pmon_packaging_wix_cmake_common_msbuild_properties output_variable)
     )
     set(api2_header "${CMAKE_SOURCE_DIR}/IntelPresentMon/PresentMonAPI2/PresentMonAPI.h")
     pmon_packaging_msbuild_file_path("${api2_header}" api2_header_native)
+    set(metrics_csv "${CMAKE_SOURCE_DIR}/IntelPresentMon/metrics.csv")
+    pmon_packaging_msbuild_file_path("${metrics_csv}" metrics_csv_native)
+    set(sdk_sample_main "${CMAKE_SOURCE_DIR}/IntelPresentMon/Samples/main.c")
+    pmon_packaging_msbuild_file_path("${sdk_sample_main}" sdk_sample_main_native)
+    set(sdk_sample_cmake "${CMAKE_SOURCE_DIR}/IntelPresentMon/Samples/CMakeLists.txt")
+    pmon_packaging_msbuild_file_path("${sdk_sample_cmake}" sdk_sample_cmake_native)
     set(
         loader_import_lib
         "${PMON_OUTPUT_ROOT}/Release/PresentMonAPI2Loader.lib"
@@ -297,6 +303,9 @@ function(pmon_packaging_wix_cmake_common_msbuild_properties output_variable)
         "/p:PmonPresentMonAPI2LoaderTargetFileName=$<TARGET_FILE_NAME:PresentMonAPI2Loader>"
         "/p:PmonPresentMonAPI2LoaderLibSource=${loader_import_lib_native}"
         "/p:PmonPresentMonAPI2HeaderSource=${api2_header_native}"
+        "/p:PmonMetricsCsvSource=${metrics_csv_native}"
+        "/p:PmonSdkSampleMainSource=${sdk_sample_main_native}"
+        "/p:PmonSdkSampleCmakeSource=${sdk_sample_cmake_native}"
         "/p:PmonConsoleTargetPath=${release_payload_dir_native}$<TARGET_FILE_NAME:PresentMonConsole>"
         "/p:PmonConsoleTargetFileName=$<TARGET_FILE_NAME:PresentMonConsole>"
     )
@@ -875,6 +884,10 @@ function(pmon_add_present_mon_installer_target)
         "${installer_project_dir}/en-us.wxl"
         "${installer_project_dir}/license.rtf"
         "${CMAKE_SOURCE_DIR}/IntelPresentMon/PmonCMakePackaging.wixproj.props"
+        "${CMAKE_SOURCE_DIR}/IntelPresentMon/PresentMonAPI2/PresentMonAPI.h"
+        "${CMAKE_SOURCE_DIR}/IntelPresentMon/metrics.csv"
+        "${CMAKE_SOURCE_DIR}/IntelPresentMon/Samples/main.c"
+        "${CMAKE_SOURCE_DIR}/IntelPresentMon/Samples/CMakeLists.txt"
         "${wixlib_output}"
         "${wixlib_stamp}"
         "${extension_dll}"

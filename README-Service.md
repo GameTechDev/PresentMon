@@ -14,7 +14,16 @@ All installations of PresentMon Service from version 2.3.1 onwards will deploy P
 
 We also provide a loader library to reduce the developer burden of manually loading the .dll and resolving endpoints. Applications using the loader can link to the PresentMonAPI2Loader.lib import library during build and deploy PresentMonAPI2Loader.dll with their application.
 
-PresentMonAPI.h, PresentMonAPI2Loader.lib, and PresentMonAPI2Loader.dll are optionally installed together with the service, and can be found by default in Program Files\Intel\PresentMon\SDK.
+PresentMonAPI.h, PresentMonAPI2Loader.lib, PresentMonAPI2Loader.dll, and metrics.csv are optionally installed together with the service, and can be found by default in Program Files\Intel\PresentMon\SDK. A minimal plain-C sample that polls displayed FPS and GPU utilization is installed under SDK\Samples (main.c and CMakeLists.txt).
+
+To build the sample from an installed SDK:
+
+```
+cmake -S "C:\Program Files\Intel\PresentMon\SDK\Samples" -B build
+cmake --build build --config Release
+```
+
+Run the resulting executable with a target process id: `fps_gpu_sample <processId>`. Deploy PresentMonAPI2Loader.dll next to the executable (the sample CMake copies it from the SDK folder when present).
 
 ## Diagnostics
 
