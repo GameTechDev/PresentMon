@@ -90,7 +90,16 @@ PM_STATUS MockPresentMonSession::UpdateTracking(const std::unordered_set<uint32_
 }
 
 bool MockPresentMonSession::CheckTraceSessions(bool forceTerminate) {
-    if (session_active_.load(std::memory_order_acquire) && stop_playback_requested_ == true) {
+    bool stopPlayback = false;
+    bool sessionActive = false;
+    {
+        // Synchronize with session startup so a stop requested during startup is
+        // applied to that session, while a request made before startup is consumed.
+        std::lock_guard lock(session_mutex_);
+        stopPlayback = stop_playback_requested_.exchange(false);
+        sessionActive = session_active_.load(std::memory_order_acquire);
+    }
+    if (stopPlayback && sessionActive) {
         StopTraceSession();
         return true;
     }
@@ -119,6 +128,7 @@ void MockPresentMonSession::StartPlayback()
 void MockPresentMonSession::StopPlayback()
 {
     stop_playback_requested_ = true;
+    evtCheckTraceSessions_.Set();
 }
 
 PM_STATUS MockPresentMonSession::StartTraceSession(uint32_t processId, const std::string& etlPath,
@@ -130,6 +140,7 @@ PM_STATUS MockPresentMonSession::StartTraceSession(uint32_t processId, const std
     bool isPlaybackResetOldest) {
 
     std::lock_guard<std::mutex> lock(session_mutex_);
+    stop_playback_requested_ = false;
 
     if (pm_consumer_) {
         pmlog_error("pmconsumer already created when start trace session called");
@@ -210,6 +221,14 @@ void MockPresentMonSession::StopTraceSession() {
     // also enforce only_once semantics with atomic flag
     if (session_active_.exchange(false, std::memory_order_acq_rel)) {
 
+        quit_output_thread_ = true;
+        if (pBroadcaster) {
+            for (auto pid : pBroadcaster->GetPids()) {
+                pBroadcaster->UpdateReadSerial(
+                    pid, pBroadcaster->GetCurrentWriteSerial(pid).value_or(0));
+            }
+        }
+
         // Stop the trace session.
         trace_session_.Stop();
 
@@ -267,7 +286,7 @@ void MockPresentMonSession::AddPresents(
         }
     }
 
-    for (auto n = presentEvents.size(); i < n; ++i) {
+    for (auto n = presentEvents.size(); i < n && !quit_output_thread_.load(); ++i) {
         auto presentEvent = presentEvents[i];
         assert(presentEvent->IsCompleted);
 

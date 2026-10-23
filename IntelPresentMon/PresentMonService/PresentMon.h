@@ -60,6 +60,10 @@ public:
 	{
 		return pSession_->GetStreamingStartHandle();
 	}
+	HANDLE GetCheckTraceSessionsHandle() const
+	{
+		return pSession_->GetCheckTraceSessionsHandle();
+	}
 	bool HasLiveTargets() const
 	{
 		return pSession_->HasLiveTargets();

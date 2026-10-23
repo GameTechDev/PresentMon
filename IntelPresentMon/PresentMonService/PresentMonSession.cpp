@@ -26,6 +26,11 @@ pmon::test::service::Status PresentMonSession::GetTestingStatus() const
     };
 }
 
+HANDLE PresentMonSession::GetCheckTraceSessionsHandle() const
+{
+    return evtCheckTraceSessions_;
+}
+
 PM_STATUS PresentMonSession::SetGpuTelemetryPeriod(std::optional<uint32_t> period_ms)
 {
     gpu_telemetry_period_ms_ = period_ms.value_or(default_gpu_telemetry_period_ms_);
