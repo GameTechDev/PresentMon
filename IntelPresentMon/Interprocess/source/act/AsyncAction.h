@@ -43,19 +43,15 @@ namespace pmon::ipc::act
 			}
 			catch (...) {
 				pmlog_error(util::ReportException());
-				// if the output buffer is dirty, we're not sure what state we're in so just clear it
-				if (pipe.GetWriteBufferPending()) {
-					pipe.ClearWriteBuffer();
-				}
 				resHeader = MakeResponseHeader(header, TransportStatus::TransportFailure, PM_STATUS_SUCCESS);
 			}
 			if (resHeader.transportStatus == TransportStatus::Success) {
 				// if no errors occured transmit standard packet with header and action response payload
-				co_await pipe.WritePacket(resHeader, output, ctx.responseWriteTimeoutMs);
+				co_await pipe.WritePacket(resHeader, output, ctx.responseWriteTimeoutMs.value_or(kDefaultWriteTimeoutMs));
 			}
 			else {
 				// if there was an error, transmit header (configured with error status) and empty payload
-				co_await pipe.WritePacket(resHeader, EmptyPayload{}, ctx.responseWriteTimeoutMs);
+				co_await pipe.WritePacket(resHeader, EmptyPayload{}, ctx.responseWriteTimeoutMs.value_or(kDefaultWriteTimeoutMs));
 			}
 		}
 		const char* GetIdentifier() const final
@@ -97,9 +93,10 @@ namespace pmon::ipc::act
 	struct ActionParamsTraits;
 
 	template<class A>
-	concept Request = std::is_base_of_v<AsyncActionBase_<A, typename A::ExecutionContext>, A> && requires {
+	concept Request = requires {
 		typename A::Params;
 		typename A::Response;
+		{ A::Identifier } -> std::convertible_to<const char*>;
 	};
 
 	template<class A>
@@ -112,7 +109,4 @@ namespace pmon::ipc::act
 
 	template<class Params>
 	using ResponseFromParams = typename ActionFromParams<Params>::Response;
-
-	template<class Params>
-	using AwaitableFromParams = pipe::as::awaitable<ResponseFromParams<Params>>;
 }

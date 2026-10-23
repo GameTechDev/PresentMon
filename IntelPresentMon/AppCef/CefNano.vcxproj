@@ -25,6 +25,8 @@
     <ClCompile Include="source\util\FontEnumerator.cpp" />
     <ClCompile Include="source\util\IpcInvocationManager.cpp" />
     <ClCompile Include="source\util\KernelActionRegistration.cpp" />
+    <ClCompile Include="source\util\KernelLink.cpp" />
+    <ClCompile Include="source\util\KernelRelay.cpp" />
     <ClCompile Include="source\util\LogSetup.cpp" />
     <ClCompile Include="source\util\PathSanitaryCheck.cpp" />
     <ClCompile Include="source\util\SignalManager.cpp" />
@@ -52,6 +54,8 @@
     <ClInclude Include="source\util\CefLog.h" />
     <ClInclude Include="source\util\CliOptions.h" />
     <ClInclude Include="source\util\IpcInvocationManager.h" />
+    <ClInclude Include="source\util\KernelLink.h" />
+    <ClInclude Include="source\util\KernelRelay.h" />
     <ClInclude Include="source\util\AsyncEndpoint.h" />
     <ClInclude Include="source\util\AsyncEndpointCollection.h" />
     <ClInclude Include="source\util\AsyncEndpointManager.h" />

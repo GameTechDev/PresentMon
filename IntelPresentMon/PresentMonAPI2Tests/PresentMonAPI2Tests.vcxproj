@@ -110,12 +110,20 @@
     <ClCompile Include="MultiClientTests.cpp" />
     <ClCompile Include="PipeAcceptReliabilityTests.cpp" />
     <ClCompile Include="PipeSecurityRegressionTests.cpp" />
+    <ClCompile Include="PipePairTests.cpp" />
+    <ClCompile Include="ActionRunnerTests.cpp" />
     <ClCompile Include="PacedFrameTests.cpp" />
     <ClCompile Include="PacedPollingTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />
     <ClCompile Include="Logging.cpp" />
     <ClCompile Include="MockTelemetryTests.cpp" />
     <ClCompile Include="RealtimeMetricTests.cpp" />
+    <ClCompile Include="TransportDemuxTests.cpp" />
+    <ClCompile Include="TransportLifecycleTests.cpp" />
+    <ClCompile Include="TransportPairedTests.cpp" />
+    <ClCompile Include="TransportSessionTests.cpp" />
+    <ClCompile Include="TransportTestKit.cpp" />
+    <ClCompile Include="TransportWriteDeadlineTests.cpp" />
     <ClCompile Include="UiLaunchTests.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -157,10 +165,12 @@
     <ClInclude Include="GpuMetricSelection.h" />
     <ClInclude Include="JobManager.h" />
     <ClInclude Include="Logging.h" />
+    <ClInclude Include="RawPipeClient.h" />
     <ClInclude Include="TestCommands.h" />
     <ClInclude Include="StatusComparison.h" />
     <ClInclude Include="TestDiagnosticsRedirect.h" />
     <ClInclude Include="TestProcess.h" />
+    <ClInclude Include="TransportTestKit.h" />
     <ClInclude Include="Utilities.h" />
   </ItemGroup>
   <ItemGroup>

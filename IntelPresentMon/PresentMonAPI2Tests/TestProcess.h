@@ -6,6 +6,7 @@
 #include "JobManager.h"
 #include "Logging.h"
 #include "TestCommands.h"
+#include "RawPipeClient.h"
 #include "../CommonUtilities/file/FileUtils.h"
 #include "../CommonUtilities/pipe/Pipe.h"
 #include <boost/process.hpp>
@@ -17,6 +18,8 @@
 #include <sstream>
 #include <filesystem>
 #include <chrono>
+#include <thread>
+#include <vector>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace as = boost::asio;
@@ -465,6 +468,10 @@ public:
 	std::unique_ptr<KernelProcess> LaunchKernelAsPtr(const std::vector<std::string>& args = {})
 	{
 		return std::make_unique<KernelProcess>(ioctx_, jobMan_, args, GetCommonArgs());
+	}
+	const std::string& GetControlPipeName() const
+	{
+		return GetCommonArgs().ctrlPipe;
 	}
 	virtual const CommonProcessArgs& GetCommonArgs() const = 0;
 private:

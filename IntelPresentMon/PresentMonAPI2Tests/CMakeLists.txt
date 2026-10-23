@@ -52,9 +52,17 @@ add_library(
         MultiClientTests.cpp
         PipeAcceptReliabilityTests.cpp
         PipeSecurityRegressionTests.cpp
+        PipePairTests.cpp
+        ActionRunnerTests.cpp
         PacedFrameTests.cpp
         PacedPollingTests.cpp
         RealtimeMetricTests.cpp
+        TransportDemuxTests.cpp
+        TransportLifecycleTests.cpp
+        TransportPairedTests.cpp
+        TransportSessionTests.cpp
+        TransportTestKit.cpp
+        TransportWriteDeadlineTests.cpp
         UiLaunchTests.cpp
         "${PROJECT_SOURCE_DIR}/IntelPresentMon/CommonUtilities/test/MachineExpectations.cpp"
 )

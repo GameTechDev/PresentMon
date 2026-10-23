@@ -4,6 +4,7 @@
     <ClCompile Include="Style.cpp" />
     <ClCompile Include="ExtremeQueue.cpp" />
     <ClCompile Include="FixedVectorTests.cpp" />
+    <ClCompile Include="HotkeyTests.cpp" />
     <ClCompile Include="LoggingTests.cpp" />
     <ClCompile Include="MetricCapabilitiesTests.cpp" />
     <ClCompile Include="MetricsCore.cpp" />

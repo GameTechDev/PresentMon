@@ -29,6 +29,9 @@
 #include <boost/process/v2/windows/as_user_launcher.hpp>
 #include <ranges>
 #include <iostream>
+#include <memory>
+#include <mutex>
+#include <exception>
 #include <filesystem>
 
 using namespace pmon;
@@ -40,33 +43,46 @@ namespace as = boost::asio;
 
 namespace kproc
 {
-	using KernelServer = ipc::act::SymmetricActionServer<kact::KernelExecutionContext>;
+	using KernelServer = ipc::act::SymmetricActionServer<kact::KernelExecutionContext, ipc::act::PairedSinglePeerServerPolicy>;
 
 	namespace cact = p2c::client::util::cact;
 
 	class KernelHandler : public p2c::kern::KernelHandler
 	{
 	public:
-		KernelHandler(KernelServer& server) : server_{ server } {}
+		KernelHandler(KernelServer& server) : server_{ &server } {}
+		void Detach()
+		{
+			std::lock_guard lk{ mtx_ };
+			server_ = nullptr;
+		}
 		void OnTargetLost(uint32_t pid) override
 		{
-			server_.DispatchDetached(cact::TargetLostAction::Params{ pid });
+			Send_(cact::TargetLostAction::Params{ pid });
 		}
 		void OnOverlayDied() override
 		{
-			server_.DispatchDetached(cact::OverlayDiedAction::Params{});
+			Send_(cact::OverlayDiedAction::Params{});
 		}
 		void OnPresentmonInitFailed() override
 		{
-			server_.DispatchDetached(cact::PresentmonInitFailedAction::Params{});
+			Send_(cact::PresentmonInitFailedAction::Params{});
 		}
 		void OnStalePidSelected() override
 		{
-			server_.DispatchDetached(cact::StalePidAction::Params{});
+			Send_(cact::StalePidAction::Params{});
 		}
 	private:
-		// data
-		KernelServer& server_;
+		template<class Params>
+		void Send_(Params&& params)
+		{
+			std::lock_guard lk{ mtx_ };
+			if (server_) {
+				server_->DispatchDetached(std::forward<Params>(params));
+			}
+		}
+		std::mutex mtx_;
+		KernelServer* server_ = nullptr;
 	};
 	class HeadlessKernelHandler : public p2c::kern::KernelHandler
 	{
@@ -383,8 +399,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			bid::BuildIdShortHash(), !bid::BuildIdDirtyFlag()));
 
 		// launch the service as a child process if desired (typically during development)
-		const auto logSvcPipe = opt.logSvcPipe.AsOptional().value_or(
-			std::format("pm2-child-svc-log-{}", GetCurrentProcessId()));
 		as::io_context ioctx;
 		std::optional<bp2::basic_process<as::io_context::executor_type>> svcChild;
 		if (opt.svcAsChild) {
@@ -394,7 +408,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				"--shm-name-prefix"s, *opt.shmNamePrefix,
 				"--etw-session-name"s, *opt.etwSessionName,
 				"--log-level"s, util::log::GetLevelName(util::log::GlobalPolicy::Get().GetLogLevel()),
-				"--log-pipe-name"s, logSvcPipe,
 				"--enable-stdio-log"s,
 			};
 			// append verbose module options
@@ -419,15 +432,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				svcChild = bp2::windows::default_launcher{}(ioctx, "PresentMonService.exe"s, std::move(args));
 			}
 			// wait for pipe availability of service api
-			if (!::pmon::util::win::WaitForNamedPipe(*opt.controlPipe + "-in", 1500000)) {
+			if (!::pmon::util::win::WaitForNamedPipe(*opt.controlPipe, 1500000)) {
 				pmlog_error("timeout waiting for child service control pipe to go online");
 				return -1;
 			}
-		}
-
-		if (opt.logSvcPipeEnable) {
-			// connect to service's log pipe (best effort)
-			ConnectToLoggingSourcePipe(logSvcPipe);
 		}
 
 		//// connect to the middleware diagnostic layer (not generally used by ipm since we connect
@@ -550,13 +558,16 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		p2c::kern::Kernel* pKernel = nullptr;
 		// active object that creates a window and sinks raw input messages to listen for hotkey presses
 		p2c::win::Hotkeys hotkeys;
-		// this server receives a connection from the CEF render process
-		const auto actName = std::format(R"(\\.\pipe\ipm-cef-channel-{})", GetCurrentProcessId());
-		KernelServer server{ kact::KernelExecutionContext{ .ppKernel = &pKernel, .pHotkeys = &hotkeys },
-			actName, 1, "D:(A;;GA;;;WD)S:(ML;;NW;;;ME)", headless };
+		// this server serves the UI. It has no listening pipe: each UI launch gets a private pipe pair
+		// whose client end only that UI inherits (OpenPairedSession), so no other process can connect
+		auto pServer = std::make_unique<KernelServer>(kact::KernelExecutionContext{ .ppKernel = &pKernel, .pHotkeys = &hotkeys },
+			std::format("pm-kernel-ui-{}", GetCurrentProcessId()),
+			util::pipe::DuplexPipe::GetPrivateControlPipeSecurityString(false), headless);
 		// set the hotkey manager to send notifications via the action server
-		hotkeys.SetHandler([&](int action) {
-			server.DispatchDetached(p2c::client::util::cact::HotkeyFiredAction::Params{ .actionId = action });
+		hotkeys.SetHandler([&pServer](int action) {
+			if (pServer) {
+				pServer->DispatchDetached(p2c::client::util::cact::HotkeyFiredAction::Params{ .actionId = action });
+			}
 		});
 		// select which handler to use for kernel async events/signals
 		auto pKernelHandler = [&]() -> std::unique_ptr<::p2c::kern::KernelHandler> {
@@ -566,13 +577,37 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			}
 			else {
 				// this handler receives events from the kernel and transmits them to the render process via the server
-				return std::make_unique<KernelHandler>(server);
+				return std::make_unique<KernelHandler>(*pServer);
 			}
 		}();
 		// the kernel manages the PresentMon data collection and the overlay rendering
 		p2c::kern::Kernel kernel{ pKernelHandler.get(), headless};
 		// new we set this pointer, giving the server access to the Kernel
 		pKernel = &kernel;
+		// Destroyed first: stop hotkeys, join and destroy the server while Kernel is alive.
+		struct ActionServerTeardown_
+		{
+			p2c::win::Hotkeys& hotkeys;
+			std::unique_ptr<KernelServer>& server;
+			KernelHandler* handler = nullptr;
+			~ActionServerTeardown_()
+			{
+				hotkeys.Stop();
+				if (handler) {
+					handler->Detach();
+				}
+				if (!server) {
+					return;
+				}
+				server->BeginShutdown();
+				if (!server->WaitForShutdown()) {
+					pmlog_error("Kernel action server runner did not stop while Kernel was still alive");
+					std::terminate();
+				}
+				server.reset();
+			}
+		} actionServerTeardown_{ hotkeys, pServer,
+			dynamic_cast<KernelHandler*>(pKernelHandler.get()) };
 		// run the UI when not headless
 		if (!headless) {
 			uint64_t uiLaunchAttempt = 0;
@@ -613,12 +648,18 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 					args.push_back(o.second);
 				}
 				const auto cefLogPipe = std::format("pm-ui-log-{}-{}", GetCurrentProcessId(), uiLaunchAttempt++);
+				// a new pipe pair for this UI; this also ends the session of any UI launched before it
+				auto uiPipe = pServer->OpenPairedSession();
+				// the launcher passes on only listed handles, and each must be marked inheritable
+				if (!SetHandleInformation(uiPipe, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT)) {
+					pmlog_error("Failed to make the UI pipe handle inheritable").hr();
+				}
 				// add fixed CLI options to the args vector
 				args.append_range(std::vector{
 					"--p2c-log-level"s, util::log::GetLevelName(*opt.logLevel),
 					"--p2c-log-trace-level"s, util::log::GetLevelName(*opt.logTraceLevel),
 					"--p2c-ui-mutex-name"s, *opt.uiMutexName,
-					"--p2c-act-name"s, actName,
+					"--p2c-act-handle"s, std::to_string((uintptr_t)uiPipe.Get()),
 					"--p2c-log-pipe-name"s, cefLogPipe
 				});
 				// launch the CEF browser process, which in turn launches all the other processes in the CEF process constellation
@@ -628,22 +669,37 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 					::pmon::util::file::ScopedWorkingDirectory setInstallWorkingDirectory{
 						infra::util::FolderResolver::ResolveInstallPath()
 					};
+					// the UI inherits the pipe handle and no other handle; auto, because the launchers'
+					// call operators are not virtual and must be called on the concrete type
+					auto launch = [&](auto& launcher) {
+						launcher.inherited_handles.push_back(uiPipe.Get());
+						return launcher(ioctx, "PresentMonUI.exe"s, args);
+					};
 					if (util::win::WeAreElevated()) {
+						// No fallback to an elevated UI: Chromium would relaunch it de-elevated,
+						// and the relaunched UI does not inherit the kernel pipe, so it could never connect.
 						try {
 							pmlog_info("detected elevation, attempting integrity downgrade");
 							auto mediumTokenPack = util::win::PrepareMediumIntegrityToken();
-							return bp2::windows::as_user_launcher{ mediumTokenPack.hMediumToken.Get() }(
-								ioctx, "PresentMonUI.exe"s, args
-								);
+							bp2::windows::as_user_launcher launcher{ mediumTokenPack.hMediumToken.Get() };
+							return launch(launcher);
 						}
 						catch (...) {
-							pmlog_warn(util::ReportException("Failed to downgrade integrity, falling back to standard process spawn"));
+							pmlog_error(util::ReportException("Failed to launch the UI at reduced integrity"));
+							MessageBoxW(nullptr,
+								L"Intel PresentMon could not start its window with reduced privileges. "
+								L"Start Intel PresentMon without \"Run as administrator\".",
+								L"Intel PresentMon",
+								MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
+							throw;
 						}
 					}
-					return bp2::windows::default_launcher{}(
-						ioctx, "PresentMonUI.exe"s, args
-						);
+					bp2::windows::default_launcher launcher;
+					return launch(launcher);
 				}();
+				// The UI has its own copy now. Ours must not stay open: the session ends only when
+				// every copy of the client end is closed, which is how the kernel sees the UI exit.
+				uiPipe = util::win::Handle{};
 
 				KillOnCloseJob uiJob{ cefChild.native_handle() };
 

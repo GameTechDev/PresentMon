@@ -33,10 +33,6 @@
     {
       "Id": "451e8835-6620-45f0-83cc-0cd19b29d21e",
       "Command": "--etl-test-file \"..\\..\\tests\\gold\\test_case_4.etl\""
-    },
-    {
-      "Id": "aafe8ea9-f424-4996-9b6d-109bd2a76f40",
-      "Command": "--disable-ipc-log"
     }
   ]
 }

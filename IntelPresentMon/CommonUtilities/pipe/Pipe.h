@@ -12,6 +12,8 @@
 #include "../log/Log.h"
 #include "SecurityMode.h"
 #include "CoroMutex.h"
+#include <chrono>
+#include <optional>
 #include <ranges>
 
 namespace pmon::util::pipe
@@ -20,12 +22,37 @@ namespace pmon::util::pipe
 	using namespace std::literals;
 
 	PM_DEFINE_EX(PipeError);
+	// A read that had a deadline and missed it. Distinct from a peer disconnect so
+	// the session owner can report SessionEndReason::PeerStalled.
+	PM_DEFINE_EX_FROM(PipeError, PipeReadTimeout);
+	// A write that had a deadline and missed it: the peer stopped reading. Part of the packet
+	// may already be on the wire, so the stream can no longer be trusted and the session owner
+	// must end the session (SessionEndReason::PeerStalled).
+	PM_DEFINE_EX_FROM(PipeError, PipeWriteTimeout);
+	// A write whose deadline passed while it waited for the write lock (another write held it),
+	// or that had no time left once it got the lock. Nothing was written and the stream is
+	// intact, so this fails only that write; the writer holding the lock answers for the stall.
+	PM_DEFINE_EX_FROM(PipeError, PipeSendQueueTimeout);
 	// pipe errors that are often part of acceptable program flow
 	PM_DEFINE_EX_FROM(PipeError, BenignPipeError);
 	// pipe was broken (closed by remote)
 	PM_DEFINE_EX_FROM(BenignPipeError, PipeBroken);
 	// pipe operation was canceled (e.g. by operator ||, ioctx.stop)
 	PM_DEFINE_EX_FROM(BenignPipeError, PipeOperationCanceled);
+
+	// Bounds imposed on the length prefix of an incoming packet. The declared body
+	// length is remote input, so it is validated before the receive buffer is grown
+	// to hold it. Owners with a known packet shape pass tighter limits at construction.
+	struct PipeLimits
+	{
+		uint32_t minBodyBytes = 1;
+		uint32_t maxBodyBytes = 1024 * 1024;
+		// once a length has been declared the sender has committed, so a stall is abuse
+		uint32_t bodyReadTimeoutMs = 2000;
+	};
+
+	// Written into the stream before the body is serialized, then overwritten in place.
+	inline constexpr uint32_t kPacketBodyLengthPlaceholder = 0x54454D50u;
 
 	class DuplexPipe
 	{
@@ -36,21 +63,48 @@ namespace pmon::util::pipe
 		DuplexPipe& operator=(DuplexPipe&&) = delete;
 		~DuplexPipe() = default;
 		as::awaitable<void> Accept();
-		static DuplexPipe Connect(const std::string& name, as::io_context& ioctx);
-		static DuplexPipe Make(const std::string& name, as::io_context& ioctx, const std::string& security = {});
-		static std::unique_ptr<DuplexPipe> ConnectAsPtr(const std::string& name, as::io_context& ioctx);
-		static std::unique_ptr<DuplexPipe> MakeAsPtr(const std::string& name, as::io_context& ioctx,
-			const std::string& security = {});
+		static DuplexPipe Connect(const std::string& name, as::io_context& ioctx, PipeLimits limits = {});
+		static std::unique_ptr<DuplexPipe> ConnectAsPtr(const std::string& name, as::io_context& ioctx, PipeLimits limits = {});
+		static std::unique_ptr<DuplexPipe> MakeAsPtr(const std::string& name, as::io_context& ioctx, const std::string& security = {}, PipeLimits limits = {});
+		// Both ends of a single-instance pipe, created and connected by this process, so no
+		// other process can ever connect to it. The client end stays a plain handle, to be
+		// handed to another process; it must not be given to asio here, because the I/O
+		// completion port association belongs to the file object both handles share.
+		struct ConnectedPair
+		{
+			std::unique_ptr<DuplexPipe> pServer;
+			win::Handle client;
+		};
+		// Throws PipeError if the name is already in use or the pair cannot be verified;
+		// the caller retries with a fresh name.
+		static ConnectedPair MakeConnectedPair(const std::string& name, as::io_context& ioctx,
+			const std::string& security, PipeLimits limits = {});
+		// Wraps the client end of a connected pair received from the process that created it.
+		static std::unique_ptr<DuplexPipe> AdoptConnectedClientAsPtr(HANDLE clientHandle, as::io_context& ioctx, PipeLimits limits = {});
+		// timeoutMs, when given, is one deadline covering the wait for the write lock and the
+		// write: PipeSendQueueTimeout if it passes before any byte is sent, PipeWriteTimeout if
+		// it passes during the write.
 		template<class H, class P>
 		as::awaitable<void> WritePacket(const H& header, const P& payload, std::optional<uint32_t> timeoutMs = {})
 		{
+			std::optional<std::chrono::steady_clock::time_point> deadline;
+			std::optional<std::chrono::milliseconds> lockTimeout;
+			if (timeoutMs) {
+				lockTimeout = std::chrono::milliseconds{ *timeoutMs };
+				deadline = std::chrono::steady_clock::now() + *lockTimeout;
+			}
 			// lock while this coro is running to prevent other coros from causing an overlapped operation fault
-			auto lk = co_await CoroLock(writeMtx_);
-			// some sanity checks
+			auto lk = co_await CoroLock(writeMtx_, lockTimeout);
+			if (lk.GetResult() == CoroMutex::LockResult::TimedOut) {
+				throw Except<PipeSendQueueTimeout>("Timeout waiting to write");
+			}
+			// Close cancels a waiter. Do not write on the closed handle.
+			if (!lk || !asioPipeHandle_.is_open()) {
+				throw Except<PipeOperationCanceled>("Write on closed pipe");
+			}
 			assert(writeBuf_.size() == 0);
-			assert(asioPipeHandle_.is_open());
 			// first we directly write bytes for the size of the body as a placeholder until we know how many are serialized
-			const uint32_t placeholderSize = 'TEMP';
+			const uint32_t placeholderSize = kPacketBodyLengthPlaceholder;
 			writeStream_.write(reinterpret_cast<const char*>(&placeholderSize), sizeof(placeholderSize));
 			// record how many bytes used for the serialization of the size
 			const auto sizeSize = writeBuf_.size();
@@ -58,29 +112,61 @@ namespace pmon::util::pipe
 			writeArchive_(header, payload);
 			// calculate size of body
 			const auto payloadSize = uint32_t(writeBuf_.size() - sizeSize);
+			if (payloadSize < limits_.minBodyBytes || payloadSize > limits_.maxBodyBytes) {
+				pmlog_error("Packet body size out of range").pmwatch(payloadSize);
+				writeBuf_.consume(writeBuf_.size());
+				throw Except<PipeError>("Packet body size out of range");
+			}
 			// replace the placeholder with the actual body size
 			const auto pSizeInPlace = const_cast<char*>(&*as::buffers_begin(writeBuf_.data()));
 			auto replacement = std::string_view{ reinterpret_cast<const char*>(&payloadSize), sizeof(payloadSize) };
 			std::ranges::copy(replacement, pSizeInPlace);
-			// transmit the packet
-			co_await Write_(timeoutMs);
+			// what is left of the deadline, measured after serialization, right before the I/O
+			std::optional<uint32_t> writeTimeoutMs;
+			if (deadline) {
+				const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+					*deadline - std::chrono::steady_clock::now());
+				if (remaining <= std::chrono::milliseconds::zero()) {
+					writeBuf_.consume(writeBuf_.size());
+					throw Except<PipeSendQueueTimeout>("No time left to write");
+				}
+				writeTimeoutMs = (uint32_t)remaining.count();
+			}
+			// transmit the packet; on failure drop what was not sent, so the next writer starts
+			// from a clean buffer (the stream itself may hold a partial packet, see PipeWriteTimeout)
+			try {
+				co_await Write_(writeTimeoutMs);
+			}
+			catch (...) {
+				writeBuf_.consume(writeBuf_.size());
+				throw;
+			}
 		}
+		// The wait for the length prefix has no limit, because a peer may stay idle between
+		// packets for any length of time. Once a length has been declared, the body is
+		// bounded by PipeLimits::bodyReadTimeoutMs.
 		template<class H>
-		as::awaitable<H> ReadPacketConsumeHeader(std::optional<uint32_t> timeoutMs = {})
+		as::awaitable<H> ReadPacketConsumeHeader()
 		{
 			// lock while this coro is running to prevent other coros from interrupting stream sequence
 			// and/or causing an overlapped operation fault
 			auto lk = co_await CoroLock(readMtx_);
-			// some sanity checks
+			if (!lk || !asioPipeHandle_.is_open()) {
+				throw Except<PipeOperationCanceled>("Read on closed pipe");
+			}
 			assert(readBuf_.size() == 0);
-			assert(asioPipeHandle_.is_open());
 			// read in request
 			// first read the number of bytes in the request payload (always 4-byte read)
 			uint32_t payloadSize;
-			co_await Read_(sizeof(payloadSize), timeoutMs);
+			co_await Read_(sizeof(payloadSize));
 			readStream_.read(reinterpret_cast<char*>(&payloadSize), sizeof(payloadSize));
+			// validate the declared length before growing the receive buffer to fit it
+			if (payloadSize < limits_.minBodyBytes || payloadSize > limits_.maxBodyBytes) {
+				pmlog_error("Packet body size out of range").pmwatch(payloadSize);
+				throw Except<PipeError>("Packet body size out of range");
+			}
 			// read the payload
-			co_await Read_(payloadSize, timeoutMs);
+			co_await Read_(payloadSize, limits_.bodyReadTimeoutMs);
 			// deserialize header portion of request payload
 			H header;
 			readArchive_(header);
@@ -93,20 +179,34 @@ namespace pmon::util::pipe
 		P ConsumePacketPayload()
 		{
 			P payload;
-			readArchive_(payload);
+			try {
+				readArchive_(payload);
+			}
+			catch (...) {
+				DiscardPacketPayload();
+				throw;
+			}
 			if (const auto sz = readBuf_.size()) {
 				assert("unexpected data when reading packet payload from buffer!!" && false);
-				pmlog_warn(std::format("Buffer contained unexpected data of size", sz));
+				pmlog_warn(std::format("Buffer contained unexpected data of size {}", sz));
 				readBuf_.consume(sz);
 			}
 			return payload;
 		}
+		// drops a packet body without deserializing it, for when the concrete payload
+		// type is unknown but the stream must be left positioned at the next packet
+		void DiscardPacketPayload();
+		// Aborts this side's in-flight reads and writes, then closes the handle so the
+		// peer observes a disconnect. A coroutine suspended on the pipe resumes with
+		// PipeOperationCanceled and unwinds through its own cleanup.
+		void Close();
 		size_t GetWriteBufferPending() const;
-		void ClearWriteBuffer();
-		static bool WaitForAvailability(const std::string& baseName, uint32_t timeoutMs, bool noSuffix = false, uint32_t pollPeriodMs = 5);
-		static bool WaitForVacancy(const std::string& baseName, uint32_t timeoutMs, bool noSuffix = false, uint32_t pollPeriodMs = 5);
+		static bool WaitForAvailability(const std::string& name, uint32_t timeoutMs, uint32_t pollPeriodMs = 5);
+		static bool WaitForVacancy(const std::string& name, uint32_t timeoutMs, uint32_t pollPeriodMs = 5);
 		uint32_t GetId() const;
 		std::string GetName() const;
+		// server side only, after Accept
+		uint32_t GetClientProcessId() const;
 		// Client-side only: pipe handle must be connected (post-CreateFile).
 		bool TryGetConnectedServerProcessId(uint32_t& serverProcessId) noexcept;
 		static std::string GetSecurityString(SecurityMode mode);
@@ -116,18 +216,23 @@ namespace pmon::util::pipe
 		static DWORD GetClientPipeConnectAccessMask() noexcept;
 	private:
 		// functions
-		DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool asClient);
+		// connected: the handle needs no accept (a client end, or either end of a connected pair)
+		DuplexPipe(as::io_context& ioctx, HANDLE pipeHandle, std::string name, bool connected, PipeLimits limits);
 		static HANDLE Connect_(const std::string& name);
-		static HANDLE Make_(const std::string& name, const std::string& security = {});
+		static HANDLE Make_(const std::string& name, const std::string& security = {}, bool singleInstance = false);
+		// aborts any in-flight read or write on this pipe; used by Close
+		void Cancel_();
 		// wrapper to convert EOF system_error to PipeBroken error, with optional timeout
 		as::awaitable<void> Read_(size_t byteCount, std::optional<uint32_t> timeoutMs = {});
 		// wrapper to convert EOF system_error to PipeBroken error, with optional timeout
 		as::awaitable<void> Write_(std::optional<uint32_t> timeoutMs = {});
-		as::awaitable<void> Timeout_(uint32_t ms);
+		// true when the deadline expired, false when the wait was cancelled; never throws
+		as::awaitable<bool> Timeout_(uint32_t ms);
 		void TransformError_(const boost::system::error_code& ec);
 		// data
 		static std::atomic<uint32_t> nextUid_;
 		std::string name_;
+		PipeLimits limits_;
 		uint32_t uid_ = nextUid_++;
 		win::Handle rawPipeHandle_;
 		as::windows::stream_handle asioPipeHandle_;

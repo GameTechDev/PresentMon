@@ -26,8 +26,21 @@ namespace p2c::win
 	}
 	Hotkeys::~Hotkeys()
 	{
-		pmlog_verb(v::core_hotkey)("Destroying hotkey processor");
+		Stop();
+	}
+	void Hotkeys::Stop()
+	{
+		{
+			std::lock_guard lk{ mtx_ };
+			Handler_ = nullptr;
+			registeredHotkeys_.clear();
+		}
+		if (!thread_.joinable()) {
+			return;
+		}
+		pmlog_verb(v::core_hotkey)("Stopping hotkey processor");
 		PostThreadMessageA(threadId_, WM_QUIT, 0, 0);
+		thread_.join();
 	}
 	void Hotkeys::Kernel_() noexcept
 	{
@@ -220,6 +233,13 @@ namespace p2c::win
 		}
 		// signal success
 		return true;
+	}
+	size_t Hotkeys::ClearAll()
+	{
+		std::lock_guard lk{ mtx_ };
+		const auto count = registeredHotkeys_.size();
+		registeredHotkeys_.clear();
+		return count;
 	}
 	win::ModSet Hotkeys::GatherModifiers_() const
 	{
