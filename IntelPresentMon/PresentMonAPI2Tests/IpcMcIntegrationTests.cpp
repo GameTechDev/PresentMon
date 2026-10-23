@@ -9,6 +9,7 @@
 #include "../CommonUtilities/test/MachineExpectations.h"
 
 #include "../PresentMonAPIWrapper/PresentMonAPIWrapper.h"
+#include "../PresentMonAPI2/Internal.h"
 #include "../Interprocess/source/SystemDeviceId.h"
 #include "../CommonUtilities/Meta.h"
 #include "../CommonUtilities/mc/FrameMetricsMemberMap.h"
@@ -317,6 +318,44 @@ namespace IpcMcIntegrationTests
         TEST_METHOD_CLEANUP(Cleanup)
         {
             fixture_.Cleanup();
+        }
+
+        TEST_METHOD(InternalBuildInfoEndpointsAreIndependent)
+        {
+            pmon::api2::ComponentBuildInfo middlewareInfo{};
+            Assert::IsTrue(pmGetMiddlewareBuildInfo_(&middlewareInfo) == PM_STATUS_SUCCESS);
+            Assert::AreEqual(pmon::api2::kComponentBuildInfoVersion, middlewareInfo.version);
+            Assert::IsTrue(middlewareInfo.productVersion[0] != '\0');
+            Assert::IsTrue(std::string{ middlewareInfo.productVersion } != "unknown");
+            Assert::IsTrue(middlewareInfo.buildId[0] != '\0');
+            Assert::IsTrue(middlewareInfo.buildTime[0] != '\0');
+            Assert::IsTrue(middlewareInfo.buildConfig[0] != '\0');
+            Assert::IsTrue(pmGetMiddlewareBuildInfo_(nullptr) == PM_STATUS_BAD_ARGUMENT);
+
+            auto olderCallerInfo = middlewareInfo;
+            olderCallerInfo.version = pmon::api2::kComponentBuildInfoVersion - 1;
+            Assert::IsTrue(pmGetMiddlewareBuildInfo_(&olderCallerInfo) ==
+                PM_STATUS_MIDDLEWARE_VERSION_HIGH);
+
+            pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
+            pmon::api2::ComponentBuildInfo serviceInfo{};
+            Assert::IsTrue(pmGetServiceBuildInfo_(session.GetHandle(), &serviceInfo) == PM_STATUS_SUCCESS);
+            Assert::AreEqual(pmon::api2::kComponentBuildInfoVersion, serviceInfo.version);
+            Assert::IsTrue(serviceInfo.productVersion[0] != '\0');
+            Assert::IsTrue(serviceInfo.buildId[0] != '\0');
+            Assert::IsTrue(serviceInfo.buildTime[0] != '\0');
+            Assert::IsTrue(serviceInfo.buildConfig[0] != '\0');
+            Assert::AreEqual(std::string{ middlewareInfo.buildId }, std::string{ serviceInfo.buildId });
+            Assert::IsTrue(pmGetServiceBuildInfo_(session.GetHandle(), nullptr) == PM_STATUS_BAD_ARGUMENT);
+
+            auto newerCallerInfo = serviceInfo;
+            newerCallerInfo.version = pmon::api2::kComponentBuildInfoVersion + 1;
+            Assert::IsTrue(pmGetServiceBuildInfo_(session.GetHandle(), &newerCallerInfo) ==
+                PM_STATUS_MIDDLEWARE_VERSION_LOW);
+
+            Assert::IsTrue(pmGetServiceBuildInfo_(nullptr, &serviceInfo) == PM_STATUS_SESSION_NOT_OPEN);
+            Assert::IsTrue(pmGetMiddlewareBuildInfo_(&middlewareInfo) == PM_STATUS_SUCCESS);
+            Assert::IsTrue(pmGetServiceBuildInfo_(session.GetHandle(), &serviceInfo) == PM_STATUS_SUCCESS);
         }
 
         TEST_METHOD(UniversalFrameQueryConsumesPresenterFrames)

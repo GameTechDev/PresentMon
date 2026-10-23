@@ -37,6 +37,14 @@ namespace p2c::kern
         std::optional<std::wstring> windowName;
     };
 
+    struct BuildInfo
+    {
+        std::string productVersion;
+        std::string buildId;
+        std::string buildTime;
+        std::string buildConfig;
+    };
+
     class Kernel
     {
     public:
@@ -50,11 +58,14 @@ namespace p2c::kern
         void SetEtlLogging(bool active);
         const pmapi::intro::Root& GetIntrospectionRoot() const;
         uint32_t GetDefaultGpuDeviceId() const;
+        BuildInfo GetServiceBuildInfo();
+        BuildInfo GetMiddlewareBuildInfo();
     private:
         // functions
         bool IsIdle_() const;
         std::unique_ptr<OverlaySpec> PullSpec_();
         void HandleMarshalledException_() const;
+        BuildInfo QueryServiceBuildInfo_();
         // top level root acts like state machine for spawning/running overlay
         void ThreadProcedure_();
         // loop runs while overlay window active, holds message pump etc.
@@ -63,6 +74,7 @@ namespace p2c::kern
         // data
         KernelHandler* pHandler = nullptr;
         std::optional<pmon::PresentMon> pm; // optional to defer creation to when the thread is run
+        BuildInfo serviceBuildInfo_;
         bool dying = false;
         bool clearRequested = false;
         bool inhibitTargetLostSignal = false;

@@ -6,7 +6,6 @@ export interface AppInfo {
     productVersion: string;
     fileVersion: string;
     apiVersion: string;
-    middlewareApiVersion: string;
     buildId: string;
     buildHash: string;
     buildHashShort: string;
@@ -19,6 +18,12 @@ export interface AppInfo {
     serviceBuildId: string;
     serviceBuildTime: string;
     serviceVersion: string;
+    serviceBuildConfig: string;
+    middlewareBuildId: string;
+    middlewareBuildTime: string;
+    middlewareVersion: string;
+    middlewareBuildConfig: string;
+    middlewareApiVersion: string;
     cefVersion: string;
     cefVersionMajor: number;
     cefVersionMinor: number;

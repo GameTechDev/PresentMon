@@ -65,6 +65,9 @@ void(*pFunc_pmFlushEntryPoint__)() = nullptr;
 void(*pFunc_pmSetupODSLogging__)(PM_DIAGNOSTIC_LEVEL, PM_DIAGNOSTIC_LEVEL, bool) = nullptr;
 PM_STATUS(*pFunc_pmSetupFileLogging__)(const char*, PM_DIAGNOSTIC_LEVEL,
 	PM_DIAGNOSTIC_LEVEL, bool) = nullptr;
+PM_STATUS(*pFunc_pmGetServiceBuildInfo__)(
+	PM_SESSION_HANDLE, pmon::api2::ComponentBuildInfo*) = nullptr;
+PM_STATUS(*pFunc_pmGetMiddlewareBuildInfo__)(pmon::api2::ComponentBuildInfo*) = nullptr;
 PM_STATUS(*pFunc_pmStopPlayback__)(PM_SESSION_HANDLE) = nullptr;
 
 
@@ -202,6 +205,8 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 		RESOLVE_CPP_OPTIONAL(pmFlushEntryPoint_);
 		RESOLVE_CPP_OPTIONAL(pmSetupODSLogging_);
 		RESOLVE_CPP_OPTIONAL(pmSetupFileLogging_);
+		RESOLVE_CPP_OPTIONAL(pmGetServiceBuildInfo_);
+		RESOLVE_CPP_OPTIONAL(pmGetMiddlewareBuildInfo_);
 		RESOLVE_CPP_OPTIONAL(pmStopPlayback_);
 		// if we make it here then we have succeeded
 		middlewareLoadResult_ = PM_STATUS_SUCCESS;
@@ -457,6 +462,26 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetupFileLogging_(const char* file, PM_DIAGNO
 		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
 	}
 	return pFunc_pmSetupFileLogging__(file, logLevel, stackTraceLevel, exceptionTrace);
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmGetServiceBuildInfo_(
+	PM_SESSION_HANDLE handle, pmon::api2::ComponentBuildInfo* pInfo)
+{
+	LoadEndpointsIfEmpty_();
+	if (!pFunc_pmGetServiceBuildInfo__) {
+		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
+	}
+	return pFunc_pmGetServiceBuildInfo__(handle, pInfo);
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmGetMiddlewareBuildInfo_(
+	pmon::api2::ComponentBuildInfo* pInfo)
+{
+	LoadEndpointsIfEmpty_();
+	if (!pFunc_pmGetMiddlewareBuildInfo__) {
+		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
+	}
+	return pFunc_pmGetMiddlewareBuildInfo__(pInfo);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmStopPlayback_(PM_SESSION_HANDLE hSession)

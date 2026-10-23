@@ -52,6 +52,10 @@ namespace pmon::mid
                     .pmwatch(res.serviceBuildConfig).pmwatch(bid::BuildIdConfig()).diag();
                 throw Except<ipc::PmStatusError>(PM_STATUS_MIDDLEWARE_SERVICE_MISMATCH);
             }
+            serviceProductVersion_ = std::move(res.serviceVersion);
+            serviceBuildId_ = std::move(res.serviceBuildId);
+            serviceBuildTime_ = std::move(res.serviceBuildTime);
+            serviceBuildConfig_ = std::move(res.serviceBuildConfig);
             shmPrefix_ = res.shmPrefix;
             shmSalt_ = res.shmSalt;
             pmlog_info(std::format("Opened session with server, pid = [{}]", res.servicePid));
@@ -101,7 +105,27 @@ namespace pmon::mid
         {
             return shmSalt_;
         }
+        const std::string& GetServiceProductVersion() const
+        {
+            return serviceProductVersion_;
+        }
+        const std::string& GetServiceBuildId() const
+        {
+            return serviceBuildId_;
+        }
+        const std::string& GetServiceBuildTime() const
+        {
+            return serviceBuildTime_;
+        }
+        const std::string& GetServiceBuildConfig() const
+        {
+            return serviceBuildConfig_;
+        }
     private:
+        std::string serviceProductVersion_;
+        std::string serviceBuildId_;
+        std::string serviceBuildTime_;
+        std::string serviceBuildConfig_;
         std::string shmPrefix_;
         std::string shmSalt_;
     };
