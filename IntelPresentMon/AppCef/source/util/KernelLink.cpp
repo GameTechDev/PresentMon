@@ -32,12 +32,17 @@ namespace p2c::client::util
 
 	CefRefPtr<CefDictionaryValue> KernelLink::MakeBrowserExtraInfo() const
 	{
-		const std::string unknown = "unknown";
+		const std::string unavailable = "N/A";
 		auto info = CefDictionaryValue::Create();
-		info->SetString(kernel_relay::kServiceBuildIdKey, pClient_ ? pClient_->GetServiceBuildId() : unknown);
-		info->SetString(kernel_relay::kServiceBuildTimeKey, pClient_ ? pClient_->GetServiceBuildTime() : unknown);
-		info->SetString(kernel_relay::kServiceVersionKey, pClient_ ? pClient_->GetServiceVersion() : unknown);
-		info->SetString(kernel_relay::kMiddlewareApiVersionKey, pClient_ ? pClient_->GetMiddlewareApiVersion() : unknown);
+		info->SetString(kernel_relay::kServiceBuildIdKey, pClient_ ? pClient_->GetServiceBuildId() : unavailable);
+		info->SetString(kernel_relay::kServiceBuildTimeKey, pClient_ ? pClient_->GetServiceBuildTime() : unavailable);
+		info->SetString(kernel_relay::kServiceVersionKey, pClient_ ? pClient_->GetServiceVersion() : unavailable);
+		info->SetString(kernel_relay::kServiceBuildConfigKey, pClient_ ? pClient_->GetServiceBuildConfig() : unavailable);
+		info->SetString(kernel_relay::kMiddlewareBuildIdKey, pClient_ ? pClient_->GetMiddlewareBuildId() : unavailable);
+		info->SetString(kernel_relay::kMiddlewareBuildTimeKey, pClient_ ? pClient_->GetMiddlewareBuildTime() : unavailable);
+		info->SetString(kernel_relay::kMiddlewareVersionKey, pClient_ ? pClient_->GetMiddlewareVersion() : unavailable);
+		info->SetString(kernel_relay::kMiddlewareBuildConfigKey, pClient_ ? pClient_->GetMiddlewareBuildConfig() : unavailable);
+		info->SetString(kernel_relay::kMiddlewareApiVersionKey, pClient_ ? pClient_->GetMiddlewareApiVersion() : unavailable);
 		return info;
 	}
 

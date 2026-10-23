@@ -160,6 +160,11 @@ namespace p2c::client::cef
             versions.serviceBuildId = extra_info->GetString(kr::kServiceBuildIdKey).ToString();
             versions.serviceBuildTime = extra_info->GetString(kr::kServiceBuildTimeKey).ToString();
             versions.serviceVersion = extra_info->GetString(kr::kServiceVersionKey).ToString();
+            versions.serviceBuildConfig = extra_info->GetString(kr::kServiceBuildConfigKey).ToString();
+            versions.middlewareBuildId = extra_info->GetString(kr::kMiddlewareBuildIdKey).ToString();
+            versions.middlewareBuildTime = extra_info->GetString(kr::kMiddlewareBuildTimeKey).ToString();
+            versions.middlewareVersion = extra_info->GetString(kr::kMiddlewareVersionKey).ToString();
+            versions.middlewareBuildConfig = extra_info->GetString(kr::kMiddlewareBuildConfigKey).ToString();
             versions.middlewareApiVersion = extra_info->GetString(kr::kMiddlewareApiVersionKey).ToString();
         }
 

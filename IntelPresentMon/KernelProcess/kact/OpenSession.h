@@ -1,15 +1,10 @@
 #pragma once
 #include "../../Interprocess/source/act/ActionHelper.h"
 #include "KernelExecutionContext.h"
-#include <Versioning/BuildId.h>
 #include <format>
 
 #ifdef PM_KERNEL_PROCESS_BUILD
 #include <PresentMonAPI2/PresentMonAPI.h>
-#endif
-
-#ifndef PM_VER_PRODUCT_STR
-#define PM_VER_PRODUCT_STR "unknown"
 #endif
 
 #define ACT_NAME OpenSession
@@ -24,20 +19,23 @@ namespace ACT_NS
 #ifdef PM_KERNEL_PROCESS_BUILD
 	inline std::string FormatMiddlewareApiVersion_(const PM_VERSION& version)
 	{
-		auto formatted = std::format("{}.{}.{}", version.major, version.minor, version.patch);
-		if (version.tag[0] != '\0') {
-			formatted += std::format(" {}", version.tag);
-		}
-		return formatted + std::format(" {} {}", version.hash, version.config);
+		return std::format("{}.{}.{}", version.major, version.minor, version.patch);
 	}
 
 	inline std::string GetMiddlewareApiVersion_()
 	{
-		PM_VERSION version{};
-		if (pmGetApiVersion(&version) != PM_STATUS_SUCCESS) {
-			return "unknown";
+		try {
+			PM_VERSION version{};
+			if (const auto status = pmGetApiVersion(&version); status != PM_STATUS_SUCCESS) {
+				pmlog_warn("Unable to retrieve middleware API version").pmwatch((int)status);
+				return "N/A";
+			}
+			return FormatMiddlewareApiVersion_(version);
 		}
-		return FormatMiddlewareApiVersion_(version);
+		catch (...) {
+			pmlog_error("Exception retrieving middleware API version").no_trace();
+			return "N/A";
+		}
 	}
 #endif
 
@@ -58,10 +56,17 @@ namespace ACT_NS
 			std::string serviceBuildId;
 			std::string serviceBuildTime;
 			std::string serviceVersion;
+			std::string serviceBuildConfig;
+			std::string middlewareBuildId;
+			std::string middlewareBuildTime;
+			std::string middlewareVersion;
+			std::string middlewareBuildConfig;
 			std::string middlewareApiVersion;
 
 			template<class A> void serialize(A& ar) {
-				ar(kernelPid, serviceBuildId, serviceBuildTime, serviceVersion, middlewareApiVersion);
+				ar(kernelPid, serviceBuildId, serviceBuildTime, serviceVersion, serviceBuildConfig,
+					middlewareBuildId, middlewareBuildTime, middlewareVersion,
+					middlewareBuildConfig, middlewareApiVersion);
 			}
 		};
 	private:
@@ -69,17 +74,33 @@ namespace ACT_NS
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
 			stx.remotePid = in.cefRenderPid;
-			const Response res{
+			Response res{
 				.kernelPid = GetCurrentProcessId(),
-				.serviceBuildId = ::pmon::bid::BuildIdLongHash(),
-				.serviceBuildTime = ::pmon::bid::BuildIdTimestamp(),
-				.serviceVersion = PM_VER_PRODUCT_STR,
-#ifdef PM_KERNEL_PROCESS_BUILD
-				.middlewareApiVersion = GetMiddlewareApiVersion_(),
-#else
-				.middlewareApiVersion = "unknown",
-#endif
+				.serviceBuildId = "N/A",
+				.serviceBuildTime = "N/A",
+				.serviceVersion = "N/A",
+				.serviceBuildConfig = "N/A",
+				.middlewareBuildId = "N/A",
+				.middlewareBuildTime = "N/A",
+				.middlewareVersion = "N/A",
+				.middlewareBuildConfig = "N/A",
+				.middlewareApiVersion = "N/A",
 			};
+#ifdef PM_KERNEL_PROCESS_BUILD
+			const auto serviceInfo = (*ctx.ppKernel)->GetServiceBuildInfo();
+			res.serviceBuildId = serviceInfo.buildId;
+			res.serviceBuildTime = serviceInfo.buildTime;
+			res.serviceVersion = serviceInfo.productVersion;
+			res.serviceBuildConfig = serviceInfo.buildConfig;
+
+			const auto middlewareInfo = (*ctx.ppKernel)->GetMiddlewareBuildInfo();
+			res.middlewareBuildId = middlewareInfo.buildId;
+			res.middlewareBuildTime = middlewareInfo.buildTime;
+			res.middlewareVersion = middlewareInfo.productVersion;
+			res.middlewareBuildConfig = middlewareInfo.buildConfig;
+
+			res.middlewareApiVersion = GetMiddlewareApiVersion_();
+#endif
 			pmlog_info(std::format("Kernel open action for cef={} krn={}", in.cefRenderPid, res.kernelPid));
 			return res;
 		}

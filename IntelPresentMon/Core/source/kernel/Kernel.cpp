@@ -15,6 +15,7 @@
 #include <CommonUtilities/Exception.h>
 #include <PresentMonAPIWrapperCommon/Exception.h>
 #include <CommonUtilities/win/Utilities.h>
+#include <PresentMonAPI2/Internal.h>
 using namespace std::literals;
 using namespace ::pmon::util;
 namespace cwin = ::pmon::util::win;
@@ -41,6 +42,19 @@ namespace p2c::kern
     }
 
     using str::ToWide;
+
+    namespace
+    {
+        BuildInfo MakeUnavailableBuildInfo_()
+        {
+            return {
+                .productVersion = "N/A",
+                .buildId = "N/A",
+                .buildTime = "N/A",
+                .buildConfig = "N/A",
+            };
+        }
+    }
 
     Kernel::Kernel(KernelHandler* pHandler, bool headless)
         :
@@ -114,6 +128,60 @@ namespace p2c::kern
         return serviceUnavailable_;
     }
 
+    BuildInfo Kernel::GetServiceBuildInfo()
+    {
+        std::lock_guard g{ mtx };
+        return serviceBuildInfo_;
+    }
+
+    BuildInfo Kernel::QueryServiceBuildInfo_()
+    {
+        try {
+            if (!pm) {
+                pmlog_warn("Unable to retrieve service build info: no active session");
+                return MakeUnavailableBuildInfo_();
+            }
+            ::pmon::api2::ComponentBuildInfo info{};
+            if (const auto status = pmGetServiceBuildInfo_(pm->GetSession().GetHandle(), &info);
+                status != PM_STATUS_SUCCESS) {
+                pmlog_warn("Unable to retrieve service build info").pmwatch((int)status);
+                return MakeUnavailableBuildInfo_();
+            }
+            return BuildInfo{
+                .productVersion = info.productVersion,
+                .buildId = info.buildId,
+                .buildTime = info.buildTime,
+                .buildConfig = info.buildConfig,
+            };
+        }
+        catch (...) {
+            pmlog_error("Exception retrieving service build info: " + ReportException().first).no_trace();
+            return MakeUnavailableBuildInfo_();
+        }
+    }
+
+    BuildInfo Kernel::GetMiddlewareBuildInfo()
+    {
+        try {
+            ::pmon::api2::ComponentBuildInfo info{};
+            if (const auto status = pmGetMiddlewareBuildInfo_(&info);
+                status != PM_STATUS_SUCCESS) {
+                pmlog_warn("Unable to retrieve middleware build info").pmwatch((int)status);
+                return MakeUnavailableBuildInfo_();
+            }
+            return {
+                .productVersion = info.productVersion,
+                .buildId = info.buildId,
+                .buildTime = info.buildTime,
+                .buildConfig = info.buildConfig,
+            };
+        }
+        catch (...) {
+            pmlog_error("Exception retrieving middleware build info: " + ReportException().first).no_trace();
+            return MakeUnavailableBuildInfo_();
+        }
+    }
+
     void Kernel::SetCapture(bool active)
     {
         HandleMarshalledException_();
@@ -173,7 +241,10 @@ namespace p2c::kern
             }
 
             // create the PresentMon object
-            try { pm.emplace(controlPipe); }
+            try {
+                pm.emplace(controlPipe);
+                serviceBuildInfo_ = QueryServiceBuildInfo_();
+            }
             catch (...) {
                 pHandler->OnPresentmonInitFailed();
                 pmlog_error("Failed to init presentmon api").no_trace();

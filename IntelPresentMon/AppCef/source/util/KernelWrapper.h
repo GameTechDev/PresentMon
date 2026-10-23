@@ -16,10 +16,15 @@ namespace p2c::client::util
         // versions the kernel reported to the browser process, received with browser creation
         struct KernelVersions
         {
-            std::string serviceBuildId = "unknown";
-            std::string serviceBuildTime = "unknown";
-            std::string serviceVersion = "unknown";
-            std::string middlewareApiVersion = "unknown";
+            std::string serviceBuildId = "N/A";
+            std::string serviceBuildTime = "N/A";
+            std::string serviceVersion = "N/A";
+            std::string serviceBuildConfig = "N/A";
+            std::string middlewareBuildId = "N/A";
+            std::string middlewareBuildTime = "N/A";
+            std::string middlewareVersion = "N/A";
+            std::string middlewareBuildConfig = "N/A";
+            std::string middlewareApiVersion = "N/A";
         } kernelVersions;
 	};
 }

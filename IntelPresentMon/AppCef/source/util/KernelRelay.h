@@ -32,6 +32,11 @@ namespace p2c::client::util::kernel_relay
 	inline constexpr const char* kServiceBuildIdKey = "serviceBuildId";
 	inline constexpr const char* kServiceBuildTimeKey = "serviceBuildTime";
 	inline constexpr const char* kServiceVersionKey = "serviceVersion";
+	inline constexpr const char* kServiceBuildConfigKey = "serviceBuildConfig";
+	inline constexpr const char* kMiddlewareBuildIdKey = "middlewareBuildId";
+	inline constexpr const char* kMiddlewareBuildTimeKey = "middlewareBuildTime";
+	inline constexpr const char* kMiddlewareVersionKey = "middlewareVersion";
+	inline constexpr const char* kMiddlewareBuildConfigKey = "middlewareBuildConfig";
 	inline constexpr const char* kMiddlewareApiVersionKey = "middlewareApiVersion";
 
 	// Params and Response types already serialize with cereal for the pipe; the relay reuses that.
