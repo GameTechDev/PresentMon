@@ -76,6 +76,7 @@ template<> void PatchKeyword<Microsoft_Windows_DxgKrnl::Device_Start>           
 template<> void PatchKeyword<Microsoft_Windows_DxgKrnl::Device_Stop>                    (uint64_t* k) { *k &= ~(uint64_t) Microsoft_Windows_DxgKrnl::Keyword::Microsoft_Windows_DxgKrnl_Performance; }
 template<> void PatchKeyword<Microsoft_Windows_DxgKrnl::HwQueue_DCStart>                (uint64_t* k) { *k &= ~(uint64_t) Microsoft_Windows_DxgKrnl::Keyword::Microsoft_Windows_DxgKrnl_Performance; }
 template<> void PatchKeyword<Microsoft_Windows_DxgKrnl::HwQueue_Start>                  (uint64_t* k) { *k &= ~(uint64_t) Microsoft_Windows_DxgKrnl::Keyword::Microsoft_Windows_DxgKrnl_Performance; }
+template<> void PatchKeyword<Microsoft_Windows_DxgKrnl::HwQueue_Stop>                   (uint64_t* k) { *k &= ~(uint64_t) Microsoft_Windows_DxgKrnl::Keyword::Microsoft_Windows_DxgKrnl_Performance; }
 template<> void PatchKeyword<Microsoft_Windows_DxgKrnl::DmaPacket_Info>                 (uint64_t* k) { *k &= ~(uint64_t) Microsoft_Windows_DxgKrnl::Keyword::Microsoft_Windows_DxgKrnl_Performance; }
 template<> void PatchKeyword<Microsoft_Windows_DxgKrnl::DmaPacket_Start>                (uint64_t* k) { *k &= ~(uint64_t) Microsoft_Windows_DxgKrnl::Keyword::Microsoft_Windows_DxgKrnl_Performance; }
 template<> void PatchKeyword<Microsoft_Windows_DxgKrnl::NodeMetadata_Info>              (uint64_t* k) { *k &= ~(uint64_t) Microsoft_Windows_DxgKrnl::Keyword::Microsoft_Windows_DxgKrnl_Performance; }
@@ -852,6 +853,7 @@ ULONG EnableProvidersListing(
         provider.AddEvent<Microsoft_Windows_DxgKrnl::Device_Stop>();
         provider.AddEvent<Microsoft_Windows_DxgKrnl::HwQueue_DCStart>();
         provider.AddEvent<Microsoft_Windows_DxgKrnl::HwQueue_Start>();
+        provider.AddEvent<Microsoft_Windows_DxgKrnl::HwQueue_Stop>();
         provider.AddEvent<Microsoft_Windows_DxgKrnl::DmaPacket_Info>();
         provider.AddEvent<Microsoft_Windows_DxgKrnl::DmaPacket_Start>();
     }
