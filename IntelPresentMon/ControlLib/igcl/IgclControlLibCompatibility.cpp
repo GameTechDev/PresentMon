@@ -193,13 +193,16 @@ namespace pmon::tel::igcl
 
                 std::error_code fsError;
                 if (!std::filesystem::exists(*controlApiPath, fsError)) {
-                    continue;
+                    SetupDiDestroyDeviceInfoList(deviceInfoSet);
+                    return std::nullopt;
                 }
 
                 const auto fileVersion = TryReadPeFileVersion_(*controlApiPath);
-                if (fileVersion.has_value()) {
-                    versions.push_back(*fileVersion);
+                if (!fileVersion.has_value()) {
+                    SetupDiDestroyDeviceInfoList(deviceInfoSet);
+                    return std::nullopt;
                 }
+                versions.push_back(*fileVersion);
             }
 
             SetupDiDestroyDeviceInfoList(deviceInfoSet);

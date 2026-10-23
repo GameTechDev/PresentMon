@@ -201,7 +201,18 @@ namespace pmon::tel::nvml
         if (NvmlWrapper::Ok(pciResult)) {
             device.fingerprint.pciDeviceId = pciInfo.pciDeviceId;
             device.fingerprint.pciSubSystemId = pciInfo.pciSubSystemId;
-            device.fingerprint.pciBusId = pciInfo.bus;
+            // NVAPI exposes only an 8-bit bus number, not the PCI domain. Only
+            // compare locations directly in the conventional domain zero.
+            if (pciInfo.domain == 0 && pciInfo.bus <= 0xFFu) {
+                device.fingerprint.pciBusId = pciInfo.bus;
+            }
+            else {
+                pmlog_warn("NVML PCI location cannot be compared with NVAPI")
+                    .pmwatch(device.providerDeviceId)
+                    .pmwatch(device.fingerprint.deviceName)
+                    .pmwatch(pciInfo.domain)
+                    .pmwatch(pciInfo.bus);
+            }
             pmlog_verb(v::tele_gpu)("nvmlDeviceGetPciInfo_v3 output")
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName)
