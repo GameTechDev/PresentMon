@@ -28,9 +28,10 @@
                         Type="ownProcess"
                         ErrorControl="normal"
                         Vital="no" />
-        <!-- Only handle service removal on uninstall - let RestartManager handle in-use files -->
+        <!-- Start via MSI service control (no console host); remove on uninstall -->
         <ServiceControl Id="SharedPresentMonServiceControl"
                         Name="PresentMonSharedService"
+                        Start="install"
                         Remove="uninstall"
                         Wait="no" />
       </Component>
@@ -66,19 +67,6 @@
 
     </DirectoryRef>
 
-    <!-- Smart service start - only if service is not already running -->
-    <CustomAction Id="TryStartSharedService"
-                  Directory="SystemFolder"
-                  ExeCommand='cmd /c "sc query PresentMonSharedService | find "RUNNING" > nul || sc start PresentMonSharedService"'
-                  Execute="deferred"
-                  Impersonate="no"
-                  Return="ignore" />
-
-    <InstallExecuteSequence>
-        <!-- After InstallServices has registered the service (and StartServices would have run) -->
-        <Custom Action="TryStartSharedService" After="StartServices">1</Custom>
-    </InstallExecuteSequence>
-      
     <!-- Group that consumers reference -->
     <ComponentGroup Id="service_files">
       <ComponentRef Id="pmon_shared_service_component" />
