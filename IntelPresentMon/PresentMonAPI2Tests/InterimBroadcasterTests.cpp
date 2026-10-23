@@ -1131,6 +1131,7 @@ namespace InterimBroadcasterTests
             const auto servicePid = fixture_.service->GetId();
             Assert::IsTrue((bool)pmon::tests::FindThreadByName(servicePid, L"frame-out"),
                 L"Expected playback output thread while playing back");
+            std::this_thread::sleep_for(machine::ScaleWait(100ms));
 
             client.DispatchSync(svc::acts::StopPlayback::Params{});
 

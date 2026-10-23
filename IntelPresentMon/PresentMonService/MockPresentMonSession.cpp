@@ -221,6 +221,12 @@ void MockPresentMonSession::StopTraceSession() {
     // also enforce only_once semantics with atomic flag
     if (session_active_.exchange(false, std::memory_order_acq_rel)) {
 
+        quit_output_thread_ = true;
+        if (pBroadcaster) {
+            pBroadcaster->UpdateReadSerial(
+                etlProcessId_, pBroadcaster->GetCurrentWriteSerial(etlProcessId_).value_or(0));
+        }
+
         // Stop the trace session.
         trace_session_.Stop();
 
@@ -278,7 +284,7 @@ void MockPresentMonSession::AddPresents(
         }
     }
 
-    for (auto n = presentEvents.size(); i < n; ++i) {
+    for (auto n = presentEvents.size(); i < n && !quit_output_thread_.load(); ++i) {
         auto presentEvent = presentEvents[i];
         assert(presentEvent->IsCompleted);
 

@@ -65,7 +65,7 @@ namespace pmon::svc
                 pSegment = comms_.GetFrameDataSegment(present.ProcessId);
             }
             if (pSegment) {
-                pSegment->GetStore().frameData.Push(FrameData::CopyFrameData(present));
+                pSegment->GetStore().frameData.Push(FrameData::CopyFrameData(present), timeoutMs);
             }
 		}
         // Update the single consumer cursor for a backpressured playback ring. Playback
