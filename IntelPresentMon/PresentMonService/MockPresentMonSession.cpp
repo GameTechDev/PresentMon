@@ -223,8 +223,10 @@ void MockPresentMonSession::StopTraceSession() {
 
         quit_output_thread_ = true;
         if (pBroadcaster) {
-            pBroadcaster->UpdateReadSerial(
-                etlProcessId_, pBroadcaster->GetCurrentWriteSerial(etlProcessId_).value_or(0));
+            for (auto pid : pBroadcaster->GetPids()) {
+                pBroadcaster->UpdateReadSerial(
+                    pid, pBroadcaster->GetCurrentWriteSerial(pid).value_or(0));
+            }
         }
 
         // Stop the trace session.
