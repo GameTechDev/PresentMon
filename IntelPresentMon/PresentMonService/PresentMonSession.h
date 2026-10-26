@@ -18,6 +18,7 @@
 #include "../../PresentData/PresentMonTraceConsumer.hpp"
 #include "../../PresentData/PresentMonTraceSession.hpp"
 #include "FrameBroadcaster.h"
+#include "../CommonUtilities/win/Event.h"
 
 #include "../PresentMonAPI2Tests/TestCommands.h"
 
@@ -38,6 +39,8 @@ public:
     virtual HANDLE GetStreamingStartHandle() = 0;
     virtual void FlushEvents() {}
     virtual void ResetEtwFlushPeriod() = 0;
+    // auto-reset event signaled when CheckTraceSessions needs to be run
+    HANDLE GetCheckTraceSessionsHandle() const;
 
     pmon::test::service::Status GetTestingStatus() const;
     PM_STATUS SetGpuTelemetryPeriod(std::optional<uint32_t> period_ms);
@@ -65,6 +68,8 @@ protected:
     std::atomic<std::optional<uint32_t>> etw_flush_period_ms_;
 
     svc::FrameBroadcaster* pBroadcaster = nullptr;
+
+    pmon::util::win::Event evtCheckTraceSessions_{ false, false };
 
     void SyncTrackedPidState(const std::unordered_set<uint32_t>& trackedPids);
 

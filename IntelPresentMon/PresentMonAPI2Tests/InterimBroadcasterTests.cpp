@@ -8,6 +8,7 @@
 #include "GpuMetricSelection.h"
 #include "StatusComparison.h"
 #include "TestProcess.h"
+#include "ThreadInspection.h"
 #include <string>
 #include <ranges>
 #include <fstream>
@@ -1001,6 +1002,150 @@ namespace InterimBroadcasterTests
 
             Assert::IsTrue(range1.second - range1.first < range2.second - range2.first);
             Assert::IsTrue(range2.second - range2.first < range3.second - range3.first);
+        }
+    };
+
+    static util::win::Handle FindServiceThread_(uint32_t servicePid, std::wstring_view name)
+    {
+        auto hThread = pmon::tests::FindThreadByName(servicePid, name);
+        Assert::IsTrue((bool)hThread, std::format(L"Could not find {} thread in service", name).c_str());
+        return hThread;
+    }
+
+    static uint64_t SampleThreadCycles_(const util::win::Handle& hThread)
+    {
+        Assert::IsTrue(pmon::tests::IsThreadRunning(hThread), L"Service thread exited unexpectedly");
+        return pmon::tests::GetThreadCycles(hThread);
+    }
+
+    static void AssertThreadDormant_(const util::win::Handle& hThread,
+        std::chrono::milliseconds duration, const wchar_t* message)
+    {
+        constexpr uint64_t schedulingNoiseToleranceCycles = 100'000;
+        const auto before = SampleThreadCycles_(hThread);
+        std::this_thread::sleep_for(duration);
+        const auto after = SampleThreadCycles_(hThread);
+        Assert::IsTrue(after >= before, L"Thread cycle count moved backwards");
+        Assert::IsTrue(after - before <= schedulingNoiseToleranceCycles,
+            std::format(L"{} (cycle delta: {})", message, after - before).c_str());
+    }
+
+    TEST_CLASS(IdleThreadTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup();
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        // with a client connected but nothing tracked, the output thread should never wake
+        TEST_METHOD(OutputThreadNoWakeWhileIdle)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            const auto hThread = FindServiceThread_(fixture_.service->GetId(), L"frame-out");
+            AssertThreadDormant_(hThread, 1s, L"Output thread ran while idle");
+        }
+        // with a client connected but nothing tracked, the main thread should never wake
+        TEST_METHOD(MainThreadNoWakeWhileIdle)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            const auto hThread = FindServiceThread_(fixture_.service->GetId(), L"pm-main");
+            AssertThreadDormant_(hThread, 1s, L"Main thread ran while idle");
+        }
+        // output thread should wake to process frames while tracking, then go dormant after untracking
+        // main thread is not involved in realtime tracking and should stay dormant throughout
+        TEST_METHOD(DormantAfterUntrack)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            const auto hMain = FindServiceThread_(fixture_.service->GetId(), L"pm-main");
+            const auto mainStart = SampleThreadCycles_(hMain);
+
+            auto pres = fixture_.LaunchPresenter();
+            client.DispatchSync(svc::acts::SetEtwFlushPeriod::Params{ .etwFlushPeriodMs = 8 });
+            std::this_thread::sleep_for(1ms);
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pres.GetId() });
+
+            pComms->OpenFrameDataStore(pres.GetId());
+            pmon::tests::WaitForFirstFrame(pComms->GetFrameDataStore(pres.GetId()).frameData,
+                "output-thread-dormant");
+
+            // verify the output thread is actively running to process frames while tracking
+            const auto hOutput = FindServiceThread_(fixture_.service->GetId(), L"frame-out");
+            const auto trackingStart = SampleThreadCycles_(hOutput);
+            std::this_thread::sleep_for(machine::ScaleWait(200ms));
+            const auto trackingEnd = SampleThreadCycles_(hOutput);
+            Assert::IsTrue(trackingEnd > trackingStart, L"Output thread did not run while tracking");
+
+            client.DispatchSync(svc::acts::StopTracking::Params{ .targetPid = pres.GetId() });
+            pComms->CloseFrameDataStore(pres.GetId());
+
+            // allow any in-flight event batches to drain before measuring the dormant period
+            std::this_thread::sleep_for(machine::ScaleWait(500ms));
+            AssertThreadDormant_(hOutput, 1s, L"Output thread ran after tracking stopped");
+
+            const auto mainEnd = SampleThreadCycles_(hMain);
+            constexpr uint64_t schedulingNoiseToleranceCycles = 100'000;
+            Assert::IsTrue(mainEnd >= mainStart, L"Main thread cycle count moved backwards");
+            Assert::IsTrue(mainEnd - mainStart <= schedulingNoiseToleranceCycles,
+                std::format(L"Main thread ran during track/untrack cycle (cycle delta: {})",
+                    mainEnd - mainStart).c_str());
+        }
+    };
+
+    TEST_CLASS(PlaybackStopTests)
+    {
+        TestFixture fixture_;
+    public:
+        TEST_METHOD_INITIALIZE(Setup)
+        {
+            fixture_.Setup({
+                "--etl-test-file"s, R"(..\..\Tests\AuxData\Data\P00HeaWin2080.etl)",
+                "--pace-playback"s,
+            });
+        }
+        TEST_METHOD_CLEANUP(Cleanup)
+        {
+            fixture_.Cleanup();
+        }
+        // stop playback request must wake the main thread so that it tears down the playback session
+        TEST_METHOD(StopPlaybackEndsSession)
+        {
+            mid::ActionClient client{ fixture_.GetCommonArgs().ctrlPipe };
+            auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
+
+            const uint32_t pid = 12820;
+            client.DispatchSync(svc::acts::StartTracking::Params{ .targetPid = pid, .isPlayback = true });
+            pComms->OpenFrameDataStore(pid);
+            pmon::tests::WaitForFirstFrame(pComms->GetFrameDataStore(pid).frameData, "playback-stop");
+
+            const auto servicePid = fixture_.service->GetId();
+            Assert::IsTrue((bool)pmon::tests::FindThreadByName(servicePid, L"frame-out"),
+                L"Expected playback output thread while playing back");
+            std::this_thread::sleep_for(machine::ScaleWait(100ms));
+
+            client.DispatchSync(svc::acts::StopPlayback::Params{});
+
+            // session teardown joins the playback output thread
+            const auto deadline = std::chrono::steady_clock::now() + machine::ScaleWait(10s);
+            bool outputThreadGone = false;
+            while (std::chrono::steady_clock::now() < deadline) {
+                if (!pmon::tests::FindThreadByName(servicePid, L"frame-out")) {
+                    outputThreadGone = true;
+                    break;
+                }
+                std::this_thread::sleep_for(20ms);
+            }
+            Assert::IsTrue(outputThreadGone, L"Playback session was not stopped after StopPlayback");
         }
     };
 
