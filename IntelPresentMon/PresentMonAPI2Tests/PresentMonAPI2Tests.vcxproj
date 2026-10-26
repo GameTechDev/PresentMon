@@ -102,7 +102,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="InterimBroadcasterTests.cpp" />
+    <ClCompile Include="InterimBroadcasterTests.cpp">
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/bigobj %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="IpcComponentTests.cpp" />
     <ClCompile Include="IpcMcIntegrationTests.cpp" />
     <ClCompile Include="..\CommonUtilities\test\MachineExpectations.cpp" />
@@ -171,6 +173,7 @@
     <ClInclude Include="TestDiagnosticsRedirect.h" />
     <ClInclude Include="TestProcess.h" />
     <ClInclude Include="TransportTestKit.h" />
+    <ClInclude Include="ThreadInspection.h" />
     <ClInclude Include="Utilities.h" />
   </ItemGroup>
   <ItemGroup>
