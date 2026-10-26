@@ -1,6 +1,7 @@
 ﻿// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: MIT
 #pragma once
+#include <cstddef>
 
 enum class nvmlReturn_t {
 	NVML_SUCCESS = 0,
@@ -101,14 +102,20 @@ typedef struct _nvmlDevice_t* nvmlDevice_t;
 
 // nvml pci info struct
 struct nvmlPciInfo_t {
-	unsigned int bus;
-	char busId[NVML_DEVICE_PCI_BUS_ID_BUFFER_SIZE];
 	char busIdLegacy[NVML_DEVICE_PCI_BUS_ID_BUFFER_V2_SIZE];
-	unsigned int device;
 	unsigned int domain;
+	unsigned int bus;
+	unsigned int device;
 	unsigned int pciDeviceId;
 	unsigned int pciSubSystemId;
+	char busId[NVML_DEVICE_PCI_BUS_ID_BUFFER_SIZE];
 };
+
+static_assert(sizeof(nvmlPciInfo_t) == 68);
+static_assert(offsetof(nvmlPciInfo_t, domain) == 16);
+static_assert(offsetof(nvmlPciInfo_t, bus) == 20);
+static_assert(offsetof(nvmlPciInfo_t, pciDeviceId) == 28);
+static_assert(offsetof(nvmlPciInfo_t, busId) == 36);
 
 struct nvmlMemory_t {
 	unsigned long long total;
@@ -122,8 +129,8 @@ struct nvmlUtilization_t {
 };
 
 struct nvmlSample_t {
-	nvmlValue_t sampleValue;
 	unsigned long long timeStamp;
+	nvmlValue_t sampleValue;
 };
 
 struct nvmlViolationTime_t {

@@ -12,6 +12,7 @@ add_library(
         MetricsCore.cpp
         PresentFrameTypeDeferralTests.cpp
         IgclControlLibCompatibilityTests.cpp
+        TelemetryDeviceFingerprintTests.cpp
         TelemetryAvailabilityMergeTests.cpp
         SwapChainTests.cpp
         Style.cpp
