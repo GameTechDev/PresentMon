@@ -167,3 +167,101 @@ TEST(CommandLineTests, TerminateExisting_NotFound)
 TEST(CommandLineTests, QPCTime)               { QpcTimeTest<uint64_t>(true); }
 TEST(CommandLineTests, QPCTimeInMilliSeconds) { QpcTimeTest<double>(false); }
 
+TEST(CommandLineTests, TrackShaderCompilation)
+{
+    std::wstring etlPath(goldDir_ + L"test_case_0.etl");
+    if (GetFileAttributes(etlPath.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        GTEST_SKIP() << "test_case_0.etl not found in gold directory.";
+    }
+
+    // 1. Default metrics with --track_shader_compilation emits PSOCompileCount, MsPSOCompileTime, PSOCompileBusyPercent
+    {
+        std::wstring csvPath(outDir_ + L"shader_compilation_default.csv");
+        PresentMon pm;
+        pm.Add(L"--stop_existing_session --track_shader_compilation");
+        pm.AddEtlPath(etlPath);
+        pm.AddCsvPath(csvPath);
+        pm.PMSTART();
+        pm.PMEXITED(10000, 0);
+
+        PresentMonCsv csv;
+        ASSERT_TRUE(csv.CSVOPEN(csvPath));
+
+        auto idxGpuWait  = csv.GetColumnIndex("MsGPUWait");
+        auto idxPsoCount = csv.GetColumnIndex("PSOCompileCount");
+        auto idxPsoTime  = csv.GetColumnIndex("MsPSOCompileTime");
+        auto idxPsoBusy  = csv.GetColumnIndex("PSOCompileBusyPercent");
+        auto idxAnimErr  = csv.GetColumnIndex("MsAnimationError");
+
+        EXPECT_NE(idxGpuWait,  SIZE_MAX);
+        EXPECT_NE(idxPsoCount, SIZE_MAX);
+        EXPECT_NE(idxPsoTime,  SIZE_MAX);
+        EXPECT_NE(idxPsoBusy,  SIZE_MAX);
+        EXPECT_NE(idxAnimErr,  SIZE_MAX);
+
+        // Verify exact column placement (after GPU metrics, before display/animation metrics)
+        EXPECT_EQ(idxPsoCount, idxGpuWait + 1);
+        EXPECT_EQ(idxPsoTime,  idxPsoCount + 1);
+        EXPECT_EQ(idxPsoBusy,  idxPsoTime + 1);
+        EXPECT_EQ(idxAnimErr,  idxPsoBusy + 1);
+
+        while (!::testing::Test::HasFailure() && csv.ReadRow()) {
+        }
+        csv.Close();
+        EXPECT_GT(csv.line_, 1u);
+    }
+
+    // 2. Excluded when --v2_metrics or --v1_metrics is specified
+    {
+        std::wstring csvPath(outDir_ + L"shader_compilation_v2.csv");
+        PresentMon pm;
+        pm.Add(L"--stop_existing_session --v2_metrics --track_shader_compilation");
+        pm.AddEtlPath(etlPath);
+        pm.AddCsvPath(csvPath);
+        pm.PMSTART();
+        pm.PMEXITED(10000, 0);
+
+        PresentMonCsv csv;
+        ASSERT_TRUE(csv.CSVOPEN(csvPath));
+        EXPECT_EQ(csv.GetColumnIndex("PSOCompileCount"),       SIZE_MAX);
+        EXPECT_EQ(csv.GetColumnIndex("MsPSOCompileTime"),      SIZE_MAX);
+        EXPECT_EQ(csv.GetColumnIndex("PSOCompileBusyPercent"), SIZE_MAX);
+        csv.Close();
+    }
+    {
+        std::wstring csvPath(outDir_ + L"shader_compilation_v1.csv");
+        PresentMon pm;
+        pm.Add(L"--stop_existing_session --v1_metrics --track_shader_compilation");
+        pm.AddEtlPath(etlPath);
+        pm.AddCsvPath(csvPath);
+        pm.PMSTART();
+        pm.PMEXITED(10000, 0);
+
+        PresentMonCsv csv;
+        ASSERT_TRUE(csv.CSVOPEN(csvPath));
+        EXPECT_EQ(csv.GetColumnIndex("PSOCompileCount"),       SIZE_MAX);
+        EXPECT_EQ(csv.GetColumnIndex("MsPSOCompileTime"),      SIZE_MAX);
+        EXPECT_EQ(csv.GetColumnIndex("PSOCompileBusyPercent"), SIZE_MAX);
+        csv.Close();
+    }
+
+    // 3. --track_shader_compilation overrides --no_track_display because display tracking is required
+    {
+        std::wstring csvPath(outDir_ + L"shader_compilation_forces_display.csv");
+        PresentMon pm;
+        pm.Add(L"--stop_existing_session --no_track_gpu --no_track_display --track_shader_compilation");
+        pm.AddEtlPath(etlPath);
+        pm.AddCsvPath(csvPath);
+        pm.PMSTART();
+        pm.PMEXITED(10000, 0);
+
+        PresentMonCsv csv;
+        ASSERT_TRUE(csv.CSVOPEN(csvPath));
+        EXPECT_NE(csv.GetColumnIndex("PresentMode"),           SIZE_MAX);
+        EXPECT_NE(csv.GetColumnIndex("PSOCompileCount"),       SIZE_MAX);
+        EXPECT_NE(csv.GetColumnIndex("MsPSOCompileTime"),      SIZE_MAX);
+        EXPECT_NE(csv.GetColumnIndex("PSOCompileBusyPercent"), SIZE_MAX);
+        csv.Close();
+    }
+}
+

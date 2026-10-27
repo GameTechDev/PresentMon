@@ -36,6 +36,9 @@ struct PresentMonCsv
         Header_MsGPUBusy,
         Header_MsGPUWait,
         Header_MsVideoBusy,
+        Header_PSOCompileCount,
+        Header_MsPSOCompileTime,
+        Header_PSOCompileBusyPercent,
         Header_MsAnimationError,
         Header_MsClickToPhotonLatency,
         Header_MsAllInputToPhotonLatency,
@@ -174,6 +177,9 @@ struct PresentMonCsv
         case Header_MsGPUBusy:                  return "MsGPUBusy";
         case Header_MsGPUWait:                  return "MsGPUWait";
         case Header_MsVideoBusy:                return "MsVideoBusy";
+        case Header_PSOCompileCount:            return "PSOCompileCount";
+        case Header_MsPSOCompileTime:           return "MsPSOCompileTime";
+        case Header_PSOCompileBusyPercent:      return "PSOCompileBusyPercent";
         case Header_MsAnimationError:           return "MsAnimationError";
         case Header_MsClickToPhotonLatency:     return "MsClickToPhotonLatency";
         case Header_MsAllInputToPhotonLatency:  return "MsAllInputToPhotonLatency";
@@ -232,6 +238,7 @@ struct PresentMon : PROCESS_INFORMATION {
 #define PMEXITED(...) ExpectExited(__FILE__, __LINE__, __VA_ARGS__)
 
 // PresentMonTests.cpp
+extern std::wstring goldDir_;
 extern std::wstring outDir_;
 extern bool reportAllCsvDiffs_;
 extern bool warnOnMissingCsv_;

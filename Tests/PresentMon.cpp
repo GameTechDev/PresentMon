@@ -259,6 +259,9 @@ bool PresentMonCsv::Open(char const* file, int line, std::wstring const& path)
                                                                                 Header_MsGPUBusy,
                                                                                 Header_MsGPUWait });
         auto track_gpu_video  = CheckAllIfAny(headerColumnIndex_, &columnsOK, { Header_MsVideoBusy });
+        auto track_shader_compilation = CheckAllIfAny(headerColumnIndex_, &columnsOK, { Header_PSOCompileCount,
+                                                                                        Header_MsPSOCompileTime,
+                                                                                        Header_PSOCompileBusyPercent });
         auto track_input      = CheckAllIfAny(headerColumnIndex_, &columnsOK, { Header_MsClickToPhotonLatency,
                                                                                 Header_MsAllInputToPhotonLatency });
         auto track_frame_type = CheckAllIfAny(headerColumnIndex_, &columnsOK, { Header_FrameType });
@@ -273,6 +276,7 @@ bool PresentMonCsv::Open(char const* file, int line, std::wstring const& path)
         if (!track_display)   params_.emplace_back(L"--no_track_display");
         if (!track_gpu)       params_.emplace_back(L"--no_track_gpu");
         if (track_gpu_video)  params_.emplace_back(L"--track_gpu_video");
+        if (track_shader_compilation) params_.emplace_back(L"--track_shader_compilation");
         if (!track_input)     params_.emplace_back(L"--no_track_input");
         if (track_frame_type) params_.emplace_back(L"--track_frame_type");
         if (track_app_timing) params_.emplace_back(L"--track_app_timing");
@@ -376,6 +380,27 @@ bool PresentMonCsv::ReadRow()
                 AddTestFailure(__FILE__, __LINE__, "    Invalid ClickToPhotonLatency when not displayed: %s", cols_[idxClickToPhotonLatency]);
                 return false;
             }
+        }
+    }
+
+    auto idxPsoCount = headerColumnIndex_[Header_PSOCompileCount];
+    auto idxPsoTime  = headerColumnIndex_[Header_MsPSOCompileTime];
+    auto idxPsoBusy  = headerColumnIndex_[Header_PSOCompileBusyPercent];
+    if (idxPsoCount != SIZE_MAX && idxPsoTime != SIZE_MAX && idxPsoBusy != SIZE_MAX) {
+        char* endCount = nullptr;
+        char* endTime  = nullptr;
+        char* endBusy  = nullptr;
+        auto count = strtoull(cols_[idxPsoCount], &endCount, 10);
+        auto time  = strtod(cols_[idxPsoTime], &endTime);
+        auto busy  = strtod(cols_[idxPsoBusy], &endBusy);
+        if (endCount == cols_[idxPsoCount] || *endCount != '\0' ||
+            endTime  == cols_[idxPsoTime]  || *endTime  != '\0' ||
+            endBusy  == cols_[idxPsoBusy]  || *endBusy  != '\0' ||
+            time < 0.0 || busy < 0.0 ||
+            (count == 0 && (time != 0.0 || busy != 0.0))) {
+            AddTestFailure(__FILE__, __LINE__, "    Invalid PSO compilation metrics: %s, %s, %s",
+                           cols_[idxPsoCount], cols_[idxPsoTime], cols_[idxPsoBusy]);
+            return false;
         }
     }
 

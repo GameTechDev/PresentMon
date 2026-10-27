@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2017-2024 Intel Corporation
+// Copyright (C) 2017-2024 Intel Corporation
 // SPDX-License-Identifier: MIT
 
 #include <generated/version.h>
@@ -283,6 +283,7 @@ void PrintUsage()
         LR"(--timed seconds)",    LR"(Stop recording after the specified amount of time.)",
         LR"(--scroll_indicator)", LR"(Enable scroll lock while recording.)",
         LR"(--track_gpu_video)",  LR"(Track the video encode/decode portion of GPU work separately from other engines.)",
+        LR"(--track_shader_compilation)", LR"(Track D3D12 PSO compilation count and duration in each frame.)",
         LR"(--no_track_display)", LR"(Do not track frames all the way to display.)",
         LR"(--no_track_input)",   LR"(Do not track keyboard/mouse clicks impacting each frame.)",
         LR"(--no_track_gpu)",     LR"(Do not track the duration of GPU work in each frame.)",
@@ -397,6 +398,8 @@ bool ParseCommandLine(int argc, wchar_t** argv)
     args->mTrackPMMeasurements = false;
     args->mTrackAppTiming = false;
     args->mTrackHybridPresent = false;
+    args->mTrackPcLatency = false;
+    args->mTrackShaderCompilation = false;
     args->mScrollLockIndicator = false;
     args->mExcludeDropped = false;
     args->mTerminateExistingSession = false;
@@ -457,6 +460,7 @@ bool ParseCommandLine(int argc, wchar_t** argv)
         else if (ParseArg(argv[i], L"scroll_indicator")) { args->mScrollLockIndicator = true;  continue; }
         else if (ParseArg(argv[i], L"no_track_gpu"))     { args->mTrackGPU            = false; continue; }
         else if (ParseArg(argv[i], L"track_gpu_video"))  { args->mTrackGPUVideo       = true;  continue; }
+        else if (ParseArg(argv[i], L"track_shader_compilation")) { args->mTrackShaderCompilation = true; continue; }
         else if (ParseArg(argv[i], L"no_track_input"))   { args->mTrackInput          = false; continue; }
         else if (ParseArg(argv[i], L"no_track_display")) { args->mTrackDisplay        = false; continue; }
 
@@ -568,9 +572,36 @@ bool ParseCommandLine(int argc, wchar_t** argv)
         args->mTrackGPUVideo = false;
     }
 
+    if (args->mUseV1Metrics && args->mUseV2Metrics) {
+        PrintWarning(L"warning: ignoring --v1_metrics due to --v2_metrics.\n");
+        args->mUseV1Metrics = false;
+    }
+
+    // Ignore --track_frame_type if v1 metrics (since they are not supported there)
+    if (args->mTrackFrameType && args->mUseV1Metrics) {
+        PrintWarning(L"warning: ignoring --track_frame_type due to --v1_metrics.\n");
+        args->mTrackFrameType = false;
+    }
+
+    // Ignore --track_shader_compilation if v1 or v2 metrics (since they are not supported there)
+    if (args->mTrackShaderCompilation && (args->mUseV1Metrics || args->mUseV2Metrics)) {
+        PrintWarning(L"warning: ignoring --track_shader_compilation due to %s.\n",
+                     args->mUseV2Metrics ? L"--v2_metrics" : L"--v1_metrics");
+        args->mTrackShaderCompilation = false;
+    }
+
+    if (args->mUseV1Metrics && args->mWriteDisplayMetadata) {
+        PrintWarning(L"warning: ignoring --write_display_metadata due to --v1_metrics.\n");
+        args->mWriteDisplayMetadata = false;
+    }
+
     // Ignore --no_track_display if required for other requested tracking
     if (!args->mTrackDisplay && args->mTrackGPU) {
         PrintWarning(L"warning: ignoring --no_track_display because display tracking is required when GPU tracking is enabled.\n");
+        args->mTrackDisplay = true;
+    }
+    if (!args->mTrackDisplay && args->mTrackShaderCompilation) {
+        PrintWarning(L"warning: ignoring --no_track_display because display tracking is required when shader compilation tracking is enabled.\n");
         args->mTrackDisplay = true;
     }
 
@@ -582,22 +613,6 @@ bool ParseCommandLine(int argc, wchar_t** argv)
         if (argc != expectedArgc) {
             PrintWarning(L"warning: --terminate_existing_session exits without capturing anything; ignoring all other options.\n");
         }
-    }
-
-    // Ignore --track_frame_type if v1 metrics (since they are not supported there)
-    if (args->mTrackFrameType && args->mUseV1Metrics) {
-        PrintWarning(L"warning: ignoring --track_frame_type due to --v1_metrics.\n");
-        args->mTrackFrameType = false;
-    }
-
-    if (args->mUseV1Metrics && args->mUseV2Metrics) {
-        PrintWarning(L"warning: ignoring --v1_metrics due to --v2_metrics.\n");
-        args->mUseV1Metrics = false;
-    }
-
-    if (args->mUseV1Metrics && args->mWriteDisplayMetadata) {
-        PrintWarning(L"warning: ignoring --write_display_metadata due to --v1_metrics.\n");
-        args->mWriteDisplayMetadata = false;
     }
 
     // Enable verbose trace if requested, and disable Full or Simple console output

@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2017-2024 Intel Corporation
+// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -95,6 +95,7 @@ struct CommandLineArgs {
     bool mTrackAppTiming;
     bool mTrackHybridPresent;
     bool mTrackPcLatency;
+    bool mTrackShaderCompilation;
     bool mScrollLockIndicator;
     bool mExcludeDropped;
     bool mTerminateExistingSession;
@@ -114,44 +115,6 @@ struct CommandLineArgs {
     bool mTrackEtwStatus;
 };
 
-// Metrics computed per-frame.  Duration and Latency metrics are in milliseconds.
-struct FrameMetrics {
-    uint64_t mTimeInSeconds = 0;
-    double mMsDisplayLatency = 0;
-    double mMsDisplayedTime = 0;
-    double mMsBetweenPresents = 0;
-    double mMsInPresentApi = 0;
-    double mMsUntilRenderComplete = 0;
-    double mMsUntilDisplayed = 0;
-    double mMsBetweenDisplayChange = 0;
-    uint64_t mCPUStart = 0;
-    double mMsCPUBusy = 0;
-    double mMsCPUWait = 0;
-    double mMsGPULatency = 0;
-    double mMsGPUBusy = 0;
-    double mMsVideoBusy = 0;
-    double mMsGPUWait = 0;
-    std::optional<double> mMsAnimationError = {};
-    std::optional<double> mAnimationTime = {};
-    double mMsClickToPhotonLatency = 0;
-    double mMsAllInputPhotonLatency = 0;
-    uint64_t mScreenTime = 0;
-    FrameType mFrameType = FrameType::NotSet;
-    double mMsInstrumentedLatency = 0;
-    double mMsPcLatency = 0;
-    double mMsBetweenSimStarts = 0;
-
-    // Internal Intel Metrics
-    double mMsInstrumentedRenderLatency = 0;
-    double mMsInstrumentedSleep = 0;
-    double mMsInstrumentedGpuLatency = 0;
-    double mMsReadyTimeToDisplayLatency = 0;
-    double mMsInstrumentedInputTime = 0;
-
-    // Internal NVIDIA Metrics
-    double mMsFlipDelay;
-};
-
 struct FrameMetrics1 {
     double msBetweenPresents;
     double msInPresentApi;
@@ -166,25 +129,6 @@ struct FrameMetrics1 {
 
     // Internal NVIDIA Metrics
     double msFlipDelay;
-};
-
-struct FrameMetrics2 {
-    uint64_t mCPUStart = 0;
-    double mCPUBusy = 0;
-    double mCPUWait = 0;
-    double mGPULatency = 0;
-    double mGPUBusy = 0;
-    double mVideoBusy = 0;
-    double mGPUWait = 0;
-    double mDisplayLatency = 0;
-    double mDisplayedTime = 0;
-    std::optional<double> mAnimationError = {};
-    std::optional<double> mAnimationTime = {};
-    double mClickToPhotonLatency = 0;
-    double mAllInputPhotonLatency = 0;
-    uint64_t mScreenTime = 0;
-    FrameType mFrameType = FrameType::NotSet;
-    double mInstrumentedLatency = 0;
 };
 
 // We store SwapChainData per process and per swapchain, where we maintain:
@@ -279,10 +223,7 @@ void CloseMultiCsv(ProcessInfo* processInfo);
 void CloseGlobalCsv();
 const char* PresentModeToString(PresentMode mode);
 const char* RuntimeToString(Runtime rt);
-void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics const& metrics);
-void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics1 const& metrics);
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, pmon::util::metrics::FrameData const& p, FrameMetrics1 const& metrics);
-void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, pmon::util::metrics::FrameMetrics const& metrics);
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, pmon::util::metrics::FrameData const& p, pmon::util::metrics::FrameMetrics const& metrics);
 
 // MainThread.cpp:

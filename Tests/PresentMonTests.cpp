@@ -108,6 +108,7 @@ bool CheckPath(
 }
 
 std::wstring PresentMon::exePath_;
+std::wstring goldDir_;
 std::wstring outDir_;
 bool reportAllCsvDiffs_ = false;
 bool warnOnMissingCsv_ = true;
@@ -144,7 +145,7 @@ int wmain(
     wchar_t** argv)
 {
     // Set defaults
-    std::wstring goldDir(L"../../Tests/Gold");
+    goldDir_.assign(L"../../Tests/Gold");
     
     // Check for additional test directory from environment variable
     // This allows developers to specify their own test directories without
@@ -233,7 +234,7 @@ int wmain(
                 "    --diff=path          Start an extra process to compare each differing CSV.\n"
                 "\n",
                 PresentMon::exePath_.c_str(),
-                goldDir.c_str());
+                goldDir_.c_str());
             help = true;
             argv[i] = (wchar_t*) L"--help"; // gtest only recognises this one
             break;
@@ -309,16 +310,16 @@ int wmain(
     }
     
     if (!CheckPath("--presentmon", &PresentMon::exePath_, presentMonPathArg, false, nullptr) ||
-        !CheckPath("--golddir", &goldDir, goldDirArg, true, &goldDirExists) ||
+        !CheckPath("--golddir", &goldDir_, goldDirArg, true, &goldDirExists) ||
         (!listTests && !CheckPath("--outdir", &outDir_, outDirArg, true, &outDirExists)) ||
         (hasOptTestDir && !CheckPath("--opttestdir", &optTestDir, optTestDirArg, true, &optTestDirExists))) {
         return 1;
     }
 
     if (goldDirExists) {
-        AddGoldEtlCsvTests(goldDir, goldDir.size());
+        AddGoldEtlCsvTests(goldDir_, goldDir_.size());
     } else {
-        fprintf(stderr, "warning: gold directory does not exist: %ls\n", goldDir.c_str());
+        fprintf(stderr, "warning: gold directory does not exist: %ls\n", goldDir_.c_str());
         fprintf(stderr, "         Continuing, but no GoldEtlCsvTests.* will run.  Specify a new path\n");
         fprintf(stderr, "         using the --golddir command line argument.\n");
     }

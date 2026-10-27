@@ -5,6 +5,7 @@ Some metrics are enabled or disabled depending on the command line options:
 | -------------------- | --------------- | ---------------- |
 | `--track_frame_type` | *FrameType*     | |
 | `--track_gpu_video`  | *VideoBusy*     | |
+| `--track_shader_compilation` | *PSOCompileCount<br>MsPSOCompileTime<br>PSOCompileBusyPercent* | |
 | `--no_track_gpu`     |                 | *GPULatency<br>GPUBusy<br>GPUWait<br>VideoBusy*  |
 | `--no_track_input`   |                 | *ClickToPhotonLatency* |
 | `--no_track_display`<br>(requires `--no_track_gpu` and `--no_track_input` as well) | | *AllowsTearing<br>PresentMode<br>DisplayLatency<br>DisplayedTime* |

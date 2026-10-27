@@ -319,6 +319,7 @@ int wmain(int argc, wchar_t** argv)
     pmConsumer.mTrackHybridPresent         = args.mTrackHybridPresent;
     pmConsumer.mDisableOfflineBackpressure = args.mDisableOfflineBackpressure;
     pmConsumer.mTrackPcLatency             = args.mTrackPcLatency;
+    pmConsumer.mTrackD3D12ShaderCompilation = args.mTrackShaderCompilation;
     if (args.mTargetPid != 0) {
         pmConsumer.mFilteredProcessIds = true;
         pmConsumer.AddTrackedProcessForFiltering(args.mTargetPid);

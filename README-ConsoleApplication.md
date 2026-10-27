@@ -1,4 +1,4 @@
-﻿# PresentMon Console Application
+# PresentMon Console Application
 
 The PresentMon/ directory contains source for a standalone console application that uses the
 *PresentMon SDK* to capture and analyze graphics applications, outputting data to the console and/or
@@ -38,6 +38,7 @@ A binary of the console application is provided in the release, e.g.:
 | `--timed seconds`              | Stop recording after the specified amount of time. |
 | `--scroll_indicator`           | Enable scroll lock while recording. |
 | `--track_gpu_video`            | Track the video encode/decode portion of GPU work separately from other engines. |
+| `--track_shader_compilation`   | Track D3D12 PSO compilation count and duration in each frame. |
 | `--no_track_display`           | Do not track frames all the way to display. |
 | `--no_track_input`             | Do not track keyboard/mouse clicks impacting each frame. |
 | `--no_track_gpu`               | Do not track the duration of GPU work in each frame. |
@@ -117,6 +118,9 @@ Default metrics include:
 | *MsBetweenSimulationStart* | The time between the start of simulation processing of the previous frame and this one, in milliseconds. |
 | *MsPCLatency*          | Time between PC receiving input and frame being sent to the display, in milliseconds. |
 | *MsBetweenAppStart*    | How long it took from the start of this frame until the CPU started working on the next frame, in milliseconds. |
+| *PSOCompileCount*      | Number of pipeline state object compile starts attributed to this frame. |
+| *MsPSOCompileTime*     | Sum of PSO compile durations attributed to this frame (concurrent compiles counted separately), in milliseconds. |
+| *PSOCompileBusyPercent* | Share of this frame period during which at least one PSO compile was active. |
 | *PresentId*            | The present identifier associated with the reported VidPnSourceId and LayerIndex pair.  This column is written when `--write_display_metadata` is used. |
 
 Some metrics are enabled or disabled depending on the command line options:
@@ -125,6 +129,7 @@ Some metrics are enabled or disabled depending on the command line options:
 | -------------------- | --------------- | ---------------- |
 | `--track_frame_type` | *FrameType*     | |
 | `--track_gpu_video`  | *VideoBusy*     | |
+| `--track_shader_compilation` | *PSOCompileCount<br>MsPSOCompileTime<br>PSOCompileBusyPercent* | |
 | `--write_display_metadata` | *VidPnSourceId<br>LayerIndex<br>PresentId* | |
 | `--no_track_gpu`     |                 | *GPULatency<br>GPUBusy<br>GPUWait<br>VideoBusy*  |
 | `--no_track_input`   |                 | *ClickToPhotonLatency* |
