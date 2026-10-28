@@ -1,6 +1,9 @@
 #pragma once
 #include "PresentMonAPI.h"
-#include <cstdint>
+#include <stdint.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,7 +17,7 @@ extern "C" {
 	// and it gives feedback in situations where there are errors in API
 	// usage but they are handled permissively rather than hard-failing
 
-	enum PM_DIAGNOSTIC_LEVEL
+	typedef enum PM_DIAGNOSTIC_LEVEL
 	{
 		PM_DIAGNOSTIC_LEVEL_NONE = 0,
 		PM_DIAGNOSTIC_LEVEL_FATAL = 10,
@@ -24,9 +27,9 @@ extern "C" {
 		PM_DIAGNOSTIC_LEVEL_PERFORMANCE = 50,
 		PM_DIAGNOSTIC_LEVEL_DEBUG = 60,
 		PM_DIAGNOSTIC_LEVEL_VERBOSE = 70,
-	};
+	} PM_DIAGNOSTIC_LEVEL;
 
-	enum PM_DIAGNOSTIC_SUBSYSTEM
+	typedef enum PM_DIAGNOSTIC_SUBSYSTEM
 	{
 		PM_DIAGNOSTIC_SUBSYSTEM_NONE,
 		PM_DIAGNOSTIC_SUBSYSTEM_MIDDLEWARE,
@@ -36,9 +39,9 @@ extern "C" {
 		PM_DIAGNOSTIC_SUBSYSTEM_FLASH_INJECTOR,
 		PM_DIAGNOSTIC_SUBSYSTEM_FLASH_INJECTION_DLL,
 		PM_DIAGNOSTIC_SUBSYSTEM_USER = 0x8000,
-	};
+	} PM_DIAGNOSTIC_SUBSYSTEM;
 
-	enum PM_DIAGNOSTIC_WAKE_REASON
+	typedef enum PM_DIAGNOSTIC_WAKE_REASON
 	{
 		PM_DIAGNOSTIC_WAKE_REASON_NONE,
 		PM_DIAGNOSTIC_WAKE_REASON_MESSAGE_AVAILABLE,
@@ -46,17 +49,17 @@ extern "C" {
 		PM_DIAGNOSTIC_WAKE_REASON_SHUTDOWN,
 		PM_DIAGNOSTIC_WAKE_REASON_MANUAL_UNBLOCK,
 		PM_DIAGNOSTIC_WAKE_REASON_ERROR,
-	};
+	} PM_DIAGNOSTIC_WAKE_REASON;
 
-	enum PM_DIAGNOSTIC_OUTPUT_FLAGS
+	typedef enum PM_DIAGNOSTIC_OUTPUT_FLAGS
 	{
 		PM_DIAGNOSTIC_OUTPUT_FLAGS_DEBUGGER = 1,
 		PM_DIAGNOSTIC_OUTPUT_FLAGS_STDERR = 2,
 		PM_DIAGNOSTIC_OUTPUT_FLAGS_STDOUT = 4,
 		PM_DIAGNOSTIC_OUTPUT_FLAGS_QUEUE = 8,
-	};
+	} PM_DIAGNOSTIC_OUTPUT_FLAGS;
 
-	struct PM_DIAGNOSTIC_MESSAGE
+	typedef struct PM_DIAGNOSTIC_MESSAGE
 	{
 		PM_DIAGNOSTIC_LEVEL level;
 		PM_DIAGNOSTIC_SUBSYSTEM system;
@@ -66,9 +69,9 @@ extern "C" {
 		const char* pTimestamp;
 		uint32_t pid;
 		uint32_t tid;
-	};
+	} PM_DIAGNOSTIC_MESSAGE;
 
-	struct PM_DIAGNOSTIC_CONFIGURATION
+	typedef struct PM_DIAGNOSTIC_CONFIGURATION
 	{
 		// ignore all messages greater than filterLevel
 		PM_DIAGNOSTIC_LEVEL filterLevel;
@@ -90,7 +93,7 @@ extern "C" {
 		uint64_t verboseModuleBitset;
 		// use synchronous logging channel mode (submit waits for processing + driver flush per entry)
 		bool enableSynchronousLogging;
-	};
+	} PM_DIAGNOSTIC_CONFIGURATION;
 
 	// NOTE: pmDiagnosticDequeueMessage and pmDiagnosticWaitForMessage must both be accessed
 	// from the same single thread, never concurrently from multiple threads
@@ -99,13 +102,13 @@ extern "C" {
 	// calling this function disables any previous logging modes that were set
 	PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticSetup(const PM_DIAGNOSTIC_CONFIGURATION* pConfig);
 	// get number of messages in the queue
-	PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetQueuedMessageCount();
+	PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetQueuedMessageCount(void);
 	// get max capacity of the message queue
-	PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetMaxQueuedMessages();
+	PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetMaxQueuedMessages(void);
 	// set max capacity of the message queue
 	PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticSetMaxQueuedMessages(uint32_t);
 	// get total number of messages discarded from queue due to insufficient capacity (does not reset)
-	PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetDiscardedMessageCount();
+	PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetDiscardedMessageCount(void);
 	// retrieve a message from the queue; sets pointer to NULL when no message available
 	// use pmDiagnosticFreeMessage to delete the message after processed to avoid memory leaks
 	PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticDequeueMessage(PM_DIAGNOSTIC_MESSAGE** ppMessage);
@@ -119,7 +122,7 @@ extern "C" {
 	// unblock the thread which is blocked on pmDiagnosticWaitForMessage
 	// useful during shutdown if you have a worker thread blocked waiting for a message, you can
 	// wake it up so that it can exit gracefully
-	PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticUnblockWaitingThread();
+	PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticUnblockWaitingThread(void);
 
 #ifdef __cplusplus
 } // extern "C"

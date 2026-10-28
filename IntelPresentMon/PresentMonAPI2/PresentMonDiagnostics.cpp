@@ -28,7 +28,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticSetup(const PM_DIAGNOSTIC_CONFIGURA
 	return PM_STATUS_FAILURE;
 }
 
-PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetQueuedMessageCount()
+PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetQueuedMessageCount(void)
 {
 	try {
 		if (auto pDiag = log::GetDiagnostics()) {
@@ -38,7 +38,7 @@ PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetQueuedMessageCount()
 	return 0;
 }
 
-PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetMaxQueuedMessages()
+PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetMaxQueuedMessages(void)
 {
 	try {
 		if (auto pDiag = log::GetDiagnostics()) {
@@ -59,7 +59,7 @@ PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticSetMaxQueuedMessages(uint32_t max)
 	return PM_STATUS_FAILURE;
 }
 
-PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetDiscardedMessageCount()
+PRESENTMON_API2_EXPORT uint32_t pmDiagnosticGetDiscardedMessageCount(void)
 {
 	try {
 		if (auto pDiag = log::GetDiagnostics()) {
@@ -121,7 +121,7 @@ PRESENTMON_API2_EXPORT PM_DIAGNOSTIC_WAKE_REASON pmDiagnosticWaitForMessage(uint
 	return PM_DIAGNOSTIC_WAKE_REASON_ERROR;
 }
 
-PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticUnblockWaitingThread()
+PRESENTMON_API2_EXPORT PM_STATUS pmDiagnosticUnblockWaitingThread(void)
 {
 	try {
 		if (auto pDiag = log::GetDiagnostics()) {

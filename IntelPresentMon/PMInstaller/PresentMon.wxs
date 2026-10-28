@@ -87,6 +87,7 @@
                 Level="1"
                 Absent="allow">
 				<ComponentGroupRef Id="sdk_group" />
+				<ComponentGroupRef Id="sdk_samples_group" />
 			</Feature>
             <?if $(var.has_console_app) = "true" ?>
             <Feature
@@ -144,7 +145,11 @@
                         Name="PresentMon">
                         <Directory
                             Id="sdk_folder"
-                            Name="SDK"/>
+                            Name="SDK">
+                            <Directory
+                                Id="sdk_samples_folder"
+                                Name="Samples"/>
+                        </Directory>
                         <Directory
                             Id="provider_folder"
                             Name="Provider"/>
@@ -207,6 +212,10 @@
                     Type="string"
                     Value="[APPLICATIONFOLDER]"
                     KeyPath="yes"/>
+                <RemoveFolder
+                    Id="RemoveSdkSamplesIfEmpty"
+                    Directory="sdk_samples_folder"
+                    On="uninstall" />
                 <RemoveFolder
                     Id="RemoveSdkIfEmpty"
                     Directory="sdk_folder"
@@ -694,6 +703,67 @@
                     Id="api_header"
                     Name="PresentMonAPI.h"
                     Source="$(var.PresentMonAPI2.ProjectDir)"
+                    KeyPath="yes">
+				</File>
+				<?endif?>
+			</Component>
+			<Component
+                Id="metrics_csv"
+                Guid="6FE8247A-3196-4E90-A466-4786219CF322">
+				<?if $(var.PmonUseExplicitConsolePath) = "true" ?>
+				<File
+                    Id="metrics_csv"
+                    Name="metrics.csv"
+                    Source="$(var.PmonMetricsCsvSource)"
+                    KeyPath="yes">
+				</File>
+				<?else?>
+				<File
+                    Id="metrics_csv"
+                    Name="metrics.csv"
+                    Source="..\metrics.csv"
+                    KeyPath="yes">
+				</File>
+				<?endif?>
+			</Component>
+		</ComponentGroup>
+		<ComponentGroup
+            Id="sdk_samples_group"
+            Directory="sdk_samples_folder">
+			<Component
+                Id="sdk_sample_main"
+                Guid="D660583C-6C8B-4FED-96FF-B9519D7BD7EC">
+				<?if $(var.PmonUseExplicitConsolePath) = "true" ?>
+				<File
+                    Id="sdk_sample_main"
+                    Name="main.c"
+                    Source="$(var.PmonSdkSampleMainSource)"
+                    KeyPath="yes">
+				</File>
+				<?else?>
+				<File
+                    Id="sdk_sample_main"
+                    Name="main.c"
+                    Source="..\Samples\main.c"
+                    KeyPath="yes">
+				</File>
+				<?endif?>
+			</Component>
+			<Component
+                Id="sdk_sample_cmake"
+                Guid="F092D6DD-4205-4E5F-BABE-A9220D0D21C8">
+				<?if $(var.PmonUseExplicitConsolePath) = "true" ?>
+				<File
+                    Id="sdk_sample_cmake"
+                    Name="CMakeLists.txt"
+                    Source="$(var.PmonSdkSampleCmakeSource)"
+                    KeyPath="yes">
+				</File>
+				<?else?>
+				<File
+                    Id="sdk_sample_cmake"
+                    Name="CMakeLists.txt"
+                    Source="..\Samples\CMakeLists.txt"
                     KeyPath="yes">
 				</File>
 				<?endif?>

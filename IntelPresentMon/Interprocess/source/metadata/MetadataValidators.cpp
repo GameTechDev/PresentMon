@@ -8,8 +8,6 @@ namespace pmon::ipc::intro
 		bool ValidateEnumCompleteness()
 		{
 			// validate each registered enum's keys
-#pragma warning(push)
-#pragma warning(disable : 4060) // empty enum for NULL enum triggers this
 #define X_REG_KEYS(enum_frag, key_frag, name, short_name, description) case MAKE_KEY_SYMBOL(enum_frag, key_frag): return false;
 #define X_REG_ENUMS(master_frag, enum_frag, name, short_name, description) \
 			switch (MAKE_ENUM_SYMBOL(enum_frag)(0)) { \
@@ -20,7 +18,7 @@ namespace pmon::ipc::intro
 
 #undef X_REG_ENUMS
 #undef X_REG_KEYS
-#pragma warning(pop)
+
 
 				// validate the enumeration that records introspectable enums
 #define X_REG_KEYS(enum_frag, key_frag, name, short_name, description) case MAKE_KEY_SYMBOL(enum_frag, key_frag): return false;
