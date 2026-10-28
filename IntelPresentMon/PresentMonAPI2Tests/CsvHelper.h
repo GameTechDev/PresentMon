@@ -362,6 +362,9 @@ void CharConvert<T>::Convert(const std::string data, T& convertedData, Header co
         else if (data == "Intel XeSS-FG") {
             convertedData = PM_FRAME_TYPE_INTEL_XEFG;
         }
+        else if (data == "AMD_FSR_FG") {
+            convertedData = PM_FRAME_TYPE_AMD_FSR_FG;
+        }
         else {
             throw CsvConversionException(Header_FrameType, line, data);
         }
@@ -629,6 +632,8 @@ std::string TranslateFrameType(PM_FRAME_TYPE frameType) {
         return "AMD_AFMF";
     case PM_FRAME_TYPE_INTEL_XEFG:
         return "Intel XeSS-FG";
+    case PM_FRAME_TYPE_AMD_FSR_FG:
+        return "AMD_FSR_FG";
     default:
         return "<Unknown>";
     }
