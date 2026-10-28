@@ -70,6 +70,13 @@ class GpuTrace final {
     void EnqueueWork(Context* context, uint32_t sequenceId, uint64_t timestamp, bool isWaitPacket);
     bool CompleteWork(Context* context, uint32_t sequenceId, uint64_t timestamp);
 
+    // Complete the packet at the front of the node's queue and start the next one.
+    void RetireFrontPacket(Node* node, uint64_t timestamp);
+    // Complete every packet still queued on the node, e.g. before its HwQueue is destroyed.
+    void RetireAllPackets(Node* node, uint64_t timestamp);
+    // Release a HwQueue context's node; the context itself is left for the caller to erase.
+    void ReleaseHwQueueNode(Context* context, uint64_t timestamp);
+
     uint32_t LookupPacketTraceProcessId(PacketTrace* packetTrace) const;
     void PrintRunningContexts() const;
 
@@ -84,9 +91,10 @@ public:
     void RegisterDevice(uint64_t hDevice, uint64_t pDxgAdapter);
     void UnregisterDevice(uint64_t hDevice);
 
-    void RegisterContext(uint64_t hContext, uint64_t hDevice, uint32_t nodeOrdinal, uint32_t processId);
-    void RegisterHwQueueContext(uint64_t hContext, uint64_t parentDxgHwQueue);
-    void UnregisterContext(uint64_t hContext);
+    void RegisterContext(uint64_t hContext, uint64_t hDevice, uint32_t nodeOrdinal, uint32_t processId, uint64_t timestamp);
+    void RegisterHwQueueContext(uint64_t hContext, uint64_t parentDxgHwQueue, uint64_t timestamp);
+    void UnregisterHwQueueContext(uint64_t parentDxgHwQueue, uint64_t timestamp);
+    void UnregisterContext(uint64_t hContext, uint64_t timestamp);
 
     void SetEngineType(uint64_t pDxgAdapter, uint32_t nodeOrdinal, Microsoft_Windows_DxgKrnl::DXGK_ENGINE engineType);
 

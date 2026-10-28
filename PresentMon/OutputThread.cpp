@@ -427,12 +427,15 @@ static void ProcessEvents(
     // Iterate through the processEvents, handling process events and recording toggles along the
     // way.
     uint64_t presentTime = 0;
+    uint64_t newestPresentStartTime = 0;
     for (auto const& presentEvent : presentEvents) {
 
         // Ignore failed and lost presents.
         if (presentEvent->IsLost || presentEvent->PresentFailed) {
             continue;
         }
+
+        newestPresentStartTime = std::max(newestPresentStartTime, presentEvent->PresentStartTime);
 
         // Look up the process this present belongs to.  If the process info doesn't exist yet,
         // handle process events first and then check again.  
@@ -447,14 +450,16 @@ static void ProcessEvents(
             while ((*processEvents)[processEventIndex].QpcTime < presentTime) {
                 auto& processEvent = (*processEvents)[processEventIndex];
 
-                // If this is a termination event for the same process as the current present,
-                // skip processing this termination to avoid removing the process info we need
-                if (!processEvent.IsStartEvent && processEvent.ProcessId == presentEvent->ProcessId) {
-                    // Don't process this termination yet - we have a present from this process to handle first
-                    break;
+                // A process event for the present's own process id can remove or replace the
+                // process info looked up above (e.g., the id was reused by a new process), so look
+                // it up again afterwards.  Holding the event back instead would also hold back
+                // every later process event for as long as that process id keeps presenting.
+                if (processEvent.ProcessId == presentEvent->ProcessId) {
+                    processInfo = nullptr;
+                    chain = nullptr;
                 }
 
-                ProcessProcessEvent((*processEvents)[processEventIndex]);
+                ProcessProcessEvent(processEvent);
                 processEventIndex += 1;
                 if (processEventIndex == processEventCount) {
                     checkProcessTime = false;
@@ -543,7 +548,7 @@ static void ProcessEvents(
     }
 
     // Prune any SwapChainData that hasn't seen an update for over 4 seconds.
-    PruneOldSwapChainData(pmSession, presentTime);
+    PruneOldSwapChainData(pmSession, newestPresentStartTime);
 
     // Erase any recording toggles and process events that were processed.
     if (recordingToggleIndex > 0) {

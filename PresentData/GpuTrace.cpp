@@ -5,6 +5,12 @@
 
 namespace {
 
+// A node normally has only a few packets in flight.  When completions are missed (e.g., HwQueue
+// packets whose QueuePacket_Stop never matches), the tracked queue would otherwise grow for the
+// whole capture, each growth step moving the whole queue.  Past this limit the oldest packets are
+// retired as if they completed.
+constexpr uint32_t MAX_QUEUED_PACKETS_PER_NODE = 1024;
+
 void DebugPrintAccumulatedGpuTime(uint32_t processId, uint64_t accumulatedTime, uint64_t startTime, uint64_t endTime)
 {
     auto addedTime = endTime - startTime;
@@ -99,7 +105,7 @@ void GpuTrace::UnregisterDevice(uint64_t hDevice)
     mDevices.erase(hDevice);
 }
 
-void GpuTrace::RegisterContext(uint64_t hContext, uint64_t hDevice, uint32_t nodeOrdinal, uint32_t processId)
+void GpuTrace::RegisterContext(uint64_t hContext, uint64_t hDevice, uint32_t nodeOrdinal, uint32_t processId, uint64_t timestamp)
 {
     auto deviceIter = mDevices.find(hDevice);
     if (deviceIter == mDevices.end()) {
@@ -108,10 +114,17 @@ void GpuTrace::RegisterContext(uint64_t hContext, uint64_t hDevice, uint32_t nod
     auto pDxgAdapter = deviceIter->second;
     auto node = &mNodes[pDxgAdapter].emplace(nodeOrdinal, Node{}).first->second;
 
-    // Sometimes there are duplicate start events, make sure that they say the same thing
-    DebugAssert(mContexts.find(hContext) == mContexts.end() || mContexts.find(hContext)->second.mNode == node);
+    // Duplicate starts should agree, but a handle can be reused after a missed HwQueue stop.
+    auto contextIter = mContexts.find(hContext);
+    DebugAssert(contextIter == mContexts.end() || contextIter->second.mIsHwQueue || contextIter->second.mNode == node);
 
     auto context = &mContexts.emplace(hContext, Context()).first->second;
+
+    // The handle may have belonged to a HwQueue whose stop event was missed.
+    if (context->mIsHwQueue) {
+        ReleaseHwQueueNode(context, timestamp);
+    }
+
     context->mPacketTrace = nullptr;
     context->mNode = node;
     context->mParentContext = 0;
@@ -138,10 +151,11 @@ void GpuTrace::RegisterContext(uint64_t hContext, uint64_t hDevice, uint32_t nod
 //     HwQueue_Stop hContext=C hHwQueue=0x0 ParentDxgHwQueue=Q2
 //     HwQueue_Stop hContext=C hHwQueue=0x0 ParentDxgHwQueue=Q1
 //     Context_Stop hContext=C
-void GpuTrace::RegisterHwQueueContext(uint64_t hContext, uint64_t parentDxgHwQueue)
+void GpuTrace::RegisterHwQueueContext(uint64_t hContext, uint64_t parentDxgHwQueue, uint64_t timestamp)
 {
     DebugAssert(mContexts.find(hContext)         != mContexts.end());
-    DebugAssert(mContexts.find(parentDxgHwQueue) == mContexts.end());
+    auto hwQueueIter = mContexts.find(parentDxgHwQueue);
+    DebugAssert(hwQueueIter == mContexts.end() || hwQueueIter->second.mIsHwQueue);
 
     // Look up the context C, which we're calling the parent context.  We
     // should already have seen a Context_Start event.
@@ -170,6 +184,13 @@ void GpuTrace::RegisterHwQueueContext(uint64_t hContext, uint64_t parentDxgHwQue
     node->mIsVideo = parentContext->mNode->mIsVideo;
 
     auto hwQueueContext = &mContexts.emplace(parentDxgHwQueue, Context()).first->second;
+
+    // A reused handle of a HwQueue whose stop event was missed would otherwise leak its node and
+    // keep its unfinished packets counted as running.
+    if (hwQueueContext->mIsHwQueue) {
+        ReleaseHwQueueNode(hwQueueContext, timestamp);
+    }
+
     hwQueueContext->mPacketTrace = parentContext->mPacketTrace;
     hwQueueContext->mNode = node;
     hwQueueContext->mParentContext = hContext;
@@ -177,7 +198,16 @@ void GpuTrace::RegisterHwQueueContext(uint64_t hContext, uint64_t parentDxgHwQue
     hwQueueContext->mIsHwQueue = true;
 }
 
-void GpuTrace::UnregisterContext(uint64_t hContext)
+void GpuTrace::UnregisterHwQueueContext(uint64_t parentDxgHwQueue, uint64_t timestamp)
+{
+    auto ii = mContexts.find(parentDxgHwQueue);
+    if (ii != mContexts.end() && ii->second.mIsHwQueue) {
+        ReleaseHwQueueNode(&ii->second, timestamp);
+        mContexts.erase(ii);
+    }
+}
+
+void GpuTrace::UnregisterContext(uint64_t hContext, uint64_t timestamp)
 {
     // Sometimes there are duplicate stop events so it's ok if it's already
     // removed
@@ -185,14 +215,19 @@ void GpuTrace::UnregisterContext(uint64_t hContext)
     auto ie = mContexts.end();
     if (ii != ie) {
         auto isParentContext = ii->second.mIsParentContext;
+        if (ii->second.mIsHwQueue) {
+            ReleaseHwQueueNode(&ii->second, timestamp);
+        }
         mContexts.erase(ii);
 
         if (isParentContext) {
             for (ii = mContexts.begin(); ii != ie; ) {
-                auto const& context = ii->second;
+                auto& context = ii->second;
                 if (context.mParentContext == hContext) {
                     DebugAssert(context.mIsHwQueue);
-                    delete context.mNode;
+                    if (context.mIsHwQueue) {
+                        ReleaseHwQueueNode(&context, timestamp);
+                    }
                     ii = mContexts.erase(ii);
                 } else {
                     ++ii;
@@ -200,6 +235,17 @@ void GpuTrace::UnregisterContext(uint64_t hContext)
             }
         }
     }
+}
+
+void GpuTrace::ReleaseHwQueueNode(Context* context, uint64_t timestamp)
+{
+    // Packets still queued will never see a completion event once the HwQueue is gone, so complete
+    // them now.  Otherwise the process' packet trace would keep counting them as running, and every
+    // later frame of the process would report the full frame time as GPU busy.
+    RetireAllPackets(context->mNode, timestamp);
+    delete context->mNode;
+    context->mNode = nullptr;
+    context->mIsHwQueue = false;
 }
 
 void GpuTrace::SetEngineType(uint64_t pDxgAdapter, uint32_t nodeOrdinal, Microsoft_Windows_DxgKrnl::DXGK_ENGINE engineType)
@@ -272,6 +318,12 @@ void GpuTrace::EnqueueWork(Context* context, uint32_t sequenceId, uint64_t times
         return;
     }
 
+    // If completions are being missed, retire the oldest packets so the queue stays bounded (see
+    // MAX_QUEUED_PACKETS_PER_NODE).
+    while (node->mQueueCount >= MAX_QUEUED_PACKETS_PER_NODE) {
+        RetireFrontPacket(node, timestamp);
+    }
+
     // If the queue is too small, enlarge it by 16 entries at a time.  Typically, this will only be
     // needed for the first packet observed on this node, which will result in sizing the queue from
     // 0 to 16.  However, there are other cases where the queue entries can grow beyond that.  e.g.,
@@ -322,7 +374,7 @@ bool GpuTrace::CompleteWork(Context* context, uint32_t sequenceId, uint64_t time
     //
     // If we get a DmaPacket_Info event for a packet that we didn't get a
     // DmaPacket_Start event for (or that we ignored because we didn't know the
-    // process yet) then sequenceId will be smaller than expected.  If this
+    // process yet) then sequenceId will not be found in the queue.  If this
     // happens, we ignore the DmaPacket_Info event which means that, if there
     // was idle time before the missing DmaPacket_Start event,
     // mAccumulatedPacketTime will be too large.
@@ -336,17 +388,12 @@ bool GpuTrace::CompleteWork(Context* context, uint32_t sequenceId, uint64_t time
         return false;
     }
 
-    auto runningSequenceId = node->mQueue[node->mQueueIndex].mSequenceId;
-    if (sequenceId < runningSequenceId) {
-        return false;
-    }
-
     // If we get a DmaPacket_Start event with no corresponding DmaPacket_Info,
-    // then sequenceId will be larger than expected.  If this happens, we search
-    // through the queue for a match and if no match was found then we ignore
-    // this event (we missed both the DmaPacket_Start and DmaPacket_Info for
-    // the packet).  In this case, both the missing packet's execution time as
-    // well as any idle time afterwards will be associated with the previous
+    // then the completed packet is not the running one.  If this happens, we
+    // search through the queue for a match and if no match was found then we
+    // ignore this event (we missed both the DmaPacket_Start and DmaPacket_Info
+    // for the packet).  In this case, both the missing packet's execution time
+    // as well as any idle time afterwards will be associated with the previous
     // packet.
     //
     // If a match is found, then we don't know when the pre-match packets ended
@@ -362,39 +409,67 @@ bool GpuTrace::CompleteWork(Context* context, uint32_t sequenceId, uint64_t time
     // actual:   [-----]  [-----]  [-----]     [-----]-----]-------]
     //           ^     ^  ^     x  ^     ^        ^  ^     x
     //           s1    i1 s2    i2 s3    i3       s2 i1    i2
-    if (sequenceId > runningSequenceId) {
-        for (uint32_t missingCount = 1; ; ++missingCount) {
-            if (missingCount == node->mQueueCount) {
-                return false;
-            }
-
-            uint32_t queueIndex = (node->mQueueIndex + missingCount) % (uint32_t) node->mQueue.size();
-            auto entry = &node->mQueue[queueIndex];
-            if (entry->mSequenceId == sequenceId) {
-
-                // On some 3000-series NVIDIA cards using hardware scheduling, we sometimes get
-                // QueuePacket_Stop events for monitored fence packets out of order (too early).
-                // This is NOT due to missed events, and any previous render packets should still be
-                // considered running/enqueued.  So, we flag these packets as completed so that it
-                // is immediately completed once it reaches the front of the queue.
-                if (entry->mPacketTrace == nullptr) {
-                    entry->mCompleted = true;
-                    return true;
-                }
-
-                // Otherwise, move current packet into this slot
-                *entry = node->mQueue[node->mQueueIndex];
-                node->mQueueIndex = queueIndex;
-                node->mQueueCount -= missingCount;
-                break;
-            }
+    //
+    // The whole queue is searched rather than only the packets with a larger sequence id than the
+    // running packet: a stale packet left at the front (e.g., with an unrelated sequence id) would
+    // otherwise reject every later completion and the queue would never drain again.
+    uint32_t queueSize = (uint32_t) node->mQueue.size();
+    uint32_t matchOffset = 0;
+    for (;; ++matchOffset) {
+        if (matchOffset == node->mQueueCount) {
+            return false;
+        }
+        if (node->mQueue[(node->mQueueIndex + matchOffset) % queueSize].mSequenceId == sequenceId) {
+            break;
         }
     }
 
+    if (matchOffset > 0) {
+        uint32_t queueIndex = (node->mQueueIndex + matchOffset) % queueSize;
+        auto entry = &node->mQueue[queueIndex];
+
+        // On some 3000-series NVIDIA cards using hardware scheduling, we sometimes get
+        // QueuePacket_Stop events for monitored fence packets out of order (too early).
+        // This is NOT due to missed events, and any previous render packets should still be
+        // considered running/enqueued.  So, we flag these packets as completed so that it
+        // is immediately completed once it reaches the front of the queue.
+        if (entry->mPacketTrace == nullptr) {
+            entry->mCompleted = true;
+            return true;
+        }
+
+        // Otherwise, move current packet into this slot
+        *entry = node->mQueue[node->mQueueIndex];
+        node->mQueueIndex = queueIndex;
+        node->mQueueCount -= matchOffset;
+    }
+
+    RetireFrontPacket(node, timestamp);
+
+    // Decrease queue storage in multiples of 16.
+    uint32_t N = (queueSize - node->mQueueCount) / 16;
+    if (N >= 2) {
+        N = (N - 1) * 16;
+        if (node->mQueueIndex >= N) {
+            node->mQueue.erase(node->mQueue.begin() + node->mQueueIndex - N, node->mQueue.begin() + node->mQueueIndex);
+            node->mQueueIndex -= N;
+        } else {
+            node->mQueue.erase(node->mQueue.begin() + queueSize - (N - node->mQueueIndex), node->mQueue.end());
+            node->mQueue.erase(node->mQueue.begin(), node->mQueue.begin() + node->mQueueIndex);
+            node->mQueueIndex = 0;
+        }
+        node->mQueue.shrink_to_fit();
+    }
+
+    return true;
+}
+
+void GpuTrace::RetireFrontPacket(Node* node, uint64_t timestamp)
+{
     // If this was the process' last executing packet, accumulate the execution
     // duration into the process' count.
     auto entry = &node->mQueue[node->mQueueIndex];
-    if (entry->mPacketTrace != nullptr) {
+    if (entry->mPacketTrace != nullptr && entry->mPacketTrace->mRunningPacketCount > 0) {
         entry->mPacketTrace->mRunningPacketCount -= 1;
         if (entry->mPacketTrace->mRunningPacketCount == 0) {
             CompletePacket(entry->mPacketTrace, timestamp);
@@ -420,23 +495,13 @@ bool GpuTrace::CompleteWork(Context* context, uint32_t sequenceId, uint64_t time
             break;
         }
     }
+}
 
-    // Decrease queue storage in multiples of 16.
-    uint32_t N = (queueSize - node->mQueueCount) / 16;
-    if (N >= 2) {
-        N = (N - 1) * 16;
-        if (node->mQueueIndex >= N) {
-            node->mQueue.erase(node->mQueue.begin() + node->mQueueIndex - N, node->mQueue.begin() + node->mQueueIndex);
-            node->mQueueIndex -= N;
-        } else {
-            node->mQueue.erase(node->mQueue.begin() + queueSize - (N - node->mQueueIndex), node->mQueue.end());
-            node->mQueue.erase(node->mQueue.begin(), node->mQueue.begin() + node->mQueueIndex);
-            node->mQueueIndex = 0;
-        }
-        node->mQueue.shrink_to_fit();
+void GpuTrace::RetireAllPackets(Node* node, uint64_t timestamp)
+{
+    while (node->mQueueCount > 0) {
+        RetireFrontPacket(node, timestamp);
     }
-
-    return true;
 }
 
 void GpuTrace::EnqueueQueuePacket(uint64_t hContext, uint32_t sequenceId, uint32_t processId, uint64_t timestamp, bool isWaitPacket)
