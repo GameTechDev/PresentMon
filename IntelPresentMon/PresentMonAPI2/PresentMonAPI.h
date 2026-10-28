@@ -7,7 +7,8 @@
 #define PRESENTMON_API2_EXPORT __declspec(dllimport)
 #endif
 
-#include <cstdint>
+#include <stddef.h>
+#include <stdint.h>
 
 #define PM_API_VERSION_MAJOR 3
 #define PM_API_VERSION_MINOR 4
@@ -19,7 +20,7 @@ extern "C" {
 #endif
 
 
-	enum PM_STATUS
+	typedef enum PM_STATUS
 	{
 		PM_STATUS_SUCCESS,
 		PM_STATUS_FAILURE,
@@ -45,9 +46,9 @@ extern "C" {
 		PM_STATUS_QUERY_MALFORMED,
 		PM_STATUS_MODE_MISMATCH,
 		PM_STATUS_FEATURE_DISABLED,
-	};
+	} PM_STATUS;
 
-	enum PM_METRIC
+	typedef enum PM_METRIC
 	{
 		PM_METRIC_APPLICATION,
 		PM_METRIC_SWAP_CHAIN_ADDRESS,
@@ -145,25 +146,25 @@ extern "C" {
 		PM_METRIC_SESSION_START_QPC,
 		PM_METRIC_CPU_CORE_TEMPERATURE,
 		PM_METRIC_COUNT_, // sentry to mark end of metric list; not an actual query metric
-	};
+	} PM_METRIC;
 
-	enum PM_METRIC_TYPE
+	typedef enum PM_METRIC_TYPE
 	{
 		PM_METRIC_TYPE_DYNAMIC,
 		PM_METRIC_TYPE_STATIC,
 		PM_METRIC_TYPE_FRAME_EVENT,
 		PM_METRIC_TYPE_DYNAMIC_FRAME,
-	};
+	} PM_METRIC_TYPE;
 
-	enum PM_DEVICE_VENDOR
+	typedef enum PM_DEVICE_VENDOR
 	{
 		PM_DEVICE_VENDOR_INTEL,
 		PM_DEVICE_VENDOR_NVIDIA,
 		PM_DEVICE_VENDOR_AMD,
 		PM_DEVICE_VENDOR_UNKNOWN
-	};
+	} PM_DEVICE_VENDOR;
 
-	enum PM_PRESENT_MODE
+	typedef enum PM_PRESENT_MODE
 	{
 		PM_PRESENT_MODE_UNKNOWN,
 		PM_PRESENT_MODE_HARDWARE_LEGACY_FLIP,
@@ -173,9 +174,9 @@ extern "C" {
 		PM_PRESENT_MODE_COMPOSED_COPY_WITH_GPU_GDI,
 		PM_PRESENT_MODE_COMPOSED_COPY_WITH_CPU_GDI,
 		PM_PRESENT_MODE_HARDWARE_COMPOSED_INDEPENDENT_FLIP=8,
-	};
+	} PM_PRESENT_MODE;
 
-	enum PM_UNIT
+	typedef enum PM_UNIT
 	{
 		PM_UNIT_DIMENSIONLESS,
 		PM_UNIT_RATIO,
@@ -208,9 +209,9 @@ extern "C" {
 		PM_UNIT_MEGABYTES,
 		PM_UNIT_GIGABYTES,
 		PM_UNIT_QPC,
-	};
+	} PM_UNIT;
 
-	enum PM_STAT
+	typedef enum PM_STAT
 	{
 		PM_STAT_NONE,
 		PM_STAT_AVG,
@@ -228,9 +229,9 @@ extern "C" {
 		PM_STAT_OLDEST_POINT,
 		PM_STAT_COUNT,
 		PM_STAT_NON_ZERO_AVG,
-	};
+	} PM_STAT;
 
-	enum PM_DATA_TYPE
+	typedef enum PM_DATA_TYPE
 	{
 		PM_DATA_TYPE_DOUBLE,
 		PM_DATA_TYPE_INT32,
@@ -240,16 +241,16 @@ extern "C" {
 		PM_DATA_TYPE_UINT64,
 		PM_DATA_TYPE_BOOL,
 		PM_DATA_TYPE_VOID,
-	};
+	} PM_DATA_TYPE;
 
-	enum PM_GRAPHICS_RUNTIME
+	typedef enum PM_GRAPHICS_RUNTIME
 	{
 		PM_GRAPHICS_RUNTIME_UNKNOWN,
 		PM_GRAPHICS_RUNTIME_DXGI,
 		PM_GRAPHICS_RUNTIME_D3D9,
-	};
+	} PM_GRAPHICS_RUNTIME;
 
-	enum PM_FRAME_TYPE
+	typedef enum PM_FRAME_TYPE
 	{
 		PM_FRAME_TYPE_NOT_SET,
 		PM_FRAME_TYPE_UNSPECIFIED,
@@ -257,28 +258,32 @@ extern "C" {
 		PM_FRAME_TYPE_REPEATED,
 		PM_FRAME_TYPE_INTEL_XEFG = 50,
 		PM_FRAME_TYPE_AMD_AFMF = 100,
-	};
+	} PM_FRAME_TYPE;
 
-	enum PM_DEVICE_TYPE
+	typedef enum PM_DEVICE_TYPE
 	{
 		PM_DEVICE_TYPE_INDEPENDENT,
 		PM_DEVICE_TYPE_GRAPHICS_ADAPTER,
 		PM_DEVICE_TYPE_SYSTEM,
-	};
+	} PM_DEVICE_TYPE;
 
-	enum PM_METRIC_AVAILABILITY
+	typedef enum PM_METRIC_AVAILABILITY
 	{
 		PM_METRIC_AVAILABILITY_AVAILABLE,
 		PM_METRIC_AVAILABILITY_UNAVAILABLE,
 		PM_METRIC_AVAILABILITY_NOT_EXPORTED_BY_SOURCE,
 		PM_METRIC_AVAILABILITY_NOT_SUPPORTED_BY_DEVICE,
 		PM_METRIC_AVAILABILITY_NOT_IMPLEMENTED_BY_PRESENTMON,
-	};
+	} PM_METRIC_AVAILABILITY;
 
-	// this is required but has no external use
-	enum PM_NULL_ENUM {};
+	// this is required but has no external use; C forbids empty enums so a
+	// single NONE enumerator is present
+	typedef enum PM_NULL_ENUM
+	{
+		PM_NULL_ENUM_NONE = 0,
+	} PM_NULL_ENUM;
 
-	enum PM_ENUM
+	typedef enum PM_ENUM
 	{
 		PM_ENUM_STATUS,
 		PM_ENUM_METRIC,
@@ -293,20 +298,20 @@ extern "C" {
 		PM_ENUM_DEVICE_TYPE,
 		PM_ENUM_METRIC_AVAILABILITY,
 		PM_ENUM_NULL_ENUM,
-	};
+	} PM_ENUM;
 
-	struct PM_INTROSPECTION_STRING
+	typedef struct PM_INTROSPECTION_STRING
 	{
 		const char* pData;
-	};
+	} PM_INTROSPECTION_STRING;
 
-	struct PM_INTROSPECTION_OBJARRAY
+	typedef struct PM_INTROSPECTION_OBJARRAY
 	{
 		const void** pData;
 		size_t size;
-	};
+	} PM_INTROSPECTION_OBJARRAY;
 
-	struct PM_INTROSPECTION_ENUM_KEY
+	typedef struct PM_INTROSPECTION_ENUM_KEY
 	{
 		PM_ENUM enumId;
 		int id;
@@ -314,51 +319,51 @@ extern "C" {
 		PM_INTROSPECTION_STRING* pName;
 		PM_INTROSPECTION_STRING* pShortName;
 		PM_INTROSPECTION_STRING* pDescription;
-	};
+	} PM_INTROSPECTION_ENUM_KEY;
 
-	struct PM_INTROSPECTION_ENUM
+	typedef struct PM_INTROSPECTION_ENUM
 	{
 		PM_ENUM id;
 		PM_INTROSPECTION_STRING* pSymbol;
 		PM_INTROSPECTION_STRING* pDescription;
 		PM_INTROSPECTION_OBJARRAY* pKeys;
-	};
+	} PM_INTROSPECTION_ENUM;
 
-	struct PM_INTROSPECTION_DEVICE_LUID
+	typedef struct PM_INTROSPECTION_DEVICE_LUID
 	{
 		const uint8_t* pData;
 		uint32_t size;
-	};
+	} PM_INTROSPECTION_DEVICE_LUID;
 
-	struct PM_INTROSPECTION_DEVICE
+	typedef struct PM_INTROSPECTION_DEVICE
 	{
 		uint32_t id;
 		PM_DEVICE_TYPE type;
 		PM_DEVICE_VENDOR vendor;
 		PM_INTROSPECTION_STRING* pName;
 		PM_INTROSPECTION_DEVICE_LUID* pLuid;
-	};
+	} PM_INTROSPECTION_DEVICE;
 
-	struct PM_INTROSPECTION_DEVICE_METRIC_INFO
+	typedef struct PM_INTROSPECTION_DEVICE_METRIC_INFO
 	{
 		uint32_t deviceId;
 		PM_METRIC_AVAILABILITY availability;
 		uint32_t arraySize;
-	};
+	} PM_INTROSPECTION_DEVICE_METRIC_INFO;
 
-	struct PM_INTROSPECTION_DATA_TYPE_INFO
+	typedef struct PM_INTROSPECTION_DATA_TYPE_INFO
 	{
 		PM_DATA_TYPE polledType;
 		PM_DATA_TYPE frameType;
 		PM_ENUM enumId;
-	};
+	} PM_INTROSPECTION_DATA_TYPE_INFO;
 
-	struct PM_INTROSPECTION_STAT_INFO
+	typedef struct PM_INTROSPECTION_STAT_INFO
 	{
 		PM_STAT stat;
-	};
+	} PM_INTROSPECTION_STAT_INFO;
 
-	struct PM_INTROSPECTION_METRIC
+	typedef struct PM_INTROSPECTION_METRIC
 	{
 		PM_METRIC id;
 		PM_METRIC_TYPE type;
@@ -367,24 +372,24 @@ extern "C" {
 		PM_INTROSPECTION_DATA_TYPE_INFO* pTypeInfo;
 		PM_INTROSPECTION_OBJARRAY* pStatInfo;
 		PM_INTROSPECTION_OBJARRAY* pDeviceMetricInfo;
-	};
+	} PM_INTROSPECTION_METRIC;
 
-	struct PM_INTROSPECTION_UNIT
+	typedef struct PM_INTROSPECTION_UNIT
 	{
 		PM_UNIT id;
 		PM_UNIT baseUnitId;
 		double scale;
-	};
+	} PM_INTROSPECTION_UNIT;
 
-	struct PM_INTROSPECTION_ROOT
+	typedef struct PM_INTROSPECTION_ROOT
 	{
 		PM_INTROSPECTION_OBJARRAY* pMetrics;
 		PM_INTROSPECTION_OBJARRAY* pEnums;
 		PM_INTROSPECTION_OBJARRAY* pDevices;
 		PM_INTROSPECTION_OBJARRAY* pUnits;
-	};
+	} PM_INTROSPECTION_ROOT;
 
-	struct PM_QUERY_ELEMENT
+	typedef struct PM_QUERY_ELEMENT
 	{
 		PM_METRIC metric;
 		PM_STAT stat;
@@ -392,9 +397,9 @@ extern "C" {
 		uint32_t arrayIndex;
 		uint64_t dataOffset;
 		uint64_t dataSize;
-	};
+	} PM_QUERY_ELEMENT;
 
-	struct PM_VERSION
+	typedef struct PM_VERSION
 	{
 		uint16_t major;
 		uint16_t minor;
@@ -402,7 +407,7 @@ extern "C" {
 		char tag[22];
 		char hash[8];
 		char config[4];
-	};
+	} PM_VERSION;
 
 	typedef struct PM_DYNAMIC_QUERY* PM_DYNAMIC_QUERY_HANDLE;
 	typedef struct PM_FRAME_QUERY* PM_FRAME_QUERY_HANDLE;
