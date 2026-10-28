@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdint>
 #include <format>
+#include <map>
 #include <string>
 #include <thread>
 
@@ -16,6 +17,17 @@ namespace pmon::tests
 	inline size_t FrameCountInRange_(const auto& range)
 	{
 		return range.second > range.first ? (size_t)(range.second - range.first) : 0u;
+	}
+
+	inline std::string RequireFrameSegmentName(
+		const std::map<uint32_t, std::string>& frameSegmentNames,
+		uint32_t pid)
+	{
+		const auto it = frameSegmentNames.find(pid);
+		Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsTrue(
+			it != frameSegmentNames.end(),
+			L"Expected frame segment name for tracked pid");
+		return it->second;
 	}
 
 	template<typename Ring>
@@ -55,16 +67,19 @@ namespace pmon::tests
 		return warmupRange;
 	}
 
+	// Observes an already-tracked pid's segment. Callers must StartTracking / TrackProcess
+	// first and supply the segment name from that track response or QueryStatus.
 	inline bool TryWaitForFirstFrame(
 		const std::string& ctrlPipe,
 		uint32_t pid,
+		const std::string& frameSegmentName,
 		const char* label,
 		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit,
 		size_t minFrameCount = 1)
 	{
 		mid::ActionClient client{ ctrlPipe };
 		auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-		pComms->OpenFrameDataStore(pid);
+		pComms->OpenFrameDataStore(pid, frameSegmentName);
 		const auto warmupRange = WaitForFirstFrameRange(pComms->GetFrameDataStore(pid).frameData, label, waitLimit, minFrameCount);
 		return FrameCountInRange_(warmupRange) >= minFrameCount;
 	}
@@ -72,13 +87,14 @@ namespace pmon::tests
 	inline auto WaitForFirstFrame(
 		const std::string& ctrlPipe,
 		uint32_t pid,
+		const std::string& frameSegmentName,
 		const char* label,
 		std::chrono::milliseconds waitLimit = DefaultFirstFrameWaitLimit,
 		size_t minFrameCount = 1)
 	{
 		mid::ActionClient client{ ctrlPipe };
 		auto pComms = ipc::MakeMiddlewareComms(client.GetShmPrefix(), client.GetShmSalt());
-		pComms->OpenFrameDataStore(pid);
+		pComms->OpenFrameDataStore(pid, frameSegmentName);
 		return WaitForFirstFrame(pComms->GetFrameDataStore(pid).frameData, label, waitLimit, minFrameCount);
 	}
 }

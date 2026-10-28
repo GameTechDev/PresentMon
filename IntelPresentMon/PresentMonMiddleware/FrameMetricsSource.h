@@ -97,8 +97,8 @@ namespace pmon::mid
 		// progressCallback is invoked after each batch of frames is processed to report
 		// the new read position. Only set for backpressured playback targets; those
 		// rings are SPSC, so this source is the single consumer advancing playback.
-		FrameMetricsSource(ipc::MiddlewareComms& comms, uint32_t processId, size_t perSwapChainCapacity,
-			std::function<void(uint64_t)> progressCallback = {});
+		FrameMetricsSource(ipc::MiddlewareComms& comms, uint32_t processId, const std::string& frameSegmentName,
+			size_t perSwapChainCapacity, std::function<void(uint64_t)> progressCallback = {});
 		~FrameMetricsSource();
 
 		FrameMetricsSource(const FrameMetricsSource&) = delete;

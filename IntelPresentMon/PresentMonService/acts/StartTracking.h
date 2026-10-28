@@ -30,7 +30,10 @@ namespace pmon::svc::acts
 		};
 		struct Response
 		{
+			std::string frameSegmentName;
+
 			template<class A> void serialize(A& ar) {
+				ar(frameSegmentName);
 			}
 		};
 	private:
@@ -74,12 +77,12 @@ namespace pmon::svc::acts
             }
             trackedPids.emplace(in.targetPid);
             // get the (possibly shared) segment (new or find operation in broadcaster)
-            auto pSegment = ctx.pPmon->GetBroadcaster().RegisterTarget(
+            auto segmentRef = ctx.pPmon->GetBroadcaster().RegisterTarget(
                 in.targetPid, in.isPlayback, in.isBackpressured);
             // the segment may have been created by an earlier session with a different mode;
             // reject the join rather than silently binding to a segment with incompatible
             // backpressure behavior.
-            if (pSegment->GetStore().frameData.IsBackpressured() != in.isBackpressured) {
+            if (segmentRef.segment->GetStore().frameData.IsBackpressured() != in.isBackpressured) {
                 pmlog_error("StartTracking backpressure mode conflicts with existing segment")
                     .pmwatch(in.targetPid)
                     .pmwatch(in.isBackpressured);
@@ -92,16 +95,16 @@ namespace pmon::svc::acts
             // For SPSC backpressured playback, seed the service-owned read cursor to the
             // oldest currently readable frame and let this client advance it from there.
             if (in.isBackpressured) {
-                const auto initialSerial = pSegment->GetStore().frameData.GetSerialRange().first;
+                const auto initialSerial = segmentRef.segment->GetStore().frameData.GetSerialRange().first;
                 target.backpressureReadSerial = initialSerial;
                 ctx.pPmon->GetBroadcaster().UpdateReadSerial(in.targetPid, initialSerial);
             }
-            target.pSegment = std::move(pSegment);
+            target.pSegment = segmentRef.segment;
             stx.trackedPids.emplace(in.targetPid, std::move(target));
             ctx.UpdatePeriodicLogFlushing();
             pmlog_info(std::format("StartTracking action from [{}] targeting [{}]",
                 stx.remotePid, in.targetPid));
-            return {};
+            return Response{ .frameSegmentName = segmentRef.segmentName };
 		}
 	};
 
