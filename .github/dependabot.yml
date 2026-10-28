@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/IntelPresentMon/AppCef/ipm-ui-vue"
+    schedule:
+      interval: "weekly"
+    # Version updates only. 0 keeps this file from opening non-security PRs.
+    open-pull-requests-limit: 0
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
