@@ -17,7 +17,9 @@ namespace pmon::util::metrics
     template<>struct FrameMetricMember<PM_METRIC_DISPLAYED_FPS> {static constexpr auto member = &FrameMetrics::msBetweenDisplayChange;
         static constexpr auto reciprocationFactor = 1000.;};
     template<>struct FrameMetricMember<PM_METRIC_PRESENTED_FPS>{static constexpr auto member=&FrameMetrics::msBetweenPresents;
-        static constexpr auto reciprocationFactor = 1000.;}; 
+        static constexpr auto reciprocationFactor = 1000.;};
+    template<>struct FrameMetricMember<PM_METRIC_SIMULATION_FPS>{static constexpr auto member=&FrameMetrics::msBetweenSimStarts;
+        static constexpr auto reciprocationFactor = 1000.;};
     template<>struct FrameMetricMember<PM_METRIC_GPU_LATENCY>{static constexpr auto member=&FrameMetrics::msGPULatency;};
     template<>struct FrameMetricMember<PM_METRIC_GPU_TIME>{static constexpr auto member=&FrameMetrics::msGPUTime;};
     template<>struct FrameMetricMember<PM_METRIC_GPU_BUSY>{static constexpr auto member=&FrameMetrics::msGPUBusy;};

@@ -885,6 +885,26 @@ namespace IpcMcIntegrationTests
                 Assert::IsTrue(metricView.GetType() == PM_METRIC_TYPE_DYNAMIC_FRAME);
             }
         }
+
+        TEST_METHOD(SimulationFpsIsDynamicWithReciprocalMapping)
+        {
+            pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
+            auto intro = session.GetIntrospectionRoot();
+            Assert::IsTrue((bool)intro);
+
+            const auto metricView = intro->FindMetric(PM_METRIC_SIMULATION_FPS);
+            Assert::IsTrue(metricView.GetType() == PM_METRIC_TYPE_DYNAMIC);
+            Assert::IsTrue(metricView.GetUnit() == PM_UNIT_FPS);
+
+            constexpr auto memberPtr = util::metrics::FrameMetricMember<PM_METRIC_SIMULATION_FPS>::member;
+            using MemberInfo = util::MemberPointerInfo<decltype(memberPtr)>;
+            Assert::IsTrue(std::is_same_v<typename MemberInfo::StructType, pmon::util::metrics::FrameMetrics>);
+            Assert::IsTrue(memberPtr == &pmon::util::metrics::FrameMetrics::msBetweenSimStarts);
+
+            const auto reciprocation = util::metrics::GetReciprocationFactor<PM_METRIC_SIMULATION_FPS>();
+            Assert::IsTrue(reciprocation.has_value());
+            Assert::AreEqual(1000., *reciprocation, 0.0);
+        }
     };
 
     TEST_CLASS(MultiSessionDynamicQueryTests)

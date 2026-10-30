@@ -49,6 +49,7 @@ In Debug configuration, the application will halt with a modal error dialog when
 |CPU Wait|CPUWait|How long the CPU spent waiting before it could start generating the frame in milliseconds|DF|
 |Displayed FPS||Rate of frame change measurable at display|D|
 |Presented FPS||Rate of application calls to a Present() function|D|
+|Simulation FPS||Rate at which simulation processing starts for new frames|D|
 |GPU Time|GPUTime|Total amount of time between when GPU started frame and when it finished in milliseconds. The GPU may not have been fully busy during this time|DF|
 |GPU Busy|GPUBusy|How long the GPU spent working on this frame|DF|
 |GPU Wait|GPUWait|How long the GPU spent waiting while working on this frame|DF|

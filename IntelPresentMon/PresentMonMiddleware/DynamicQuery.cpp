@@ -94,6 +94,7 @@ static bool IsFrameTimeOrFpsMetric_(PM_METRIC metric)
 	case PM_METRIC_DISPLAYED_FPS:
 	case PM_METRIC_APPLICATION_FPS:
 	case PM_METRIC_PRESENTED_FPS:
+	case PM_METRIC_SIMULATION_FPS:
 		return true;
 	default:
 		return false;

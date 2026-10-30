@@ -33,6 +33,7 @@ PM_METRIC_ALL_INPUT_TO_PHOTON_LATENCY,,Ms All Input To Photon Latency,How long i
 PM_METRIC_DISPLAYED_FPS,1,FPS-Display,The rate at which new frames are being displayed on the screen.
 PM_METRIC_APPLICATION_FPS,1,FPS-App,The rate at which the application is rendering and displaying new frames to the screen.
 PM_METRIC_PRESENTED_FPS,1,FPS-Presents,The rate at which the application is calling Present().
+PM_METRIC_SIMULATION_FPS,1,Simulation FPS,The rate at which simulation processing starts for new frames.
 PM_METRIC_DROPPED_FRAMES,1,Dropped Frames,Indicates if the frame was not displayed.
 ,,,
 PM_METRIC_GPU_VENDOR,1,GPU Vendor,Vendor name of the GPU.

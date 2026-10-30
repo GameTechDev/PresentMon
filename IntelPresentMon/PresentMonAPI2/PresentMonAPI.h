@@ -145,6 +145,7 @@ extern "C" {
 		PM_METRIC_PROCESS_ID,
 		PM_METRIC_SESSION_START_QPC,
 		PM_METRIC_CPU_CORE_TEMPERATURE,
+		PM_METRIC_SIMULATION_FPS,
 		PM_METRIC_COUNT_, // sentry to mark end of metric list; not an actual query metric
 	} PM_METRIC;
 
