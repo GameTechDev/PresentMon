@@ -6,11 +6,15 @@
 
 #include "async/BrowseReadSpec.h"
 #include "async/BrowseStoreSpec.h"
+#include "async/BrowseLogFolder.h"
 #include "async/EnumerateProcesses.h"
 #include "async/EnumerateKeys.h"
 #include "async/EnumerateModifiers.h"
 #include "async/ExploreCaptures.h"
 #include "async/ExploreEtls.h"
+#include "async/ExploreLogFolder.h"
+#include "async/FlushUiLogs.h"
+#include "async/ApplyUiLoggingPolicy.h"
 #include "async/LoadFile.h"
 #include "async/StoreFile.h"
 #include "async/GetTopGpuProcess.h"
@@ -34,11 +38,15 @@ namespace p2c::client::util
 		using namespace async;
 		AddEndpoint<BrowseReadSpec>();
 		AddEndpoint<BrowseStoreSpec>();
+		AddEndpoint<BrowseLogFolder>();
 		AddEndpoint<EnumerateProcesses>();
 		AddEndpoint<EnumerateKeys>();
 		AddEndpoint<EnumerateModifiers>();
 		AddEndpoint<ExploreCaptures>();
 		AddEndpoint<ExploreEtls>();
+		AddEndpoint<ExploreLogFolder>();
+		AddEndpoint<FlushUiLogs>();
+		AddEndpoint<ApplyUiLoggingPolicy>();
 		AddEndpoint<LoadFile>();
 		AddEndpoint<StoreFile>();
 		AddEndpoint<GetTopGpuProcess>();

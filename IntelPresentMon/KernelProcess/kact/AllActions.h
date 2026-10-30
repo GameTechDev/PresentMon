@@ -6,3 +6,6 @@
 #include "BindHotkey.h"
 #include "ClearHotkey.h"
 #include "SetEtlLogging.h"
+#include "SetDiagnosticLogging.h"
+#include "GetLoggingConfiguration.h"
+#include "FlushDiagnosticLogging.h"

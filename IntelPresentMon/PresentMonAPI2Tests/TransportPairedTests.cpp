@@ -163,7 +163,7 @@ namespace TransportDemuxTests
 			boost::process::v2::windows::default_launcher launcher;
 			launcher.inherited_handles.push_back(clientEnd.Get());
 			// the child does nothing with the pipe; it only holds the handle for about two seconds
-			auto child = launcher(procCtx, std::filesystem::path{ systemDir } / L"cmd.exe",
+			auto child = launcher(procCtx, boost::process::v2::filesystem::path{ systemDir } / L"cmd.exe",
 				std::vector<std::string>{ "/c", "ping", "-n", "3", "127.0.0.1" });
 			clientEnd = util::win::Handle{};
 			std::this_thread::sleep_for(500ms);

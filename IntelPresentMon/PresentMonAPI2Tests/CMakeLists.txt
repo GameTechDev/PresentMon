@@ -47,6 +47,7 @@ add_library(
         IpcComponentTests.cpp
         IpcMcIntegrationTests.cpp
         Logging.cpp
+        MiddlewareLogConfigTests.cpp
         MockTelemetryTests.cpp
         ModuleInit.cpp
         MultiClientTests.cpp

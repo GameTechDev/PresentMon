@@ -26,6 +26,11 @@ add_executable(
         compatibility.manifest
 )
 
+set_source_files_properties(
+    source/util/KernelActionRegistration.cpp
+    PROPERTIES COMPILE_OPTIONS /bigobj
+)
+
 target_link_libraries(
     PresentMonUI
     PRIVATE

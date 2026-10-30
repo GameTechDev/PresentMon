@@ -15,12 +15,14 @@
 #include <dwmapi.h>
 #include <Shobjidl.h>
 #include <ShellScalingApi.h>
+#include <shellapi.h>
 #include <include/cef_version.h>
 #include "util/CefLog.h"
 #include "util/KernelLink.h"
 
 
 #pragma comment(lib, "Dwmapi.lib")
+#pragma comment(lib, "Shell32.lib")
 
 using namespace p2c;
 using namespace ::pmon::util;
@@ -182,8 +184,16 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     constexpr bool is_debug = true;
 #endif
     // parse the command line arguments and make them globally available
-    if (auto err = Options::Init(__argc, __argv, false)) {
-        return *err;
+    // use the wide command line so options arrive as UTF-8 (as CLI11 path validators and
+    // str::ToWide expect); __argv is ANSI and mangles non-ASCII paths like --p2c-log-folder
+    int wargc = 0;
+    const std::unique_ptr<wchar_t*, decltype(&::LocalFree)> wargv{
+        ::CommandLineToArgvW(::GetCommandLineW(), &wargc), &::LocalFree };
+    const auto optErr = wargv
+        ? Options::Init(wargc, wargv.get(), false)
+        : Options::Init(__argc, __argv, false);
+    if (optErr) {
+        return *optErr;
     }
     const auto& opt = Options::Get();
     if (opt.filesWorking) {

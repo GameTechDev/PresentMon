@@ -15,6 +15,7 @@
 #include <CommonUtilities/ref/WrapReflect.h>
 #include <ranges>
 #include <array>
+#include <cmath>
 
 namespace p2c::client::util
 {
@@ -45,7 +46,9 @@ namespace p2c::client::util
 			CustomV8Conversion<T>::FromV8(v8, out);
 		}
 		else if constexpr (IsContainer<std::optional, T>) {
-			if (v8.IsNull()) {
+			// Missing object properties are undefined in V8; treat them like null so
+			// field-patch payloads do not invent empty engaged optionals.
+			if (v8.IsNull() || v8.IsUndefined()) {
 				out.reset();
 			}
 			else {
@@ -73,6 +76,14 @@ namespace p2c::client::util
 		}
 		else if constexpr (std::is_floating_point_v<T>) {
 			out = T(v8.GetDoubleValue());
+		}
+		else if constexpr (std::is_integral_v<T> && sizeof(T) > 4) {
+			// 64-bit values travel as JS numbers (doubles), exact up to 2^53
+			// TODO: Use a lossless encoding before values can exceed 2^53; the current
+			// verbose-module mask uses only 15 bits, so precision loss is latent.
+			// non-finite or out-of-range values become 0 instead of undefined conversion
+			const auto value = v8.GetDoubleValue();
+			out = std::isfinite(value) && std::abs(value) < 9.2e18 ? T(int64_t(value)) : T(0);
 		}
 		else if constexpr (std::is_integral_v<T>) {
 			if (v8.IsUInt()) {
@@ -137,6 +148,9 @@ namespace p2c::client::util
 		}
 		else if constexpr (std::is_floating_point_v<T>) {
 			pV8 = CefV8Value::CreateDouble(in);
+		}
+		else if constexpr (std::is_integral_v<T> && sizeof(T) > 4) {
+			pV8 = CefV8Value::CreateDouble((double)in);
 		}
 		else if constexpr (std::is_integral_v<T>) {
 			pV8 = CefV8Value::CreateInt(in);

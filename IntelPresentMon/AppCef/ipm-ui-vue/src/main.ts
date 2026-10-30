@@ -19,6 +19,7 @@ import { useHotkeyStore } from '@/stores/hotkey';
 import { useIntrospectionStore } from '@/stores/introspection';
 import { loadBlocklists } from './core/block-list'
 import { usePreferencesStore } from './stores/preferences'
+import { useDiagnosticLoggingStore } from './stores/diagnostic-logging'
 import { Api } from './core/api'
 
 if (isDevBuild()) {
@@ -103,6 +104,12 @@ async function initStores() {
         loadBlocklists(),
     ])
     await usePreferencesStore().initPreferences()
+    try {
+        await useDiagnosticLoggingStore().hydrate()
+    }
+    catch (e) {
+        console.warn('Failed to hydrate diagnostic logging configuration: ' + e)
+    }
 }
 
 var app:any;

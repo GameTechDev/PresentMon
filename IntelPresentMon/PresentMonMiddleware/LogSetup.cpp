@@ -15,6 +15,7 @@
 #include "../CommonUtilities/log/Log.h"
 #include "LogSetup.h"
 #include <memory>
+#include <mutex>
 
 
 namespace pmon::util::log
@@ -117,7 +118,22 @@ namespace pmon::util::log
 				return {};
 			}
 		}
+		// create a channel with no drivers, used as the base for middleware-local outputs
+		std::shared_ptr<IChannel> MakeBaseChannel_()
+		{
+			auto pChannel = std::make_shared<Channel>();
+			pChannel->AttachComponent(MakeErrorCodePolicy_());
+			pChannel->AttachComponent(std::make_shared<LinePolicy>());
+			return pChannel;
+		}
+		// state for middleware-local outputs
+		std::mutex localOutputMtx_;
+		std::weak_ptr<IChannelComponent> pLocalFileDriver_;
+		std::filesystem::path localFilePath_;
 		// creates a null channel and configures logging to be disabled as much as possible
+		// NOTE: by design (external API clients get no logging unless requested), entries
+		// emitted before a host configures outputs (link, Setup*, pmSetMiddlewareLogOutput_)
+		// are dropped; the kernel configures in the same call that first loads the dll
 		std::shared_ptr<IChannel> MakeNullChannel_()
 		{
 			return {};
@@ -187,6 +203,56 @@ namespace pmon::util::log
 		GlobalPolicy::Get().SetExceptionTrace(exceptionTrace);
 		SeverCopyLoggingBridge();
 		InjectDefaultChannel(MakeFileChannel_(std::move(path)));
+	}
+
+	void SetLocalOutputs(const std::filesystem::path& filePath, bool debuggerOutput)
+	{
+		std::lock_guard lk{ localOutputMtx_ };
+		auto pChannel = GetDefaultChannel();
+		if (!pChannel) {
+			if (filePath.empty() && !debuggerOutput) {
+				return;
+			}
+			pChannel = MakeBaseChannel_();
+			InjectDefaultChannel(pChannel);
+		}
+		if (filePath.empty()) {
+			pChannel->AttachComponent({}, "drv:file");
+			pLocalFileDriver_.reset();
+			localFilePath_.clear();
+		}
+		else {
+			// skip reopening when our driver for this path is still attached
+			const auto pCurrent = pChannel->GetComponent("drv:file");
+			if (!pCurrent || pCurrent != pLocalFileDriver_.lock() || filePath != localFilePath_) {
+				auto pDriver = std::make_shared<BasicFileDriver>(std::make_shared<TextFormatter>(),
+					std::make_shared<SimpleFileStrategy>(filePath));
+				pChannel->AttachComponent(pDriver, "drv:file");
+				pLocalFileDriver_ = pDriver;
+				localFilePath_ = filePath;
+			}
+		}
+		if (!debuggerOutput) {
+			pChannel->AttachComponent({}, "drv:dbg");
+		}
+		else if (!pChannel->GetComponent("drv:dbg")) {
+			pChannel->AttachComponent(std::make_shared<MsvcDebugDriver>(
+				std::make_shared<TextFormatter>()), "drv:dbg");
+		}
+	}
+
+	LocalLogOutputs GetLocalOutputs()
+	{
+		std::lock_guard lk{ localOutputMtx_ };
+		LocalLogOutputs outputs;
+		if (auto pChannel = GetDefaultChannel()) {
+			if (const auto pFile = pChannel->GetComponent("drv:file");
+				pFile && pFile == pLocalFileDriver_.lock()) {
+				outputs.filePath = localFilePath_;
+			}
+			outputs.debuggerOutput = (bool)pChannel->GetComponent("drv:dbg");
+		}
+		return outputs;
 	}
 
 	std::shared_ptr<class DiagnosticDriver> GetDiagnostics()

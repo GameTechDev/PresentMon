@@ -54,6 +54,7 @@
     <ClInclude Include="source\gfx\prim\TextStylePrimitive.h" />
     <ClInclude Include="source\infra\Logging.h" />
     <ClInclude Include="source\infra\LogSetup.h" />
+    <ClInclude Include="source\infra\LoggingConfigurationStore.h" />
     <ClInclude Include="source\infra\util\CooldownTimer.h" />
     <ClInclude Include="source\infra\util\FolderResolver.h" />
     <ClInclude Include="source\kernel\DataFetchPack.h" />
@@ -122,6 +123,7 @@
     <ClCompile Include="source\gfx\prim\TextPrimitive.cpp" />
     <ClCompile Include="source\gfx\prim\TextStylePrimitive.cpp" />
     <ClCompile Include="source\infra\LogSetup.cpp" />
+    <ClCompile Include="source\infra\LoggingConfigurationStore.cpp" />
     <ClCompile Include="source\infra\util\CooldownTimer.cpp" />
     <ClCompile Include="source\infra\util\FolderResolver.cpp" />
     <ClCompile Include="source\pmon\DynamicQuery.cpp" />

@@ -1,3 +1,5 @@
+find_package(nlohmann_json CONFIG REQUIRED)
+
 set(core_sources
         gfx/Graphics.cpp
         gfx/impl/FastRenderer.cpp
@@ -24,6 +26,7 @@ set(core_sources
         gfx/prim/TextPrimitive.cpp
         gfx/prim/TextStylePrimitive.cpp
         infra/LogSetup.cpp
+        infra/LoggingConfigurationStore.cpp
         infra/util/CooldownTimer.cpp
         infra/util/FolderResolver.cpp
         kernel/Kernel.cpp
@@ -80,6 +83,7 @@ target_link_libraries(
         pmon::api_wrapper
         pmon::api_wrapper_common
         PresentMonAPI2Loader
+        nlohmann_json::nlohmann_json
     PRIVATE
         pmon::build_options
         pmon::warnings_default

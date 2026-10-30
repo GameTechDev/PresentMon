@@ -1,6 +1,7 @@
 #pragma once
 #include <CommonUtilities/cli/CliFramework.h>
 #include <CommonUtilities/log/Level.h>
+#include <CommonUtilities/log/Verbose.h>
 #include <format>
 #include <map>
 

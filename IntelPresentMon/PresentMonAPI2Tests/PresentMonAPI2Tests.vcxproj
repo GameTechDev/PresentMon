@@ -118,6 +118,7 @@
     <ClCompile Include="PacedPollingTests.cpp" />
     <ClCompile Include="EtlTests.cpp" />
     <ClCompile Include="Logging.cpp" />
+    <ClCompile Include="MiddlewareLogConfigTests.cpp" />
     <ClCompile Include="MockTelemetryTests.cpp" />
     <ClCompile Include="RealtimeMetricTests.cpp" />
     <ClCompile Include="TransportDemuxTests.cpp" />
@@ -140,6 +141,9 @@
     </ProjectReference>
     <ProjectReference Include="..\KernelProcess\KernelProcess.vcxproj">
       <Project>{8524c555-b172-46ef-be42-7b7b7bb102e4}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\PresentMonMiddleware\PresentMonMiddleware.vcxproj">
+      <Project>{34b60aac-4646-4aa8-a267-9a5dd7c097d5}</Project>
     </ProjectReference>
     <ProjectReference Include="..\PresentMonAPI2Loader\PresentMonAPI2Loader.vcxproj">
       <Project>{8f86d067-2437-46fc-8f82-4d7155ceced7}</Project>

@@ -53,7 +53,7 @@ export interface Preferences {
     readonly graphFont: {
         readonly name: 'Verdana';
         readonly axisSize: 10.0;
-    };    
+    };
     adapterId: number;
 };
 

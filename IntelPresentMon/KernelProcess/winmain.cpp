@@ -18,6 +18,8 @@
 #include <Core/source/cli/CliOptions.h>
 #include <PresentMonAPI2Loader/Loader.h>
 #include <Core/source/infra/LogSetup.h>
+#include <Core/source/infra/LoggingConfigurationStore.h>
+#include <CommonUtilities/log/Verbose.h>
 #include <Core/source/pmon/FrameMetricCapabilitiesCsv.h>
 #include <CommonUtilities/file/PathUtils.h>
 #include <CommonUtilities/win/Utilities.h>
@@ -368,9 +370,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		}
 
 		// create logging system and ensure cleanup before main ext
+		// Keep the generic early log active while the persisted store loads.
 		LogChannelManager zLogMan_;
 
-		// configure the logging system (partially based on command line options)
+		// Load kproc-owned logging.json, then merge explicit CLI overrides before
+		// applying normal logging configuration.
+		LoggingConfigurationStore::Get().InitializeFromDiskAndCli(opt);
+
+		// configure the logging system (store effective + remaining CLI options)
 		ConfigureLogging();
 
 #ifndef NDEBUG
@@ -410,11 +417,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				"--log-level"s, util::log::GetLevelName(util::log::GlobalPolicy::Get().GetLogLevel()),
 				"--enable-stdio-log"s,
 			};
-			// append verbose module options
-			if (opt.logVerboseModules) {
-				args.push_back("--log-verbose-modules"s);
-				args.append_range(*opt.logVerboseModules | vi::transform(util::log::GetVerboseModuleName));
-			}
+			// append verbose module options from effective logging configuration
+			LoggingConfigurationStore::AppendVerboseModuleArgs(args, "--log-verbose-modules",
+				LoggingConfigurationStore::Get().GetEffective().verboseModules);
 			for (auto& f : *opt.svcFlags) {
 				args.push_back("--" + f);
 			}
@@ -615,14 +620,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				// compose optional cli args for cef process tree
 				auto args = std::vector<std::string>{
 					opt.filesWorking ? "--p2c-files-working"s : ""s,
-					opt.traceExceptions ? "--p2c-trace-exceptions"s : ""s,
-					opt.logFolder ? "--p2c-log-folder"s : ""s, *opt.logFolder,
 				} | vi::filter(std::not_fn(&std::string::empty)) | rn::to<std::vector>();
-				// forward verbose module options
-				if (opt.logVerboseModules) {
-					args.push_back("--p2c-log-verbose-modules"s);
-					args.append_range(*opt.logVerboseModules | vi::transform(util::log::GetVerboseModuleName));
-				}
+				// Forward effective diagnostic logging settings (persisted + CLI + UI).
+				args.append_range(LoggingConfigurationStore::BuildCefLaunchArgs(
+					LoggingConfigurationStore::Get().GetEffective()));
 				bool allOriginsAllowed = false;
 				for (auto& f : *opt.uiFlags) {
 					if (f == "enable-chromium-debug") {
@@ -656,8 +657,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				}
 				// add fixed CLI options to the args vector
 				args.append_range(std::vector{
-					"--p2c-log-level"s, util::log::GetLevelName(*opt.logLevel),
-					"--p2c-log-trace-level"s, util::log::GetLevelName(*opt.logTraceLevel),
 					"--p2c-ui-mutex-name"s, *opt.uiMutexName,
 					"--p2c-act-handle"s, std::to_string((uintptr_t)uiPipe.Get()),
 					"--p2c-log-pipe-name"s, cefLogPipe

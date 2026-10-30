@@ -38,6 +38,7 @@ namespace p2c::client::util
 		AsyncEndpoint(Environment env);
 		virtual void ExecuteOnBrowser(uint64_t uid, CefRefPtr<CefValue> pArgObj, CefRefPtr<CefBrowser> pBrowser) const;
 		virtual Result ExecuteOnRenderer(uint64_t uid, CefRefPtr<CefValue> pArgObj, cef::DataBindAccessor& accessor) const;
+		virtual void BeforeBrowserDispatch(CefRefPtr<CefValue> pArgObj) const;
 		Environment GetEnvironment() const;
 		static Result MakeStringErrorResult(std::wstring errorString);
 	private:

@@ -5,6 +5,7 @@
 #include <limits>
 #include <shared_mutex>
 #include <unordered_map>
+#include <filesystem>
 
 namespace pmon::util::log
 {
@@ -70,8 +71,11 @@ namespace pmon::util::log
 		static bool GetTraceOverride() noexcept;
 		static void SetTraceOverride(bool) noexcept;
 		static void RegisterListItem(const std::string& file, int line, TraceOverride traceOverride) noexcept;
-		// returns true if there were any trace override lines, sets global trace and list settings based on contents
+		// replaces the list (see ReplaceList); returns true if there were any trace override lines
 		static bool IngestList(const std::string& path, bool isBlacklist);
+		// parse completely before replacing list membership, trace overrides, and mode
+		static void ReplaceList(const std::filesystem::path& path, ListMode mode);
+		static void ClearList() noexcept;
 
 		// implementation functions
 		static LineTable& Get_();
@@ -83,6 +87,8 @@ namespace pmon::util::log
 		ListMode GetListMode_() const noexcept;
 		void SetListMode_(ListMode mode) noexcept;
 		bool IngestList_(const std::string& path, bool isBlacklist);
+		void ReplaceList_(const std::filesystem::path& path, ListMode mode);
+		void ClearList_();
 	private:
 		// functions
 		void RegisterListItem_(const std::string& key, TraceOverride traceOverride);
