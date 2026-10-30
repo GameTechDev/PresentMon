@@ -13,7 +13,16 @@
     "concurrentqueue",
     "boost-asio",
     "winreg",
-    "detours",
-    "vincentlaucsb-csv-parser"
-  ]
+    "vincentlaucsb-csv-parser",
+    "vulkan-headers",
+    "vulkan-loader"
+  ],
+  "features": {
+    "presentbench2-vulkan-validation": {
+      "description": "Build-local Khronos validation layer for PresentBench2",
+      "dependencies": [
+        "vulkan-validationlayers"
+      ]
+    }
+  }
 }

@@ -36,21 +36,26 @@ set errorcount=0
     shift
     goto args_begin
 :args_end
+if %use_release_config% EQU 1 (
+    set test_config=Release
+) else (
+    set test_config=Debug
+)
 
 :: -----------------------------------------------------------------------------
 :: Check dependencies
-set need_presentbench=0
+set need_presentbench2=0
 set need_tempdir=0
 
-if %do_default_gtests% EQU 1 set need_presentbench=1
+if %do_default_gtests% EQU 1 set need_presentbench2=1
 
 if %do_realtime_tests% EQU 1 (
-    set need_presentbench=1
+    set need_presentbench2=1
     set need_tempdir=1
 )
 
-if %need_presentbench% EQU 1 if not exist "%toolsdir%\PresentBench.exe" (
-    echo [31merror: dependency not found: %toolsdir%\PresentBench.exe[0m
+if %need_presentbench2% EQU 1 if not exist "%pmdir%\build\%test_config%\PresentBench2.exe" (
+    echo [31merror: dependency not found: %pmdir%\build\%test_config%\PresentBench2.exe[0m
     exit /b 1
 )
 
@@ -68,45 +73,39 @@ if %need_tempdir% EQU 1 (
 :: -----------------------------------------------------------------------------
 echo [96mVersion lookup...[90m
 set version=
-if exist "%pmdir%\PresentMon.props" (
-    for /f "tokens=2,3 delims=<>" %%a in ('type "%pmdir%\PresentMon.props" ^| findstr "<PresentMonVersion>"') do (
-        if "%%a"=="PresentMonVersion" set version=%%b
+if exist "%pmdir%\Version.props" (
+    for /f "tokens=2 delims=>" %%a in ('type "%pmdir%\Version.props" ^| findstr /c:"<PresentMonVersion " ^| findstr /v "FileVersion"') do (
+        for /f "tokens=1 delims=<" %%b in ("%%a") do set version=%%b
     )
 )
 if "%version%"=="" (
-    echo [31merror: version not found in PresentMon.props[0m
+    echo [31merror: version not found in Version.props[0m
     set /a errorcount=%errorcount%+1
 ) else (
     echo [90mcli:     %version%[0m
 )
 
 set version2=
-set version3=
-if exist "%toolsdir%\..\IntelPresentMon\PMInstaller\PresentMon.wxs" (
-    for /f "tokens=1,2 delims==" %%a in ('type "%toolsdir%\..\IntelPresentMon\PMInstaller\PresentMon.wxs" ^| findstr "Version="') do (
-        if "%%a"=="        Version" set version2=%%b
-    )
-    for /f "tokens=1,2 delims==" %%a in ('type "%toolsdir%\..\IntelPresentMon\PMInstaller\PresentMon.wxs" ^| findstr "console_app_ver"') do (
-        if "%%a"=="        <?define console_app_ver " set version3=%%b
+if exist "%pmdir%\Version.props" (
+    for /f "tokens=2 delims=>" %%a in ('type "%pmdir%\Version.props" ^| findstr /c:"<PresentMonFileVersion " ^| findstr /v "Numbers"') do (
+        for /f "tokens=1 delims=<" %%b in ("%%a") do set version2=%%b
     )
 )
-set version2=%version2:~1,-1%
-set version3=%version3:~1,-3%
 if "%version2%"=="" (
-    echo [31merror: Version not found in PresentMon.wxs[0m
+    echo [31merror: file version not found in Version.props[0m
     set /a errorcount=%errorcount%+1
 ) else (
     echo [90minstall: %version2%[0m
 )
-if "%version3%"=="" (
-    echo [31merror: console_app_ver not found in PresentMon.wxs[0m
-    set /a errorcount=%errorcount%+1
-) else if not "%version%"=="%version3%" (
-    echo [31merror: not installing current cli version: installing %version3%[0m
+set installer_uses_current_cli=
+if exist "%pmdir%\IntelPresentMon\PMInstaller\PMInstaller.wixproj" (
+    findstr /c:"ConsoleAppVersion=$(PresentMonVersion)" "%pmdir%\IntelPresentMon\PMInstaller\PMInstaller.wixproj" >NUL
+    if not errorlevel 1 set installer_uses_current_cli=1
+)
+if "%installer_uses_current_cli%"=="" (
+    echo [31merror: installer does not source ConsoleAppVersion from PresentMonVersion[0m
     set /a errorcount=%errorcount%+1
 )
-
-call :check_dll_version "%version2%" "%toolsdir%\..\Provider\Version.rc"
 
 :: -----------------------------------------------------------------------------
 set build_configs=
@@ -153,21 +152,6 @@ if "%version%"=="" (
 )
 
 :: -----------------------------------------------------------------------------
-:: Make sure the installer is using the latest CLI version
-if exist "%toolsdir%\..\IntelPresentMon\PMInstaller\PresentMon.wxs" (
-    for /f "tokens=1,2 delims==" %%a in ('type "%toolsdir%\..\IntelPresentMon\PMInstaller\PresentMon.wxs" ^| findstr "console_app_ver"') do (
-        if "%%a"=="        Version" set version2=%%b
-    )
-)
-
-set version2=
-if exist "%toolsdir%\..\IntelPresentMon\PMInstaller\PresentMon.wxs" (
-    for /f "tokens=1,2 delims==" %%a in ('type "%toolsdir%\..\IntelPresentMon\PMInstaller\PresentMon.wxs" ^| findstr "Version="') do (
-        if "%%a"=="        Version" set version2=%%b
-    )
-)
-
-:: -----------------------------------------------------------------------------
 echo.
 echo [96mChecking generated files...[0m
 for %%a in (%build_platforms%) do for %%b in (%build_configs%) do call :check_exist "build\%%b\PresentMon-%version%-%%a.exe"
@@ -180,18 +164,12 @@ for %%a in (%test_platforms%)  do for %%b in (%build_configs%) do call :check_pm
 echo.
 echo [96mTesting functionality...[0m
 
-if %use_release_config% EQU 1 (
-    set test_config=Release
-) else (
-    set test_config=Debug
-)
-
 if %do_realtime_tests% EQU 1 (
     echo [90mRealtime collection tests...[0m
 
-    call :realtime_presentbench_test "DX12" "DXGI"
-    call :realtime_presentbench_test "DX9"  "D3D9"
-    call :realtime_presentbench_test "VK"   "Other"
+    call :realtime_presentbench2_test "dx12" "DXGI"
+    call :realtime_presentbench2_test "dx9"  "D3D9"
+    call :realtime_presentbench2_test "vk"   "DXGI"
 
     call :realtime_multicsv_test
 
@@ -201,7 +179,7 @@ if %do_realtime_tests% EQU 1 (
 )
 
 if %do_default_gtests% EQU 1 (
-    call :start_target_app /width=320 /height=240 /api=dx12
+    call :start_target_app --width 320 --height 240 --dx12
 
     for %%a in (%test_platforms%) do for %%b in (%build_configs%) do (
         call :gtests --presentmon="%pmdir%\build\%%b\PresentMon-%version%-%%a.exe" --golddir="%pmdir%\Tests\Gold"
@@ -237,24 +215,6 @@ exit /b 0
         echo [90m%~1[0m
     ) else (
         echo [31merror: expected build output missing: %~1[0m
-        set /a errorcount=%errorcount%+1
-    )
-    exit /b 0
-
-:: -----------------------------------------------------------------------------
-:check_dll_version
-    if not exist %2 (
-        echo [31merror: missing file: %~2[0m
-        set /a errorcount=%errorcount%+1
-        exit /b 1
-    )
-
-    set dllversion=
-    for /f "tokens=3 delims= " %%a in ('type %2 ^| findstr "ProductVersion"') do set dllversion=%%a
-
-    set dllversion=%dllversion:~1,-1%
-    if not %1=="%dllversion%" (
-        echo [31merror: DLL ProductVersion mismatch: %~f2 ^(%dllversion%^)[0m
         set /a errorcount=%errorcount%+1
     )
     exit /b 0
@@ -322,11 +282,11 @@ exit /b 0
 :start_target_app
     set started_target_app_pid=0
 
-    call :is_app_running /fi "imagename eq PresentBench.exe"
+    call :is_app_running /fi "imagename eq PresentBench2.exe"
     if %errorlevel% NEQ 0 exit /b 1
 
-    start /b "" "%toolsdir%\PresentBench.exe" %* >NUL
-    for /f "tokens=1,2 delims=:" %%a in ('tasklist /fi "imagename eq PresentBench.exe" /fo list') do (
+    start /b "" "%pmdir%\build\%test_config%\PresentBench2.exe" %* >NUL
+    for /f "tokens=1,2 delims=:" %%a in ('tasklist /fi "imagename eq PresentBench2.exe" /fo list') do (
         if "%%a" EQU "PID" (
             set /a started_target_app_pid=%%b
             exit /b 0
@@ -338,7 +298,7 @@ exit /b 0
     if %started_target_app_pid% EQU 0 exit /b 0
     taskkill /PID %started_target_app_pid% >NUL
     :until_killed
-        call :is_app_running /fi "imagename eq PresentBench.exe" /fi "pid eq %started_target_app_pid%"
+        call :is_app_running /fi "imagename eq PresentBench2.exe" /fi "pid eq %started_target_app_pid%"
         if %errorlevel% NEQ 0 goto until_killed
     set started_target_app_pid=0
     exit /b 0
@@ -350,13 +310,13 @@ exit /b 0
     exit /b 0
 
 :: -----------------------------------------------------------------------------
-:realtime_presentbench_test
+:realtime_presentbench2_test
     set test_api=%~1
     set expected_runtime=%~2
 
-    call :start_target_app /width=320 /height=240 /api=%test_api%
+    call :start_target_app --width 320 --height 240 --%test_api%
     if %errorlevel% NEQ 0 (
-        echo [31merror: realtime PresentBench tests cannot run with a process named PresentBench.exe already running[0m
+        echo [31merror: realtime PresentBench2 tests cannot run with a process named PresentBench2.exe already running[0m
         set /a errorcount=%errorcount%+1
         exit /b 0
     )
@@ -386,7 +346,7 @@ exit /b 0
         exit /b 0
     )
     if %saw_row% EQU 0 (
-        echo [31merror: realtime PresentBench %test_api% test did not record any presents[0m
+        echo [31merror: realtime PresentBench2 %test_api% test did not record any presents[0m
         set /a errorcount=%errorcount%+1
         exit /b 0
     )
@@ -399,9 +359,9 @@ exit /b 0
     set target_app_pid_1=0
     set target_app_pid_2=0
 
-    start /b "" "%toolsdir%\PresentBench.exe" /width=320 /height=240 >NUL
-    start /b "" "%toolsdir%\PresentBench.exe" /width=320 /height=240 >NUL
-    for /f "tokens=1,2 delims=:" %%a in ('tasklist /fi "imagename eq PresentBench.exe" /fo list') do (
+    start /b "" "%pmdir%\build\%test_config%\PresentBench2.exe" --width 320 --height 240 >NUL
+    start /b "" "%pmdir%\build\%test_config%\PresentBench2.exe" --width 320 --height 240 >NUL
+    for /f "tokens=1,2 delims=:" %%a in ('tasklist /fi "imagename eq PresentBench2.exe" /fo list') do (
         if "%%a" EQU "PID" (
             if "!target_app_pid_1!"=="0" (
                 set /a target_app_pid_1=%%b
@@ -412,7 +372,7 @@ exit /b 0
     )
 
     if %target_app_pid_2% EQU 0 (
-        echo [31merror: failed to obtain PresentBench PIDs[0m
+        echo [31merror: failed to obtain PresentBench2 PIDs[0m
         set /a errorcount=%errorcount%+1
         exit /b 0
     )
@@ -423,19 +383,19 @@ exit /b 0
     taskkill /PID %target_app_pid_2% >NUL
 
     :until_killed_1
-        call :is_app_running /fi "imagename eq PresentBench.exe" /fi "pid eq %target_app_pid_1%"
+        call :is_app_running /fi "imagename eq PresentBench2.exe" /fi "pid eq %target_app_pid_1%"
         if %errorlevel% NEQ 0 goto until_killed_1
     :until_killed_2
-        call :is_app_running /fi "imagename eq PresentBench.exe" /fi "pid eq %target_app_pid_2%"
+        call :is_app_running /fi "imagename eq PresentBench2.exe" /fi "pid eq %target_app_pid_2%"
         if %errorlevel% NEQ 0 goto until_killed_2
 
-    if not exist "%temp%\pm_multicsv_test-PresentBench.exe-%target_app_pid_1%.csv" (
-        echo [31merror: expected csv output missing: %temp%\pm_multicsv_test-PresentBench.exe-%target_app_pid_1%.csv[0m
+    if not exist "%temp%\pm_multicsv_test-PresentBench2.exe-%target_app_pid_1%.csv" (
+        echo [31merror: expected csv output missing: %temp%\pm_multicsv_test-PresentBench2.exe-%target_app_pid_1%.csv[0m
         set /a errorcount=%errorcount%+1
     )
 
-    if not exist "%temp%\pm_multicsv_test-PresentBench.exe-%target_app_pid_2%.csv" (
-        echo [31merror: expected csv output missing: %temp%\pm_multicsv_test-PresentBench.exe-%target_app_pid_2%.csv[0m
+    if not exist "%temp%\pm_multicsv_test-PresentBench2.exe-%target_app_pid_2%.csv" (
+        echo [31merror: expected csv output missing: %temp%\pm_multicsv_test-PresentBench2.exe-%target_app_pid_2%.csv[0m
         set /a errorcount=%errorcount%+1
     )
 
@@ -445,22 +405,22 @@ exit /b 0
 
 :: -----------------------------------------------------------------------------
 :realtime_exclude_test
-    call :start_target_app /width=320 /height=240
+    call :start_target_app --width 320 --height 240
     if %errorlevel% NEQ 0 (
-        echo [31merror: realtime PresentBench tests cannot run with a process named PresentBench.exe already running[0m
+        echo [31merror: realtime PresentBench2 tests cannot run with a process named PresentBench2.exe already running[0m
         set /a errorcount=%errorcount%+1
         exit /b 0
     )
 
     set saw_excluded=0
     set saw_nonexcluded=0
-    for /f "tokens=1 delims=," %%a in ('"%pmdir%\build\%test_config%\PresentMon-%version%-x64.exe" -exclude presentbench -output_stdout -timed 2 -terminate_after_timed 2^>NUL') do (
-        if "%%a" EQU "PresentBench.exe" (
+    for /f "tokens=1 delims=," %%a in ('"%pmdir%\build\%test_config%\PresentMon-%version%-x64.exe" -exclude presentbench2 -output_stdout -timed 2 -terminate_after_timed 2^>NUL') do (
+        if "%%a" EQU "PresentBench2.exe" (
             set saw_excluded=1
         )
     )
-    for /f "tokens=1 delims=," %%a in ('"%pmdir%\build\%test_config%\PresentMon-%version%-x64.exe" -exclude presentbench2 -output_stdout -timed 2 -terminate_after_timed 2^>NUL') do (
-        if "%%a" EQU "PresentBench.exe" (
+    for /f "tokens=1 delims=," %%a in ('"%pmdir%\build\%test_config%\PresentMon-%version%-x64.exe" -exclude presentbench -output_stdout -timed 2 -terminate_after_timed 2^>NUL') do (
+        if "%%a" EQU "PresentBench2.exe" (
             set saw_nonexcluded=1
         )
     )
@@ -468,17 +428,17 @@ exit /b 0
     call :stop_target_app
 
     if %saw_nonexcluded% EQU 0 (
-        echo [31merror: Exclude PresentBench2 did not record any presents[0m
+        echo [31merror: Exclude PresentBench did not record any presents[0m
         set /a errorcount=%errorcount%+1
         exit /b 0
     )
     if %saw_excluded% EQU 1 (
-        echo [31merror: Exclude PresentBench recorded presents[0m
+        echo [31merror: Exclude PresentBench2 recorded presents[0m
         set /a errorcount=%errorcount%+1
         exit /b 0
     )
 
-    echo.   [90mExclude PresentBench test[0m
     echo.   [90mExclude PresentBench2 test[0m
+    echo.   [90mExclude PresentBench test[0m
     exit /b 0
 

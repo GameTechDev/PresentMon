@@ -17,6 +17,7 @@ function(_pmon_command_line_args_apply)
         "PresentMon|PresentMonConsole|PresentMon/PresentMonConsole.args.json"
         "IntelPresentMon/SampleClient|SampleClient|IntelPresentMon/SampleClient/SampleClient.args.json"
         "Tools/ETLTrimmer|ETLTrimmer|Tools/ETLTrimmer/ETLTrimmer.args.json"
+        "Tools/PresentBench2|PresentBench2|Tools/PresentBench2/PresentBench2.args.json"
     )
 
     set(_pmon_linked 0)

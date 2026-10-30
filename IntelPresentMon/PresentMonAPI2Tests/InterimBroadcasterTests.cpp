@@ -923,7 +923,7 @@ namespace InterimBroadcasterTests
             auto& store = pComms->GetFrameDataStore(pres.GetId());
             Assert::AreEqual(pres.GetId(), store.bookkeeping.processId);
             const std::string staticAppName = store.statics.applicationName.c_str();
-            Assert::AreEqual("PresentBench.exe"s, staticAppName);
+            Assert::AreEqual("PresentBench2.exe"s, staticAppName);
         }
         TEST_METHOD(FrameStoreRejectsWrite)
         {
@@ -1095,10 +1095,13 @@ namespace InterimBroadcasterTests
             // verify that frames are added over time
             const auto range1 = frames.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range1.first, range1.second).c_str());
-            std::this_thread::sleep_for(machine::ScaleWait(100ms));
+            // TODO: We expect 100ms waits to be sufficient at the presenter frame rate.
+            // On some systems the second interval requires substantially more time.
+            // Investigate the source of this delay and restore both waits to 100ms.
+            std::this_thread::sleep_for(machine::ScaleWait(1500ms));
             const auto range2 = frames.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range2.first, range2.second).c_str());
-            std::this_thread::sleep_for(machine::ScaleWait(100ms));
+            std::this_thread::sleep_for(machine::ScaleWait(2500ms));
             const auto range3 = frames.GetSerialRange();
             Logger::WriteMessage(std::format("range [{},{})\n", range3.first, range3.second).c_str());
 

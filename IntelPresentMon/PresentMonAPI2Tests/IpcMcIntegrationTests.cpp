@@ -511,7 +511,7 @@ namespace IpcMcIntegrationTests
             measurements.AppendToSharedFile();
             const auto expectations = machine::ExpectationStore::Load();
             expectations.AssertMeasurements(measurements);
-            Assert::IsTrue(appName == "PresentBench.exe", L"Unexpected application name");
+            Assert::IsTrue(appName == "PresentBench2.exe", L"Unexpected application name");
         }
 
         TEST_METHOD(StaticQueryReturnsExpectedValues)
@@ -594,7 +594,7 @@ namespace IpcMcIntegrationTests
             measurements.AppendToSharedFile();
             const auto expectations = machine::ExpectationStore::Load();
             expectations.AssertMeasurements(measurements);
-            Assert::IsTrue(appName == "PresentBench.exe", L"Unexpected application name");
+            Assert::IsTrue(appName == "PresentBench2.exe", L"Unexpected application name");
         }
 
         TEST_METHOD(DynamicQueryWithoutTrackedProcessPollsNonFrameMetrics)

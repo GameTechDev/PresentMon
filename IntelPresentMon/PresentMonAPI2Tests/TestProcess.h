@@ -136,6 +136,10 @@ public:
 		}
 		return false;
 	}
+	void CloseInput()
+	{
+		pipeTo_.close();
+	}
 	std::string Command(const std::string& command)
 	{
 		const auto prefix = GetCommandPrefix_();
@@ -289,14 +293,88 @@ private:
 	}
 };
 
-// PresentBench child process for a reliable presenting target process
+inline std::string LocatePresentBench2Executable_()
+{
+	if (std::filesystem::exists("PresentBench2.exe")) {
+		return "PresentBench2.exe";
+	}
+	if (std::filesystem::exists(R"(..\..\Tools\PresentBench2\PresentBench2.exe)")) {
+		return R"(..\..\Tools\PresentBench2\PresentBench2.exe)";
+	}
+	return "PresentBench2.exe";
+}
+
+// PresentBench2 child process for tests that only need a reliable presenting target.
 class PresenterProcess : public TestProcess
 {
 public:
 	PresenterProcess(as::io_context& ioctx, JobManager& jm, const std::vector<std::string>& customArgs)
 		:
-		TestProcess{ ioctx, jm, R"(..\..\Tools\PresentBench.exe)", customArgs }
+		TestProcess{ ioctx, jm, LocatePresentBench2Executable_(), MakeArgs_(customArgs) }
 	{}
+private:
+	static std::vector<std::string> MakeArgs_(const std::vector<std::string>& customArgs)
+	{
+		std::vector<std::string> args{
+			"--dx12"s,
+			"--width"s, "320"s,
+			"--height"s, "240"s,
+			"--frame-sleep"s, "10"s,
+		};
+		args.append_range(customArgs);
+		return args;
+	}
+};
+
+// PresentBench2 with stdio control protocol for agent/API2 instrumentation tests.
+class PresentBench2Process : public ConnectedTestProcess
+{
+public:
+	PresentBench2Process(as::io_context& ioctx, JobManager& jm, const std::vector<std::string>& customArgs)
+		:
+		ConnectedTestProcess{ ioctx, jm, LocatePresentBench2Executable_(), MakeArgs_(customArgs) }
+	{}
+	~PresentBench2Process() override
+	{
+		if (process_.running()) {
+			try { Quit(); }
+			catch (...) {
+				::TerminateProcess(process_.native_handle(), 0xDEAD);
+				process_.wait();
+			}
+		}
+	}
+	void Quit()
+	{
+		Assert::IsTrue(process_.running());
+		Assert::AreEqual("quit-ok"s, Command("quit"));
+		if (!WaitForExit(2s)) {
+			Logger::WriteMessage(
+				"PresentBench2 did not exit within 2s after quit; terminating\n");
+			Murder();
+		}
+	}
+	std::string StatusJson()
+	{
+		return Command("status");
+	}
+	std::string CapabilitiesJson()
+	{
+		return Command("capabilities");
+	}
+private:
+	static std::vector<std::string> MakeArgs_(const std::vector<std::string>& customArgs)
+	{
+		std::vector<std::string> args{
+			"--enable-stdio-control"s,
+			"--dx12"s,
+			"--width"s, "320"s,
+			"--height"s, "240"s,
+			"--frame-sleep"s, "10"s,
+		};
+		args.append_range(customArgs);
+		return args;
+	}
 };
 
 // original presentmon console application
@@ -448,6 +526,10 @@ public:
 	PresenterProcess LaunchPresenter(const std::vector<std::string>& args = {})
 	{
 		return PresenterProcess{ ioctx_, jobMan_, args };
+	}
+	PresentBench2Process LaunchPresentBench2(const std::vector<std::string>& args = {})
+	{
+		return PresentBench2Process{ ioctx_, jobMan_, args };
 	}
 	OpmProcess LaunchOpm(const std::vector<std::string>& args = {})
 	{
