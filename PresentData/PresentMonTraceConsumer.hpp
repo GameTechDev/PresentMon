@@ -292,6 +292,10 @@ struct PresentEvent {
     // additional application frame.
     bool DisplayedViaFlipFrameType;
 
+    // The FrameType from this present's PresentFrameType event, if any.  Unlike Displayed, it is
+    // kept when the present is discarded.
+    FrameType PresentFrameType = FrameType::NotSet;
+
     // If WaitingForFrameId, the present is waiting until either a later-started present from the
     // same process completes (which may have the same FrameId and need data from this one), or any
     // present starting more than mDeferralTimeLimit later completes.

@@ -73,11 +73,11 @@ static inline bool HasDisplayedFrameType(std::shared_ptr<PresentEvent> const& p,
 // application's present.
 static inline bool IsRuntimeGeneratedPresent(std::shared_ptr<PresentEvent> const& p)
 {
-    if (p->DisplayedViaFlipFrameType || p->Displayed.empty()) {
+    if (p->DisplayedViaFlipFrameType) {
         return false;
     }
 
-    auto frameType = p->Displayed[0].first;
+    auto frameType = p->PresentFrameType;
     return frameType == FrameType::Intel_XEFG ||
            frameType == FrameType::AMD_AFMF ||
            frameType == FrameType::AMD_FSR_FG;
@@ -3694,6 +3694,7 @@ void PMTraceConsumer::ApplyPresentFrameType(
         present->FrameId = ii->second.FrameId;
         present->AppFrameId = ii->second.AppFrameId;
         present->Displayed.emplace_back(ii->second.FrameType, 0);
+        present->PresentFrameType = ii->second.FrameType;
         present->WaitingForFrameId = true;
         mPendingPresentFrameTypeEvents.erase(ii);
     }
