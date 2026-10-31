@@ -195,6 +195,7 @@ PresentEvent::PresentEvent()
     , SupportsTearing(false)
     , WaitForFlipEvent(false)
     , WaitForMPOFlipEvent(false)
+    , WaitForSyncDPC(false)
     , SeenDxgkPresent(false)
     , SeenWin32KEvents(false)
     , SeenInFrameEvent(false)
@@ -271,6 +272,7 @@ PresentEvent::PresentEvent(uint32_t fid)
     , SupportsTearing(false)
     , WaitForFlipEvent(false)
     , WaitForMPOFlipEvent(false)
+    , WaitForSyncDPC(false)
     , SeenDxgkPresent(false)
     , SeenWin32KEvents(false)
     , SeenInFrameEvent(false)
@@ -1069,6 +1071,15 @@ void PMTraceConsumer::HandleDXGKEvent(EVENT_RECORD* pEventRecord)
                 if (flipEntryStatusAfterFlipValid) {
                     auto FlipEntryStatusAfterFlip = desc[1].GetData<uint32_t>();
 
+                    // For FlipWaitVSync and FlipWaitHSync the flip is now pending on the display
+                    // hardware and will be reported by a ?SyncDPC event.  With a hardware flip
+                    // queue this can happen well before the previous flip has been scanned out.
+                    if (FlipEntryStatusAfterFlip == (uint32_t) Microsoft_Windows_DxgKrnl::FlipEntryStatus::FlipWaitVSync ||
+                        FlipEntryStatusAfterFlip == (uint32_t) Microsoft_Windows_DxgKrnl::FlipEntryStatus::FlipWaitHSync) {
+                        VerboseTraceBeforeModifyingPresent(present.get());
+                        present->WaitForSyncDPC = true;
+                    }
+
                     // Nothing to do for FlipWaitVSync other than wait for the VSync events.
                     if (FlipEntryStatusAfterFlip != (uint32_t) Microsoft_Windows_DxgKrnl::FlipEntryStatus::FlipWaitVSync) {
 
@@ -1738,17 +1749,28 @@ void PMTraceConsumer::HandleWin32kEvent(EVENT_RECORD* pEventRecord)
                         // collisions during lookup for events that don't reference
                         // a context.
                         VerboseTraceBeforeModifyingPresent(prevPresent.get());
-						
-                        // In certain cases like when there are short bursts of presents, 
-                        // we get multiple back to back flips and token tracking thread 
-                        // ends up marking the first frame in the burst as dropped. 
-                        // To fix this issue, we mark the frame as discarded only if 
-                        // the frame already doesn't have valid ScreenTime. 
-                        if (!HasScreenTime(prevPresent)) {
-                            prevPresent->FinalState = PresentResult::Discarded;
-                        }
 
-                        RemovePresentFromSubmitSequenceIdTracking(prevPresent);
+                        // In certain cases like when there are short bursts of presents,
+                        // we get multiple back to back flips and token tracking thread
+                        // ends up marking the first frame in the burst as dropped.
+                        // To fix this issue, we mark the frame as discarded only if
+                        // the frame already doesn't have valid ScreenTime.
+                        //
+                        // The same applies to a flip that is already pending on the
+                        // display hardware: with a hardware flip queue (e.g., frame
+                        // generation presenting two frames back to back) the next present
+                        // reaches InFrame before this one is scanned out.  It is still
+                        // displayed and its ?SyncDPC event looks it up by submit sequence,
+                        // so keep it in that tracking.  If it is superseded after all, it
+                        // is completed as not displayed by the next displayed present on
+                        // the same swap chain.
+                        if (!prevPresent->WaitForSyncDPC) {
+                            if (!HasScreenTime(prevPresent)) {
+                                prevPresent->FinalState = PresentResult::Discarded;
+                            }
+
+                            RemovePresentFromSubmitSequenceIdTracking(prevPresent);
+                        }
                     }
                 }
                 break;
