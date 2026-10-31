@@ -163,12 +163,13 @@ struct AppTimingData {
     bool PresentCompleted = false;
 };
 
-// A ProcessEvent occurs whenever a Process starts or stops.
+// A ProcessEvent reports a process start/stop or an inventory of running processes.
 struct ProcessEvent {
-    std::wstring ImageFileName = {};    // The name of the process exe file.  This is only available on process start events.
-    uint64_t QpcTime = 0;               // The time of the start/stop event.
+    std::wstring ImageFileName = {};    // Exe name, available on start events and rundown records.
+    uint64_t QpcTime = 0;               // The timestamp of the event.
     uint32_t ProcessId = 0;             // The id of the process.
     bool IsStartEvent = false;          // Whether this is a start event (true) or a stop event (false).
+    bool IsRundown = false;             // Inventory notification; QpcTime is not a lifetime boundary.
 };
 
 struct PresentEvent {

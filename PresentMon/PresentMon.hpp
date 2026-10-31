@@ -34,6 +34,7 @@ which is controlled from MainThread based on user input or timer.
 #include "../IntelPresentMon/CommonUtilities/Qpc.h"
 
 #include <unordered_map>
+#include <memory>
 #include <queue>
 #include <optional>
 #include <deque>
@@ -242,14 +243,31 @@ struct SwapChainData {
 
     // Unified swap chain for unfied metrics calculations
     pmon::util::metrics::UnifiedSwapChain mUnifiedSwapChain;
+    // Receipt advances even while the metrics pipeline is holding rows for a future display.
+    uint64_t mLastReceivedPresentTime = 0;
+};
+
+struct ProcessCsv {
+    std::shared_ptr<FILE> mFile;
+    std::wstring mPath;
+    uint64_t mLastUse = 0;
+    uint32_t mRecordingCount = 0;
+    bool mHasWrittenHeader = false;
+    bool mReportedOpenError = false;
 };
 
 struct ProcessInfo {
     std::wstring mModuleName;
     std::unordered_map<uint64_t, SwapChainData> mSwapChain;
-    HANDLE mHandle;
-    FILE* mOutputCsv;
-    bool mIsTargetProcess;
+    HANDLE mHandle = NULL;
+    std::shared_ptr<ProcessCsv> mOutputCsv = std::make_shared<ProcessCsv>();
+    bool mIsTargetProcess = false;
+    std::optional<uint64_t> mTerminationTime;
+    uint64_t mFirstReceivedPresentTime = 0;
+    uint64_t mLastReceivedPresentTime = 0;
+    uint64_t mCreationTime = 0;       // UTC FILETIME identity obtained from the process handle.
+    uint64_t mCreationTimestamp = 0;  // Creation time correlated with the realtime QPC clock.
+    bool mHasStartEvent = false;
 };
 
 // CommandLine.cpp:

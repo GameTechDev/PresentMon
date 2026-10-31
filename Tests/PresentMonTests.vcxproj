@@ -326,12 +326,31 @@
   <ItemGroup>
     <ClCompile Include="CommandLineTests.cpp" />
     <ClCompile Include="GoldEtlCsvTests.cpp" />
+    <ClCompile Include="OutputThreadTests.cpp" />
+    <ClCompile Include="..\PresentMon\CsvOutput.cpp" />
+    <ClCompile Include="..\PresentMon\LogSetup.cpp" />
     <ClCompile Include="PresentMonTests.cpp" />
     <ClCompile Include="PresentMon.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\build\obj\generated\version.h" />
     <ClInclude Include="PresentMonTests.h" />
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>advapi32.lib;shell32.lib;tdh.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PresentData\PresentData.vcxproj">
+      <Project>{892028E5-32F6-45FC-8AB2-90FCBCAC4BF6}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\IntelPresentMon\CommonUtilities\CommonUtilities.vcxproj">
+      <Project>{08a704d8-ca1c-45e9-8ede-542a1a43b53e}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
