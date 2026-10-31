@@ -23,6 +23,24 @@ method or suite, and `-L deterministic` to exclude environment-dependent cases.
 The complete configure, build, and test workflow is documented in
 [BUILDING.md](../BUILDING.md#run-tests-with-ctest).
 
+`PresentMonTests.OutputThreadTests.*` exercises console output with synthetic
+present and process events. It covers process termination, PID reuse, delayed
+output, and inactive swap-chain pruning without a private ETL or a live capture.
+Rundown cases verify that process inventories preserve buffered history, do not
+act as births or exits, and do not count historical realtime processes as active.
+Additional cases check PID reuse without start events using the test process's
+creation identity, delayed start notifications, and bounded CSV streams with
+append-safe reopening after eviction. Unknown-name updates preserve a resolved
+name and its filter status without inheriting a previous PID owner's name.
+Queued-lifetime cases verify that delayed starts claim only history within their
+known interval while target counts and exit notifications follow event order.
+The buffering checks run the default, v1, and v2 metric modes. To run just these
+tests after building `PresentMonTests`:
+
+```powershell
+ctest --test-dir build -C Debug -R OutputThreadTests --output-on-failure
+```
+
 
 #### PresentMonTestEtls Coverage
 

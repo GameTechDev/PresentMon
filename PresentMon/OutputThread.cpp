@@ -9,6 +9,7 @@
 #include "../IntelPresentMon/CommonUtilities/Mc/MetricsCalculator.h"
 
 #include <algorithm>
+#include <map>
 #include <shlwapi.h>
 #include <thread>
 
@@ -88,8 +89,59 @@ static bool CopyRecordingToggleHistory(std::vector<uint64_t>* recordingToggleHis
 // process, we obtain a handle to the process, and periodically check it to see
 // if it has exited.
 
-static std::unordered_map<uint32_t, ProcessInfo> gProcesses;
+// Keep exited lifetimes available for delayed presents. A new start for a reused PID gets its
+// own history, and presents select a lifetime by their start timestamp, not their dequeue time.
+// Start time zero represents a process discovered before its start event was available.
+using ProcessKey = std::pair<uint32_t, uint64_t>;
+static std::map<ProcessKey, ProcessInfo> gProcesses;
 static uint32_t gTargetProcessCount = 0;
+
+static auto FindProcess(uint32_t processId, uint64_t timestamp)
+{
+    auto ii = gProcesses.upper_bound({processId, timestamp});
+    if (ii != gProcesses.begin()) {
+        --ii;
+        if (ii->first.first == processId) {
+            return ii;
+        }
+    }
+    return gProcesses.end();
+}
+
+static bool IsProcessCreationAfter(uint64_t creationTimestamp, uint64_t timestamp)
+{
+    // The Win7 wall-clock fallback can be coarser than the QPC event timestamp.
+    return creationTimestamp > timestamp &&
+           creationTimestamp - timestamp > util::GetTimestampFrequencyUint64() / 50;
+}
+
+static uint64_t FileTimeValue(FILETIME const& time)
+{
+    return ((uint64_t)time.dwHighDateTime << 32) | time.dwLowDateTime;
+}
+
+static uint64_t FileTimeToQpc(uint64_t timestamp)
+{
+    if (timestamp == 0) return 0;
+    using PreciseTime = void (WINAPI*)(LPFILETIME);
+    static auto preciseTime = reinterpret_cast<PreciseTime>(
+        GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetSystemTimePreciseAsFileTime"));
+    FILETIME wallTime{};
+    LARGE_INTEGER before{}, after{}, frequency{};
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&before);
+    if (preciseTime != nullptr) {
+        preciseTime(&wallTime);
+    } else {
+        GetSystemTimeAsFileTime(&wallTime);
+    }
+    QueryPerformanceCounter(&after);
+    auto wall = FileTimeValue(wallTime);
+    auto now = (uint64_t)(before.QuadPart + (after.QuadPart - before.QuadPart) / 2);
+    if (timestamp > wall) return 0;
+    auto age = (double)(wall - timestamp) * (double)frequency.QuadPart / 10000000.0;
+    return age < (double)now ? now - (uint64_t)age : 0;
+}
 
 // Removes any directory and extension, and converts the remaining name to
 // lower case.
@@ -144,48 +196,174 @@ static bool IsTargetProcess(uint32_t processId, std::wstring const& processName)
     return false;
 }
 
-static void HandleTerminatedProcess(
-    ProcessInfo* processInfo)
+static void ShareProcessCsv(uint32_t processId, ProcessInfo* info)
 {
-    auto const& args = GetCommandLineArgs();
-
-    if (processInfo->mIsTargetProcess) {
-        // Close this process' CSV.
-        CloseMultiCsv(processInfo);
-
-        // Quit if this is the last process tracked for --terminate_on_proc_exit.
-        gTargetProcessCount -= 1;
-        if (args.mTerminateOnProcExit && gTargetProcessCount == 0) {
-            ExitMainThread();
+    for (auto ii = gProcesses.lower_bound({processId, 0});
+         ii != gProcesses.end() && ii->first.first == processId; ++ii) {
+        if (&ii->second != info && ii->second.mModuleName == info->mModuleName) {
+            info->mOutputCsv = ii->second.mOutputCsv;
+            break;
         }
     }
 }
 
-static void ProcessProcessEvent(
-    ProcessEvent const& processEvent)
+static void SetProcessName(ProcessInfo* info, uint32_t processId, std::wstring name)
 {
-    if (processEvent.IsStartEvent) {
-        auto pr = gProcesses.emplace(processEvent.ProcessId, ProcessInfo{});
-        auto info = &pr.first->second;
-
-        if (!pr.second) {
-            HandleTerminatedProcess(info);
+    if ((name.empty() || name == L"<unknown>") &&
+        !info->mModuleName.empty() && info->mModuleName != L"<unknown>") {
+        name = info->mModuleName;
+    }
+    auto target = IsTargetProcess(processId, name);
+    if (!info->mTerminationTime.has_value() && target != info->mIsTargetProcess) {
+        if (target) {
+            ++gTargetProcessCount;
+        } else {
+            --gTargetProcessCount;
         }
+    }
+    info->mModuleName = std::move(name);
+    info->mIsTargetProcess = target;
+    // Resolve the shared path before the first open, including when the name arrives late.
+    if (info->mOutputCsv->mPath.empty() && !info->mOutputCsv->mFile) {
+        ShareProcessCsv(processId, info);
+    }
+}
 
-        info->mHandle          = NULL;
-        info->mModuleName      = processEvent.ImageFileName;
-        info->mOutputCsv       = nullptr;
-        info->mIsTargetProcess = IsTargetProcess(processEvent.ProcessId, processEvent.ImageFileName);
+static void HandleTerminatedProcess(
+    ProcessInfo* processInfo,
+    uint64_t timestamp)
+{
+    if (processInfo->mTerminationTime.has_value()) {
+        return;
+    }
+    processInfo->mTerminationTime = timestamp;
+    if (processInfo->mHandle != NULL) {
+        CloseHandle(processInfo->mHandle);
+        processInfo->mHandle = NULL;
+    }
 
-        if (info->mIsTargetProcess) {
-            gTargetProcessCount += 1;
+    if (processInfo->mIsTargetProcess) {
+        gTargetProcessCount -= 1;
+    }
+    // Keep the CSV open and the swap-chain history intact until delayed presents have drained.
+}
+
+static std::map<ProcessKey, ProcessInfo>::iterator FindRealtimeProcess(uint32_t processId, uint64_t timestamp);
+static void QueryProcessName(uint32_t processId, ProcessInfo* info);
+
+static void ProcessProcessEvent(
+    ProcessEvent const& processEvent,
+    std::optional<uint64_t> nextLifetimeBoundary = {})
+{
+    bool targetTerminated = false;
+    auto previous = FindProcess(processEvent.ProcessId, processEvent.QpcTime);
+    if (processEvent.IsRundown) {
+        auto realtime = GetCommandLineArgs().mEtlFileName == nullptr;
+        if (realtime) previous = FindRealtimeProcess(processEvent.ProcessId, processEvent.QpcTime);
+        // An inventory timestamp describes an existing process, rather than a birth or exit.
+        if (previous == gProcesses.end() ||
+            (previous->second.mTerminationTime.has_value() &&
+             *previous->second.mTerminationTime < processEvent.QpcTime)) {
+            ProcessKey key{processEvent.ProcessId, previous == gProcesses.end() ? 0 :
+                std::max(*previous->second.mTerminationTime, previous->first.second) + 1};
+            previous = gProcesses.emplace(key, ProcessInfo{}).first;
+            auto next = gProcesses.upper_bound(key);
+            if (next != gProcesses.end() && next->first.first == processEvent.ProcessId) {
+                previous->second.mTerminationTime = next->first.second;
+            }
+            if (realtime) {
+                ProcessInfo observed;
+                QueryProcessName(processEvent.ProcessId, &observed);
+                std::unique_ptr<void, decltype(&CloseHandle)> handle(observed.mHandle, &CloseHandle);
+                if (IsProcessCreationAfter(observed.mCreationTimestamp, processEvent.QpcTime)) {
+                    // A newer OS owner proves this inventory belongs to an exited lifetime.
+                    previous->second.mTerminationTime = std::min(
+                        previous->second.mTerminationTime.value_or(observed.mCreationTimestamp),
+                        observed.mCreationTimestamp);
+                }
+            }
+        }
+        SetProcessName(&previous->second, processEvent.ProcessId, processEvent.ImageFileName);
+        return;
+    }
+    if (processEvent.IsStartEvent) {
+        ProcessKey key{processEvent.ProcessId, processEvent.QpcTime};
+        auto existing = gProcesses.find(key);
+        if (existing != gProcesses.end() && existing->second.mHasStartEvent) return;
+
+        // A start can be dequeued after presents from the same lifetime. Keep that provisional
+        // entry's buffered rows and stream, and replace its estimated/unknown start with the event.
+        for (auto ii = gProcesses.lower_bound({processEvent.ProcessId, 0});
+             ii != gProcesses.end() && ii->first.first == processEvent.ProcessId; ) {
+            auto current = ii++;
+            auto& info = current->second;
+            if (existing != gProcesses.end() && existing != current) continue;
+            if (!info.mHasStartEvent && info.mFirstReceivedPresentTime != 0 &&
+                processEvent.QpcTime <= info.mFirstReceivedPresentTime &&
+                (!info.mTerminationTime.has_value() || processEvent.QpcTime < *info.mTerminationTime) &&
+                !IsProcessCreationAfter(info.mCreationTimestamp, processEvent.QpcTime)) {
+                if (nextLifetimeBoundary.has_value() && info.mFirstReceivedPresentTime >= *nextLifetimeBoundary) {
+                    // This history belongs after the older queued lifetime. Keep it
+                    // selectable without applying its eventual start event early.
+                    auto lowerBound = *nextLifetimeBoundary;
+                    if (lowerBound < info.mFirstReceivedPresentTime) ++lowerBound;
+                    ProcessKey provisionalKey{processEvent.ProcessId, lowerBound};
+                    if (gProcesses.find(provisionalKey) != gProcesses.end()) {
+                        provisionalKey.second = info.mFirstReceivedPresentTime;
+                    }
+                    if (provisionalKey > current->first && gProcesses.find(provisionalKey) == gProcesses.end()) {
+                        if (existing == current) existing = gProcesses.end();
+                        if (previous == current) previous = gProcesses.end();
+                        auto node = gProcesses.extract(current);
+                        node.key() = provisionalKey;
+                        gProcesses.insert(std::move(node));
+                    }
+                    continue;
+                }
+                SetProcessName(&info, processEvent.ProcessId, processEvent.ImageFileName);
+                info.mHasStartEvent = true;
+                if (previous != gProcesses.end() && previous != current) {
+                    targetTerminated = previous->second.mIsTargetProcess && !previous->second.mTerminationTime.has_value();
+                    HandleTerminatedProcess(&previous->second, processEvent.QpcTime);
+                }
+                if (current->first != key) {
+                    auto node = gProcesses.extract(current);
+                    node.key() = key;
+                    gProcesses.insert(std::move(node));
+                }
+                if (targetTerminated && GetCommandLineArgs().mTerminateOnProcExit && gTargetProcessCount == 0) {
+                    ExitMainThread();
+                }
+                return;
+            }
+        }
+        previous = FindProcess(processEvent.ProcessId, processEvent.QpcTime);
+        auto inserted = gProcesses.emplace(key, ProcessInfo{});
+        if (!inserted.second) {
+            return;
+        }
+        auto info = &inserted.first->second;
+        info->mHasStartEvent = true;
+        auto next = gProcesses.upper_bound(key);
+        if (next != gProcesses.end() && next->first.first == processEvent.ProcessId &&
+            (!nextLifetimeBoundary.has_value() || next->second.mHasStartEvent)) {
+            // A delayed historical start must not add another active target.
+            info->mTerminationTime = next->first.second;
+        }
+        SetProcessName(info, processEvent.ProcessId, processEvent.ImageFileName);
+
+        if (previous != gProcesses.end()) {
+            targetTerminated = previous->second.mIsTargetProcess && !previous->second.mTerminationTime.has_value();
+            HandleTerminatedProcess(&previous->second, processEvent.QpcTime);
         }
     } else {
-        auto ii = gProcesses.find(processEvent.ProcessId);
-        if (ii != gProcesses.end()) {
-            HandleTerminatedProcess(&ii->second);
-            gProcesses.erase(std::move(ii));
+        if (previous != gProcesses.end()) {
+            targetTerminated = previous->second.mIsTargetProcess && !previous->second.mTerminationTime.has_value();
+            HandleTerminatedProcess(&previous->second, processEvent.QpcTime);
         }
+    }
+    if (targetTerminated && GetCommandLineArgs().mTerminateOnProcExit && gTargetProcessCount == 0) {
+        ExitMainThread();
     }
 }
 
@@ -195,22 +373,20 @@ static void UpdateProcessEvents(
 {
     std::vector<ProcessEvent> newProcessEvents;
     pmConsumer->DequeueProcessEvents(newProcessEvents);
+    bool addedEvents = !newProcessEvents.empty();
 
     if (!newProcessEvents.empty()) {
         processEvents->insert(processEvents->end(), newProcessEvents.begin(), newProcessEvents.end());
         newProcessEvents.clear();
         newProcessEvents.shrink_to_fit();
-
-        std::sort(processEvents->begin(), processEvents->end(), [](ProcessEvent const& a, ProcessEvent const& b) { return a.QpcTime < b.QpcTime; });
     }
 
     // Check if any realtime processes terminated and create process events for them.
     //
-    // We assume that the process terminated now, which is wrong but conservative and functionally
-    // ok because no other process should start with the same PID as long as we're still holding a
-    // handle to it.
+    // Prefer its actual exit timestamp so the stop stays with the old lifetime across PID reuse.
+    // If that timestamp is unavailable, fall back to the time at which polling observed the exit.
     for (auto& pair : gProcesses) {
-        auto processId = pair.first;
+        auto processId = pair.first.first;
         auto processInfo = &pair.second;
 
         DWORD exitCode = 0;
@@ -221,13 +397,24 @@ static void UpdateProcessEvents(
             ProcessEvent e;
             e.ImageFileName = processInfo->mModuleName;
             e.QpcTime       = qpc;
+            FILETIME creation{}, exit{}, kernel{}, user{};
+            if (GetProcessTimes(processInfo->mHandle, &creation, &exit, &kernel, &user)) {
+                auto exitQpc = FileTimeToQpc(FileTimeValue(exit));
+                if (exitQpc != 0) e.QpcTime = exitQpc;
+            }
             e.ProcessId     = processId;
             e.IsStartEvent  = false;
             processEvents->push_back(e);
+            addedEvents = true;
 
             CloseHandle(processInfo->mHandle);
             processInfo->mHandle = NULL;
         }
+    }
+    if (addedEvents) {
+        // A polled exit uses its actual exit timestamp and can precede events already queued.
+        std::sort(processEvents->begin(), processEvents->end(),
+            [](ProcessEvent const& a, ProcessEvent const& b) { return a.QpcTime < b.QpcTime; });
     }
 }
 
@@ -261,10 +448,14 @@ static void PruneOldSwapChainData(
         return;
     }
 
-    auto minTimestamp = latestTimestamp - pmSession.MilliSecondsDeltaToTimestamp(4000.0);
+    auto inactivityLimit = pmSession.MilliSecondsDeltaToTimestamp(4000.0);
+    if (latestTimestamp <= inactivityLimit) {
+        return;
+    }
+    auto minTimestamp = latestTimestamp - inactivityLimit;
 
-    for (auto& pair : gProcesses) {
-        auto processInfo = &pair.second;
+    for (auto processIter = gProcesses.begin(); processIter != gProcesses.end(); ) {
+        auto processInfo = &processIter->second;
 
         // Check if this is DWM process
         const auto processNameLower = util::str::ToLower(processInfo->mModuleName);
@@ -278,7 +469,8 @@ static void PruneOldSwapChainData(
             bool shouldSkipPruning = isDwmProcess && swapChainAddress == 0x0;
             bool shouldPrune = false;
             if (!shouldSkipPruning) {
-                shouldPrune = chain->mUnifiedSwapChain.IsPrunableBefore(minTimestamp);
+                shouldPrune = chain->mLastReceivedPresentTime != 0 &&
+                              chain->mLastReceivedPresentTime < minTimestamp;
             }
 
             if (shouldPrune) {
@@ -287,6 +479,14 @@ static void PruneOldSwapChainData(
             else {
                 ++ii;
             }
+        }
+        if (processInfo->mTerminationTime.has_value() &&
+            *processInfo->mTerminationTime < minTimestamp &&
+            processInfo->mLastReceivedPresentTime < minTimestamp) {
+            // The shared CSV stream stays open if a newer lifetime still uses the same path.
+            processIter = gProcesses.erase(processIter);
+        } else {
+            ++processIter;
         }
     }
 }
@@ -302,6 +502,11 @@ static void QueryProcessName(uint32_t processId, ProcessInfo* info)
     if (args.mEtlFileName == nullptr) {
         handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
         if (handle != NULL) {
+            FILETIME creation{}, exit{}, kernel{}, user{};
+            if (GetProcessTimes(handle, &creation, &exit, &kernel, &user)) {
+                info->mCreationTime = FileTimeValue(creation);
+                info->mCreationTimestamp = FileTimeToQpc(info->mCreationTime);
+            }
             DWORD numChars = _countof(path);
             if (QueryFullProcessImageNameW(handle, 0, path, &numChars)) {
                 for (;; --numChars) {
@@ -318,42 +523,127 @@ static void QueryProcessName(uint32_t processId, ProcessInfo* info)
     info->mHandle     = handle;
 }
 
+static std::map<ProcessKey, ProcessInfo>::iterator FindRealtimeProcess(uint32_t processId, uint64_t timestamp)
+{
+    auto ii = FindProcess(processId, timestamp);
+    auto next = gProcesses.upper_bound({processId, timestamp});
+    auto hasNext = next != gProcesses.end() && next->first.first == processId;
+    // An actual start event is an exact boundary, rather than a correlated estimate.
+    if (hasNext && next->second.mHasStartEvent) return ii;
+    DWORD exitCode = 0;
+    if (ii != gProcesses.end() && ii->second.mHandle != NULL &&
+        GetExitCodeProcess(ii->second.mHandle, &exitCode) && exitCode == STILL_ACTIVE) return ii;
+
+    ProcessInfo observed;
+    QueryProcessName(processId, &observed);
+    auto closeObserved = [&] {
+        if (observed.mHandle != NULL) CloseHandle(observed.mHandle);
+    };
+    if (observed.mCreationTimestamp == 0 || IsProcessCreationAfter(observed.mCreationTimestamp, timestamp)) {
+        closeObserved();
+        return ii;
+    }
+    // An earlier frame from another swap chain can precede the first frame used to key
+    // this estimated lifetime. Reuse its identity and buffered history within tolerance.
+    if (hasNext && next->second.mCreationTime == observed.mCreationTime) {
+        closeObserved();
+        return next;
+    }
+
+    auto sameIdentity = ii != gProcesses.end() && ii->second.mCreationTime != 0 &&
+                        ii->second.mCreationTime == observed.mCreationTime;
+    auto replacement = !sameIdentity && (ii == gProcesses.end() ||
+        (ii->second.mTerminationTime.has_value() &&
+         IsProcessCreationAfter(observed.mCreationTimestamp, *ii->second.mTerminationTime)) ||
+        (ii->second.mCreationTime != 0 && ii->second.mCreationTime != observed.mCreationTime) ||
+        (ii->second.mHasStartEvent && IsProcessCreationAfter(observed.mCreationTimestamp, ii->first.second)) ||
+        (ii->second.mFirstReceivedPresentTime != 0 &&
+         IsProcessCreationAfter(observed.mCreationTimestamp, ii->second.mFirstReceivedPresentTime)));
+    if (!replacement) {
+        if (!ii->second.mTerminationTime.has_value()) {
+            if (ii->second.mHandle != NULL) CloseHandle(ii->second.mHandle);
+            ii->second.mHandle = observed.mHandle;
+            ii->second.mCreationTime = observed.mCreationTime;
+            ii->second.mCreationTimestamp = observed.mCreationTimestamp;
+            if (!ii->second.mHasStartEvent || ii->second.mModuleName == L"<unknown>") {
+                SetProcessName(&ii->second, processId, std::move(observed.mModuleName));
+            }
+        } else {
+            closeObserved();
+        }
+        return ii;
+    }
+
+    ProcessKey key{processId, std::min(observed.mCreationTimestamp, timestamp)};
+    auto inserted = gProcesses.emplace(key, std::move(observed));
+    if (!inserted.second) {
+        closeObserved();
+        return inserted.first;
+    }
+    auto& info = inserted.first->second;
+    info.mIsTargetProcess = IsTargetProcess(processId, info.mModuleName);
+    if (info.mIsTargetProcess) ++gTargetProcessCount;
+    ShareProcessCsv(processId, &info);
+    auto targetTerminated = ii != gProcesses.end() && ii->second.mIsTargetProcess &&
+                            !ii->second.mTerminationTime.has_value();
+    if (ii != gProcesses.end()) HandleTerminatedProcess(&ii->second, key.second);
+    if (targetTerminated && GetCommandLineArgs().mTerminateOnProcExit && gTargetProcessCount == 0) {
+        ExitMainThread();
+    }
+    return inserted.first;
+}
+
 static bool GetPresentProcessInfo(
     std::shared_ptr<PresentEvent> const& presentEvent,
-    bool create,
     ProcessInfo** outProcessInfo,
     SwapChainData** outChain,
     uint64_t* outPresentTime)
 {
     ProcessInfo* processInfo;
-    auto ii = gProcesses.find(presentEvent->ProcessId);
+    auto ii = GetCommandLineArgs().mEtlFileName == nullptr
+        ? FindRealtimeProcess(presentEvent->ProcessId, presentEvent->PresentStartTime)
+        : FindProcess(presentEvent->ProcessId, presentEvent->PresentStartTime);
     if (ii != gProcesses.end()) {
         processInfo = &ii->second;
     } else {
-        if (!create) {
-            *outProcessInfo = nullptr;
-            *outChain       = nullptr;
-            *outPresentTime = presentEvent->PresentStartTime;
-            return false;
-        }
-
         ProcessInfo info;
         QueryProcessName(presentEvent->ProcessId, &info);
-        info.mOutputCsv       = nullptr;
+        auto next = gProcesses.upper_bound({presentEvent->ProcessId, presentEvent->PresentStartTime});
+        if (next != gProcesses.end() && next->first.first == presentEvent->ProcessId) {
+            info.mTerminationTime = next->first.second;
+        }
+        if (IsProcessCreationAfter(info.mCreationTimestamp, presentEvent->PresentStartTime)) {
+            info.mTerminationTime = std::min(info.mTerminationTime.value_or(info.mCreationTimestamp),
+                                             info.mCreationTimestamp);
+        }
+        if (info.mTerminationTime.has_value()) {
+            // A later start bounds this historical lifetime. Preserve its rows without
+            // assigning the current process's name or counting it as an active target.
+            if (info.mHandle != NULL) CloseHandle(info.mHandle);
+            info.mHandle = NULL;
+            info.mModuleName = L"<unknown>";
+            info.mCreationTime = 0;
+            info.mCreationTimestamp = 0;
+        }
         info.mIsTargetProcess = IsTargetProcess(presentEvent->ProcessId, info.mModuleName);
-        if (info.mIsTargetProcess) {
+        if (info.mIsTargetProcess && !info.mTerminationTime.has_value()) {
             gTargetProcessCount += 1;
         }
 
-        processInfo = &gProcesses.emplace(presentEvent->ProcessId, info).first->second;
+        processInfo = &gProcesses.emplace(ProcessKey{presentEvent->ProcessId, 0}, std::move(info)).first->second;
     }
 
+    if (processInfo->mFirstReceivedPresentTime == 0 || presentEvent->PresentStartTime < processInfo->mFirstReceivedPresentTime) {
+        processInfo->mFirstReceivedPresentTime = presentEvent->PresentStartTime;
+    }
+    processInfo->mLastReceivedPresentTime = std::max(processInfo->mLastReceivedPresentTime, presentEvent->PresentStartTime);
     if (!processInfo->mIsTargetProcess) {
         return true;
     }
 
     *outProcessInfo = processInfo;
     auto chain = &processInfo->mSwapChain[presentEvent->SwapChainAddress];
+    chain->mLastReceivedPresentTime = std::max(chain->mLastReceivedPresentTime, presentEvent->PresentStartTime);
     *outChain       = chain;
     *outPresentTime = chain->mUnifiedSwapChain.GetLastPresentQpcOr(
         presentEvent->PresentStartTime);
@@ -437,35 +727,32 @@ static void ProcessEvents(
 
         newestPresentStartTime = std::max(newestPresentStartTime, presentEvent->PresentStartTime);
 
-        // Look up the process this present belongs to.  If the process info doesn't exist yet,
-        // handle process events first and then check again.  
-        ProcessInfo* processInfo = nullptr;
-        SwapChainData* chain = nullptr;
-        if (GetPresentProcessInfo(presentEvent, false, &processInfo, &chain, &presentTime)) {
-            continue;
-        }
-
-        // Handle any process events that occurred before this present
+        // Advance lifecycle events even for filtered processes. Histories are selected by present
+        // start time below, so a late present can still use an exited or superseded lifetime.
         if (checkProcessTime) {
-            while ((*processEvents)[processEventIndex].QpcTime < presentTime) {
+            while ((*processEvents)[processEventIndex].QpcTime <= presentEvent->PresentStartTime) {
                 auto& processEvent = (*processEvents)[processEventIndex];
-
-                // A process event for the present's own process id can remove or replace the
-                // process info looked up above (e.g., the id was reused by a new process), so look
-                // it up again afterwards.  Holding the event back instead would also hold back
-                // every later process event for as long as that process id keeps presenting.
-                if (processEvent.ProcessId == presentEvent->ProcessId) {
-                    processInfo = nullptr;
-                    chain = nullptr;
+                std::optional<uint64_t> nextLifetimeBoundary;
+                if (processEvent.IsStartEvent && !processEvent.IsRundown) {
+                    auto next = std::find_if(processEvents->begin() + processEventIndex + 1, processEvents->end(),
+                        [&](ProcessEvent const& event) {
+                            return event.ProcessId == processEvent.ProcessId && !event.IsRundown;
+                        });
+                    if (next != processEvents->end()) nextLifetimeBoundary = next->QpcTime;
                 }
-
-                ProcessProcessEvent(processEvent);
+                ProcessProcessEvent(processEvent, nextLifetimeBoundary);
                 processEventIndex += 1;
                 if (processEventIndex == processEventCount) {
                     checkProcessTime = false;
                     break;
                 }
             }
+        }
+
+        ProcessInfo* processInfo = nullptr;
+        SwapChainData* chain = nullptr;
+        if (GetPresentProcessInfo(presentEvent, &processInfo, &chain, &presentTime)) {
+            continue;
         }
 
         // Handle any recording toggles that occurred before this present
@@ -478,11 +765,6 @@ static void ProcessEvents(
                     break;
                 }
             }
-        }
-
-        // If we didn't get process info, try again (this time querying realtime data if needed).
-        if (processInfo == nullptr && GetPresentProcessInfo(presentEvent, true, &processInfo, &chain, &presentTime)) {
-            continue;
         }
 
         // Do we need to emit metrics for this present?
@@ -609,7 +891,9 @@ void Output(PMTraceSession const* pmSession)
         case ConsoleOutput::Statistics:
             if (BeginConsoleUpdate()) {
                 for (auto const& pair : gProcesses) {
-                    UpdateConsole(pair.first, pair.second);
+                    if (!pair.second.mTerminationTime.has_value()) {
+                        UpdateConsole(pair.first.first, pair.second);
+                    }
                 }
 
                 if (currentRecordingState && args.mCSVOutput != CSVOutput::None) {
@@ -642,6 +926,7 @@ void Output(PMTraceSession const* pmSession)
     CloseGlobalCsv();
 
     gProcesses.clear();
+    gTargetProcessCount = 0;
 
     gRecordingToggleHistory.clear();
     gRecordingToggleHistory.shrink_to_fit();

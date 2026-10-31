@@ -455,6 +455,16 @@ function(pmon_register_presentmon_gtest_leaf_tests target_name console_target_na
     pmon_register_presentmon_gtest_group(
         TARGET ${target_name}
         CONSOLE_TARGET ${console_target_name}
+        GROUP_NAME output
+        TEST_PREFIX "PresentMonTests."
+        TEST_FILTER "OutputThreadTests.*"
+        GOLD_DIRECTORY "${PROJECT_SOURCE_DIR}/Tests/Gold"
+        LABELS "PresentMonTests;OutputThreadTests;console;deterministic"
+        RESOURCE_LOCK pmon_console
+    )
+    pmon_register_presentmon_gtest_group(
+        TARGET ${target_name}
+        CONSOLE_TARGET ${console_target_name}
         GROUP_NAME commandline
         TEST_PREFIX "PresentMonTests."
         TEST_FILTER "CommandLineTests.*"

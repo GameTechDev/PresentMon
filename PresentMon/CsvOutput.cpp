@@ -3,9 +3,28 @@
 // SPDX-License-Identifier: MIT
 
 #include "PresentMon.hpp"
+#include <algorithm>
+#include <cerrno>
 
 static FILE* gGlobalOutputCsv = nullptr;
 static uint32_t gRecordingCount = 1;
+static uint64_t gCsvUseCount = 0;
+static std::vector<std::weak_ptr<ProcessCsv>> gOpenProcessCsvs;
+constexpr size_t MAX_OPEN_PROCESS_CSVS = 64;
+
+static bool EvictProcessCsv()
+{
+    std::erase_if(gOpenProcessCsvs, [](auto const& weak) {
+        auto csv = weak.lock();
+        return !csv || !csv->mFile;
+    });
+    auto oldest = std::min_element(gOpenProcessCsvs.begin(), gOpenProcessCsvs.end(),
+        [](auto const& a, auto const& b) { return a.lock()->mLastUse < b.lock()->mLastUse; });
+    if (oldest == gOpenProcessCsvs.end()) return false;
+    oldest->lock()->mFile.reset();
+    gOpenProcessCsvs.erase(oldest);
+    return true;
+}
 
 static bool HasFrameMetricValue(double value)
 {
@@ -143,6 +162,80 @@ static void GenerateFilename(wchar_t* path, std::wstring const& processName, uin
 
 template<typename FrameMetricsT>
 void WriteCsvHeader(FILE* fp);
+
+template<typename FrameMetricsT>
+static FILE* GetOutputCsv(ProcessInfo* processInfo, uint32_t processId)
+{
+    auto const& args = GetCommandLineArgs();
+    ProcessCsv* csv = args.mMultiCsv ? processInfo->mOutputCsv.get() : nullptr;
+    if (csv != nullptr) {
+        if (csv->mRecordingCount != 0 && csv->mRecordingCount != gRecordingCount) {
+            // A new recording uses its own path and header even if this holder was shared.
+            csv->mFile.reset();
+            csv->mPath.clear();
+            csv->mHasWrittenHeader = false;
+            csv->mReportedOpenError = false;
+        }
+        csv->mRecordingCount = gRecordingCount;
+        csv->mLastUse = ++gCsvUseCount;
+        if (csv->mFile) return csv->mFile.get();
+    } else if (gGlobalOutputCsv != nullptr) {
+        return gGlobalOutputCsv;
+    }
+
+    FILE* file = nullptr;
+    if (args.mCSVOutput == CSVOutput::File) {
+        wchar_t path[MAX_PATH];
+        if (csv == nullptr || csv->mPath.empty()) {
+            GenerateFilename(path, processInfo->mModuleName, processId);
+            if (csv != nullptr) csv->mPath = path;
+        }
+        auto filename = csv != nullptr ? csv->mPath.c_str() : path;
+        if (csv != nullptr) {
+            std::erase_if(gOpenProcessCsvs, [](auto const& weak) {
+                auto open = weak.lock();
+                return !open || !open->mFile;
+            });
+            auto limit = std::min(MAX_OPEN_PROCESS_CSVS, std::max((size_t)1, (size_t)_getmaxstdio() / 2));
+            while (gOpenProcessCsvs.size() >= limit) EvictProcessCsv();
+        }
+        auto mode = csv != nullptr && csv->mHasWrittenHeader ? L"a,ccs=UTF-8" : L"w,ccs=UTF-8";
+        errno_t error;
+        for (;;) {
+            error = _wfopen_s(&file, filename, mode);
+            if (error == 0 || (error != EMFILE && error != ENFILE) || !EvictProcessCsv()) break;
+        }
+        if (error != 0) {
+            if (csv == nullptr || !csv->mReportedOpenError) {
+                fwprintf(stderr, L"error: could not open CSV output %s (error %d)\n", filename, error);
+            }
+            if (csv != nullptr) csv->mReportedOpenError = true;
+            return nullptr;
+        }
+    } else {
+        file = stdout;
+    }
+
+    if (csv != nullptr) {
+        csv->mFile = std::shared_ptr<FILE>(file, [](FILE* stream) {
+            if (stream == stdout) {
+                fflush(stream);
+            } else {
+                fclose(stream);
+            }
+        });
+        csv->mReportedOpenError = false;
+        if (file != stdout) gOpenProcessCsvs.emplace_back(processInfo->mOutputCsv);
+        if (!csv->mHasWrittenHeader) {
+            WriteCsvHeader<FrameMetricsT>(file);
+            csv->mHasWrittenHeader = true;
+        }
+    } else {
+        gGlobalOutputCsv = file;
+        WriteCsvHeader<FrameMetricsT>(file);
+    }
+    return file;
+}
 
 template<typename FrameMetricsT>
 void WriteCsvRow(FILE* fp, PMTraceSession const& pmSession, ProcessInfo const& processInfo, PresentEvent const& p, FrameMetricsT const& metrics);
@@ -1370,27 +1463,11 @@ void UpdateCsvT(
         return;
     }
 
-    // Get/create file
-    FILE** fp = args.mMultiCsv
-        ? &processInfo->mOutputCsv
-        : &gGlobalOutputCsv;
-
-    if (*fp == nullptr) {
-        if (args.mCSVOutput == CSVOutput::File) {
-            wchar_t path[MAX_PATH];
-            GenerateFilename(path, processInfo->mModuleName, p.ProcessId);
-            if (_wfopen_s(fp, path, L"w,ccs=UTF-8")) {
-                return;
-            }
-        } else {
-            *fp = stdout;
-        }
-
-        WriteCsvHeader<FrameMetricsT>(*fp);
-    }
+    auto fp = GetOutputCsv<FrameMetricsT>(processInfo, p.ProcessId);
+    if (fp == nullptr) return;
 
     // Output in CSV format
-    WriteCsvRow(*fp, pmSession, *processInfo, p, metrics);
+    WriteCsvRow(fp, pmSession, *processInfo, p, metrics);
 }
 
 template<typename FrameMetricsT>
@@ -1413,28 +1490,11 @@ void UpdateCsvT(
         return;
     }
 
-    // Get/create file
-    FILE** fp = args.mMultiCsv
-        ? &processInfo->mOutputCsv
-        : &gGlobalOutputCsv;
-
-    if (*fp == nullptr) {
-        if (args.mCSVOutput == CSVOutput::File) {
-            wchar_t path[MAX_PATH];
-            GenerateFilename(path, processInfo->mModuleName, p.processId);
-            if (_wfopen_s(fp, path, L"w,ccs=UTF-8")) {
-                return;
-            }
-        }
-        else {
-            *fp = stdout;
-        }
-
-        WriteCsvHeader<FrameMetricsT>(*fp);
-    }
+    auto fp = GetOutputCsv<FrameMetricsT>(processInfo, p.processId);
+    if (fp == nullptr) return;
 
     // Output in CSV format
-    WriteCsvRow(*fp, pmSession, *processInfo, p, metrics);
+    WriteCsvRow(fp, pmSession, *processInfo, p, metrics);
 }
 
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics1 const& metrics)
@@ -1474,7 +1534,7 @@ static void CloseCsv(FILE** fp)
 
 void CloseMultiCsv(ProcessInfo* processInfo)
 {
-    CloseCsv(&processInfo->mOutputCsv);
+    processInfo->mOutputCsv->mFile.reset();
 }
 
 void CloseGlobalCsv()

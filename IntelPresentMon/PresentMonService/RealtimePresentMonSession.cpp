@@ -611,7 +611,7 @@ void RealtimePresentMonSession::UpdateProcesses(
         if (!IsProcessTracked(processEvent.ProcessId)) {
             continue;
         }
-        if (!processEvent.IsStartEvent) {
+        if (!processEvent.IsStartEvent && !processEvent.IsRundown) {
             // Note any process termination in terminatedProcess, to be handled
             // once the present event stream catches up to the termination time.
             MarkProcessExited(processEvent.ProcessId);

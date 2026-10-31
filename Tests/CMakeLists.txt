@@ -4,8 +4,11 @@ add_executable(
     PresentMonTests
     CommandLineTests.cpp
     GoldEtlCsvTests.cpp
+    OutputThreadTests.cpp
     PresentMonTests.cpp
     PresentMon.cpp
+    "${PROJECT_SOURCE_DIR}/PresentMon/CsvOutput.cpp"
+    "${PROJECT_SOURCE_DIR}/PresentMon/LogSetup.cpp"
 )
 target_compile_definitions(PresentMonTests PRIVATE _CONSOLE)
 target_link_libraries(
@@ -17,6 +20,8 @@ target_link_libraries(
         pmon::release_link_policy
         pmon::version_header
         GTest::gtest
+        pmon::present_data
+        pmon::metrics
 )
 set_target_properties(
     PresentMonTests

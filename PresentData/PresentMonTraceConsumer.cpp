@@ -2924,6 +2924,7 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             event.ProcessId     = desc[0].GetData<uint32_t>();
             auto ImageName      = desc[1].GetData<std::wstring>();
             event.IsStartEvent  = true;
+            event.IsRundown     = hdr.EventDescriptor.Id == Microsoft_Windows_Kernel_Process::ProcessRundown_Info::Id;
 
             // When run as-administrator, ImageName will be a fully-qualified path.
             // e.g.: \Device\HarddiskVolume...\...\Proces.exe.  We prune off everything other than
@@ -2966,7 +2967,8 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
         }
     } else { // hdr.ProviderId == NT_Process::GUID
         if (hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_START ||
-            hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_DC_START) {
+            hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_DC_START ||
+            hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_DC_END) {
             EventDataDesc desc[] = {
                 { L"ProcessId" },
                 { L"ImageFileName" },
@@ -2975,9 +2977,9 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             event.ProcessId     = desc[0].GetData<uint32_t>();
             std::string str     = desc[1].GetData<std::string>();
             event.ImageFileName = std::wstring(str.begin(), str.end());
-            event.IsStartEvent  = true;
-        } else if (hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_END||
-                   hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_DC_END) {
+            event.IsStartEvent  = hdr.EventDescriptor.Opcode != EVENT_TRACE_TYPE_DC_END;
+            event.IsRundown     = hdr.EventDescriptor.Opcode != EVENT_TRACE_TYPE_START;
+        } else if (hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_END) {
             EventDataDesc desc[] = {
                 { L"ProcessId" },
             };
