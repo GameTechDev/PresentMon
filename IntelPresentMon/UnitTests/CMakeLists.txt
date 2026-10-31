@@ -10,6 +10,7 @@ add_library(
         LoggingTests.cpp
         MetricCapabilitiesTests.cpp
         MetricsCore.cpp
+        PcLatencyFrameGenerationTests.cpp
         PresentFrameTypeDeferralTests.cpp
         TelemetryAvailabilityMergeTests.cpp
         SwapChainTests.cpp

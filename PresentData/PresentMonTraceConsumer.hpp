@@ -652,7 +652,7 @@ struct PMTraceConsumer
     // Function for managing app provided events
     AppTimingData* ExtractAppTimingData(std::unordered_map<std::pair<uint32_t, uint32_t>, AppTimingData, PairHash<uint32_t, uint32_t>>& timingDataByFrameId, 
         uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime, uint64_t presentStopTime, 
-        std::function<uint64_t(const AppTimingData&)> timingSelector, bool isPcLatency = true);
+        std::function<uint64_t(const AppTimingData&)> timingSelector, bool isPcLatency = true, bool assignToPresent = true);
     bool IsApplicationPresent(std::shared_ptr<PresentEvent> const& present);
     void SetAppTimingDataAsComplete(uint32_t processId, uint32_t appFrameId);
     bool IsStaleAppTimingData(AppTimingData const& data, uint64_t now) const;
