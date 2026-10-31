@@ -258,6 +258,8 @@ struct PresentEvent {
     bool SupportsTearing;
     bool WaitForFlipEvent;
     bool WaitForMPOFlipEvent;
+    bool WaitForSyncDPC;        // The flip was handed to the display hardware (e.g., a hardware flip queue) and its
+                                // completion will be reported by a subsequent VSyncDPC/HSyncDPC event.
     bool SeenDxgkPresent;
     bool SeenWin32KEvents;
     bool SeenInFrameEvent;      // This present has gotten a Win32k TokenStateChanged event into InFrame state
