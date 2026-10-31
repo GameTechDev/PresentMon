@@ -5,6 +5,9 @@
     <ClCompile Include="PresentMonTests.cpp" />
     <ClCompile Include="GoldEtlCsvTests.cpp" />
     <ClCompile Include="CommandLineTests.cpp" />
+    <ClCompile Include="OutputThreadTests.cpp" />
+    <ClCompile Include="..\PresentMon\CsvOutput.cpp" />
+    <ClCompile Include="..\PresentMon\LogSetup.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\build\obj\generated\version.h">

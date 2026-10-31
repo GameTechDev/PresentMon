@@ -70,6 +70,13 @@ command line argument.
 If `--multi_csv` is used, then one CSV is created for each process captured and
 "-\<ProcessName>-\<ProcessId>" is appended to the file name.
 
+When the executable name is unknown, the first lifetime uses "-\<ProcessId>".
+Additional unknown lifetimes reusing that PID use "-unknown-\<Ordinal>-\<ProcessId>"
+to keep their output separate. If the name becomes known after rows have already
+been written, those rows stay in the original file and subsequent rows go to the
+named destination. Repeated known destinations append during the same recording,
+including after their process history has been pruned or the CSV stream reopened.
+
 If `--hotkey` is used, then one CSV is created for each time recording is started and "-\<Index>" is
 appended to the file name.
 

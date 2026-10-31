@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2017-2024 Intel Corporation
+// Copyright (C) 2017-2024 Intel Corporation
 // Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved
 // SPDX-License-Identifier: MIT
 
@@ -34,6 +34,8 @@ which is controlled from MainThread based on user input or timer.
 #include "../IntelPresentMon/CommonUtilities/Qpc.h"
 
 #include <unordered_map>
+#include <memory>
+#include <atomic>
 #include <queue>
 #include <optional>
 #include <deque>
@@ -242,14 +244,43 @@ struct SwapChainData {
 
     // Unified swap chain for unfied metrics calculations
     pmon::util::metrics::UnifiedSwapChain mUnifiedSwapChain;
+    // Receipt advances even while the metrics pipeline is holding rows for a future display.
+    uint64_t mLastReceivedPresentTime = 0;
 };
 
+struct ProcessCsv {
+    std::shared_ptr<FILE> mFile;
+    std::wstring mPath;
+    uint64_t mLastUse = 0;
+    uint32_t mRecordingCount = 0;
+    bool mHasWrittenHeader = false;
+    bool mReportedOpenError = false;
+    uint64_t mUnknownOrdinal = 0;
+};
+
+inline uint64_t AllocateProcessLifetimeId()
+{
+    static std::atomic<uint64_t> next{0};
+    return ++next;
+}
+
 struct ProcessInfo {
+    uint64_t mLifetimeId = AllocateProcessLifetimeId();
     std::wstring mModuleName;
     std::unordered_map<uint64_t, SwapChainData> mSwapChain;
-    HANDLE mHandle;
-    FILE* mOutputCsv;
-    bool mIsTargetProcess;
+    HANDLE mHandle = NULL;
+    std::shared_ptr<ProcessCsv> mOutputCsv = std::make_shared<ProcessCsv>();
+    bool mIsTargetProcess = false;
+    std::optional<uint64_t> mTerminationTime; // Routing bound; provenance and membership are separate.
+    ProcessTimeSource mStartSource = ProcessTimeSource::Inferred;
+    ProcessTimeSource mEndSource = ProcessTimeSource::Inferred;
+    bool mIsHistorical = false;     // Retired or discovered behind an applied replacement.
+    uint64_t mFirstReceivedPresentTime = 0;
+    uint64_t mLastReceivedPresentTime = 0;
+    uint64_t mCreationTime = 0;       // UTC FILETIME identity obtained from the process handle.
+    bool mCreationTimeFromEvent = false;
+    uint64_t mCreationTimestamp = 0;  // Creation time correlated with the realtime QPC clock.
+    bool mHasStartEvent = false;
 };
 
 // CommandLine.cpp:
@@ -277,6 +308,7 @@ void WaitForConsumerThreadToExit();
 void IncrementRecordingCount();
 void CloseMultiCsv(ProcessInfo* processInfo);
 void CloseGlobalCsv();
+void BindProcessCsv(ProcessInfo* processInfo, uint32_t processId);
 const char* PresentModeToString(PresentMode mode);
 const char* RuntimeToString(Runtime rt);
 void UpdateCsv(PMTraceSession const& pmSession, ProcessInfo* processInfo, PresentEvent const& p, FrameMetrics const& metrics);
