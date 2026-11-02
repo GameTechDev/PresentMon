@@ -40,12 +40,20 @@ namespace pmon::util::log
 	std::string TextFormatter::Format(const Entry& e) const
 	{
 		try {
+			const auto timestamp = [&] {
+				try {
+					return std::format("{}", std::chrono::zoned_time{ std::chrono::current_zone(), e.timestamp_ });
+				}
+				catch (...) {
+					return std::format("{:%F %T} UTC", e.timestamp_);
+				}
+			}();
 			std::ostringstream oss;
 			oss << std::format("[@{}] <{}:{}> {{{}}}",
 				GetLevelName(e.level_),
 				MakeProc_(e),
 				MakeThread_(e),
-				std::chrono::zoned_time{ std::chrono::current_zone(), e.timestamp_ }
+				timestamp
 			);
 			if (!e.note_.empty()) {
 				oss << "\n  " << e.note_;
