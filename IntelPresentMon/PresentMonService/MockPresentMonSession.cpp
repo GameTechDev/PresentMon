@@ -242,6 +242,7 @@ void MockPresentMonSession::RequestStopTraceSession() {
 
     trace_session_.Stop();
     stop_trace_join_pending_.store(true, std::memory_order_release);
+    evtCheckTraceSessions_.Set();
 }
 
 void MockPresentMonSession::FinalizeStopTraceSession() {
