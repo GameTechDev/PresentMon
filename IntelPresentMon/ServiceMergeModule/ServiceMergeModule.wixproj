@@ -18,6 +18,12 @@
     <Compile Include="ServiceMergeModule.wxs" />
   </ItemGroup>
   <ItemGroup>
+    <WixExtension Include="WixUtilExtension">
+      <HintPath>$(WixExtDir)\WixUtilExtension.dll</HintPath>
+      <Name>WixUtilExtension</Name>
+    </WixExtension>
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\PMInstallerLib\PMInstallerLib.wixproj">
       <Name>PMInstallerLib</Name>
       <Project>{6478f2f6-92ad-4b1c-a13e-c8cea9125152}</Project>

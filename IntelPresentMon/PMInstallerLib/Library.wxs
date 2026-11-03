@@ -28,10 +28,9 @@
                         Type="ownProcess"
                         ErrorControl="normal"
                         Vital="no" />
-        <!-- Start via MSI service control (no console host); remove on uninstall -->
+        <!-- Remove on uninstall; startup is handled by a non-fatal hidden custom action below. -->
         <ServiceControl Id="SharedPresentMonServiceControl"
                         Name="PresentMonSharedService"
-                        Start="install"
                         Remove="uninstall"
                         Wait="no" />
       </Component>
@@ -66,6 +65,26 @@
       </Component>
 
     </DirectoryRef>
+
+    <!-- Start without a console window. Consumers may ship this module as one optional
+         telemetry provider among many, so a start failure must not fail their install.
+         [%SystemRoot] is used instead of [SystemFolder] because merge modules modularize
+         directory ids inside formatted strings. -->
+    <CustomAction Id="SetTryStartSharedService"
+                  Property="TryStartSharedService"
+                  Value='&quot;[%SystemRoot]\System32\sc.exe&quot; start PresentMonSharedService'
+                  Execute="immediate" />
+    <CustomAction Id="TryStartSharedService"
+                  BinaryKey="WixCA"
+                  DllEntry="WixQuietExec"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+        <Custom Action="SetTryStartSharedService" Before="TryStartSharedService">$pmon_shared_service_component=3</Custom>
+        <Custom Action="TryStartSharedService" After="StartServices">$pmon_shared_service_component=3</Custom>
+    </InstallExecuteSequence>
 
     <!-- Group that consumers reference -->
     <ComponentGroup Id="service_files">
