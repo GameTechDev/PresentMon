@@ -28,10 +28,9 @@
                         Type="ownProcess"
                         ErrorControl="normal"
                         Vital="no" />
-        <!-- Start via MSI service control (no console host); remove on uninstall -->
+        <!-- Remove on uninstall; startup is handled by a non-fatal hidden custom action below. -->
         <ServiceControl Id="SharedPresentMonServiceControl"
                         Name="PresentMonSharedService"
-                        Start="install"
                         Remove="uninstall"
                         Wait="no" />
       </Component>
@@ -76,24 +75,50 @@
          The empty action (//0) is required. If the last action is run, the SCM repeats it forever.
          reset= 1800 clears the failure count after 30 minutes with no failure; it does not start the service.
          failureflag 0 counts only abnormal process death, not a clean SERVICE_STOPPED.
-         sc.exe is invoked directly so cmd does not expand %1%. -->
+         sc.exe is invoked directly (WixQuietExec, no cmd) so %1% is not expanded and no console
+         window is shown. [%SystemRoot] is used instead of [SystemFolder] because merge modules
+         modularize directory ids inside formatted strings. -->
+    <CustomAction Id="SetConfigureSharedServiceRecovery"
+                  Property="ConfigureSharedServiceRecovery"
+                  Value='&quot;[%SystemRoot]\System32\sc.exe&quot; failure PresentMonSharedService reset= 1800 actions= run/2000/run/15000/run/60000/run/300000//0 command= "sc.exe start PresentMonSharedService --recovery-fail-count %1%"'
+                  Execute="immediate" />
     <CustomAction Id="ConfigureSharedServiceRecovery"
-                  Directory="SystemFolder"
-                  ExeCommand='sc.exe failure PresentMonSharedService reset= 1800 actions= run/2000/run/15000/run/60000/run/300000//0 command= "sc.exe start PresentMonSharedService --recovery-fail-count %1%"'
+                  BinaryKey="WixCA"
+                  DllEntry="WixQuietExec"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
+    <CustomAction Id="SetConfigureSharedServiceRecoveryFlag"
+                  Property="ConfigureSharedServiceRecoveryFlag"
+                  Value='&quot;[%SystemRoot]\System32\sc.exe&quot; failureflag PresentMonSharedService 0'
+                  Execute="immediate" />
     <CustomAction Id="ConfigureSharedServiceRecoveryFlag"
-                  Directory="SystemFolder"
-                  ExeCommand='sc.exe failureflag PresentMonSharedService 0'
+                  BinaryKey="WixCA"
+                  DllEntry="WixQuietExec"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+    <!-- Start without a console window. Consumers may ship this module as one optional
+         telemetry provider among many, so a start failure must not fail their install. -->
+    <CustomAction Id="SetTryStartSharedService"
+                  Property="TryStartSharedService"
+                  Value='&quot;[%SystemRoot]\System32\sc.exe&quot; start PresentMonSharedService'
+                  Execute="immediate" />
+    <CustomAction Id="TryStartSharedService"
+                  BinaryKey="WixCA"
+                  DllEntry="WixQuietExec"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
 
     <InstallExecuteSequence>
-        <!-- Configure recovery before the service is started. -->
+        <!-- Configure recovery before starting the service. -->
+        <Custom Action="SetConfigureSharedServiceRecovery" Before="ConfigureSharedServiceRecovery">NOT REMOVE</Custom>
+        <Custom Action="SetConfigureSharedServiceRecoveryFlag" Before="ConfigureSharedServiceRecoveryFlag">NOT REMOVE</Custom>
         <Custom Action="ConfigureSharedServiceRecovery" After="InstallServices">NOT REMOVE</Custom>
         <Custom Action="ConfigureSharedServiceRecoveryFlag" After="ConfigureSharedServiceRecovery">NOT REMOVE</Custom>
+        <Custom Action="SetTryStartSharedService" After="ConfigureSharedServiceRecoveryFlag">$pmon_shared_service_component=3</Custom>
+        <Custom Action="TryStartSharedService" After="StartServices">$pmon_shared_service_component=3</Custom>
     </InstallExecuteSequence>
 
     <!-- Group that consumers reference -->

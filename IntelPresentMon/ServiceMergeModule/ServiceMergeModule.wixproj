@@ -20,6 +20,12 @@
     <!-- The module authoring file -->
     <Compile Include="ServiceMergeModule.wxs" />
   </ItemGroup>
+  <ItemGroup>
+    <WixExtension Include="WixUtilExtension">
+      <HintPath>$(WixExtDir)\WixUtilExtension.dll</HintPath>
+      <Name>WixUtilExtension</Name>
+    </WixExtension>
+  </ItemGroup>
   <ItemGroup Condition="'$(PmonCMakePackaging)' != 'true'">
     <ProjectReference Include="..\PMInstallerLib\PMInstallerLib.wixproj">
       <Name>PMInstallerLib</Name>
