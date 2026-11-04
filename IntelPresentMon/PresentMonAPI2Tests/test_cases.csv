@@ -35,3 +35,4 @@ test_case_10_9888,9888,NarakaBladepoint.exe,test_case_10.etl,test_case_10.csv,10
 test_case_11_1524,1524,NarakaBladepoint.exe,test_case_11.etl,test_case_11.csv,10,1,FALSE,,TRUE,TRUE
 test_case_12_10168,10168,F1_24.exe,test_case_12.etl,test_case_12.csv,20,5,FALSE,,TRUE,TRUE
 test_case_13_11780,11780,Dingo.Main_Win64_retail.exe,test_case_13.etl,test_case_13.csv,10,5,FALSE,,TRUE,TRUE
+test_case_14_4420,4420,ACShadows.exe,test_case_14.etl,test_case_14.csv,10,1,FALSE,,TRUE,TRUE
