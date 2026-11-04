@@ -180,7 +180,9 @@ static void ProcessProcessEvent(
         if (info->mIsTargetProcess) {
             gTargetProcessCount += 1;
         }
-    } else {
+    } else if (!processEvent.IsEndRundown) {
+        // An end-of-trace rundown lists processes that were still running, so it is not an exit.
+        // Presents logged after the kernel session stopped still belong to the process.
         auto ii = gProcesses.find(processEvent.ProcessId);
         if (ii != gProcesses.end()) {
             HandleTerminatedProcess(&ii->second);

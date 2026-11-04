@@ -169,6 +169,7 @@ struct ProcessEvent {
     uint64_t QpcTime = 0;               // The time of the start/stop event.
     uint32_t ProcessId = 0;             // The id of the process.
     bool IsStartEvent = false;          // Whether this is a start event (true) or a stop event (false).
+    bool IsEndRundown = false;          // A stop from the end-of-trace rundown: the process was still running, not exiting.
 };
 
 struct PresentEvent {
