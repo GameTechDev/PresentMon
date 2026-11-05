@@ -53,9 +53,6 @@ private:
         std::vector<ProcessEvent> const& processEvents,
         std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses);
     void HandleTerminatedProcess(uint32_t processId);
-
-    void CheckForTerminatedRealtimeProcesses(
-        std::vector<std::pair<uint32_t, uint64_t>>* terminatedProcesses);
     void StopProvidersAndResetConsumer(bool shrink);
 
     // data
@@ -66,7 +63,7 @@ private:
     std::thread consumer_thread_;
     std::thread output_thread_;
 
-    std::atomic<bool> quit_output_thread_ = false;
+    pmon::util::win::Event evtQuitOutput_;
 
     // Event for when streaming has started
     pmon::util::win::Event evtStreamingStarted_;

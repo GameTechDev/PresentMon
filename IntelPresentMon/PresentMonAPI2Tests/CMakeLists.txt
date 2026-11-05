@@ -69,6 +69,12 @@ add_library(
 add_dependencies(PresentMonAPI2Tests pmon_api2_etl_csv_cases)
 add_dependencies(PresentMonAPI2Tests pmon_ensure_aux_testdata)
 
+# InterimBroadcasterTests expands past the default COFF section limit in Debug.
+set_source_files_properties(
+    InterimBroadcasterTests.cpp
+    PROPERTIES COMPILE_OPTIONS /bigobj
+)
+
 target_include_directories(
     PresentMonAPI2Tests
     PRIVATE

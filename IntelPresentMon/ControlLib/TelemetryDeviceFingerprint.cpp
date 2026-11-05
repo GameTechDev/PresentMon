@@ -1,8 +1,10 @@
-﻿// Copyright (C) 2026 Intel Corporation
+// Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: MIT
 #include "TelemetryDeviceFingerprint.h"
+#include <array>
 #include <cctype>
 #include <format>
+#include <unordered_set>
 
 namespace pmon::tel
 {
@@ -28,38 +30,121 @@ namespace pmon::tel
         }
     }
 
-    bool TelemetryDeviceFingerprintMatches(
+    FingerprintMatchStrength GetTelemetryDeviceFingerprintMatchStrength(
         const TelemetryDeviceFingerprint& lhs,
         const TelemetryDeviceFingerprint& rhs) noexcept
     {
         if (lhs.deviceType != rhs.deviceType) {
-            return false;
+            return FingerprintMatchStrength::None;
         }
 
         // There is only one logical system device exposed through IPC. Any
         // provider reporting PM_DEVICE_TYPE_SYSTEM should correlate to it.
         if (lhs.deviceType == PM_DEVICE_TYPE_SYSTEM) {
-            return true;
+            return FingerprintMatchStrength::Name;
         }
 
         if (lhs.vendor != rhs.vendor) {
-            return false;
+            return FingerprintMatchStrength::None;
+        }
+
+        // Contradicting identifiers must not be hidden by a match on a less
+        // specific field.
+        if ((lhs.pciDeviceId && rhs.pciDeviceId && lhs.pciDeviceId != rhs.pciDeviceId) ||
+            (lhs.pciSubSystemId && rhs.pciSubSystemId && lhs.pciSubSystemId != rhs.pciSubSystemId)) {
+            return FingerprintMatchStrength::None;
+        }
+
+        // A validated PCI bus number is the strongest available physical-instance
+        // discriminator. Device/subsystem ids and names identify only a model and
+        // are shared by identical cards, so they are fallbacks.
+        if (lhs.pciBusId.has_value() && rhs.pciBusId.has_value()) {
+            return *lhs.pciBusId == *rhs.pciBusId ?
+                FingerprintMatchStrength::PciBus :
+                FingerprintMatchStrength::None;
         }
 
         if (OptionalEqual_(lhs.pciDeviceId, rhs.pciDeviceId) &&
             OptionalEqual_(lhs.pciSubSystemId, rhs.pciSubSystemId)) {
-            return true;
-        }
-
-        if (OptionalEqual_(lhs.pciBusId, rhs.pciBusId)) {
-            return true;
+            return FingerprintMatchStrength::PciIds;
         }
 
         if (!lhs.deviceName.empty() && !rhs.deviceName.empty()) {
-            return NormalizeName_(lhs.deviceName) == NormalizeName_(rhs.deviceName);
+            const auto lhsName = NormalizeName_(lhs.deviceName);
+            const auto rhsName = NormalizeName_(rhs.deviceName);
+            if (!lhsName.empty() && lhsName == rhsName) {
+                return FingerprintMatchStrength::Name;
+            }
         }
 
-        return false;
+        return FingerprintMatchStrength::None;
+    }
+
+    bool TelemetryDeviceFingerprintMatches(
+        const TelemetryDeviceFingerprint& lhs,
+        const TelemetryDeviceFingerprint& rhs) noexcept
+    {
+        return GetTelemetryDeviceFingerprintMatchStrength(lhs, rhs) !=
+            FingerprintMatchStrength::None;
+    }
+
+    std::unordered_map<uint32_t, uint32_t> ResolveFingerprintMergeTargets(
+        std::span<const FingerprintMergeCandidate> candidates)
+    {
+        std::unordered_set<uint32_t> unresolvedSources;
+        std::unordered_set<uint32_t> unresolvedTargets;
+        for (const auto& candidate : candidates) {
+            if (candidate.strength != FingerprintMatchStrength::None) {
+                unresolvedSources.insert(candidate.sourceId);
+                unresolvedTargets.insert(candidate.targetId);
+            }
+        }
+
+        std::unordered_map<uint32_t, uint32_t> targets;
+        constexpr std::array strengths{
+            FingerprintMatchStrength::PciBus,
+            FingerprintMatchStrength::PciIds,
+            FingerprintMatchStrength::Name,
+        };
+
+        for (const auto minimumStrength : strengths) {
+            while (true) {
+                std::unordered_map<uint32_t, size_t> optionsBySource;
+                std::unordered_map<uint32_t, size_t> optionsByTarget;
+                for (const auto& candidate : candidates) {
+                    if ((uint8_t)candidate.strength < (uint8_t)minimumStrength ||
+                        !unresolvedSources.contains(candidate.sourceId) ||
+                        !unresolvedTargets.contains(candidate.targetId)) {
+                        continue;
+                    }
+                    ++optionsBySource[candidate.sourceId];
+                    ++optionsByTarget[candidate.targetId];
+                }
+
+                std::vector<std::pair<uint32_t, uint32_t>> accepted;
+                for (const auto& candidate : candidates) {
+                    if ((uint8_t)candidate.strength < (uint8_t)minimumStrength ||
+                        !unresolvedSources.contains(candidate.sourceId) ||
+                        !unresolvedTargets.contains(candidate.targetId) ||
+                        optionsBySource[candidate.sourceId] != 1 ||
+                        optionsByTarget[candidate.targetId] != 1) {
+                        continue;
+                    }
+                    accepted.emplace_back(candidate.sourceId, candidate.targetId);
+                }
+                if (accepted.empty()) {
+                    break;
+                }
+
+                for (const auto& match : accepted) {
+                    targets.emplace(match.first, match.second);
+                    unresolvedSources.erase(match.first);
+                    unresolvedTargets.erase(match.second);
+                }
+            }
+        }
+
+        return targets;
     }
 
     std::string TelemetryDeviceFingerprint::LuidAsString() const

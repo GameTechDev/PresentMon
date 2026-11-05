@@ -158,9 +158,15 @@ namespace pmon::tel::nvapi
 
         NvU32 busId = 0;
         const auto busResult = pNvapi_->GPU_GetBusId(device.handle, &busId);
-        if (NvapiWrapper::Ok(busResult)) {
+        if (NvapiWrapper::Ok(busResult) && busId <= 0xFFu) {
             device.fingerprint.pciBusId = busId;
             pmlog_verb(v::tele_gpu)("NvAPI_GPU_GetBusId output")
+                .pmwatch(device.providerDeviceId)
+                .pmwatch(device.fingerprint.deviceName)
+                .pmwatch(busId);
+        }
+        else if (NvapiWrapper::Ok(busResult)) {
+            pmlog_warn("NvAPI_GPU_GetBusId returned invalid PCI bus number")
                 .pmwatch(device.providerDeviceId)
                 .pmwatch(device.fingerprint.deviceName)
                 .pmwatch(busId);

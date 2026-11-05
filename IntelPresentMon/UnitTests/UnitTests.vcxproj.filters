@@ -9,7 +9,9 @@
     <ClCompile Include="MetricCapabilitiesTests.cpp" />
     <ClCompile Include="MetricsCore.cpp" />
     <ClCompile Include="PresentFrameTypeDeferralTests.cpp" />
+    <ClCompile Include="IgclControlLibCompatibilityTests.cpp" />
     <ClCompile Include="TelemetryAvailabilityMergeTests.cpp" />
+    <ClCompile Include="TelemetryDeviceFingerprintTests.cpp" />
     <ClCompile Include="SwapChainTests.cpp" />
     <ClCompile Include="Timing.cpp" />
     <ClCompile Include="..\CommonUtilities\test\MachineExpectations.cpp" />

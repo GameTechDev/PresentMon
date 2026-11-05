@@ -5,6 +5,7 @@
 #include "../PresentMonService/MetricUse.h"
 #include "TelemetryProvider.h"
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -67,7 +68,18 @@ namespace pmon::tel
         void ReassignGpuLogicalDeviceIdsByMemorySize_();
         GpuMemoryOrderingInfo_ QueryGpuMemorySize_(const LogicalDevice_& logicalDevice) const;
         GpuPowerOrderingInfo_ QueryGpuSustainedPowerLimit_(const LogicalDevice_& logicalDevice) const;
-        LogicalDevice_& GetOrCreateLogicalDevice_(const TelemetryDeviceFingerprint& fingerprint);
+        // Maps provider devices to existing logical devices, resolving unique matches from
+        // strongest to weakest evidence. Unresolved ambiguous devices remain separate.
+        std::unordered_map<ProviderDeviceId, uint32_t> ResolveMergeTargets_(
+            const TelemetryProvider& provider,
+            const ProviderCapabilityMap& capabilityMap) const;
+        FingerprintMatchStrength GetLogicalDeviceMatchStrength_(
+            const TelemetryProvider& provider,
+            const LogicalDevice_& logicalDevice,
+            const TelemetryDeviceFingerprint& fingerprint) const;
+        LogicalDevice_& GetOrCreateLogicalDevice_(
+            const TelemetryDeviceFingerprint& fingerprint,
+            std::optional<uint32_t> mergeTarget);
         TelemetryDeviceFingerprint ResolveLogicalDeviceFingerprint_(const LogicalDevice_& logicalDevice) const;
         ipc::MetricCapabilities BuildMergedDeviceAvailability_(const LogicalDevice_& logicalDevice) const;
         static void PushValueToTelemetryMap_(

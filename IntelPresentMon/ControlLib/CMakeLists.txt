@@ -6,6 +6,7 @@ add_library(
         adl/Adl2Wrapper.cpp
         adl/AdlTelemetryProvider.cpp
         igcl/cApiWrapper.cpp
+        igcl/IgclControlLibCompatibility.cpp
         igcl/IgclErrorCodeProvider.cpp
         igcl/IgclTelemetryProvider.cpp
         nvapi/NvapiWrapper.cpp
