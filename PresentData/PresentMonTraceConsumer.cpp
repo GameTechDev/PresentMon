@@ -3006,6 +3006,7 @@ void PMTraceConsumer::HandleProcessEvent(EVENT_RECORD* pEventRecord)
             mMetadata.GetEventData(pEventRecord, desc, _countof(desc));
             event.ProcessId    = desc[0].GetData<uint32_t>();
             event.IsStartEvent = false;
+            event.IsEndRundown = hdr.EventDescriptor.Opcode == EVENT_TRACE_TYPE_DC_END;
 
             // Clean up PC Latency and AppTiming tracking data for this process to prevent memory leaks.
             if (mTrackPcLatency) {
