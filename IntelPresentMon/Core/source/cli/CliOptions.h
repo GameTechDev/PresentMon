@@ -73,6 +73,11 @@ namespace p2c::cli
 	private: Group gcaps_{ this, "Standard", "Standard options for the capture subcommand" }; public:
 		Option<uint32_t> capTargetPid{ this, "--target-pid", {}, "PID of the process to track" };
 		Option<std::string> capTargetName{ this, "--target-name", {}, "Main module name of the process to track" };
+		Option<std::vector<double>> capWaitForTarget{ this, "--wait-for-target", {},
+			"Wait for --target-name to appear; optional timeout in seconds (omit value to wait indefinitely)",
+			[](CLI::Option* pOption) {
+				pOption->expected(0, 1);
+			} };
 		Option<double> capDuration{ this, "--duration", 10., "How long to capture for in seconds" };
 		Option<uint32_t> capTelemetryPeriod{ this, "--telemetry-period", 100, "Time between GPU/CPU telemetry samples in ms" };
 		Option<uint32_t> capDefaultAdapterId{ this, "--default-adapter", {}, "Default GPU adapter id used when no device id is specified in --metrics" };
@@ -108,6 +113,7 @@ namespace p2c::cli
 		MutualExclusion exclCapTgt_{ capTargetPid, capTargetName };
 		MutualExclusion exclListFilter_{ listFilterFrame, listFilterDynamic };
 		MutualExclusion exclLogList_{ logDenyList, logAllowList };
+		Dependency inclCapWait_{ capWaitForTarget, capTargetName };
 		Dependency inclSvcSes_{ etwSessionName, svcAsChild };
 		Dependency inclSvcOpt_{ svcOptions, svcAsChild };
 		Dependency inclSvcFlg_{ svcFlags, svcAsChild };
