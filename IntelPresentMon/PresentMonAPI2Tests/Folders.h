@@ -62,6 +62,11 @@ namespace UiLaunchTests
 	static constexpr const char* logFolder_ = "TestLogs\\UiLaunch";
 }
 
+namespace CaptureCliWaitTests
+{
+	static constexpr const char* logFolder_ = "TestLogs\\CaptureCliWait";
+}
+
 namespace MockTelemetryTests
 {
 	static constexpr const char* logFolder_ = "TestLogs\\MockTelemetry";

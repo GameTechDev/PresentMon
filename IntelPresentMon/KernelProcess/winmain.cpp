@@ -296,8 +296,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		if (opt.logFolder) {
 			infra::util::FolderResolver::SetLogPathOverride(util::str::ToWide(*opt.logFolder));
 		}
-		// Resolve capture target before logging/service/kernel so --wait-for-target can arm
-		// without StartTracking retries or depending on a live service connection.
 		std::optional<DWORD> captureTargetPid;
 		// do some post validation here
 		if (opt.subcCapture.Active()) {
@@ -309,54 +307,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			if (opt.capWaitForTarget && !opt.capWaitForTarget->empty() && opt.capWaitForTarget->front() <= 0.) {
 				std::cerr << "--wait-for-target timeout must be positive" << std::endl;
 				return -1;
-			}
-			if (opt.capTargetPid) {
-				try {
-					util::win::OpenProcess(*opt.capTargetPid);
-					captureTargetPid = *opt.capTargetPid;
-				}
-				catch (...) {
-					std::cerr << "Failed to find any process with specified pid" << std::endl;
-					return -1;
-				}
-			}
-			else if (opt.capTargetName) {
-				const auto target = util::str::ToWide(util::str::ToLower(*opt.capTargetName));
-				auto ResolveTargetPid_ = [&]() -> std::optional<DWORD> {
-					const auto procs = util::win::ProcessMapBuilder{}.AsNameMap(true);
-					const auto it = procs.find(target);
-					if (it != procs.end()) {
-						return it->second.pid;
-					}
-					return std::nullopt;
-				};
-				if (auto found = ResolveTargetPid_()) {
-					captureTargetPid = *found;
-				}
-				else if (!opt.capWaitForTarget) {
-					std::cerr << "Failed to find any processes matching supplied main module name" << std::endl;
-					return -1;
-				}
-				else {
-					const auto timeoutSec = opt.capWaitForTarget->empty()
-						? std::optional<double>{}
-						: std::optional{ opt.capWaitForTarget->front() };
-					std::cout << "Waiting for process '" << *opt.capTargetName << "'..." << std::endl;
-					const auto deadline = timeoutSec
-						? std::optional{ std::chrono::steady_clock::now() + *timeoutSec * 1s }
-						: std::nullopt;
-					for (;;) {
-						std::this_thread::sleep_for(250ms);
-						if (auto found = ResolveTargetPid_()) {
-							captureTargetPid = *found;
-							break;
-						}
-						if (deadline && std::chrono::steady_clock::now() >= *deadline) {
-							std::cerr << "Timed out waiting for process matching supplied main module name" << std::endl;
-							return -1;
-						}
-					}
-				}
 			}
 		}
 		if (opt.subcList.Active()) {
@@ -455,6 +405,62 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			pmlog_warn("UI browser process already active; handling duplicate UI launch action");
 			if (const auto duplicateResult = HandleConcurrentUiInstance_(*opt.uiMutexName, *opt.duplicateUiResponse)) {
 				return duplicateResult;
+			}
+		}
+
+		// Resolve capture target before service/kernel so --wait-for-target can arm without
+		// StartTracking retries. Logging is already configured so failures stay in the log.
+		if (opt.subcCapture.Active()) {
+			if (opt.capTargetPid) {
+				try {
+					util::win::OpenProcess(*opt.capTargetPid);
+					captureTargetPid = *opt.capTargetPid;
+				}
+				catch (...) {
+					pmlog_error("Failed to find any process with specified pid")
+						.pmwatch(*opt.capTargetPid).no_trace();
+					return -1;
+				}
+			}
+			else if (opt.capTargetName) {
+				const auto target = util::str::ToWide(util::str::ToLower(*opt.capTargetName));
+				auto ResolveTargetPid_ = [&]() -> std::optional<DWORD> {
+					const auto procs = util::win::ProcessMapBuilder{}.AsNameMap(true);
+					const auto it = procs.find(target);
+					if (it != procs.end()) {
+						return it->second.pid;
+					}
+					return std::nullopt;
+				};
+				if (auto found = ResolveTargetPid_()) {
+					captureTargetPid = *found;
+				}
+				else if (!opt.capWaitForTarget) {
+					pmlog_error("Failed to find any processes matching supplied main module name")
+						.pmwatch(*opt.capTargetName).no_trace();
+					return -1;
+				}
+				else {
+					const auto timeoutSec = opt.capWaitForTarget->empty()
+						? std::optional<double>{}
+						: std::optional{ opt.capWaitForTarget->front() };
+					std::cout << "Waiting for process '" << *opt.capTargetName << "'..." << std::endl;
+					const auto deadline = timeoutSec
+						? std::optional{ std::chrono::steady_clock::now() + *timeoutSec * 1s }
+						: std::nullopt;
+					for (;;) {
+						std::this_thread::sleep_for(50ms);
+						if (auto found = ResolveTargetPid_()) {
+							captureTargetPid = *found;
+							break;
+						}
+						if (deadline && std::chrono::steady_clock::now() >= *deadline) {
+							pmlog_error("Timed out waiting for process matching supplied main module name")
+								.pmwatch(*opt.capTargetName).no_trace();
+							return -1;
+						}
+					}
+				}
 			}
 		}
 
@@ -783,6 +789,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		}
 		// TODO: organize headless CLI code into own source modules
 		else if (opt.subcCapture.Active()) {
+			if (!captureTargetPid) {
+				pmlog_error("Capture target was not resolved before capture start").no_trace();
+				return -1;
+			}
 			const auto pid = *captureTargetPid;
 			pmlog_info("Running headless capture").pmwatch(pid);
 			auto fullPathOverride = opt.capOutput.AsOptional().transform([](const auto& path) {
