@@ -6,6 +6,7 @@
 #include "../CefValues.h"
 #include <CommonUtilities/log/GlobalPolicy.h>
 #include <CommonUtilities/log/Level.h>
+#include <CommonUtilities/log/Log.h>
 
 namespace p2c::client::util::async
 {
@@ -22,27 +23,34 @@ namespace p2c::client::util::async
 
 		void ExecuteOnBrowser(uint64_t uid, CefRefPtr<CefValue> pArgObj, CefRefPtr<CefBrowser> pBrowser) const override
 		{
-			ApplyPolicy_(pArgObj);
+			const bool ok = ApplyPolicy_(pArgObj);
 			auto msg = CefProcessMessage::Create(AsyncEndpointManager::GetResolveMessageName());
 			const auto args = msg->GetArgumentList();
 			args->SetInt(0, (int)uid);
-			args->SetBool(1, true);
+			args->SetBool(1, ok);
 			args->SetValue(2, CefValueNull());
 			pBrowser->GetMainFrame()->SendProcessMessage(PID_RENDERER, std::move(msg));
 		}
 
 	private:
-		static void ApplyPolicy_(CefRefPtr<CefValue> pArgObj)
+		static bool ApplyPolicy_(CefRefPtr<CefValue> pArgObj) noexcept
 		{
-			using Level = ::pmon::util::log::Level;
-			const auto dict = pArgObj->GetDictionary();
-			auto& policy = ::pmon::util::log::GlobalPolicy::Get();
-			policy.SetLogLevel((Level)dict->GetInt("logLevel"));
-			policy.SetTraceLevel((Level)dict->GetInt("traceLevel"));
-			policy.StoreVerboseModules((uint64_t)dict->GetInt("verboseModules"));
-			const bool exceptionTrace = dict->GetBool("exceptionTrace");
-			policy.SetExceptionTrace(exceptionTrace);
-			policy.SetSehTracing(exceptionTrace);
+			try {
+				using Level = ::pmon::util::log::Level;
+				const auto dict = pArgObj->GetDictionary();
+				auto& policy = ::pmon::util::log::GlobalPolicy::Get();
+				policy.SetLogLevel((Level)dict->GetInt("logLevel"));
+				policy.SetTraceLevel((Level)dict->GetInt("traceLevel"));
+				policy.StoreVerboseModules((uint64_t)dict->GetInt("verboseModules"));
+				const bool exceptionTrace = dict->GetBool("exceptionTrace");
+				policy.SetExceptionTrace(exceptionTrace);
+				policy.SetSehTracing(exceptionTrace);
+				return true;
+			}
+			catch (...) {
+				pmlog_error(::pmon::util::ReportException("Failed applying UI logging policy"));
+				return false;
+			}
 		}
 	};
 }

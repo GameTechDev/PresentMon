@@ -374,8 +374,13 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		LogChannelManager zLogMan_;
 
 		// Load kproc-owned logging.json, then merge explicit CLI overrides before
-		// applying normal logging configuration.
-		LoggingConfigurationStore::Get().InitializeFromDiskAndCli(opt);
+		// applying normal logging configuration. Fail-open: logging must not abort startup.
+		try {
+			LoggingConfigurationStore::Get().InitializeFromDiskAndCli(opt);
+		}
+		catch (...) {
+			pmlog_error(util::ReportException());
+		}
 
 		// configure the logging system (store effective + remaining CLI options)
 		ConfigureLogging();
