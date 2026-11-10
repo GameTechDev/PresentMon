@@ -8,6 +8,7 @@ add_library(
         HotkeyTests.cpp
         InterPresentActivityTests.cpp
         LoggingTests.cpp
+        LoggingConfigurationStoreTests.cpp
         MetricCapabilitiesTests.cpp
         MetricsCore.cpp
         PresentFrameTypeDeferralTests.cpp

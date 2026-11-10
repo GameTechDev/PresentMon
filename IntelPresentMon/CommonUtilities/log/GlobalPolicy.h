@@ -9,6 +9,8 @@ namespace pmon::util::log
 	class GlobalPolicy
 	{
 	public:
+		static Level GetDefaultLogLevel() noexcept;
+		static Level GetDefaultTraceLevel() noexcept;
 		Level GetLogLevel() const noexcept;
 		void SetLogLevel(Level level) noexcept;
 		void SetLogLevelDefault() noexcept;
@@ -28,6 +30,7 @@ namespace pmon::util::log
 		bool CheckVerboseModule(V mod) const noexcept;
 		void ClearVerboseModules() noexcept;
 		void StoreVerboseModules(uint64_t modset) noexcept;
+		uint64_t GetVerboseModules() const noexcept;
 		static GlobalPolicy& Get() noexcept;
 		static bool VCheck(V mod) noexcept
 		{

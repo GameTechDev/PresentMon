@@ -11,6 +11,11 @@ import { type Binding, type KeyOption, type ModifierOption, Action } from '@/cor
 import { type EnvVars } from './env-vars'
 import { type AppInfo } from './app-info'
 import { delayFor } from './timing'
+import {
+    type DiagnosticLoggingPatch,
+    type DiagnosticLoggingValues,
+    type LoggingConfigurationSnapshot,
+} from './logging'
 
 export enum FileLocation {
     Install,
@@ -109,6 +114,24 @@ export class Api {
     static async setEtlLogging(active: boolean): Promise<void> {
         await this.invokeEndpointFuture('SetEtlLogging', {active});
     }
+    static async getLoggingConfiguration(): Promise<LoggingConfigurationSnapshot> {
+        return await this.invokeEndpointFuture('GetLoggingConfiguration', {});
+    }
+    static async setDiagnosticLogging(config: DiagnosticLoggingPatch): Promise<void> {
+        await this.invokeEndpointFuture('SetDiagnosticLogging', config);
+    }
+    static async applyUiLoggingPolicy(config: DiagnosticLoggingValues): Promise<void> {
+        await this.invokeEndpointFuture('applyUiLoggingPolicy', {
+            logLevel: config.logLevel,
+            traceLevel: config.traceLevel,
+            verboseModules: config.verboseModules,
+            exceptionTrace: config.exceptionTrace,
+        });
+    }
+    static async flushDiagnosticLogging(): Promise<void> {
+        await this.invokeEndpointFuture('flushUiLogs', {});
+        await this.invokeEndpointFuture('FlushDiagnosticLogging', {});
+    }
 
     /////// file access-related /////////
     // base file endpoints
@@ -127,11 +150,17 @@ export class Api {
     static async browseReadSpec(): Promise<{payload: string}> {
         return await this.invokeEndpointFuture('browseReadSpec', {});
     }
+    static async browseLogFolder(initialPath: string): Promise<{path: string}> {
+        return await this.invokeEndpointFuture('browseLogFolder', {initialPath});
+    }
     static async exploreCaptures(): Promise<void> {
         await this.invokeEndpointFuture('exploreCaptures', {});
     }
     static async exploreEtls(): Promise<void> {
         await this.invokeEndpointFuture('exploreEtls', {});
+    }
+    static async exploreLogFolder(logFilePath: string): Promise<void> {
+        await this.invokeEndpointFuture('exploreLogFolder', {logFilePath});
     }
     // derived file endpoints
     static async loadPreset(path: string): Promise<{payload: string}> {

@@ -82,6 +82,7 @@
     <ClInclude Include="source\cli\CliOptions.h" />
     <ClInclude Include="source\gfx\Exception.h" />
     <ClInclude Include="source\infra\LogSetup.h" />
+    <ClInclude Include="source\infra\LoggingConfigurationStore.h" />
     <ClInclude Include="source\infra\Logging.h" />
     <ClInclude Include="source\win\HotkeyListener.h" />
   </ItemGroup>
@@ -139,6 +140,7 @@
     <ClCompile Include="source\pmon\DynamicQuery.cpp" />
     <ClCompile Include="source\pmon\metric\DynamicPollingFetcher.cpp" />
     <ClCompile Include="source\infra\LogSetup.cpp" />
+    <ClCompile Include="source\infra\LoggingConfigurationStore.cpp" />
     <ClCompile Include="source\win\HotkeyListener.cpp" />
   </ItemGroup>
   <ItemGroup>

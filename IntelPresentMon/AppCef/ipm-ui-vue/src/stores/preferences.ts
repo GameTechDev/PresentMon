@@ -135,7 +135,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
   function toggleEtlLogging() {
     notifyEtlLoggingDisabled
   }
-  
+
   async function pushSpecification() {
     await intro.load();
     // we need to get a non-proxy object for the  call

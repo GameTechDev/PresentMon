@@ -231,7 +231,7 @@ namespace pmon::mid
     const pmapi::intro::Root& mid::Middleware::GetIntrospectionRoot_()
     {
         if (!pIntroRoot_) {
-            pmlog_info("Creating and cacheing introspection root object").diag();
+            pmlog_dbg("Creating and cacheing introspection root object").diag();
             pIntroRoot_ = std::make_unique<pmapi::intro::Root>(GetIntrospectionData(), [this](auto p){FreeIntrospectionData(p);});
         }
         return *pIntroRoot_;

@@ -19,14 +19,24 @@ namespace pmon::util::log
 {
 	GlobalPolicy::GlobalPolicy() noexcept
 		:
-		logLevel_{ PMLOG_GPOL_DEFAULT_LEVEL },
-		traceLevel_{ PMLOG_GPOL_DEFAULT_TRACE_LEVEL }
+		logLevel_{ GetDefaultLogLevel() },
+		traceLevel_{ GetDefaultTraceLevel() }
 	{}
 	GlobalPolicy& GlobalPolicy::Get() noexcept
 	{
 		// @SINGLETON
 		static GlobalPolicy policy;
 		return policy;
+	}
+
+	Level GlobalPolicy::GetDefaultLogLevel() noexcept
+	{
+		return PMLOG_GPOL_DEFAULT_LEVEL;
+	}
+
+	Level GlobalPolicy::GetDefaultTraceLevel() noexcept
+	{
+		return PMLOG_GPOL_DEFAULT_TRACE_LEVEL;
 	}
 
 	Level GlobalPolicy::GetLogLevel() const noexcept
@@ -39,7 +49,7 @@ namespace pmon::util::log
 	}
 	void GlobalPolicy::SetLogLevelDefault() noexcept
 	{
-		SetLogLevel(PMLOG_GPOL_DEFAULT_LEVEL);
+		SetLogLevel(GetDefaultLogLevel());
 	}
 	Level GlobalPolicy::GetTraceLevel() const noexcept
 	{
@@ -51,7 +61,7 @@ namespace pmon::util::log
 	}
 	void GlobalPolicy::SetTraceLevelDefault() noexcept
 	{
-		SetTraceLevel(PMLOG_GPOL_DEFAULT_TRACE_LEVEL);
+		SetTraceLevel(GetDefaultTraceLevel());
 	}
 	bool GlobalPolicy::GetResolveTraceInClientThread() const noexcept
 	{
@@ -104,5 +114,9 @@ namespace pmon::util::log
 	void GlobalPolicy::StoreVerboseModules(uint64_t modset) noexcept
 	{
 		activeVerboseModules_.store(modset);
+	}
+	uint64_t GlobalPolicy::GetVerboseModules() const noexcept
+	{
+		return activeVerboseModules_.load();
 	}
 }

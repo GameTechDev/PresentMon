@@ -18,6 +18,9 @@ namespace p2c::client::util
 		return MakeStringErrorResult(L"virtual not implemented");
 	}
 
+	void AsyncEndpoint::BeforeBrowserDispatch(CefRefPtr<CefValue>) const
+	{}
+
 	AsyncEndpoint::Environment AsyncEndpoint::GetEnvironment() const { return env; }
 
 	AsyncEndpoint::Result AsyncEndpoint::MakeStringErrorResult(std::wstring errorString)

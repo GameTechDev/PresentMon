@@ -67,6 +67,12 @@ void(*pFunc_pmFlushEntryPoint__)() = nullptr;
 void(*pFunc_pmSetupODSLogging__)(PM_DIAGNOSTIC_LEVEL, PM_DIAGNOSTIC_LEVEL, bool) = nullptr;
 PM_STATUS(*pFunc_pmSetupFileLogging__)(const char*, PM_DIAGNOSTIC_LEVEL,
 	PM_DIAGNOSTIC_LEVEL, bool) = nullptr;
+PM_STATUS(*pFunc_pmSetMiddlewareLogPolicy__)(const pmon::api2::MiddlewareLogPolicy*) = nullptr;
+PM_STATUS(*pFunc_pmGetMiddlewareLogPolicy__)(pmon::api2::MiddlewareLogPolicy*) = nullptr;
+PM_STATUS(*pFunc_pmSetMiddlewareLogOutput__)(const pmon::api2::MiddlewareLogOutput*) = nullptr;
+PM_STATUS(*pFunc_pmGetMiddlewareLogOutput__)(pmon::api2::MiddlewareLogOutputState*) = nullptr;
+PM_STATUS(*pFunc_pmSetMiddlewareLogFilter__)(const pmon::api2::MiddlewareLogFilter*) = nullptr;
+PM_STATUS(*pFunc_pmFlushMiddlewareLog__)(uint32_t) = nullptr;
 PM_STATUS(*pFunc_pmGetServiceBuildInfo__)(
 	PM_SESSION_HANDLE, pmon::api2::ComponentBuildInfo*) = nullptr;
 PM_STATUS(*pFunc_pmGetMiddlewareBuildInfo__)(pmon::api2::ComponentBuildInfo*) = nullptr;
@@ -146,6 +152,7 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 			}
 		}
 #define RESOLVE(f) pFunc_##f##_ = reinterpret_cast<decltype(pFunc_##f##_)>(GetProcAddress_(hMod_, #f))
+#define RESOLVE_OPTIONAL(f) pFunc_##f##_ = reinterpret_cast<decltype(pFunc_##f##_)>(GetProcAddress(hMod_, #f))
 #define RESOLVE_CPP_OPTIONAL(f) pFunc_##f##_ = GetCppProcAddress_<decltype(pFunc_##f##_)>(hMod_, #f, false)
 		// resolve version endpoint first as it is needed here
 		RESOLVE(pmGetApiVersion);
@@ -208,6 +215,12 @@ PRESENTMON_API2_EXPORT PM_STATUS LoadLibrary_(bool versionOnly = false)
 		RESOLVE_CPP_OPTIONAL(pmFlushEntryPoint_);
 		RESOLVE_CPP_OPTIONAL(pmSetupODSLogging_);
 		RESOLVE_CPP_OPTIONAL(pmSetupFileLogging_);
+		RESOLVE_OPTIONAL(pmSetMiddlewareLogPolicy_);
+		RESOLVE_OPTIONAL(pmGetMiddlewareLogPolicy_);
+		RESOLVE_OPTIONAL(pmSetMiddlewareLogOutput_);
+		RESOLVE_OPTIONAL(pmGetMiddlewareLogOutput_);
+		RESOLVE_OPTIONAL(pmSetMiddlewareLogFilter_);
+		RESOLVE_OPTIONAL(pmFlushMiddlewareLog_);
 		RESOLVE_CPP_OPTIONAL(pmGetServiceBuildInfo_);
 		RESOLVE_CPP_OPTIONAL(pmGetMiddlewareBuildInfo_);
 		RESOLVE_CPP_OPTIONAL(pmStopPlayback_);
@@ -485,6 +498,65 @@ PRESENTMON_API2_EXPORT PM_STATUS pmSetupFileLogging_(const char* file, PM_DIAGNO
 		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
 	}
 	return pFunc_pmSetupFileLogging__(file, logLevel, stackTraceLevel, exceptionTrace);
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmSetMiddlewareLogPolicy_(
+	const pmon::api2::MiddlewareLogPolicy* pPolicy) noexcept
+{
+	LoadEndpointsIfEmpty_();
+	if (!pFunc_pmSetMiddlewareLogPolicy__) {
+		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
+	}
+	return pFunc_pmSetMiddlewareLogPolicy__(pPolicy);
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmGetMiddlewareLogPolicy_(
+	pmon::api2::MiddlewareLogPolicy* pPolicy) noexcept
+{
+	LoadEndpointsIfEmpty_();
+	if (!pFunc_pmGetMiddlewareLogPolicy__) {
+		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
+	}
+	return pFunc_pmGetMiddlewareLogPolicy__(pPolicy);
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmSetMiddlewareLogOutput_(
+	const pmon::api2::MiddlewareLogOutput* pOutput) noexcept
+{
+	LoadEndpointsIfEmpty_();
+	if (!pFunc_pmSetMiddlewareLogOutput__) {
+		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
+	}
+	return pFunc_pmSetMiddlewareLogOutput__(pOutput);
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmGetMiddlewareLogOutput_(
+	pmon::api2::MiddlewareLogOutputState* pOutput) noexcept
+{
+	LoadEndpointsIfEmpty_();
+	if (!pFunc_pmGetMiddlewareLogOutput__) {
+		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
+	}
+	return pFunc_pmGetMiddlewareLogOutput__(pOutput);
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmSetMiddlewareLogFilter_(
+	const pmon::api2::MiddlewareLogFilter* pFilter) noexcept
+{
+	LoadEndpointsIfEmpty_();
+	if (!pFunc_pmSetMiddlewareLogFilter__) {
+		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
+	}
+	return pFunc_pmSetMiddlewareLogFilter__(pFilter);
+}
+
+PRESENTMON_API2_EXPORT PM_STATUS pmFlushMiddlewareLog_(uint32_t timeoutMs) noexcept
+{
+	LoadEndpointsIfEmpty_();
+	if (!pFunc_pmFlushMiddlewareLog__) {
+		return PM_STATUS_MIDDLEWARE_MISSING_ENDPOINT;
+	}
+	return pFunc_pmFlushMiddlewareLog__(timeoutMs);
 }
 
 PRESENTMON_API2_EXPORT PM_STATUS pmGetServiceBuildInfo_(

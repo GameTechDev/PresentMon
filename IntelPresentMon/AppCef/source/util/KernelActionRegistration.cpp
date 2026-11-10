@@ -19,5 +19,8 @@ namespace p2c::client::util::kact {
 	IpcActionRegistrator<kproc::kact::BindHotkey> reg_ibind_BindHotkey_;
 	IpcActionRegistrator<kproc::kact::ClearHotkey> reg_ibind_ClearHotkey_;
 	IpcActionRegistrator<kproc::kact::SetEtlLogging> reg_ibind_SetEtlLogging_;
+	IpcActionRegistrator<kproc::kact::SetDiagnosticLogging> reg_ibind_SetDiagnosticLogging_;
+	IpcActionRegistrator<kproc::kact::GetLoggingConfiguration> reg_ibind_GetLoggingConfiguration_;
+	IpcActionRegistrator<kproc::kact::FlushDiagnosticLogging> reg_ibind_FlushDiagnosticLogging_;
 }
 

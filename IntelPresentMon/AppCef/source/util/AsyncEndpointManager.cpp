@@ -42,10 +42,17 @@ namespace p2c::client::util
 			{
 			case AsyncEndpoint::Environment::BrowserProcess:
 				{
+					auto pArgObj = V8ToCefValue(*pObj);
+					try {
+						pEndpoint->BeforeBrowserDispatch(pArgObj);
+					}
+					catch (...) {
+						pmlog_error(ReportException("Error in async endpoint before browser dispatch"));
+					}
 					auto msg = CefProcessMessage::Create(GetDispatchMessageName());
 					msg->GetArgumentList()->SetString(0, key);
 					msg->GetArgumentList()->SetInt(1, (int)uid);
-					msg->GetArgumentList()->SetDictionary(2, V8ToCefValue(*pObj)->GetDictionary());
+					msg->GetArgumentList()->SetDictionary(2, pArgObj->GetDictionary());
 					browser.GetMainFrame()->SendProcessMessage(PID_BROWSER, std::move(msg));
 					// resolve is invoked in the handler for the return message from browser process
 				}

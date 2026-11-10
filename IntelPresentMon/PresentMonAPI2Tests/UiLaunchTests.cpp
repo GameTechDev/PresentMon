@@ -87,6 +87,20 @@ namespace UiLaunchTests
 		return contents.find(text) != std::string::npos;
 	}
 
+	// true when any client log (pmlog-client-<timestamp>.txt) in folder contains text
+	static bool ClientLogContains_(const std::filesystem::path& folder, const std::string& text)
+	{
+		std::error_code ec;
+		for (const auto& entry : std::filesystem::directory_iterator{ folder, ec }) {
+			const auto name = entry.path().filename().string();
+			if (name.starts_with("pmlog-client-") && name.ends_with(".txt") &&
+				FileContains_(entry.path(), text)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	static HWND WaitForUiWindow_(const std::string& mutexSuffix)
 	{
 		HWND hWnd = nullptr;
@@ -190,9 +204,9 @@ namespace UiLaunchTests
 			WaitForUiWindow_(mutexSuffix);
 			const auto kernelPid = kernel.GetId();
 			// on OpenSession the kernel logs "Kernel open action for cef=<ui pid> krn=<kernel pid>"
-			const auto logPath = std::filesystem::path{ logFolder_ } / "pmlog.txt";
+			// into its timestamped client log
 			Assert::IsTrue(WaitFor_(15s, [&] {
-				return FileContains_(logPath, std::format(" krn={}", kernelPid));
+				return ClientLogContains_(logFolder_, std::format(" krn={}", kernelPid));
 			}), L"The UI did not open its session with the kernel");
 			const auto pipes = ListPipeNames_();
 			const auto publicName = std::format(L"ipm-cef-channel-{}", kernelPid);

@@ -109,6 +109,7 @@
     <ClCompile Include="HotkeyTests.cpp" />
     <ClCompile Include="InterPresentActivityTests.cpp" />
     <ClCompile Include="LoggingTests.cpp" />
+    <ClCompile Include="LoggingConfigurationStoreTests.cpp" />
     <ClCompile Include="MetricCapabilitiesTests.cpp" />
     <ClCompile Include="MetricsCore.cpp" />
     <ClCompile Include="PresentFrameTypeDeferralTests.cpp" />

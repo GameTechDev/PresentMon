@@ -18,6 +18,9 @@
     <ClCompile Include="EtlTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="MiddlewareLogConfigTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="MockTelemetryTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

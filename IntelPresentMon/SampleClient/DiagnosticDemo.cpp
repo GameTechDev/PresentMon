@@ -18,6 +18,7 @@ const char* GetLevelName(PM_DIAGNOSTIC_LEVEL lvl) {
 	case PM_DIAGNOSTIC_LEVEL_PERFORMANCE: return "Performance";
 	case PM_DIAGNOSTIC_LEVEL_DEBUG: return "Debug";
 	case PM_DIAGNOSTIC_LEVEL_VERBOSE: return "Verbose";
+	case PM_DIAGNOSTIC_LEVEL_VERBOSE2: return "Verbose2";
 	default: return "Unknown";
 	}
 }
