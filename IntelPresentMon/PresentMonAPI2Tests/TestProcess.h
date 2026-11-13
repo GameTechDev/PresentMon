@@ -9,6 +9,7 @@
 #include "RawPipeClient.h"
 #include "../CommonUtilities/file/FileUtils.h"
 #include "../CommonUtilities/pipe/Pipe.h"
+#include "../PresentMonService/GlobalIdentifiers.h"
 #include <boost/process.hpp>
 #include <cereal/archives/json.hpp>
 #include <cctype>
@@ -20,6 +21,7 @@
 #include <chrono>
 #include <thread>
 #include <vector>
+#include <string_view>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace as = boost::asio;
@@ -29,6 +31,11 @@ namespace fs = std::filesystem;
 using namespace std::literals;
 using namespace pmon;
 
+// Names used by child PresentMonService.exe instances under test.
+// NEVER reuse production shared-service defaults (pipe, shm prefix, or ETW session
+// name). Colliding with the installed PresentMonSharedService ETW session
+// (default "PMService") stops that live session and leaves the installed service
+// with a stale logger handle.
 struct CommonProcessArgs
 {
 	std::string ctrlPipe;
@@ -41,7 +48,72 @@ struct CommonProcessArgs
 	// When false, kernel UI tests load about:blank. Set true to launch the app UI
 	// so in-window error modals can be observed.
 	bool launchAppUi = false;
+	// Optional override. When empty, ServiceProcess derives "{shmNamePrefix}_etw".
+	std::string etwSessionName;
 };
+
+inline bool EqualsIgnoreCaseAscii_(std::string_view a, std::string_view b)
+{
+	if (a.size() != b.size()) {
+		return false;
+	}
+	for (size_t i = 0; i < a.size(); ++i) {
+		if (std::tolower((unsigned char)a[i]) != std::tolower((unsigned char)b[i])) {
+			return false;
+		}
+	}
+	return true;
+}
+
+inline std::string NormalizeControlPipeBaseName_(std::string name)
+{
+	constexpr std::string_view prefixes[] = {
+		R"(\\.\pipe\)",
+		R"(//./pipe/)",
+		R"(\\.\PIPE\)",
+		R"(//./PIPE/)",
+	};
+	for (auto prefix : prefixes) {
+		if (name.size() >= prefix.size()
+			&& EqualsIgnoreCaseAscii_(name.substr(0, prefix.size()), prefix)) {
+			name.erase(0, prefix.size());
+			break;
+		}
+	}
+	return name;
+}
+
+inline std::string ResolveTestEtwSessionName_(const CommonProcessArgs& common)
+{
+	if (!common.etwSessionName.empty()) {
+		return common.etwSessionName;
+	}
+	Assert::IsFalse(common.shmNamePrefix.empty(),
+		L"CommonProcessArgs.shmNamePrefix must be set so a non-production ETW session name can be derived");
+	return common.shmNamePrefix + "_etw";
+}
+
+inline void AssertIsolatedFromProductionServiceNames_(const CommonProcessArgs& common)
+{
+	Assert::IsFalse(common.ctrlPipe.empty(),
+		L"CommonProcessArgs.ctrlPipe must be set to a non-production test pipe name");
+	Assert::IsFalse(common.shmNamePrefix.empty(),
+		L"CommonProcessArgs.shmNamePrefix must be set to a non-production test shm prefix");
+
+	const auto pipeBase = NormalizeControlPipeBaseName_(common.ctrlPipe);
+	const auto productionPipeBase = NormalizeControlPipeBaseName_(gid::defaultControlPipeName);
+	Assert::IsFalse(EqualsIgnoreCaseAscii_(pipeBase, productionPipeBase),
+		L"Test control pipe must not use the production shared service pipe name");
+
+	Assert::IsFalse(EqualsIgnoreCaseAscii_(common.shmNamePrefix, R"(Global\pm_svc_shm)"),
+		L"Test shm prefix must not use the production shared service shm prefix");
+	Assert::IsFalse(EqualsIgnoreCaseAscii_(common.shmNamePrefix, "pm_svc_shm"),
+		L"Test shm prefix must not use the production shared service shm prefix");
+
+	const auto etwName = ResolveTestEtwSessionName_(common);
+	Assert::IsFalse(EqualsIgnoreCaseAscii_(etwName, "PMService"),
+		L"Test ETW session name must not use the production shared service ETW session name");
+}
 
 inline std::vector<std::string> SplitVerboseModulesArgs_(const std::string& raw)
 {
@@ -238,6 +310,7 @@ private:
 	std::vector<std::string> MakeArgs_(const std::vector<std::string>& customArgs,
 		const CommonProcessArgs& common)
 	{
+		AssertIsolatedFromProductionServiceNames_(common);
 		std::vector<std::string> allArgs{
 			"--control-pipe"s, common.ctrlPipe,
 			"--shm-name-prefix"s, common.shmNamePrefix,
@@ -249,6 +322,10 @@ private:
 		};
 		AppendVerboseModulesArgs_(allArgs, common.logVerboseModules, "--log-verbose-modules");
 		allArgs.append_range(customArgs);
+		// Always force a non-production ETW session name last so customArgs cannot
+		// omit it and fall through to the production default ("PMService").
+		allArgs.push_back("--etw-session-name"s);
+		allArgs.push_back(ResolveTestEtwSessionName_(common));
 		return allArgs;
 	}
 };
@@ -478,6 +555,7 @@ private:
 	// functions
 	void StartService_(const std::vector<std::string>& args, const CommonProcessArgs& common)
 	{
+		AssertIsolatedFromProductionServiceNames_(common);
 		// make sure ioctx thread is running and keep it running until service launches
 		auto workGuard = ReserveIoctxThread_();
 		Assert::IsTrue(util::pipe::DuplexPipe::WaitForVacancy(common.ctrlPipe, svcPipeTimeout_),
