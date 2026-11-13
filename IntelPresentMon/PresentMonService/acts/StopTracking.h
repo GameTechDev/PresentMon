@@ -30,6 +30,10 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
         static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
         {
+            pmlog_dbg("StopTracking action entered")
+                .pmwatch(stx.remotePid)
+                .pmwatch(in.targetPid)
+                .pmwatch(stx.trackedPids.size());
             auto tpidIt = stx.trackedPids.find(in.targetPid);
             if (tpidIt == stx.trackedPids.end()) {
                 pmlog_error("StopTracking called for untracked pid").pmwatch(in.targetPid);
@@ -39,7 +43,13 @@ namespace pmon::svc::acts
                 ctx.ReleaseBackpressure(in.targetPid);
             }
             stx.trackedPids.erase(tpidIt);
-            ctx.pPmon->UpdateTracking(ctx.GetTrackedPidSet());
+            auto const trackedPids = ctx.GetTrackedPidSet();
+            auto const status = ctx.pPmon->UpdateTracking(trackedPids);
+            pmlog_dbg("StopTracking global tracking update completed")
+                .pmwatch(stx.remotePid)
+                .pmwatch(in.targetPid)
+                .pmwatch(trackedPids.size())
+                .code(status);
             ctx.UpdatePeriodicLogFlushing();
             pmlog_info(std::format("StopTracking action from [{}] un-targeting [{}]", stx.remotePid, in.targetPid));
             return {};

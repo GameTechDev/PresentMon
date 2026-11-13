@@ -14,6 +14,32 @@ using namespace pmon;
 using namespace std::literals;
 using v = util::log::V;
 
+namespace
+{
+std::string DescribePidSet(std::unordered_set<uint32_t> const& pids)
+{
+    std::vector<uint32_t> sortedPids{ pids.begin(), pids.end() };
+    std::ranges::sort(sortedPids);
+    std::string result = "[";
+    for (size_t i = 0; i < sortedPids.size(); ++i) {
+        result += std::format("{}{}", i == 0 ? "" : ",", sortedPids[i]);
+    }
+    return result + "]";
+}
+
+std::string DescribeTrackedState(std::unordered_map<uint32_t, bool> const& state)
+{
+    std::vector<std::pair<uint32_t, bool>> sortedState{ state.begin(), state.end() };
+    std::ranges::sort(sortedState, {}, &std::pair<uint32_t, bool>::first);
+    std::string result = "[";
+    for (size_t i = 0; i < sortedState.size(); ++i) {
+        result += std::format("{}{}:{}", i == 0 ? "" : ",", sortedState[i].first,
+            sortedState[i].second ? "live" : "exited");
+    }
+    return result + "]";
+}
+}
+
 RealtimePresentMonSession::RealtimePresentMonSession(svc::FrameBroadcaster& broadcaster)
 {
     pBroadcaster = &broadcaster;
@@ -67,6 +93,23 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
     SyncTrackedPidState(trackedPids);
     const bool isActive = HasLiveTargets();
     bool const providersEnabled = (bool)util::win::WaitAnyEventFor(0ms, evtStreamingStarted_);
+    std::unordered_map<uint32_t, bool> currentState;
+    {
+        std::lock_guard lock(tracked_processes_mutex_);
+        currentState = tracked_pid_live_;
+    }
+    EtwStatus etwStatus{};
+    auto const etwStatusAvailable = trace_session_.QueryEtwStatus(&etwStatus);
+    pmlog_dbg("UpdateTracking state synchronized")
+        .pmwatch(DescribeTrackedState(previousState))
+        .pmwatch(DescribeTrackedState(currentState))
+        .pmwatch(isActive)
+        .pmwatch(providersEnabled)
+        .pmwatch(etwStatusAvailable)
+        .pmwatch(etwStatus.mEtwBuffersInUse)
+        .pmwatch(etwStatus.mEtwTotalBuffers)
+        .pmwatch(etwStatus.mEtwEventsLost)
+        .pmwatch(etwStatus.mEtwBuffersLost);
 
     // Stop transition: targets went from some->none; providers currently enabled
     if(!isActive && providersEnabled) {
@@ -91,13 +134,16 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
         pmlog_info("Active targets detected: Enabling ETW Providers");
         auto const providerStatus = trace_session_.StartProviders();
         if (providerStatus != ERROR_SUCCESS) {
-            pmlog_info("Enabling of ETW Providers failed");
+            pmlog_error("Enabling of ETW Providers failed").pmwatch(providerStatus);
             StopProvidersAndResetConsumer(true);
             evtStreamingStarted_.Reset();
             {
                 std::lock_guard lock(tracked_processes_mutex_);
                 tracked_pid_live_ = std::move(previousState);
             }
+            pmlog_dbg("UpdateTracking rolled back after provider enable failure")
+                .pmwatch(providerStatus)
+                .pmwatch(DescribePidSet(trackedPids));
             return PM_STATUS::PM_STATUS_FAILURE;
         }
         evtStreamingStarted_.Set();
@@ -184,6 +230,8 @@ PM_STATUS RealtimePresentMonSession::StartEtwSession() {
     auto status = trace_session_.Start(etl_file_name, pm_session_name_.c_str(), false);
 
     if (status == ERROR_ALREADY_EXISTS) {
+        pmlog_warn("Stopping pre-existing named service ETW session")
+            .pmwatch(*opt.etwSessionName);
         status = StopNamedTraceSession(pm_session_name_.c_str());
         if (status == ERROR_SUCCESS) {
             status = trace_session_.Start(etl_file_name, pm_session_name_.c_str(), false);
@@ -515,7 +563,11 @@ void RealtimePresentMonSession::Consume(TRACEHANDLE traceHandle) {
     //
     // However, it seems to always return ERROR_SUCCESS.
 
-    ProcessTrace(&traceHandle, 1, NULL, NULL);
+    auto const status = ProcessTrace(&traceHandle, 1, NULL, NULL);
+    pmlog_dbg("ETW consumer thread exited ProcessTrace")
+        .pmwatch((uint64_t)traceHandle)
+        .pmwatch(status)
+        .pmwatch(IsTraceSessionActive());
 }
 
 void RealtimePresentMonSession::Output() {
