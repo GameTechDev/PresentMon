@@ -93,23 +93,25 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
     SyncTrackedPidState(trackedPids);
     const bool isActive = HasLiveTargets();
     bool const providersEnabled = (bool)util::win::WaitAnyEventFor(0ms, evtStreamingStarted_);
-    std::unordered_map<uint32_t, bool> currentState;
-    {
-        std::lock_guard lock(tracked_processes_mutex_);
-        currentState = tracked_pid_live_;
+    if (util::log::GlobalPolicy::Get().GetLogLevel() >= util::log::Level::Debug) {
+        std::unordered_map<uint32_t, bool> currentState;
+        {
+            std::lock_guard lock(tracked_processes_mutex_);
+            currentState = tracked_pid_live_;
+        }
+        EtwStatus etwStatus{};
+        auto const etwStatusAvailable = trace_session_.QueryEtwStatus(&etwStatus);
+        pmlog_dbg("UpdateTracking state synchronized")
+            .pmwatch(DescribeTrackedState(previousState))
+            .pmwatch(DescribeTrackedState(currentState))
+            .pmwatch(isActive)
+            .pmwatch(providersEnabled)
+            .pmwatch(etwStatusAvailable)
+            .pmwatch(etwStatus.mEtwBuffersInUse)
+            .pmwatch(etwStatus.mEtwTotalBuffers)
+            .pmwatch(etwStatus.mEtwEventsLost)
+            .pmwatch(etwStatus.mEtwBuffersLost);
     }
-    EtwStatus etwStatus{};
-    auto const etwStatusAvailable = trace_session_.QueryEtwStatus(&etwStatus);
-    pmlog_dbg("UpdateTracking state synchronized")
-        .pmwatch(DescribeTrackedState(previousState))
-        .pmwatch(DescribeTrackedState(currentState))
-        .pmwatch(isActive)
-        .pmwatch(providersEnabled)
-        .pmwatch(etwStatusAvailable)
-        .pmwatch(etwStatus.mEtwBuffersInUse)
-        .pmwatch(etwStatus.mEtwTotalBuffers)
-        .pmwatch(etwStatus.mEtwEventsLost)
-        .pmwatch(etwStatus.mEtwBuffersLost);
 
     // Stop transition: targets went from some->none; providers currently enabled
     if(!isActive && providersEnabled) {
