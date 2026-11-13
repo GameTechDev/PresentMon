@@ -34,6 +34,7 @@ namespace RealtimeMetricTests
 				.logVerboseModules = "middleware dyninteg etwq",
 				.logFolder = logFolder_,
 				.sampleClientMode = "NONE",
+				.etwSessionName = "RealtimeMetricSession",
 			};
 			return args;
 		}
@@ -91,7 +92,7 @@ namespace RealtimeMetricTests
 				fs::absolute(logFolder_).string()).c_str());
 			Logger::WriteMessage(std::format("RealtimeMetric output folder: {}\n",
 				fs::absolute(outFolder_).string()).c_str());
-			fixture_.Setup({ "--etw-session-name"s, "RealtimeMetricSession"s });
+			fixture_.Setup();
 		}
 
 		TEST_METHOD_CLEANUP(Cleanup)

@@ -40,6 +40,12 @@ namespace pmon::svc::acts
 		friend class ACT_TYPE<ACT_NAME, ACT_EXEC_CTX>;
 		static Response Execute_(const ACT_EXEC_CTX& ctx, SessionContext& stx, Params&& in)
 		{
+			pmlog_dbg("StartTracking action entered")
+				.pmwatch(stx.remotePid)
+				.pmwatch(in.targetPid)
+				.pmwatch(in.isPlayback)
+				.pmwatch(in.isBackpressured)
+				.pmwatch(stx.trackedPids.size());
 			// playback mode compatibility check
 			const bool serviceIsPlayback = ctx.pPmon->IsPlayback();
 			if (serviceIsPlayback != in.isPlayback) {
@@ -68,6 +74,10 @@ namespace pmon::svc::acts
             }
             // build full tracking state for session sync
             auto trackedPids = ctx.GetTrackedPidSet();
+			pmlog_dbg("StartTracking gathered global tracking state")
+				.pmwatch(in.targetPid)
+				.pmwatch(trackedPids.size())
+				.pmwatch(trackedPids.contains(in.targetPid));
             // Backpressured playback frame rings are SPSC. Reject a second owner for the
             // same playback pid instead of trying to merge consumer cursors.
             if (in.isBackpressured && trackedPids.contains(in.targetPid)) {
@@ -79,6 +89,10 @@ namespace pmon::svc::acts
             // get the (possibly shared) segment (new or find operation in broadcaster)
             auto segmentRef = ctx.pPmon->GetBroadcaster().RegisterTarget(
                 in.targetPid, in.isPlayback, in.isBackpressured);
+			pmlog_dbg("StartTracking registered frame data target")
+				.pmwatch(in.targetPid)
+				.pmwatch(segmentRef.segmentName)
+				.pmwatch(segmentRef.segment->GetStore().frameData.IsBackpressured());
             // the segment may have been created by an earlier session with a different mode;
             // reject the join rather than silently binding to a segment with incompatible
             // backpressure behavior.
@@ -89,9 +103,16 @@ namespace pmon::svc::acts
                 throw util::Except<ActionExecutionError>(PM_STATUS_BAD_ARGUMENT);
 			}
             if (auto sta = ctx.pPmon->UpdateTracking(trackedPids); sta != PM_STATUS_SUCCESS) {
-                pmlog_error("Start tracking call failed").code(sta);
+                pmlog_error("Start tracking call failed")
+					.code(sta)
+					.pmwatch(stx.remotePid)
+					.pmwatch(in.targetPid)
+					.pmwatch(trackedPids.size());
                 throw util::Except<ActionExecutionError>(sta);
             }
+			pmlog_dbg("StartTracking global tracking update completed")
+				.pmwatch(stx.remotePid)
+				.pmwatch(in.targetPid);
             // For SPSC backpressured playback, seed the service-owned read cursor to the
             // oldest currently readable frame and let this client advance it from there.
             if (in.isBackpressured) {

@@ -28,6 +28,30 @@ struct TraceProperties : public EVENT_TRACE_PROPERTIES {
     wchar_t mSessionName[MAX_PATH];
 };
 
+std::string FormatGuid(GUID const& guid)
+{
+    return std::format(
+        "{:08x}-{:04x}-{:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        guid.Data1, guid.Data2, guid.Data3,
+        guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
+        guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
+}
+
+void LogProviderControlResult(
+    char const* providerName,
+    char const* operation,
+    TRACEHANDLE sessionHandle,
+    GUID const& providerGuid,
+    ULONG status)
+{
+    pmlog_dbg("ETW provider control completed")
+        .pmwatch(providerName)
+        .pmwatch(operation)
+        .pmwatch((uint64_t)sessionHandle)
+        .pmwatch(FormatGuid(providerGuid))
+        .pmwatch(status);
+}
+
 template<typename T> void PatchKeyword(uint64_t*) {}
 template<typename T> void PatchPreWin11Keyword(uint64_t*) {}
 
@@ -194,11 +218,28 @@ struct FilteredProvider {
     ULONG Enable(
         TRACEHANDLE sessionHandle,
         GUID const& providerGuid,
+        char const* providerName,
         ULONG controlCode = EVENT_CONTROL_CODE_ENABLE_PROVIDER)
     {
         if (pListener_) {
             pListener_->ProviderEnabled(providerGuid, anyKeywordMask_, allKeywordMask_, maxLevel_, controlCode);
         }
+
+        USHORT eventIdCount = 0;
+        if (filterDesc_.Ptr != 0) {
+            eventIdCount = ((EVENT_FILTER_EVENT_ID*)filterDesc_.Ptr)->Count;
+        }
+        pmlog_dbg("Controlling filtered ETW provider")
+            .pmwatch(providerName)
+            .pmwatch((uint64_t)sessionHandle)
+            .pmwatch(FormatGuid(providerGuid))
+            .pmwatch(controlCode)
+            .pmwatch(maxLevel_)
+            .pmwatch(anyKeywordMask_)
+            .pmwatch(allKeywordMask_)
+            .pmwatch(eventIdCount)
+            .pmwatch(isDryRun_)
+            .pmwatch(isWin11OrGreater_);
 
         if (!isDryRun_) {
             ENABLE_TRACE_PARAMETERS* pparams = nullptr;
@@ -210,25 +251,39 @@ struct FilteredProvider {
                 filterDesc_.Size = sizeof(EVENT_FILTER_EVENT_ID) + sizeof(USHORT) * (filterEventIds->Count - ANYSIZE_ARRAY);
             }
 
-            return EnableTraceEx2(sessionHandle, &providerGuid, controlCode,
+            auto const status = EnableTraceEx2(sessionHandle, &providerGuid, controlCode,
                 maxLevel_, anyKeywordMask_, allKeywordMask_, 0, pparams);
+            LogProviderControlResult(providerName, "filtered", sessionHandle, providerGuid, status);
+            return status;
         }
+        LogProviderControlResult(providerName, "filtered-dry-run", sessionHandle, providerGuid, ERROR_SUCCESS);
         return ERROR_SUCCESS;
     }
 
     ULONG EnableWithoutFiltering(
         TRACEHANDLE sessionHandle,
         GUID const& providerGuid,
+        char const* providerName,
         UCHAR maxLevel)
     {
         if (pListener_) {
             pListener_->ProviderEnabled(providerGuid, 0, 0, maxLevel, EVENT_CONTROL_CODE_ENABLE_PROVIDER);
         }
 
+        pmlog_dbg("Controlling unfiltered ETW provider")
+            .pmwatch(providerName)
+            .pmwatch((uint64_t)sessionHandle)
+            .pmwatch(FormatGuid(providerGuid))
+            .pmwatch(maxLevel)
+            .pmwatch(isDryRun_);
+
         if (!isDryRun_) {
-            return EnableTraceEx2(sessionHandle, &providerGuid, EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+            auto const status = EnableTraceEx2(sessionHandle, &providerGuid, EVENT_CONTROL_CODE_ENABLE_PROVIDER,
                 maxLevel, 0, 0, 0, nullptr);
+            LogProviderControlResult(providerName, "unfiltered", sessionHandle, providerGuid, status);
+            return status;
         }
+        LogProviderControlResult(providerName, "unfiltered-dry-run", sessionHandle, providerGuid, ERROR_SUCCESS);
         return ERROR_SUCCESS;
     }
 };
@@ -275,19 +330,23 @@ ULONG EnableProviders(
 
 void DisableProviders(TRACEHANDLE sessionHandle)
 {
-    ULONG status = 0;
-    status = EnableTraceEx2(sessionHandle, &Intel_PresentMon::GUID,                 EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
-    status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_D3D9::GUID,           EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
-    status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Direct3D12::GUID,    EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
-    status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_DXGI::GUID,           EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
-    status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Dwm_Core::GUID,       EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
-    status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Dwm_Core::Win7::GUID, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
-    status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_DxgKrnl::GUID,        EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
-    status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_DxgKrnl::Win7::GUID,  EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
-    status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Kernel_Process::GUID, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
-    status = EnableTraceEx2(sessionHandle, &Microsoft_Windows_Win32k::GUID,         EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
-    status = EnableTraceEx2(sessionHandle, &NvidiaDisplayDriver_Events::GUID,       EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
-    status = EnableTraceEx2(sessionHandle, &Nvidia_PCL::GUID,                       EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
+    auto disable = [sessionHandle](char const* providerName, GUID const& providerGuid) {
+        auto const status = EnableTraceEx2(
+            sessionHandle, &providerGuid, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
+        LogProviderControlResult(providerName, "disable", sessionHandle, providerGuid, status);
+    };
+    disable("Intel-PresentMon", Intel_PresentMon::GUID);
+    disable("Microsoft-Windows-D3D9", Microsoft_Windows_D3D9::GUID);
+    disable("Microsoft-Windows-Direct3D12", Microsoft_Windows_Direct3D12::GUID);
+    disable("Microsoft-Windows-DXGI", Microsoft_Windows_DXGI::GUID);
+    disable("Microsoft-Windows-Dwm-Core", Microsoft_Windows_Dwm_Core::GUID);
+    disable("Microsoft-Windows-Dwm-Core-Win7", Microsoft_Windows_Dwm_Core::Win7::GUID);
+    disable("Microsoft-Windows-DxgKrnl", Microsoft_Windows_DxgKrnl::GUID);
+    disable("Microsoft-Windows-DxgKrnl-Win7", Microsoft_Windows_DxgKrnl::Win7::GUID);
+    disable("Microsoft-Windows-Kernel-Process", Microsoft_Windows_Kernel_Process::GUID);
+    disable("Microsoft-Windows-Win32k", Microsoft_Windows_Win32k::GUID);
+    disable("Nvidia-DisplayDriver", NvidiaDisplayDriver_Events::GUID);
+    disable("Nvidia-PCL", Nvidia_PCL::GUID);
 }
 
 template<
@@ -695,6 +754,9 @@ bool PMTraceSession::QueryEtwStatus(EtwStatus* status) const
 
     auto queryStatus = ControlTraceW(mSessionHandle, nullptr, &sessionProps, EVENT_TRACE_CONTROL_QUERY);
     if (queryStatus != ERROR_SUCCESS) {
+        pmlog_error("ControlTraceW query for PM trace session failed")
+            .pmwatch(queryStatus)
+            .pmwatch((uint64_t)mSessionHandle);
         return false;
     }
 
@@ -811,11 +873,13 @@ ULONG EnableProvidersListing(
     provider.AddEvent<Microsoft_Windows_Kernel_Process::ProcessStart_Start>();
     provider.AddEvent<Microsoft_Windows_Kernel_Process::ProcessStop_Stop>();
     provider.AddEvent<Microsoft_Windows_Kernel_Process::ProcessRundown_Info>();
-    auto status = provider.Enable(sessionHandle, Microsoft_Windows_Kernel_Process::GUID);
+    auto status = provider.Enable(
+        sessionHandle, Microsoft_Windows_Kernel_Process::GUID, "Microsoft-Windows-Kernel-Process");
     if (status != ERROR_SUCCESS && status != ERROR_ACCESS_DENIED) return status;
     // additionally, request a rundown if we have kproc access and the pertinent consumer flag is set
     if (pmConsumer->mTrackProcessState && status == ERROR_SUCCESS) {
         status = provider.Enable(sessionHandle, Microsoft_Windows_Kernel_Process::GUID,
+            "Microsoft-Windows-Kernel-Process",
             EVENT_CONTROL_CODE_CAPTURE_STATE);
         if (status != ERROR_SUCCESS && status != ERROR_ACCESS_DENIED) return status;
     }
@@ -863,7 +927,8 @@ ULONG EnableProvidersListing(
     if (pmConsumer->mTrackFrameType) {
         provider.AddEvent<Microsoft_Windows_DxgKrnl::MMIOFlipMultiPlaneOverlay3_Info>();
     }
-    status = provider.Enable(sessionHandle, Microsoft_Windows_DxgKrnl::GUID);
+    status = provider.Enable(
+        sessionHandle, Microsoft_Windows_DxgKrnl::GUID, "Microsoft-Windows-DxgKrnl");
     if (status != ERROR_SUCCESS) return status;
 
     // we call Enable here once more to capture initial state of the device contexts
@@ -871,12 +936,14 @@ ULONG EnableProvidersListing(
         provider.ClearFilter();
         provider.AddEvent<Microsoft_Windows_DxgKrnl::Context_DCStart>();
         provider.AddEvent<Microsoft_Windows_DxgKrnl::Device_DCStart>();
-        status = provider.Enable(sessionHandle, Microsoft_Windows_DxgKrnl::GUID, EVENT_CONTROL_CODE_CAPTURE_STATE);
+        status = provider.Enable(sessionHandle, Microsoft_Windows_DxgKrnl::GUID,
+            "Microsoft-Windows-DxgKrnl", EVENT_CONTROL_CODE_CAPTURE_STATE);
         if (status != ERROR_SUCCESS) return status;
     }
 
     // enable dxgkrnl win7 provider directly (no filtering because win7 doesn't support it anyways)
-    status = provider.EnableWithoutFiltering(sessionHandle, Microsoft_Windows_DxgKrnl::Win7::GUID, TRACE_LEVEL_INFORMATION);
+    status = provider.EnableWithoutFiltering(sessionHandle, Microsoft_Windows_DxgKrnl::Win7::GUID,
+        "Microsoft-Windows-DxgKrnl-Win7", TRACE_LEVEL_INFORMATION);
     if (status != ERROR_SUCCESS) return status;
 
 
@@ -893,7 +960,8 @@ ULONG EnableProvidersListing(
             provider.AddEvent<Microsoft_Windows_Win32k::RetrieveInputMessage_Info>();
             provider.AddEvent<Microsoft_Windows_Win32k::OnInputXformUpdate_Info>();
         }
-        status = provider.Enable(sessionHandle, Microsoft_Windows_Win32k::GUID);
+        status = provider.Enable(
+            sessionHandle, Microsoft_Windows_Win32k::GUID, "Microsoft-Windows-Win32k");
         if (status != ERROR_SUCCESS) return status;
     }
 
@@ -908,11 +976,13 @@ ULONG EnableProvidersListing(
         provider.AddEvent<Microsoft_Windows_Dwm_Core::FlipChain_Pending>();
         provider.AddEvent<Microsoft_Windows_Dwm_Core::FlipChain_Complete>();
         provider.AddEvent<Microsoft_Windows_Dwm_Core::FlipChain_Dirty>();
-        status = provider.Enable(sessionHandle, Microsoft_Windows_Dwm_Core::GUID);
+        status = provider.Enable(
+            sessionHandle, Microsoft_Windows_Dwm_Core::GUID, "Microsoft-Windows-Dwm-Core");
         if (status != ERROR_SUCCESS) return status;
 
         // enable dwm_core win7 provider directly (no filtering because win7 doesn't support it anyways)
-        status = provider.EnableWithoutFiltering(sessionHandle, Microsoft_Windows_Dwm_Core::Win7::GUID, TRACE_LEVEL_VERBOSE);
+        status = provider.EnableWithoutFiltering(sessionHandle, Microsoft_Windows_Dwm_Core::Win7::GUID,
+            "Microsoft-Windows-Dwm-Core-Win7", TRACE_LEVEL_VERBOSE);
         if (status != ERROR_SUCCESS) return status;
     }
 
@@ -928,7 +998,7 @@ ULONG EnableProvidersListing(
         provider.AddEvent<Microsoft_Windows_DXGI::SwapChain_Start>();
         provider.AddEvent<Microsoft_Windows_DXGI::ResizeBuffers_Start>();
     }
-    status = provider.Enable(sessionHandle, Microsoft_Windows_DXGI::GUID);
+    status = provider.Enable(sessionHandle, Microsoft_Windows_DXGI::GUID, "Microsoft-Windows-DXGI");
     if (status != ERROR_SUCCESS) return status;
 
 
@@ -937,14 +1007,15 @@ ULONG EnableProvidersListing(
     provider.ClearFilter();
     provider.AddEvent<Microsoft_Windows_D3D9::Present_Start>();
     provider.AddEvent<Microsoft_Windows_D3D9::Present_Stop>();
-    status = provider.Enable(sessionHandle, Microsoft_Windows_D3D9::GUID);
+    status = provider.Enable(sessionHandle, Microsoft_Windows_D3D9::GUID, "Microsoft-Windows-D3D9");
     if (status != ERROR_SUCCESS) return status;
 
     if (pmConsumer->mTrackD3D12ShaderCompilation) {
         provider.ClearFilter();
         provider.AddEvent<Microsoft_Windows_Direct3D12::CreatePipelineStateObject_Start>();
         provider.AddEvent<Microsoft_Windows_Direct3D12::CreatePipelineStateObject_Stop>();
-        status = provider.Enable(sessionHandle, Microsoft_Windows_Direct3D12::GUID);
+        status = provider.Enable(
+            sessionHandle, Microsoft_Windows_Direct3D12::GUID, "Microsoft-Windows-Direct3D12");
         if (status != ERROR_SUCCESS) return status;
     }
 
@@ -974,7 +1045,7 @@ ULONG EnableProvidersListing(
             provider.AddEvent<Intel_PresentMon::AppSleepStart_Info>();
             provider.AddEvent<Intel_PresentMon::AppSleepEnd_Info>();
         }
-        status = provider.Enable(sessionHandle, Intel_PresentMon::GUID);
+        status = provider.Enable(sessionHandle, Intel_PresentMon::GUID, "Intel-PresentMon");
         if (status != ERROR_SUCCESS) return status;
     }
 
@@ -982,12 +1053,14 @@ ULONG EnableProvidersListing(
     //
     provider.ClearFilter();
     provider.AddEvent<NvidiaDisplayDriver_Events::FlipRequest>();
-    status = provider.Enable(sessionHandle, NvidiaDisplayDriver_Events::GUID);
+    status = provider.Enable(
+        sessionHandle, NvidiaDisplayDriver_Events::GUID, "Nvidia-DisplayDriver");
     if (status != ERROR_SUCCESS) return status;
 
     if (pmConsumer->mTrackPcLatency) {
         provider.ClearFilter();
-        status = provider.EnableWithoutFiltering(sessionHandle, Nvidia_PCL::GUID, TRACE_LEVEL_VERBOSE);
+        status = provider.EnableWithoutFiltering(
+            sessionHandle, Nvidia_PCL::GUID, "Nvidia-PCL", TRACE_LEVEL_VERBOSE);
         if (status != ERROR_SUCCESS) return status;
     }
 
