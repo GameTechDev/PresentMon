@@ -268,9 +268,15 @@ bool PresentMonCsv::Open(char const* file, int line, std::wstring const& path)
         auto track_app_timing = CheckAllIfAny(headerColumnIndex_, &columnsOK, { Header_MsInstrumentedLatency});
         auto track_pc_latency = CheckAllIfAny(headerColumnIndex_, &columnsOK, { Header_MsPCLatency });
 
+        // TimeInMs is written both without a time option and with --qpc_time_ms; only the CPU start
+        // column tells them apart.
         switch (time) {
         case 1: params_.emplace_back(L"--qpc_time");    break;
-        case 2: params_.emplace_back(L"--qpc_time_ms"); break;
+        case 2:
+            if (headerColumnIndex_[Header_CPUStartQPCTimeInMs] != SIZE_MAX) {
+                params_.emplace_back(L"--qpc_time_ms");
+            }
+            break;
         case 3: params_.emplace_back(L"--date_time");   break;
         }
         if (!track_display)   params_.emplace_back(L"--no_track_display");
