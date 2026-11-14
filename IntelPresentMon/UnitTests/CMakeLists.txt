@@ -11,6 +11,7 @@ add_library(
         LoggingConfigurationStoreTests.cpp
         MetricCapabilitiesTests.cpp
         MetricsCore.cpp
+        PcLatencyFrameGenerationTests.cpp
         PresentFrameTypeDeferralTests.cpp
         IgclControlLibCompatibilityTests.cpp
         TelemetryDeviceFingerprintTests.cpp
