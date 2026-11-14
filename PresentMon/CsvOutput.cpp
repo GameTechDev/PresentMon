@@ -408,8 +408,11 @@ void WriteCsvHeader<FrameMetrics>(FILE* fp)
         fwprintf(fp, L",HybridPresent");
     }
     if (args.mUseV2Metrics == false) {
+        // --qpc_time_ms only changes the CPU start column (CPUStartQPCTimeInMs); the rows write
+        // this column in milliseconds since the recording began, as without a time option.
         switch (args.mTimeUnit) {
-        case TimeUnit::MilliSeconds:    fwprintf(fp, L",TimeInMs"); break;
+        case TimeUnit::MilliSeconds:
+        case TimeUnit::QPCMilliSeconds: fwprintf(fp, L",TimeInMs"); break;
         case TimeUnit::QPC:             fwprintf(fp, L",TimeInQPC"); break;
         case TimeUnit::DateTime:        fwprintf(fp, L",TimeInDateTime"); break;
         default:                        fwprintf(fp, L",TimeInSeconds"); break;
@@ -554,8 +557,11 @@ void WriteCsvHeader<pmon::util::metrics::FrameMetrics>(FILE* fp)
         fwprintf(fp, L",HybridPresent");
     }
     if (args.mUseV2Metrics == false) {
+        // --qpc_time_ms only changes the CPU start column (CPUStartQPCTimeInMs); the rows write
+        // this column in milliseconds since the recording began, as without a time option.
         switch (args.mTimeUnit) {
-        case TimeUnit::MilliSeconds:    fwprintf(fp, L",TimeInMs"); break;
+        case TimeUnit::MilliSeconds:
+        case TimeUnit::QPCMilliSeconds: fwprintf(fp, L",TimeInMs"); break;
         case TimeUnit::QPC:             fwprintf(fp, L",TimeInQPC"); break;
         case TimeUnit::DateTime:        fwprintf(fp, L",TimeInDateTime"); break;
         default:                        fwprintf(fp, L",TimeInSeconds"); break;

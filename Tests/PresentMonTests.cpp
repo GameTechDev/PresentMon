@@ -109,6 +109,7 @@ bool CheckPath(
 
 std::wstring PresentMon::exePath_;
 std::wstring outDir_;
+std::wstring goldDir_;
 bool reportAllCsvDiffs_ = false;
 bool warnOnMissingCsv_ = true;
 std::wstring diffPath_;
@@ -316,6 +317,7 @@ int wmain(
     }
 
     if (goldDirExists) {
+        goldDir_ = goldDir;
         AddGoldEtlCsvTests(goldDir, goldDir.size());
     } else {
         fprintf(stderr, "warning: gold directory does not exist: %ls\n", goldDir.c_str());
