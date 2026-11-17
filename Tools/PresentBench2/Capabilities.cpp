@@ -4,10 +4,17 @@
 #include "Capabilities.h"
 #include "backends/DxgiCommon.h"
 #include <ControlLib/igcl/igcl_api.h>
+#include <d3d12.h>
 #include <dxgi1_6.h>
+#include <format>
 #include <nlohmann/json.hpp>
 #include <wrl/client.h>
 #include <vector>
+
+#if defined(PMON_PRESENTBENCH2_HAS_XESS_FG)
+#include <xell/xell_d3d12.h>
+#include <xess_fg/xefg_swapchain_d3d12.h>
+#endif
 
 namespace pb2
 {
@@ -136,7 +143,6 @@ namespace pb2
 				out.adapters.push_back(std::move(adapter));
 			}
 
-			out.feature.runtime = anyFg;
 			if (anyFg) {
 				out.igclReason.clear();
 			}
@@ -148,6 +154,46 @@ namespace pb2
 			pfnClose(api);
 			FreeLibrary(lib);
 		}
+
+#if defined(PMON_PRESENTBENCH2_HAS_XESS_FG)
+		void ProbeXessFgDevice(XessFgCapability& out, IDXGIAdapter1* adapter)
+		{
+			Microsoft::WRL::ComPtr<ID3D12Device> device;
+			const HRESULT deviceResult = D3D12CreateDevice(
+				adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device));
+			if (FAILED(deviceResult)) {
+				out.feature.reason = std::format(
+					"D3D12CreateDevice failed while probing XeSS-FG: 0x{:08X}",
+					(unsigned)deviceResult);
+				return;
+			}
+
+			xefg_swapchain_handle_t xefgContext = nullptr;
+			const xefg_swapchain_result_t xefgResult =
+				xefgSwapChainD3D12CreateContext(device.Get(), &xefgContext);
+			if (xefgResult != XEFG_SWAPCHAIN_RESULT_SUCCESS) {
+				out.feature.reason = std::format(
+					"xefgSwapChainD3D12CreateContext reported unsupported: {}",
+					(int)xefgResult);
+				return;
+			}
+
+			xell_context_handle_t xellContext = nullptr;
+			const xell_result_t xellResult = xellD3D12CreateContext(device.Get(), &xellContext);
+			if (xellResult != XELL_RESULT_SUCCESS) {
+				xefgSwapChainDestroy(xefgContext);
+				out.feature.reason = std::format(
+					"xellD3D12CreateContext reported unsupported: {}",
+					(int)xellResult);
+				return;
+			}
+
+			xellDestroyContext(xellContext);
+			xefgSwapChainDestroy(xefgContext);
+			out.feature.runtime = true;
+			out.feature.reason.clear();
+		}
+#endif
 	}
 
 	CapabilityReport ProbeCapabilities(uint32_t adapterIndex)
@@ -167,13 +213,13 @@ namespace pb2
 		else {
 			const auto selected = ResolveAdapter(adapterIndex, factory.Get());
 			ProbeIgclMachine(report.xessFg, selected.luid);
+#if defined(PMON_PRESENTBENCH2_HAS_XESS_FG)
+			ProbeXessFgDevice(report.xessFg, selected.adapter.Get());
+#endif
 		}
-		if (report.xessFg.feature.compiled && report.xessFg.feature.runtime) {
-			report.xessFg.feature.reason.clear();
-		}
-		else if (report.xessFg.feature.compiled && !report.xessFg.feature.runtime) {
-			report.xessFg.feature.reason = report.xessFg.igclReason.empty() ?
-				"XeFG machine support not detected" : report.xessFg.igclReason;
+		if (report.xessFg.feature.compiled && !report.xessFg.feature.runtime &&
+			report.xessFg.feature.reason.empty()) {
+			report.xessFg.feature.reason = "XeSS-FG support was not detected on the D3D12 device";
 		}
 		return report;
 	}

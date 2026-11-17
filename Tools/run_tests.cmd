@@ -54,7 +54,7 @@ if %do_realtime_tests% EQU 1 (
     set need_tempdir=1
 )
 
-if %need_presentbench2% EQU 1 if not exist "%pmdir%\build\%test_config%\PresentBench2.exe" (
+if %need_presentbench2% EQU 1 if %do_build% EQU 0 if not exist "%pmdir%\build\%test_config%\PresentBench2.exe" (
     echo [31merror: dependency not found: %pmdir%\build\%test_config%\PresentBench2.exe[0m
     exit /b 1
 )
@@ -132,10 +132,21 @@ if %do_build% EQU 0 (
     for %%a in (%build_platforms%) do for %%b in (%build_configs%) do call :build %%a %%b "PresentMon\PresentMon.vcxproj"
     for %%a in (%build_platforms%) do for %%b in (%build_configs%) do call :build %%a %%b "Tests\PresentMonTests.vcxproj"
     for %%a in (%test_platforms%)  do for %%b in (%build_configs%) do call :build %%a %%b "Tools\etw_list\etw_list.sln"
+    if %need_presentbench2% EQU 1 (
+        call :configure_presentbench2
+        if !errorcount! EQU %prebuild_errorcount% (
+            for %%b in (%build_configs%) do call :build_presentbench2 %%b
+        )
+    )
 )
 
 if %errorcount% neq %prebuild_errorcount% (
     echo [31mFAIL: build failed, cannot continue[0m
+    exit /b 1
+)
+
+if %need_presentbench2% EQU 1 if not exist "%pmdir%\build\%test_config%\PresentBench2.exe" (
+    echo [31mFAIL: PresentBench2 build output missing: %pmdir%\build\%test_config%\PresentBench2.exe[0m
     exit /b 1
 )
 
@@ -205,6 +216,34 @@ exit /b 0
     msbuild /nologo /verbosity:quiet /maxCpuCount /property:Platform=%1,Configuration=%2 "%pmdir%\%~3"
     if %errorlevel% neq 0 (
         echo [31merror: build failed[0m
+        set /a errorcount=%errorcount%+1
+    )
+    exit /b 0
+
+:: -----------------------------------------------------------------------------
+:configure_presentbench2
+    echo [90mPresentBench2 CMake configure[0m
+    cmake -S "%pmdir%" -B "%pmdir%\build\presentbench2-cmake" -A x64 ^
+        -DPMON_OUTPUT_ROOT:PATH="%pmdir%\build" ^
+        -DPMON_BUILD_CONSOLE=OFF ^
+        -DPMON_BUILD_SERVICE=OFF ^
+        -DPMON_BUILD_SDK=OFF ^
+        -DPMON_BUILD_UI=OFF ^
+        -DPMON_BUILD_PROVIDER=OFF ^
+        -DPMON_BUILD_TOOLS=ON ^
+        -DPMON_BUILD_TESTS=OFF
+    if %errorlevel% neq 0 (
+        echo [31merror: PresentBench2 CMake configure failed[0m
+        set /a errorcount=%errorcount%+1
+    )
+    exit /b 0
+
+:: -----------------------------------------------------------------------------
+:build_presentbench2
+    echo [90mPresentBench2-x64-%1[0m
+    cmake --build "%pmdir%\build\presentbench2-cmake" --config %1 --target PresentBench2
+    if %errorlevel% neq 0 (
+        echo [31merror: PresentBench2 build failed[0m
         set /a errorcount=%errorcount%+1
     )
     exit /b 0

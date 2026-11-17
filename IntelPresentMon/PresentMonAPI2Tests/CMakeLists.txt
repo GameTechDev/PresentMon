@@ -118,10 +118,8 @@ set(api2_runtime_dependencies
     KernelProcess
     PresentMonUI
     SampleClient
+    PresentBench2
 )
-if(TARGET PresentBench2)
-    list(APPEND api2_runtime_dependencies PresentBench2)
-endif()
 if(TARGET pmon_stage_ui_payload)
     list(APPEND api2_runtime_dependencies pmon_stage_ui_payload)
 endif()

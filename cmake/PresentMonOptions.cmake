@@ -125,7 +125,7 @@ function(pmon_configure_options)
         PMON_BUILD_API2_TESTS
         "Build PresentMonAPI2Tests (Visual Studio C++ integration tests; x64 only)"
         ON
-        "PMON_BUILD_TESTS;PMON_BUILD_SERVICE;PMON_BUILD_SDK;PMON_BUILD_UI"
+        "PMON_BUILD_TESTS;PMON_BUILD_SERVICE;PMON_BUILD_SDK;PMON_BUILD_UI;PMON_BUILD_TOOLS"
         OFF
     )
 

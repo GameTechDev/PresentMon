@@ -20,10 +20,10 @@ namespace pb2
 		public:
 			PclStatsSink()
 			{
-				const HRESULT hr = TraceLoggingRegister(g_pb2PclProvider);
-				if (FAILED(hr)) {
+				const ULONG status = TraceLoggingRegister(g_pb2PclProvider);
+				if (status != ERROR_SUCCESS) {
 					throw std::runtime_error(std::format(
-						"TraceLoggingRegister(PCL) failed: 0x{:08X}", (unsigned)hr));
+						"TraceLoggingRegister(PCL) failed: {}", status));
 				}
 				registered_ = true;
 				TraceLoggingWrite(g_pb2PclProvider, "PCLStatsInit");
