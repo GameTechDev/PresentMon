@@ -180,7 +180,7 @@ if %do_realtime_tests% EQU 1 (
 
     call :realtime_presentbench2_test "dx12" "DXGI"
     call :realtime_presentbench2_test "dx9"  "D3D9"
-    call :realtime_presentbench2_test "vk"   "DXGI"
+    call :realtime_presentbench2_test "vk"   "DXGI Other"
 
     call :realtime_multicsv_test
 
@@ -351,7 +351,7 @@ exit /b 0
 :: -----------------------------------------------------------------------------
 :realtime_presentbench2_test
     set test_api=%~1
-    set expected_runtime=%~2
+    set expected_runtimes=%~2
 
     call :start_target_app --width 320 --height 240 --%test_api%
     if %errorlevel% NEQ 0 (
@@ -369,9 +369,11 @@ exit /b 0
                 set present_mode=%%b
                 set saw_row=1
             )
-            if "%%a" NEQ "%expected_runtime%" (
+            set runtime_allowed=0
+            for %%r in (!expected_runtimes!) do if "%%a" EQU "%%r" set runtime_allowed=1
+            if !runtime_allowed! EQU 0 (
                 if !saw_error! EQU 0 (
-                    echo [31merror: expecting PresentRuntime "%expected_runtime%", but got "%%a"[0m
+                    echo [31merror: expecting PresentRuntime in "%expected_runtimes%", but got "%%a"[0m
                     set saw_error=1
                 )
             )
@@ -390,7 +392,7 @@ exit /b 0
         exit /b 0
     )
 
-    echo.   [90m%test_api%: %expected_runtime%, %present_mode%[0m
+    echo.   [90m%test_api%: expected %expected_runtimes%, got %present_mode%[0m
     exit /b 0
 
 :: -----------------------------------------------------------------------------

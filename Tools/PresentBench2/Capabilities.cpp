@@ -44,7 +44,8 @@ namespace pb2
 
 		void ProbeIgclMachine(XessFgCapability& out, LUID selectedLuid)
 		{
-			HMODULE lib = LoadLibraryW(L"ControlLib.dll");
+			HMODULE lib = LoadLibraryExW(
+				L"ControlLib.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
 			if (!lib) {
 				out.igclReason = "ControlLib.dll not found (Intel Graphics Control Library)";
 				return;

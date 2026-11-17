@@ -97,6 +97,7 @@ function(pmon_configure_presentbench2_sdks)
             )
             list(GET _pb2_xess_status 0 _pb2_xess_code)
             if(NOT _pb2_xess_code EQUAL 0)
+                file(REMOVE "${_pb2_xess_archive}")
                 message(FATAL_ERROR "XeSS-FG SDK download failed: ${_pb2_xess_status}")
             endif()
         endif()
@@ -105,6 +106,7 @@ function(pmon_configure_presentbench2_sdks)
             string(TOUPPER "${_pb2_xess_hash}" _pb2_xess_hash)
             string(TOUPPER "${PMON_PRESENTBENCH2_XESS_FG_SHA256}" _pb2_xess_expected)
             if(NOT _pb2_xess_hash STREQUAL _pb2_xess_expected)
+                file(REMOVE "${_pb2_xess_archive}")
                 message(
                     FATAL_ERROR
                     "XeSS-FG SDK hash mismatch.\n"
