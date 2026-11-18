@@ -292,6 +292,10 @@ struct PresentEvent {
     // additional application frame.
     bool DisplayedViaFlipFrameType;
 
+    // The FrameType from this present's PresentFrameType event, if any.  Unlike Displayed, it is
+    // kept when the present is discarded.
+    FrameType PresentFrameType = FrameType::NotSet;
+
     // If WaitingForFrameId, the present is waiting until either a later-started present from the
     // same process completes (which may have the same FrameId and need data from this one), or any
     // present starting more than mDeferralTimeLimit later completes.
@@ -655,7 +659,7 @@ struct PMTraceConsumer
     // Function for managing app provided events
     AppTimingData* ExtractAppTimingData(std::unordered_map<std::pair<uint32_t, uint32_t>, AppTimingData, PairHash<uint32_t, uint32_t>>& timingDataByFrameId, 
         uint32_t processId, uint32_t appFrameId, uint64_t presentStartTime, uint64_t presentStopTime, 
-        std::function<uint64_t(const AppTimingData&)> timingSelector, bool isPcLatency = true);
+        std::function<uint64_t(const AppTimingData&)> timingSelector, bool isPcLatency = true, bool assignToPresent = true);
     bool IsApplicationPresent(std::shared_ptr<PresentEvent> const& present);
     void SetAppTimingDataAsComplete(uint32_t processId, uint32_t appFrameId);
     bool IsStaleAppTimingData(AppTimingData const& data, uint64_t now) const;
