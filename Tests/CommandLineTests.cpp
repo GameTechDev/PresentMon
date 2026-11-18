@@ -134,6 +134,26 @@ void QpcTimeTest(bool qpc)
     }
 }
 
+// Runs PresentMon over a gold ETL with the default CSV columns and the given time option, and
+// returns the CSV path (empty on failure). Reading an ETL starts no ETW session, so there is no
+// session to stop.
+std::wstring RunEtlToCsv(std::wstring const& etlPath, wchar_t const* name, wchar_t const* timeArg)
+{
+    std::wstring csvPath(outDir_ + name + L".csv");
+
+    PresentMon pm;
+    pm.Add(L"--track_pc_latency");
+    if (timeArg != nullptr) {
+        pm.Add(timeArg);
+    }
+    pm.AddEtlPath(etlPath);
+    pm.AddCsvPath(csvPath);
+    pm.PMSTART();
+    pm.PMEXITED();
+
+    return ::testing::Test::HasFailure() ? std::wstring() : csvPath;
+}
+
 }
 
 TEST(CommandLineTests, TerminateAfterTimed_0s)
@@ -166,4 +186,60 @@ TEST(CommandLineTests, TerminateExisting_NotFound)
 
 TEST(CommandLineTests, QPCTime)               { QpcTimeTest<uint64_t>(true); }
 TEST(CommandLineTests, QPCTimeInMilliSeconds) { QpcTimeTest<double>(false); }
+
+// --qpc_time_ms changes the CPU start column only. The time column keeps milliseconds since the
+// recording began and has to be named TimeInMs, as without a time option; it was written as
+// TimeInSeconds while its values were milliseconds.
+TEST(CommandLineTests, QPCTimeInMilliSecondsKeepsTimeInMsColumn)
+{
+    std::wstring etlPath(goldDir_ + L"test_case_0.etl");
+    if (goldDir_.empty() || GetFileAttributesW(etlPath.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        GTEST_SKIP() << "Gold ETL not found: " << Convert(etlPath);
+    }
+
+    auto defaultCsvPath = RunEtlToCsv(etlPath, L"time_column_default", nullptr);
+    auto qpcMsCsvPath   = RunEtlToCsv(etlPath, L"time_column_qpc_time_ms", L"--qpc_time_ms");
+    if (defaultCsvPath.empty() || qpcMsCsvPath.empty()) {
+        return;
+    }
+
+    PresentMonCsv defaultCsv;
+    PresentMonCsv qpcMsCsv;
+    if (!defaultCsv.CSVOPEN(defaultCsvPath)) {
+        return;
+    }
+    if (!qpcMsCsv.CSVOPEN(qpcMsCsvPath)) {
+        defaultCsv.Close();
+        return;
+    }
+
+    EXPECT_NE(defaultCsv.GetColumnIndex("TimeInMs"),            SIZE_MAX);
+    EXPECT_NE(defaultCsv.GetColumnIndex("CPUStartTimeInMs"),    SIZE_MAX);
+    EXPECT_NE(qpcMsCsv.GetColumnIndex("TimeInMs"),              SIZE_MAX);
+    EXPECT_NE(qpcMsCsv.GetColumnIndex("CPUStartQPCTimeInMs"),   SIZE_MAX);
+    EXPECT_EQ(qpcMsCsv.GetColumnIndex("TimeInSeconds"),         SIZE_MAX);
+
+    // The option must not change the time column's values: both runs see the same presents.
+    auto idxDefault = defaultCsv.GetColumnIndex("TimeInMs");
+    auto idxQpcMs   = qpcMsCsv.GetColumnIndex("TimeInMs");
+    size_t rows = 0;
+    while (!::testing::Test::HasFailure() && idxDefault != SIZE_MAX && idxQpcMs != SIZE_MAX) {
+        auto defaultDone = !defaultCsv.ReadRow();
+        auto qpcMsDone   = !qpcMsCsv.ReadRow();
+        if (defaultDone || qpcMsDone) {
+            EXPECT_EQ(defaultDone, qpcMsDone) << "The two CSVs have different numbers of rows";
+            break;
+        }
+        if (idxDefault >= defaultCsv.cols_.size() || idxQpcMs >= qpcMsCsv.cols_.size()) {
+            ADD_FAILURE() << "Missing time column on line " << qpcMsCsv.line_;
+            break;
+        }
+        EXPECT_STREQ(defaultCsv.cols_[idxDefault], qpcMsCsv.cols_[idxQpcMs]) << "line " << qpcMsCsv.line_;
+        rows += 1;
+    }
+    EXPECT_GT(rows, 0u);
+
+    defaultCsv.Close();
+    qpcMsCsv.Close();
+}
 

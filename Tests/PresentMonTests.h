@@ -28,6 +28,7 @@ struct PresentMonCsv
         Header_MsPCLatency,
         Header_CPUStartTimeInMs,
         Header_CPUStartTimeInSeconds,
+        Header_CPUStartQPCTimeInMs,
         Header_MsBetweenAppStart,
         Header_MsCPUBusy,
         Header_MsCPUWait,
@@ -126,6 +127,7 @@ struct PresentMonCsv
         case Header_FrameType:                  return "FrameType";
         case Header_CPUStartTimeInMs:           return "CPUStartTimeInMs";
         case Header_CPUStartTimeInSeconds:      return "CPUStartTimeInSeconds";
+        case Header_CPUStartQPCTimeInMs:        return "CPUStartQPCTimeInMs";
         case Header_CPUStartTime:               return "CPUStartTime";
         case Header_CPUStartQPC:                return "CPUStartQPC";
         case Header_CPUStartQPCTime:            return "CPUStartQPCTime";
@@ -233,6 +235,7 @@ struct PresentMon : PROCESS_INFORMATION {
 
 // PresentMonTests.cpp
 extern std::wstring outDir_;
+extern std::wstring goldDir_; // Empty when the gold directory does not exist
 extern bool reportAllCsvDiffs_;
 extern bool warnOnMissingCsv_;
 extern std::wstring diffPath_;
