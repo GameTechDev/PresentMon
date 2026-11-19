@@ -51,11 +51,6 @@ namespace RealtimeMetricTests
 		return {};
 	}
 
-	static PresenterProcess LaunchPresenter_(TestFixture& fixture)
-	{
-		return fixture.LaunchPresenter({ "--coarse-frame-wait"s });
-	}
-
 	static pmapi::ProcessTracker TrackPresenterAndWaitForFirstFrame_(
 		pmapi::Session& session,
 		TestFixture& fixture,
@@ -101,7 +96,7 @@ namespace RealtimeMetricTests
 
 		TEST_METHOD(RealtimeOpenSessionTest)
 		{
-			auto presenter = LaunchPresenter_(fixture_);
+			auto presenter = fixture_.LaunchPresenter();
 			Logger::WriteMessage(std::format("RealtimeMetric presenter pid={}\n", presenter.GetId()).c_str());
 			auto pSession = OpenSession_(fixture_);
 			Assert::IsTrue((bool)pSession);
@@ -109,7 +104,7 @@ namespace RealtimeMetricTests
 
 		TEST_METHOD(RealtimeTrackProcessTest)
 		{
-			auto presenter = LaunchPresenter_(fixture_);
+			auto presenter = fixture_.LaunchPresenter();
 			Logger::WriteMessage(std::format("RealtimeMetric presenter pid={}\n", presenter.GetId()).c_str());
 			auto pSession = OpenSession_(fixture_);
 			auto processTracker = TrackPresenterAndWaitForFirstFrame_(
@@ -120,7 +115,7 @@ namespace RealtimeMetricTests
 		{
 			using namespace pmapi;
 
-			auto presenter = LaunchPresenter_(fixture_);
+			auto presenter = fixture_.LaunchPresenter();
 			Logger::WriteMessage(std::format("RealtimeMetric presenter pid={}\n", presenter.GetId()).c_str());
 			auto pSession = OpenSession_(fixture_);
 			auto processTracker = TrackPresenterAndWaitForFirstFrame_(
@@ -147,7 +142,7 @@ namespace RealtimeMetricTests
 			// PresentBench2 defaults to a high-precision 10ms frame wait. Rendering
 			// and scheduling still add a small amount of overhead to the interval.
 			double expectedFtAvg = 10.;
-			double ftTolerance = 4.;
+			double ftTolerance = 0.5;
 			Assert::AreEqual(expectedFtAvg, dq.qeCpuFtAvg.As<double>(), ftTolerance,
 				L"CPU frame time avg not within tolerance (ms).");
 			processTracker.Reset();
@@ -157,7 +152,7 @@ namespace RealtimeMetricTests
 		{
 			using namespace pmapi;
 
-			auto presenter = LaunchPresenter_(fixture_);
+			auto presenter = fixture_.LaunchPresenter();
 			auto pSession = OpenSession_(fixture_);
 			auto processTracker = TrackPresenterAndWaitForFirstFrame_(
 				*pSession, fixture_, presenter, "rt-metric-pso-disabled", 5);
