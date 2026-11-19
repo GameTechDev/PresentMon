@@ -1,0 +1,39 @@
+{
+  "version": "0.2.1",
+  "configurations": [
+    {
+      "name": "DX12 windowed smoke",
+      "type": "default",
+      "project": "PresentBench2",
+      "projectTarget": "PresentBench2.exe",
+      "args": [
+        "--dx12",
+        "--width", "640",
+        "--height", "360",
+        "--frame-sleep", "10",
+        "--frame-count", "120",
+        "--result-json", "presentbench2-result.json"
+      ]
+    },
+    {
+      "name": "Describe capabilities",
+      "type": "default",
+      "project": "PresentBench2",
+      "projectTarget": "PresentBench2.exe",
+      "args": [
+        "--describe-capabilities"
+      ]
+    },
+    {
+      "name": "Stdio control",
+      "type": "default",
+      "project": "PresentBench2",
+      "projectTarget": "PresentBench2.exe",
+      "args": [
+        "--dx12",
+        "--frame-sleep", "10",
+        "--enable-stdio-control"
+      ]
+    }
+  ]
+}

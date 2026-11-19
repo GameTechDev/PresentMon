@@ -62,6 +62,18 @@ function(pmon_configure_vcpkg)
         "Allow vcpkg to restore manifest dependencies during CMake configure"
         ON
     )
+    option(
+        PMON_PRESENTBENCH2_VULKAN_VALIDATION_LAYERS
+        "Build and stage Khronos Vulkan validation layers for PresentBench2"
+        ON
+    )
+    set(
+        PMON_PRESENTBENCH2_HAS_LOCAL_VULKAN_VALIDATION_LAYERS
+        OFF
+        CACHE INTERNAL
+        "Whether the PresentBench2 build-local Vulkan validation layer is available"
+        FORCE
+    )
     if(NOT PMON_USE_VCPKG)
         return()
     endif()
@@ -115,6 +127,29 @@ function(pmon_configure_vcpkg)
     set(VCPKG_TARGET_TRIPLET "${default_target_triplet}" CACHE STRING "vcpkg target triplet")
     set(VCPKG_HOST_TRIPLET "x64-windows-static" CACHE STRING "vcpkg host triplet")
     set(VCPKG_MANIFEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "vcpkg manifest directory")
+    set(_pmon_manifest_features ${VCPKG_MANIFEST_FEATURES})
+    list(REMOVE_ITEM _pmon_manifest_features "presentbench2-vulkan-validation")
+    if(
+        PMON_PRESENTBENCH2_VULKAN_VALIDATION_LAYERS
+        AND PMON_BUILD_SCOPE STREQUAL "FULL"
+        AND NOT CMAKE_GENERATOR_PLATFORM STREQUAL "Win32"
+    )
+        list(APPEND _pmon_manifest_features "presentbench2-vulkan-validation")
+        set(
+            PMON_PRESENTBENCH2_HAS_LOCAL_VULKAN_VALIDATION_LAYERS
+            ON
+            CACHE INTERNAL
+            "Whether the PresentBench2 build-local Vulkan validation layer is available"
+            FORCE
+        )
+    endif()
+    set(
+        VCPKG_MANIFEST_FEATURES
+        "${_pmon_manifest_features}"
+        CACHE STRING
+        "Additional vcpkg manifest features"
+        FORCE
+    )
     set(
         VCPKG_MANIFEST_INSTALL
         "${PMON_AUTO_RESTORE_VCPKG}"
@@ -155,6 +190,35 @@ function(pmon_configure_vcpkg)
         "Per-toolset, per-architecture vcpkg installation root"
         FORCE
     )
+    if(PMON_PRESENTBENCH2_HAS_LOCAL_VULKAN_VALIDATION_LAYERS)
+        set(_pmon_vcpkg_install_options ${VCPKG_INSTALL_OPTIONS})
+        list(
+            REMOVE_ITEM
+            _pmon_vcpkg_install_options
+            "--x-buildtrees-root=${CMAKE_CURRENT_BINARY_DIR}/vcpkg-buildtrees"
+        )
+        set(_pmon_has_buildtrees_root OFF)
+        foreach(_pmon_vcpkg_install_option IN LISTS _pmon_vcpkg_install_options)
+            if(_pmon_vcpkg_install_option MATCHES "^--x-buildtrees-root=")
+                set(_pmon_has_buildtrees_root ON)
+                break()
+            endif()
+        endforeach()
+        if(NOT _pmon_has_buildtrees_root)
+            list(
+                APPEND
+                _pmon_vcpkg_install_options
+                "--x-buildtrees-root=${CMAKE_CURRENT_BINARY_DIR}/vcpkg-bt"
+            )
+        endif()
+        set(
+            VCPKG_INSTALL_OPTIONS
+            "${_pmon_vcpkg_install_options}"
+            CACHE STRING
+            "Additional vcpkg install options"
+            FORCE
+        )
+    endif()
 
     # Downloaded sources are toolset- and architecture-independent.
     set(

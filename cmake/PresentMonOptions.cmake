@@ -101,6 +101,11 @@ function(pmon_configure_options)
         "Symlink source-tree *.args.json presets beside generated Visual Studio projects in -B build"
         OFF
     )
+    option(
+        PMON_PRESENTBENCH2_FETCH_XESS_FG
+        "Fetch pinned Intel XeSS-FG SDK for PresentBench2"
+        OFF
+    )
 
     cmake_dependent_option(
         PMON_BUILD_PRESENTMON_TESTS
@@ -120,7 +125,7 @@ function(pmon_configure_options)
         PMON_BUILD_API2_TESTS
         "Build PresentMonAPI2Tests (Visual Studio C++ integration tests; x64 only)"
         ON
-        "PMON_BUILD_TESTS;PMON_BUILD_SERVICE;PMON_BUILD_SDK;PMON_BUILD_UI"
+        "PMON_BUILD_TESTS;PMON_BUILD_SERVICE;PMON_BUILD_SDK;PMON_BUILD_UI;PMON_BUILD_TOOLS"
         OFF
     )
 

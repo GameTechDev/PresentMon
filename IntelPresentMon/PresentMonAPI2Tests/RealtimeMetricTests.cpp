@@ -52,11 +52,6 @@ namespace RealtimeMetricTests
 		return {};
 	}
 
-	static PresenterProcess LaunchPresenter_(TestFixture& fixture)
-	{
-		return fixture.LaunchPresenter({ "/FrameSleep=10"s });
-	}
-
 	static pmapi::ProcessTracker TrackPresenterAndWaitForFirstFrame_(
 		pmapi::Session& session,
 		TestFixture& fixture,
@@ -102,7 +97,7 @@ namespace RealtimeMetricTests
 
 		TEST_METHOD(RealtimeOpenSessionTest)
 		{
-			auto presenter = LaunchPresenter_(fixture_);
+			auto presenter = fixture_.LaunchPresenter();
 			Logger::WriteMessage(std::format("RealtimeMetric presenter pid={}\n", presenter.GetId()).c_str());
 			auto pSession = OpenSession_(fixture_);
 			Assert::IsTrue((bool)pSession);
@@ -110,7 +105,7 @@ namespace RealtimeMetricTests
 
 		TEST_METHOD(RealtimeTrackProcessTest)
 		{
-			auto presenter = LaunchPresenter_(fixture_);
+			auto presenter = fixture_.LaunchPresenter();
 			Logger::WriteMessage(std::format("RealtimeMetric presenter pid={}\n", presenter.GetId()).c_str());
 			auto pSession = OpenSession_(fixture_);
 			auto processTracker = TrackPresenterAndWaitForFirstFrame_(
@@ -121,7 +116,7 @@ namespace RealtimeMetricTests
 		{
 			using namespace pmapi;
 
-			auto presenter = LaunchPresenter_(fixture_);
+			auto presenter = fixture_.LaunchPresenter();
 			Logger::WriteMessage(std::format("RealtimeMetric presenter pid={}\n", presenter.GetId()).c_str());
 			auto pSession = OpenSession_(fixture_);
 			auto processTracker = TrackPresenterAndWaitForFirstFrame_(
@@ -145,13 +140,80 @@ namespace RealtimeMetricTests
 				}
 			}
 
-			// PresentBench is paced with Sleep(10), which typically yields an
-			// average CPU frame time near 15.3ms due to OS timer granularity.
-			double expectedFtAvg = 15.3;
-			double ftTolerance = 2.5;
+			// PresentBench2 defaults to a high-precision 10ms frame wait. Rendering
+			// and scheduling still add a small amount of overhead to the interval.
+			double expectedFtAvg = 10.;
+			double ftTolerance = 0.5;
 			Assert::AreEqual(expectedFtAvg, dq.qeCpuFtAvg.As<double>(), ftTolerance,
 				L"CPU frame time avg not within tolerance (ms).");
 			processTracker.Reset();
+		}
+
+		TEST_METHOD(PsoCompileMetricsAreZeroWithoutPsoWorkload)
+		{
+			using namespace pmapi;
+
+			auto presenter = fixture_.LaunchPresenter();
+			auto pSession = OpenSession_(fixture_);
+			auto processTracker = TrackPresenterAndWaitForFirstFrame_(
+				*pSession, fixture_, presenter, "rt-metric-pso-disabled", 5);
+			PM_BEGIN_FIXED_FRAME_QUERY(PsoFrameQuery)
+				FixedQueryElement psoCompileCount{ this, PM_METRIC_PSO_COMPILE_COUNT };
+				FixedQueryElement psoCompileTime{ this, PM_METRIC_PSO_COMPILE_TIME };
+				FixedQueryElement psoCompileBusy{ this, PM_METRIC_PSO_COMPILE_BUSY_PERCENT };
+			PM_END_FIXED_QUERY query{ *pSession, 64 };
+
+			bool sawZeroFrame = false;
+			const auto deadline = std::chrono::steady_clock::now() + 2s;
+			while (!sawZeroFrame && std::chrono::steady_clock::now() < deadline) {
+				query.ForEachConsume(processTracker, [&] {
+					const auto count = query.psoCompileCount.As<uint64_t>();
+					const auto time = query.psoCompileTime.As<double>();
+					const auto busy = query.psoCompileBusy.As<double>();
+					if (count == 0 && time == 0. && busy == 0.) {
+						sawZeroFrame = true;
+					}
+				});
+				if (!sawZeroFrame) {
+					std::this_thread::sleep_for(25ms);
+				}
+			}
+			Assert::IsTrue(sawZeroFrame, L"Expected a frame without PSO compile activity");
+		}
+
+		TEST_METHOD(PsoCompileMetricsReportPb2Workload)
+		{
+			using namespace pmapi;
+
+			auto presenter = fixture_.LaunchPresenter({
+				"--coarse-frame-wait"s,
+				"--pso-compiles"s, "1"s,
+			});
+			auto pSession = OpenSession_(fixture_);
+			auto processTracker = TrackPresenterAndWaitForFirstFrame_(
+				*pSession, fixture_, presenter, "rt-metric-pso-enabled", 5);
+			PM_BEGIN_FIXED_FRAME_QUERY(PsoFrameQuery)
+				FixedQueryElement psoCompileCount{ this, PM_METRIC_PSO_COMPILE_COUNT };
+				FixedQueryElement psoCompileTime{ this, PM_METRIC_PSO_COMPILE_TIME };
+				FixedQueryElement psoCompileBusy{ this, PM_METRIC_PSO_COMPILE_BUSY_PERCENT };
+			PM_END_FIXED_QUERY query{ *pSession, 64 };
+
+			bool sawCompileFrame = false;
+			const auto deadline = std::chrono::steady_clock::now() + 2s;
+			while (!sawCompileFrame && std::chrono::steady_clock::now() < deadline) {
+				query.ForEachConsume(processTracker, [&] {
+					const auto count = query.psoCompileCount.As<uint64_t>();
+					const auto time = query.psoCompileTime.As<double>();
+					const auto busy = query.psoCompileBusy.As<double>();
+					if (count >= 1 && time > 0. && busy > 0.) {
+						sawCompileFrame = true;
+					}
+				});
+				if (!sawCompileFrame) {
+					std::this_thread::sleep_for(25ms);
+				}
+			}
+			Assert::IsTrue(sawCompileFrame, L"Expected PB2 PSO compile metrics");
 		}
 	};
 }

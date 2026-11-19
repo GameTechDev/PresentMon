@@ -63,6 +63,9 @@ Tools/Reflector/obj/**
 # Misc ephermeral files
 IntelPresentMon/SampleClient/log.txt
 
+# Local test-runner output (not source)
+Testing/Temporary/
+
 Tools/ETLTrimmer/Release/ETLTrimmer.Build.CppClean.log
 
 Tools/ETLTrimmer/Release/ETLTrimmer.vcxproj.FileListAbsolute.txt

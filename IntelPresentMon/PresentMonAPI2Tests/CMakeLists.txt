@@ -51,6 +51,7 @@ add_library(
         MockTelemetryTests.cpp
         ModuleInit.cpp
         MultiClientTests.cpp
+        PresentBench2ControlTests.cpp
         PipeAcceptReliabilityTests.cpp
         PipeSecurityRegressionTests.cpp
         PipePairTests.cpp
@@ -117,6 +118,7 @@ set(api2_runtime_dependencies
     KernelProcess
     PresentMonUI
     SampleClient
+    PresentBench2
 )
 if(TARGET pmon_stage_ui_payload)
     list(APPEND api2_runtime_dependencies pmon_stage_ui_payload)
