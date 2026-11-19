@@ -14,6 +14,7 @@
 #include "../CommonUtilities/Meta.h"
 #include "../CommonUtilities/mc/FrameMetricsMemberMap.h"
 
+#include <cmath>
 #include <chrono>
 #include <format>
 #include <string>
@@ -904,6 +905,53 @@ namespace IpcMcIntegrationTests
             const auto reciprocation = util::metrics::GetReciprocationFactor<PM_METRIC_SIMULATION_FPS>();
             Assert::IsTrue(reciprocation.has_value());
             Assert::AreEqual(1000., *reciprocation, 0.0);
+
+            std::vector<PM_QUERY_ELEMENT> elements{
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_SIMULATION_FPS,
+                    .stat = PM_STAT_AVG,
+                    .deviceId = ipc::kUniversalDeviceId,
+                    .arrayIndex = 0,
+                    .dataOffset = 0,
+                    .dataSize = 0,
+                },
+            };
+            auto query = session.RegisterDynamicQuery(elements, 500.0, 0.0);
+
+            auto presenter = fixture_.LaunchPresenter();
+            session.SetEtwFlushPeriod(8);
+            std::this_thread::sleep_for(1ms);
+            auto tracker = session.TrackProcess(presenter.GetId());
+            Assert::IsTrue(fixture_.service.has_value());
+            const auto segmentName = pmon::tests::RequireFrameSegmentName(
+                fixture_.service->QueryStatus().frameSegmentNames, presenter.GetId());
+            pmon::tests::WaitForFirstFrame(
+                fixture_.GetCommonArgs().ctrlPipe,
+                presenter.GetId(),
+                segmentName,
+                "ipcmc-simulation-fps",
+                pmon::tests::DefaultFirstFrameWaitLimit,
+                10);
+
+            auto blobs = query.MakeBlobContainer(4);
+            bool gotSimulationFps = false;
+            double simulationFps = 0.0;
+            const auto deadline = std::chrono::steady_clock::now() + 2s;
+            while (!gotSimulationFps && std::chrono::steady_clock::now() < deadline) {
+                query.Poll(tracker, blobs);
+                if (blobs.GetNumBlobsPopulated() > 0) {
+                    simulationFps = *reinterpret_cast<const double*>(
+                        blobs[0] + (size_t)elements[0].dataOffset);
+                    Logger::WriteMessage(std::format(
+                        "PB2 simulation FPS avg={:.3f}\n", simulationFps).c_str());
+                    gotSimulationFps = std::isfinite(simulationFps) && simulationFps > 0.0;
+                }
+                if (!gotSimulationFps) {
+                    std::this_thread::sleep_for(25ms);
+                }
+            }
+            Assert::IsTrue(gotSimulationFps,
+                L"Expected positive simulation FPS from PresentBench2 simulation-start markers");
         }
     };
 

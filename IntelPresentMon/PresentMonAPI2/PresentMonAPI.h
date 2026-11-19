@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 #define PM_API_VERSION_MAJOR 3
-#define PM_API_VERSION_MINOR 4
+#define PM_API_VERSION_MINOR 5
 
 #define PM_MAX_PATH 260
 
