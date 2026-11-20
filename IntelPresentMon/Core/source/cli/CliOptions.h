@@ -71,12 +71,14 @@ namespace p2c::cli
 
 	Subcommand subcCapture{ this, "capture", "Perform headless capture of frame event data to .csv" }; public:
 	private: Group gcaps_{ this, "Standard", "Standard options for the capture subcommand" }; public:
+		static constexpr double waitForTargetIndefinitely = -1.;
 		Option<uint32_t> capTargetPid{ this, "--target-pid", {}, "PID of the process to track" };
 		Option<std::string> capTargetName{ this, "--target-name", {}, "Main module name of the process to track" };
-		Option<std::vector<double>> capWaitForTarget{ this, "--wait-for-target", {},
+		Option<double> capWaitForTarget{ this, "--wait-for-target", waitForTargetIndefinitely,
 			"Wait for --target-name to appear; optional timeout in seconds (omit value to wait indefinitely)",
 			[](CLI::Option* pOption) {
-				pOption->expected(0, 1);
+				pOption->type_size(0, 1);
+				pOption->default_str("-1");
 			} };
 		Option<double> capDuration{ this, "--duration", 10., "How long to capture for in seconds" };
 		Option<uint32_t> capTelemetryPeriod{ this, "--telemetry-period", 100, "Time between GPU/CPU telemetry samples in ms" };

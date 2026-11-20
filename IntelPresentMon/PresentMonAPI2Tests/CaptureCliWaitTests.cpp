@@ -5,6 +5,7 @@
 #include "Folders.h"
 #include "TestProcess.h"
 #include "../CommonUtilities/test/MachineExpectations.h"
+#include "../CommonUtilities/win/ProcessMapBuilder.h"
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -113,6 +114,17 @@ namespace CaptureCliWaitTests
 		return predicate();
 	}
 
+	static std::vector<DWORD> FindProcessIdsByName_(const wchar_t* name)
+	{
+		std::vector<DWORD> pids;
+		for (const auto& entry : pmon::util::win::ProcessMapBuilder{}.Peek()) {
+			if (_wcsicmp(entry.second.name.c_str(), name) == 0) {
+				pids.push_back(entry.first);
+			}
+		}
+		return pids;
+	}
+
 	static std::vector<std::string> MakeCaptureArgs_(std::vector<std::string> extras = {})
 	{
 		// Parent-level flags must precede the capture subcommand for CLI11.
@@ -187,16 +199,51 @@ namespace CaptureCliWaitTests
 			Assert::AreEqual(-1, kernel.GetExitCode());
 		}
 
-		TEST_METHOD(WaitUnblocksWhenTargetAppears)
+		TEST_METHOD(WaitCanBeStoppedViaStdin)
 		{
 			const auto logSnapshot = SnapshotClientLogs_(logFolder_);
 			auto kernel = fixture_.LaunchKernel(MakeCaptureArgs_({
-				"--target-name"s, "PresentBench2.exe"s,
-				"--wait-for-target"s, "5"s,
+				"--target-name"s, "NoSuchProcess_CaptureCliWait.exe"s,
+				"--wait-for-target"s,
 			}));
-			Assert::IsTrue(kernel.IsRunning(), L"capture should remain armed while waiting");
-			Assert::IsFalse(ClientLogContainsAfter_(logFolder_, logSnapshot, "kernel process starting"),
-				L"kernel startup should not begin before the target appears");
+			Assert::IsTrue(WaitFor_(machine::ScaleWait(5s), [&] {
+				return ClientLogContainsAfter_(logFolder_, logSnapshot, "Waiting for capture target process");
+			}), L"capture should arm its wait for the missing target");
+
+			kernel.WriteStdin("%q\n");
+			Assert::IsTrue(kernel.WaitForExit(machine::ScaleWait(5s)),
+				L"%q should stop an armed capture promptly");
+			Assert::AreEqual(0, kernel.GetExitCode());
+			Assert::IsTrue(ClientLogContainsAfter_(logFolder_, logSnapshot,
+				"Capture wait terminated by %q command"),
+				L"exit should come from the armed wait loop");
+		}
+
+		TEST_METHOD(WaitUnblocksWhenTargetAppears)
+		{
+			// The kernel matches by name, so any unrelated PresentBench2.exe would satisfy the wait.
+			if (const auto strayPids = FindProcessIdsByName_(L"PresentBench2.exe"); !strayPids.empty()) {
+				std::string pidList;
+				for (const auto pid : strayPids) {
+					pidList += std::format("{}{}", pidList.empty() ? "" : ", ", pid);
+				}
+				Logger::WriteMessage(std::format(
+					" - PresentBench2.exe already running before test start (pids: {}); "
+					"stop it and rerun\n", pidList).c_str());
+				Assert::Fail(L"PresentBench2.exe already running; see test log for pids");
+			}
+
+			const auto logSnapshot = SnapshotClientLogs_(logFolder_);
+			auto kernel = fixture_.LaunchKernel(MakeCaptureArgs_({
+				"--target-name"s, "PresentBench2.exe"s,
+				"--wait-for-target"s, "30"s,
+			}));
+			Assert::IsTrue(WaitFor_(machine::ScaleWait(5s), [&] {
+				return ClientLogContainsAfter_(logFolder_, logSnapshot, "Waiting for capture target process");
+			}), L"capture should arm its wait before the target appears");
+			Assert::IsFalse(WaitFor_(machine::ScaleWait(500ms), [&] {
+				return ClientLogContainsAfter_(logFolder_, logSnapshot, "kernel process starting");
+			}), L"kernel startup should not begin before the target appears");
 
 			auto presenter = fixture_.LaunchPresenter();
 			Assert::IsTrue(WaitFor_(machine::ScaleWait(5s), [&] {

@@ -113,14 +113,24 @@ namespace kproc
 		::pmon::util::win::Event stopEvent_;
 	};
 
+	bool IsRedirectedStdHandle_(DWORD stdHandle)
+	{
+		const auto type = GetFileType(GetStdHandle(stdHandle));
+		return type == FILE_TYPE_PIPE || type == FILE_TYPE_DISK;
+	}
+
 	bool TryAttachToParentConsole_()
 	{
+		const bool stdinRedirected = IsRedirectedStdHandle_(STD_INPUT_HANDLE);
 		if (AttachConsole(ATTACH_PARENT_PROCESS)) {
 			// Rebind stdout/stderr to the console
 			FILE* f;
 			freopen_s(&f, "CONOUT$", "w", stdout);
 			freopen_s(&f, "CONOUT$", "w", stderr);
-			freopen_s(&f, "CONIN$", "r", stdin);
+			// Preserve redirected stdin for automation commands such as %q.
+			if (!stdinRedirected) {
+				freopen_s(&f, "CONIN$", "r", stdin);
+			}
 			return true;
 		}
 		return false;
@@ -269,12 +279,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		const bool fromTerminal = TryAttachToParentConsole_();
 		// Redirected output identifies automation and test launches that have no console.
 		// Report parse errors through the redirected stream so a modal dialog cannot block them.
-		const auto IsRedirectedOutput_ = [](DWORD stdHandle) {
-			const auto type = GetFileType(GetStdHandle(stdHandle));
-			return type == FILE_TYPE_PIPE || type == FILE_TYPE_DISK;
-		};
-		const bool outputRedirected = IsRedirectedOutput_(STD_OUTPUT_HANDLE) ||
-			IsRedirectedOutput_(STD_ERROR_HANDLE);
+		const bool outputRedirected = IsRedirectedStdHandle_(STD_OUTPUT_HANDLE) ||
+			IsRedirectedStdHandle_(STD_ERROR_HANDLE);
 		// parse the command line arguments and make them globally available
 		if (auto err = cli::Options::Init(__argc, __argv, true)) {
 			if (*err == 0) {
@@ -305,6 +311,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			infra::util::FolderResolver::SetLogPathOverride(util::str::ToWide(*opt.logFolder));
 		}
 		std::optional<DWORD> captureTargetPid;
+		std::shared_ptr<util::win::Event> captureStopCommandEvent;
 		// do some post validation here
 		if (opt.subcCapture.Active()) {
 			// make sure target is specified
@@ -312,7 +319,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				std::cerr << "Must specify one of --target-name or --target-pid for capture" << std::endl;
 				return -1;
 			}
-			if (opt.capWaitForTarget && !opt.capWaitForTarget->empty() && opt.capWaitForTarget->front() <= 0.) {
+			if (opt.capWaitForTarget && *opt.capWaitForTarget != cli::Options::waitForTargetIndefinitely &&
+				*opt.capWaitForTarget <= 0.) {
 				std::cerr << "--wait-for-target timeout must be positive" << std::endl;
 				return -1;
 			}
@@ -419,6 +427,19 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		// Resolve capture target before service/kernel so --wait-for-target can arm without
 		// StartTracking retries. Logging is already configured so failures stay in the log.
 		if (opt.subcCapture.Active()) {
+			// Start listening before target discovery so an armed --wait-for-target
+			// capture can be cancelled with the same %q command as an active capture.
+			captureStopCommandEvent = std::make_shared<util::win::Event>();
+			std::thread{ [captureStopCommandEvent] {
+				std::ios::sync_with_stdio(false);
+				for (std::string line; std::getline(std::cin, line);) {
+					const auto trimmed = util::str::TrimWhitespace(line);
+					if (trimmed == "%q") {
+						captureStopCommandEvent->Set();
+						break;
+					}
+				}
+			} }.detach();
 			if (opt.capTargetPid) {
 				try {
 					util::win::OpenProcess(*opt.capTargetPid);
@@ -449,15 +470,20 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 					return -1;
 				}
 				else {
-					const auto timeoutSec = opt.capWaitForTarget->empty()
+					const auto timeoutSec = *opt.capWaitForTarget == cli::Options::waitForTargetIndefinitely
 						? std::optional<double>{}
-						: std::optional{ opt.capWaitForTarget->front() };
+						: std::optional{ *opt.capWaitForTarget };
 					std::cout << "Waiting for process '" << *opt.capTargetName << "'..." << std::endl;
+					pmlog_info("Waiting for capture target process").pmwatch(*opt.capTargetName);
 					const auto deadline = timeoutSec
 						? std::optional{ std::chrono::steady_clock::now() + *timeoutSec * 1s }
 						: std::nullopt;
 					for (;;) {
-						std::this_thread::sleep_for(50ms);
+						if (util::win::WaitAnyEventFor(50ms, *captureStopCommandEvent)) {
+							pmlog_info("Capture wait terminated by %q command");
+							std::cerr << "Capture terminated by %q command." << std::endl;
+							return 0;
+						}
 						if (auto found = ResolveTargetPid_()) {
 							captureTargetPid = *found;
 							break;
@@ -820,25 +846,12 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			std::cout << "Starting capture..." << std::endl;
 			kernel.PushSpec(std::move(pSpec));
 			kernel.SetCapture(true);
-			// setup thread to handle stdin commands (currently only stop capture -> quit)
-			util::win::Event stopCommandEvent;
-			std::thread{ [&] {
-				std::ios::sync_with_stdio(false);
-				for (std::string line; std::getline(std::cin, line);) {
-					const auto trimmed = util::str::TrimWhitespace(line);
-					if (trimmed == "%q") {
-						stopCommandEvent.Set();
-						break;
-					}
-				}
-				pmlog_dbg("Exiting stdin command listener thread");
-			} }.detach();
 			// wait for desired capture duration, with option to wake early on kernel signal or %q command
 			if (opt.capDuration) {
 				const auto dur = *opt.capDuration * 1s + 0.3s;
 				auto res = util::win::WaitAnyEventFor(dur,
 					dynamic_cast<HeadlessKernelHandler*>(pKernelHandler.get())->stopEvent_,
-					stopCommandEvent);
+					*captureStopCommandEvent);
 				if (!res) {
 					std::cout << "Capture complete." << std::endl;
 				}
@@ -852,7 +865,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			else { // wait indefinitely until %q command received or kernel signal
 				if (util::win::WaitAnyEvent(
 					dynamic_cast<HeadlessKernelHandler*>(pKernelHandler.get())->stopEvent_,
-					stopCommandEvent) == 1) {
+					*captureStopCommandEvent) == 1) {
 					std::cerr << "Capture terminated by %q command." << std::endl;
 				}
 				else {
