@@ -887,28 +887,47 @@ namespace IpcMcIntegrationTests
             }
         }
 
-        TEST_METHOD(SimulationFpsIsDynamicWithReciprocalMapping)
+        TEST_METHOD(SimulationMetricsAreDynamicWithSharedMarkerMapping)
         {
             pmapi::Session session{ fixture_.GetCommonArgs().ctrlPipe };
             auto intro = session.GetIntrospectionRoot();
             Assert::IsTrue((bool)intro);
 
-            const auto metricView = intro->FindMetric(PM_METRIC_SIMULATION_FPS);
-            Assert::IsTrue(metricView.GetType() == PM_METRIC_TYPE_DYNAMIC);
-            Assert::IsTrue(metricView.GetUnit() == PM_UNIT_FPS);
+            const auto fpsView = intro->FindMetric(PM_METRIC_SIMULATION_FPS);
+            Assert::IsTrue(fpsView.GetType() == PM_METRIC_TYPE_DYNAMIC);
+            Assert::IsTrue(fpsView.GetUnit() == PM_UNIT_FPS);
 
-            constexpr auto memberPtr = util::metrics::FrameMetricMember<PM_METRIC_SIMULATION_FPS>::member;
-            using MemberInfo = util::MemberPointerInfo<decltype(memberPtr)>;
-            Assert::IsTrue(std::is_same_v<typename MemberInfo::StructType, pmon::util::metrics::FrameMetrics>);
-            Assert::IsTrue(memberPtr == &pmon::util::metrics::FrameMetrics::msBetweenSimStarts);
+            const auto frameTimeView = intro->FindMetric(PM_METRIC_SIMULATION_FRAME_TIME);
+            Assert::IsTrue(frameTimeView.GetType() == PM_METRIC_TYPE_DYNAMIC);
+            Assert::IsTrue(frameTimeView.GetUnit() == PM_UNIT_MILLISECONDS);
+
+            constexpr auto fpsMemberPtr = util::metrics::FrameMetricMember<PM_METRIC_SIMULATION_FPS>::member;
+            constexpr auto frameTimeMemberPtr =
+                util::metrics::FrameMetricMember<PM_METRIC_SIMULATION_FRAME_TIME>::member;
+            using FpsMemberInfo = util::MemberPointerInfo<decltype(fpsMemberPtr)>;
+            using FrameTimeMemberInfo = util::MemberPointerInfo<decltype(frameTimeMemberPtr)>;
+            Assert::IsTrue(std::is_same_v<typename FpsMemberInfo::StructType, pmon::util::metrics::FrameMetrics>);
+            Assert::IsTrue(std::is_same_v<typename FrameTimeMemberInfo::StructType, pmon::util::metrics::FrameMetrics>);
+            Assert::IsTrue(fpsMemberPtr == &pmon::util::metrics::FrameMetrics::msBetweenSimStarts);
+            Assert::IsTrue(frameTimeMemberPtr == &pmon::util::metrics::FrameMetrics::msBetweenSimStarts);
 
             const auto reciprocation = util::metrics::GetReciprocationFactor<PM_METRIC_SIMULATION_FPS>();
             Assert::IsTrue(reciprocation.has_value());
             Assert::AreEqual(1000., *reciprocation, 0.0);
+            Assert::IsFalse(
+                util::metrics::GetReciprocationFactor<PM_METRIC_SIMULATION_FRAME_TIME>().has_value());
 
             std::vector<PM_QUERY_ELEMENT> elements{
                 PM_QUERY_ELEMENT{
                     .metric = PM_METRIC_SIMULATION_FPS,
+                    .stat = PM_STAT_AVG,
+                    .deviceId = ipc::kUniversalDeviceId,
+                    .arrayIndex = 0,
+                    .dataOffset = 0,
+                    .dataSize = 0,
+                },
+                PM_QUERY_ELEMENT{
+                    .metric = PM_METRIC_SIMULATION_FRAME_TIME,
                     .stat = PM_STAT_AVG,
                     .deviceId = ipc::kUniversalDeviceId,
                     .arrayIndex = 0,
@@ -929,29 +948,36 @@ namespace IpcMcIntegrationTests
                 fixture_.GetCommonArgs().ctrlPipe,
                 presenter.GetId(),
                 segmentName,
-                "ipcmc-simulation-fps",
+                "ipcmc-simulation-metrics",
                 pmon::tests::DefaultFirstFrameWaitLimit,
                 10);
 
             auto blobs = query.MakeBlobContainer(4);
-            bool gotSimulationFps = false;
+            bool gotSimulationMetrics = false;
             double simulationFps = 0.0;
+            double simulationFrameTime = 0.0;
             const auto deadline = std::chrono::steady_clock::now() + 2s;
-            while (!gotSimulationFps && std::chrono::steady_clock::now() < deadline) {
+            while (!gotSimulationMetrics && std::chrono::steady_clock::now() < deadline) {
                 query.Poll(tracker, blobs);
                 if (blobs.GetNumBlobsPopulated() > 0) {
                     simulationFps = *reinterpret_cast<const double*>(
                         blobs[0] + (size_t)elements[0].dataOffset);
+                    simulationFrameTime = *reinterpret_cast<const double*>(
+                        blobs[0] + (size_t)elements[1].dataOffset);
                     Logger::WriteMessage(std::format(
-                        "PB2 simulation FPS avg={:.3f}\n", simulationFps).c_str());
-                    gotSimulationFps = std::isfinite(simulationFps) && simulationFps > 0.0;
+                        "PB2 simulation FPS avg={:.3f}, frame time avg={:.3f} ms\n",
+                        simulationFps, simulationFrameTime).c_str());
+                    gotSimulationMetrics =
+                        std::isfinite(simulationFps) && simulationFps > 0.0 &&
+                        std::isfinite(simulationFrameTime) && simulationFrameTime > 0.0;
                 }
-                if (!gotSimulationFps) {
+                if (!gotSimulationMetrics) {
                     std::this_thread::sleep_for(25ms);
                 }
             }
-            Assert::IsTrue(gotSimulationFps,
-                L"Expected positive simulation FPS from PresentBench2 simulation-start markers");
+            Assert::IsTrue(gotSimulationMetrics,
+                L"Expected positive simulation metrics from PresentBench2 simulation-start markers");
+            Assert::AreEqual(1000., simulationFps * simulationFrameTime, 0.01);
         }
     };
 
