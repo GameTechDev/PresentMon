@@ -267,6 +267,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		util::log::IdentificationTable::AddThisThread("main");
 		// if we were run from a parent with a console (terminal?), try to attach there
 		const bool fromTerminal = TryAttachToParentConsole_();
+		// Redirected output identifies automation and test launches that have no console.
+		// Report parse errors through the redirected stream so a modal dialog cannot block them.
+		const auto IsRedirectedOutput_ = [](DWORD stdHandle) {
+			const auto type = GetFileType(GetStdHandle(stdHandle));
+			return type == FILE_TYPE_PIPE || type == FILE_TYPE_DISK;
+		};
+		const bool outputRedirected = IsRedirectedOutput_(STD_OUTPUT_HANDLE) ||
+			IsRedirectedOutput_(STD_ERROR_HANDLE);
 		// parse the command line arguments and make them globally available
 		if (auto err = cli::Options::Init(__argc, __argv, true)) {
 			if (*err == 0) {
@@ -282,7 +290,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				}
 			}
 			else {
-				if (fromTerminal) {
+				if (fromTerminal || outputRedirected) {
 					std::cerr << cli::Options::GetDiagnostics() << std::endl;
 				}
 				else {
