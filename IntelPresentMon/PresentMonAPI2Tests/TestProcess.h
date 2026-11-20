@@ -212,6 +212,10 @@ public:
 	{
 		pipeTo_.close();
 	}
+	void WriteStdin(const std::string& text)
+	{
+		as::write(pipeTo_, as::buffer(text));
+	}
 	std::string Command(const std::string& command)
 	{
 		const auto prefix = GetCommandPrefix_();
