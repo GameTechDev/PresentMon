@@ -85,8 +85,9 @@ static std::string BuildPollSnapshotCsv_(const FrameMetricsSource::PollSnapshotD
 	return os.str();
 }
 
-static bool IsFrameTimeOrFpsMetric_(PM_METRIC metric)
+static bool IsZeroAnomalyFrameTimeOrFpsMetric_(PM_METRIC metric)
 {
+	// Marker-only simulation metrics are intentionally omitted because zero means no marker samples.
 	switch (metric) {
 	case PM_METRIC_CPU_FRAME_TIME:
 	case PM_METRIC_DISPLAYED_FRAME_TIME:
@@ -192,7 +193,7 @@ PM_DYNAMIC_QUERY::PM_DYNAMIC_QUERY(std::span<PM_QUERY_ELEMENT> qels, double wind
 			}
 		}
 		if (!frameTimeOrFpsOffset_.has_value() &&
-			IsFrameTimeOrFpsMetric_(qel.metric) &&
+			IsZeroAnomalyFrameTimeOrFpsMetric_(qel.metric) &&
 			qel.dataSize == sizeof(double)) {
 			frameTimeOrFpsOffset_ = size_t(qel.dataOffset);
 		}
