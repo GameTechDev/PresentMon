@@ -6,12 +6,14 @@
 #include "TestProcess.h"
 #include "../CommonUtilities/test/MachineExpectations.h"
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <iterator>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -20,6 +22,10 @@ using namespace std::literals;
 namespace CaptureCliWaitTests
 {
 	namespace machine = pmon::util::test;
+	// Stop-gap isolation for this suite: ignore log bytes written before each launch.
+	// Replace this when the test log and test-data retention system gains per-run and
+	// per-case artifact ownership.
+	using ClientLogSnapshot = std::unordered_map<std::filesystem::path, std::uintmax_t>;
 
 	class TestFixture : public CommonTestFixture
 	{
@@ -37,20 +43,57 @@ namespace CaptureCliWaitTests
 		}
 	};
 
-	static bool FileContains_(const std::filesystem::path& path, const std::string& text)
+	static bool IsClientLog_(const std::filesystem::path& path)
 	{
-		std::ifstream file{ path };
+		const auto name = path.filename().string();
+		return name.starts_with("pmlog-client-") && name.ends_with(".txt");
+	}
+
+	static ClientLogSnapshot SnapshotClientLogs_(const std::filesystem::path& folder)
+	{
+		ClientLogSnapshot snapshot;
+		std::error_code ec;
+		for (const auto& entry : std::filesystem::directory_iterator{ folder, ec }) {
+			if (!IsClientLog_(entry.path())) {
+				continue;
+			}
+			const auto size = entry.file_size(ec);
+			if (!ec) {
+				snapshot.emplace(entry.path(), size);
+			}
+			ec.clear();
+		}
+		return snapshot;
+	}
+
+	static bool FileContainsAfter_(const std::filesystem::path& path, std::uintmax_t offset,
+		const std::string& text)
+	{
+		std::error_code ec;
+		const auto size = std::filesystem::file_size(path, ec);
+		if (ec) {
+			return false;
+		}
+		if (size < offset) {
+			offset = 0;
+		}
+		std::ifstream file{ path, std::ios::binary };
+		file.seekg((std::streamoff)offset);
 		const std::string contents{ std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{} };
 		return contents.find(text) != std::string::npos;
 	}
 
-	static bool ClientLogContains_(const std::filesystem::path& folder, const std::string& text)
+	static bool ClientLogContainsAfter_(const std::filesystem::path& folder,
+		const ClientLogSnapshot& snapshot, const std::string& text)
 	{
 		std::error_code ec;
 		for (const auto& entry : std::filesystem::directory_iterator{ folder, ec }) {
-			const auto name = entry.path().filename().string();
-			if (name.starts_with("pmlog-client-") && name.ends_with(".txt") &&
-				FileContains_(entry.path(), text)) {
+			if (!IsClientLog_(entry.path())) {
+				continue;
+			}
+			const auto it = snapshot.find(entry.path());
+			const auto offset = it == snapshot.end() ? 0 : it->second;
+			if (FileContainsAfter_(entry.path(), offset, text)) {
 				return true;
 			}
 		}
@@ -95,19 +138,21 @@ namespace CaptureCliWaitTests
 
 		TEST_METHOD(FailFastWhenTargetMissing)
 		{
+			const auto logSnapshot = SnapshotClientLogs_(logFolder_);
 			auto kernel = fixture_.LaunchKernel(MakeCaptureArgs_({
 				"--target-name"s, "NoSuchProcess_CaptureCliWait.exe"s,
 			}));
 			Assert::IsTrue(kernel.WaitForExit(machine::ScaleWait(5s)),
 				L"capture should exit quickly when target is missing");
 			Assert::AreEqual(-1, kernel.GetExitCode());
-			Assert::IsTrue(ClientLogContains_(logFolder_,
+			Assert::IsTrue(ClientLogContainsAfter_(logFolder_, logSnapshot,
 				"Failed to find any processes matching supplied main module name"),
 				L"missing-target failure should be logged");
 		}
 
 		TEST_METHOD(WaitTimesOutWhenTargetMissing)
 		{
+			const auto logSnapshot = SnapshotClientLogs_(logFolder_);
 			const auto started = std::chrono::steady_clock::now();
 			auto kernel = fixture_.LaunchKernel(MakeCaptureArgs_({
 				"--target-name"s, "NoSuchProcess_CaptureCliWait.exe"s,
@@ -118,7 +163,7 @@ namespace CaptureCliWaitTests
 			const auto elapsed = std::chrono::steady_clock::now() - started;
 			Assert::AreEqual(-1, kernel.GetExitCode());
 			Assert::IsTrue(elapsed >= 900ms, L"timed wait returned before the requested timeout");
-			Assert::IsTrue(ClientLogContains_(logFolder_,
+			Assert::IsTrue(ClientLogContainsAfter_(logFolder_, logSnapshot,
 				"Timed out waiting for process matching supplied main module name"),
 				L"wait timeout should be logged");
 		}
@@ -144,17 +189,18 @@ namespace CaptureCliWaitTests
 
 		TEST_METHOD(WaitUnblocksWhenTargetAppears)
 		{
+			const auto logSnapshot = SnapshotClientLogs_(logFolder_);
 			auto kernel = fixture_.LaunchKernel(MakeCaptureArgs_({
 				"--target-name"s, "PresentBench2.exe"s,
 				"--wait-for-target"s, "5"s,
 			}));
 			Assert::IsTrue(kernel.IsRunning(), L"capture should remain armed while waiting");
-			Assert::IsFalse(ClientLogContains_(logFolder_, "kernel process starting"),
+			Assert::IsFalse(ClientLogContainsAfter_(logFolder_, logSnapshot, "kernel process starting"),
 				L"kernel startup should not begin before the target appears");
 
 			auto presenter = fixture_.LaunchPresenter();
 			Assert::IsTrue(WaitFor_(machine::ScaleWait(5s), [&] {
-				return ClientLogContains_(logFolder_, "kernel process starting");
+				return ClientLogContainsAfter_(logFolder_, logSnapshot, "kernel process starting");
 			}), L"wait mode should proceed once PresentBench2.exe appears");
 
 			kernel.Murder();
