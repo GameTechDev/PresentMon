@@ -58,7 +58,10 @@ void NVTraceConsumer::HandleNvidiaDisplayDriverEvent(EVENT_RECORD* const pEventR
             NvFlipRequest flipRequest;
             flipRequest.FlipDelay = delay;
             flipRequest.FlipToken = token;
-            mNvFlipRequestByThreadId.emplace(hdr.ThreadId, flipRequest);
+            // A flip that waits for VSync (DWM's, for example) never reaches ApplyFlipDelay, so its
+            // entry may still be here. The newest request is the one the thread's next flip belongs
+            // to; keeping the old entry would hand the DWM flip's delay to the application's flip.
+            mNvFlipRequestByThreadId.insert_or_assign(hdr.ThreadId, flipRequest);
         }
         break;
     }
