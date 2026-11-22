@@ -113,14 +113,24 @@ namespace kproc
 		::pmon::util::win::Event stopEvent_;
 	};
 
+	bool IsRedirectedStdHandle_(DWORD stdHandle)
+	{
+		const auto type = GetFileType(GetStdHandle(stdHandle));
+		return type == FILE_TYPE_PIPE || type == FILE_TYPE_DISK;
+	}
+
 	bool TryAttachToParentConsole_()
 	{
+		const bool stdinRedirected = IsRedirectedStdHandle_(STD_INPUT_HANDLE);
 		if (AttachConsole(ATTACH_PARENT_PROCESS)) {
 			// Rebind stdout/stderr to the console
 			FILE* f;
 			freopen_s(&f, "CONOUT$", "w", stdout);
 			freopen_s(&f, "CONOUT$", "w", stderr);
-			freopen_s(&f, "CONIN$", "r", stdin);
+			// Preserve redirected stdin for automation commands such as %q.
+			if (!stdinRedirected) {
+				freopen_s(&f, "CONIN$", "r", stdin);
+			}
 			return true;
 		}
 		return false;
@@ -267,6 +277,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		util::log::IdentificationTable::AddThisThread("main");
 		// if we were run from a parent with a console (terminal?), try to attach there
 		const bool fromTerminal = TryAttachToParentConsole_();
+		// Redirected output identifies automation and test launches that have no console.
+		// Report parse errors through the redirected stream so a modal dialog cannot block them.
+		const bool outputRedirected = IsRedirectedStdHandle_(STD_OUTPUT_HANDLE) ||
+			IsRedirectedStdHandle_(STD_ERROR_HANDLE);
 		// parse the command line arguments and make them globally available
 		if (auto err = cli::Options::Init(__argc, __argv, true)) {
 			if (*err == 0) {
@@ -282,7 +296,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				}
 			}
 			else {
-				if (fromTerminal) {
+				if (fromTerminal || outputRedirected) {
 					std::cerr << cli::Options::GetDiagnostics() << std::endl;
 				}
 				else {
@@ -296,11 +310,18 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		if (opt.logFolder) {
 			infra::util::FolderResolver::SetLogPathOverride(util::str::ToWide(*opt.logFolder));
 		}
+		std::optional<DWORD> captureTargetPid;
+		std::shared_ptr<util::win::Event> captureStopCommandEvent;
 		// do some post validation here
 		if (opt.subcCapture.Active()) {
 			// make sure target is specified
 			if (!opt.capTargetName && !opt.capTargetPid) {
 				std::cerr << "Must specify one of --target-name or --target-pid for capture" << std::endl;
+				return -1;
+			}
+			if (opt.capWaitForTarget && *opt.capWaitForTarget != cli::Options::waitForTargetIndefinitely &&
+				*opt.capWaitForTarget <= 0.) {
+				std::cerr << "--wait-for-target timeout must be positive" << std::endl;
 				return -1;
 			}
 		}
@@ -400,6 +421,80 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			pmlog_warn("UI browser process already active; handling duplicate UI launch action");
 			if (const auto duplicateResult = HandleConcurrentUiInstance_(*opt.uiMutexName, *opt.duplicateUiResponse)) {
 				return duplicateResult;
+			}
+		}
+
+		// Resolve capture target before service/kernel so --wait-for-target can arm without
+		// StartTracking retries. Logging is already configured so failures stay in the log.
+		if (opt.subcCapture.Active()) {
+			// Start listening before target discovery so an armed --wait-for-target
+			// capture can be cancelled with the same %q command as an active capture.
+			captureStopCommandEvent = std::make_shared<util::win::Event>();
+			std::thread{ [captureStopCommandEvent] {
+				std::ios::sync_with_stdio(false);
+				for (std::string line; std::getline(std::cin, line);) {
+					const auto trimmed = util::str::TrimWhitespace(line);
+					if (trimmed == "%q") {
+						captureStopCommandEvent->Set();
+						break;
+					}
+				}
+			} }.detach();
+			if (opt.capTargetPid) {
+				try {
+					util::win::OpenProcess(*opt.capTargetPid);
+					captureTargetPid = *opt.capTargetPid;
+				}
+				catch (...) {
+					pmlog_error("Failed to find any process with specified pid")
+						.pmwatch(*opt.capTargetPid).no_trace();
+					return -1;
+				}
+			}
+			else if (opt.capTargetName) {
+				const auto target = util::str::ToWide(util::str::ToLower(*opt.capTargetName));
+				auto ResolveTargetPid_ = [&]() -> std::optional<DWORD> {
+					const auto procs = util::win::ProcessMapBuilder{}.AsNameMap(true);
+					const auto it = procs.find(target);
+					if (it != procs.end()) {
+						return it->second.pid;
+					}
+					return std::nullopt;
+				};
+				if (auto found = ResolveTargetPid_()) {
+					captureTargetPid = *found;
+				}
+				else if (!opt.capWaitForTarget) {
+					pmlog_error("Failed to find any processes matching supplied main module name")
+						.pmwatch(*opt.capTargetName).no_trace();
+					return -1;
+				}
+				else {
+					const auto timeoutSec = *opt.capWaitForTarget == cli::Options::waitForTargetIndefinitely
+						? std::optional<double>{}
+						: std::optional{ *opt.capWaitForTarget };
+					std::cout << "Waiting for process '" << *opt.capTargetName << "'..." << std::endl;
+					pmlog_info("Waiting for capture target process").pmwatch(*opt.capTargetName);
+					const auto deadline = timeoutSec
+						? std::optional{ std::chrono::steady_clock::now() + *timeoutSec * 1s }
+						: std::nullopt;
+					for (;;) {
+						if (util::win::WaitAnyEventFor(50ms, *captureStopCommandEvent)) {
+							pmlog_info("Capture wait terminated by %q command");
+							std::cerr << "Capture terminated by %q command." << std::endl;
+							return 0;
+						}
+						if (auto found = ResolveTargetPid_()) {
+							captureTargetPid = *found;
+							break;
+						}
+						if (deadline && std::chrono::steady_clock::now() >= *deadline) {
+							pmlog_error("Timed out waiting for process matching supplied main module name")
+								.pmwatch(*opt.capTargetName).no_trace();
+							return -1;
+						}
+					}
+				}
 			}
 		}
 
@@ -728,32 +823,12 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		}
 		// TODO: organize headless CLI code into own source modules
 		else if (opt.subcCapture.Active()) {
-			DWORD pid;
-			if (opt.capTargetPid) {
-				pmlog_info("Running headless capture").pmwatch(*opt.capTargetPid);
-				try {
-					util::win::OpenProcess(*opt.capTargetPid);
-					pid = *opt.capTargetPid;
-				}
-				catch (...) {
-					pmlog_error("Failed to find any process with specified pid")
-						.pmwatch(*opt.capTargetPid).no_trace();
-					return -1;
-				}
+			if (!captureTargetPid) {
+				pmlog_error("Capture target was not resolved before capture start").no_trace();
+				return -1;
 			}
-			else if (opt.capTargetName) {
-				pmlog_info("Running headless capture").pmwatch(*opt.capTargetName);
-				const auto procs = util::win::ProcessMapBuilder{}.AsNameMap(true);
-				const auto target = util::str::ToWide(util::str::ToLower(*opt.capTargetName));
-				try {
-					pid = procs.at(target).pid;
-				}
-				catch (...) {
-					pmlog_error("Failed to find any processes matching supplied main module name")
-						.pmwatch(*opt.capTargetName).no_trace();
-					return -1;
-				}
-			}
+			const auto pid = *captureTargetPid;
+			pmlog_info("Running headless capture").pmwatch(pid);
 			auto fullPathOverride = opt.capOutput.AsOptional().transform([](const auto& path) {
 				return util::str::ToWide(path);
 			});
@@ -771,25 +846,12 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			std::cout << "Starting capture..." << std::endl;
 			kernel.PushSpec(std::move(pSpec));
 			kernel.SetCapture(true);
-			// setup thread to handle stdin commands (currently only stop capture -> quit)
-			util::win::Event stopCommandEvent;
-			std::thread{ [&] {
-				std::ios::sync_with_stdio(false);
-				for (std::string line; std::getline(std::cin, line);) {
-					const auto trimmed = util::str::TrimWhitespace(line);
-					if (trimmed == "%q") {
-						stopCommandEvent.Set();
-						break;
-					}
-				}
-				pmlog_dbg("Exiting stdin command listener thread");
-			} }.detach();
 			// wait for desired capture duration, with option to wake early on kernel signal or %q command
 			if (opt.capDuration) {
 				const auto dur = *opt.capDuration * 1s + 0.3s;
 				auto res = util::win::WaitAnyEventFor(dur,
 					dynamic_cast<HeadlessKernelHandler*>(pKernelHandler.get())->stopEvent_,
-					stopCommandEvent);
+					*captureStopCommandEvent);
 				if (!res) {
 					std::cout << "Capture complete." << std::endl;
 				}
@@ -803,7 +865,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			else { // wait indefinitely until %q command received or kernel signal
 				if (util::win::WaitAnyEvent(
 					dynamic_cast<HeadlessKernelHandler*>(pKernelHandler.get())->stopEvent_,
-					stopCommandEvent) == 1) {
+					*captureStopCommandEvent) == 1) {
 					std::cerr << "Capture terminated by %q command." << std::endl;
 				}
 				else {

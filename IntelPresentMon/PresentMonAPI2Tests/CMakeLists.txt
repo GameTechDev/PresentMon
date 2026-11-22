@@ -66,6 +66,7 @@ add_library(
         TransportTestKit.cpp
         TransportWriteDeadlineTests.cpp
         UiLaunchTests.cpp
+        CaptureCliWaitTests.cpp
         "${PROJECT_SOURCE_DIR}/IntelPresentMon/CommonUtilities/test/MachineExpectations.cpp"
 )
 add_dependencies(PresentMonAPI2Tests pmon_api2_etl_csv_cases)
