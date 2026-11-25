@@ -44,7 +44,9 @@ RealtimePresentMonSession::RealtimePresentMonSession(svc::FrameBroadcaster& broa
 {
     pBroadcaster = &broadcaster;
     ResetEtwFlushPeriod();
-    StartEtwSession();
+    if (auto const status = StartEtwSession(); status != PM_STATUS_SUCCESS) {
+        pmlog_error("Failed to start ETW session at service startup; will retry on first tracking request").code(status);
+    }
 }
 
 bool RealtimePresentMonSession::IsTraceSessionActive() {
