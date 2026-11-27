@@ -60,6 +60,7 @@ void RealtimePresentMonSession::StopProvidersAndResetConsumer(bool shrink)
     }
 
     trace_session_.StopProviders();
+    providersEnabled_ = false;
 
     if (pm_consumer_) {
         pm_consumer_->ResetPresentTrackingData(shrink);
@@ -92,7 +93,7 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
 
     SyncTrackedPidState(trackedPids);
     const bool isActive = HasLiveTargets();
-    bool const providersEnabled = (bool)util::win::WaitAnyEventFor(0ms, evtStreamingStarted_);
+    bool const providersEnabled = providersEnabled_;
     if (util::log::GlobalPolicy::Get().GetLogLevel() >= util::log::Level::Debug) {
         std::unordered_map<uint32_t, bool> currentState;
         {
@@ -148,6 +149,7 @@ PM_STATUS RealtimePresentMonSession::UpdateTracking(const std::unordered_set<uin
                 .pmwatch(DescribePidSet(trackedPids));
             return PM_STATUS::PM_STATUS_FAILURE;
         }
+        providersEnabled_ = true;
         evtStreamingStarted_.Set();
         return PM_STATUS::PM_STATUS_SUCCESS;
     }
@@ -290,6 +292,7 @@ void RealtimePresentMonSession::StopEtwSession() {
         // PHASE 2: Safe cleanup after threads have finished
         std::lock_guard<std::mutex> lock(session_mutex_);
         evtStreamingStarted_.Reset();
+        providersEnabled_ = false;
 
         if (pm_consumer_) {
             pm_consumer_.reset();
