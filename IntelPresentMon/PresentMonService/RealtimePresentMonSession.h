@@ -67,6 +67,7 @@ private:
 
     // Event for when streaming has started
     pmon::util::win::Event evtStreamingStarted_;
+    bool providersEnabled_ = false;
     pmon::util::SampleStatistics<double> frameLatencyStatsMs_;
     int64_t frameLatencyStatsWindowStartQpc_ = 0;
 
